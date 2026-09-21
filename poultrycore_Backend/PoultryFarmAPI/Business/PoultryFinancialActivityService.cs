@@ -84,6 +84,9 @@ namespace PoultryFarmAPIWeb.Business
                         EventKey          = Str(r, "eventkey") ?? "",
                         BusinessDate      = Date(r, "businessdate"),
                         OccurredAt        = Date(r, "occurredat"),
+                        // 315. The entry time, so a row whose business date is
+                        // midnight can still say when it was typed.
+                        CreatedAt         = DateN(r, "createdat"),
                         ActivityType      = Str(r, "activitytype") ?? "",
                         Type              = Str(r, "type") ?? "",
                         Category          = Str(r, "category") ?? "",
@@ -165,5 +168,13 @@ namespace PoultryFarmAPIWeb.Business
 
         private static DateTime Date(NpgsqlDataReader r, string c)
         { var i = r.GetOrdinal(c); return r.IsDBNull(i) ? default : r.GetDateTime(i); }
+
+        /// <summary>
+        /// 315. Nullable, unlike <see cref="Date"/>: an entry time can genuinely
+        /// be absent, and `default` would serialise as 0001-01-01 and be rendered
+        /// as a real timestamp by anything downstream.
+        /// </summary>
+        private static DateTime? DateN(NpgsqlDataReader r, string c)
+        { var i = r.GetOrdinal(c); return r.IsDBNull(i) ? (DateTime?)null : r.GetDateTime(i); }
     }
 }

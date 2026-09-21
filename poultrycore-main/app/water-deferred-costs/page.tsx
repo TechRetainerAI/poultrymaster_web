@@ -66,6 +66,7 @@ import {
   type WaterDeferredCostResponse, type WaterDeferredPurchase,
   type WaterDeferredRecognition, type WaterDeferredCostScope,
 } from "@/lib/api/water-deferred-costs"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 // The stored category codes, spelled the way the raw-materials page spells
 // them. Anything the server sends that is not in this map falls through as-is,
@@ -501,7 +502,7 @@ function WaterDeferredCostsInner() {
                                   <TableCell className="whitespace-nowrap">
                                     <div className="font-medium text-slate-900">#{id}</div>
                                     <div className="text-[11px] text-slate-500">
-                                      {p.purchaseDate?.slice(0, 10)}
+                                      {fmtDateTime(p.purchaseDate, p)}
                                     </div>
                                   </TableCell>
                                   <TableCell>
@@ -665,7 +666,7 @@ function HistoryPanel({
             {rows.map((r) => (
               <TableRow key={r.waterRawMaterialUsageId}
                         className={cn(r.isReversed && "opacity-60")}>
-                <TableCell className="text-xs whitespace-nowrap">{r.usedDate?.slice(0, 10)}</TableCell>
+                <TableCell className="text-xs whitespace-nowrap">{fmtDateTime(r.usedDate, r)}</TableCell>
                 <TableCell className="text-xs">
                   {/* Linked only when there is a batch to open. A draw can also
                       come from internal use or a loss record, which have no
@@ -823,7 +824,7 @@ function PurchaseDetailDialog({
                 {rows.map((r) => (
                   <div key={r.waterRawMaterialUsageId}
                        className={cn("flex justify-between gap-2 text-xs", r.isReversed && "opacity-60 line-through")}>
-                    <span className="text-slate-500">{r.usedDate?.slice(0, 10)}</span>
+                    <span className="text-slate-500">{fmtDateTime(r.usedDate, r)}</span>
                     <span className="flex-1 text-slate-700 truncate">{r.sourceLabel}</span>
                     <span className="text-slate-500">{qtyFmt(r.quantityDrawn, r.productionUnit)}</span>
                     <span className="text-emerald-700">{r.recognizedCost > 0 ? gh(r.recognizedCost) : "—"}</span>

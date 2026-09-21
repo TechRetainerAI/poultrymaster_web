@@ -52,6 +52,7 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import { CollapsibleContent, CollapsibleTrigger } from "@radix-ui/react-collapsible"
 import { cn } from "@/lib/utils"
 import { Collapsible } from "@/components/ui/collapsible"
+import { fmtInstant } from "@/lib/utils/company-datetime"
 
 export default function SuppliersPage() {
   const router = useRouter()
@@ -695,7 +696,7 @@ export default function SuppliersPage() {
                                 <span className="truncate block">{s.address}</span>
                               </TableCell>
                               <TableCell className="text-slate-600 hidden xl:table-cell">
-                                {s.createdDate ? new Date(s.createdDate).toLocaleDateString() : "—"}
+                                {s.createdDate ? fmtInstant(s.createdDate) : "—"}
                               </TableCell>
                               <TableCell className={cn("text-center whitespace-nowrap bg-white", isMobile && "sticky-col-actions")}>
                                 <div className="flex items-center justify-center gap-1 min-w-[90px]">

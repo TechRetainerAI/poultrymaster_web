@@ -43,6 +43,17 @@ export function isFinancialNavItemVisible(
   if (href === "/poultry-cash-transfers") return f.canViewCashLedger
   if (href === "/poultry-owner-money") return f.canViewCashLedger
   if (href === "/poultry-loans") return f.canViewCashLedger
+  // Migrations 305/306. Employee Loans & Advances is money the company LENT,
+  // the mirror of the line above -- so it reads to the same audience and
+  // rides the same flag, for the same reason the rest of this block does:
+  // staff are deny-by-default, and a fresh permission would hide the page
+  // from everyone who can see the cash pages today until an admin granted it.
+  //
+  // This allowlist ENDS IN `return false`, so omitting the href here would
+  // have hidden the row from admins too, on every surface, with nothing to
+  // explain why. Deleting the nav entry and forgetting this line is the same
+  // bug the Capital Investments note below records.
+  if (href === "/poultry-employee-loans") return f.canViewCashLedger
   // Migration 288. Deferred Inventory Costs shows what stock cost and where
   // that cost went, so it rides the expense flag rather than the inventory
   // one: someone who can count the feed is not automatically someone who may

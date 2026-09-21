@@ -18,6 +18,7 @@ import { Boxes, Loader2, Maximize2, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { BatchStatus } from "@/lib/api/production-batch"
 import { BatchProductionRecordForm, type BatchProductionRecordFormState } from "./batch-production-record-form"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const FORM_ID = "batch-production-record-form"
 
@@ -73,7 +74,7 @@ export function BatchProductionRecordModal({
   const contextLine = [
     state?.scopeLabel,
     state?.includedFlockCount != null ? `${state.includedFlockCount} flock${state.includedFlockCount === 1 ? "" : "s"}` : null,
-    state?.date ? new Date(state.date).toLocaleDateString() : null,
+    state?.date ? fmtDateTime(state.date, state) : null,
   ].filter(Boolean).join(" • ")
 
   const s = state?.summary

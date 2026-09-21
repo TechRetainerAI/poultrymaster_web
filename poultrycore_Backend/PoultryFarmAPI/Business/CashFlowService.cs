@@ -62,6 +62,8 @@ namespace PoultryFarmAPIWeb.Business
                     var amount = Dec(r, "amount");
                     res.Rows.Add(new CashFlowRow
                     {
+                        // 302: the time tables show beside the business date.
+                        CreatedAt = r.OptionalDateTime("CreatedAt"),
                         Id = Int(r, "sourcerowid"),
                         RowSource = Str(r, "rowsource") ?? "",
                         SourceType = Str(r, "sourcetype") ?? "",

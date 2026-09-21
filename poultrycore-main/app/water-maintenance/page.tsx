@@ -29,6 +29,7 @@ import {
   type WaterMaintenanceLog, type WaterMaintenanceLogInput, type WaterMaintenanceAlert, type WaterCashAccount,
 } from "@/lib/api/water"
 import { useCurrency } from "@/lib/currency"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const ASSET_TYPES = ["Machine", "Vehicle", "Borehole", "Generator", "Other"]
 
@@ -167,7 +168,7 @@ export default function WaterMaintenancePage() {
                     <div key={`${a.assetType}-${a.assetId}-${i}`} className="rounded border bg-white p-2 text-sm flex items-center justify-between">
                       <div>
                         <div className="font-medium">{a.assetLabel} <span className="text-slate-400 text-xs">({a.assetType})</span></div>
-                        <div className="text-xs text-slate-500">Due {a.nextDueDate.split("T")[0]} ({a.daysUntilDue >= 0 ? `in ${a.daysUntilDue}d` : `${Math.abs(a.daysUntilDue)}d ago`})</div>
+                        <div className="text-xs text-slate-500">Due {fmtDateTime(a.nextDueDate)} ({a.daysUntilDue >= 0 ? `in ${a.daysUntilDue}d` : `${Math.abs(a.daysUntilDue)}d ago`})</div>
                       </div>
                       <Badge className={SEVERITY_COLORS[a.severity] ?? ""}>{a.severity}</Badge>
                     </div>
@@ -200,7 +201,7 @@ export default function WaterMaintenancePage() {
                   primary={(l) => `${l.assetType} · ${l.assetLabel ?? "—"}`}
                   secondary={(l) => (
                     <>
-                      <span>{l.issueDate.split("T")[0]}</span>
+                      <span>{fmtDateTime(l.issueDate, l)}</span>
                       <Badge className={STATUS_COLORS[l.status] ?? ""}>{l.status}</Badge>
                     </>
                   )}
@@ -208,7 +209,7 @@ export default function WaterMaintenancePage() {
                     { label: "Repair cost", value: l.repairCost.toFixed(2), accent: "rose", wide: true },
                   ]}
                   details={(l) => [
-                    { label: "Date", value: l.issueDate.split("T")[0] },
+                    { label: "Date", value: fmtDateTime(l.issueDate, l) },
                     { label: "Asset", value: `${l.assetType} ${l.assetLabel ?? ""}` },
                     { label: "Technician", value: l.technicianName ?? "—" },
                     { label: "Status", value: l.status },
@@ -237,7 +238,7 @@ export default function WaterMaintenancePage() {
                       <TableBody>
                         {pg.pageItems.map((l) => (
                           <TableRow key={l.waterMaintenanceLogId}>
-                            <TableCell>{l.issueDate.split("T")[0]}</TableCell>
+                            <TableCell>{fmtDateTime(l.issueDate, l)}</TableCell>
                             <TableCell><Badge variant="outline">{l.assetType}</Badge> {l.assetLabel ?? ""}</TableCell>
                             <TableCell className="max-w-sm whitespace-normal break-words align-top">{l.issueDescription}</TableCell>
                             <TableCell>{l.technicianName ?? "—"}</TableCell>

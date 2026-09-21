@@ -25,6 +25,7 @@ import {
   type Ingredient, type IngredientInput, type WasteLog, type WasteInput,
   type WasteSummary, type InventoryValue, type RestaurantSupplier,
 } from "@/lib/api/restaurant"
+import { fmtInstant } from "@/lib/utils/company-datetime"
 
 // "Other" is NOT listed here — OtherSelect appends its own, which opens a text box.
 const CATEGORIES = ["Proteins", "Dairy", "Produce", "Dry Goods", "Spices", "Beverages", "Frozen", "Oils & Fats", "Bakery", "Sauces"]
@@ -285,7 +286,7 @@ export default function RestaurantInventoryPage() {
                             <div>
                               <span className="font-medium">{w.ingredientName}</span>
                               <Badge variant="outline" className="ml-2 text-[10px] h-5">{w.reason}</Badge>
-                              <div className="text-xs text-muted-foreground mt-0.5">{w.quantity} {w.unit} | {new Date(w.createdAt).toLocaleDateString()} {w.loggedBy && `by ${w.loggedBy}`}</div>
+                              <div className="text-xs text-muted-foreground mt-0.5">{w.quantity} {w.unit} | {fmtInstant(w.createdAt)} {w.loggedBy && `by ${w.loggedBy}`}</div>
                             </div>
                             <span className="font-bold text-amber-700">{w.costAmount.toFixed(2)}</span>
                           </div>

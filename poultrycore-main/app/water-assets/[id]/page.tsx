@@ -27,10 +27,14 @@ import {
 } from "@/lib/api/water-assets"
 import {
   assetStatusLabel, ASSET_STATUS_CLASS,
-  BOOK_VALUE_TOOLTIP, ORIGINAL_COST_TOOLTIP,
+  BOOK_VALUE_TOOLTIP,
+  ACQUISITION_COST_LABEL, ADDITIONAL_COST_LABEL, TOTAL_CAPITALIZED_COST_LABEL,
+  ACQUISITION_COST_TOOLTIP, ADDITIONAL_COST_TOOLTIP, TOTAL_CAPITALIZED_COST_TOOLTIP,
   DEPRECIATION_CONVENTION_NOTE, DEPRECIATION_NONCASH_NOTE,
   CAPITAL_NOT_EXPENSE_NOTE, DRAFT_ASSET_NOTE,
 } from "@/lib/water/financial-classification"
+import { DateTimeCell } from "@/components/ui/date-time-cell"
+import { fmtDateTime, fmtInstant, fmtMonthYear } from "@/lib/utils/company-datetime"
 
 export default function WaterAssetDetailPage() {
   const params = useParams<{ id: string }>()
@@ -120,15 +124,24 @@ export default function WaterAssetDetailPage() {
               <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">General</div>
               <Line label="Category" value={asset.categoryName ?? "—"} />
               <Line label="Description" value={asset.description ?? "—"} />
-              <Line label="Acquired" value={(asset.acquisitionDate || "").split("T")[0]} />
-              <Line label="In service" value={(asset.inServiceDate ?? "").split("T")[0] || "Not in service"} />
+              <Line label="Acquired" value={fmtDateTime(asset.acquisitionDate, asset) || "—"} />
+              {/* A policy date, not an event: no row, so no clock time. */}
+              <Line label="In service" value={asset.inServiceDate ? fmtDateTime(asset.inServiceDate) : "Not in service"} />
               <Line label="Location" value={asset.location ?? "—"} />
               <Line label="Serial number" value={asset.serialNumber ?? "—"} />
             </CardContent></Card>
 
             <Card><CardContent className="p-4 space-y-1.5">
               <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Financial</div>
-              <Line label="Original cost" value={gh(asset.originalCost)} hint={ORIGINAL_COST_TOOLTIP} bold />
+              {/* 314. One number called "Original cost" was the TOTAL, so
+                  an asset bought for 100,000 and improved twice read as
+                  having been bought for 130,000. Three figures, three names. */}
+              <Line label={ACQUISITION_COST_LABEL} value={gh(asset.acquisitionCost)}
+                    hint={ACQUISITION_COST_TOOLTIP} />
+              <Line label={ADDITIONAL_COST_LABEL} value={gh(asset.additionalCost)}
+                    hint={ADDITIONAL_COST_TOOLTIP} />
+              <Line label={TOTAL_CAPITALIZED_COST_LABEL} value={gh(asset.totalCapitalizedCost)}
+                    hint={TOTAL_CAPITALIZED_COST_TOOLTIP} bold />
               <Line label="Residual value" value={gh(asset.residualValue)} />
               <Line label="Depreciable amount" value={gh(asset.depreciableAmount)} />
               <Line label="Useful life" value={asset.usefulLifeMonths ? `${asset.usefulLifeMonths} months` : "Not set"} />
@@ -143,9 +156,9 @@ export default function WaterAssetDetailPage() {
               <Line label="Cost entries" value={String(asset.costEntries)} />
               <Line label="Depreciation entries" value={String(asset.depreciationEntries)} />
               <Line label="Recorded by" value={asset.createdBy ?? "—"} />
-              <Line label="Recorded" value={(asset.createdAt ?? "").split("T")[0] || "—"} />
+              <Line label="Recorded" value={asset.createdAt ? fmtInstant(asset.createdAt) : "—"} />
               {asset.disposalDate && <>
-                <Line label="Disposed" value={(asset.disposalDate || "").split("T")[0]} />
+                <Line label="Disposed" value={fmtDateTime(asset.disposalDate) || "—"} />
                 <Line label="Proceeds" value={asset.disposalProceeds != null ? gh(asset.disposalProceeds) : "—"} />
               </>}
             </CardContent></Card>
@@ -153,7 +166,7 @@ export default function WaterAssetDetailPage() {
 
           {/* ---- what was capitalised into it ---------------------------- */}
           <Card><CardContent className="p-4">
-            <div className="text-sm font-semibold mb-2">Capitalised costs</div>
+            <div className="text-sm font-semibold mb-2">Cost history</div>
             <div className="overflow-x-auto"><Table className="min-w-[760px]">
               <TableHeader><TableRow>
                 <TableHead>Date</TableHead><TableHead>What for</TableHead><TableHead>Type</TableHead>
@@ -167,15 +180,23 @@ export default function WaterAssetDetailPage() {
                   </TableCell></TableRow>
                 ) : costs.map((c) => (
                   <TableRow key={c.waterCapitalAssetCostId}>
-                    <TableCell className="whitespace-nowrap text-sm">{(c.costDate || "").split("T")[0]}</TableCell>
+                    <TableCell className="align-top text-sm">
+                      <DateTimeCell value={c.costDate} row={c} />
+                    </TableCell>
                     <TableCell className="text-sm">{c.description ?? "—"}</TableCell>
-                    <TableCell className="text-sm text-slate-500">{c.costCategory ?? c.sourceType ?? "—"}</TableCell>
+                    <TableCell className="text-sm text-slate-500">
+                      {c.sourceType === "Acquisition" ? "Original acquisition" : (c.costCategory ?? c.sourceType ?? "—")}
+                    </TableCell>
                     <TableCell className="text-sm">{c.supplierName ?? "—"}</TableCell>
                     <TableCell className="text-sm">
                       {c.paymentStatus ?? "—"}
                       {(c.balance ?? 0) > 0 && <div className="text-[11px] text-amber-700">{gh(c.balance ?? 0)} owed</div>}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">{gh(c.amount)}</TableCell>
+                    {/* Signed: a correction that reduced the recorded cost is a
+                        negative row, and printing it unsigned would hide it. */}
+                    <TableCell className={cn("text-right tabular-nums", c.amount < 0 && "text-red-600")}>
+                      {c.amount < 0 ? `−${gh(Math.abs(c.amount))}` : gh(c.amount)}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -211,7 +232,7 @@ export default function WaterAssetDetailPage() {
                 ) : (asset.depreciation ?? []).map((d) => (
                   <TableRow key={d.waterAssetDepreciationId} className={cn(d.status === "Reversed" && "opacity-60")}>
                     <TableCell className="whitespace-nowrap text-sm">
-                      {(d.periodStart || "").split("T")[0]?.slice(0, 7)}
+                      {fmtMonthYear(d.periodStart)}
                       {d.status === "Reversed" && <span className="ml-2 text-[11px] text-red-600">reversed</span>}
                     </TableCell>
                     <TableCell className="text-sm text-slate-500">

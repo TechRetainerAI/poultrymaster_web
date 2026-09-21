@@ -5,8 +5,16 @@
 // moves the cash and opens the supplier payable. What makes it different is
 // only that it is EXCLUDED from profit and depreciated instead.
 //
-// Three numbers are computed server-side and writing them has no effect:
-// originalCost, accumulatedDepreciation and currentBookValue.
+// These numbers are computed server-side and writing them has no effect:
+// acquisitionCost, additionalCost, totalCapitalizedCost, accumulatedDepreciation
+// and currentBookValue.
+//
+// `originalCost` IS THE TOTAL. Migration 270 named the sum of an asset's cost
+// rows `originalcost`, and every screen printed it as "Original cost" -- so an
+// investment bought for 100,000 and improved twice read as having been BOUGHT
+// for 130,000. 313 split that sum into acquisitionCost + additionalCost and kept
+// the old field as an alias of the total. Read totalCapitalizedCost instead; the
+// old name is only here so nothing written against 270 breaks.
 
 import { farmApiUrl, getAuthHeaders, getUserContext } from "./config"
 import { explainHttpError } from "@/lib/api/http-error"
@@ -51,10 +59,22 @@ export interface PoultryCapitalAsset {
   status: CapitalAssetStatus
   notes?: string | null
 
-  /** Read-only: the sum of the asset's capitalised costs. */
+  /**
+   * Read-only: the TOTAL capitalised cost, under 270's misleading name.
+   * @deprecated Use `totalCapitalizedCost`.
+   */
   originalCost: number
+  /**
+   * 313. Read-only: what the investment was originally acquired for, including
+   * any correction to that figure. Zero for one BUILT cost by cost.
+   */
+  acquisitionCost: number
+  /** 313. Read-only: everything capitalised into it since. */
+  additionalCost: number
+  /** 313. Read-only: acquisitionCost + additionalCost. Print THIS one. */
+  totalCapitalizedCost: number
   residualValue: number
-  /** Read-only: originalCost − residualValue. */
+  /** Read-only: totalCapitalizedCost − residualValue. */
   depreciableAmount: number
   usefulLifeMonths?: number | null
   /** Read-only: depreciableAmount / usefulLifeMonths. */
@@ -89,8 +109,13 @@ export interface PoultryCapitalAssetCost {
   costDate: string
   description?: string | null
   costCategory?: string | null
+  /** SIGNED: negative only on a correction that reduced what was recorded. */
   amount: number
-  /** Acquisition | AdditionalCost. */
+  /**
+   * Acquisition | AdditionalCost | OriginalCostCorrection (313).
+   * Acquisition and OriginalCostCorrection together are the original
+   * acquisition cost; everything else is an additional capitalised cost.
+   */
   sourceType?: string | null
   /** The expense row that moved the money or opened the payable. */
   expenseId?: number | null
@@ -99,6 +124,20 @@ export interface PoultryCapitalAssetCost {
   paymentStatus?: string | null
   amountPaid?: number | null
   balance?: number | null
+  /** 313. Read-only, from the linked expense. */
+  paymentMethod?: string | null
+  /** 313. When the unpaid part falls due. */
+  dueDate?: string | null
+  /** 313. Which cash account the money left. */
+  cashAccountName?: string | null
+  /**
+   * 313. What the linked expense is now for. A correction SHARES the
+   * acquisition's expense, so this is the corrected figure, not the signed
+   * amount of this row.
+   */
+  expenseAmount?: number | null
+  /** 313. The expense category the document was filed under. */
+  expenseCategory?: string | null
   status: string
   createdBy?: string | null
   createdAt?: string | null
@@ -313,6 +352,43 @@ export const disposePoultryAsset = (
   jsend<void>(`/Poultry/assets/${id}/dispose?farmId=${encodeURIComponent(activeFarmId())}`, "POST", {
     ...input, farmId: activeFarmId(), createdBy: activeUserId(),
   })
+
+/**
+ * 313. Correct the ORIGINAL acquisition cost -- the fix for a typed 130,000 that
+ * should have been 13,000.
+ *
+ * This is NOT "Add cost", and it is not an editable field. It appends a dated,
+ * authored, reasoned correction row and amends the acquisition's own expense, so
+ * cash and the supplier balance follow without a second document being created.
+ * Depreciation already posted is left exactly as posted; future months follow
+ * the corrected cost on their own.
+ *
+ * Refused when: no reason is given, the asset is reversed or disposed, the
+ * amount is already right, the residual value would exceed the corrected cost,
+ * or supplier payments already settled more than the corrected cost.
+ */
+export const correctPoultryAssetOriginalCost = (
+  id: number,
+  input: { newAmount: number; effectiveDate?: string | null; reason: string },
+) =>
+  jsend<number>(`/Poultry/assets/${id}/original-cost?farmId=${encodeURIComponent(activeFarmId())}`, "PUT", {
+    ...input, farmId: activeFarmId(), createdBy: activeUserId(),
+  })
+
+/**
+ * 313. Reverse ONE additional capitalised cost.
+ *
+ * DELETE is the verb the API uses because it is the permission this needs;
+ * nothing is deleted. The row is kept and marked Reversed, and its cash and
+ * payable are unwound. Refused on the original acquisition (correct it instead),
+ * on a correction, and once depreciation has been posted.
+ */
+export const reversePoultryAssetCost = (assetId: number, costId: number, reason: string) =>
+  jsend<void>(
+    `/Poultry/assets/${assetId}/costs/${costId}?farmId=${encodeURIComponent(activeFarmId())}`,
+    "DELETE",
+    { farmId: activeFarmId(), reason, createdBy: activeUserId() },
+  )
 
 /** Refused once depreciation is posted, a supplier has been paid, or it is disposed. */
 export const reversePoultryAsset = (id: number, reason: string) =>

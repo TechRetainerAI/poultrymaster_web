@@ -26,6 +26,7 @@ import {
   listWaterMachines, createWaterMachine, updateWaterMachine, deleteWaterMachine,
   type WaterMachine,
 } from "@/lib/api/water"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const STATUSES = ["Active", "Down", "UnderMaintenance"]
 const STATUS_COLOR: Record<string, string> = {
@@ -171,7 +172,7 @@ export default function WaterMachinesPage() {
                   )}
                   highlights={(m) => [
                     { label: "Capacity/hr", value: m.capacityPerHour ?? "—", accent: "blue" },
-                    { label: "Next maintenance", value: m.nextMaintenanceDate ? m.nextMaintenanceDate.split("T")[0] : "—", accent: "violet" },
+                    { label: "Next maintenance", value: m.nextMaintenanceDate ? fmtDateTime(m.nextMaintenanceDate) : "—", accent: "violet" },
                   ]}
                   details={(m) => [
                     { label: "Number", value: m.machineNumber ?? "—" },
@@ -201,7 +202,7 @@ export default function WaterMachinesPage() {
                             <TableCell>{m.machineNumber ?? "—"}</TableCell>
                             <TableCell>{m.machineType ?? "—"}</TableCell>
                             <TableCell className="text-right tabular-nums">{m.capacityPerHour ?? "—"}</TableCell>
-                            <TableCell>{m.nextMaintenanceDate ? m.nextMaintenanceDate.split("T")[0] : "—"}</TableCell>
+                            <TableCell>{m.nextMaintenanceDate ? fmtDateTime(m.nextMaintenanceDate) : "—"}</TableCell>
                             <TableCell><Badge className={STATUS_COLOR[m.status] ?? ""}>{m.status}</Badge></TableCell>
                             <TableCell className="text-right">
                               <Button size="sm" variant="ghost" onClick={() => openEdit(m)}><Pencil className="h-4 w-4" /></Button>

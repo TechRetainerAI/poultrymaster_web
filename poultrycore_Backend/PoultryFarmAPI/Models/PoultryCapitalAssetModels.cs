@@ -4,15 +4,25 @@
 // house, a vehicle, a feed mixer, a generator. It is NOT this month's expense,
 // and the whole point of these types is to keep the two apart.
 //
-// THREE NUMBERS ARE DERIVED, NOT STORED
+// THESE NUMBERS ARE DERIVED, NOT STORED
 // -------------------------------------
-//   OriginalCost             the sum of the asset's capitalised costs
+//   AcquisitionCost          what it was bought for, as corrected     (313)
+//   AdditionalCost           everything capitalised into it since     (313)
+//   TotalCapitalizedCost     the two added together                   (313)
 //   AccumulatedDepreciation  the sum of its depreciation ledger
 //   CurrentBookValue         cost less accumulated, floored at residual value
 //
-// The server computes all three; writing them has no effect. A stored total
+// The server computes them all; writing them has no effect. A stored total
 // would have to be kept in step with the rows behind it, and the day the two
 // disagree there is no way to tell which is right.
+//
+// OriginalCost IS THE TOTAL, AND THAT NAME IS A TRAP
+// --------------------------------------------------
+// 270 called the sum of the cost rows `originalcost`, and every screen printed
+// it as "Original cost" -- so an asset bought for 100,000 and improved twice
+// read as having been bought for 130,000. 313 split the sum into its two halves
+// and kept the old field as an alias of the TOTAL, for callers written against
+// 270. New code uses TotalCapitalizedCost, which cannot be misread.
 
 using System.ComponentModel.DataAnnotations;
 
@@ -82,11 +92,30 @@ namespace PoultryFarmAPIWeb.Models
 
         // ---- financial ------------------------------------------------------
 
-        /// <summary>Read-only: the sum of the asset's capitalised costs.</summary>
+        /// <summary>
+        /// Read-only: the TOTAL capitalised cost. Kept under 270's name for
+        /// callers written against it -- new code should read
+        /// <see cref="TotalCapitalizedCost"/>, which says what it is.
+        /// </summary>
         public decimal OriginalCost { get; set; }
+
+        /// <summary>
+        /// 313. Read-only: what the investment was originally acquired for,
+        /// including any correction to that figure. Zero for one that was BUILT
+        /// cost by cost and never had a single acquisition.
+        /// </summary>
+        public decimal AcquisitionCost { get; set; }
+        /// <summary>313. Read-only: everything capitalised into it since.</summary>
+        public decimal AdditionalCost { get; set; }
+        /// <summary>
+        /// 313. Read-only: AcquisitionCost + AdditionalCost. The same number as
+        /// <see cref="OriginalCost"/> and the one screens are meant to print.
+        /// </summary>
+        public decimal TotalCapitalizedCost { get; set; }
+
         /// <summary>What the farm expects the asset to still be worth at the end.</summary>
         public decimal ResidualValue { get; set; }
-        /// <summary>Read-only: OriginalCost - ResidualValue, never below zero.</summary>
+        /// <summary>Read-only: TotalCapitalizedCost - ResidualValue, never below zero.</summary>
         public decimal DepreciableAmount { get; set; }
         public int? UsefulLifeMonths { get; set; }
         /// <summary>Read-only: DepreciableAmount / UsefulLifeMonths, straight line.</summary>
@@ -130,8 +159,16 @@ namespace PoultryFarmAPIWeb.Models
         public DateTime CostDate { get; set; }
         [StringLength(300)] public string? Description { get; set; }
         [StringLength(80)] public string? CostCategory { get; set; }
+        /// <summary>
+        /// SIGNED. Positive for every cost; negative only on an
+        /// OriginalCostCorrection that reduced what was recorded.
+        /// </summary>
         public decimal Amount { get; set; }
-        /// <summary>Acquisition | AdditionalCost.</summary>
+        /// <summary>
+        /// Acquisition | AdditionalCost | OriginalCostCorrection (313).
+        /// Acquisition and OriginalCostCorrection together are the original
+        /// acquisition cost; everything else is an additional capitalised cost.
+        /// </summary>
         public string? SourceType { get; set; }
         public int? ExpenseId { get; set; }
         public int? SupplierId { get; set; }
@@ -140,6 +177,20 @@ namespace PoultryFarmAPIWeb.Models
         public string? PaymentStatus { get; set; }
         public decimal? AmountPaid { get; set; }
         public decimal? Balance { get; set; }
+        /// <summary>313. Read-only, from the linked expense.</summary>
+        public string? PaymentMethod { get; set; }
+        /// <summary>313. When the unpaid part falls due, from the linked expense.</summary>
+        public DateTime? DueDate { get; set; }
+        /// <summary>313. Which cash account the money left, from the linked expense.</summary>
+        public string? CashAccountName { get; set; }
+        /// <summary>
+        /// 313. What the linked expense says the document is now for. A
+        /// correction shares the acquisition's expense, so this is the CORRECTED
+        /// figure, not this row's own signed amount.
+        /// </summary>
+        public decimal? ExpenseAmount { get; set; }
+        /// <summary>313. The expense category the document was filed under.</summary>
+        public string? ExpenseCategory { get; set; }
         public string Status { get; set; } = "Posted";
         public string? CreatedBy { get; set; }
         public DateTime? CreatedAt { get; set; }
@@ -291,6 +342,26 @@ namespace PoultryFarmAPIWeb.Models
         public DateTime? DueDate { get; set; }
         public int? CashAccountId { get; set; }
         [StringLength(80)] public string? ExpenseCategory { get; set; }
+        public string? CreatedBy { get; set; }
+    }
+
+    /// <summary>
+    /// 313. Correcting a data-entry mistake in the original acquisition cost.
+    ///
+    /// Deliberately NOT an editable field on the update request: this is a
+    /// financial event with a date, an author and a reason, and it moves cash
+    /// and the supplier balance. A Reason is required whether or not anything
+    /// downstream exists yet -- an unexplained 117,000 swing is not an audit
+    /// trail.
+    /// </summary>
+    public class PoultryCapitalAssetCorrectCostRequest
+    {
+        public string? FarmId { get; set; }
+        /// <summary>What the original acquisition SHOULD have been recorded as.</summary>
+        public decimal NewAmount { get; set; }
+        /// <summary>The date the correction takes effect. Defaults to today.</summary>
+        public DateTime? EffectiveDate { get; set; }
+        [Required] [StringLength(500)] public string Reason { get; set; } = string.Empty;
         public string? CreatedBy { get; set; }
     }
 

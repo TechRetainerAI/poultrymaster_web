@@ -24,6 +24,7 @@ import {
   getLoyaltyStats, earnPoints, redeemPoints, getLoyaltyTransactions,
   type LoyaltySettings, type LoyaltyAccount, type PointTransaction, type LoyaltyStats,
 } from "@/lib/api/restaurant"
+import { fmtInstant } from "@/lib/utils/company-datetime"
 
 const TIER_META: Record<string, { icon: string; bg: string }> = {
   Bronze:   { icon: "\u{1F949}", bg: "bg-amber-100 text-amber-700 border-amber-200" },
@@ -459,7 +460,7 @@ export default function RestaurantLoyaltyPage() {
                       )}
                       <div>
                         <div className="text-sm font-medium">{tx.description || tx.transactionType}</div>
-                        <div className="text-xs text-muted-foreground">{new Date(tx.createdAt).toLocaleDateString()} {new Date(tx.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
+                        <div className="text-xs text-muted-foreground">{fmtInstant(tx.createdAt)} {new Date(tx.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
                       </div>
                     </div>
                     <div className={`font-semibold ${tx.transactionType === "Earn" ? "text-green-600" : "text-red-600"}`}>

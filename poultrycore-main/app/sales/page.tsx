@@ -51,6 +51,7 @@ import { exportTableToPdf, emailTableAsPdf, type PdfExportOptions } from "@/lib/
 import { PaymentHistoryDialog } from "@/components/balances/payment-history-dialog"
 import { usePermissions } from "@/hooks/use-permissions"
 import { Download } from "lucide-react"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 /**
  * Egg quantity as crates and loose pieces, e.g. "2cr + 15pcs".
@@ -1874,7 +1875,7 @@ export default function SalesPage() {
                       {paginatedSales.map((sale) => (
                         <TableRow key={sale.saleId}>
                           <TableCell className="whitespace-nowrap tabular-nums text-slate-500">#{sale.saleId}</TableCell>
-                          <TableCell className={cn("bg-white", isMobile && "sticky-col-date")}>{isMobile ? formatDateShort(sale.saleDate) : new Date(sale.saleDate).toLocaleDateString()}</TableCell>
+                          <TableCell className={cn("bg-white", isMobile && "sticky-col-date")}>{isMobile ? formatDateShort(sale.saleDate) : fmtDateTime(sale.saleDate, sale)}</TableCell>
                           <TableCell>{sale.product}</TableCell>
                           <TableCell>{sale.customerName}</TableCell>
                           <TableCell>{getFlockLabel(sale.flockId)}</TableCell>

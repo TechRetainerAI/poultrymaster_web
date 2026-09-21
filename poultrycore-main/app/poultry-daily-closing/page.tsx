@@ -28,6 +28,7 @@ import {
   reopenPoultryDailyClosing, recreatePoultryDailyClosing, savePoultryDailyClosingNotes,
   type PoultryDailyClosing,
 } from "@/lib/api/poultry-inventory"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const STATUS_COLORS: Record<string, string> = { Draft: "bg-slate-100 text-slate-700", Submitted: "bg-blue-100 text-blue-700", Approved: "bg-green-100 text-green-700", Rejected: "bg-red-100 text-red-700" }
 
@@ -136,7 +137,7 @@ export default function PoultryDailyClosingPage() {
                         <ChevronDown className="absolute right-0 top-0 h-4 w-4 text-slate-400 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
                         <div className="min-w-0">
                           <div className="pr-6 flex flex-wrap items-center gap-2">
-                            <span className="font-semibold text-slate-900">{(c.closingDate || "").split("T")[0]}</span>
+                            <span className="font-semibold text-slate-900">{fmtDateTime(c.closingDate, c)}</span>
                             <Badge className={STATUS_COLORS[c.status] ?? "bg-gray-100"}>{c.status}</Badge>
                           </div>
                           <div className="mt-3 grid grid-cols-2 gap-2">
@@ -204,7 +205,7 @@ export default function PoultryDailyClosingPage() {
                   {rows.length === 0 ? <TableRow><TableCell colSpan={9} className="text-center text-slate-500 py-6">No closings yet.</TableCell></TableRow>
                     : pg.pageItems.map((c) => (
                       <TableRow key={c.poultryDailyClosingId}>
-                        <TableCell className="font-medium">{(c.closingDate || "").split("T")[0]}</TableCell>
+                        <TableCell className="font-medium">{fmtDateTime(c.closingDate, c)}</TableCell>
                         <TableCell className="text-right">{n(c.quantityProduced)}</TableCell>
                         <TableCell className="text-right">{n(c.eggsSold)}</TableCell>
                         <TableCell className="text-right">{gh(c.totalIncome ?? 0)}</TableCell>

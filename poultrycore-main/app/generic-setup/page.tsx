@@ -11,6 +11,7 @@ import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { CompanyTimeZoneField } from "@/components/settings/company-timezone-field"
 import { Loader2, Settings, CheckCircle2 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
@@ -255,6 +256,7 @@ export default function GenericSetupPage() {
                       onChange={(e) => setForm((f) => ({ ...f, defaultCurrency: e.target.value }))}
                     />
                   </div>
+                  <CompanyTimeZoneField />
 
                   <div>
                     <Label>Business start date</Label>

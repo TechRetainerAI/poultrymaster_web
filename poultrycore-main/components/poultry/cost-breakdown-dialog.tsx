@@ -19,15 +19,30 @@
 // Keyed on the PRODUCTION RECORD, not the usage row: editing a record deletes
 // and rewrites its usage rows, so a usage id captured in a link dangles after
 // the first edit. Same reason migration 266 links its expense that way.
+//
+// LAYOUT: VERTICAL, AND THE SAME SHAPE AS EVERY OTHER READ MODAL HERE
+// ==================================================================
+// This used to be a 95vw dialog wrapping a seven-column table, with a separate
+// card layout for phones. Two layouts meant two things to keep in step, and the
+// wide table was the reason the modal had to be so large.
+//
+// It now follows the house read-modal pattern (cash-flow-insights-dialog is the
+// clearest example of it): max-w-2xl, a header with a description, and
+// `<section>`s introduced by a small uppercase label. One lot per card, stacked,
+// at every screen size -- the same shape a phone was already getting, which was
+// the more readable of the two anyway. Seven columns of figures are not
+// something anyone lines up by eye; the question is "which lots, at what price,
+// and how much of it is an expense today", and that reads better as a list.
 
-import { useEffect, useState } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useEffect, useState, type ReactNode } from "react"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, AlertTriangle } from "lucide-react"
+import { HIGHLIGHT_TONES, STRIPE_TONES, type HighlightAccent } from "@/components/ui/mobile-card-list"
+import { Loader2, AlertTriangle, Layers } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useFmt } from "@/lib/currency"
 import { explainLoadFailure } from "@/lib/api/http-error"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 import {
   OPERATIONAL_COST_TOOLTIP, NEWLY_RECOGNIZED_TOOLTIP, ALREADY_EXPENSED_TOOLTIP,
   NO_SECOND_PAYMENT_TOOLTIP,
@@ -75,15 +90,16 @@ export function CostBreakdownDialog({
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
-      {/* Sized like the All-payments dialog on /customer-balances, which is the
-          house pattern for a wide table in a modal: 95vw rather than the base
-          full-width-minus-2rem, because setting any max-w-* overrides that
-          mobile cap and the modal would otherwise run edge to edge. Seven
-          columns clear 7xl with room, and tighter padding on a phone buys back
-          a column. */}
-      <DialogContent className="w-[95vw] max-w-[95vw] max-h-[92vh] overflow-y-auto p-4 sm:max-w-7xl sm:p-6">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{title ?? "Cost breakdown"}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <Layers className="h-4 w-4 text-sky-600" />
+            {title ?? "Cost breakdown"}
+          </DialogTitle>
+          <DialogDescription>
+            Which purchase lots this usage drew from, and how much of that cost
+            reaches Profit &amp; Loss today.
+          </DialogDescription>
         </DialogHeader>
 
         {error ? (
@@ -117,159 +133,181 @@ export function CostBreakdownDialog({
             has no breakdown.
           </div>
         ) : (
-          <div className="space-y-3">
-            {/* ---- Phones and tablets: one card per lot ------------------- */}
-            {/* Seven columns on a 360px screen is a sideways drag through a
-                figure nobody can line up. Same lg break as the payment
-                history, so the two dialogs change shape together. */}
-            <div className="space-y-2 lg:hidden">
-              {rows.map((r) => (
-                <div key={`m-${r.poultryRawMaterialUsageId}-${r.poultryRawMaterialPurchaseId}`}
-                     className={cn("rounded-lg border border-slate-200 border-l-4 p-3",
-                       r.isReversed ? "border-l-rose-400 bg-rose-100/70 text-slate-400" : "border-l-transparent")}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className={cn("min-w-0", r.isReversed && "line-through")}>
-                      <div className="text-sm font-medium text-slate-900 break-words">{r.itemName}</div>
-                      <div className="text-[11px] text-slate-500">
-                        #{r.poultryRawMaterialPurchaseId}
-                        {r.purchaseDate ? ` · ${r.purchaseDate.slice(0, 10)}` : ""}
-                        {r.supplierName ? ` · ${r.supplierName}` : ""}
-                        {r.feedProductionBatchNumber ? ` · ${r.feedProductionBatchNumber}` : ""}
-                      </div>
-                    </div>
-                    <Badge variant="outline"
-                           className={cn("shrink-0 text-[10px] font-normal",
-                             r.recognizedCost > 0
-                               ? "border-amber-300 bg-amber-50 text-amber-800"
-                               : "border-emerald-300 bg-emerald-50 text-emerald-800")}>
-                      {r.recognitionLabel}
-                    </Badge>
-                  </div>
-                  <div className={cn("mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs", r.isReversed && "line-through")}>
-                    <div className="flex justify-between"><span className="text-slate-500">Qty drawn</span>
-                      <span className="tabular-nums">
-                        {r.quantityDrawn.toLocaleString(undefined, { maximumFractionDigits: 3 })}
-                        {r.productionUnit ? ` ${r.productionUnit}` : ""}
-                      </span></div>
-                    <div className="flex justify-between"><span className="text-slate-500">Unit cost</span>
-                      <span className="tabular-nums">{gh(r.unitCostAtDraw)}</span></div>
-                    <div className="flex justify-between"><span className="text-slate-500">Cost</span>
-                      <span className="tabular-nums">{gh(r.operationalCost)}</span></div>
-                    <div className="flex justify-between"><span className="text-slate-500">New expense</span>
-                      {r.recognizedCost > 0
-                        ? <span className="font-medium tabular-nums text-amber-700">{gh(r.recognizedCost)}</span>
-                        : <span className="text-slate-300">—</span>}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
+          <div className="space-y-4">
+            {/* THE ANSWER FIRST. This used to sit under the table, which on a
+                phone meant scrolling past every lot to reach the number you
+                opened the dialog for. */}
+            <section>
+              <SectionLabel>What this cost</SectionLabel>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                <Figure
+                  label="Total quantity"
+                  value={`${quantity.toLocaleString(undefined, { maximumFractionDigits: 3 })}${unit ? ` ${unit}` : ""}`}
+                  accent="blue"
+                />
+                <Figure
+                  label="Stock used (cost)"
+                  value={gh(operational)}
+                  accent="violet"
+                  hint={OPERATIONAL_COST_TOOLTIP}
+                />
+                <Figure
+                  label="Effective unit cost"
+                  value={quantity > 0 ? `${gh(operational / quantity)}${unit ? ` / ${unit}` : ""}` : "—"}
+                  accent="slate"
+                />
+              </div>
 
-            {/* ---- lg and up: the full table ------------------------------ */}
-            {/* Every cell in <Table> is whitespace-nowrap by default and the
-                component wraps itself in an overflow-x-auto div, so a wide row
-                can only ever scroll. Letting the text wrap lets the columns
-                shrink to the dialog instead; the money and quantity cells keep
-                the important form of nowrap so a figure never splits. */}
-            <div className="hidden rounded-md border border-slate-200 lg:block">
-              <Table className="w-full [&_td]:whitespace-normal [&_th]:whitespace-normal">
-                <TableHeader>
-                  {/* A header, not row zero: darker ground and a heavy rule
-                      under it, so the eye has a hard line to start from. */}
-                  <TableRow className="border-b-2 border-slate-300 bg-slate-300/60 hover:bg-slate-300/60 [&_th]:font-semibold [&_th]:text-slate-700">
-                    <TableHead className="text-xs">Purchase</TableHead>
-                    <TableHead className="text-xs">Item</TableHead>
-                    <TableHead className="text-xs text-right">Qty drawn</TableHead>
-                    <TableHead className="text-xs text-right">Unit cost</TableHead>
-                    <TableHead className="text-xs text-right">Cost</TableHead>
-                    <TableHead className="text-xs">Recognition</TableHead>
-                    <TableHead className="text-xs text-right" title={NEWLY_RECOGNIZED_TOOLTIP}>
-                      New expense
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rows.map((r, i) => (
-                    <TableRow key={`${r.poultryRawMaterialUsageId}-${r.poultryRawMaterialPurchaseId}`}
-                              className={cn(
-                                i % 2 === 1 && "bg-slate-50/70",
-                                r.isReversed && "bg-rose-100/70 text-slate-400 line-through",
-                              )}>
-                      <TableCell className="text-xs whitespace-nowrap!">
-                        <div className="font-medium">#{r.poultryRawMaterialPurchaseId}</div>
+              {/* The two that answer "what hit my P&L" are separated from the
+                  three above, which only describe the draw. */}
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <Figure
+                  label="Already expensed earlier"
+                  value={gh(already)}
+                  accent="emerald"
+                  hint={ALREADY_EXPENSED_TOOLTIP}
+                />
+                {/* Accented only when non-zero: a zero here is a perfectly
+                    normal answer and should not shout. */}
+                {/* Amber when it is non-zero -- that is the figure that changes
+                    this month's profit. A zero is a normal answer, so it drops
+                    to slate rather than shouting in amber. */}
+                <Figure
+                  label="Charged to P&L now"
+                  value={gh(recognized)}
+                  accent={recognized > 0 ? "amber" : "slate"}
+                  hint={NEWLY_RECOGNIZED_TOOLTIP}
+                />
+              </div>
+            </section>
+
+            <section>
+              <SectionLabel>
+                Where it came from{rows.length > 1 ? ` · ${rows.length} lots` : ""}
+              </SectionLabel>
+              <div className="space-y-2">
+                {rows.map((r, i) => {
+                  // Alternate tint, exactly as the mobile card lists stripe
+                  // (STRIPE_TONES, blue accent). With several lots the stripe is
+                  // what separates one from the next once each card carries
+                  // coloured tiles of its own.
+                  const stripe = i % 2 === 0
+                  return (
+                  <div
+                    key={`${r.poultryRawMaterialUsageId}-${r.poultryRawMaterialPurchaseId}`}
+                    className={cn(
+                      "rounded-lg border border-l-4 p-3 shadow-sm",
+                      // A reversed lot overrides the stripe: it is struck through
+                      // and must read as withdrawn, not as just another row.
+                      r.isReversed
+                        ? "border-rose-300 border-l-rose-400 bg-rose-100/70 text-slate-400"
+                        : stripe
+                          ? cn(STRIPE_TONES.blue, "border-l-blue-300")
+                          : "border-slate-200 border-l-slate-200 bg-white",
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className={cn("min-w-0", r.isReversed && "line-through")}>
+                        <div className="text-sm font-medium text-slate-900 break-words">{r.itemName}</div>
                         <div className="text-[11px] text-slate-500">
-                          {r.purchaseDate?.slice(0, 10)}
+                          #{r.poultryRawMaterialPurchaseId}
+                          {r.purchaseDate ? ` · ${fmtDateTime(r.purchaseDate)}` : ""}
                           {r.supplierName ? ` · ${r.supplierName}` : ""}
                           {r.feedProductionBatchNumber ? ` · ${r.feedProductionBatchNumber}` : ""}
                         </div>
-                      </TableCell>
-                      <TableCell className="text-xs">{r.itemName}</TableCell>
-                      <TableCell className="text-xs text-right whitespace-nowrap!">
+                      </div>
+                      {/* The LOT's own label. Two rows here can disagree, and
+                          that is the whole reason the breakdown exists. */}
+                      <Badge
+                        variant="outline"
+                        title={r.recognizedCost > 0 ? NEWLY_RECOGNIZED_TOOLTIP : ALREADY_EXPENSED_TOOLTIP}
+                        className={cn(
+                          "shrink-0 text-[10px] font-normal",
+                          r.recognizedCost > 0
+                            ? "border-amber-300 bg-amber-50 text-amber-800"
+                            : "border-emerald-300 bg-emerald-50 text-emerald-800",
+                        )}
+                      >
+                        {r.recognitionLabel}
+                      </Badge>
+                    </div>
+
+                    <div className={cn("mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-4",
+                                       r.isReversed && "line-through")}>
+                      <LotFact label="Qty drawn">
                         {r.quantityDrawn.toLocaleString(undefined, { maximumFractionDigits: 3 })}
                         {r.productionUnit ? ` ${r.productionUnit}` : ""}
-                      </TableCell>
-                      <TableCell className="text-xs text-right whitespace-nowrap!">{gh(r.unitCostAtDraw)}</TableCell>
-                      <TableCell className="text-xs text-right whitespace-nowrap!">{gh(r.operationalCost)}</TableCell>
-                      <TableCell className="text-xs">
-                        {/* The LOT's own label. Two rows here can disagree, and
-                            that is the whole reason the breakdown exists. */}
-                        <Badge variant="outline"
-                               className={cn("text-[10px] font-normal",
-                                 r.recognizedCost > 0
-                                   ? "border-amber-300 bg-amber-50 text-amber-800"
-                                   : "border-emerald-300 bg-emerald-50 text-emerald-800")}
-                               title={r.recognizedCost > 0 ? NEWLY_RECOGNIZED_TOOLTIP : ALREADY_EXPENSED_TOOLTIP}>
-                          {r.recognitionLabel}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-xs text-right">
+                      </LotFact>
+                      <LotFact label="Unit cost">{gh(r.unitCostAtDraw)}</LotFact>
+                      <LotFact label="Cost">{gh(r.operationalCost)}</LotFact>
+                      <LotFact label="New expense">
                         {r.recognizedCost > 0
                           ? <span className="font-medium text-amber-700">{gh(r.recognizedCost)}</span>
                           : <span className="text-slate-300">—</span>}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-
-            {/* The summary the brief asks for, in the owner's words. Five
-                stacked rows pushed the table off a laptop screen; across the
-                foot of a wide dialog they are read in one glance, and the two
-                that answer "what did this cost me" sit together at the end. */}
-            <div className="grid gap-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm sm:grid-cols-2 lg:grid-cols-5 lg:gap-4">
-              <div>
-                <div className="text-xs text-slate-500">Total quantity</div>
-                <div className="tabular-nums">
-                  {quantity.toLocaleString(undefined, { maximumFractionDigits: 3 })}{unit ? ` ${unit}` : ""}
-                </div>
+                      </LotFact>
+                    </div>
+                  </div>
+                  )
+                })}
               </div>
-              <div>
-                <div className="text-xs text-slate-500" title={OPERATIONAL_COST_TOOLTIP}>Stock used (cost)</div>
-                <div className="font-medium tabular-nums">{gh(operational)}</div>
-              </div>
-              <div>
-                <div className="text-xs text-slate-500">Effective unit cost</div>
-                <div className="tabular-nums text-slate-600">
-                  {quantity > 0 ? `${gh(operational / quantity)}${unit ? ` / ${unit}` : ""}` : "—"}
-                </div>
-              </div>
-              <div className="lg:border-l lg:border-slate-200 lg:pl-4">
-                <div className="text-xs text-slate-500" title={ALREADY_EXPENSED_TOOLTIP}>Already expensed earlier</div>
-                <div className="tabular-nums text-slate-600">{gh(already)}</div>
-              </div>
-              <div>
-                <div className="text-xs text-slate-500" title={NEWLY_RECOGNIZED_TOOLTIP}>Charged to P&amp;L now</div>
-                <div className={cn("font-medium tabular-nums",
-                                   recognized > 0 ? "text-amber-700" : "text-slate-500")}>
-                  {gh(recognized)}
-                </div>
-              </div>
-            </div>
+            </section>
 
             <p className="text-[11px] text-slate-500">{NO_SECOND_PAYMENT_TOOLTIP}</p>
           </div>
         )}
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** House section heading — matches cash-flow-insights-dialog. */
+function SectionLabel({ children }: { children: ReactNode }) {
+  return (
+    <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+      {children}
+    </h3>
+  )
+}
+
+/**
+ * A figure tile, using the SAME tones and markup as the highlight tiles on the
+ * mobile card lists (HIGHLIGHT_TONES), so the dialog reads as part of the same
+ * design rather than a greyscale cousin of it.
+ *
+ * The colour carries meaning here, it is not decoration:
+ *   blue    the draw itself (how much stock moved)
+ *   violet  what that stock cost
+ *   slate   a derived figure (the blended rate)
+ *   emerald cost already charged to P&L in an earlier period — settled
+ *   amber   cost hitting P&L now — the figure that changes this month's profit
+ * Amber and emerald match the per-lot recognition badges below, so the same two
+ * ideas keep the same two colours throughout.
+ */
+function Figure({
+  label, value, accent = "slate", hint,
+}: {
+  label: string; value: string; accent?: HighlightAccent; hint?: string
+}) {
+  const tone = HIGHLIGHT_TONES[accent]
+  return (
+    <div className={cn("rounded-lg border px-3 py-2 shadow-sm", tone.tile)}>
+      <p className={cn("text-[11px] font-semibold uppercase tracking-wide", tone.label)} title={hint}>
+        {label}
+      </p>
+      <p className={cn("text-base font-extrabold leading-tight tabular-nums break-words", tone.value)}>
+        {value}
+      </p>
+    </div>
+  )
+}
+
+/** One figure inside a lot card: label above, value below, so a long unit wraps
+    under its own label rather than pushing the next column out. */
+function LotFact({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div>
+      <div className="text-[11px] leading-tight text-slate-500">{label}</div>
+      <div className="font-medium tabular-nums text-slate-900">{children}</div>
+    </div>
   )
 }

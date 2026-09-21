@@ -37,6 +37,7 @@ import {
 } from "@/lib/api/generic-subscriptions"
 import { approveSale } from "@/lib/api/generic"
 import { templateLabels } from "@/lib/generic/template-labels"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const STATUS_STYLES: Record<string, string> = {
   Draft: "bg-slate-100 text-slate-600 hover:bg-slate-100",
@@ -230,7 +231,7 @@ export default function GenericInvoicesPage() {
                   )}
                   trailing={(i) => statusCell(i)}
                   details={(i) => [
-                    { label: "Date", value: new Date(i.saleDate).toLocaleDateString() },
+                    { label: "Date", value: fmtDateTime(i.saleDate, i) },
                     { label: "Due", value: i.dueDate ?? "—" },
                     {
                       label: "Period",
@@ -290,7 +291,7 @@ export default function GenericInvoicesPage() {
                                 {i.receiptNumber ?? `#${i.genericSaleId}`}
                               </TableCell>
                               <TableCell className="font-medium">{i.customerName ?? "—"}</TableCell>
-                              <TableCell>{new Date(i.saleDate).toLocaleDateString()}</TableCell>
+                              <TableCell>{fmtDateTime(i.saleDate, i)}</TableCell>
                               <TableCell className="whitespace-nowrap text-xs text-slate-600">
                                 {i.billingPeriodStart && i.billingPeriodEnd
                                   ? `${i.billingPeriodStart} → ${i.billingPeriodEnd}`

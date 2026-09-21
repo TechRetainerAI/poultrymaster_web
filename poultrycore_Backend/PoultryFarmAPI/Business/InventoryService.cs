@@ -81,6 +81,8 @@ namespace PoultryFarmAPIWeb.Business
                 {
                     var item = new InventoryItemModel
                     {
+                        // 301: the time tables show beside the business date.
+                        CreatedAt = reader.OptionalDateTime("CreatedAt"),
                         ItemId = reader.GetInt32(0),
                         UserId = reader.GetString(1),
                         FarmId = reader.GetString(2),
@@ -118,6 +120,8 @@ namespace PoultryFarmAPIWeb.Business
                 {
                     var item = new InventoryItemModel
                     {
+                        // 301: the time tables show beside the business date.
+                        CreatedAt = reader.OptionalDateTime("CreatedAt"),
                         FarmId = reader.GetString(0),
                         ItemId = reader.GetInt32(1),
                         UserId = reader.GetString(2),
@@ -245,6 +249,8 @@ namespace PoultryFarmAPIWeb.Business
                 {
                     list.Add(new InventoryTransactionModel
                     {
+                        // 303: the time tables show beside the business date.
+                        CreatedAt = reader.OptionalDateTime("CreatedAt"),
                         FarmId = reader.GetString(0),
                         UserId = reader.GetString(1),
                         TransactionId = reader.GetInt32(2),   //CHECK CAREFULLY

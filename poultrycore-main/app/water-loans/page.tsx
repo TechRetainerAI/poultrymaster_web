@@ -59,6 +59,7 @@ import {
   listWaterLoanPayments, recordWaterLoanRepayment, reverseWaterLoanPayment,
   type WaterCashAccount, type WaterLoan, type WaterLoanPayment, type WaterLoanSummary,
 } from "@/lib/api/water"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const LENDER_TYPES = ["Bank", "FinancialInstitution", "Individual", "Owner", "FamilyFriend", "Supplier", "Other"]
 const INTEREST_TYPES = ["Simple", "ReducingBalance", "Flat", "Unknown"]
@@ -270,7 +271,7 @@ export default function WaterLoansPage() {
                   value={fmt((summary?.totalInterestPaid ?? 0) + (summary?.totalFeesPaid ?? 0))}
                   hint="Interest and fees — the only part that is an expense" accent="amber" />
             <Stat label="Next payment"
-                  value={summary?.nextPaymentDate ? new Date(summary.nextPaymentDate).toLocaleDateString() : "—"}
+                  value={summary?.nextPaymentDate ? fmtDateTime(summary.nextPaymentDate) : "—"}
                   hint={(summary?.overdueLoans ?? 0) > 0 ? `${summary!.overdueLoans} overdue` : undefined}
                   accent={(summary?.overdueLoans ?? 0) > 0 ? "rose" : "slate"} />
           </div>
@@ -301,7 +302,7 @@ export default function WaterLoansPage() {
               )}
               secondary={(l) => (
                 <>
-                  <span>{new Date(l.startDate).toLocaleDateString()}</span>
+                  <span>{fmtDateTime(l.startDate, l)}</span>
                   <span>·</span>
                   <span className="text-xs">
                     {isFromCashFlow(l) ? "Recorded on Cash Flow" : l.lenderType}
@@ -321,7 +322,7 @@ export default function WaterLoansPage() {
                 { label: "Interest paid", value: fmt(l.totalInterestPaid) },
                 { label: "Fees paid", value: fmt(l.totalFeesPaid) },
                 { label: "Rate", value: l.interestRate != null ? `${l.interestRate}% ${l.interestType ?? ""}` : "–" },
-                { label: "Next payment", value: l.nextPaymentDate ? new Date(l.nextPaymentDate).toLocaleDateString() : "–" },
+                { label: "Next payment", value: l.nextPaymentDate ? fmtDateTime(l.nextPaymentDate) : "–" },
                 { label: "Repayments", value: String(l.paymentCount) },
               ]}
               actions={(l) => (
@@ -385,7 +386,7 @@ export default function WaterLoansPage() {
                           <TableCell className="text-right tabular-nums text-amber-700">{fmt(l.totalInterestPaid)}</TableCell>
                           <TableCell className="text-right tabular-nums text-amber-700">{fmt(l.totalFeesPaid)}</TableCell>
                           <TableCell className={l.isOverdue ? "text-rose-600" : ""}>
-                            {l.nextPaymentDate ? new Date(l.nextPaymentDate).toLocaleDateString() : "–"}
+                            {l.nextPaymentDate ? fmtDateTime(l.nextPaymentDate) : "–"}
                           </TableCell>
                           <TableCell><Badge className={statusClass(l)}>{l.isOverdue ? "Overdue" : l.status}</Badge></TableCell>
                           <TableCell className="text-right">
@@ -443,7 +444,7 @@ export default function WaterLoansPage() {
                     <TableBody>
                       {payments.map((p) => (
                         <TableRow key={p.waterLoanPaymentId}>
-                          <TableCell className="whitespace-nowrap">{new Date(p.paymentDate).toLocaleDateString()}</TableCell>
+                          <TableCell className="whitespace-nowrap">{fmtDateTime(p.paymentDate, p)}</TableCell>
                           <TableCell className="font-medium">{p.paymentNumber ?? `#${p.waterLoanPaymentId}`}</TableCell>
                           <TableCell>{p.loanNumber ?? p.waterLoanId}<div className="text-xs text-slate-500">{p.lenderName}</div></TableCell>
                           <TableCell className="text-right tabular-nums">{fmt(p.principalAmount)}</TableCell>
@@ -645,7 +646,7 @@ export default function WaterLoansPage() {
                 <div className="text-sm">
                   <div className="font-medium">{reversing.paymentNumber ?? "#" + reversing.waterLoanPaymentId}</div>
                   <div className="mt-1">
-                    {fmt(reversing.totalAmount)} on {new Date(reversing.paymentDate).toLocaleDateString()}
+                    {fmt(reversing.totalAmount)} on {fmtDateTime(reversing.paymentDate, reversing)}
                   </div>
                   <div className="text-xs text-slate-500 mt-1">
                     {fmt(reversing.principalAmount)} principal · {fmt(reversing.interestAmount)} interest ·{" "}

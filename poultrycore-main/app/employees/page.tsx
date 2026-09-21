@@ -25,6 +25,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { formatDateShort, cn } from "@/lib/utils"
 import { AddEmployeeDialog } from "@/components/employees/add-employee-dialog"
 import { EditEmployeeDialog } from "@/components/employees/edit-employee-dialog"
+import { fmtDateTime, fmtInstant } from "@/lib/utils/company-datetime"
 
 export default function EmployeesPage() {
   const router = useRouter()
@@ -120,7 +121,7 @@ export default function EmployeesPage() {
     setIsDeleting(false); setDeleteDialogOpen(false); setDeletingId(null)
   }
 
-  const formatDate = (dateString: string) => new Date(dateString).toLocaleDateString()
+  const formatDate = (dateString: string, row?: unknown) => fmtDateTime(dateString, row)
 
   const handleLogout = () => {
     localStorage.removeItem("auth_token"); localStorage.removeItem("refresh_token")
@@ -383,7 +384,7 @@ export default function EmployeesPage() {
                               </Badge>
                             </TableCell>
                             <TableCell className="text-slate-600 text-sm hidden xl:table-cell">
-                              <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-slate-400" /><span>{formatDate(employee.createdDate)}</span></div>
+                              <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-slate-400" /><span>{fmtInstant(employee.createdDate)}</span></div>
                             </TableCell>
                             <TableCell className={cn("text-center bg-white", isMobile && "sticky-col-actions")}>
                               <div className="flex items-center justify-center gap-1">

@@ -27,6 +27,7 @@ import {
   type GenericCashAccount, type GenericPayrollRun,
 } from "@/lib/api/generic"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 function fmt(n: number) {
   return new Intl.NumberFormat(undefined, { style: "currency", currency: "GHS", maximumFractionDigits: 2 }).format(n)
@@ -240,13 +241,13 @@ export default function GenericPayrollPage() {
                   )}
                   secondary={(r) => (
                     <>
-                      {r.payDate && <span>Pay {r.payDate.slice(0, 10)}</span>}
+                      {r.payDate && <span>Pay {fmtDateTime(r.payDate, r)}</span>}
                       {r.cashAccountName && <><span>·</span><span>{r.cashAccountName}</span></>}
                     </>
                   )}
                   trailing={(r) => <Badge className={statusBadgeClass(r.status)}>{r.status}</Badge>}
                   details={(r) => [
-                    { label: "Pay date", value: r.payDate ? r.payDate.slice(0, 10) : "—" },
+                    { label: "Pay date", value: r.payDate ? fmtDateTime(r.payDate, r) : "—" },
                     { label: "Cash account", value: r.cashAccountName ?? "—" },
                     { label: "Gross", value: fmt(r.totalGrossPay) },
                     { label: "Deductions", value: fmt(r.totalDeductions) },
@@ -279,7 +280,7 @@ export default function GenericPayrollPage() {
                                 {r.periodStart.slice(0, 10)} — {r.periodEnd.slice(0, 10)}
                               </Link>
                             </TableCell>
-                            <TableCell>{r.payDate ? r.payDate.slice(0, 10) : "—"}</TableCell>
+                            <TableCell>{r.payDate ? fmtDateTime(r.payDate, r) : "—"}</TableCell>
                             <TableCell>{r.cashAccountName ?? "—"}</TableCell>
                             <TableCell className="text-right">{fmt(r.totalGrossPay)}</TableCell>
                             <TableCell className="text-right">{fmt(r.totalDeductions)}</TableCell>

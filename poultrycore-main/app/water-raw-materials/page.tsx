@@ -37,6 +37,7 @@ import {
 } from "@/lib/api/water"
 import { SupplierSelect } from "@/components/water/supplier-select"
 import { WaterRecalculateStockButton } from "@/components/water/recalculate-stock-button"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const CATEGORIES = ["PackagingRoll","SachetFilm","OuterBag","Chemical","Filter","UVLamp","SparePart","Fuel","CleaningSupply","Other"]
 const PAYMENT_METHODS = ["Cash","MoMo","Bank","Credit"]
@@ -573,7 +574,7 @@ function WaterRawMaterialsPageInner() {
                       primary={(u) => u.itemName ?? "—"}
                       secondary={(u) => (
                         <>
-                          <span>{u.usedDate.split("T")[0]}</span>
+                          <span>{fmtDateTime(u.usedDate, u)}</span>
                           <span>·</span>
                           <span>{Number(u.quantityUsed ?? 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} {u.unitOfMeasure ?? ""}</span>
                         </>
@@ -583,7 +584,7 @@ function WaterRawMaterialsPageInner() {
                         { label: "Cost", value: u.totalCost ? gh(Number(u.totalCost)) : "—", accent: "violet" },
                       ]}
                       details={(u) => [
-                        { label: "Date", value: u.usedDate.split("T")[0] },
+                        { label: "Date", value: fmtDateTime(u.usedDate, u) },
                         { label: "Material", value: u.itemName ?? "—" },
                         { label: "Unit", value: u.unitOfMeasure ?? "—" },
                         { label: "Source batch", value: u.batchNumber ?? "—" },
@@ -608,7 +609,7 @@ function WaterRawMaterialsPageInner() {
                           <TableBody>
                             {pgUsage.pageItems.map((u) => (
                               <TableRow key={u.waterRawMaterialUsageId}>
-                                <TableCell className="whitespace-nowrap">{u.usedDate.split("T")[0]}</TableCell>
+                                <TableCell className="whitespace-nowrap">{fmtDateTime(u.usedDate, u)}</TableCell>
                                 <TableCell className="font-medium">{u.itemName ?? "—"}</TableCell>
                                 <TableCell className="text-right tabular-nums">
                                   {Number(u.quantityUsed ?? 0).toLocaleString(undefined, { maximumFractionDigits: 3 })}
@@ -665,7 +666,7 @@ function WaterRawMaterialsPageInner() {
                       primary={(p) => p.itemName ?? items.find(i => i.waterRawMaterialItemId === p.waterRawMaterialItemId)?.itemName ?? "—"}
                       secondary={(p) => (
                         <>
-                          <span>{p.purchaseDate.split("T")[0]}</span>
+                          <span>{fmtDateTime(p.purchaseDate, p)}</span>
                           <span>·</span>
                           <span>{gh(p.totalCost ?? p.quantity * p.unitCost)}</span>
                         </>
@@ -675,7 +676,7 @@ function WaterRawMaterialsPageInner() {
                         { label: "Balance", value: gh(p.balance ?? 0), accent: (p.balance ?? 0) > 0 ? "rose" : "emerald" },
                       ]}
                       details={(p) => [
-                        { label: "Date", value: p.purchaseDate.split("T")[0] },
+                        { label: "Date", value: fmtDateTime(p.purchaseDate, p) },
                         { label: "Item", value: p.itemName ?? items.find(i => i.waterRawMaterialItemId === p.waterRawMaterialItemId)?.itemName ?? "—" },
                         { label: "Supplier", value: p.supplierName ?? "—" },
                         { label: "Purchase Qty", value: p.quantity },
@@ -724,7 +725,7 @@ function WaterRawMaterialsPageInner() {
                           <TableBody>
                             {pgPurchases.pageItems.map((p) => (
                               <TableRow key={p.waterRawMaterialPurchaseId}>
-                                <TableCell>{p.purchaseDate.split("T")[0]}</TableCell>
+                                <TableCell>{fmtDateTime(p.purchaseDate, p)}</TableCell>
                                 <TableCell>{p.itemName ?? items.find(i => i.waterRawMaterialItemId === p.waterRawMaterialItemId)?.itemName ?? "—"}</TableCell>
                                 <TableCell>{p.supplierName ?? "—"}</TableCell>
                                 <TableCell className="text-right tabular-nums">{p.quantity}</TableCell>

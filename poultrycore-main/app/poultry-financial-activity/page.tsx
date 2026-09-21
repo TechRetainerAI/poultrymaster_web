@@ -73,6 +73,10 @@ const ACTIVITY_FILTERS = [
   { value: "Capital",   label: "Capital activity" },
   { value: "Inventory", label: "Inventory / cost recognition" },
   { value: "Transfer",  label: "Internal transfers" },
+  // Migration 308. Without this the rows still render, but there is no way to
+  // ask "show me just the staff advances" -- which is the question the feature
+  // exists to answer.
+  { value: "EmployeeLoan", label: "Employee advances" },
 ] as const
 
 const CASH_FILTERS = [
@@ -213,7 +217,7 @@ function FinancialActivityPageInner() {
     const lines = [head.join(",")]
     for (const r of filtered) {
       lines.push([
-        formatActivityMoment(r.occurredAt), r.type, r.category, r.description ?? "",
+        formatActivityMoment(r.occurredAt, r.createdAt), r.type, r.category, r.description ?? "",
         r.moneyIn || "", r.moneyOut || "", r.revenue || "", r.expense || "",
         r.profitImpact || "", r.runningCash,
       ].map(esc).join(","))
@@ -272,7 +276,7 @@ function FinancialActivityPageInner() {
           {r.partyName && <span>Party: {r.partyName}</span>}
           {r.plLine && <span>P&amp;L line: {r.plLine}</span>}
           {r.status && r.status !== "Posted" && <span className="text-amber-700">Status: {r.status}</span>}
-          <span>Recorded {formatActivityMoment(r.occurredAt)}</span>
+          <span>Recorded {formatActivityMoment(r.occurredAt, r.createdAt)}</span>
           {(() => {
             const link = activitySourceLink(r)
             return link ? (
@@ -329,28 +333,35 @@ function FinancialActivityPageInner() {
           {/* ---------------------------------------------------- summary */}
           {summary && (
             <>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {/* One row: the four cash tiles and the three profit tiles used
+                  to be two grids (4-up then 3-up) with the sentence below
+                  wedged between them, which made the seven read as two
+                  unrelated sets. They are one summary of one period.
+
+                  Seven across only from xl. Below that it steps 4-up and then
+                  2-up: at lg the content column is around 720px, and seven
+                  columns of ~93px cannot hold a money figure at this type size
+                  -- the 4-up fallback is what the cash group already used. */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3">
                 <Stat label="Money In"  value={gh(summary.moneyIn)}  tip={TIP.moneyIn}  tone="emerald" />
                 <Stat label="Money Out" value={gh(summary.moneyOut)} tip={TIP.moneyOut} tone="rose" />
                 <Stat label="Net Cash Flow" value={gh(summary.netCashFlow)} tone={summary.netCashFlow < 0 ? "rose" : "emerald"}
                       hint={`Opening ${gh(summary.openingCash)}`} />
                 <Stat label="Closing Cash" value={gh(summary.closingCash)} tip={TIP.runningCash} />
-              </div>
-
-              {/* The sentence that makes the two groups make sense together. */}
-              <p className="text-xs leading-relaxed text-slate-600">
-                <strong>Net Cash Flow and Net Profit are different</strong> because some cash movements are not
-                revenue or expenses, while some revenue or expenses may be recognised without cash moving at the
-                same time.
-              </p>
-
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
                 <Stat label="Revenue"  value={gh(summary.revenue)} tip={TIP.revenue} tone="emerald" />
                 <Stat label="Expenses" value={gh(summary.expense)} tip={TIP.expense} tone="rose" />
                 <Stat label="Net Profit" value={gh(summary.netProfit)} tip={TIP.profit}
                       tone={summary.netProfit < 0 ? "rose" : "emerald"}
                       hint={`${summary.cashEvents} cash · ${summary.nonCashEvents} non-cash events`} />
               </div>
+
+              {/* The sentence that makes the two halves of that row make sense
+                  together. It sat between them when they were separate grids. */}
+              <p className="text-xs leading-relaxed text-slate-600">
+                <strong>Net Cash Flow and Net Profit are different</strong> because some cash movements are not
+                revenue or expenses, while some revenue or expenses may be recognised without cash moving at the
+                same time.
+              </p>
             </>
           )}
 
@@ -427,7 +438,7 @@ function FinancialActivityPageInner() {
                 getKey={(r) => r.eventKey}
                 primary={(r) => r.type}
                 secondary={(r) => (
-                  <span className="truncate">{formatActivityMoment(r.occurredAt)} · {r.category}</span>
+                  <span className="truncate">{formatActivityMoment(r.occurredAt, r.createdAt)} · {r.category}</span>
                 )}
                 highlights={(r) => [
                   { label: "Money in",  value: money(r.moneyIn),  accent: "emerald" },
@@ -478,7 +489,7 @@ function FinancialActivityPageInner() {
                                   {open ? <ChevronDown className="w-4 h-4 text-slate-400" />
                                         : <ChevronRight className="w-4 h-4 text-slate-400" />}
                                 </TableCell>
-                                <TableCell className="whitespace-nowrap text-sm">{formatActivityMoment(r.occurredAt)}</TableCell>
+                                <TableCell className="whitespace-nowrap text-sm">{formatActivityMoment(r.occurredAt, r.createdAt)}</TableCell>
                                 <TableCell className="whitespace-nowrap font-medium">
                                   {r.type}
                                   {r.isInternalTransfer && (
@@ -564,11 +575,44 @@ function Stat({ label, value, hint, tip, tone = "slate" }: {
   tone?: "slate" | "emerald" | "rose"
 }) {
   const toneClass = tone === "emerald" ? "text-emerald-700" : tone === "rose" ? "text-rose-700" : "text-slate-900"
+
+  // THE FIGURE HAS TO SHRINK, because the other two ways out are both worse.
+  //
+  //   WRAP      fmtMoney returns "<symbol> <amount>" with a real space in it
+  //             (lib/currency.ts), so a tile narrower than the figure breaks at
+  //             that space and stacks the currency symbol on its own line above
+  //             the number. That was the first thing reported about these tiles.
+  //   TRUNCATE  clipping digits off money is never acceptable. "GH₵ 1,234,5…"
+  //             is not a smaller number, it is a wrong one.
+  //
+  // So `whitespace-nowrap` stays and the TYPE SIZE follows the length of what
+  // is actually being shown. Sized off the string rather than a breakpoint
+  // because the problem is the figure, not the screen: GH₵ 900.00 fits a narrow
+  // tile and GH₵ 1,234,567.89 does not fit a wide one.
+  //
+  // The xl step stays on top of it: that is where seven tiles share the row and
+  // every one of them is at its narrowest.
+  const n = value.length
+  const sizeClass =
+    n > 17 ? "text-sm  xl:text-xs   2xl:text-sm" :
+    n > 14 ? "text-base xl:text-xs  2xl:text-sm" :
+    n > 11 ? "text-lg  xl:text-sm   2xl:text-base" :
+             "text-2xl xl:text-base 2xl:text-xl"
+
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm" title={tip}>
-      <div className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</div>
-      <div className={cn("mt-1 text-2xl font-bold tabular-nums", toneClass)}>{value}</div>
-      {hint && <div className="mt-0.5 text-xs text-slate-400">{hint}</div>}
+    // overflow-hidden is the backstop, not the plan. If a currency ever turns
+    // up whose formatted figure still will not fit at text-xs, this is what
+    // keeps it inside its own card instead of printing over the tile beside it.
+    <div className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-4 xl:p-3 2xl:p-4 shadow-sm"
+         title={tip}>
+      <div className="truncate text-xs font-medium uppercase tracking-wide text-slate-500">{label}</div>
+      {/* title= so the full figure is always recoverable on hover, whatever
+          size it ended up at. */}
+      <div className={cn("mt-1 font-bold tabular-nums whitespace-nowrap", sizeClass, toneClass)}
+           title={value}>
+        {value}
+      </div>
+      {hint && <div className="mt-0.5 truncate text-xs text-slate-400" title={hint}>{hint}</div>}
     </div>
   )
 }

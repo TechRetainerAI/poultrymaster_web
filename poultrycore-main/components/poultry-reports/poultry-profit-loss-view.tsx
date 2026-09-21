@@ -29,9 +29,10 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { ArrowLeft, AlertTriangle, Info, Loader2, ChevronRight, Wallet, Building2, Banknote } from "lucide-react"
+import { ArrowLeft, AlertTriangle, Info, Loader2, ChevronRight, Wallet, Building2, Banknote, Search, X } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useFmt } from "@/lib/currency"
 import { useToast } from "@/hooks/use-toast"
@@ -56,6 +57,76 @@ import {
 
 type DrillRow = { left: string; mid?: string; right?: string; amount: number; note?: string }
 
+type DrillKind = ReturnType<typeof drilldownKindFor>
+
+/**
+ * What the two text columns of a drilldown actually hold, per kind.
+ *
+ * They used to be headed "Detail" and "Source" whatever the line was, which
+ * told the reader nothing: behind Egg Sales they are a product and a customer,
+ * behind Feed Cost an item and where the cost came from, behind Depreciation an
+ * asset and its category. A column heading that names the wrong thing is worse
+ * than one that names nothing, and both are worse than the truth.
+ */
+const DRILL_COLUMNS: Record<DrillKind, { mid: string; right: string; blurb: string }> = {
+  revenue: { mid: "Product", right: "Customer", blurb: "Every sale behind this figure." },
+  inventory: { mid: "Item", right: "Source", blurb: "Every stock movement behind this figure, and when its cost was recognised." },
+  depreciation: { mid: "Asset", right: "Category", blurb: "Each asset's depreciation for the period." },
+  financing: { mid: "Detail", right: "Party", blurb: "Every entry behind this figure. None of it is profit." },
+  capital: { mid: "Asset", right: "Detail", blurb: "What was bought. It is an asset, not an expense." },
+  expenses: { mid: "Description", right: "Supplier", blurb: "Every expense behind this figure." },
+}
+
+/**
+ * "2026-09-02" reads as a database row; "2 Sep 2026" reads as a date. Anything
+ * that is not a date the server built (a "2026-09" depreciation period, a dash)
+ * is passed through untouched rather than guessed at.
+ */
+/**
+ * The colour a drilldown wears.
+ *
+ * Deliberately the SAME tones the section cards use, so the dialog that opens
+ * is visibly the card it came from: green for money in, rose for the cost of
+ * producing, amber for running the business, violet for depreciation and
+ * financing, sky for money that bought an asset rather than being spent.
+ *
+ * That is the whole point -- four dialogs that look identical are four chances
+ * to read an expense list and think you are reading revenue.
+ */
+const DRILL_TONES: Record<DrillKind, {
+  band: string; border: string; amount: string; rail: string
+  /** The rule BETWEEN records, on both the phone list and the table. */
+  divide: string; row: string
+  label: string
+}> = {
+  revenue:      { band: "bg-emerald-50 text-emerald-900", border: "border-emerald-200",
+                  amount: "text-emerald-700", rail: "border-l-emerald-400",
+                  divide: "divide-emerald-200", row: "border-emerald-200", label: "Money in" },
+  inventory:    { band: "bg-rose-50 text-rose-900", border: "border-rose-200",
+                  amount: "text-rose-700", rail: "border-l-rose-400",
+                  divide: "divide-rose-200", row: "border-rose-200", label: "Direct cost" },
+  expenses:     { band: "bg-amber-50 text-amber-900", border: "border-amber-200",
+                  amount: "text-amber-700", rail: "border-l-amber-400",
+                  divide: "divide-amber-200", row: "border-amber-200", label: "Running cost" },
+  depreciation: { band: "bg-violet-50 text-violet-900", border: "border-violet-200",
+                  amount: "text-violet-700", rail: "border-l-violet-400",
+                  divide: "divide-violet-200", row: "border-violet-200", label: "Depreciation" },
+  financing:    { band: "bg-violet-50 text-violet-900", border: "border-violet-200",
+                  amount: "text-violet-700", rail: "border-l-violet-400",
+                  divide: "divide-violet-200", row: "border-violet-200", label: "Not profit" },
+  capital:      { band: "bg-sky-50 text-sky-900", border: "border-sky-200",
+                  amount: "text-sky-700", rail: "border-l-sky-400",
+                  divide: "divide-sky-200", row: "border-sky-200", label: "Not an expense" },
+}
+
+function drillDate(v: string) {
+  const m = /^(\d{4})-(\d{2})(?:-(\d{2}))?$/.exec(v ?? "")
+  if (!m) return v || "—"
+  const [, y, mo, d] = m
+  const month = new Date(Number(y), Number(mo) - 1, 1).toLocaleString(undefined, { month: "short" })
+  return d ? `${Number(d)} ${month} ${y}` : `${month} ${y}`
+}
+
 export function PoultryProfitLossView() {
   const router = useRouter()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
@@ -75,8 +146,10 @@ export function PoultryProfitLossView() {
   const [error, setError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
 
-  const [drill, setDrill] = useState<{ line: PoultryProfitLossLine; rows: DrillRow[] } | null>(null)
+  const [drill, setDrill] = useState<{ line: PoultryProfitLossLine; rows: DrillRow[]; kind: DrillKind } | null>(null)
   const [drillBusy, setDrillBusy] = useState(false)
+  /** Free-text filter inside the drilldown. Cleared whenever a new one opens. */
+  const [drillQuery, setDrillQuery] = useState("")
 
   const load = useCallback(async () => {
     setBusy(true); setError(null)
@@ -109,12 +182,51 @@ export function PoultryProfitLossView() {
       (l) => l.lineKey !== "OwnerContributions" && l.lineKey !== "OwnerDraws"),
     [bySection])
 
+  /**
+   * Every cost in the period, in one figure.
+   *
+   * Derived here rather than read from the report, because the server does not
+   * send it: the statement is built as three separate bands and their totals
+   * are what reach the client. Summing the three is the same arithmetic the
+   * statement itself does, so the tile cannot disagree with the cards below it.
+   *
+   * The assertion it has to satisfy, and the reason it is defined this way:
+   *   totalRevenue - totalExpenses === netProfit
+   */
+  const totalExpenses =
+    (data?.totalDirectCosts ?? 0)
+    + (data?.totalOperatingExpenses ?? 0)
+    + (data?.totalOtherCosts ?? 0)
+
+  /**
+   * The rows the drilldown is showing right now.
+   *
+   * Filtering changes what adds up, so the footer below reports BOTH the shown
+   * total and the full one whenever a filter is on. A drilldown that silently
+   * stopped matching the line it opened from is exactly the thing that makes an
+   * owner distrust the report.
+   */
+  const drillRows = useMemo(() => {
+    const rows = drill?.rows ?? []
+    const q = drillQuery.trim().toLowerCase()
+    if (!q) return rows
+    return rows.filter((r) =>
+      [r.left, r.mid, r.right, r.note].some((v) => (v ?? "").toLowerCase().includes(q)))
+  }, [drill, drillQuery])
+
+  const drillShownTotal = useMemo(
+    () => drillRows.reduce((sum, r) => sum + r.amount, 0), [drillRows])
+  const drillFullTotal = useMemo(
+    () => (drill?.rows ?? []).reduce((sum, r) => sum + r.amount, 0), [drill])
+  const drillFiltered = drillQuery.trim().length > 0
+
   // -------------------------------------------------------------- drilldown --
   const openDrill = useCallback(async (line: PoultryProfitLossLine) => {
-    setDrill({ line, rows: [] }); setDrillBusy(true)
+    setDrillQuery("")
+    const kind = drilldownKindFor(line.section, line.lineKey)
+    setDrill({ line, rows: [], kind }); setDrillBusy(true)
     const range = { startDate: filter.fromDate, endDate: filter.toDate }
     try {
-      const kind = drilldownKindFor(line.section, line.lineKey)
       let rows: DrillRow[] = []
       if (kind === "revenue") {
         rows = (await getPoultryPlRevenue({ ...range, lineKey: line.lineKey })).map((r) => ({
@@ -174,7 +286,7 @@ export function PoultryProfitLossView() {
           note: r.isLegacy ? "Placed by category (legacy record)" : undefined,
         }))
       }
-      setDrill({ line, rows })
+      setDrill({ line, rows, kind })
     } catch (e: any) {
       toast({ title: "Could not open the details", description: e?.message ?? String(e), variant: "destructive" })
       setDrill(null)
@@ -317,16 +429,94 @@ export function PoultryProfitLossView() {
 
           {data && !busy && (
             <>
-              {/* ---- the four numbers ------------------------------------ */}
-              <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-                <Kpi label="Total Revenue" value={gh(data.totalRevenue)} tone="slate" />
-                <Kpi label="Gross Profit" value={gh(data.grossProfit)}
-                     hint={data.grossMarginPercent != null ? `${data.grossMarginPercent}% margin` : "No revenue this period"}
+              {/* ---- the headline numbers -------------------------------- */}
+              <div className="grid gap-3 grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+                {/* Each tile is NAMED for what it is, and says what was taken
+                    off to get there -- "Gross profit" told an owner nothing
+                    about why it sat 189,000 below Revenue. The four read down
+                    as one sentence: what we sold, then what is left after each
+                    kind of cost.
+
+                    "MINUS", never "less". A statement says "Sales less feed"
+                    and an accountant reads it as a subtraction, but the first
+                    owner to read these tiles asked what it meant -- it parses
+                    as "fewer sales of feed". These tiles exist to avoid exactly
+                    that kind of word. "Then minus" on the last two, so the
+                    chain from one tile to the next is explicit.
+
+                    The hint carries the AMOUNT subtracted, not just the names
+                    of the costs. Without it the reader can see that 176,863
+                    became 184,523 but not what the 7,660 was or where to find
+                    it, and the next question is always "how did we get this?".
+                    The figure is the same total the matching section card
+                    below prints, so the tiles are checkable on their own and
+                    the card is where you go to see what is in it.
+
+                    The accounting term stays on the tile as the `term` line
+                    rather than being dropped. It is what an accountant, a bank
+                    or the exported PDF will ask for, and it is what the water
+                    reports still call the same figures. */}
+                <Kpi label="Total revenue" value={gh(data.totalRevenue)} tone="slate"
+                     term="Everything sold this period"
+                     tip="Eggs, birds, manure and feed sold in this period, whether or not the customer has paid yet. Money a customer still owes you is revenue; money they paid for a sale in an earlier period is not."
+                     hint="Eggs, birds, manure and feed sold" />
+                {/* TOTAL EXPENSES means EVERYTHING taken off -- the direct
+                    cost of producing, the cost of running the place, and
+                    depreciation and financing. Defined that way on purpose:
+                    it is what an owner means by the phrase, it includes the
+                    feed, and it makes the obvious equation true --
+                    revenue MINUS this IS net profit. Defining it as operating
+                    costs only would have left the feed out and quietly broken
+                    that sum for anyone who tried it. */}
+                <Kpi label="Total expenses"
+                     value={gh(totalExpenses)}
+                     term="Everything taken off revenue"
+                     tip="Every cost in this period: the direct cost of what you produced (feed, medication, birds, direct labour), the cost of running the business (payroll, utilities, transport, repairs, admin) and depreciation plus the interest and fees on borrowing. Revenue minus this figure is Net profit. It does NOT include owner draws, loan principal or capital purchases — those are money moving, not costs."
+                     hint={
+                       <>
+                         <div>
+                           <span className="text-slate-400">direct</span>{" "}
+                           <span className="font-medium tabular-nums text-slate-600">{gh(data.totalDirectCosts)}</span>
+                           {" · "}
+                           <span className="text-slate-400">running</span>{" "}
+                           <span className="font-medium tabular-nums text-slate-600">{gh(data.totalOperatingExpenses)}</span>
+                         </div>
+                         <div>
+                           <span className="text-slate-400">depreciation &amp; financing</span>{" "}
+                           <span className="font-medium tabular-nums text-slate-600">{gh(data.totalOtherCosts)}</span>
+                         </div>
+                       </>
+                     }
+                     tone="red" />
+                <Kpi label="Gross profit"
+                     value={gh(data.grossProfit)}
+                     term={data.grossMarginPercent != null
+                       ? `${data.grossMarginPercent}% of sales`
+                       : "No sales this period"}
+                     tip="What the FARMING made, before any of the cost of running a business. Revenue minus the direct cost of producing what you sold: feed, medication, the birds themselves and direct labour. Negative here means the flock cost more to feed than its output sold for."
+                     hint={<Working
+                       from={gh(data.totalRevenue)} fromLabel="revenue"
+                       minus={gh(data.totalDirectCosts)} minusLabel="feed, medication, birds, direct labour" />}
                      tone={data.grossProfit >= 0 ? "emerald" : "red"} />
-                <Kpi label="Operating Profit" value={gh(data.operatingProfit)}
-                     hint="After running costs, before depreciation and financing"
+                <Kpi label="Operating profit"
+                     value={gh(data.operatingProfit)}
+                     term="Before depreciation and financing"
+                     tip="What the BUSINESS made. Gross profit minus the cost of running it: payroll, utilities, transport, repairs, admin and marketing. It stops short of wear on assets and the cost of borrowing, so it answers whether the operation itself pays for itself."
+                     hint={<Working
+                       from={gh(data.grossProfit)} fromLabel="gross profit"
+                       minus={gh(data.totalOperatingExpenses)} minusLabel="payroll, utilities, transport, repairs, admin" />}
                      tone={data.operatingProfit >= 0 ? "emerald" : "red"} />
-                <Kpi label="Net Profit" value={gh(data.netProfit)} hint={data.status}
+                {/* Named for what it IS on the day, not always "profit": a farm
+                    reading "Net profit -184,533" has to do a double take. */}
+                <Kpi label={data.netProfit < 0 ? "Net loss" : "Net profit"}
+                     value={gh(data.netProfit)}
+                     term={data.netMarginPercent != null
+                       ? `${data.netMarginPercent}% of sales`
+                       : data.status}
+                     tip="What is actually left. Operating profit minus depreciation — the wear on buildings, machines and equipment — and the interest and fees on borrowing. Owner money, loan principal and capital purchases are NOT in this figure; they are money moving, not profit, and they are shown separately below."
+                     hint={<Working
+                       from={gh(data.operatingProfit)} fromLabel="operating profit"
+                       minus={gh(data.totalOtherCosts)} minusLabel="depreciation, loan interest, fees" />}
                      tone={data.netProfit > 0 ? "emerald" : data.netProfit < 0 ? "red" : "slate"} strong />
               </div>
 
@@ -349,53 +539,64 @@ export function PoultryProfitLossView() {
               </CardContent></Card>
 
               {/* ---- the statement, as section cards ----------------------
-                  Three column STACKS, not a plain grid of four: Revenue and
-                  Depreciation & Financing share the first column, so the short
-                  one sits directly under the short one instead of waiting for
-                  the tallest card in its row. A grid aligns rows; that is
-                  exactly what leaves a hole under Revenue.
+                  FOUR EQUAL CARDS, 2x2. This used to be three column STACKS,
+                  with Revenue and Depreciation sharing the first column so the
+                  two short ones sat on top of each other rather than each
+                  leaving a hole beside a tall neighbour. That packed better and
+                  read worse: four cards at four different sizes look like four
+                  different KINDS of thing, when they are four bands of one
+                  statement.
 
-                  Below md there is one column and the stacks go `contents`, so
-                  the cards become items of the outer grid directly and `order`
-                  can put them back in statement order -- Revenue, Direct,
-                  Operating, Depreciation -- for a phone, where reading is
-                  top-to-bottom and the side-by-side grouping means nothing.
+                  ALL FOUR ON ONE ROW from xl, so the statement reads left to
+                  right in the order it is calculated: what came in, then each
+                  band of cost. Two-up at md and one column on a phone, where
+                  four columns would be four slivers.
+
+                  Three parts, all needed:
+                    xl:grid-cols-4     equal widths, one row
+                    auto-rows-fr       every row as tall as the tallest, which
+                                       still matters at the 2-up step
+                    h-full per card    the card fills its stretched cell; the
+                                       cell stretching is not enough on its own
+                  `items-start` had to go: it is the opposite instruction.
+
+                  The card body is a flex column with the line list taking the
+                  slack, so every TOTAL sits on the foot of its card and the four
+                  line up. Without that the cards are the same height but their
+                  totals are not, which is what made them look uneven.
+
+                  One column on a phone, in statement order, so `order` and the
+                  `contents` trick that positioned the old stacks are both gone.
 
                   The running subtotals -- Gross, Operating and Net Profit -- are
                   NOT repeated inside the cards. They are the tiles at the top of
                   the page, and a figure printed twice invites a reader to add it
                   twice. */}
-              <div className="grid gap-4 md:grid-cols-2 md:items-start xl:grid-cols-3">
-                <div className="contents md:block md:space-y-4">
-                  <SectionCard
-                    className="order-1 md:order-none"
-                    tone="emerald" title="Revenue" lines={bySection("Revenue")}
-                    totalLabel="Total Revenue" totalAmount={data.totalRevenue}
-                    onOpen={openDrill} gh={gh}
-                  />
-                  <SectionCard
-                    className="order-4 md:order-none"
-                    tone="violet" negative title="Depreciation & Financing Costs" lines={bySection("OtherCost")}
-                    totalLabel="Total Depreciation & Financing" totalAmount={data.totalOtherCosts}
-                    onOpen={openDrill} gh={gh}
-                  />
-                </div>
-                <div className="contents md:block md:space-y-4">
-                  <SectionCard
-                    className="order-2 md:order-none"
-                    tone="rose" negative title="Direct Production Costs" lines={bySection("DirectCost")}
-                    totalLabel="Total Direct Production Costs" totalAmount={data.totalDirectCosts}
-                    onOpen={openDrill} gh={gh}
-                  />
-                </div>
-                <div className="contents md:block md:space-y-4">
-                  <SectionCard
-                    className="order-3 md:order-none"
-                    tone="amber" negative title="Operating Expenses" lines={bySection("OperatingExpense")}
-                    totalLabel="Total Operating Expenses" totalAmount={data.totalOperatingExpenses}
-                    onOpen={openDrill} gh={gh}
-                  />
-                </div>
+              <div className="grid gap-3 auto-rows-fr md:grid-cols-2 xl:grid-cols-4">
+                <SectionCard
+                  className="h-full"
+                  tone="emerald" title="Revenue" lines={bySection("Revenue")}
+                  totalLabel="Total Revenue" totalAmount={data.totalRevenue}
+                  onOpen={openDrill} gh={gh}
+                />
+                <SectionCard
+                  className="h-full"
+                  tone="rose" negative title="Direct Production Costs" lines={bySection("DirectCost")}
+                  totalLabel="Total Direct Production Costs" totalAmount={data.totalDirectCosts}
+                  onOpen={openDrill} gh={gh}
+                />
+                <SectionCard
+                  className="h-full"
+                  tone="amber" negative title="Operating Expenses" lines={bySection("OperatingExpense")}
+                  totalLabel="Total Operating Expenses" totalAmount={data.totalOperatingExpenses}
+                  onOpen={openDrill} gh={gh}
+                />
+                <SectionCard
+                  className="h-full"
+                  tone="violet" negative title="Depreciation & Financing Costs" lines={bySection("OtherCost")}
+                  totalLabel="Total Depreciation & Financing" totalAmount={data.totalOtherCosts}
+                  onOpen={openDrill} gh={gh}
+                />
               </div>
 
               {/* ---- informational: cash moved, profit did not ------------
@@ -499,54 +700,201 @@ export function PoultryProfitLossView() {
             </>
           )}
 
-          {/* ---- drilldown ------------------------------------------------ */}
+          {/* ---- drilldown ------------------------------------------------
+              w-[95vw] paired with sm:max-w-3xl, NOT a bare max-w-3xl: an
+              unprefixed width replaces the dialog's own
+              max-w-[calc(100%-2rem)] -- costing the phone its side gutter --
+              while losing to the base sm:max-w-2xl above 640px, so the old
+              class made the dialog edge-to-edge on a phone AND narrower than
+              asked for on a desktop. See components/ui/dialog.tsx.
+
+              The four-column table is desktop only. On a phone the same rows
+              are stacked records: date and amount on the top line where they
+              are compared, detail and source underneath. A four-column table
+              on a 390px screen is a horizontal scrollbar wearing a table's
+              clothes. */}
           <Dialog open={!!drill} onOpenChange={(o) => { if (!o) setDrill(null) }}>
-            <DialogContent className="max-w-3xl">
-              <DialogHeader>
-                <DialogTitle>
-                  {drill?.line.lineLabel}
-                  <span className="ml-2 font-normal text-sm text-slate-500">{gh(drill?.line.amount ?? 0)}</span>
+            <DialogContent className="w-[95vw] sm:max-w-3xl">
+              {/* The band is the demarcation. It carries the section's own
+                  colour, so the dialog reads as the card it opened from rather
+                  than as one more white box of numbers. Bled to the dialog's
+                  edges with -m-6, cancelling DialogContent's p-6. */}
+              <DialogHeader
+                className={cn(
+                  "-m-6 mb-0 space-y-1 border-b p-6",
+                  drill ? DRILL_TONES[drill.kind].band : "",
+                  drill ? DRILL_TONES[drill.kind].border : "",
+                )}
+              >
+                <DialogTitle className="flex flex-wrap items-baseline gap-x-2 gap-y-1 pr-6 text-left">
+                  <span className="min-w-0 break-words">{drill?.line.lineLabel}</span>
+                  {drill && (
+                    <Badge variant="outline"
+                           className={cn("border-current/30 bg-white/60 text-[10px] font-medium",
+                                         DRILL_TONES[drill.kind].amount)}>
+                      {DRILL_TONES[drill.kind].label}
+                    </Badge>
+                  )}
+                  <span className={cn("ml-auto text-sm font-semibold tabular-nums",
+                                      drill ? DRILL_TONES[drill.kind].amount : "text-slate-500")}>
+                    {gh(drill?.line.amount ?? 0)}
+                  </span>
                 </DialogTitle>
+                {/* Say what the list IS and over what period, rather than
+                    leaving the reader to infer both from the rows. */}
+                <p className="text-left text-xs opacity-80">
+                  {drill ? DRILL_COLUMNS[drill.kind].blurb : ""}
+                  {" "}
+                  {drillDate(filter.fromDate)} – {drillDate(filter.toDate)}
+                </p>
               </DialogHeader>
+
               {drillBusy ? (
-                <div className="py-10 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>
+                <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-slate-400" /></div>
+              ) : (drill?.rows ?? []).length === 0 ? (
+                <p className="py-8 text-center text-sm text-slate-500">
+                  Nothing behind this figure in the selected period.
+                </p>
               ) : (
-                <div className="max-h-[60vh] overflow-y-auto">
-                  <Table>
-                    <TableHeader><TableRow>
-                      <TableHead>Date</TableHead><TableHead>Detail</TableHead>
-                      <TableHead>Source</TableHead><TableHead className="text-right">Amount</TableHead>
-                    </TableRow></TableHeader>
-                    <TableBody>
-                      {(drill?.rows ?? []).length === 0 ? (
-                        <TableRow><TableCell colSpan={4} className="text-center text-slate-500 py-6">
-                          Nothing behind this figure in the selected period.
-                        </TableCell></TableRow>
-                      ) : drill!.rows.map((r, i) => (
-                        <TableRow key={i}>
-                          <TableCell className="whitespace-nowrap text-sm">{r.left}</TableCell>
-                          <TableCell className="text-sm">
-                            {r.mid}
-                            {r.note && <div className="text-[11px] text-slate-500">{r.note}</div>}
-                          </TableCell>
-                          <TableCell className="text-sm text-slate-500">{r.right}</TableCell>
-                          <TableCell className="text-right tabular-nums text-sm">{gh(r.amount)}</TableCell>
-                        </TableRow>
+                <>
+                  {/* Worth having once a line has more than a screenful behind
+                      it -- "which of these 60 expenses was the vet" is the
+                      question a drilldown exists to answer, and scrolling is a
+                      poor way to ask it. Matches on every column, including the
+                      note, because the reader does not know which one holds the
+                      word they remember. */}
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Input
+                      value={drillQuery}
+                      onChange={(e) => setDrillQuery(e.target.value)}
+                      placeholder={`Filter these ${drill!.rows.length} records…`}
+                      className="h-9 pl-8 pr-8"
+                    />
+                    {drillFiltered && (
+                      <button
+                        type="button"
+                        onClick={() => setDrillQuery("")}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        aria-label="Clear filter"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  {drillFiltered && drillRows.length === 0 && (
+                    <p className="py-6 text-center text-sm text-slate-500">
+                      Nothing here matches “{drillQuery}”.
+                    </p>
+                  )}
+
+                  <div className="-mx-2 max-h-[55vh] overflow-y-auto px-2 sm:mx-0 sm:max-h-[60vh] sm:px-0">
+                    {/* Phone: one record per block, each field labelled -- a
+                        column heading a reader has scrolled past is no heading
+                        at all. */}
+                    {/* The rule between records carries the section's colour
+                        too, so the list is demarcated all the way down rather
+                        than only at the top where the band is. */}
+                    <ul className={cn("divide-y sm:hidden", DRILL_TONES[drill!.kind].divide)}>
+                      {drillRows.map((r, i) => (
+                        // The rail repeats the section's colour down the list,
+                        // so a screenshot of three records still says which
+                        // kind of money they were.
+                        <li key={i} className={cn("border-l-2 py-3 pl-2",
+                                                  DRILL_TONES[drill!.kind].rail)}>
+                          <div className="flex items-baseline justify-between gap-3">
+                            <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                              {drillDate(r.left)}
+                            </span>
+                            <span className={cn("shrink-0 text-sm font-semibold tabular-nums",
+                                                DRILL_TONES[drill!.kind].amount)}>
+                              {gh(r.amount)}
+                            </span>
+                          </div>
+                          {r.mid && <div className="mt-1 break-words text-sm text-slate-900">{r.mid}</div>}
+                          {r.note && <div className="break-words text-[11px] text-slate-500">{r.note}</div>}
+                          {r.right && r.right !== "—" && (
+                            <div className="mt-1 break-words text-xs text-slate-500">
+                              <span className="text-slate-400">{DRILL_COLUMNS[drill!.kind].right}: </span>
+                              {r.right}
+                            </div>
+                          )}
+                        </li>
                       ))}
-                    </TableBody>
-                  </Table>
+                    </ul>
+
+                    {/* Desktop: the columns line up, so keep them -- but headed
+                        with what they actually hold for THIS line, and stuck to
+                        the top so they survive a long list.
+
+                        table-fixed with declared widths, so a long description
+                        or supplier name wraps inside its column instead of
+                        pushing Amount off the right edge and leaving the reader
+                        to scroll sideways for the one number they came for. */}
+                    <Table className="hidden table-fixed sm:table">
+                      <TableHeader className="sticky top-0 z-10 bg-white">
+                        <TableRow className={cn(DRILL_TONES[drill!.kind].row)}>
+                          <TableHead className="w-[116px]">Date</TableHead>
+                          <TableHead>{drill ? DRILL_COLUMNS[drill.kind].mid : "Detail"}</TableHead>
+                          <TableHead className="w-[26%]">{drill ? DRILL_COLUMNS[drill.kind].right : "Source"}</TableHead>
+                          <TableHead className="w-[124px] text-right">Amount</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      {/* [&>td]:align-top, not align-top on the row: TableCell
+                          carries align-middle, which wins over the row and
+                          leaves the date floating mid-way down a wrapped row. */}
+                      <TableBody>
+                        {drillRows.map((r, i) => (
+                          <TableRow key={i}
+                                    className={cn("[&>td]:align-top", DRILL_TONES[drill!.kind].row)}>
+                            <TableCell className="whitespace-nowrap text-sm text-slate-500">{drillDate(r.left)}</TableCell>
+                            {/* whitespace-normal: TableCell ships whitespace-nowrap,
+                                which is what was driving a long description straight
+                                through the next column. */}
+                            <TableCell className="text-sm break-words whitespace-normal">
+                              {r.mid}
+                              {r.note && <div className="text-[11px] text-slate-500">{r.note}</div>}
+                            </TableCell>
+                            <TableCell className="text-sm text-slate-500 break-words whitespace-normal">{r.right}</TableCell>
+                            <TableCell className={cn("text-right text-sm font-medium tabular-nums",
+                                                     DRILL_TONES[drill!.kind].amount)}>{gh(r.amount)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+
                   {/* The total is asserted on screen, not just in the tests: a
                       drilldown that does not add up to the line above it is the
-                      first thing a sceptical owner checks. */}
-                  {(drill?.rows ?? []).length > 0 && (
-                    <div className="flex justify-end gap-4 border-t px-4 py-2 text-sm">
-                      <span className="text-slate-500">{drill!.rows.length} record(s)</span>
-                      <span className="font-semibold tabular-nums">
-                        {gh(drill!.rows.reduce((s, r) => s + r.amount, 0))}
+                      first thing a sceptical owner checks. It sits OUTSIDE the
+                      scroll box, so it is still there after scrolling -- which
+                      is the only moment anyone wants it. */}
+                  <div className={cn("flex items-center justify-between gap-4 border-t pt-3 text-sm",
+                                     drill ? DRILL_TONES[drill.kind].border : "")}>
+                    <span className="text-slate-500">
+                      {drillFiltered
+                        ? `${drillRows.length} of ${drill!.rows.length} records`
+                        : `${drill!.rows.length} ${drill!.rows.length === 1 ? "record" : "records"}`}
+                    </span>
+                    {/* When a filter is on, the shown total is NOT the line's
+                        total, and saying so is the whole reason both are here.
+                        A drilldown that quietly stopped adding up to the figure
+                        it opened from is what makes an owner stop believing the
+                        report. */}
+                    <span className="text-right">
+                      <span className={cn("font-semibold tabular-nums",
+                                          drill ? DRILL_TONES[drill.kind].amount : "")}>
+                        {gh(drillShownTotal)}
                       </span>
-                    </div>
-                  )}
-                </div>
+                      {drillFiltered && (
+                        <span className="block text-[11px] font-normal text-slate-500">
+                          filtered · {gh(drillFullTotal)} in full
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                </>
               )}
             </DialogContent>
           </Dialog>
@@ -558,18 +906,74 @@ export function PoultryProfitLossView() {
 
 // ----------------------------------------------------------------- pieces ---
 
-function Kpi({ label, value, hint, tone, strong }: {
-  label: string; value: string; hint?: string
+/**
+ * The two lines of a tile's arithmetic: where the figure started, and what came
+ * off it. The value printed above the tile is the answer, so the result is not
+ * repeated here -- it is the number the reader is already looking at.
+ *
+ * `from` names the PREVIOUS tile in the owner's words, not the accounting term,
+ * so the four tiles chain visibly: "we sold" -> "left after feed & bird costs"
+ * -> "left after running costs".
+ */
+function Working({ from, fromLabel, minus, minusLabel }: {
+  from: string; fromLabel: string; minus: string; minusLabel: string
+}) {
+  return (
+    <>
+      <div>
+        <span className="text-slate-400">from</span>{" "}
+        <span className="font-medium tabular-nums text-slate-600">{from}</span> {fromLabel}
+      </div>
+      <div>
+        <span className="text-slate-400">minus</span>{" "}
+        <span className="font-medium tabular-nums text-slate-600">{minus}</span> {minusLabel}
+      </div>
+    </>
+  )
+}
+
+function Kpi({ label, value, hint, term, tip, tone, strong }: {
+  label: string; value: string
+  /**
+   * The plain-English meaning, on hover.
+   *
+   * The LABEL is now the accounting term, because that is what a bank, an
+   * accountant or an exported PDF asks for. What it means moves here rather
+   * than being dropped -- but note the tile still prints its own arithmetic
+   * underneath, because a tooltip does not exist on a phone and "how did we
+   * get this" is a question that has to be answerable without a mouse.
+   */
+  tip?: string
+  /**
+   * ReactNode, not string: the three derived tiles print TWO lines here --
+   * what the figure started from, and what was taken off it -- because one
+   * line naming only the subtraction ("minus 7,660") sits under a value of
+   * -184,523 and reconciles with nothing. The reader was being asked to
+   * remember the previous tile.
+   */
+  hint?: React.ReactNode
+  /**
+   * The accounting name for this figure, kept under the plain-English one.
+   * Both are needed and neither replaces the other: the owner reads the label,
+   * everyone the farm hands the report to reads this. It also carries the
+   * ratio or status that used to be the hint, since a margin and a "Loss" are
+   * accountant's shorthand rather than the plain explanation the hint now gives.
+   */
+  term?: string
   tone: "slate" | "emerald" | "red"; strong?: boolean
 }) {
   const ring = tone === "emerald" ? "border-emerald-200" : tone === "red" ? "border-red-200" : "border-slate-200"
   const text = tone === "emerald" ? "text-emerald-700" : tone === "red" ? "text-red-700" : "text-slate-900"
   return (
-    <Card className={cn(ring, strong && "ring-1 ring-slate-300")}>
+    <Card className={cn(ring, strong && "ring-1 ring-slate-300")} title={tip}>
       <CardContent className="p-3">
-        <div className="text-[11px] uppercase tracking-wide text-slate-500">{label}</div>
+        <div className={cn("text-[11px] uppercase tracking-wide text-slate-500",
+                           tip && "cursor-help underline decoration-dotted underline-offset-2")}>
+          {label}
+        </div>
         <div className={cn("text-lg font-semibold tabular-nums", text)}>{value}</div>
-        {hint && <div className="text-[11px] text-slate-500">{hint}</div>}
+        {hint && <div className="text-[11px] leading-snug text-slate-500 space-y-0.5">{hint}</div>}
+        {term && <div className="text-[10px] leading-snug text-slate-400 mt-0.5">{term}</div>}
       </CardContent>
     </Card>
   )
@@ -610,21 +1014,21 @@ function SectionCard({
   const money = (n: number) => (negative ? `(${gh(n)})` : gh(n))
 
   return (
-    <div className={cn("overflow-hidden rounded-xl border bg-white shadow-sm", t.border, className)}>
-      <div className={cn("px-4 py-2 text-[11px] font-semibold uppercase tracking-wide", t.head)}>
+    <div className={cn("flex flex-col overflow-hidden rounded-xl border bg-white shadow-sm", t.border, className)}>
+      <div className={cn("px-3 py-2 text-[11px] font-semibold uppercase tracking-wide", t.head)}>
         {title}
       </div>
 
       {lines.length === 0 ? (
-        <p className="px-4 py-4 text-sm text-slate-400">None this period</p>
+        <p className="flex-1 px-4 py-4 text-sm text-slate-400">None this period</p>
       ) : (
-        <ul className="divide-y divide-slate-100">
+        <ul className="flex-1 divide-y divide-slate-100">
           {lines.map((l) => (
             <li key={l.section + l.lineKey}>
               <button
                 type="button"
                 onClick={() => onOpen(l)}
-                className="flex w-full items-center gap-2 px-4 py-2 text-left transition-colors hover:bg-slate-50"
+                className="flex w-full items-center gap-1.5 px-3 py-2 text-left transition-colors hover:bg-slate-50"
               >
                 {/* No truncation: a statement line that reads "Medication &
                     Vete..." on a phone has hidden the very thing the reader
@@ -633,9 +1037,17 @@ function SectionCard({
                   <span>{l.lineLabel}</span>
                   <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                 </span>
+                {/* Just the count once the cards are a quarter of the width:
+                    "20 entries" and the amount cannot both fit, and the amount
+                    is the one nobody came here to lose. The full wording stays
+                    on hover and at the wider steps. */}
                 {l.entryCount > 0 && (
-                  <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500">
-                    {l.entryCount} {l.entryCount === 1 ? "entry" : "entries"}
+                  <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500"
+                        title={`${l.entryCount} ${l.entryCount === 1 ? "entry" : "entries"}`}>
+                    <span className="xl:hidden">
+                      {l.entryCount} {l.entryCount === 1 ? "entry" : "entries"}
+                    </span>
+                    <span className="hidden xl:inline">{l.entryCount}</span>
                   </span>
                 )}
                 <span className="ml-auto shrink-0 text-sm tabular-nums text-slate-900">{money(l.amount)}</span>
@@ -645,7 +1057,7 @@ function SectionCard({
         </ul>
       )}
 
-      <div className={cn("flex items-center gap-2 border-t px-4 py-2", t.border, t.total)}>
+      <div className={cn("mt-auto flex shrink-0 items-center gap-2 border-t px-3 py-2", t.border, t.total)}>
         <span className="text-sm font-semibold text-slate-900">{totalLabel}</span>
         <span className="ml-auto text-sm font-semibold tabular-nums text-slate-900">{money(totalAmount)}</span>
       </div>

@@ -12,6 +12,7 @@ import { UserCog, ArrowLeft, Save, Loader2, User } from "lucide-react"
 import { getEmployee, updateEmployee, type UpdateEmployeeData } from "@/lib/api"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { usePermissions } from "@/hooks/use-permissions"
+import { fmtInstant } from "@/lib/utils/company-datetime"
 
 export default function EditEmployeePage() {
   const router = useRouter()
@@ -253,7 +254,7 @@ export default function EditEmployeePage() {
                       <div className="flex items-center gap-3 text-sm">
                         <User className="w-4 h-4 text-slate-400" />
                         <span className="text-slate-500 w-24">Created:</span>
-                        <span className="text-slate-800">{new Date(formData.createdDate).toLocaleDateString()}</span>
+                        <span className="text-slate-800">{fmtInstant(formData.createdDate)}</span>
                       </div>
                     )}
                   </div>

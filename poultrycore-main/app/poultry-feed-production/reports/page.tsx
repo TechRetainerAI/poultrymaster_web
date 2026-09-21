@@ -18,6 +18,7 @@ import {
   listFeedProductionBatches, getFeedIngredientUsageReport,
   type FeedProductionBatch, type FeedIngredientUsageRow,
 } from "@/lib/api/poultry-feed-production"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 export default function FeedProductionReportsPage() {
   const router = useRouter()
@@ -109,7 +110,7 @@ export default function FeedProductionReportsPage() {
                         ) : pgBatches.pageItems.map((b) => (
                           <TableRow key={b.poultryFeedProductionBatchId} className="cursor-pointer" onClick={() => router.push(`/poultry-feed-production/${b.poultryFeedProductionBatchId}`)}>
                             <TableCell className="font-medium">{b.batchNumber}</TableCell>
-                            <TableCell>{b.productionDate ? new Date(b.productionDate).toLocaleDateString() : "—"}</TableCell>
+                            <TableCell>{b.productionDate ? fmtDateTime(b.productionDate, b) : "—"}</TableCell>
                             <TableCell>{b.finishedFeedItemName ?? "—"}</TableCell>
                             <TableCell className="text-right tabular-nums">{b.quantityProduced.toLocaleString()}{b.outputUnit ? ` ${b.outputUnit}` : ""}</TableCell>
                             <TableCell className="text-right tabular-nums">{gh(b.totalIngredientCost)}</TableCell>

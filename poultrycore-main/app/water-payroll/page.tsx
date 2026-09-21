@@ -31,6 +31,7 @@ import {
   type WaterPayrollRun, type WaterStaff, type WaterCashAccount, type WaterPayrollItem,
 } from "@/lib/api/water"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const STATUS_COLORS: Record<string, string> = {
   Draft:     "bg-slate-100 text-slate-700",
@@ -234,7 +235,7 @@ export default function WaterPayrollPage() {
                     { label: "Net", value: r.totalNetPay.toFixed(2), accent: "emerald" },
                   ]}
                   details={(r) => [
-                    { label: "Period", value: `${r.periodStart.split("T")[0]} → ${r.periodEnd.split("T")[0]}` },
+                    { label: "Period", value: `${fmtDateTime(r.periodStart, r)} → ${fmtDateTime(r.periodEnd, r)}` },
                     { label: "Cash account", value: r.cashAccountName ?? "—" },
                     { label: "Status", value: r.status },
                   ]}
@@ -278,7 +279,7 @@ export default function WaterPayrollPage() {
                       <TableBody>
                         {pg.pageItems.map((r) => (
                           <TableRow key={r.waterPayrollRunId}>
-                            <TableCell className="font-medium">{r.periodStart.split("T")[0]} → {r.periodEnd.split("T")[0]}</TableCell>
+                            <TableCell className="font-medium">{fmtDateTime(r.periodStart, r)} → {fmtDateTime(r.periodEnd, r)}</TableCell>
                             <TableCell className="text-right tabular-nums">{r.totalGrossPay.toFixed(2)}</TableCell>
                             <TableCell className="text-right tabular-nums font-semibold">{r.totalNetPay.toFixed(2)}</TableCell>
                             <TableCell>{r.cashAccountName ?? "—"}</TableCell>
@@ -400,10 +401,10 @@ export default function WaterPayrollPage() {
                   <div className="font-medium mb-2">History</div>
                   <ul className="text-sm text-slate-600 space-y-1">
                     {editing.approvedBy && (
-                      <li>Approved by <span className="font-medium">{editing.approvedBy}</span>{editing.approvedAt ? ` on ${editing.approvedAt.split("T")[0]}` : ""}</li>
+                      <li>Approved by <span className="font-medium">{editing.approvedBy}</span>{editing.approvedAt ? ` on ${fmtDateTime(editing.approvedAt, editing)}` : ""}</li>
                     )}
                     {editing.paidBy && (
-                      <li>Paid by <span className="font-medium">{editing.paidBy}</span>{editing.paidAt ? ` on ${editing.paidAt.split("T")[0]}` : ""}</li>
+                      <li>Paid by <span className="font-medium">{editing.paidBy}</span>{editing.paidAt ? ` on ${fmtDateTime(editing.paidAt, editing)}` : ""}</li>
                     )}
                     {editing.reopenedBy && (
                       <li>
@@ -413,7 +414,7 @@ export default function WaterPayrollPage() {
                       </li>
                     )}
                     {editing.reapprovedBy && (
-                      <li>Re-approved by <span className="font-medium">{editing.reapprovedBy}</span>{editing.reapprovedAt ? ` on ${editing.reapprovedAt.split("T")[0]}` : ""}</li>
+                      <li>Re-approved by <span className="font-medium">{editing.reapprovedBy}</span>{editing.reapprovedAt ? ` on ${fmtDateTime(editing.reapprovedAt, editing)}` : ""}</li>
                     )}
                   </ul>
                 </div>
