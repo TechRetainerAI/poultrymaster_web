@@ -35,7 +35,9 @@ namespace PoultryFarmAPIWeb.Business
         {
             "poultry" => "sppoultrycashflow",
             "water"   => "spwatercashflow",
-            _ => throw new ArgumentException($"Unknown rail '{rail}'. Expected 'poultry' or 'water'."),
+            "hotel"      => "sphotelcashflow",
+            "restaurant" => "sprestaurantcashflow",
+            _ => throw new ArgumentException($"Unknown rail '{rail}'. Expected 'poultry', 'water', 'hotel' or 'restaurant'."),
         };
 
         public async Task<CashFlowResponse> GetAsync(string rail, string farmId, DateTime? from, DateTime? to)

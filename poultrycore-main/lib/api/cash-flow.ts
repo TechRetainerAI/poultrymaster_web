@@ -13,7 +13,7 @@
 import { farmApiUrl, getAuthHeaders, getUserContext } from "./config"
 import { explainHttpError } from "@/lib/api/http-error"
 
-export type CashFlowRail = "Poultry" | "Water"
+export type CashFlowRail = "Poultry" | "Water" | "Hotel" | "Restaurant"
 
 /** OperatingIn | OperatingOut | FinancingIn | FinancingOut. */
 export type FlowGroup = "OperatingIn" | "OperatingOut" | "FinancingIn" | "FinancingOut"

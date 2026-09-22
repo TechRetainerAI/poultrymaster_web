@@ -1,4 +1,4 @@
-// Cash Flow — one controller, two rails. The route segment picks the rail; the
+// Cash Flow — one controller per rail. The route segment picks the rail; the
 // service validates it against a fixed list before it reaches any SQL.
 
 using Microsoft.AspNetCore.Mvc;
@@ -31,6 +31,32 @@ namespace PoultryFarmAPIWeb.Controllers
         public Task<ActionResult<CashFlowResponse>> Get(
             [FromQuery] string farmId, [FromQuery] DateTime? fromDate, [FromQuery] DateTime? toDate)
             => CashFlowEndpoint.Handle(this, _svc, "water", farmId, fromDate, toDate);
+    }
+
+    [ApiController]
+    [Route("api/Hotel/cash-flow")]
+    public class HotelCashFlowController : ControllerBase
+    {
+        private readonly ICashFlowService _svc;
+        public HotelCashFlowController(ICashFlowService svc) => _svc = svc;
+
+        [HttpGet]
+        public Task<ActionResult<CashFlowResponse>> Get(
+            [FromQuery] string farmId, [FromQuery] DateTime? fromDate, [FromQuery] DateTime? toDate)
+            => CashFlowEndpoint.Handle(this, _svc, "hotel", farmId, fromDate, toDate);
+    }
+
+    [ApiController]
+    [Route("api/Restaurant/cash-flow")]
+    public class RestaurantCashFlowController : ControllerBase
+    {
+        private readonly ICashFlowService _svc;
+        public RestaurantCashFlowController(ICashFlowService svc) => _svc = svc;
+
+        [HttpGet]
+        public Task<ActionResult<CashFlowResponse>> Get(
+            [FromQuery] string farmId, [FromQuery] DateTime? fromDate, [FromQuery] DateTime? toDate)
+            => CashFlowEndpoint.Handle(this, _svc, "restaurant", farmId, fromDate, toDate);
     }
 
     internal static class CashFlowEndpoint
