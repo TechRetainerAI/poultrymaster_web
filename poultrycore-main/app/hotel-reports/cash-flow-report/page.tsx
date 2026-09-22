@@ -12,9 +12,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { downloadCsv } from "@/lib/utils/download-csv"
-import { downloadPdf, type PdfReportConfig } from "@/lib/utils/download-pdf"
+// downloadPdf is no longer imported here: the PDF button opens PdfPreviewDialog,
+// which carries its own "Download PDF" action.
+import { type PdfReportConfig } from "@/lib/utils/download-pdf"
 import { printReport, type PrintReportConfig } from "@/lib/utils/print-report"
 import { PdfPreviewDialog } from "@/components/reports/pdf-preview-dialog"
+import { ReportEmailButton } from "@/components/reports/report-email-dialog"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -128,27 +131,39 @@ export default function CashFlowReportPage() {
     t.createdby ?? "",
   ])
 
+  // 2026-09-18: this object claimed to be a PdfReportConfig but used none of its
+  // field names -- `columns` for `headers`, `summary` for `summaryCards`, and a
+  // "from to" STRING for a `{ from, to }` dateRange. buildPdf reads the real
+  // names, so the exported PDF had no table, no figures and no period: it
+  // rendered a letterhead and nothing else. Four of the repo's baseline
+  // TypeScript errors were this one object. Corrected here because Email would
+  // otherwise have posted the same empty document.
+  const summaryCards = [
+    { label: "Total Inflow (Credits)", value: totalCredits.toFixed(2) },
+    { label: "Total Outflow (Debits)", value: totalDebits.toFixed(2) },
+    { label: "Net Cash Flow", value: netFlow.toFixed(2) },
+    { label: "Transactions", value: String(txnCount) },
+  ]
+
   const pdfConfig: PdfReportConfig = {
     title: "Cash Flow Report",
-    hotelName, hotelAddress: "", hotelPhone: "", hotelEmail: "",
-    dateRange: `${dateFrom} to ${dateTo}`,
-    columns: csvHeaders,
+    filename: "cash-flow-report",
+    hotelName, hotelAddress: "", hotelPhone: "",
+    dateRange: { from: dateFrom, to: dateTo },
+    headers: csvHeaders,
     rows: csvRows,
-    summary: [
-      { label: "Total Inflow (Credits)", value: totalCredits.toFixed(2) },
-      { label: "Total Outflow (Debits)", value: totalDebits.toFixed(2) },
-      { label: "Net Cash Flow", value: netFlow.toFixed(2) },
-      { label: "Transactions", value: String(txnCount) },
-    ],
+    summaryCards,
   }
 
+  // Same three mistakes as the PDF config above, with the same effect on the
+  // printout.
   const printConfig: PrintReportConfig = {
     title: "Cash Flow Report",
     hotelName,
-    dateRange: `${dateFrom} to ${dateTo}`,
-    columns: csvHeaders,
+    dateRange: { from: dateFrom, to: dateTo },
+    headers: csvHeaders,
     rows: csvRows,
-    summary: pdfConfig.summary,
+    summaryCards,
   }
 
   return (
@@ -164,9 +179,10 @@ export default function CashFlowReportPage() {
               <Landmark className="h-6 w-6 text-violet-600" />
               <h1 className="text-2xl font-bold">Cash Flow Report</h1>
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => downloadCsv(csvHeaders, csvRows, "cash-flow-report")}><Download className="h-4 w-4 mr-1" />CSV</Button>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => downloadCsv("cash-flow-report", csvHeaders, csvRows)}><Download className="h-4 w-4 mr-1" />CSV</Button>
               <Button variant="outline" size="sm" onClick={() => setPdfPreviewOpen(true)}><FileText className="h-4 w-4 mr-1" />PDF</Button>
+              <ReportEmailButton getConfig={() => pdfConfig} title="Cash Flow Report" filename="cash-flow-report" periodLabel={`${dateFrom} to ${dateTo}`} propertyName={hotelName} compact />
               <Button variant="outline" size="sm" onClick={() => printReport(printConfig)}><Printer className="h-4 w-4 mr-1" />Print</Button>
             </div>
           </div>
@@ -343,7 +359,7 @@ export default function CashFlowReportPage() {
             </>
           )}
 
-          <PdfPreviewDialog open={pdfPreviewOpen} onOpenChange={setPdfPreviewOpen} config={pdfConfig} onDownload={() => downloadPdf(pdfConfig)} />
+          <PdfPreviewDialog open={pdfPreviewOpen} onOpenChange={setPdfPreviewOpen} config={pdfConfig} />
         </main>
       </div>
     </div>

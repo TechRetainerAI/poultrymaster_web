@@ -358,6 +358,8 @@ builder.Services.AddScoped<IGenericPayrollService>(sp => new GenericPayrollServi
 // Phase H2: Guests, bookings
 // =================================================================
 builder.Services.AddScoped<IHotelSetupService>(sp => new HotelSetupService(connectionString));
+// Values operators type into an "Other" box, remembered per hotel (migration 300).
+builder.Services.AddScoped<IHotelCustomOptionService>(sp => new HotelCustomOptionService(connectionString));
 builder.Services.AddScoped<IHotelRoomService>(sp => new HotelRoomService(connectionString));
 builder.Services.AddScoped<IHotelGuestService>(sp => new HotelGuestService(connectionString));
 builder.Services.AddScoped<IHotelBookingService>(sp => new HotelBookingService(connectionString));

@@ -399,4 +399,31 @@ namespace PoultryFarmAPIWeb.Models
         public string Status { get; set; } = string.Empty;
         public int RoomCount { get; set; }
     }
+
+    /// <summary>
+    /// One value an operator typed into an "Other" box on a Hotel dropdown.
+    /// Farm-scoped, unlike the global hotel*types/hotel*subjects seed tables --
+    /// see Migrations/300 for why those could not simply be written to.
+    /// </summary>
+    public class HotelCustomOptionModel
+    {
+        [Key]
+        public int CustomOptionId { get; set; }
+
+        [Required][StringLength(100)]
+        public string FarmId { get; set; } = string.Empty;
+
+        [Required][StringLength(60)]
+        public string ListKey { get; set; } = string.Empty;
+
+        [Required][StringLength(120)]
+        public string Value { get; set; } = string.Empty;
+
+        public int SortOrder { get; set; } = 500;
+
+        public bool IsActive { get; set; } = true;
+
+        public DateTime? CreatedAt { get; set; }
+        public string? CreatedBy { get; set; }
+    }
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Trash2, Edit2, Package, AlertTriangle, Search, DollarSign, TrendingDown, Warehouse, ClipboardCheck } from "lucide-react"
 import { PageSkeleton } from "@/components/restaurant/skeleton-loaders"
-import { OtherSelect } from "@/components/restaurant/other-select"
+import { OtherSelect, type OtherSelectHandle } from "@/components/restaurant/other-select"
 import { Badge } from "@/components/ui/badge"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
@@ -37,6 +37,11 @@ export default function RestaurantInventoryPage() {
   const router = useRouter()
   const { toast } = useToast()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
+
+  // Handles on the two "Other" dropdowns, so a typed value is remembered by
+  // the same click that saves the record it was typed for.
+  const ingCategoryOther = useRef<OtherSelectHandle>(null)
+  const wasteReasonOther = useRef<OtherSelectHandle>(null)
 
   const [loading, setLoading] = useState(true)
   const [ingredients, setIngredients] = useState<Ingredient[]>([])
@@ -93,6 +98,10 @@ export default function RestaurantInventoryPage() {
     try {
       if (ingEditing) await updateIngredient(ingEditing.ingredientId, ingForm)
       else await createIngredient(ingForm)
+      // A category typed under "Other" joins the list only once the ingredient
+      // it was typed for actually saved. Before the dialog closes: closing
+      // unmounts the field and takes the ref with it.
+      await ingCategoryOther.current?.remember()
       toast({ title: ingEditing ? "Updated" : "Ingredient added" }); setIngDialogOpen(false); loadAll()
     } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
   }
@@ -110,7 +119,11 @@ export default function RestaurantInventoryPage() {
     // Recalculate cost from ingredient
     const ing = ingredients.find(i => i.ingredientId === wasteForm.ingredientId)
     const finalForm = { ...wasteForm, costAmount: ing ? ing.costPerUnit * wasteForm.quantity : (wasteForm.costAmount || 0) }
-    try { await logWaste(finalForm); toast({ title: "Waste logged" }); setWasteDialogOpen(false); loadAll() }
+    try {
+      await logWaste(finalForm)
+      await wasteReasonOther.current?.remember()
+      toast({ title: "Waste logged" }); setWasteDialogOpen(false); loadAll()
+    }
     catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
   }
 
@@ -330,6 +343,7 @@ export default function RestaurantInventoryPage() {
               <div className="space-y-1.5"><Label>Name <span className="text-rose-500">*</span></Label><Input value={ingForm.name} onChange={e => setIngForm({ ...ingForm, name: e.target.value })} className="h-10" /></div>
               <div className="space-y-1.5"><Label>Category</Label>
                 <OtherSelect
+                  ref={ingCategoryOther}
                   listKey="IngredientCategory"
                   baseOptions={CATEGORIES}
                   value={ingForm.category || undefined}
@@ -417,6 +431,7 @@ export default function RestaurantInventoryPage() {
               <div className="space-y-1.5"><Label>Quantity</Label><Input type="number" step="0.01" value={wasteForm.quantity} onChange={e => setWasteForm({ ...wasteForm, quantity: parseFloat(e.target.value) || 0 })} className="h-10" /></div>
               <div className="space-y-1.5"><Label>Reason</Label>
                 <OtherSelect
+                  ref={wasteReasonOther}
                   listKey="WasteReason"
                   baseOptions={WASTE_REASONS}
                   value={wasteForm.reason || undefined}

@@ -362,6 +362,80 @@ export async function listHotelCommSubjects(): Promise<HotelCommSubject[]> {
   return jget<HotelCommSubject[]>("/Hotel/setup/comm-subjects")
 }
 
+// ----- Custom option lists ("Other", remembered) -----
+
+/**
+ * Which remembered list a dropdown draws from. Must match the allow-list in
+ * HotelCustomOptionController — an unknown key is rejected with a 400.
+ */
+export type HotelCustomOptionListKey =
+  | "CommSubject"        // hotel-communications        -> Log Guest Communication / Subject
+  | "RequestType"        // hotel-guest-requests        -> New Guest Request / Type
+  | "LostFoundCategory"  // hotel-lost-found            -> Log Lost Item / Category
+  | "HKTaskType"         // hotel-housekeeping-schedule -> Add Schedule Entry / Task Type
+  | "MenuCategory"       // hotel-menu                  -> Add Menu Item / Category
+  | "SupplyCategory"     // hotel-inventory             -> Add Supply Item / Category
+  | "SupplyItemName"     // hotel-inventory             -> Add Supply Item / Name
+  | "MaintenanceAsset"   // hotel-maintenance           -> New Maintenance Request / Asset / Area
+  | "TableLocation"      // hotel-restaurant-tables     -> Add Table / Location
+
+export interface HotelCustomOption {
+  customOptionId: number
+  farmId: string
+  listKey: string
+  value: string
+  sortOrder: number
+  isActive: boolean
+  createdAt?: string | null
+  createdBy?: string | null
+}
+
+/**
+ * Values this hotel has added to one dropdown.
+ *
+ * Returns [] rather than throwing when the endpoint is not there yet: the route
+ * only exists once the Farm API has been redeployed with migration 300 applied,
+ * and a dropdown that threw on mount would take the whole dialog down with it.
+ * An empty list degrades to exactly today's behaviour — seed options only.
+ * Same fallback the Restaurant side needed for migration 291.
+ */
+export async function listHotelCustomOptions(listKey: HotelCustomOptionListKey): Promise<HotelCustomOption[]> {
+  try {
+    return await jget<HotelCustomOption[]>(`/Hotel/custom-options?listKey=${encodeURIComponent(listKey)}`)
+  } catch {
+    return []
+  }
+}
+
+/** Every list for this hotel, for a dialog with more than one "Other" dropdown. */
+export async function listAllHotelCustomOptions(): Promise<HotelCustomOption[]> {
+  try {
+    return await jget<HotelCustomOption[]>("/Hotel/custom-options")
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Remember a typed value. Idempotent server-side, so re-saving an existing value
+ * returns that row instead of creating a duplicate — a double-submit is harmless.
+ * Throws on a real failure so the caller can tell the operator it was not saved;
+ * callers still apply the typed value to the record either way.
+ */
+export async function createHotelCustomOption(
+  listKey: HotelCustomOptionListKey,
+  value: string,
+): Promise<HotelCustomOption> {
+  const farmId = activeFarmId()
+  return jsend<HotelCustomOption>("/Hotel/custom-options", "POST", { farmId, listKey, value })
+}
+
+/** Stop offering a value. Soft delete — records already using it are untouched. */
+export async function deleteHotelCustomOption(customOptionId: number): Promise<void> {
+  const farmId = activeFarmId()
+  await jsend<void>(`/Hotel/custom-options/${customOptionId}?farmId=${encodeURIComponent(farmId)}`, "DELETE")
+}
+
 // ----- ID Types -----
 
 export async function listHotelIdTypes(): Promise<HotelIdType[]> {

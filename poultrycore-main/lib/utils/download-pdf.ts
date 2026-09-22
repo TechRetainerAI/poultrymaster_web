@@ -253,3 +253,21 @@ export function getPdfPreviewBlobUrl(config: PdfReportConfig): string {
   const doc = buildPdf(config)
   return URL.createObjectURL(doc.output("blob"))
 }
+
+/**
+ * The same PDF as a raw Blob, for uploading rather than displaying.
+ *
+ * `getPdfPreviewBlobUrl` above wraps its blob in an object URL the caller then
+ * has to revoke. Emailing needs the Blob itself to put in a FormData, and
+ * round-tripping through an object URL just to fetch it back would be silly, so
+ * this returns it directly. Returns the filename too, because the recipient sees
+ * it as the attachment name and every caller would otherwise rebuild the same
+ * dated string.
+ */
+export function getPdfBlob(config: PdfReportConfig): { blob: Blob; filename: string } {
+  const doc = buildPdf(config)
+  return {
+    blob: doc.output("blob"),
+    filename: `${config.filename}-${new Date().toISOString().slice(0, 10)}.pdf`,
+  }
+}

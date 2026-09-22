@@ -399,14 +399,18 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const hotelInventoryItems = gateHotel([
     { href: "/hotel-inventory",   label: "Supplies",     icon: Boxes },
     { href: "/hotel-maintenance", label: "Maintenance",  icon: Wrench },
+    // Shift Handover moved here from Reports: it is a shift-operations record,
+    // not a report, and Reports should list reports and nothing else.
+    { href: "/hotel-shift-handover", label: "Shift Handover", icon: FileText },
   ])
   const hotelReportsItems = gateHotel([
-    { href: "/hotel-reports",        label: "Reports",        icon: BarChart3 },
-    { href: "/hotel-shift-handover", label: "Shift Handover", icon: FileText },
+    { href: "/hotel-reports",        label: "All Reports",    icon: BarChart3 },
   ])
   const hotelAdminItems = gateHotel([
     { href: "/hotel-company-setup", label: "Company Setup", icon: Building2 },
-    { href: "/hotel-setup", label: "Setup", icon: Settings },
+    // "Hotel Setup", not "Setup": inside a group now titled Setup, a row also
+    // called Setup read as a loop. Matches lib/nav/hotel-nav-config.ts.
+    { href: "/hotel-setup", label: "Hotel Setup", icon: Settings },
   ])
 
   // Restaurant company nav items (shown when activeFarmType === "Restaurant")
@@ -798,7 +802,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
             <div className="border-t border-slate-800 mx-2" />
             {renderGroup("Reports", hotelReportsItems, "hotelReports")}
             <div className="border-t border-slate-800 mx-2" />
-            {renderGroup("Admin / Setup", hotelAdminItems, "hotelAdmin")}
+            {renderGroup("Setup", hotelAdminItems, "hotelAdmin")}
           </>
         ) : isRestaurant ? (
           <>

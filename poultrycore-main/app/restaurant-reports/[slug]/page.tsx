@@ -195,6 +195,7 @@ export default function RestaurantReportPage() {
       propertyAddress={profile.address}
       propertyPhone={profile.phone}
       currency={profile.currency}
+      enableEmail
     >
       <div className="space-y-4">
         {summaryCards.length > 0 && <StatGrid cards={summaryCards} />}

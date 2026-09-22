@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useState, useMemo } from "react"
+import { useEffect, useRef, useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -21,6 +21,7 @@ import {
   listHotelBookings, listHotelRooms, listHotelRequestTypes, listHotelStaff,
   type HotelBooking, type HotelRoom, type HotelRequestType, type HotelStaff,
 } from "@/lib/api/hotel"
+import { HotelOtherSelect, type HotelOtherSelectHandle } from "@/components/hotel/other-select"
 
 const STATUS_COLORS: Record<string, string> = {
   Pending: "bg-amber-100 text-amber-700",
@@ -42,6 +43,8 @@ export default function HotelGuestRequestsPage() {
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1); const pageSize = 20
   const [open, setOpen] = useState(false); const [saving, setSaving] = useState(false)
+  // Handle on the Request Type dropdown -- see handleSave.
+  const requestTypeOther = useRef<HotelOtherSelectHandle>(null)
   const [form, setForm] = useState({
     hotelBookingId: null as number | null,
     hotelRoomId: null as number | null,
@@ -51,8 +54,6 @@ export default function HotelGuestRequestsPage() {
     assignedTo: "",
     notes: "",
   })
-  const [typeSelection, setTypeSelection] = useState("")
-  const [customType, setCustomType] = useState("")
   const [assignedSelection, setAssignedSelection] = useState("")
   const [customAssigned, setCustomAssigned] = useState("")
 
@@ -87,7 +88,6 @@ export default function HotelGuestRequestsPage() {
 
   function openCreate() {
     setForm({ hotelBookingId: null, hotelRoomId: null, requestType: "", description: "", scheduledTime: "", assignedTo: "", notes: "" })
-    setTypeSelection(""); setCustomType("")
     setAssignedSelection(""); setCustomAssigned("")
     setOpen(true)
   }
@@ -97,6 +97,8 @@ export default function HotelGuestRequestsPage() {
     setSaving(true)
     try {
       await createGuestRequest(form)
+      // Before setOpen(false): closing unmounts the field and nulls the ref.
+      await requestTypeOther.current?.remember()
       toast({ title: "Request created" })
       setOpen(false); await load()
     } catch (e: any) {
@@ -318,31 +320,23 @@ export default function HotelGuestRequestsPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <Label>Type *</Label>
-                    <Select value={typeSelection || "__none__"} onValueChange={(v) => {
-                      const sel = v === "__none__" ? "" : v
-                      setTypeSelection(sel)
-                      if (sel !== "Other") { setCustomType(""); setForm({ ...form, requestType: sel }) }
-                      else { setForm({ ...form, requestType: customType || "" }) }
-                    }}>
-                      <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">Select type</SelectItem>
-                        {requestTypes.map((t) => <SelectItem key={t.hotelRequestTypeId} value={t.description}>{t.description}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                    <HotelOtherSelect
+                      ref={requestTypeOther}
+                      listKey="RequestType"
+                      baseOptions={requestTypes.map((t) => t.description)}
+                      value={form.requestType}
+                      onChange={(v) => setForm({ ...form, requestType: v ?? "" })}
+                      placeholder="Select type"
+                      includeNone
+                      noneLabel="Select type"
+                      otherLabel="Other (type request)"
+                    />
                   </div>
                   <div>
                     <Label>Scheduled Time</Label>
                     <Input type="datetime-local" value={form.scheduledTime} onChange={(e) => setForm({ ...form, scheduledTime: e.target.value })} />
                   </div>
                 </div>
-
-                {typeSelection === "Other" && (
-                  <div>
-                    <Label>Specify Request Type</Label>
-                    <Input value={customType} onChange={(e) => { setCustomType(e.target.value); setForm({ ...form, requestType: e.target.value }) }} placeholder="e.g. Iron, Hairdryer, Adapter" />
-                  </div>
-                )}
 
                 <div>
                   <Label>Description</Label>

@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -15,14 +15,19 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { listMenuItems, createMenuItem, updateMenuItem, deleteMenuItem, type HotelMenuItem } from "@/lib/api/hotel"
+import { HotelOtherSelect, type HotelOtherSelectHandle } from "@/components/hotel/other-select"
 
-const CATEGORIES = ["Breakfast", "Lunch", "Dinner", "Drinks", "Snacks", "Desserts", "Appetizers", "Sides", "Cocktails", "Other"]
+// "Other" is NOT listed here: HotelOtherSelect appends its own "Other" row that
+// opens a text box. Leaving it in would show the word twice.
+const CATEGORIES = ["Breakfast", "Lunch", "Dinner", "Drinks", "Snacks", "Desserts", "Appetizers", "Sides", "Cocktails"]
 
 export default function HotelMenuPage() {
   const router = useRouter(); const { toast } = useToast(); const logout = useLogout()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const [items, setItems] = useState<HotelMenuItem[]>([]); const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false); const [editing, setEditing] = useState<any>(null); const [saving, setSaving] = useState(false)
+  // Handle on the Category dropdown -- see handleSave.
+  const categoryOther = useRef<HotelOtherSelectHandle>(null)
   const [form, setForm] = useState({ name: "", category: "Lunch", description: "", price: 0 })
 
   useEffect(() => { if (!activeFarmType) return; if (activeFarmType !== "Hotel") { router.replace("/dashboard"); return }; load() }, [activeFarmType, router])
@@ -34,6 +39,8 @@ export default function HotelMenuPage() {
     try {
       if (editing) { await updateMenuItem(editing.hotelMenuItemId ?? editing.hotelmenuitemid, form); toast({ title: "Updated" }) }
       else { await createMenuItem(form); toast({ title: "Menu item added" }) }
+      // Before setDialogOpen(false): closing unmounts the field and nulls the ref.
+      await categoryOther.current?.remember()
       setDialogOpen(false); await load()
     } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) } finally { setSaving(false) }
   }
@@ -44,7 +51,11 @@ export default function HotelMenuPage() {
     catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
   }
 
-  const grouped = CATEGORIES.map(c => ({ category: c, items: items.filter((i: any) => (i.category) === c) })).filter(g => g.items.length > 0)
+  // Derived from the ITEMS, not from CATEGORIES: a category an operator typed
+  // ("Grills") is not in the built-in array, and keying off that array would
+  // silently drop every item filed under it.
+  const grouped = Array.from(new Set(items.map((i: any) => i.category).filter(Boolean)))
+    .map(c => ({ category: c as string, items: items.filter((i: any) => i.category === c) }))
 
   return (
     <div className="flex h-screen bg-slate-50"><DashboardSidebar onLogout={logout} /><div className="flex-1 flex flex-col min-w-0 overflow-hidden"><DashboardHeader />
@@ -63,7 +74,7 @@ export default function HotelMenuPage() {
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}><DialogContent><DialogHeader><DialogTitle>{editing ? "Edit Item" : "Add Menu Item"}</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div><Label>Name *</Label><Input value={form.name} onChange={(e) => setForm({...form, name: e.target.value})} placeholder="e.g. Jollof Rice" /></div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><Label>Category</Label><Select value={form.category} onValueChange={(v) => setForm({...form, category: v})}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></div><div><Label>Price</Label><Input type="number" step="0.01" value={form.price} onChange={(e) => setForm({...form, price: Number(e.target.value)})} /></div></div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><Label>Category</Label><HotelOtherSelect ref={categoryOther} listKey="MenuCategory" baseOptions={CATEGORIES} value={form.category} onChange={(v) => setForm({...form, category: v ?? ""})} placeholder="Select category" otherLabel="Other (type category)" /></div><div><Label>Price</Label><Input type="number" step="0.01" value={form.price} onChange={(e) => setForm({...form, price: Number(e.target.value)})} /></div></div>
             <div><Label>Description</Label><Input value={form.description} onChange={(e) => setForm({...form, description: e.target.value})} /></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button><Button onClick={handleSave} disabled={saving} className="bg-violet-600 hover:bg-violet-700">{saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}{editing ? "Update" : "Add"}</Button></DialogFooter>
