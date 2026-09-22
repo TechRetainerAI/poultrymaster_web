@@ -69,6 +69,35 @@ describe("isWaterNavItemVisible", () => {
     }
   })
 
+  // Profit & Loss has TWO routes: the Money row and the report in the
+  // catalogue. Same statement, different frame, deliberately different rules.
+  it("gates both Profit & Loss routes, so neither fails open", () => {
+    // The water-specific trap again: an unclassified route is VISIBLE, so the
+    // Money row added beside Cash Flow would have shown to staff with no
+    // financial access at all.
+    expect(isGatedWaterRoute("/water-profit-loss")).toBe(true)
+    expect(isGatedWaterRoute("/water-reports/profit-loss")).toBe(true)
+  })
+
+  it("shows the Money P&L to a finance reader who cannot open Reports", () => {
+    const f = access({ canViewFinancial: true })
+    expect(isWaterNavItemVisible("/water-profit-loss", f, false)).toBe(true)
+    // The catalogue copy follows the catalogue, so it stays hidden.
+    expect(isWaterNavItemVisible("/water-reports/profit-loss", f, false)).toBe(false)
+  })
+
+  it("shows both Profit & Loss routes to a reports reader", () => {
+    const f = access({ canViewReports: true })
+    expect(isWaterNavItemVisible("/water-profit-loss", f, false)).toBe(true)
+    expect(isWaterNavItemVisible("/water-reports/profit-loss", f, false)).toBe(true)
+  })
+
+  it("hides both Profit & Loss routes from someone with neither right", () => {
+    const f = access({ canViewCashLedger: true })
+    expect(isWaterNavItemVisible("/water-profit-loss", f, false)).toBe(false)
+    expect(isWaterNavItemVisible("/water-reports/profit-loss", f, false)).toBe(false)
+  })
+
   it("shows everything to an admin", () => {
     const f = access()
     for (const href of MONEY_PAGES) {

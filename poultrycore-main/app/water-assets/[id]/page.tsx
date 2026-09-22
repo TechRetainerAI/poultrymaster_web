@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { ArrowLeft, Loader2, Undo2, Info } from "lucide-react"
+import { ArrowLeft, Building2, Loader2, Undo2, Info } from "lucide-react"
 import { useFmt } from "@/lib/currency"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -93,17 +93,44 @@ export default function WaterAssetDetailPage() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <DashboardHeader />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => router.push("/water-assets")}>
-              <ArrowLeft className="w-4 h-4 mr-1" /> Assets
+          {/* The back link gets its own row, the way every other detail page in
+              this app does it. Wedged beside the title it competed with the
+              thing the page is actually about. */}
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" className="gap-1" onClick={() => router.push("/water-assets")}>
+              <ArrowLeft className="h-4 w-4" /> Back to Assets
             </Button>
-            <div>
-              <h1 className="text-lg font-semibold text-slate-900">{asset.assetName}</h1>
-              <p className="text-xs text-slate-500 font-mono">{asset.assetNumber}</p>
+          </div>
+
+          {/* Icon tile, the name at a size that reads as the page's subject, and
+              the facts you would otherwise scroll to find on one line beneath
+              it: what state it is in, its number, what kind of thing it is, when
+              it was bought, where it lives.
+
+              Some of this repeats the General card below, which is fine and is
+              what the delivery-run detail page does too: the header IDENTIFIES
+              the thing at a glance, the cards are where you go to read it. The
+              serial number is the one fact left out -- long, rarely scanned, and
+              it pushed the line onto a second row. */}
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-100">
+              <Building2 className="h-5 w-5 text-emerald-700" />
             </div>
-            <Badge variant="outline" className={cn("ml-auto text-[11px] font-normal", ASSET_STATUS_CLASS[asset.status])}>
-              {assetStatusLabel(asset.status)}
-            </Badge>
+            <div className="min-w-0 flex-1">
+              <h1 className="break-words text-xl font-semibold text-slate-900 sm:text-2xl">
+                {asset.assetName}
+              </h1>
+              <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 sm:text-sm">
+                <Badge variant="outline"
+                       className={cn("text-[11px] font-normal", ASSET_STATUS_CLASS[asset.status])}>
+                  {assetStatusLabel(asset.status)}
+                </Badge>
+                <span className="font-mono">{asset.assetNumber}</span>
+                {asset.categoryName && <span>· {asset.categoryName}</span>}
+                <span>· Acquired {fmtDateTime(asset.acquisitionDate, asset)}</span>
+                {asset.location && <span>· {asset.location}</span>}
+              </div>
+            </div>
           </div>
 
           {asset.status === "Reversed" && asset.reversalReason && (

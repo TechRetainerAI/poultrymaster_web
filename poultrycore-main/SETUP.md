@@ -214,7 +214,7 @@ dotnet run           # start the API
 dotnet build         # compile only
 ```
 
-> There is **no automated test suite**. `npm run lint` just runs `npm run build`.
+> `npm test` runs the vitest suite. `npm run lint` runs the hooks lint gate (`react-hooks/rules-of-hooks`) and then `npm run build`.
 > Because `next.config.mjs` sets `ignoreBuildErrors`, the build will NOT fail on
 > TypeScript type errors — run `npx tsc --noEmit` if you want real type checks.
 

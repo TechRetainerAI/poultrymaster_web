@@ -202,6 +202,9 @@ builder.Services.AddScoped<IWaterOwnerMoneyService>(sp => new WaterOwnerMoneySer
 // Loans (259): borrowed money, repayments split into principal, interest and
 // fees, and exactly one cash movement per repayment.
 builder.Services.AddScoped<IWaterLoanService>(sp => new WaterLoanService(connectionString));
+// Employee Loans & Advances (313/314) -- money lent TO staff, the mirror
+// of the line above. Also serves the water structured payroll deductions.
+builder.Services.AddScoped<IWaterEmployeeLoanService>(sp => new WaterEmployeeLoanService(connectionString));
 // Financial settings (274): when inventory costs reach the P&L. Two independent
 // choices, packaging and treatment, resolved against item overrides by the SPs.
 // Also carries the per-item override read/write, which on the water side is its
@@ -231,6 +234,8 @@ builder.Services.AddScoped<IPoultryLoanService>(sp => new PoultryLoanService(con
 // of the line above. Also serves the structured payroll deductions, because
 // a loan repayment deduction is the reason that table exists.
 builder.Services.AddScoped<IPoultryEmployeeLoanService>(sp => new PoultryEmployeeLoanService(connectionString));
+// 318. Per-user, per-company Quick Links. A preference store, not an access one.
+builder.Services.AddScoped<IUserQuickLinkService>(sp => new UserQuickLinkService(connectionString));
 // Financial settings (261): when inventory costs reach the P&L. Two independent
 // choices, feed and medication, resolved against item overrides by the SPs.
 builder.Services.AddScoped<IPoultryFinancialSettingsService>(sp => new PoultryFinancialSettingsService(connectionString));
@@ -241,6 +246,9 @@ builder.Services.AddScoped<IPoultryDeferredInventoryCostService>(sp => new Poult
 builder.Services.AddScoped<IPoultryCapitalAssetService>(sp => new PoultryCapitalAssetService(connectionString));
 builder.Services.AddScoped<IPoultryProfitLossService>(sp => new PoultryProfitLossService(connectionString));
 builder.Services.AddScoped<IHotelProfitLossService>(sp => new HotelProfitLossService(connectionString));
+// 316. The water P&L's analytical layer. Reads spwaterreport_periodpnl through
+// spwaterreport_plsummary and never recomputes what it reports.
+builder.Services.AddScoped<IWaterProfitLossService>(sp => new WaterProfitLossService(connectionString));
 
 // Poultry Staff + Attendance + Payroll (port of the Water W6 module). Payroll
 // approve upserts a linked dbo.Expense (Category 'Payroll'); mark-paid posts a

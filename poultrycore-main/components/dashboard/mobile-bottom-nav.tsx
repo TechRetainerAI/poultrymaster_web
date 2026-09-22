@@ -11,6 +11,9 @@ import { filterWaterNavItems } from "@/lib/utils/water-nav-access"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useAlertsStore } from "@/lib/store/alerts-store"
 import { buildPoultryNavConfig } from "@/lib/nav/poultry-nav-config"
+import { buildWaterNavConfig } from "@/lib/nav/water-nav-config"
+import { useQuickLinkHrefs } from "@/lib/store/quick-links-store"
+import { QuickLinksDialog } from "@/components/dashboard/quick-links-dialog"
 import { HOTEL_REPORT_NAV_GROUPS, POULTRY_REPORT_NAV_GROUPS, RESTAURANT_REPORT_NAV_GROUPS } from "@/lib/nav/report-nav-adapters"
 import { buildRestaurantNavConfig } from "@/lib/nav/restaurant-nav-config"
 import { NAV_SURFACE } from "@/components/dashboard/nav/nav-surface"
@@ -74,6 +77,13 @@ interface NavItem {
   href: string
   label: string
   icon: LucideIcon
+  /**
+   * Action row — renders a <button> instead of a <Link>, the way the desktop
+   * mega-menu model already does. Quick Links uses it for "Customise", which
+   * is not a page. `href` stays required and is the React key; it is never
+   * navigated to when this is set.
+   */
+  onClick?: () => void
 }
 
 /**
@@ -81,7 +91,7 @@ interface NavItem {
  * one flat grid meant reading every label to find anything.
  *
  * It now mirrors the DESKTOP TOP NAV: the same sections in the same order
- * (Quick Links, Operations, Sales/Expenses/Money, Analytics, Reports, Setup,
+ * (Quick Links, Operations, Sales/Expenses/Money, Trackers, Reports, Setup,
  * System),
  * each holding the same column groups. For Poultry the contents are read
  * straight out of lib/nav/poultry-nav-config.ts — the very config the top nav
@@ -170,6 +180,20 @@ export function MobileBottomNav() {
   const openAlerts = useAlertsStore((st) => st.open)
   const alertCount = useAlertsStore((st) => st.alerts.length)
   const [sheetOpen, setSheetOpen] = useState(false)
+  // 318. null = never customised = each config's own defaults.
+  const quickLinkHrefs = useQuickLinkHrefs()
+  const [customiseOpen, setCustomiseOpen] = useState(false)
+  /**
+   * The row that opens the picker, appended to whichever Quick Links section
+   * this company type renders. It is an action, so it carries onClick and its
+   * href is only a key.
+   */
+  const customiseRow: NavItem = {
+    href: "#customise-quick-links",
+    label: "Customise Quick Links",
+    icon: Settings,
+    onClick: () => setCustomiseOpen(true),
+  }
   // Forty-odd destinations is more than anyone scans. Typing filters across
   // every group at once; clearing it restores the grouped view.
   const [moreQuery, setMoreQuery] = useState("")
@@ -182,6 +206,20 @@ export function MobileBottomNav() {
   // only after mount so SSR and the first client paint agree.
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
+
+  // The water rail's own config, for its Quick Links section. Only that
+  // section reads it -- the rest of the water tree in here is still
+  // hand-written -- but the bar has to come from the same place the desktop
+  // gets it or a customised one never reaches the phone.
+  const waterNavForQuickLinks = buildWaterNavConfig({
+    permissions, onOpenAlerts: openAlerts, alertCount, quickLinkHrefs,
+  })
+  // The poultry bar is the FALLBACK branch below, not a named farm type, so it
+  // is spelled out here once rather than inferred twice.
+  const isPoultry = !["Water", "Generic", "Hotel", "Restaurant"].includes(activeFarmType ?? "")
+  const poultryNavForQuickLinks = buildPoultryNavConfig({
+    permissions, onOpenAlerts: openAlerts, alertCount, quickLinkHrefs,
+  })
 
   // Per-company-type bar config. The 4 main tabs are the most-used daily flow
   // pages for each company; everything else goes into "More". Colours match
@@ -208,10 +246,12 @@ export function MobileBottomNav() {
         // Same groups, same order as the desktop water sidebar.
         moreGroups: compactSections([
           ...asSections([
-          { title: "Quick Links", items: gateWater([
-            { href: "/water-daily-closing",  label: "Daily Closing",  icon: FileText },
-            { href: "/water-driver-returns", label: "Deliveries",     icon: Truck },
-          ] as NavItem[]) },
+          // From the RAIL's config, not a hand-written pair: it is the only
+          // way a customised bar (318) reaches the phone, and it ends a drift
+          // in which this sheet showed two shortcuts the desktop did not.
+          // buildWaterNavConfig applies its own Staff Page Access gate, so
+          // gateWater would only be doing it twice.
+          { title: "Quick Links", items: [...waterNavForQuickLinks.quickLinks.items, customiseRow] },
           { title: "Delivery", items: gateWater([
             { href: "/water-drivers",       label: "Drivers",       icon: Users2 },
             { href: "/water-vehicles",      label: "Vehicles",      icon: Truck },
@@ -258,7 +298,7 @@ export function MobileBottomNav() {
             ] as NavItem[]) },
             { title: "Money", items: gateWater([
               { href: "/water-cash-flow",           label: "Cash Flow",      icon: Wallet },
-              { href: "/water-reports/profit-loss", label: "Profit & Loss",  icon: TrendingUp },
+              { href: "/water-profit-loss",         label: "Profit & Loss",  icon: TrendingUp },
               { href: "/water-owner-money",         label: "Owner Money",    icon: HandCoins },
               { href: "/water-loans",               label: "Loans",          icon: HandCoins },
               { href: "/water-cash-accounts",       label: "Cash accounts",  icon: Wallet },
@@ -276,7 +316,7 @@ export function MobileBottomNav() {
           { title: "People", items: gateWater([
             { href: "/water-staff",   label: "Staff",   icon: Users2 },
           ] as NavItem[]) },
-          { title: "Analytics & Reports", items: gateWater([
+          { title: "Trackers & Reports", items: gateWater([
             { href: "/water-inventory-tracker", label: "Inventory tracker", icon: History },
             { href: "/water-reports",           label: "Reports",           icon: BarChart3 },
           ] as NavItem[]) },
@@ -530,14 +570,14 @@ export function MobileBottomNav() {
     })
     // Read the DESKTOP TOP NAV's own config rather than keeping a third copy of
     // the poultry nav. Same sections, same order, same permission gates as the
-    // rail: Quick Links | Operations | Sales, Expenses & Money | Analytics |
+    // rail: Quick Links | Operations | Sales, Expenses & Money | Trackers |
     // Reports | Setup, then System.
-    const nav = buildPoultryNavConfig({ permissions, onOpenAlerts: openAlerts, alertCount })
+    const nav = poultryNavForQuickLinks
     const filteredPoultryMore = compactSections([
-      { title: "Quick Links", groups: [{ title: "", items: nav.quickLinks.items }] },
+      { title: "Quick Links", groups: [{ title: "", items: [...nav.quickLinks.items, customiseRow] }] },
       { title: "Operations",    groups: fromMegaMenu(nav.operations) },
       { title: "Sales, Expenses & Money", groups: fromMegaMenu(nav.salesMoney) },
-      { title: "Analytics",     groups: fromMegaMenu(nav.analytics) },
+      { title: "Trackers",      groups: fromMegaMenu(nav.analytics) },
       // The rail hides the whole Reports menu behind canViewReports.
       ...(permissions.featureAccess.canViewReports
         ? [{ title: "Reports", groups: [
@@ -612,6 +652,7 @@ export function MobileBottomNav() {
     pathname.startsWith("/egg-production/")
 
   return (
+    <>
     <nav
       className={cn(
         "lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t pb-[env(safe-area-inset-bottom)] shadow-[0_-2px_10px_rgba(0,0,0,0.15)]",
@@ -752,20 +793,38 @@ export function MobileBottomNav() {
                               {group.items.map((item) => {
                                 const Icon = item.icon
                                 const isActive = itemActive(item.href)
-                                return (
+                                const rowClass = cn(
+                                  "flex min-h-[44px] items-center gap-2.5 rounded-xl p-3 transition-colors",
+                                  isActive
+                                    ? `${surface.rowActive} font-medium`
+                                    : "bg-slate-700/60 text-slate-100 hover:bg-slate-700",
+                                )
+                                const body = (
+                                  <>
+                                    <Icon className="h-5 w-5 shrink-0" />
+                                    <span className="truncate text-sm">{item.label}</span>
+                                  </>
+                                )
+                                // An action row closes the sheet first: the
+                                // dialog it opens would otherwise appear behind
+                                // it.
+                                return item.onClick ? (
+                                  <button
+                                    key={`${group.title}:${item.href}`}
+                                    type="button"
+                                    onClick={() => { setSheetOpen(false); item.onClick!() }}
+                                    className={cn(rowClass, "text-left")}
+                                  >
+                                    {body}
+                                  </button>
+                                ) : (
                                   <Link
                                     key={`${group.title}:${item.href}`}
                                     href={item.href}
                                     onClick={() => setSheetOpen(false)}
-                                    className={cn(
-                                      "flex min-h-[44px] items-center gap-2.5 rounded-xl p-3 transition-colors",
-                                      isActive
-                                        ? `${surface.rowActive} font-medium`
-                                        : "bg-slate-700/60 text-slate-100 hover:bg-slate-700",
-                                    )}
+                                    className={rowClass}
                                   >
-                                    <Icon className="h-5 w-5 shrink-0" />
-                                    <span className="truncate text-sm">{item.label}</span>
+                                    {body}
                                   </Link>
                                 )
                               })}
@@ -782,5 +841,17 @@ export function MobileBottomNav() {
         </Sheet>
       </div>
     </nav>
+
+    {/* Outside the <nav>: the sheet closes before this opens, and a dialog
+        inside a fixed, z-40 bar inherits its stacking context. Only the two
+        company types with a customisable bar get one. */}
+    {(activeFarmType === "Water" || isPoultry) && (
+      <QuickLinksDialog
+        open={customiseOpen}
+        onOpenChange={setCustomiseOpen}
+        nav={activeFarmType === "Water" ? waterNavForQuickLinks : poultryNavForQuickLinks}
+      />
+    )}
+    </>
   )
 }

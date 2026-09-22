@@ -56,6 +56,29 @@ describe("isFinancialNavItemVisible", () => {
     expect(isFinancialNavItemVisible("/poultry-loans", f, true)).toBe(false)
   })
 
+  // Profit & Loss has TWO hrefs: the Money row and the report catalogue entry.
+  // They show the same statement, so they must answer identically -- and the
+  // Money one is new, which is precisely the case this file was written for.
+  it("shows BOTH Profit & Loss hrefs to a finance reader", () => {
+    const f = access({ canViewFinancial: true })
+    expect(isFinancialNavItemVisible("/poultry-profit-loss", f, false)).toBe(true)
+    expect(isFinancialNavItemVisible("/poultry/reports/profit-loss", f, false)).toBe(true)
+  })
+
+  it("shows BOTH Profit & Loss hrefs to a reports reader", () => {
+    // Someone who can read reports but not the cash ledger still gets the P&L,
+    // because the report catalogue offers it either way.
+    const f = access({ canViewReports: true })
+    expect(isFinancialNavItemVisible("/poultry-profit-loss", f, false)).toBe(true)
+    expect(isFinancialNavItemVisible("/poultry/reports/profit-loss", f, false)).toBe(true)
+  })
+
+  it("hides BOTH Profit & Loss hrefs from someone with neither right", () => {
+    const f = access({ canViewCashLedger: true })
+    expect(isFinancialNavItemVisible("/poultry-profit-loss", f, false)).toBe(false)
+    expect(isFinancialNavItemVisible("/poultry/reports/profit-loss", f, false)).toBe(false)
+  })
+
   it("hides an href it has never heard of", () => {
     // The trap: a new page added to a gated nav group but not to this list.
     const f = access({ canViewCashLedger: true, canViewFinancial: true })

@@ -3068,3 +3068,396 @@ export const waterMachineScopeLabel = (d: WaterDailyProduction): string => {
   if (!names.length) return `${d.machineCount ?? 0} machine(s)`
   return names.length <= 2 ? names.join(", ") : `${names.slice(0, 2).join(", ")} +${names.length - 2} more`
 }
+
+// =============================================================================
+// Employee Loans & Advances (migrations 313/314)
+//
+// Money the company LENDS TO STAFF -- a receivable, and the mirror image of the
+// water Loans section, which is money the company borrowed. The two never share
+// a type: a lender is not a worker, and a liability is not an asset.
+//
+// The poultry twin of this block lives in lib/api/poultry-finance.ts. Same
+// shape, same names, different endpoints -- the two company types keep separate
+// tables for everything, so they keep separate clients too.
+//
+// Every financial rule lives in the SQL. This module sends parameters, and the
+// one thing it will not let you do is post a payroll repayment: those are
+// created by approving the payroll run, which is also the only thing that can
+// reverse them (spec sections 39 and 60).
+// =============================================================================
+
+export const EMPLOYEE_LOAN_TYPES = ["EmployeeLoan", "SalaryAdvance", "OtherAdvance"] as const
+export type EmployeeLoanType = (typeof EMPLOYEE_LOAN_TYPES)[number]
+
+export const EMPLOYEE_LOAN_TYPE_LABELS: Record<string, string> = {
+  EmployeeLoan: "Employee loan",
+  SalaryAdvance: "Salary advance",
+  OtherAdvance: "Other advance",
+}
+
+export const EMPLOYEE_LOAN_REPAYMENT_METHODS = [
+  "PayrollDeduction", "Cash", "MoMo", "Bank", "Mixed", "Other",
+] as const
+
+export const EMPLOYEE_LOAN_REPAYMENT_METHOD_LABELS: Record<string, string> = {
+  PayrollDeduction: "Payroll deduction",
+  Cash: "Cash",
+  MoMo: "MoMo",
+  Bank: "Bank",
+  Mixed: "Mixed",
+  Other: "Other",
+}
+
+/** How a repayment reached the company. "Payroll" is never chosen by a user. */
+export const EMPLOYEE_LOAN_REPAYMENT_SOURCES = ["ManualCash", "MoMo", "Bank", "Other"] as const
+
+export const EMPLOYEE_LOAN_SOURCE_LABELS: Record<string, string> = {
+  Payroll: "Payroll",
+  ManualCash: "Cash",
+  MoMo: "MoMo",
+  Bank: "Bank",
+  Other: "Other",
+}
+
+export const EMPLOYEE_LOAN_STATUS_LABELS: Record<string, string> = {
+  Draft: "Draft",
+  Active: "Active",
+  Paid: "Paid",
+  Cancelled: "Cancelled",
+  Reversed: "Reversed",
+  WrittenOff: "Written off",
+}
+
+export interface WaterEmployeeLoan {
+  waterEmployeeLoanId: number
+  farmId: string
+  waterStaffId: number
+  staffName?: string | null
+  staffRole?: string | null
+  loanNumber?: string | null
+  loanType: string
+  principalAmount: number
+  interestEnabled: boolean
+  interestAmount: number
+  interestRate?: number | null
+  interestType?: string | null
+  /** Principal + interest: what the worker owes in total. */
+  totalRepayable: number
+  disbursementDate: string
+  repaymentMethod: string
+  defaultPayrollDeduction?: number | null
+  expectedStartDate?: string | null
+  expectedEndDate?: string | null
+  purpose?: string | null
+  description?: string | null
+  notes?: string | null
+  status: string
+  paidAt?: string | null
+  totalRepaid: number
+  totalPrincipalRepaid: number
+  totalInterestRepaid: number
+  outstandingBalance: number
+  repaymentCount: number
+  waterCashAccountId?: number | null
+  cashAccountName?: string | null
+  paymentMethod?: string | null
+  referenceNumber?: string | null
+  waterCashTransactionId?: number | null
+  disbursedBy?: string | null
+  disbursedAt?: string | null
+  createdBy?: string | null
+  createdAt: string
+  reversedBy?: string | null
+  reversedAt?: string | null
+  reversalReason?: string | null
+}
+
+export interface WaterEmployeeLoanPage {
+  items: WaterEmployeeLoan[]
+  totalCount: number
+}
+
+export interface WaterEmployeeLoanRepayment {
+  waterEmployeeLoanRepaymentId: number
+  waterEmployeeLoanId: number
+  waterStaffId: number
+  staffName?: string | null
+  repaymentNumber?: string | null
+  repaymentDate: string
+  amount: number
+  principalAmount: number
+  interestAmount: number
+  sourceType: string
+  waterPayrollRunId?: number | null
+  payrollPeriodStart?: string | null
+  payrollPeriodEnd?: string | null
+  waterPayrollItemId?: number | null
+  waterPayrollDeductionId?: number | null
+  /** Always null for a payroll repayment: no money moved. */
+  waterCashAccountId?: number | null
+  cashAccountName?: string | null
+  paymentMethod?: string | null
+  referenceNumber?: string | null
+  description?: string | null
+  notes?: string | null
+  balanceBefore: number
+  balanceAfter: number
+  status: string
+  waterCashTransactionId?: number | null
+  reversalCashTransactionId?: number | null
+  createdBy?: string | null
+  createdAt: string
+  reversedBy?: string | null
+  reversedAt?: string | null
+  reversalReason?: string | null
+}
+
+export interface WaterEmployeeLoanSummary {
+  outstandingTotal: number
+  disbursedInPeriod: number
+  repaidInPeriod: number
+  activeLoans: number
+  staffWithActiveLoans: number
+  paidLoans: number
+  draftLoans: number
+}
+
+export interface WaterEmployeeLoanEligible {
+  waterEmployeeLoanId: number
+  loanNumber?: string | null
+  loanType: string
+  outstandingBalance: number
+  defaultPayrollDeduction?: number | null
+  repaymentMethod?: string | null
+  disbursementDate: string
+}
+
+export interface WaterEmployeeLoanFilter {
+  staffId?: number | null
+  loanType?: string | null
+  status?: string | null
+  repaymentMethod?: string | null
+  fromDate?: string | null
+  toDate?: string | null
+  search?: string | null
+  limit?: number
+  offset?: number
+}
+
+/** Server-side filtered and paged: never pull a farm's whole history. */
+export const listWaterEmployeeLoans = (f: WaterEmployeeLoanFilter = {}) => {
+  const q = new URLSearchParams({ farmId: activeFarmId() })
+  if (f.staffId) q.set("staffId", String(f.staffId))
+  if (f.loanType) q.set("loanType", f.loanType)
+  if (f.status) q.set("status", f.status)
+  if (f.repaymentMethod) q.set("repaymentMethod", f.repaymentMethod)
+  if (f.fromDate) q.set("fromDate", f.fromDate)
+  if (f.toDate) q.set("toDate", f.toDate)
+  if (f.search?.trim()) q.set("search", f.search.trim())
+  q.set("limit", String(f.limit ?? 50))
+  q.set("offset", String(f.offset ?? 0))
+  return jget<WaterEmployeeLoanPage>(`/Water/employee-loans?${q.toString()}`)
+}
+
+export const getWaterEmployeeLoanSummary = (fromDate?: string, toDate?: string) => {
+  const q = new URLSearchParams({ farmId: activeFarmId() })
+  if (fromDate) q.set("fromDate", fromDate)
+  if (toDate) q.set("toDate", toDate)
+  return jget<WaterEmployeeLoanSummary>(`/Water/employee-loans/summary?${q.toString()}`)
+}
+
+export const getWaterEmployeeLoan = (id: number) =>
+  jget<WaterEmployeeLoan>(`/Water/employee-loans/${id}?farmId=${encodeURIComponent(activeFarmId())}`)
+
+export const listWaterEmployeeLoanRepayments = (loanId: number) =>
+  jget<WaterEmployeeLoanRepayment[]>(
+    `/Water/employee-loans/${loanId}/repayments?farmId=${encodeURIComponent(activeFarmId())}`)
+
+/**
+ * Which advances a deduction may be applied to for this worker. The dropdown
+ * shows what this returns; the server re-checks the same rules when the payroll
+ * is approved, so a hand-made id gets refused rather than posted.
+ */
+export const listEligibleWaterEmployeeLoans = (staffId: number) =>
+  jget<WaterEmployeeLoanEligible[]>(
+    `/Water/employee-loans/eligible?farmId=${encodeURIComponent(activeFarmId())}&staffId=${staffId}`)
+
+export interface WaterEmployeeLoanInput {
+  waterStaffId: number
+  principalAmount: number
+  disbursementDate: string
+  loanType?: string
+  interestEnabled?: boolean
+  interestAmount?: number | null
+  interestRate?: number | null
+  interestType?: string | null
+  repaymentMethod?: string
+  defaultPayrollDeduction?: number | null
+  expectedStartDate?: string | null
+  expectedEndDate?: string | null
+  purpose?: string | null
+  description?: string | null
+  notes?: string | null
+  /** False records the agreement only: a Draft owes nothing and moves no cash. */
+  disburseNow?: boolean
+  waterCashAccountId?: number | null
+  paymentMethod?: string | null
+  referenceNumber?: string | null
+}
+
+export const createWaterEmployeeLoan = (input: WaterEmployeeLoanInput) =>
+  jsend<{ waterEmployeeLoanId: number }>(`/Water/employee-loans`, "POST", {
+    ...input,
+    farmId: activeFarmId(),
+    createdBy: currentUserId() || null,
+  })
+
+/** Terms only, once it is disbursed: the amount and the worker are history. */
+export const updateWaterEmployeeLoan = (
+  id: number, input: Partial<WaterEmployeeLoanInput>,
+) =>
+  jsend<void>(`/Water/employee-loans/${id}`, "PUT", {
+    ...input,
+    farmId: activeFarmId(),
+    updatedBy: currentUserId() || null,
+  })
+
+export const disburseWaterEmployeeLoan = (
+  id: number,
+  input: {
+    waterCashAccountId: number
+    paymentMethod?: string | null
+    referenceNumber?: string | null
+  },
+) =>
+  jsend<void>(`/Water/employee-loans/${id}/disburse`, "POST", {
+    ...input,
+    farmId: activeFarmId(),
+    disbursedBy: currentUserId() || null,
+  })
+
+export const cancelWaterEmployeeLoan = (id: number, reason?: string | null) =>
+  jsend<void>(`/Water/employee-loans/${id}/cancel`, "POST", {
+    farmId: activeFarmId(), reason: reason ?? null, actionBy: currentUserId() || null,
+  })
+
+export const reverseWaterEmployeeLoan = (id: number, reason?: string | null) =>
+  jsend<void>(`/Water/employee-loans/${id}/reverse`, "POST", {
+    farmId: activeFarmId(), reason: reason ?? null, actionBy: currentUserId() || null,
+  })
+
+export interface WaterEmployeeLoanRepaymentInput {
+  waterEmployeeLoanId: number
+  amount: number
+  sourceType?: string
+  principalAmount?: number | null
+  interestAmount?: number | null
+  repaymentDate?: string | null
+  waterCashAccountId?: number | null
+  paymentMethod?: string | null
+  referenceNumber?: string | null
+  description?: string | null
+  notes?: string | null
+}
+
+/** A repayment the worker actually made. Payroll deductions never come here. */
+export const recordWaterEmployeeLoanRepayment = (input: WaterEmployeeLoanRepaymentInput) =>
+  jsend<{ waterEmployeeLoanRepaymentId: number }>(
+    `/Water/employee-loans/repayments`, "POST", {
+      ...input,
+      farmId: activeFarmId(),
+      createdBy: currentUserId() || null,
+    })
+
+/**
+ * Reverses a repayment the worker made directly. A payroll-created one is
+ * refused by the server with a message naming the run to reopen -- that is
+ * deliberate, not a gap.
+ */
+export const reverseWaterEmployeeLoanRepayment = (
+  repaymentId: number, reason?: string | null,
+) =>
+  jsend<void>(`/Water/employee-loans/repayments/${repaymentId}/reverse`, "POST", {
+    farmId: activeFarmId(), reason: reason ?? null, actionBy: currentUserId() || null,
+  })
+
+// -----------------------------------------------------------------------------
+// Structured payroll deductions (306)
+// -----------------------------------------------------------------------------
+export const PAYROLL_DEDUCTION_TYPES = [
+  "EmployeeLoanRepayment", "SalaryAdvanceRepayment", "OtherDeduction",
+] as const
+
+export const PAYROLL_DEDUCTION_TYPE_LABELS: Record<string, string> = {
+  EmployeeLoanRepayment: "Employee loan repayment",
+  SalaryAdvanceRepayment: "Salary advance repayment",
+  OtherDeduction: "Other deduction",
+}
+
+export interface WaterPayrollDeduction {
+  /** Null on the legacy row: it is the unexplained remainder, not a record. */
+  waterPayrollItemDeductionId?: number | null
+  waterPayrollItemId: number
+  waterStaffId: number
+  deductionType: string
+  amount: number
+  waterEmployeeLoanId?: number | null
+  loanNumber?: string | null
+  loanType?: string | null
+  loanOutstanding?: number | null
+  waterEmployeeLoanRepaymentId?: number | null
+  description?: string | null
+  reference?: string | null
+  status: string
+  isLegacy: boolean
+  createdBy?: string | null
+  createdAt?: string | null
+}
+
+export interface WaterPayrollDeductionRunRow {
+  waterPayrollItemId: number
+  waterStaffId: number
+  staffName?: string | null
+  deductions: number
+  legacyDeductions: number
+  structuredTotal: number
+  structuredCount: number
+  loanRepaymentTotal: number
+  activeLoanCount: number
+  activeLoanOutstanding: number
+  /** What the worker's advances suggest. A suggestion: nothing posts from it. */
+  suggestedDeduction: number
+}
+
+/** The breakdown behind one payslip line. The rows always add up to its total. */
+export const listWaterPayrollDeductions = (payrollItemId: number) =>
+  jget<WaterPayrollDeduction[]>(
+    `/Water/payroll-deductions?farmId=${encodeURIComponent(activeFarmId())}&payrollItemId=${payrollItemId}`)
+
+export const listWaterPayrollDeductionsForRun = (runId: number) =>
+  jget<WaterPayrollDeductionRunRow[]>(
+    `/Water/payroll-deductions/run/${runId}?farmId=${encodeURIComponent(activeFarmId())}`)
+
+export interface WaterPayrollDeductionInput {
+  waterPayrollItemId: number
+  deductionType: string
+  amount: number
+  waterEmployeeLoanId?: number | null
+  description?: string | null
+  reference?: string | null
+  waterPayrollItemDeductionId?: number | null
+}
+
+/** Unapproved runs only. Nothing here moves a balance -- approval does that. */
+export const saveWaterPayrollDeduction = (input: WaterPayrollDeductionInput) =>
+  jsend<{ waterPayrollItemDeductionId: number }>(
+    `/Water/payroll-deductions`, "POST", {
+      ...input,
+      farmId: activeFarmId(),
+      savedBy: currentUserId() || null,
+    })
+
+export const deleteWaterPayrollDeduction = (deductionId: number) =>
+  jsend<void>(
+    `/Water/payroll-deductions/${deductionId}?farmId=${encodeURIComponent(activeFarmId())}` +
+    `&deletedBy=${encodeURIComponent(currentUserId() || "")}`, "DELETE")

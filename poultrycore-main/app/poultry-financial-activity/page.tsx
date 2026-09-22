@@ -312,7 +312,7 @@ function FinancialActivityPageInner() {
                 <Link href="/cash-flow"><ArrowLeftRight className="w-4 h-4 mr-1" /> Cash Flow</Link>
               </Button>
               <Button variant="outline" size="sm" asChild>
-                <Link href="/poultry/reports/profit-loss"><BarChart3 className="w-4 h-4 mr-1" /> Profit &amp; Loss</Link>
+                <Link href="/poultry-profit-loss"><BarChart3 className="w-4 h-4 mr-1" /> Profit &amp; Loss</Link>
               </Button>
               <Button variant="outline" size="sm" onClick={exportCsv} disabled={filtered.length === 0}>
                 <Download className="w-4 h-4 mr-1" /> Export CSV
