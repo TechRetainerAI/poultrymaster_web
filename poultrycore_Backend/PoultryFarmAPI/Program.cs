@@ -379,6 +379,14 @@ builder.Services.AddScoped<IHotelHousekeepingService>(sp => new HotelHousekeepin
 builder.Services.AddScoped<IHotelEmailService, HotelEmailService>();
 // Phase H-Cash: Cash ledger integration
 builder.Services.AddScoped<IHotelCashLedgerService, HotelCashLedgerService>();
+// Phase H-Cust: Customer balance management
+builder.Services.AddScoped<IHotelCustomerService>(sp => new HotelCustomerService(connectionString));
+// Phase H-Loan: Employee loans & advances
+builder.Services.AddScoped<IHotelEmployeeLoanService>(sp => new HotelEmployeeLoanService(connectionString));
+// Phase H-Supp: Supplier balance & payments
+builder.Services.AddScoped<IHotelSupplierService>(sp => new HotelSupplierService(connectionString));
+// Phase H-Asset: Capital assets & depreciation
+builder.Services.AddScoped<IHotelCapitalAssetService>(sp => new HotelCapitalAssetService(connectionString));
 // =================================================================
 
 // =================================================================

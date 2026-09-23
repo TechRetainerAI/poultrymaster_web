@@ -423,9 +423,9 @@ function HotelTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
         <NavMegaMenu
           label="Sales & Money" icon={Wallet}
           title="Sales & Money"
-          blurb="Billing, payments, expenses and cash."
+          blurb="Billing, payments, expenses, customers, suppliers and assets."
           groups={nav.salesMoney}
-          columns={2} widthRem={21} layout="grid" accent="violet"
+          columns={3} widthRem={28} layout="grid" accent="violet"
         />
 
         <NavMegaMenu
