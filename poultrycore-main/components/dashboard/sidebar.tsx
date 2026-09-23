@@ -386,17 +386,23 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/hotel-kitchen",           label: "Kitchen",      icon: Activity },
   ])
   const hotelFinanceItems = gateHotel([
-    { href: "/hotel-billing",       label: "Billing",       icon: DollarSign },
-    { href: "/hotel-invoices",      label: "Invoices",      icon: FileText },
-    { href: "/hotel-payments",      label: "Payments",      icon: CreditCard },
-    { href: "/hotel-expenses",      label: "Expenses",      icon: DollarSign },
-    { href: "/hotel-cash-accounts", label: "Cash Accounts", icon: Wallet },
-    { href: "/hotel-cash-flow",    label: "Cash Flow",     icon: Activity },
-    { href: "/hotel-profit-loss", label: "Profit & Loss", icon: BarChart3 },
+    { href: "/hotel-billing",           label: "Billing",           icon: DollarSign },
+    { href: "/hotel-invoices",          label: "Invoices",          icon: FileText },
+    { href: "/hotel-payments",          label: "Payments",          icon: CreditCard },
+    { href: "/hotel-expenses",          label: "Expenses",          icon: DollarSign },
+    { href: "/hotel-customers",         label: "Customers",         icon: Users },
+    { href: "/hotel-customer-payments", label: "Customer Payments", icon: Receipt },
+    { href: "/hotel-suppliers",         label: "Suppliers",         icon: Truck },
+    { href: "/hotel-supplier-payments", label: "Supplier Payments", icon: Banknote },
+    { href: "/hotel-assets",            label: "Capital Assets",    icon: Briefcase },
+    { href: "/hotel-cash-accounts",     label: "Cash Accounts",     icon: Wallet },
+    { href: "/hotel-cash-flow",         label: "Cash Flow",         icon: Activity },
+    { href: "/hotel-profit-loss",       label: "Profit & Loss",     icon: BarChart3 },
   ])
   const hotelPeopleItems = gateHotel([
-    { href: "/hotel-staff",   label: "Staff",   icon: UserCog },
-    { href: "/hotel-payroll", label: "Payroll", icon: Banknote },
+    { href: "/hotel-staff",           label: "Staff",            icon: UserCog },
+    { href: "/hotel-payroll",         label: "Payroll",          icon: Banknote },
+    { href: "/hotel-employee-loans",  label: "Loans & Advances", icon: Coins },
   ])
   const hotelInventoryItems = gateHotel([
     { href: "/hotel-inventory",   label: "Supplies",     icon: Boxes },

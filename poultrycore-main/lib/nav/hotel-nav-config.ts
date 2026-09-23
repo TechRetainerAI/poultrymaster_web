@@ -9,8 +9,8 @@
  */
 
 import {
-  Activity, BarChart3, Bed, Bell, Boxes, Building2, CalendarSearch, ClipboardCheck, CreditCard,
-  DollarSign, FileText, Home, MessageSquare, Package, ScrollText, Search, Settings, Shield, ShoppingCart, Truck,
+  Activity, Banknote, BarChart3, Bed, Bell, Boxes, Briefcase, Building2, CalendarSearch, ClipboardCheck, Coins, CreditCard,
+  DollarSign, FileText, Home, MessageSquare, Package, Receipt, ScrollText, Search, Settings, Shield, ShoppingCart, Truck,
   User, UserCog, Users, Users2, UtensilsCrossed, Wallet, Wrench,
 } from "lucide-react"
 import type { UserPermissions } from "@/hooks/use-permissions"
@@ -98,6 +98,31 @@ export function buildHotelNavConfig({ permissions }: HotelNavDeps): HotelNavConf
           { id: "expenses",      title: "Expenses",      icon: DollarSign, href: "/hotel-expenses",      visible: vis("/hotel-expenses") },
           { id: "cash-accounts", title: "Cash Accounts", icon: Wallet,     href: "/hotel-cash-accounts", visible: vis("/hotel-cash-accounts") },
           { id: "payroll",       title: "Payroll",       icon: Wallet,     href: "/hotel-payroll",       visible: vis("/hotel-payroll") },
+          { id: "profit-loss",   title: "Profit & Loss", icon: BarChart3,  href: "/hotel-profit-loss",   visible: vis("/hotel-expenses") },
+          { id: "cash-flow",     title: "Cash Flow",     icon: Activity,   href: "/hotel-cash-flow",     visible: vis("/hotel-cash-accounts") },
+        ],
+      },
+      {
+        key: "receivables",
+        label: "Customers",
+        items: [
+          { id: "customers",         title: "Customers",         icon: Users,   href: "/hotel-customers",         visible: vis("/hotel-billing") },
+          { id: "customer-payments", title: "Customer Payments", icon: Receipt, href: "/hotel-customer-payments", visible: vis("/hotel-billing") },
+        ],
+      },
+      {
+        key: "payables",
+        label: "Suppliers",
+        items: [
+          { id: "suppliers",         title: "Suppliers",         icon: Truck,    href: "/hotel-suppliers",         visible: vis("/hotel-expenses") },
+          { id: "supplier-payments", title: "Supplier Payments", icon: Banknote, href: "/hotel-supplier-payments", visible: vis("/hotel-expenses") },
+        ],
+      },
+      {
+        key: "assets",
+        label: "Assets",
+        items: [
+          { id: "capital-assets", title: "Capital Assets", icon: Briefcase, href: "/hotel-assets", visible: vis("/hotel-expenses") },
         ],
       },
     ],
@@ -130,8 +155,9 @@ export function buildHotelNavConfig({ permissions }: HotelNavDeps): HotelNavConf
         key: "people",
         label: "People",
         items: [
-          { id: "staff",     title: "Staff",               icon: Users2,  href: "/hotel-staff", visible: vis("/hotel-staff") },
-          { id: "employees", title: "Users & Permissions", icon: UserCog, href: "/employees",   visible: isAdmin || featureAccess.canSeeEmployees },
+          { id: "staff",          title: "Staff",               icon: Users2,  href: "/hotel-staff",          visible: vis("/hotel-staff") },
+          { id: "employee-loans", title: "Loans & Advances",    icon: Coins,   href: "/hotel-employee-loans", visible: vis("/hotel-payroll") },
+          { id: "employees",      title: "Users & Permissions", icon: UserCog, href: "/employees",            visible: isAdmin || featureAccess.canSeeEmployees },
         ],
       },
       {
