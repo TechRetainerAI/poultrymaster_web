@@ -16,10 +16,11 @@ import { NumberInput } from "@/components/ui/number-input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { Plus, Pencil, Trash2, Calendar as CalendarIcon, Bird, Users, Search, RefreshCw, Loader2, Save, Filter, ChevronDown, ChevronUp, DollarSign, CheckCircle2, Wallet } from "lucide-react"
+import { Plus, Pencil, Trash2, Calendar as CalendarIcon, Bird, Users, Search, RefreshCw, Loader2, Save, Filter, ChevronDown, ChevronUp, DollarSign, CheckCircle2, Wallet, Split } from "lucide-react"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { getFlockBatches, getFlockBatch, createFlockBatch, updateFlockBatch, deleteFlockBatch, payFlockBatchBalance, type FlockBatch, type FlockBatchInput } from "@/lib/api/flock-batch"
 import { getFlocks, type Flock } from "@/lib/api/flock"
+import { BatchAllocationDialog } from "@/components/poultry/batch-allocation-dialog"
 import { getSuppliers, type Supplier } from "@/lib/api/supplier"
 import { getUserContext } from "@/lib/utils/user-context"
 import { usePermissions } from "@/hooks/use-permissions"
@@ -80,6 +81,12 @@ export default function FlockBatchesPage() {
   const { toast } = useToast()
   const [flockBatches, setFlockBatches] = useState<FlockBatch[]>([])
   const [allFlocks, setAllFlocks] = useState<Flock[]>([])
+  // Batch -> flocks allocation. `allocationBatchId` drives the tool; the prompt
+  // is what a farmer sees the moment a batch is created, so dividing it is one
+  // click away without ever being forced.
+  const [allocationBatchId, setAllocationBatchId] = useState<number | null>(null)
+  const [allocationOpen, setAllocationOpen] = useState(false)
+  const [justCreated, setJustCreated] = useState<FlockBatch | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
@@ -206,6 +213,26 @@ export default function FlockBatchesPage() {
     }
   }
 
+  // Allocated birds per batch, DERIVED from the flock records this page already
+  // loads -- there is no stored counter, so this cannot drift out of step with
+  // what the server enforces (spflock_gettotalquantityforbatch sums the same rows).
+  const allocatedByBatch = useMemo(() => {
+    const map = new Map<number, number>()
+    for (const f of allFlocks) {
+      if (f.batchId == null) continue
+      map.set(f.batchId, (map.get(f.batchId) ?? 0) + (Number(f.quantity) || 0))
+    }
+    return map
+  }, [allFlocks])
+
+  const unallocatedFor = (batch: FlockBatch) =>
+    Math.max(0, (Number(batch.numberOfBirds) || 0) - (allocatedByBatch.get(batch.batchId) ?? 0))
+
+  const openAllocation = (batchId: number) => {
+    setAllocationBatchId(batchId)
+    setAllocationOpen(true)
+  }
+
   const loadFlockBatches = async () => {
     const { farmId, userId } = getUserContext()
     
@@ -299,6 +326,9 @@ export default function FlockBatchesPage() {
       toast({ title: "Success!", description: "Flock batch created successfully." })
       setIsCreateDialogOpen(false)
       loadFlockBatches()
+      // Offer to divide it now. Deliberately an offer: a farmer who has not
+      // decided which pens the birds go into can walk away and come back.
+      if (result.data?.batchId) setJustCreated(result.data)
     } else {
       setCreateError(result.message || "Failed to create flock batch")
     }
@@ -880,6 +910,11 @@ export default function FlockBatchesPage() {
                                       <Wallet className="h-4 w-4 mr-2" /> Pay
                                     </Button>
                                   )}
+                                  {unallocatedFor(batch) > 0 && (
+                                    <Button variant="outline" size="sm" className="flex-1 h-10 text-indigo-600 border-indigo-200 hover:bg-indigo-50" onClick={(e) => { e.stopPropagation(); openAllocation(batch.batchId) }}>
+                                      <Split className="h-4 w-4 mr-1" /> Divide
+                                    </Button>
+                                  )}
                                   <Button variant="outline" size="sm" className="flex-1 h-10" onClick={(e) => { e.stopPropagation(); openEditDialog(batch.batchId) }}>
                                     <Pencil className="h-4 w-4 mr-2" /> Edit
                                   </Button>
@@ -955,6 +990,14 @@ export default function FlockBatchesPage() {
                                 <Users className="w-4 h-4 text-slate-400" />
                                 <span>{batch.numberOfBirds.toLocaleString()} birds</span>
                               </div>
+                              {/* Allocated vs unallocated, derived from flocks --
+                                  see allocatedByBatch. */}
+                              <div className="text-xs text-slate-500 mt-0.5">
+                                {(allocatedByBatch.get(batch.batchId) ?? 0).toLocaleString()} allocated
+                                {unallocatedFor(batch) > 0 && (
+                                  <span className="text-amber-600"> · {unallocatedFor(batch).toLocaleString()} unallocated</span>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell className={cn("text-slate-600", hideBelow("lg"))}>
                               <div className="flex items-center gap-2">
@@ -1011,6 +1054,11 @@ export default function FlockBatchesPage() {
                                 {(computedTotal - Number(batch.amountPaid || 0)) > 0 && (
                                   <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600 hover:bg-emerald-50" title="Pay balance" onClick={(e) => { e.stopPropagation(); openPayBalance(batch) }}>
                                     <Wallet className="w-4 h-4" />
+                                  </Button>
+                                )}
+                                {unallocatedFor(batch) > 0 && (
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-indigo-600 hover:bg-indigo-50" title="Divide into flocks" onClick={(e) => { e.stopPropagation(); openAllocation(batch.batchId) }}>
+                                    <Split className="w-4 h-4" />
                                   </Button>
                                 )}
                                 <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-blue-50 hover:text-blue-600" onClick={(e) => { e.stopPropagation(); openEditDialog(batch.batchId) }}>
@@ -1566,6 +1614,45 @@ export default function FlockBatchesPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Offered, never forced: the batch exists either way. */}
+      <AlertDialog open={justCreated !== null} onOpenChange={(open) => { if (!open) setJustCreated(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Batch {justCreated?.batchCode} created successfully</AlertDialogTitle>
+            <AlertDialogDescription>
+              {(justCreated?.numberOfBirds ?? 0).toLocaleString()} birds available. Divide them across your
+              houses/pens now, or come back to it whenever you are ready.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>I&apos;ll Do This Later</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-blue-600 hover:bg-blue-700"
+              onClick={() => {
+                const id = justCreated?.batchId
+                setJustCreated(null)
+                if (id) openAllocation(id)
+              }}
+            >
+              Divide Into Flocks
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* The allocation tool. Same component the Flock Groups page mounts --
+          one workflow, two entry points. */}
+      <BatchAllocationDialog
+        open={allocationOpen}
+        onOpenChange={setAllocationOpen}
+        batchId={allocationBatchId}
+        source="Flock Purchases page"
+        onCreated={async () => {
+          await loadAllFlocks()
+          await loadFlockBatches()
+        }}
+      />
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

@@ -723,6 +723,242 @@ export async function updateFlock(id: number, flock: Partial<FlockInput>): Promi
 }
 
 // Delete flock
+// ---------------------------------------------------------------------------
+// Batch -> flocks allocation (POST /api/Flock/bulk-allocate)
+//
+// One request creates every flock of an allocation, inside one server-side
+// transaction. Fifty pens is one call, not fifty — which is both faster and the
+// only way "all or nothing" can mean anything.
+// ---------------------------------------------------------------------------
+
+/** A house as the allocation tool sees it: capacity, and what is already in it. */
+export interface HouseOccupancy {
+  houseId: number
+  houseName: string
+  capacity?: number | null
+  location?: string | null
+  occupied: number
+  availableCapacity?: number | null
+  activeFlocks: number
+}
+
+/** What a batch has left to give. Derived from flock records, never a stored counter. */
+export interface BatchAllocationSummary {
+  batchId: number
+  batchCode: string
+  batchName: string
+  breed: string
+  startDate: string
+  originalBirds: number
+  allocatedBirds: number
+  unallocatedBirds: number
+}
+
+export interface BatchAllocationContext {
+  batch: BatchAllocationSummary
+  houses: HouseOccupancy[]
+  existingFlockNames: string[]
+}
+
+export interface AllocationRowError {
+  index: number
+  field: string
+  message: string
+}
+
+export interface FlockAllocationResult {
+  success: boolean
+  createdCount: number
+  birdsAllocated: number
+  flocks: Flock[]
+  batch?: BatchAllocationSummary
+  errors: AllocationRowError[]
+  message?: string
+}
+
+export interface AllocateBatchInput {
+  userId: string
+  farmId: string
+  batchId: number
+  allocations: { houseId: number; name: string; quantity: number; notes?: string | null }[]
+  /** Both default to the batch's own values server-side when omitted. */
+  breed?: string
+  startDate?: string
+  hasArrived?: boolean
+  /** Which screen this allocation came from; recorded in the audit trail. */
+  source?: string
+}
+
+function mapHouseOccupancy(raw: any): HouseOccupancy {
+  return {
+    houseId: Number(raw?.houseId ?? raw?.HouseId ?? 0),
+    houseName: raw?.houseName ?? raw?.HouseName ?? "",
+    capacity: raw?.capacity ?? raw?.Capacity ?? null,
+    location: raw?.location ?? raw?.Location ?? null,
+    occupied: Number(raw?.occupied ?? raw?.Occupied ?? 0),
+    availableCapacity: raw?.availableCapacity ?? raw?.AvailableCapacity ?? null,
+    activeFlocks: Number(raw?.activeFlocks ?? raw?.ActiveFlocks ?? 0),
+  }
+}
+
+function mapBatchSummary(raw: any): BatchAllocationSummary {
+  return {
+    batchId: Number(raw?.batchId ?? raw?.BatchId ?? 0),
+    batchCode: raw?.batchCode ?? raw?.BatchCode ?? "",
+    batchName: raw?.batchName ?? raw?.BatchName ?? "",
+    breed: raw?.breed ?? raw?.Breed ?? "",
+    startDate: raw?.startDate ?? raw?.StartDate ?? "",
+    originalBirds: Number(raw?.originalBirds ?? raw?.OriginalBirds ?? 0),
+    allocatedBirds: Number(raw?.allocatedBirds ?? raw?.AllocatedBirds ?? 0),
+    unallocatedBirds: Number(raw?.unallocatedBirds ?? raw?.UnallocatedBirds ?? 0),
+  }
+}
+
+/** A created flock, PascalCase or camelCase, into the shape the pages use. */
+function mapAllocatedFlock(raw: any): Flock {
+  return {
+    flockId: Number(raw?.FlockId ?? raw?.flockId ?? 0),
+    userId: raw?.UserId ?? raw?.userId ?? "",
+    farmId: raw?.FarmId ?? raw?.farmId ?? "",
+    name: raw?.Name ?? raw?.name ?? "",
+    breed: raw?.Breed ?? raw?.breed ?? "",
+    startDate: raw?.StartDate ?? raw?.startDate ?? "",
+    quantity: Number(raw?.Quantity ?? raw?.quantity ?? 0),
+    active: Boolean(raw?.Active ?? raw?.active ?? true),
+    hasArrived: Boolean(raw?.HasArrived ?? raw?.hasArrived ?? false),
+    houseId: raw?.HouseId ?? raw?.houseId ?? null,
+    batchId: raw?.BatchId ?? raw?.batchId ?? null,
+    batchName: raw?.BatchName ?? raw?.batchName ?? undefined,
+    notes: raw?.Notes ?? raw?.notes ?? undefined,
+  }
+}
+
+function mapAllocationResult(raw: any): FlockAllocationResult {
+  const flocks = raw?.flocks ?? raw?.Flocks ?? []
+  const errors = raw?.errors ?? raw?.Errors ?? []
+  const batch = raw?.batch ?? raw?.Batch ?? null
+  return {
+    success: Boolean(raw?.success ?? raw?.Success ?? false),
+    createdCount: Number(raw?.createdCount ?? raw?.CreatedCount ?? 0),
+    birdsAllocated: Number(raw?.birdsAllocated ?? raw?.BirdsAllocated ?? 0),
+    flocks: (Array.isArray(flocks) ? flocks : []).map(mapAllocatedFlock),
+    batch: batch ? mapBatchSummary(batch) : undefined,
+    errors: (Array.isArray(errors) ? errors : []).map((e: any) => ({
+      index: Number(e?.index ?? e?.Index ?? -1),
+      field: e?.field ?? e?.Field ?? "",
+      message: e?.message ?? e?.Message ?? "",
+    })),
+    message: raw?.message ?? raw?.Message ?? undefined,
+  }
+}
+
+/**
+ * GET /api/Flock/allocation-context/{batchId} — everything the allocation tool
+ * needs to open, in one call: what the batch has left, and this company's houses
+ * with their current occupancy.
+ *
+ * Occupancy is computed server-side from active flocks rather than by the
+ * browser summing every flock on the farm, so it matches what the server will
+ * validate against.
+ */
+export async function getBatchAllocationContext(
+  batchId: number, userId: string, farmId: string,
+): Promise<ApiResponse<BatchAllocationContext>> {
+  try {
+    if (!userId || !farmId) {
+      return { success: false, message: "Authorization required. Please log in again." }
+    }
+
+    const qs = new URLSearchParams({ userId, farmId }).toString()
+    const endpoint = `/Flock/allocation-context/${batchId}?${qs}`
+    const url = IS_BROWSER ? buildApiUrl(endpoint) : `${DIRECT_API_BASE_URL}/api${endpoint}`
+
+    const response = await fetch(url, { headers: getAuthHeaders() })
+    const text = await response.text()
+    const body = text ? (() => { try { return JSON.parse(text) } catch { return null } })() : null
+
+    if (!response.ok) {
+      return {
+        success: false,
+        message: (body && (body.message || body.Message)) || `Failed to load batch (${response.status})`,
+      }
+    }
+
+    return {
+      success: true,
+      data: {
+        batch: mapBatchSummary(body?.batch ?? body?.Batch),
+        houses: (body?.houses ?? body?.Houses ?? []).map(mapHouseOccupancy),
+        existingFlockNames: body?.existingFlockNames ?? body?.ExistingFlockNames ?? [],
+      },
+    }
+  } catch (error: any) {
+    console.error("[v0] Allocation context network error:", error)
+    return { success: false, message: error?.message || "Network error" }
+  }
+}
+
+/**
+ * POST /api/Flock/bulk-allocate — divide a batch across houses in one operation.
+ *
+ * Same permission and the same stored function as createFlock; the server does
+ * the N inserts inside one transaction, under a lock on the batch, so either
+ * every flock exists afterwards or none does — and two people allocating the
+ * same batch at once cannot between them overspend it.
+ */
+export async function allocateBatchToFlocks(input: AllocateBatchInput): Promise<ApiResponse<FlockAllocationResult>> {
+  try {
+    if (!input.userId || !input.farmId) {
+      return { success: false, message: "Authorization required. Please log in again." }
+    }
+
+    const payload: Record<string, unknown> = {
+      UserId: input.userId,
+      FarmId: input.farmId,
+      BatchId: input.batchId,
+      Source: input.source ?? "Batch Allocation Tool",
+      Allocations: input.allocations.map((a) => ({
+        HouseId: a.houseId,
+        Name: a.name,
+        Quantity: a.quantity,
+        Notes: a.notes ?? null,
+      })),
+    }
+    if (input.breed) payload.Breed = input.breed
+    if (input.startDate) {
+      payload.StartDate = input.startDate.includes("T") ? input.startDate : `${input.startDate}T00:00:00`
+    }
+    if (input.hasArrived !== undefined) payload.HasArrived = input.hasArrived
+
+    const endpoint = `/Flock/bulk-allocate`
+    const url = IS_BROWSER ? buildApiUrl(endpoint) : `${DIRECT_API_BASE_URL}/api${endpoint}`
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    })
+
+    const text = await response.text()
+    const body = text ? (() => { try { return JSON.parse(text) } catch { return null } })() : null
+
+    if (!response.ok) {
+      // A rejected allocation still carries the per-row errors the grid needs,
+      // and on a 409 the batch summary the tool should reload from.
+      return {
+        success: false,
+        message: (body && (body.message || body.Message)) || `Failed to create flocks (${response.status})`,
+        data: mapAllocationResult(body),
+      }
+    }
+
+    return { success: true, data: mapAllocationResult(body), message: body?.message ?? body?.Message }
+  } catch (error: any) {
+    console.error("[v0] Batch allocation network error:", error)
+    return { success: false, message: error?.message || "Network error" }
+  }
+}
+
 export async function deleteFlock(id: number, userId?: string, farmId?: string): Promise<ApiResponse> {
   try {
     // SECURITY: Validate required parameters before proceeding
