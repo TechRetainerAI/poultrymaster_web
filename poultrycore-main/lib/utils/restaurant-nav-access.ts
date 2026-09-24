@@ -47,6 +47,24 @@ const RESTAURANT_ROUTE_ACCESS: Record<string, (f: FeatureAccessPermissions, isAd
   // same flag themselves, because hiding a nav row does not stop anyone typing
   // the URL.
   "/restaurant-reports":          (f) => f.canViewReports,
+
+  // --- Money (migration 323) -----------------------------------------------
+  // These were missing, so they fell through to `true` below and every staff
+  // member saw the takings. Tills are the cashier's screen, so the POS flag
+  // opens them; everything else is the cash ledger. The pages check the same
+  // flags themselves — hiding a nav row does not stop someone typing the URL.
+  "/restaurant-tills":            (f) => f.canViewRestaurantPOS || f.canViewCashLedger,
+  "/restaurant-cash-accounts":    (f) => f.canViewCashLedger,
+  "/restaurant-cash-transfers":   (f) => f.canViewCashLedger,
+  "/restaurant-cash-reconciliation": (f) => f.canViewCashLedger,
+  "/restaurant-owner-money":      (f) => f.canViewCashLedger,
+  "/restaurant-loans":            (f) => f.canViewCashLedger,
+  "/restaurant-daily-closing":    (f) => f.canViewCashLedger,
+  "/restaurant-cash-flow":        (f) => f.canViewCashLedger,
+  "/restaurant-profit-loss":      (f) => f.canViewCashLedger,
+  "/restaurant-payments":         (f) => f.canViewCashLedger,
+  // /restaurant-expenses is deliberately NOT listed: staff record expenses
+  // there today, and gating it was not part of this change.
 }
 
 /**

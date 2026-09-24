@@ -8,6 +8,7 @@ namespace PoultryFarmAPIWeb.Controllers
 {
     [ApiController]
     [Authorize]
+    [PoultryFarmAPIWeb.Filters.RestaurantBusinessRuleFilter]
     [Route("api/Restaurant/orders")]
     public class RestaurantOrderController : ControllerBase
     {
@@ -131,7 +132,17 @@ namespace PoultryFarmAPIWeb.Controllers
         {
             var auth = HotelAuthHelper.VerifyFarmOwnership(User, farmId); if (auth != null) return auth;
             var processedBy = HotelAuthHelper.GetUserName(User);
-            var id = await _svc.AddPaymentAsync(farmId, orderId, req.PaymentMethod, req.Amount, req.TipAmount, req.Reference, processedBy);
+            var id = await _svc.AddPaymentAsync(farmId, orderId, req.PaymentMethod, req.Amount, req.TipAmount, req.Reference, processedBy,
+                req.CashAccountId, req.ShiftId);
+            return Ok(new { orderPaymentId = id });
+        }
+
+        [HttpPost("{orderId}/refunds")]
+        public async Task<IActionResult> Refund(int orderId, [FromQuery] string farmId, [FromBody] RestaurantRefundRequest req)
+        {
+            var auth = HotelAuthHelper.VerifyFarmOwnership(User, farmId); if (auth != null) return auth;
+            var id = await _svc.RefundAsync(farmId, orderId, req.Amount, req.PaymentMethod, req.Reason,
+                HotelAuthHelper.GetUserName(User), req.CashAccountId, req.ShiftId);
             return Ok(new { orderPaymentId = id });
         }
 
@@ -207,8 +218,9 @@ namespace PoultryFarmAPIWeb.Controllers
 
     public class OrderRecalcRequest
     {
-        public decimal TaxRate { get; set; }
-        public decimal ServiceChargeRate { get; set; }
+        // Leave null to apply the rates saved in Restaurant Setup (migration 323).
+        public decimal? TaxRate { get; set; }
+        public decimal? ServiceChargeRate { get; set; }
     }
 
     public class OrderItemStatusRequest
@@ -222,6 +234,10 @@ namespace PoultryFarmAPIWeb.Controllers
         public decimal Amount { get; set; }
         public decimal TipAmount { get; set; }
         public string? Reference { get; set; }
+        /// <summary>Optional: the account the money goes into (overrides the method's default).</summary>
+        public int? CashAccountId { get; set; }
+        /// <summary>Optional: the open till shift a cash payment goes into.</summary>
+        public int? ShiftId { get; set; }
     }
 
     public class ApplyDiscountRequest

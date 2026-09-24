@@ -1,6 +1,6 @@
 "use client"
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { Suspense, useEffect, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Card, CardContent } from "@/components/ui/card"
@@ -22,6 +22,7 @@ import {
   listExpenseCategories, createExpenseCategory, deleteExpenseCategory,
   type RestaurantExpense, type RestaurantExpenseInput, type ExpenseCategory,
 } from "@/lib/api/restaurant"
+import { listCashAccounts, type CashAccount } from "@/lib/api/restaurant-finance"
 
 const PAYMENT_METHODS = ["Cash", "Card", "Bank Transfer", "MobileMoney", "Cheque"]
 
@@ -33,17 +34,31 @@ const emptyForm: RestaurantExpenseInput = {
   paymentMethod: "Cash",
   supplierName: "",
   receiptRef: "",
+  cashAccountId: null,
 }
 
+// useSearchParams needs a Suspense boundary for the static build.
 export default function RestaurantExpensesPage() {
+  return <Suspense fallback={<PageSkeleton statCards={4} listRows={6} />}><RestaurantExpensesInner /></Suspense>
+}
+
+function RestaurantExpensesInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { toast } = useToast()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
 
   const [loading, setLoading] = useState(true)
   const [expenses, setExpenses] = useState<RestaurantExpense[]>([])
   const [categories, setCategories] = useState<ExpenseCategory[]>([])
+  // Where the money came from. Optional: left empty, the server uses the default
+  // account for the payment method (cash box, bank, mobile money).
+  const [accounts, setAccounts] = useState<CashAccount[]>([])
   const [activeTab, setActiveTab] = useState<"expenses" | "categories">("expenses")
+  // The Expenses menu links straight to the categories tab (?tab=categories).
+  useEffect(() => {
+    setActiveTab(searchParams.get("tab") === "categories" ? "categories" : "expenses")
+  }, [searchParams])
   const [dialogOpen, setDialogOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [expenseForm, setExpenseForm] = useState<RestaurantExpenseInput>({ ...emptyForm })
@@ -59,12 +74,14 @@ export default function RestaurantExpensesPage() {
   const fetchData = async () => {
     try {
       setLoading(true)
-      const [exp, cats] = await Promise.all([
+      const [exp, cats, accts] = await Promise.all([
         listExpenses(dateFrom || undefined, dateTo || undefined),
         listExpenseCategories(),
+        listCashAccounts().catch(() => [] as CashAccount[]),
       ])
       setExpenses(exp ?? [])
       setCategories(cats ?? [])
+      setAccounts((accts ?? []).filter((a) => a.isActive))
     } catch (e: any) {
       toast({ title: "Error loading data", description: e?.message ?? "Unknown error", variant: "destructive" })
     } finally {
@@ -111,9 +128,10 @@ export default function RestaurantExpensesPage() {
 
   /* ---------- delete expense ---------- */
   const handleDeleteExpense = async (id: number) => {
+    if (!window.confirm("Delete this expense? The money is put back into the account it was paid from.")) return
     try {
       await deleteExpense(id)
-      toast({ title: "Deleted", description: "Expense removed." })
+      toast({ title: "Deleted", description: "Expense removed and its money returned to the account." })
       await fetchData()
     } catch (e: any) {
       toast({ title: "Error", description: e?.message ?? "Failed to delete.", variant: "destructive" })
@@ -234,7 +252,8 @@ export default function RestaurantExpensesPage() {
                           {expenses.map((exp) => (
                             <tr key={exp.expenseId} className="border-b hover:bg-rose-50 transition-colors">
                               <td className="p-3 text-xs text-muted-foreground">{exp.expenseDate?.split("T")[0]}</td>
-                              <td className="p-3 font-medium text-gray-900">{exp.description}</td>
+                              <td className="p-3 font-medium text-gray-900">{exp.description}
+                                {exp.receiptRef && <div className="text-xs font-normal text-muted-foreground">Ref: {exp.receiptRef}</div>}</td>
                               <td className="p-3">{exp.categoryName ? <Badge variant="secondary" className="text-xs bg-rose-50 text-rose-700 border-rose-200">{exp.categoryName}</Badge> : "—"}</td>
                               <td className="p-3 text-xs">{exp.supplierName || "—"}</td>
                               <td className="p-3">{exp.paymentMethod ? <Badge variant="outline" className="text-xs">{exp.paymentMethod}</Badge> : "—"}</td>
@@ -378,13 +397,41 @@ export default function RestaurantExpensesPage() {
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label>Supplier</Label>
-              <Input
-                className="h-10"
-                placeholder="Supplier name (optional)"
-                value={expenseForm.supplierName ?? ""}
-                onChange={(e) => setExpenseForm((f) => ({ ...f, supplierName: e.target.value }))}
-              />
+              <Label>Paid from</Label>
+              <Select
+                value={expenseForm.cashAccountId ? String(expenseForm.cashAccountId) : "default"}
+                onValueChange={(v) => setExpenseForm((f) => ({ ...f, cashAccountId: v === "default" ? null : Number(v) }))}
+              >
+                <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="default">Default account for {expenseForm.paymentMethod ?? "Cash"}</SelectItem>
+                  {accounts.map((a) => (
+                    <SelectItem key={a.cashAccountId} value={String(a.cashAccountId)}>
+                      {a.name} — {a.currentBalance.toFixed(2)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Supplier</Label>
+                <Input
+                  className="h-10"
+                  placeholder="Supplier name (optional)"
+                  value={expenseForm.supplierName ?? ""}
+                  onChange={(e) => setExpenseForm((f) => ({ ...f, supplierName: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Receipt / reference</Label>
+                <Input
+                  className="h-10"
+                  placeholder="Receipt or invoice no. (optional)"
+                  value={expenseForm.receiptRef ?? ""}
+                  onChange={(e) => setExpenseForm((f) => ({ ...f, receiptRef: e.target.value }))}
+                />
+              </div>
             </div>
           </div>
           <DialogFooter>

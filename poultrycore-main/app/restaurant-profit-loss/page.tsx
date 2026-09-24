@@ -2,7 +2,9 @@
 
 /**
  * Restaurant Profit & Loss — standalone page.
- * Reuses the existing sprestaurant_report_pnl_summary / _expenses (migration 298).
+ * KPIs from sprestaurant_report_pnl_summary; the statement from
+ * sprestaurant_report_pnl_lines (migration 323), whose lines add up to the same
+ * totals by construction: the summary is computed from those lines.
  * The same data also appears in /restaurant-reports → P&L.
  */
 
@@ -23,7 +25,8 @@ import { useFmt } from "@/lib/currency"
 import { useLogout } from "@/hooks/use-logout"
 import { usePermissions } from "@/hooks/use-permissions"
 import { cn } from "@/lib/utils"
-import { getPnlSummary, getPnlExpenses, type PnlSummary } from "@/lib/api/restaurant"
+import { getPnlSummary, type PnlSummary } from "@/lib/api/restaurant"
+import { getPnlLines, type PnlLine } from "@/lib/api/restaurant-finance"
 
 function defaultMonth() {
   const now = new Date()
@@ -32,8 +35,6 @@ function defaultMonth() {
   const last = new Date(y, now.getMonth() + 1, 0).getDate()
   return { from: `${y}-${m}-01`, to: `${y}-${m}-${last}` }
 }
-
-interface ExpenseRow { expenseCategory: string; entryCount: number; expenseTotal: number; sharePct: number }
 
 export default function RestaurantProfitLossPage() {
   const router = useRouter()
@@ -47,7 +48,7 @@ export default function RestaurantProfitLossPage() {
   const [dateFrom, setDateFrom] = useState(def.from)
   const [dateTo, setDateTo] = useState(def.to)
   const [summary, setSummary] = useState<PnlSummary | null>(null)
-  const [expenses, setExpenses] = useState<ExpenseRow[]>([])
+  const [lines, setLines] = useState<PnlLine[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
 
@@ -56,15 +57,15 @@ export default function RestaurantProfitLossPage() {
   const load = useCallback(async () => {
     setError("")
     try {
-      const [s, e] = await Promise.all([
+      const [s, l] = await Promise.all([
         getPnlSummary(dateFrom, dateTo),
-        getPnlExpenses(dateFrom, dateTo),
+        getPnlLines(dateFrom, dateTo),
       ])
       setSummary(s)
-      setExpenses(e)
+      setLines(l)
     } catch (e: any) {
       setError(e?.message ?? String(e))
-      setSummary(null); setExpenses([])
+      setSummary(null); setLines([])
     }
     setLoading(false)
   }, [dateFrom, dateTo])
@@ -139,21 +140,12 @@ export default function RestaurantProfitLossPage() {
                 <CardHeader className="pb-2"><CardTitle className="text-base">Income Statement</CardTitle></CardHeader>
                 <CardContent className="p-0 md:px-4 md:pb-4">
                   <Table><TableBody>
-                    <TableRow className="bg-emerald-50/50">
-                      <TableCell colSpan={2} className="font-semibold text-emerald-800 text-xs uppercase tracking-wide py-1.5">Revenue</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell className="pl-6">Net Sales (excl. tax & service charge)</TableCell>
-                      <TableCell className="text-right tabular-nums text-emerald-700">{gh(summary.revenue)}</TableCell>
-                    </TableRow>
+                    <SectionHead label="Revenue" tone="bg-emerald-50/50 text-emerald-800" />
+                    {lineRows(lines, "Revenue", gh, true)}
+                    <TotalRow label="Net revenue" value={gh(summary.revenue)} />
 
-                    <TableRow className="bg-amber-50/50">
-                      <TableCell colSpan={2} className="font-semibold text-amber-800 text-xs uppercase tracking-wide py-1.5">Cost of Goods Sold</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell className="pl-6">Ingredients (recipe cost)</TableCell>
-                      <TableCell className="text-right tabular-nums text-rose-600">{gh(summary.cogs)}</TableCell>
-                    </TableRow>
+                    <SectionHead label="Cost of Goods Sold" tone="bg-amber-50/50 text-amber-800" />
+                    {lineRows(lines, "CostOfSales", gh, true)}
                     <TableRow className="border-t border-slate-200">
                       <TableCell className="font-semibold">Gross Profit</TableCell>
                       <TableCell className={cn("text-right font-semibold tabular-nums", summary.grossProfit >= 0 ? "text-emerald-700" : "text-rose-700")}>
@@ -162,26 +154,18 @@ export default function RestaurantProfitLossPage() {
                       </TableCell>
                     </TableRow>
 
-                    <TableRow className="bg-rose-50/50">
-                      <TableCell colSpan={2} className="font-semibold text-rose-800 text-xs uppercase tracking-wide py-1.5">Operating Expenses</TableCell>
-                    </TableRow>
-                    {expenses.map((e) => (
-                      <TableRow key={e.expenseCategory}>
-                        <TableCell className="pl-6">{e.expenseCategory}
-                          <span className="ml-1 text-xs text-slate-400">({e.entryCount})</span>
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums text-rose-600">{gh(e.expenseTotal)}
-                          <span className="ml-1 text-xs text-slate-400">{e.sharePct}%</span>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {expenses.length === 0 && (
-                      <TableRow><TableCell colSpan={2} className="pl-6 text-sm text-slate-400 italic">No expenses recorded</TableCell></TableRow>
+                    <SectionHead label="Operating Expenses" tone="bg-rose-50/50 text-rose-800" />
+                    {lines.some((l) => l.section === "Expenses")
+                      ? lineRows(lines, "Expenses", gh, true)
+                      : <TableRow><TableCell colSpan={2} className="pl-6 text-sm text-slate-400 italic">No expenses recorded</TableCell></TableRow>}
+
+                    {lines.some((l) => l.section === "Other" && l.amount !== 0) && (
+                      <>
+                        <SectionHead label="Other costs" tone="bg-slate-50 text-slate-700" />
+                        {lineRows(lines, "Other", gh, false)}
+                      </>
                     )}
-                    <TableRow className="border-t border-slate-200">
-                      <TableCell className="font-semibold text-slate-700">Total Expenses</TableCell>
-                      <TableCell className="text-right font-semibold tabular-nums text-rose-700">{gh(summary.expensesTotal)}</TableCell>
-                    </TableRow>
+                    <TotalRow label="Total expenses" value={gh(-summary.expensesTotal)} />
 
                     <TableRow className="border-t-2 border-slate-300 bg-slate-50">
                       <TableCell className="font-bold text-slate-900">Net Profit</TableCell>
@@ -215,9 +199,11 @@ export default function RestaurantProfitLossPage() {
 
               <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-600">
                 <p className="font-medium text-slate-900 mb-1">Profit is not cash</p>
-                <p>Revenue counts what was sold (net of tax and service charge). COGS is the
-                  recipe ingredient cost of those items. For actual cash received and spent, see{" "}
-                  <a href="/restaurant-cash-flow" className="underline">Cash Flow</a>.</p>
+                <p>Revenue counts what completed orders sold, after discounts and partial refunds,
+                  plus service charge and delivery fees. Tax is left out — it is owed to the tax office.
+                  Gift-card sales are not revenue until the card pays for an order. Owner money and loan
+                  principal never touch profit; loan interest and fees do. For the cash actually received
+                  and spent, see <a href="/restaurant-cash-flow" className="underline">Cash Flow</a>.</p>
               </div>
             </div>
           ) : null}
@@ -225,6 +211,35 @@ export default function RestaurantProfitLossPage() {
       </div>
     </div>
   )
+}
+
+function SectionHead({ label, tone }: { label: string; tone: string }) {
+  return (
+    <TableRow className={tone.split(" ")[0]}>
+      <TableCell colSpan={2} className={cn("font-semibold text-xs uppercase tracking-wide py-1.5", tone.split(" ").slice(1).join(" "))}>{label}</TableCell>
+    </TableRow>
+  )
+}
+
+function TotalRow({ label, value }: { label: string; value: string }) {
+  return (
+    <TableRow className="border-t border-slate-200">
+      <TableCell className="font-semibold text-slate-700">{label}</TableCell>
+      <TableCell className="text-right font-semibold tabular-nums">{value}</TableCell>
+    </TableRow>
+  )
+}
+
+/** Lines are signed from profit's point of view: income +, cost −. Zero lines are hidden except when `keepZero`. */
+function lineRows(lines: PnlLine[], section: PnlLine["section"], gh: (n: number) => string, keepZero: boolean) {
+  return lines
+    .filter((l) => l.section === section && (keepZero ? l.amount !== 0 || l.sortOrder % 10 === 0 : l.amount !== 0))
+    .map((l) => (
+      <TableRow key={l.lineKey}>
+        <TableCell className="pl-6">{l.label}</TableCell>
+        <TableCell className={cn("text-right tabular-nums", l.amount < 0 ? "text-rose-600" : "text-emerald-700")}>{gh(l.amount)}</TableCell>
+      </TableRow>
+    ))
 }
 
 function KpiCard({ label, value, icon, tone }: { label: string; value: string; icon: React.ReactNode; tone?: string }) {

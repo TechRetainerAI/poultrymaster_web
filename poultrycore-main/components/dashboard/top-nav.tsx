@@ -523,8 +523,24 @@ function RestaurantTopNav() {
         <NavMegaMenu
           label="Inventory" icon={Package}
           title="Inventory"
-          blurb="Ingredients, stock tracking, and expense management."
+          blurb="Ingredients and stock levels."
           groups={nav.inventoryReports}
+          columns={1} widthRem={18} layout="grid" accent="rose"
+        />
+
+        <NavMegaMenu
+          label="Money" icon={Wallet}
+          title="Money"
+          blurb="Tills, cash accounts, transfers, reconciliation, owner money, loans, daily closing and the cash statements."
+          groups={nav.money}
+          columns={3} widthRem={40} layout="grid" accent="rose"
+        />
+
+        <NavMegaMenu
+          label="Expenses" icon={Receipt}
+          title="Expenses"
+          blurb="Record what the restaurant spends, by category."
+          groups={nav.expenses}
           columns={1} widthRem={18} layout="grid" accent="rose"
         />
 

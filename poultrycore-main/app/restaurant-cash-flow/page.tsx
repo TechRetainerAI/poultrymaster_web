@@ -1,8 +1,14 @@
 "use client"
 
 /**
- * Cash Flow (Restaurant) — transaction-sourced report (migration 318).
- * Reads order payments (in) and expenses (out). No cash accounts on this rail.
+ * Cash Flow (Restaurant) — read from the one cash ledger (migration 323).
+ *
+ * Every payment, refund, expense, gift-card sale, owner-money entry, loan
+ * movement and till over/short posts a ledger row; this page is that ledger
+ * with transfers, till floats/drops and opening balances left out (they move
+ * money between the restaurant's own accounts). So "Cash at Hand" here equals
+ * the sum of the account balances on Cash Accounts, by construction.
+ * Operating = trading; Financing = loans and owner money.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react"
@@ -23,7 +29,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { useIsMobile } from "@/hooks/use-mobile"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import {
-  UtensilsCrossed, TrendingUp, TrendingDown, Lightbulb, Info, ChevronDown,
+  UtensilsCrossed, TrendingUp, TrendingDown, Lightbulb, Info, ChevronDown, Wallet, Calculator, FileBarChart,
 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useFmt } from "@/lib/currency"
@@ -116,7 +122,7 @@ export default function RestaurantCashFlowPage() {
     operatingIn: summary.operatingIn, operatingOut: summary.operatingOut,
     financingIn: summary.financingIn, financingOut: summary.financingOut,
     cashAtHand: allTime.closingCash,
-    offLedgerIn: 0, offLedgerOut: 0, transferVolume: 0,
+    offLedgerIn: 0, offLedgerOut: 0, transferVolume: summary.transferVolume ?? 0,
     movementCount: summary.movementCount, daysInPeriod: previousRange.days,
     previousMoneyIn: prevSummary.moneyIn, previousMoneyOut: prevSummary.moneyOut,
     previousNetCashFlow: prevSummary.netCashFlow,
@@ -147,11 +153,25 @@ export default function RestaurantCashFlowPage() {
     <Alert className="border-slate-200 bg-slate-50 py-2">
       <Info className="h-4 w-4 text-slate-500" />
       <AlertDescription className="text-xs text-slate-700">
-        These figures come from completed order payments and recorded expenses.
-        Tips are included in money received.
+        Built from the cash ledger: order payments (tips included), refunds, expenses, gift-card
+        sales, owner money, loans and till over/short. Transfers between your own accounts are left out.
       </AlertDescription>
     </Alert>
   ), [])
+
+  // Money in and out of each account over the period (transfers excluded, as
+  // everywhere on this page). Accounts come off the rows, so an account with no
+  // movement in the period is simply not listed.
+  const byAccount = useMemo(() => {
+    const map = new Map<string, { name: string; moneyIn: number; moneyOut: number }>()
+    for (const r of rows) {
+      const name = r.accountName ?? "Unassigned"
+      const e = map.get(name) ?? { name, moneyIn: 0, moneyOut: 0 }
+      if (r.amount > 0) e.moneyIn += r.amount; else e.moneyOut += -r.amount
+      map.set(name, e)
+    }
+    return [...map.values()].sort((a, b) => (b.moneyIn - b.moneyOut) - (a.moneyIn - a.moneyOut))
+  }, [rows])
 
   const typeOptions = useMemo(() => {
     const seen = new Set<string>()
@@ -208,6 +228,9 @@ export default function RestaurantCashFlowPage() {
             </h1>
             <p className="mt-1 text-xs text-slate-500">What the restaurant received and spent</p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="outline" asChild><Link href="/restaurant-cash-accounts"><Wallet className="h-4 w-4 mr-1" /> Cash Accounts</Link></Button>
+              <Button size="sm" variant="outline" asChild><Link href="/restaurant-tills"><Calculator className="h-4 w-4 mr-1" /> Tills & Shifts</Link></Button>
+              <Button size="sm" variant="outline" asChild><Link href="/restaurant-reports/cash-flow-detail"><FileBarChart className="h-4 w-4 mr-1" /> Cash Flow report</Link></Button>
               <Button size="sm" variant="outline" className="whitespace-nowrap"
                       onClick={() => setInsightsOpen(true)} disabled={loading}>
                 <Lightbulb className="h-4 w-4 mr-1" /> Cash Flow Insights
@@ -225,8 +248,10 @@ export default function RestaurantCashFlowPage() {
             </CollapsibleTrigger>
             <CollapsibleContent>
               <p className="px-3 pb-3 text-xs leading-snug text-slate-600">
-                Built from completed order payments (including tips) and recorded expenses.
-                This is what actually entered and left the till — not what was ordered or invoiced.
+                Built from the cash ledger every till, cash box, bank and wallet posts to: order payments
+                (tips included), refunds, expenses, gift-card sales, owner money, loans and till over/short.
+                This is what actually entered and left the business — not what was ordered. Money moved
+                between your own accounts (transfers, till floats and drops) is left out.
               </p>
             </CollapsibleContent>
           </Collapsible>
@@ -240,15 +265,15 @@ export default function RestaurantCashFlowPage() {
             <div className="space-y-3">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 <Tile label="Opening Cash" value={gh(summary.openingCash)} note="Start of period" tip="Everything before this period started." />
-                <Tile label="Money In" value={gh(summary.moneyIn)} note="For selected period" tone="text-emerald-700" icon={<TrendingUp className="h-3.5 w-3.5" />} tip="Order payments received including tips." />
-                <Tile label="Money Out" value={gh(summary.moneyOut)} note="For selected period" tone="text-rose-700" icon={<TrendingDown className="h-3.5 w-3.5" />} tip="Recorded expenses during the period." />
-                <Tile label="Cash at Hand" value={gh(allTime.closingCash)} note="All time" tone={allTime.closingCash < 0 ? "text-rose-700" : undefined} tip="All-time payments minus all-time expenses." />
+                <Tile label="Money In" value={gh(summary.moneyIn)} note="For selected period" tone="text-emerald-700" icon={<TrendingUp className="h-3.5 w-3.5" />} tip="Order payments (tips included), gift-card sales, loans received and owner contributions." />
+                <Tile label="Money Out" value={gh(summary.moneyOut)} note="For selected period" tone="text-rose-700" icon={<TrendingDown className="h-3.5 w-3.5" />} tip="Expenses, refunds, loan repayments and owner drawings." />
+                <Tile label="Cash at Hand" value={gh(allTime.closingCash)} note="All accounts, today" tone={allTime.closingCash < 0 ? "text-rose-700" : undefined} tip="Every till, cash box, bank and wallet added together — the same total as Cash Accounts." />
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 <Tile label="Net Cash Flow" value={`${summary.netCashFlow > 0 ? "+" : ""}${gh(summary.netCashFlow)}`} note="For selected period" tone={summary.netCashFlow >= 0 ? "text-emerald-700" : "text-rose-700"} tip="Money In minus Money Out." />
-                <Tile label="Movements" value={String(summary.movementCount)} note="For selected period" tip="Total cash movements." />
+                <Tile label="Net Cash Flow (Strictly business)" value={`${summary.operatingIn - summary.operatingOut > 0 ? "+" : ""}${gh(summary.operatingIn - summary.operatingOut)}`} note="Trading only" tone={summary.operatingIn - summary.operatingOut >= 0 ? "text-emerald-700" : "text-rose-700"} tip="What trading brought in less what it cost — loans and owner money left out. Negative means the restaurant was kept going by borrowing or the owner." />
+                <Tile label="Loans & Owner Money" value={`${summary.financingIn - summary.financingOut > 0 ? "+" : ""}${gh(summary.financingIn - summary.financingOut)}`} note="Net for period" tone={summary.financingIn - summary.financingOut >= 0 ? "text-emerald-700" : "text-rose-700"} tip="Loans received and owner contributions, less loan repayments and owner drawings." />
                 <Tile label="Closing Cash" value={gh(summary.closingCash)} note="End of period" tone={summary.closingCash < 0 ? "text-rose-700" : undefined} tip="Opening + In - Out for this period." />
-                <Tile label="Operating Net" value={`${summary.operatingIn - summary.operatingOut > 0 ? "+" : ""}${gh(summary.operatingIn - summary.operatingOut)}`} note="Business only" tone={summary.operatingIn - summary.operatingOut >= 0 ? "text-emerald-700" : "text-rose-700"} tip="Operating income minus operating spending." />
               </div>
               <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs tabular-nums text-slate-600">
@@ -256,8 +281,36 @@ export default function RestaurantCashFlowPage() {
                   <span className="text-emerald-700">+ in <b>{gh(summary.moneyIn)}</b></span>
                   <span className="text-rose-700">- out <b>{gh(summary.moneyOut)}</b></span>
                   <span>= closing <b className="text-slate-900">{gh(summary.closingCash)}</b></span>
+                  <span className="text-slate-400">· {summary.movementCount} movements</span>
+                  {(summary.transferVolume ?? 0) > 0 && <span className="text-slate-400">· {gh(summary.transferVolume ?? 0)} moved between your own accounts (not counted)</span>}
                 </div>
               </div>
+
+              {byAccount.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Cash by account</CardTitle>
+                    <CardDescription className="text-xs">Where this period's money came in and went out. Balances are on <Link href="/restaurant-cash-accounts" className="underline">Cash Accounts</Link>.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-0 md:px-4 md:pb-4">
+                    <div className="overflow-x-auto">
+                      <Table><TableHeader><TableRow>
+                        <TableHead>Account</TableHead><TableHead className="text-right">Money in</TableHead>
+                        <TableHead className="text-right">Money out</TableHead><TableHead className="text-right">Net</TableHead>
+                      </TableRow></TableHeader><TableBody>
+                        {byAccount.map((a) => (
+                          <TableRow key={a.name}>
+                            <TableCell className="font-medium">{a.name}</TableCell>
+                            <TableCell className="text-right tabular-nums text-emerald-700">{gh(a.moneyIn)}</TableCell>
+                            <TableCell className="text-right tabular-nums text-rose-600">{gh(a.moneyOut)}</TableCell>
+                            <TableCell className={cn("text-right tabular-nums font-medium", a.moneyIn - a.moneyOut < 0 ? "text-rose-700" : "text-emerald-700")}>{gh(a.moneyIn - a.moneyOut)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody></Table>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               <Card>
                 <CardHeader className="pb-2">
@@ -271,6 +324,8 @@ export default function RestaurantCashFlowPage() {
                           <SelectItem value="ALL">All categories</SelectItem>
                           <SelectItem value="OperatingIn">Operating income</SelectItem>
                           <SelectItem value="OperatingOut">Operating expense</SelectItem>
+                          <SelectItem value="FinancingIn">Loans & owner money in</SelectItem>
+                          <SelectItem value="FinancingOut">Loans & owner money out</SelectItem>
                         </SelectContent>
                       </Select>
                       <Select value={typeFilter} onValueChange={setTypeFilter}>
@@ -298,6 +353,7 @@ export default function RestaurantCashFlowPage() {
                       details={(r: any) => [
                         { label: "Category", value: flowGroupLabel(r.flowGroup) },
                         { label: "Recorded as", value: sourceTypeLabel(r.sourceType) },
+                        { label: "Account", value: r.accountName ?? "—" },
                         { label: "Description", value: r.description ?? "—" },
                       ]}
                       desktopTable={
@@ -313,7 +369,7 @@ export default function RestaurantCashFlowPage() {
                             <TableRow key={`${r.rowSource}-${r.id}`}>
                               <TableCell className="whitespace-nowrap">{fmtDateTime(r.transactionDate, r)}</TableCell>
                               <TableCell className="whitespace-nowrap">{categoryLabel(r.category)}</TableCell>
-                              <TableCell className="whitespace-nowrap text-slate-600">{flowGroupLabel(r.flowGroup)}<span className="block text-xs text-slate-400">{sourceTypeLabel(r.sourceType)}</span></TableCell>
+                              <TableCell className="whitespace-nowrap text-slate-600">{flowGroupLabel(r.flowGroup)}<span className="block text-xs text-slate-400">{sourceTypeLabel(r.sourceType)}{r.accountName ? ` · ${r.accountName}` : ""}</span></TableCell>
                               <TableCell className="max-w-sm whitespace-normal break-words align-top">{r.description ?? "—"}</TableCell>
                               <TableCell className="text-right tabular-nums text-emerald-700">{r.amount > 0 ? gh(r.amount) : "—"}</TableCell>
                               <TableCell className="text-right tabular-nums text-rose-600">{r.amount < 0 ? gh(Math.abs(r.amount)) : "—"}</TableCell>
