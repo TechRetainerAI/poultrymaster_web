@@ -31,6 +31,12 @@ import {
   HelpCircle,
   Activity,
   Wallet,
+  Tag,
+  Calculator,
+  Landmark,
+  ArrowLeftRight,
+  PiggyBank,
+  CalendarCheck,
   Boxes,
   CreditCard,
   Truck,
@@ -462,17 +468,35 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   // top nav gave Reports a menu of its own -- the two navigations disagreed
   // about where reporting lives. It now has its own group below, matching the
   // top nav, and is gated on canViewReports in restaurant-nav-access.ts.
+  // Inventory, Money, Expenses and Growth are separate groups, in the same
+  // order and with the same items as the top nav (lib/nav/restaurant-nav-config.ts):
+  // Money is where cash sits and moves; Expenses is what the restaurant spends on.
   const restaurantInventoryItems = gateRestaurant([
     { href: "/restaurant-inventory", label: "Ingredients & Stock", icon: Boxes },
-    { href: "/restaurant-crm",        label: "Customers & CRM",    icon: Users },
-    { href: "/restaurant-loyalty",     label: "Loyalty & Rewards",  icon: CreditCard },
-    { href: "/restaurant-events",      label: "Events & Catering",  icon: CalendarDays },
-    { href: "/restaurant-gift-cards",  label: "Gift Cards",         icon: CreditCard },
-    { href: "/restaurant-payments",    label: "Income & Expenses",  icon: Wallet },
-    { href: "/restaurant-expenses",      label: "Expenses",           icon: DollarSign },
-    { href: "/restaurant-cash-flow",    label: "Cash Flow",          icon: Activity },
-    { href: "/restaurant-profit-loss",  label: "Profit & Loss",      icon: BarChart3 },
-    { href: "/restaurant-notifications", label: "Notifications",     icon: Bell },
+  ])
+  const restaurantMoneyItems = gateRestaurant([
+    { href: "/restaurant-tills",               label: "Tills & Shifts",     icon: Calculator },
+    { href: "/restaurant-cash-accounts",       label: "Cash Accounts",      icon: Wallet },
+    { href: "/restaurant-cash-transfers",      label: "Cash Transfers",     icon: ArrowLeftRight },
+    { href: "/restaurant-cash-reconciliation", label: "Reconciliation",     icon: Scale },
+    { href: "/restaurant-daily-closing",       label: "Daily Closing",      icon: CalendarCheck },
+    { href: "/restaurant-owner-money",         label: "Owner Money",        icon: PiggyBank },
+    { href: "/restaurant-loans",               label: "Loans",              icon: Landmark },
+    { href: "/restaurant-cash-flow",           label: "Cash Flow",          icon: Activity },
+    { href: "/restaurant-profit-loss",         label: "Profit & Loss",      icon: BarChart3 },
+    { href: "/restaurant-payments",            label: "Income & Expenses",  icon: DollarSign },
+  ])
+  const restaurantExpenseItems = gateRestaurant([
+    { href: "/restaurant-expenses",                label: "Record Expenses",    icon: Receipt },
+    { href: "/restaurant-expenses?tab=categories", label: "Expense Categories", icon: Tag },
+    { href: "/restaurant-reports/expenses",        label: "Expense Report",     icon: BarChart3 },
+  ])
+  const restaurantGrowthItems = gateRestaurant([
+    { href: "/restaurant-crm",           label: "Customers & CRM",    icon: Users },
+    { href: "/restaurant-loyalty",       label: "Loyalty & Rewards",  icon: CreditCard },
+    { href: "/restaurant-events",        label: "Events & Catering",  icon: CalendarDays },
+    { href: "/restaurant-gift-cards",    label: "Gift Cards",         icon: CreditCard },
+    { href: "/restaurant-notifications", label: "Notifications",      icon: Bell },
   ])
   // Its own group, mirroring the top nav's Reports mega-menu. The rail links to
   // the catalog; the 24 individual reports live under it.
@@ -825,6 +849,24 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
             {renderGroup("Delivery & Online", restaurantDeliveryOnlineItems, "restaurantDeliveryOnline")}
             <div className="border-t border-slate-800 mx-2" />
             {renderGroup("Inventory", restaurantInventoryItems, "restaurantInventory")}
+            {restaurantMoneyItems.length > 0 && (
+              <>
+                <div className="border-t border-slate-800 mx-2" />
+                {renderGroup("Money", restaurantMoneyItems, "restaurantMoney")}
+              </>
+            )}
+            {restaurantExpenseItems.length > 0 && (
+              <>
+                <div className="border-t border-slate-800 mx-2" />
+                {renderGroup("Expenses", restaurantExpenseItems, "restaurantExpenses")}
+              </>
+            )}
+            {restaurantGrowthItems.length > 0 && (
+              <>
+                <div className="border-t border-slate-800 mx-2" />
+                {renderGroup("Growth", restaurantGrowthItems, "restaurantGrowth")}
+              </>
+            )}
             {restaurantReportsItems.length > 0 && (
               <>
                 <div className="border-t border-slate-800 mx-2" />

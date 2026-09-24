@@ -53,7 +53,7 @@ export default function RestaurantGiftCardsPage() {
   // Issue form
   const [issueForm, setIssueForm] = useState<GiftCardCreateInput>({
     cardType: "Digital", amount: 0, purchaserName: "", purchaserPhone: "",
-    recipientName: "", recipientEmail: "", message: "", expiryDate: "",
+    recipientName: "", recipientEmail: "", message: "", expiryDate: "", paymentMethod: "Cash",
   })
 
   // Check balance
@@ -69,6 +69,7 @@ export default function RestaurantGiftCardsPage() {
   // Reload
   const [reloadCard, setReloadCard] = useState<GiftCard | null>(null)
   const [reloadAmount, setReloadAmount] = useState("")
+  const [reloadMethod, setReloadMethod] = useState("Cash")
 
   // Transactions
   const [txCard, setTxCard] = useState<GiftCard | null>(null)
@@ -162,7 +163,7 @@ export default function RestaurantGiftCardsPage() {
       }
 
       setIssueOpen(false)
-      setIssueForm({ cardType: "Digital", amount: 0, purchaserName: "", purchaserPhone: "", recipientName: "", recipientEmail: "", message: "", expiryDate: "" })
+      setIssueForm({ cardType: "Digital", amount: 0, purchaserName: "", purchaserPhone: "", recipientName: "", recipientEmail: "", message: "", expiryDate: "", paymentMethod: "Cash" })
       fetchData()
     } catch (e: any) {
       toast({ title: "Error", description: e.message || "Failed to issue card", variant: "destructive" })
@@ -212,7 +213,7 @@ export default function RestaurantGiftCardsPage() {
     if (!reloadCard || !reloadAmount || Number(reloadAmount) <= 0) return
     try {
       setSaving(true)
-      await reloadGiftCard(reloadCard.cardNumber, Number(reloadAmount))
+      await reloadGiftCard(reloadCard.cardNumber, Number(reloadAmount), reloadMethod)
       toast({ title: "Reloaded", description: `${Number(reloadAmount).toFixed(2)} added to ${reloadCard.cardNumber}` })
       setReloadOpen(false)
       setReloadCard(null); setReloadAmount("")
@@ -360,7 +361,7 @@ export default function RestaurantGiftCardsPage() {
       </div>
 
       {/* ===== Issue Card Dialog ===== */}
-      <Dialog open={issueOpen} onOpenChange={(v) => { setIssueOpen(v); if (!v) setIssueForm({ cardType: "Digital", amount: 0, purchaserName: "", purchaserPhone: "", recipientName: "", recipientEmail: "", message: "", expiryDate: "" }) }}>
+      <Dialog open={issueOpen} onOpenChange={(v) => { setIssueOpen(v); if (!v) setIssueForm({ cardType: "Digital", amount: 0, purchaserName: "", purchaserPhone: "", recipientName: "", recipientEmail: "", message: "", expiryDate: "", paymentMethod: "Cash" }) }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Issue Gift Card</DialogTitle>
@@ -408,6 +409,20 @@ export default function RestaurantGiftCardsPage() {
             <div className="space-y-1.5">
               <Label>Expiry Date</Label>
               <Input type="date" className="h-10" value={issueForm.expiryDate ?? ""} onChange={(e) => setIssueForm({ ...issueForm, expiryDate: e.target.value })} />
+            </div>
+            {/* Selling a card is money in (migration 323): it lands in the cash box,
+                bank or wallet for the method. A complimentary card moves no money. */}
+            <div className="space-y-1.5">
+              <Label>Paid with</Label>
+              <Select value={issueForm.paymentMethod ?? "Cash"} onValueChange={(v) => setIssueForm({ ...issueForm, paymentMethod: v })}>
+                <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Cash">Cash</SelectItem>
+                  <SelectItem value="Card">Card</SelectItem>
+                  <SelectItem value="MobileMoney">Mobile Money</SelectItem>
+                  <SelectItem value="Complimentary">Complimentary (no payment)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>
@@ -500,6 +515,18 @@ export default function RestaurantGiftCardsPage() {
                 <Label>Amount <span className="text-rose-500">*</span></Label>
                 <Input type="number" step="0.01" min="0" placeholder="25.00" className="h-10"
                   value={reloadAmount} onChange={(e) => setReloadAmount(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Paid with</Label>
+                <Select value={reloadMethod} onValueChange={setReloadMethod}>
+                  <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Cash">Cash</SelectItem>
+                    <SelectItem value="Card">Card</SelectItem>
+                    <SelectItem value="MobileMoney">Mobile Money</SelectItem>
+                    <SelectItem value="Complimentary">Complimentary (no payment)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setReloadOpen(false)} disabled={saving}>Cancel</Button>

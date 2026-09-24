@@ -34,6 +34,8 @@ export interface CashFlowRow {
   description: string | null
   /** Informational only; Cash Flow never filters or totals by account. */
   cashAccountId: number | null
+  /** The account's name where the rail's rows carry one (Restaurant, migration 323). */
+  accountName?: string | null
   /** Signed: positive in, negative out. */
   amount: number
   inflow: number
@@ -56,6 +58,10 @@ export interface CashFlowSummary {
   financingIn: number
   financingOut: number
   movementCount: number
+  /** Money moved between the company's own accounts; never part of money in/out. Restaurant only today. */
+  transferVolume?: number
+  /** Restaurant: every ledger row to the period end — equals closingCash by construction. */
+  ledgerCash?: number
 }
 
 export interface CashFlowResponse {
@@ -117,6 +123,8 @@ export async function getCashFlow(
       financingIn: num(s.financingIn),
       financingOut: num(s.financingOut),
       movementCount: num(s.movementCount),
+      transferVolume: num(s.transferVolume),
+      ledgerCash: num(s.ledgerCash),
     },
     rows: Array.isArray(raw?.rows)
       ? raw.rows.map((r: any) => ({
@@ -134,6 +142,7 @@ export async function getCashFlow(
           createdAt: r.createdAt ?? null,
           description: r.description ?? null,
           cashAccountId: r.cashAccountId == null ? null : num(r.cashAccountId),
+          accountName: r.accountName ?? null,
           amount: num(r.amount),
           inflow: num(r.inflow),
           outflow: num(r.outflow),

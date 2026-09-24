@@ -565,13 +565,13 @@ namespace PoultryFarmAPIWeb.Business
                 }
 
                 // --- Totals ------------------------------------------------------
-                // Tax and service rates are 0 to match what the POS does today
-                // (recalcOrder(orderId, 0, 0)), so a guest total equals the POS total
-                // for the same basket. Without this call totalamount stayed at 0.
+                // NULL rates = the tax and service-charge rates saved in Restaurant
+                // Setup, the same rule the POS uses since migration 323, so a guest
+                // total equals the POS total for the same basket.
                 using (var fcmd = new NpgsqlCommand(
                     "SELECT * FROM sprestaurant_online_order_finalize(p_orderid=>@O::int,p_farmid=>@F::text," +
                     "p_ordertype=>@T::text,p_promocode=>@P::text,p_channel=>@C::text," +
-                    "p_taxrate=>0::numeric,p_servicechargerate=>0::numeric)", conn, tx))
+                    "p_taxrate=>NULL::numeric,p_servicechargerate=>NULL::numeric)", conn, tx))
                 {
                     fcmd.Parameters.AddWithValue("@O", orderId);
                     fcmd.Parameters.AddWithValue("@F", req.FarmId);

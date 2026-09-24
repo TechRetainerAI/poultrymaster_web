@@ -92,6 +92,9 @@ namespace PoultryFarmAPIWeb.Models
         public string? SupplierName { get; set; } public string? ReceiptRef { get; set; }
         public string Status { get; set; } = "Approved"; public string? CreatedBy { get; set; }
         public DateTime CreatedAt { get; set; }
+        /// <summary>Write-only: the cash account the expense is paid from. Null = the
+        /// default account for PaymentMethod (migration 323). Not read back.</summary>
+        public int? CashAccountId { get; set; }
     }
     public class ReceiptTemplateModel
     {

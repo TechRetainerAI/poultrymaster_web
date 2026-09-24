@@ -390,6 +390,8 @@ builder.Services.AddScoped<IRestaurantMenuService>(sp => new RestaurantMenuServi
 // Phase R2: Floor plan + POS / Orders
 builder.Services.AddScoped<IRestaurantFloorService>(sp => new RestaurantFloorService(connectionString));
 builder.Services.AddScoped<IRestaurantOrderService>(sp => new RestaurantOrderService(connectionString));
+// Migration 323: cash accounts, till shifts, transfers, owner money, loans, daily closing
+builder.Services.AddScoped<IRestaurantFinanceService>(sp => new RestaurantFinanceService(connectionString));
 // Phase R3: Kitchen Display System
 builder.Services.AddScoped<IRestaurantKdsService>(sp => new RestaurantKdsService(connectionString));
 // Phase R4: Reservations & Waitlist

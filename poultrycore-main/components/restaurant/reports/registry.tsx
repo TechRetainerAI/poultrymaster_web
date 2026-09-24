@@ -34,6 +34,11 @@ import {
 import type {
   SalesSummaryReport, PnlSummary, CustomerRetentionReport, DailySalesReport,
 } from "@/lib/api/restaurant"
+// Cash & ledger reports on the one cash ledger (migrations 323 / 324).
+import {
+  cashFlowDetail, cashMovement, cashAccounts, moneyMovement, tillVariances,
+  closingReport, takingsByAccount, profitVsCash,
+} from "@/components/restaurant/reports/money-reports"
 
 const ROSE = "#e11d48"
 const ROSE_LIGHT = "#fda4af"
@@ -861,6 +866,14 @@ export const REPORT_REGISTRY: Record<string, ReportDefinition<any, any>> = {
   "payment-methods": paymentMethods,
   "expenses": expenses,
   "discounts": discounts,
+  "profit-vs-cash": profitVsCash,
+  "cash-flow-detail": cashFlowDetail,
+  "cash-movement": cashMovement,
+  "cash-accounts": cashAccounts,
+  "money-movement": moneyMovement,
+  "takings-by-account": takingsByAccount,
+  "till-variances": tillVariances,
+  "closing-report": closingReport,
   "daily-sales": dailySales,
   "revenue-trend": revenueTrend,
   "top-items": topItems,

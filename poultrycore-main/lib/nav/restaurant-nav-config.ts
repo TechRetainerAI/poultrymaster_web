@@ -2,11 +2,16 @@
  * Restaurant desktop top-nav contents.
  *
  * Rail: Dashboard | POS | Orders & Kitchen | Dining | Delivery & Online |
- *       Inventory & Reports | Growth | Setup -> System
+ *       Inventory | Money | Expenses | Reports | Growth | Setup -> System
+ *
+ * Money and Expenses are separate menus, the way Poultry and Water keep them:
+ * Money is where cash sits and moves (tills, accounts, transfers, owner money,
+ * loans, closing, cash flow, P&L); Expenses is what the restaurant spends on.
  */
 
 import {
-  Activity, BarChart3, Bell, Boxes, Building2, CalendarDays, ClipboardList,
+  Activity, ArrowLeftRight, BarChart3, Bell, Boxes, Building2, Calculator, CalendarCheck, CalendarDays, ClipboardList,
+  Landmark, PiggyBank, TrendingUp, Wallet, Scale, FileBarChart,
   CreditCard, Crown, DollarSign, FileText, Gift, Globe, Heart, Inbox, MapPin,
   Megaphone, Package, PartyPopper, QrCode, Receipt, Settings, ShoppingBag,
   ShoppingCart, Star, Tag, Truck, User, UserCog, Users, UtensilsCrossed,
@@ -17,7 +22,10 @@ export interface RestaurantNavConfig {
   ordersKitchen: MegaMenuGroup[]
   dining: MegaMenuGroup[]
   deliveryOnline: MegaMenuGroup[]
+  /** Inventory only. The name is kept because the top nav and mobile nav read it. */
   inventoryReports: MegaMenuGroup[]
+  money: MegaMenuGroup[]
+  expenses: MegaMenuGroup[]
   growth: MegaMenuGroup[]
   setup: MegaMenuGroup[]
   system: MegaMenuGroup[]
@@ -89,9 +97,53 @@ export function buildRestaurantNavConfig(badges: RestaurantNavBadges = {}): Rest
         label: "Inventory",
         items: [
           { id: "ingredients", title: "Ingredients & Stock", icon: Boxes,     href: "/restaurant-inventory", visible: true },
-          // "Reports & Analytics" used to sit here too, duplicating the Reports
-          // mega-menu next to it. One home for reports; this menu is Inventory.
-          { id: "expenses",    title: "Expenses",            icon: Receipt,   href: "/restaurant-expenses",  visible: true },
+        ],
+      },
+    ],
+
+    // Migrations 323 / 324: every screen here reads or posts to the one cash
+    // ledger. Tills first — it is the one cashiers use every shift.
+    money: [
+      {
+        key: "cash",
+        label: "Tills & Cash",
+        items: [
+          { id: "tills",          title: "Tills & Shifts",   icon: Calculator,     href: "/restaurant-tills",               visible: true },
+          { id: "cash-accounts",  title: "Cash Accounts",    icon: Wallet,         href: "/restaurant-cash-accounts",       visible: true },
+          { id: "cash-transfers", title: "Cash Transfers",   icon: ArrowLeftRight, href: "/restaurant-cash-transfers",      visible: true },
+          { id: "reconciliation", title: "Reconciliation",   icon: Scale,          href: "/restaurant-cash-reconciliation", visible: true },
+          { id: "daily-closing",  title: "Daily Closing",    icon: CalendarCheck,  href: "/restaurant-daily-closing",       visible: true },
+        ],
+      },
+      {
+        key: "funding",
+        label: "Owner & Loans",
+        items: [
+          { id: "owner-money",    title: "Owner Money",      icon: PiggyBank,      href: "/restaurant-owner-money",         visible: true },
+          { id: "loans",          title: "Loans",            icon: Landmark,       href: "/restaurant-loans",               visible: true },
+        ],
+      },
+      {
+        key: "statements",
+        label: "Statements",
+        items: [
+          { id: "cash-flow",      title: "Cash Flow",         icon: Activity,     href: "/restaurant-cash-flow",           visible: true },
+          { id: "profit-loss",    title: "Profit & Loss",     icon: TrendingUp,   href: "/restaurant-profit-loss",         visible: true },
+          { id: "income",         title: "Income & Expenses", icon: DollarSign,   href: "/restaurant-payments",            visible: true },
+          { id: "profit-vs-cash", title: "Profit vs Cash",    icon: FileBarChart, href: "/restaurant-reports/profit-vs-cash", visible: true },
+        ],
+      },
+    ],
+
+    // What the restaurant spends on — kept apart from Money, as in Poultry/Water.
+    expenses: [
+      {
+        key: "expenses",
+        label: "Expenses",
+        items: [
+          { id: "expenses",       title: "Record Expenses",     icon: Receipt,      href: "/restaurant-expenses",               visible: true },
+          { id: "expense-cats",   title: "Expense Categories",  icon: Tag,          href: "/restaurant-expenses?tab=categories", visible: true },
+          { id: "expense-report", title: "Expense Report",      icon: FileBarChart, href: "/restaurant-reports/expenses",       visible: true },
         ],
       },
     ],

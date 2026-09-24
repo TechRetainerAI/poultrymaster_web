@@ -75,6 +75,7 @@ namespace PoultryFarmAPIWeb.Business
                         TransactionDate = DateN(r, "transactiondate") ?? DateTime.UtcNow,
                         Description = Str(r, "description"),
                         CashAccountId = IntN(r, "cashaccountid"),
+                        AccountName = Str(r, "accountname"),
                         Amount = amount,
                         Inflow = amount > 0 ? amount : 0m,
                         Outflow = amount < 0 ? -amount : 0m,
@@ -102,6 +103,8 @@ namespace PoultryFarmAPIWeb.Business
                         OpeningCash = Dec(r, "openingbalance"),
                         ClosingCash = Dec(r, "cashathand"),
                         MovementCount = (int)Dec(r, "rowcount"),
+                        TransferVolume = Dec(r, "transfervolume"),
+                        LedgerCash = Dec(r, "ledgercash"),
                     };
                 }
             }

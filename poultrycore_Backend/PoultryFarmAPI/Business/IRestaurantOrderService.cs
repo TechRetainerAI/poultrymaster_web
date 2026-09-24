@@ -9,7 +9,8 @@ namespace PoultryFarmAPIWeb.Business
         Task<List<RestaurantOrderModel>> ListOrdersAsync(string farmId, string? status = null, string? orderType = null, DateTime? fromDate = null, DateTime? toDate = null);
         Task<RestaurantOrderModel?> GetOrderAsync(int id, string farmId);
         Task UpdateOrderStatusAsync(int id, string farmId, string status, string? reason = null);
-        Task RecalcOrderAsync(int orderId, string farmId, decimal taxRate, decimal serviceChargeRate);
+        // Null rates = the rates saved in Restaurant Setup (migration 323).
+        Task RecalcOrderAsync(int orderId, string farmId, decimal? taxRate, decimal? serviceChargeRate);
 
         // Order Items
         Task<int> AddOrderItemAsync(RestaurantOrderItemCreateRequest req);
@@ -21,7 +22,8 @@ namespace PoultryFarmAPIWeb.Business
         Task<List<RestaurantOrderItemModifierModel>> ListOrderItemModifiersAsync(int orderItemId, string farmId);
 
         // Order Payments
-        Task<int> AddPaymentAsync(string farmId, int orderId, string paymentMethod, decimal amount, decimal tipAmount, string? reference, string? processedBy);
+        Task<int> AddPaymentAsync(string farmId, int orderId, string paymentMethod, decimal amount, decimal tipAmount, string? reference, string? processedBy, int? cashAccountId = null, int? shiftId = null);
+        Task<int> RefundAsync(string farmId, int orderId, decimal amount, string paymentMethod, string reason, string? processedBy, int? cashAccountId = null, int? shiftId = null);
         Task<List<RestaurantOrderPaymentModel>> ListPaymentsAsync(int orderId, string farmId);
 
         // Discounts

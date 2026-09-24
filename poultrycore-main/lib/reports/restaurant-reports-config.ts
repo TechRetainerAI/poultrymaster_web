@@ -28,6 +28,7 @@ import {
   BarChart3, Clock, DollarSign, TrendingUp, Users, UtensilsCrossed, Utensils,
   Receipt, CalendarDays, ShoppingCart, Wallet, Timer, Table2, Coins, Ban,
   Boxes, Trash2, Heart, Star, Truck, Store, PieChart, Percent, Soup,
+  Scale, Activity, ArrowUpDown, Landmark, ArrowLeftRight, Calculator, CalendarCheck,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
@@ -83,6 +84,31 @@ const RAW_GROUPS: RawGroup[] = [
         description: "Spend by category, supplier and payment method" },
       { slug: "discounts", title: "Discounts & Promotions", dateMode: "range", isNew: true,
         description: "What each discount was actually given away, and on what" },
+      { slug: "profit-vs-cash", title: "Profit vs Cash", dateMode: "range", isNew: true,
+        description: "Why the cash moved differently from the profit, line by line" },
+    ],
+  },
+  {
+    // Migrations 323 / 324: every report here reads the one cash ledger, so
+    // they agree with each other, with Cash Flow and with the account balances.
+    key: "cash",
+    label: "Cash & Ledger",
+    color: "bg-sky-600",
+    reports: [
+      { slug: "cash-flow-detail", title: "Cash Flow Detail", dateMode: "range", isNew: true,
+        description: "Every movement with running cash, daily chart, breakdowns and analysis" },
+      { slug: "cash-movement", title: "Cash Movement", dateMode: "range", isNew: true,
+        description: "Money in, out and cash held at the end of each day" },
+      { slug: "cash-accounts", title: "Cash Account Report", dateMode: "range", isNew: true,
+        description: "Where the money sits: each account's opening, in, out and closing, plus the ledger" },
+      { slug: "money-movement", title: "Money Movement", dateMode: "range", isNew: true,
+        description: "Transfers, owner contributions and drawings, loans and repayments" },
+      { slug: "takings-by-account", title: "Takings by Account", dateMode: "range", isNew: true,
+        description: "Which till, bank or wallet each payment method's money landed in" },
+      { slug: "till-variances", title: "Till & Count Variances", dateMode: "range", isNew: true,
+        description: "Every shift cash-up and account count, with over and short" },
+      { slug: "closing-report", title: "Closing Report", dateMode: "range", isNew: true,
+        description: "One row per closed day: sales, money in and out, over / short" },
     ],
   },
   {
@@ -160,6 +186,14 @@ const ICONS: Record<string, LucideIcon> = {
   "payment-methods": Coins,
   "expenses": Receipt,
   "discounts": Percent,
+  "profit-vs-cash": Scale,
+  "cash-flow-detail": Activity,
+  "cash-movement": ArrowUpDown,
+  "cash-accounts": Landmark,
+  "money-movement": ArrowLeftRight,
+  "takings-by-account": Wallet,
+  "till-variances": Calculator,
+  "closing-report": CalendarCheck,
   "daily-sales": DollarSign,
   "revenue-trend": TrendingUp,
   "top-items": UtensilsCrossed,

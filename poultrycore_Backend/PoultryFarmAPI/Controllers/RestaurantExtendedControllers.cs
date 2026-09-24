@@ -108,7 +108,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // =========================================================================
     // Gift Card Controller
     // =========================================================================
-    [ApiController][Authorize][Route("api/Restaurant/gift-cards")]
+    [ApiController][Authorize][PoultryFarmAPIWeb.Filters.RestaurantBusinessRuleFilter][Route("api/Restaurant/gift-cards")]
     public class RestaurantGiftCardController : ControllerBase
     {
         private readonly IRestaurantGiftCardService _svc;
@@ -120,7 +120,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
         [HttpPost]
         public async Task<IActionResult> Create([FromQuery] string farmId, [FromBody] GiftCardCreateReq req)
-        { var a=HotelAuthHelper.VerifyFarmOwnership(User,farmId); if(a!=null) return a; var(id,num)=await _svc.CreateAsync(farmId,req.CardType,req.Amount,req.PurchaserName,req.PurchaserPhone,req.RecipientName,req.RecipientEmail,req.Message,req.ExpiryDate); return Ok(new{giftCardId=id,cardNumber=num}); }
+        { var a=HotelAuthHelper.VerifyFarmOwnership(User,farmId); if(a!=null) return a; var(id,num)=await _svc.CreateAsync(farmId,req.CardType,req.Amount,req.PurchaserName,req.PurchaserPhone,req.RecipientName,req.RecipientEmail,req.Message,req.ExpiryDate,req.PaymentMethod,req.CashAccountId,HotelAuthHelper.GetUserName(User)); return Ok(new{giftCardId=id,cardNumber=num}); }
 
         [HttpPost("redeem")]
         public async Task<IActionResult> Redeem([FromQuery] string farmId, [FromBody] GiftCardRedeemReq req)
@@ -128,11 +128,13 @@ namespace PoultryFarmAPIWeb.Controllers
 
         [HttpPost("reload")]
         public async Task<IActionResult> Reload([FromQuery] string farmId, [FromBody] GiftCardReloadReq req)
-        { var a=HotelAuthHelper.VerifyFarmOwnership(User,farmId); if(a!=null) return a; await _svc.ReloadAsync(req.CardNumber,farmId,req.Amount,HotelAuthHelper.GetUserName(User)); return NoContent(); }
+        { var a=HotelAuthHelper.VerifyFarmOwnership(User,farmId); if(a!=null) return a; await _svc.ReloadAsync(req.CardNumber,farmId,req.Amount,HotelAuthHelper.GetUserName(User),req.PaymentMethod,req.CashAccountId); return NoContent(); }
 
+        // Scoped to the caller's company: before migration 323 any signed-in user
+        // could read any restaurant's card balance by number.
         [HttpGet("balance/{cardNumber}")]
-        public async Task<IActionResult> Balance(string cardNumber)
-        { var r=await _svc.CheckBalanceAsync(cardNumber); if(r==null) return NotFound(new{message="Card not found"}); return Ok(r); }
+        public async Task<IActionResult> Balance(string cardNumber, [FromQuery] string farmId)
+        { var a=HotelAuthHelper.VerifyFarmOwnership(User,farmId); if(a!=null) return a; var r=await _svc.CheckBalanceAsync(cardNumber,farmId); if(r==null) return NotFound(new{message="Card not found"}); return Ok(r); }
 
         [HttpGet("{id}/transactions")]
         public async Task<IActionResult> Transactions(int id, [FromQuery] string farmId)
@@ -142,14 +144,14 @@ namespace PoultryFarmAPIWeb.Controllers
         public async Task<IActionResult> Stats([FromQuery] string farmId)
         { var a=HotelAuthHelper.VerifyFarmOwnership(User,farmId); if(a!=null) return a; return Ok(await _svc.GetStatsAsync(farmId)); }
     }
-    public class GiftCardCreateReq { public string CardType { get; set; }="Digital"; public decimal Amount { get; set; } public string? PurchaserName { get; set; } public string? PurchaserPhone { get; set; } public string? RecipientName { get; set; } public string? RecipientEmail { get; set; } public string? Message { get; set; } public DateTime? ExpiryDate { get; set; } }
+    public class GiftCardCreateReq { public string CardType { get; set; }="Digital"; public decimal Amount { get; set; } public string? PurchaserName { get; set; } public string? PurchaserPhone { get; set; } public string? RecipientName { get; set; } public string? RecipientEmail { get; set; } public string? Message { get; set; } public DateTime? ExpiryDate { get; set; } public string PaymentMethod { get; set; }="Cash"; public int? CashAccountId { get; set; } }
     public class GiftCardRedeemReq { public string CardNumber { get; set; }=""; public decimal Amount { get; set; } public int? OrderId { get; set; } }
-    public class GiftCardReloadReq { public string CardNumber { get; set; }=""; public decimal Amount { get; set; } }
+    public class GiftCardReloadReq { public string CardNumber { get; set; }=""; public decimal Amount { get; set; } public string PaymentMethod { get; set; }="Cash"; public int? CashAccountId { get; set; } }
 
     // =========================================================================
     // Expense Controller
     // =========================================================================
-    [ApiController][Authorize][Route("api/Restaurant/expenses")]
+    [ApiController][Authorize][PoultryFarmAPIWeb.Filters.RestaurantBusinessRuleFilter][Route("api/Restaurant/expenses")]
     public class RestaurantExpenseController : ControllerBase
     {
         private readonly IRestaurantExpenseService _svc;
