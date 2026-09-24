@@ -1,23 +1,38 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Npgsql;
+using NpgsqlTypes;
+using System.Text.Json;
 using PoultryFarmAPIWeb.Business;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Helpers;
+using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Controllers
 {
     // ==================== REQUEST MODELS ====================
     public class CreatePayrollRunRequest { public string FarmId { get; set; } = ""; public string PeriodStart { get; set; } = ""; public string PeriodEnd { get; set; } = ""; public string? PayDate { get; set; } public int? HotelCashAccountId { get; set; } public string? Notes { get; set; } }
-    public class UpsertPayrollItemRequest { public string FarmId { get; set; } = ""; public int HotelPayrollRunId { get; set; } public int HotelStaffId { get; set; } public string? StaffName { get; set; } public string? StaffRole { get; set; } public decimal BasicPay { get; set; } public decimal DailyWage { get; set; } public decimal Commission { get; set; } public decimal Bonus { get; set; } public decimal Deductions { get; set; } public string? PaymentMethod { get; set; } public string? Notes { get; set; } }
+    /// <summary>
+    /// One payroll line. Deductions is the "other" deductions the user types (tax,
+    /// penalties, ...). Staff loan repayments go in LoanDeductions: null leaves the
+    /// line's loan deductions as they are, a list replaces them (an empty list or
+    /// an amount of 0 removes them).
+    /// </summary>
+    public class UpsertPayrollItemRequest { public string FarmId { get; set; } = ""; public int HotelPayrollRunId { get; set; } public int HotelStaffId { get; set; } public string? StaffName { get; set; } public string? StaffRole { get; set; } public decimal BasicPay { get; set; } public decimal DailyWage { get; set; } public decimal Commission { get; set; } public decimal Bonus { get; set; } public decimal Deductions { get; set; } public string? PaymentMethod { get; set; } public string? Notes { get; set; } public List<HotelPayrollLoanDeductionInput>? LoanDeductions { get; set; } }
     public class CancelPayrollRequest { public string FarmId { get; set; } = ""; public string? CancelReason { get; set; } }
     public class MarkPaidRequest { public string FarmId { get; set; } = ""; public string? PayDate { get; set; } }
+    public class ReopenPayrollRequest { public string FarmId { get; set; } = ""; public string? Reason { get; set; } }
 
-    [ApiController][Authorize][Route("api/Hotel")]
+    // The money steps (save a line with its loan deductions, approve, reopen,
+    // cancel, mark paid) run inside database functions from migration 325, so a
+    // loan repayment and the payroll it came from can never disagree. Their
+    // refusals come back as 400 with the database's sentence (HotelBusinessRuleFilter).
+    [ApiController][Authorize][Route("api/Hotel")][HotelBusinessRuleFilter]
     public class HotelPayrollController : ControllerBase
     {
         private readonly string _cs;
-        private readonly IHotelCashLedgerService _cashLedger;
-        public HotelPayrollController(IConfiguration config, IHotelCashLedgerService cashLedger) { _cs = config.GetConnectionString("PoultryConn") ?? ""; _cashLedger = cashLedger; }
+        private readonly IHotelEmployeeLoanService _loans;
+        public HotelPayrollController(IConfiguration config, IHotelEmployeeLoanService loans) { _cs = config.GetConnectionString("PoultryConn") ?? ""; _loans = loans; }
 
         [HttpGet("payroll-runs")]
         public async Task<IActionResult> ListPayrollRuns([FromQuery] string farmId, [FromQuery] string? status = null)
@@ -45,12 +60,15 @@ namespace PoultryFarmAPIWeb.Controllers
                 using var r = await cmd.ExecuteReaderAsync();
                 if (await r.ReadAsync()) run = ReadRow(r); else return NotFound(new { message = "Payroll run not found." });
             }
+            List<Dictionary<string, object?>> items;
             using (var cmd = new NpgsqlCommand("SELECT * FROM hotelpayrollitems WHERE hotelpayrollrunid=@id ORDER BY createdat", conn))
             {
                 cmd.Parameters.AddWithValue("@id", id);
-                var items = await ReadAll(cmd);
-                return Ok(new { run, items });
+                items = await ReadAll(cmd);
             }
+            // Staff loan deductions on this run, one row per loan per line.
+            var deductions = await _loans.GetPayrollDeductionsAsync(farmId, id);
+            return Ok(new { run, items, deductions });
         }
 
         [HttpPost("payroll-runs")]
@@ -90,48 +108,38 @@ namespace PoultryFarmAPIWeb.Controllers
             var auth = HotelAuthHelper.VerifyFarmOwnership(User, req.FarmId); if (auth != null) return auth;
             if (req.HotelPayrollRunId != runId) return BadRequest(new { message = "Run ID mismatch." });
 
-            decimal netPay = req.BasicPay + req.DailyWage + req.Commission + req.Bonus - req.Deductions;
             using var conn = new NpgsqlConnection(_cs); await conn.OpenAsync();
-            using var txn = await conn.BeginTransactionAsync();
-            try
+            // Updates the line in place (so its loan deductions survive), checks every
+            // loan deduction against what the staff member still owes, and recalculates
+            // the line and the run -- one transaction, inside the function.
+            int itemId;
+            using (var cmd = new NpgsqlCommand(
+                "SELECT sphotelpayrollitem_save(@f, @r, @s, @sn, @sr, @bp, @dw, @co, @bo, @od, @pm, @n, @ld, @by)", conn))
             {
-                // Verify run exists, belongs to farm, and is Draft
-                using (var vc = new NpgsqlCommand("SELECT status FROM hotelpayrollruns WHERE hotelpayrollrunid=@id AND farmid=@f", conn, txn))
+                cmd.Parameters.AddWithValue("@f", req.FarmId);
+                cmd.Parameters.AddWithValue("@r", runId);
+                cmd.Parameters.AddWithValue("@s", req.HotelStaffId);
+                cmd.Parameters.AddWithValue("@sn", (object?)req.StaffName ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@sr", (object?)req.StaffRole ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@bp", req.BasicPay); cmd.Parameters.AddWithValue("@dw", req.DailyWage);
+                cmd.Parameters.AddWithValue("@co", req.Commission); cmd.Parameters.AddWithValue("@bo", req.Bonus);
+                cmd.Parameters.AddWithValue("@od", req.Deductions);
+                cmd.Parameters.AddWithValue("@pm", (object?)req.PaymentMethod ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@n", (object?)req.Notes ?? DBNull.Value);
+                cmd.Parameters.Add(new NpgsqlParameter("@ld", NpgsqlDbType.Jsonb)
                 {
-                    vc.Parameters.AddWithValue("@id", runId); vc.Parameters.AddWithValue("@f", req.FarmId);
-                    var st = await vc.ExecuteScalarAsync();
-                    if (st == null) { await txn.RollbackAsync(); return NotFound(new { message = "Payroll run not found." }); }
-                    if (st.ToString() != "Draft") { await txn.RollbackAsync(); return BadRequest(new { message = "Can only add items to Draft runs." }); }
-                }
-
-                // Delete existing item for same staff in same run
-                using (var dc = new NpgsqlCommand("DELETE FROM hotelpayrollitems WHERE hotelpayrollrunid=@r AND hotelstaffid=@s", conn, txn))
-                {
-                    dc.Parameters.AddWithValue("@r", runId); dc.Parameters.AddWithValue("@s", req.HotelStaffId);
-                    await dc.ExecuteNonQueryAsync();
-                }
-
-                // Insert new item
-                using var ins = new NpgsqlCommand("INSERT INTO hotelpayrollitems(hotelpayrollrunid,hotelstaffid,staffname,staffrole,basicpay,dailywage,commission,bonus,deductions,netpay,paymentmethod,notes) VALUES(@r,@s,@sn,@sr,@bp,@dw,@co,@bo,@de,@np,@pm,@n) RETURNING *", conn, txn);
-                ins.Parameters.AddWithValue("@r", runId); ins.Parameters.AddWithValue("@s", req.HotelStaffId);
-                ins.Parameters.AddWithValue("@sn", (object?)req.StaffName ?? DBNull.Value);
-                ins.Parameters.AddWithValue("@sr", (object?)req.StaffRole ?? DBNull.Value);
-                ins.Parameters.AddWithValue("@bp", req.BasicPay); ins.Parameters.AddWithValue("@dw", req.DailyWage);
-                ins.Parameters.AddWithValue("@co", req.Commission); ins.Parameters.AddWithValue("@bo", req.Bonus);
-                ins.Parameters.AddWithValue("@de", req.Deductions); ins.Parameters.AddWithValue("@np", netPay);
-                ins.Parameters.AddWithValue("@pm", (object?)req.PaymentMethod ?? DBNull.Value);
-                ins.Parameters.AddWithValue("@n", (object?)req.Notes ?? DBNull.Value);
-                using var r = await ins.ExecuteReaderAsync();
-                Dictionary<string, object?>? item = null;
-                if (await r.ReadAsync()) item = ReadRow(r);
-                await r.CloseAsync();
-
-                // Recalculate run totals
-                await RecalcRunTotals(conn, txn, runId);
-                await txn.CommitAsync();
-                return item != null ? Ok(item) : StatusCode(500);
+                    Value = req.LoanDeductions == null
+                        ? DBNull.Value
+                        : JsonSerializer.Serialize(req.LoanDeductions.Select(d => new { loanId = d.LoanId, amount = d.Amount })),
+                });
+                cmd.Parameters.AddWithValue("@by", HotelAuthHelper.GetUserName(User));
+                itemId = Convert.ToInt32(await cmd.ExecuteScalarAsync());
             }
-            catch { await txn.RollbackAsync(); throw; }
+
+            using var sel = new NpgsqlCommand("SELECT * FROM hotelpayrollitems WHERE hotelpayrollitemid=@id", conn);
+            sel.Parameters.AddWithValue("@id", itemId);
+            using var rd = await sel.ExecuteReaderAsync();
+            return await rd.ReadAsync() ? Ok(ReadRow(rd)) : StatusCode(500);
         }
 
         [HttpDelete("payroll-runs/items/{itemId}")]
@@ -139,74 +147,83 @@ namespace PoultryFarmAPIWeb.Controllers
         {
             var auth = HotelAuthHelper.VerifyFarmOwnership(User, farmId); if (auth != null) return auth;
             using var conn = new NpgsqlConnection(_cs); await conn.OpenAsync();
-            using var txn = await conn.BeginTransactionAsync();
-            try
-            {
-                // Get run id and verify farm ownership + Draft status
-                int runId = 0;
-                using (var c = new NpgsqlCommand("SELECT i.hotelpayrollrunid FROM hotelpayrollitems i JOIN hotelpayrollruns r ON r.hotelpayrollrunid=i.hotelpayrollrunid WHERE i.hotelpayrollitemid=@id AND r.farmid=@f AND r.status='Draft'", conn, txn))
-                {
-                    c.Parameters.AddWithValue("@id", itemId); c.Parameters.AddWithValue("@f", farmId);
-                    var result = await c.ExecuteScalarAsync();
-                    if (result == null) { await txn.RollbackAsync(); return NotFound(new { message = "Item not found or run is not in Draft status." }); }
-                    runId = Convert.ToInt32(result);
-                }
-
-                using (var dc = new NpgsqlCommand("DELETE FROM hotelpayrollitems WHERE hotelpayrollitemid=@id", conn, txn))
-                {
-                    dc.Parameters.AddWithValue("@id", itemId); await dc.ExecuteNonQueryAsync();
-                }
-
-                await RecalcRunTotals(conn, txn, runId);
-                await txn.CommitAsync();
-                return Ok(new { message = "Item deleted and totals recalculated." });
-            }
-            catch { await txn.RollbackAsync(); throw; }
+            using var cmd = new NpgsqlCommand("SELECT sphotelpayrollitem_delete(@f, @id)", conn);
+            cmd.Parameters.AddWithValue("@f", farmId); cmd.Parameters.AddWithValue("@id", itemId);
+            await cmd.ExecuteNonQueryAsync();
+            return Ok(new { message = "Item deleted and totals recalculated." });
         }
 
+        /// <summary>Draft -> Approved. Each staff loan deduction becomes a repayment.</summary>
         [HttpPost("payroll-runs/{id}/approve")]
         public async Task<IActionResult> ApprovePayrollRun(int id, [FromQuery] string farmId)
         {
             var auth = HotelAuthHelper.VerifyFarmOwnership(User, farmId); if (auth != null) return auth;
             using var conn = new NpgsqlConnection(_cs); await conn.OpenAsync();
-            using var cmd = new NpgsqlCommand("UPDATE hotelpayrollruns SET status='Approved', approvedby=@u, approvedat=NOW(), updatedat=NOW() WHERE hotelpayrollrunid=@id AND farmid=@f AND status='Draft' RETURNING *", conn);
-            cmd.Parameters.AddWithValue("@id", id); cmd.Parameters.AddWithValue("@f", farmId);
-            cmd.Parameters.AddWithValue("@u", HotelAuthHelper.GetUserName(User));
-            using var r = await cmd.ExecuteReaderAsync();
-            return await r.ReadAsync() ? Ok(ReadRow(r)) : NotFound(new { message = "Run not found or not in Draft status." });
+            int posted;
+            using (var cmd = new NpgsqlCommand("SELECT sphotelpayrollrun_approve(@f, @id, @u)", conn))
+            {
+                cmd.Parameters.AddWithValue("@f", farmId); cmd.Parameters.AddWithValue("@id", id);
+                cmd.Parameters.AddWithValue("@u", HotelAuthHelper.GetUserName(User));
+                posted = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            }
+            var run = await ReadRun(conn, id, farmId);
+            return Ok(new { run, loanRepaymentsPosted = posted });
         }
 
+        /// <summary>Approved -> Draft, to correct a run before it is paid. Its loan repayments are reversed.</summary>
+        [HttpPost("payroll-runs/{id}/reopen")]
+        public async Task<IActionResult> ReopenPayrollRun(int id, [FromBody] ReopenPayrollRequest req)
+        {
+            var auth = HotelAuthHelper.VerifyFarmOwnership(User, req.FarmId); if (auth != null) return auth;
+            using var conn = new NpgsqlConnection(_cs); await conn.OpenAsync();
+            using (var cmd = new NpgsqlCommand("SELECT sphotelpayrollrun_unapprove(@f, @id, @reason, @u)", conn))
+            {
+                cmd.Parameters.AddWithValue("@f", req.FarmId); cmd.Parameters.AddWithValue("@id", id);
+                cmd.Parameters.AddWithValue("@reason", (object?)req.Reason ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@u", HotelAuthHelper.GetUserName(User));
+                await cmd.ExecuteNonQueryAsync();
+            }
+            return Ok(await ReadRun(conn, id, req.FarmId));
+        }
+
+        /// <summary>
+        /// Approved -> Paid. Net pay leaves the run's cash account (or the hotel's
+        /// Payroll account), in the same transaction as the status change. Before
+        /// 325 this posted nothing: it read a "totalamount" column the run does not
+        /// have, in a fire-and-forget task that swallowed the error.
+        /// </summary>
         [HttpPost("payroll-runs/{id}/mark-paid")]
         public async Task<IActionResult> MarkPaid(int id, [FromBody] MarkPaidRequest req)
         {
             var auth = HotelAuthHelper.VerifyFarmOwnership(User, req.FarmId); if (auth != null) return auth;
-            string payDate = string.IsNullOrEmpty(req.PayDate) ? DateTime.UtcNow.ToString("yyyy-MM-dd") : req.PayDate;
             using var conn = new NpgsqlConnection(_cs); await conn.OpenAsync();
-            using var cmd = new NpgsqlCommand("UPDATE hotelpayrollruns SET status='Paid', paidby=@u, paidat=NOW(), paydate=@pd::date, updatedat=NOW() WHERE hotelpayrollrunid=@id AND farmid=@f AND status='Approved' RETURNING *", conn);
-            cmd.Parameters.AddWithValue("@id", id); cmd.Parameters.AddWithValue("@f", req.FarmId);
-            cmd.Parameters.AddWithValue("@u", HotelAuthHelper.GetUserName(User));
-            cmd.Parameters.AddWithValue("@pd", payDate);
-            using var r = await cmd.ExecuteReaderAsync();
-            if (!await r.ReadAsync()) return NotFound(new { message = "Run not found or not in Approved status." });
-            var row = ReadRow(r);
-            decimal totalAmount = Convert.ToDecimal(row.GetValueOrDefault("totalamount", 0m));
-            string period = $"{row.GetValueOrDefault("periodstart", "")} to {row.GetValueOrDefault("periodend", "")}";
-            if (totalAmount > 0)
-                _ = Task.Run(async () => { try { await _cashLedger.PostAsync(req.FarmId, "Payroll", "Debit", totalAmount, $"Payroll run #{id} ({period})", $"PR-{id}", "Payroll", id, HotelAuthHelper.GetUserName(User)); } catch { } });
-            return Ok(row);
+            using (var cmd = new NpgsqlCommand("SELECT sphotelpayrollrun_markpaid(@f, @id, @pd, @u)", conn))
+            {
+                cmd.Parameters.AddWithValue("@f", req.FarmId); cmd.Parameters.AddWithValue("@id", id);
+                cmd.Parameters.Add(new NpgsqlParameter("@pd", NpgsqlDbType.Date)
+                {
+                    Value = string.IsNullOrEmpty(req.PayDate) ? DBNull.Value : DateTime.Parse(req.PayDate).Date,
+                });
+                cmd.Parameters.AddWithValue("@u", HotelAuthHelper.GetUserName(User));
+                await cmd.ExecuteNonQueryAsync();
+            }
+            return Ok(await ReadRun(conn, id, req.FarmId));
         }
 
+        /// <summary>Draft or Approved -> Cancelled. Any loan repayments are reversed.</summary>
         [HttpPost("payroll-runs/{id}/cancel")]
         public async Task<IActionResult> CancelPayrollRun(int id, [FromBody] CancelPayrollRequest req)
         {
             var auth = HotelAuthHelper.VerifyFarmOwnership(User, req.FarmId); if (auth != null) return auth;
             using var conn = new NpgsqlConnection(_cs); await conn.OpenAsync();
-            using var cmd = new NpgsqlCommand("UPDATE hotelpayrollruns SET status='Cancelled', cancelledby=@u, cancelreason=@cr, updatedat=NOW() WHERE hotelpayrollrunid=@id AND farmid=@f AND status IN ('Draft','Approved') RETURNING *", conn);
-            cmd.Parameters.AddWithValue("@id", id); cmd.Parameters.AddWithValue("@f", req.FarmId);
-            cmd.Parameters.AddWithValue("@u", HotelAuthHelper.GetUserName(User));
-            cmd.Parameters.AddWithValue("@cr", (object?)req.CancelReason ?? DBNull.Value);
-            using var r = await cmd.ExecuteReaderAsync();
-            return await r.ReadAsync() ? Ok(ReadRow(r)) : NotFound(new { message = "Run not found or cannot be cancelled (only Draft/Approved)." });
+            using (var cmd = new NpgsqlCommand("SELECT sphotelpayrollrun_cancel(@f, @id, @cr, @u)", conn))
+            {
+                cmd.Parameters.AddWithValue("@f", req.FarmId); cmd.Parameters.AddWithValue("@id", id);
+                cmd.Parameters.AddWithValue("@cr", (object?)req.CancelReason ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@u", HotelAuthHelper.GetUserName(User));
+                await cmd.ExecuteNonQueryAsync();
+            }
+            return Ok(await ReadRun(conn, id, req.FarmId));
         }
 
         [HttpDelete("payroll-runs/{id}")]
@@ -226,7 +243,9 @@ namespace PoultryFarmAPIWeb.Controllers
                     if (st.ToString() != "Draft" && st.ToString() != "Cancelled") { await txn.RollbackAsync(); return BadRequest(new { message = "Can only delete Draft or Cancelled runs." }); }
                 }
 
-                // Delete items first, then run
+                // Delete items first, then run. Draft loan deductions go with their
+                // items (ON DELETE CASCADE); a cancelled run's deductions are already
+                // Reversed, and its reversed repayments stay on the loan's history.
                 using (var dc = new NpgsqlCommand("DELETE FROM hotelpayrollitems WHERE hotelpayrollrunid=@id", conn, txn))
                 { dc.Parameters.AddWithValue("@id", id); await dc.ExecuteNonQueryAsync(); }
                 using (var dc = new NpgsqlCommand("DELETE FROM hotelpayrollruns WHERE hotelpayrollrunid=@id AND farmid=@f", conn, txn))
@@ -238,11 +257,12 @@ namespace PoultryFarmAPIWeb.Controllers
             catch { await txn.RollbackAsync(); throw; }
         }
 
-        private static async Task RecalcRunTotals(NpgsqlConnection conn, NpgsqlTransaction txn, int runId)
+        private static async Task<Dictionary<string, object?>?> ReadRun(NpgsqlConnection conn, int id, string farmId)
         {
-            using var cmd = new NpgsqlCommand(@"UPDATE hotelpayrollruns SET totalgrosspay = COALESCE((SELECT SUM(basicpay+dailywage+commission+bonus) FROM hotelpayrollitems WHERE hotelpayrollrunid=@id),0), totaldeductions = COALESCE((SELECT SUM(deductions) FROM hotelpayrollitems WHERE hotelpayrollrunid=@id),0), totalnetpay = COALESCE((SELECT SUM(basicpay+dailywage+commission+bonus) FROM hotelpayrollitems WHERE hotelpayrollrunid=@id),0) - COALESCE((SELECT SUM(deductions) FROM hotelpayrollitems WHERE hotelpayrollrunid=@id),0), updatedat=NOW() WHERE hotelpayrollrunid=@id", conn, txn);
-            cmd.Parameters.AddWithValue("@id", runId);
-            await cmd.ExecuteNonQueryAsync();
+            using var cmd = new NpgsqlCommand("SELECT * FROM hotelpayrollruns WHERE hotelpayrollrunid=@id AND farmid=@f", conn);
+            cmd.Parameters.AddWithValue("@id", id); cmd.Parameters.AddWithValue("@f", farmId);
+            using var r = await cmd.ExecuteReaderAsync();
+            return await r.ReadAsync() ? ReadRow(r) : null;
         }
 
         [HttpGet("payroll-diag")]

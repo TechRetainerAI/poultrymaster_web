@@ -13,7 +13,8 @@ import { FormSection, FormField } from "@/components/ui/form-section"
 import { NumberInput } from "@/components/ui/number-input"
 import { PromptDialog } from "@/components/ui/prompt-dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
-import { Loader2, Banknote, Plus, Eye, Check, X, Trash2, Wallet, Users, Building2 } from "lucide-react"
+import Link from "next/link"
+import { Loader2, Banknote, Plus, Eye, Check, X, Trash2, Wallet, Users, Building2, Pencil, RotateCcw, Coins } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -27,6 +28,7 @@ import {
   markHotelPayrollRunPaid,
   cancelHotelPayrollRun,
   deleteHotelPayrollRun,
+  reopenHotelPayrollRun,
   listHotelCashAccounts,
   listHotelStaff,
   type HotelPayrollRun,
@@ -35,7 +37,22 @@ import {
   type HotelCashAccount,
   type HotelStaff,
 } from "@/lib/api/hotel"
+import { listEligibleHotelEmployeeLoans, hotelLoanTypeLabel } from "@/lib/api/hotel-employee-loans"
 import { fmtDateTime, fmtInstant } from "@/lib/utils/company-datetime"
+
+/** One of the staff member's open loans on the line being edited. */
+interface LoanRow {
+  loanId: number
+  loanNumber: string
+  loanType: string
+  outstanding: number
+  /** The most this line may deduct (outstanding less what other draft runs claim). */
+  available: number
+  suggested: number
+  amount: number
+}
+
+const EMPTY_ITEM = { hotelStaffId: 0, basicPay: 0, dailyWage: 0, commission: 0, bonus: 0, deductions: 0, paymentMethod: "Cash" }
 
 const STATUS_BADGE: Record<string, string> = {
   Draft: "bg-slate-100 text-slate-700",
@@ -47,7 +64,18 @@ const STATUS_BADGE: Record<string, string> = {
 const PAYMENT_METHODS = ["Cash", "MoMo", "Bank"]
 
 function currency(v: number | null | undefined): string {
-  return `GH\u20B5 ${(v ?? 0).toFixed(2)}`
+  return `GH\u20B5 ${(Number(v) || 0).toFixed(2)}`
+}
+
+function loanDeductionsFor(detail: HotelPayrollRunDetail, itemId: number) {
+  return (detail.deductions ?? []).filter((d) => d.hotelPayrollItemId === itemId)
+}
+
+/** Staff loan deductions on the run (on a cancelled run, what was reversed). */
+function loanTotal(detail: HotelPayrollRunDetail): number {
+  return (detail.deductions ?? [])
+    .filter((d) => d.status !== "Reversed" || detail.run.status === "Cancelled")
+    .reduce((s, d) => s + (Number(d.amount) || 0), 0)
 }
 
 export default function HotelPayrollPage() {
@@ -73,10 +101,15 @@ export default function HotelPayrollPage() {
   const [staffList, setStaffList] = useState<HotelStaff[]>([])
 
   // Add item form
-  const [itemForm, setItemForm] = useState({
-    hotelStaffId: 0, basicPay: 0, dailyWage: 0, commission: 0, bonus: 0, deductions: 0, paymentMethod: "Cash",
-  })
+  // deductions here is the OTHER deductions; staff loan repayments are in loanRows.
+  const [itemForm, setItemForm] = useState(EMPTY_ITEM)
+  const [editingItemId, setEditingItemId] = useState<number | null>(null)
+  const [loanRows, setLoanRows] = useState<LoanRow[]>([])
+  const [loansLoading, setLoansLoading] = useState(false)
   const [itemSaving, setItemSaving] = useState(false)
+
+  // Reopen dialog
+  const [reopenTarget, setReopenTarget] = useState<HotelPayrollRun | null>(null)
   const [bulkAdding, setBulkAdding] = useState(false)
 
   // Cancel dialog
@@ -142,7 +175,7 @@ export default function HotelPayrollPage() {
       ])
       setDetail(d)
       setStaffList(staff.filter((s: any) => s.isactive !== false && s.isActive !== false))
-      setItemForm({ hotelStaffId: 0, basicPay: 0, dailyWage: 0, commission: 0, bonus: 0, deductions: 0, paymentMethod: "Cash" })
+      resetItemForm()
     } catch (e: any) {
       toast({ title: "Failed to load run details", description: e?.message, variant: "destructive" })
       setDetailOpen(false)
@@ -151,10 +184,49 @@ export default function HotelPayrollPage() {
     }
   }
 
+  function resetItemForm() {
+    setItemForm(EMPTY_ITEM); setEditingItemId(null); setLoanRows([])
+  }
+
+  /** The staff member's open loans, with this line's current or suggested deduction filled in. */
+  async function loadLoanRows(staffId: number, itemId: number | null) {
+    setLoanRows([])
+    if (!staffId) return
+    setLoansLoading(true)
+    try {
+      const rows = await listEligibleHotelEmployeeLoans(staffId, itemId)
+      setLoanRows(rows.map((l) => ({
+        loanId: l.hotelEmployeeLoanId,
+        loanNumber: l.loanNumber ?? `#${l.hotelEmployeeLoanId}`,
+        loanType: l.loanType,
+        outstanding: l.outstandingBalance,
+        available: l.available,
+        suggested: l.suggestedDeduction,
+        amount: itemId ? l.currentDeduction : l.suggestedDeduction,
+      })))
+    } catch (e: any) {
+      toast({ title: "Could not load staff loans", description: e?.message, variant: "destructive" })
+    } finally { setLoansLoading(false) }
+  }
+
+  function startEditItem(item: HotelPayrollItem) {
+    setEditingItemId(item.hotelpayrollitemid)
+    setItemForm({
+      hotelStaffId: item.hotelstaffid, basicPay: Number(item.basicpay) || 0, dailyWage: Number(item.dailywage) || 0,
+      commission: Number(item.commission) || 0, bonus: Number(item.bonus) || 0,
+      deductions: Number(item.otherdeductions ?? item.deductions) || 0, paymentMethod: item.paymentmethod || "Cash",
+    })
+    loadLoanRows(item.hotelstaffid, item.hotelpayrollitemid)
+  }
+
   async function handleSaveItem() {
     if (!detail) return
     if (!itemForm.hotelStaffId) {
       toast({ title: "Select a staff member", variant: "destructive" }); return
+    }
+    const over = loanRows.find((l) => l.amount > l.available + 0.001)
+    if (over) {
+      toast({ title: `At most ${currency(over.available)} can be deducted for ${over.loanNumber}`, variant: "destructive" }); return
     }
     const staff: any = staffList.find((s: any) => (s.hotelStaffId ?? s.hotelstaffid) === itemForm.hotelStaffId)
     setItemSaving(true)
@@ -169,11 +241,12 @@ export default function HotelPayrollPage() {
         bonus: itemForm.bonus,
         deductions: itemForm.deductions,
         paymentMethod: itemForm.paymentMethod,
+        loanDeductions: loanRows.map((l) => ({ loanId: l.loanId, amount: l.amount || 0 })),
       })
-      toast({ title: "Line item saved" })
+      toast({ title: editingItemId ? "Line updated" : "Line item saved" })
       const d = await getHotelPayrollRun(detail.run.hotelpayrollrunid)
       setDetail(d)
-      setItemForm({ hotelStaffId: 0, basicPay: 0, dailyWage: 0, commission: 0, bonus: 0, deductions: 0, paymentMethod: "Cash" })
+      resetItemForm()
     } catch (e: any) {
       toast({ title: "Save failed", description: e?.message, variant: "destructive" })
     } finally {
@@ -197,19 +270,31 @@ export default function HotelPayrollPage() {
     if (!detail || staffToAdd.length === 0) return
     setBulkAdding(true)
     let added = 0
+    let withLoans = 0
     try {
       for (const s of staffToAdd) {
         const sid = (s as any).hotelStaffId ?? (s as any).hotelstaffid
         const name = `${(s as any).firstName ?? (s as any).firstname} ${(s as any).lastName ?? (s as any).lastname}`
         const role = (s as any).role ?? (s as any).department
         const salary = (s as any).salaryAmount ?? (s as any).salaryamount ?? 0
+        // Their open loans' suggested deductions, capped so net pay stays at or above zero.
+        const eligible = await listEligibleHotelEmployeeLoans(sid)
+        let room = Number(salary) || 0
+        const loanDeductions = eligible
+          .map((l) => { const amt = Math.min(l.suggestedDeduction, Math.max(room, 0)); room -= amt; return { loanId: l.hotelEmployeeLoanId, amount: amt } })
+          .filter((l) => l.amount > 0)
+        if (loanDeductions.length) withLoans++
         await upsertHotelPayrollItem(detail.run.hotelpayrollrunid, {
           hotelStaffId: sid, staffName: name, staffRole: role,
           basicPay: salary, dailyWage: 0, commission: 0, bonus: 0, deductions: 0, paymentMethod: "Cash",
+          loanDeductions,
         })
         added++
       }
-      toast({ title: `${added} staff member(s) added with their base salary` })
+      toast({
+        title: `${added} staff member(s) added with their base salary`,
+        description: withLoans ? `${withLoans} with a staff loan deduction — check the Deductions column.` : undefined,
+      })
       const d = await getHotelPayrollRun(detail.run.hotelpayrollrunid)
       setDetail(d)
     } catch (e: any) {
@@ -240,7 +325,7 @@ export default function HotelPayrollPage() {
   async function handleApprove(run: HotelPayrollRun) {
     try {
       await approveHotelPayrollRun(run.hotelpayrollrunid)
-      toast({ title: "Payroll run approved" })
+      toast({ title: "Payroll run approved", description: "Staff loan deductions on this run are now recorded as repayments." })
       await load()
       if (detail && detail.run.hotelpayrollrunid === run.hotelpayrollrunid) {
         const d = await getHotelPayrollRun(run.hotelpayrollrunid)
@@ -254,7 +339,7 @@ export default function HotelPayrollPage() {
   async function handleMarkPaid(run: HotelPayrollRun) {
     try {
       await markHotelPayrollRunPaid(run.hotelpayrollrunid)
-      toast({ title: "Payroll run marked as paid" })
+      toast({ title: "Payroll run marked as paid", description: `${currency(run.totalnetpay)} net pay taken from ${run.cashaccountname ?? "the Payroll account"}.` })
       await load()
       if (detail && detail.run.hotelpayrollrunid === run.hotelpayrollrunid) {
         const d = await getHotelPayrollRun(run.hotelpayrollrunid)
@@ -283,9 +368,14 @@ export default function HotelPayrollPage() {
               <Banknote className="h-6 w-6 text-violet-600" />
               <h1 className="text-2xl font-bold">Payroll</h1>
             </div>
-            <Button onClick={openNewDialog} className="bg-violet-600 hover:bg-violet-700">
-              <Plus className="h-4 w-4 mr-1" /> New payroll run
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" asChild>
+                <Link href="/hotel-employee-loans"><Coins className="h-4 w-4 mr-1" /> Staff loans</Link>
+              </Button>
+              <Button onClick={openNewDialog} className="bg-violet-600 hover:bg-violet-700">
+                <Plus className="h-4 w-4 mr-1" /> New payroll run
+              </Button>
+            </div>
           </div>
 
           {/* Summary cards */}
@@ -387,6 +477,9 @@ export default function HotelPayrollPage() {
                                 <Button variant="ghost" size="icon" title="Mark Paid" onClick={() => handleMarkPaid(r)}>
                                   <Wallet className="h-4 w-4 text-green-600" />
                                 </Button>
+                                <Button variant="ghost" size="icon" title="Reopen to correct" onClick={() => setReopenTarget(r)}>
+                                  <RotateCcw className="h-4 w-4 text-slate-600" />
+                                </Button>
                                 <Button variant="ghost" size="icon" title="Cancel" onClick={() => setCancelTarget(r)}>
                                   <X className="h-4 w-4 text-orange-600" />
                                 </Button>
@@ -466,7 +559,7 @@ export default function HotelPayrollPage() {
 
           {/* ========== DETAIL DIALOG ========== */}
           <Dialog open={detailOpen} onOpenChange={(v) => { setDetailOpen(v); if (!v) load() }}>
-            <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] overflow-y-auto">
+            <DialogContent className="sm:max-w-6xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>
                   Payroll Run: {detail?.run.periodstart?.slice(0, 10)} — {detail?.run.periodend?.slice(0, 10)}
@@ -481,7 +574,7 @@ export default function HotelPayrollPage() {
               ) : detail ? (
                 <div className="space-y-6">
                   {/* Summary cards */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <Card>
                       <CardContent className="p-4">
                         <p className="text-xs text-slate-500 mb-1">Gross Pay</p>
@@ -498,6 +591,17 @@ export default function HotelPayrollPage() {
                       <CardContent className="p-4">
                         <p className="text-xs text-slate-500 mb-1">Net Pay</p>
                         <p className="text-xl font-bold text-green-700">{currency(detail.run.totalnetpay)}</p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <p className="text-xs text-slate-500 mb-1">Staff loan repayments</p>
+                        <p className="text-xl font-bold text-violet-700">{currency(loanTotal(detail))}</p>
+                        <p className="text-xs text-slate-500">
+                          {detail.run.status === "Draft" ? "recorded when the run is approved"
+                            : detail.run.status === "Cancelled" ? "reversed with the run"
+                            : "recorded against the loans"}
+                        </p>
                       </CardContent>
                     </Card>
                   </div>
@@ -530,10 +634,20 @@ export default function HotelPayrollPage() {
                               <td className="p-3 text-right">{currency(item.dailywage)}</td>
                               <td className="p-3 text-right">{currency(item.commission)}</td>
                               <td className="p-3 text-right">{currency(item.bonus)}</td>
-                              <td className="p-3 text-right">{currency(item.deductions)}</td>
+                              <td className="p-3 text-right">
+                                {currency(item.deductions)}
+                                {loanDeductionsFor(detail, item.hotelpayrollitemid).map((d) => (
+                                  <div key={d.hotelPayrollDeductionId} className={`text-xs ${d.status === "Reversed" ? "text-slate-400 line-through" : "text-violet-700"}`}>
+                                    {d.loanNumber} {currency(d.amount)}
+                                  </div>
+                                ))}
+                              </td>
                               <td className="p-3 text-right font-semibold">{currency(item.netpay)}</td>
                               {detail.run.status === "Draft" && (
-                                <td className="p-3 text-right">
+                                <td className="p-3 text-right whitespace-nowrap">
+                                  <Button variant="ghost" size="icon" title="Edit line" onClick={() => startEditItem(item)}>
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
                                   <Button variant="ghost" size="icon" className="text-red-600" onClick={() => handleDeleteItem(item)}>
                                     <Trash2 className="h-4 w-4" />
                                   </Button>
@@ -602,11 +716,13 @@ export default function HotelPayrollPage() {
                       ) : null
                     })()}
                     {/* Only show individual add form if there are staff left to add */}
-                    {staffList.filter((s: any) => !detail?.items?.some((it: any) => it.hotelstaffid === ((s as any).hotelStaffId ?? (s as any).hotelstaffid))).length > 0 && (
-                    <FormSection title="Add individual staff" color="indigo" columns={3}>
+                    {(editingItemId || staffList.filter((s: any) => !detail?.items?.some((it: any) => it.hotelstaffid === ((s as any).hotelStaffId ?? (s as any).hotelstaffid))).length > 0) && (
+                    <>
+                    <FormSection title={editingItemId ? `Edit line: ${detail.items.find((i) => i.hotelpayrollitemid === editingItemId)?.staffname ?? ""}` : "Add individual staff"} color="indigo" columns={3}>
                       <FormField label="Staff *">
                         <Select
                           value={itemForm.hotelStaffId ? String(itemForm.hotelStaffId) : "none"}
+                          disabled={!!editingItemId}
                           onValueChange={(v) => {
                             const sid = v === "none" ? 0 : Number(v)
                             const s: any = staffList.find((st: any) => (st.hotelStaffId ?? st.hotelstaffid) === sid)
@@ -615,11 +731,17 @@ export default function HotelPayrollPage() {
                               hotelStaffId: sid,
                               basicPay: s?.salaryAmount ?? s?.salaryamount ?? s?.salary ?? 0,
                             })
+                            loadLoanRows(sid, null)
                           }}
                         >
                           <SelectTrigger><SelectValue placeholder="Select staff" /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="none">-- Select --</SelectItem>
+                            {editingItemId && (
+                              <SelectItem value={String(itemForm.hotelStaffId)}>
+                                {detail.items.find((i) => i.hotelpayrollitemid === editingItemId)?.staffname ?? `Staff #${itemForm.hotelStaffId}`}
+                              </SelectItem>
+                            )}
                             {staffList
                               .filter((s: any) => !detail?.items?.some((it: any) => it.hotelstaffid === (s.hotelStaffId ?? s.hotelstaffid)))
                               .map((s: any) => (
@@ -642,7 +764,7 @@ export default function HotelPayrollPage() {
                       <FormField label="Bonus">
                         <NumberInput step="0.01" value={itemForm.bonus} onChange={(e) => setItemForm({ ...itemForm, bonus: Number(e.target.value) || 0 })} />
                       </FormField>
-                      <FormField label="Deductions">
+                      <FormField label="Other deductions">
                         <NumberInput step="0.01" value={itemForm.deductions} onChange={(e) => setItemForm({ ...itemForm, deductions: Number(e.target.value) || 0 })} />
                       </FormField>
                       <FormField label="Payment Method">
@@ -656,11 +778,54 @@ export default function HotelPayrollPage() {
                         </Select>
                       </FormField>
                       <FormField label=" ">
-                        <Button onClick={handleSaveItem} disabled={itemSaving} className="bg-violet-600 hover:bg-violet-700 w-full">
-                          {itemSaving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />} Save Line
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button onClick={handleSaveItem} disabled={itemSaving} className="bg-violet-600 hover:bg-violet-700 flex-1">
+                            {itemSaving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />} {editingItemId ? "Update Line" : "Save Line"}
+                          </Button>
+                          {editingItemId && <Button variant="outline" onClick={resetItemForm}>Cancel</Button>}
+                        </div>
                       </FormField>
                     </FormSection>
+
+                    {/* Staff loan deductions for the chosen staff member */}
+                    {itemForm.hotelStaffId > 0 && (loansLoading || loanRows.length > 0) && (
+                      <div className="rounded-lg border border-violet-200 bg-violet-50 p-3 space-y-2">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-violet-800">
+                          <Coins className="h-4 w-4" /> Staff loan deductions
+                          {loansLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                        </div>
+                        {loanRows.map((l, i) => (
+                          <div key={l.loanId} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_10rem] sm:items-center">
+                            <div className="text-sm">
+                              <span className="font-mono font-semibold">{l.loanNumber}</span> · {hotelLoanTypeLabel(l.loanType)}
+                              <span className="text-slate-600"> — owes {currency(l.outstanding)}</span>
+                              {l.available < l.outstanding && <span className="text-amber-700"> ({currency(l.outstanding - l.available)} already on another draft run)</span>}
+                              {l.suggested > 0 && <span className="text-slate-500"> · suggested {currency(l.suggested)}</span>}
+                            </div>
+                            <NumberInput step="0.01" min={0} max={l.available} value={l.amount}
+                              onChange={(e) => {
+                                const v = Number(e.target.value) || 0
+                                setLoanRows((rows) => rows.map((r, j) => (j === i ? { ...r, amount: v } : r)))
+                              }} />
+                          </div>
+                        ))}
+                        <p className="text-xs text-violet-800">
+                          Deducted from net pay; nothing leaves the cash account for it. The loan balance falls when this run is approved.
+                          Set 0 to skip a loan this period.
+                        </p>
+                        {(() => {
+                          const gross = itemForm.basicPay + itemForm.dailyWage + itemForm.commission + itemForm.bonus
+                          const loanAmt = loanRows.reduce((s, l) => s + (l.amount || 0), 0)
+                          const net = gross - itemForm.deductions - loanAmt
+                          return (
+                            <p className={`text-sm font-medium ${net < 0 ? "text-red-600" : "text-slate-700"}`}>
+                              Net pay for this line: {currency(net)}{net < 0 ? " — deductions are more than the pay" : ""}
+                            </p>
+                          )
+                        })()}
+                      </div>
+                    )}
+                    </>
                     )}
                     </>
                   )}
@@ -682,7 +847,7 @@ export default function HotelPayrollPage() {
             open={!!cancelTarget}
             onOpenChange={(v) => { if (!v) setCancelTarget(null) }}
             title="Cancel Payroll Run"
-            description={`Cancel run for period ${cancelTarget?.periodstart?.slice(0, 10)} — ${cancelTarget?.periodend?.slice(0, 10)}?`}
+            description={`Cancel run for period ${cancelTarget?.periodstart?.slice(0, 10)} — ${cancelTarget?.periodend?.slice(0, 10)}? Any staff loan repayments it recorded are reversed.`}
             label="Reason (optional)"
             placeholder="e.g. Duplicate run, incorrect period"
             allowEmpty
@@ -697,6 +862,30 @@ export default function HotelPayrollPage() {
               if (detail && detail.run.hotelpayrollrunid === cancelTarget.hotelpayrollrunid) {
                 const d = await getHotelPayrollRun(cancelTarget.hotelpayrollrunid)
                 setDetail(d)
+              }
+            }}
+          />
+
+          {/* ========== REOPEN DIALOG ========== */}
+          <PromptDialog
+            open={!!reopenTarget}
+            onOpenChange={(v) => { if (!v) setReopenTarget(null) }}
+            title="Reopen Payroll Run"
+            description="The run goes back to Draft so its lines can be corrected. Any staff loan repayments it recorded are reversed, and come back when it is approved again."
+            label="Reason"
+            placeholder="e.g. Wrong bonus for one staff member"
+            confirmLabel="Reopen"
+            onSubmit={async (reason) => {
+              if (!reopenTarget) return
+              try {
+                await reopenHotelPayrollRun(reopenTarget.hotelpayrollrunid, reason)
+                toast({ title: "Payroll run reopened" })
+                const id = reopenTarget.hotelpayrollrunid
+                setReopenTarget(null)
+                await load()
+                if (detail && detail.run.hotelpayrollrunid === id) setDetail(await getHotelPayrollRun(id))
+              } catch (e: any) {
+                toast({ title: "Reopen failed", description: e?.message, variant: "destructive" })
               }
             }}
           />

@@ -29,6 +29,7 @@ import {
   Receipt, CalendarDays, ShoppingCart, Wallet, Timer, Table2, Coins, Ban,
   Boxes, Trash2, Heart, Star, Truck, Store, PieChart, Percent, Soup,
   Scale, Activity, ArrowUpDown, Landmark, ArrowLeftRight, Calculator, CalendarCheck,
+  Banknote, HandCoins,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
@@ -86,6 +87,10 @@ const RAW_GROUPS: RawGroup[] = [
         description: "What each discount was actually given away, and on what" },
       { slug: "profit-vs-cash", title: "Profit vs Cash", dateMode: "range", isNew: true,
         description: "Why the cash moved differently from the profit, line by line" },
+      { slug: "payroll", title: "Payroll", dateMode: "range", isNew: true,
+        description: "Wages paid per staff member: gross, deductions, staff loan repayments and net pay" },
+      { slug: "staff-loans", title: "Staff Loans & Advances", dateMode: "range", isNew: true,
+        description: "What each staff member owes, and what was advanced and repaid in the period" },
     ],
   },
   {
@@ -187,6 +192,8 @@ const ICONS: Record<string, LucideIcon> = {
   "expenses": Receipt,
   "discounts": Percent,
   "profit-vs-cash": Scale,
+  "payroll": Banknote,
+  "staff-loans": HandCoins,
   "cash-flow-detail": Activity,
   "cash-movement": ArrowUpDown,
   "cash-accounts": Landmark,

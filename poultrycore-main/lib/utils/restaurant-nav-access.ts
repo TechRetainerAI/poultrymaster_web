@@ -63,6 +63,10 @@ const RESTAURANT_ROUTE_ACCESS: Record<string, (f: FeatureAccessPermissions, isAd
   "/restaurant-cash-flow":        (f) => f.canViewCashLedger,
   "/restaurant-profit-loss":      (f) => f.canViewCashLedger,
   "/restaurant-payments":         (f) => f.canViewCashLedger,
+  // Migration 326: payroll and money lent to staff ride on the "Staff & payroll"
+  // flag. Without a rule here an unlisted route falls through to visible.
+  "/restaurant-payroll":          (f) => f.canViewRestaurantStaff,
+  "/restaurant-staff-loans":      (f) => f.canViewRestaurantStaff,
   // /restaurant-expenses is deliberately NOT listed: staff record expenses
   // there today, and gating it was not part of this change.
 }

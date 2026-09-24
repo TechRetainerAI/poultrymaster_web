@@ -11,7 +11,7 @@
 
 import {
   Activity, ArrowLeftRight, BarChart3, Bell, Boxes, Building2, Calculator, CalendarCheck, CalendarDays, ClipboardList,
-  Landmark, PiggyBank, TrendingUp, Wallet, Scale, FileBarChart,
+  Landmark, PiggyBank, TrendingUp, Wallet, Scale, FileBarChart, Banknote, HandCoins,
   CreditCard, Crown, DollarSign, FileText, Gift, Globe, Heart, Inbox, MapPin,
   Megaphone, Package, PartyPopper, QrCode, Receipt, Settings, ShoppingBag,
   ShoppingCart, Star, Tag, Truck, User, UserCog, Users, UtensilsCrossed,
@@ -121,6 +121,16 @@ export function buildRestaurantNavConfig(badges: RestaurantNavBadges = {}): Rest
         items: [
           { id: "owner-money",    title: "Owner Money",      icon: PiggyBank,      href: "/restaurant-owner-money",         visible: true },
           { id: "loans",          title: "Loans",            icon: Landmark,       href: "/restaurant-loans",               visible: true },
+        ],
+      },
+      {
+        // Migration 326. Staff loans are money LENT TO staff; "Loans" above is
+        // money the restaurant borrowed.
+        key: "payroll",
+        label: "Payroll & Staff",
+        items: [
+          { id: "payroll",        title: "Payroll",          icon: Banknote,       href: "/restaurant-payroll",             visible: true },
+          { id: "staff-loans",    title: "Staff Loans & Advances", icon: HandCoins, href: "/restaurant-staff-loans",        visible: true },
         ],
       },
       {

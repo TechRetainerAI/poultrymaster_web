@@ -326,6 +326,8 @@ export default function RestaurantCashFlowPage() {
                           <SelectItem value="OperatingOut">Operating expense</SelectItem>
                           <SelectItem value="FinancingIn">Loans & owner money in</SelectItem>
                           <SelectItem value="FinancingOut">Loans & owner money out</SelectItem>
+                          <SelectItem value="EmployeeLoanOut">Staff advances paid out</SelectItem>
+                          <SelectItem value="EmployeeLoanIn">Staff advances repaid</SelectItem>
                         </SelectContent>
                       </Select>
                       <Select value={typeFilter} onValueChange={setTypeFilter}>
