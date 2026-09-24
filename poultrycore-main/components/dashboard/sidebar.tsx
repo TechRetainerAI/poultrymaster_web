@@ -943,6 +943,13 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
             <div className="border-t border-slate-800 mx-2" />
 
             {renderGroups(fromMegaMenu(poultryNav!.setup, "poultrySetup", "Setup · "))}
+            {/* Tools follows Setup here for the same reason it does in the top
+                bar: one-off jobs after the things you configure and revisit.
+                Titled from the MENU, exactly as Trackers above is: a
+                single-group panel whose group repeats the menu name. */}
+            {renderGroups(fromMegaMenu(poultryNav!.tools, "poultryTools").map(
+              (g) => ({ ...g, title: "Tools" })
+            ))}
           </>
         )}
 

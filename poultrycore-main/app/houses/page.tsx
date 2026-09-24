@@ -11,8 +11,9 @@ import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { Home, Plus, Pencil, Trash2, Loader2 } from "lucide-react"
+import { Home, Plus, Pencil, Trash2, Loader2, Layers } from "lucide-react"
 import { getHouses, createHouse, updateHouse, deleteHouse } from "@/lib/api/house"
+import { BulkHouseDialog } from "@/components/poultry/bulk-house-dialog"
 import { getUserContext } from "@/lib/utils/user-context"
 import { useToast } from "@/hooks/use-toast"
 import { toastFormGuide } from "@/lib/utils/validation-toast"
@@ -27,6 +28,7 @@ export default function HousesPage() {
   const [isDeleting, setIsDeleting] = useState(false)
 
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false)
   const [editing, setEditing] = useState<any | null>(null)
   const [name, setName] = useState("")
   const [capacity, setCapacity] = useState<string>("")
@@ -138,10 +140,16 @@ export default function HousesPage() {
                   <p className="text-slate-600">Manage poultry houses</p>
                 </div>
               </div>
-              <Button onClick={openCreate} className="flex items-center gap-2">
-                <Plus className="w-4 h-4" />
-                Add House
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={() => setBulkDialogOpen(true)} className="flex items-center gap-2">
+                  <Layers className="w-4 h-4" />
+                  Add Multiple Houses/Pens
+                </Button>
+                <Button onClick={openCreate} className="flex items-center gap-2">
+                  <Plus className="w-4 h-4" />
+                  Add House
+                </Button>
+              </div>
             </div>
 
             {loading ? (
@@ -265,6 +273,16 @@ export default function HousesPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk creation. Same permission, same endpoint family, same audit
+          resource as Add House -- it just does it N times in one transaction. */}
+      <BulkHouseDialog
+        open={bulkDialogOpen}
+        onOpenChange={setBulkDialogOpen}
+        existingNames={houses.map((h) => h.name || h.houseName || "")}
+        source="Houses page"
+        onCreated={load}
+      />
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

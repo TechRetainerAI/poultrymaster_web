@@ -46,6 +46,7 @@ import {
   shouldAutoActivateFlock,
 } from "@/lib/utils/flock-eligibility"
 import { clearFlocksCache } from "@/lib/utils/flock-utils"
+import { BatchAllocationDialog } from "@/components/poultry/batch-allocation-dialog"
 import { getUserContext } from "@/lib/utils/user-context"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useToast } from "@/hooks/use-toast"
@@ -116,6 +117,9 @@ export default function FlocksPage() {
 
   // Create dialog state
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  // "Add Multiple Flocks" -- the same allocation workflow the Flock Purchases
+  // page opens, entered here with no batch chosen yet.
+  const [isAllocateDialogOpen, setIsAllocateDialogOpen] = useState(false)
   const [createLoading, setCreateLoading] = useState(false)
   const [createError, setCreateError] = useState("")
   const emptyFlockForm = { name: "", startDate: "", breed: "", quantity: 0, active: true, hasArrived: false, houseId: null as number | null, batchId: 0, inactivationReason: "", otherReason: "", notes: "" }
@@ -920,10 +924,16 @@ export default function FlocksPage() {
                   <p className="text-sm text-slate-600">Manage your bird flocks</p>
                 </div>
               </div>
-              <Button className="gap-2 w-full sm:w-auto h-11 sm:h-10 bg-blue-600 hover:bg-blue-700 shrink-0" onClick={openCreateDialog}>
-                <Plus className="w-4 h-4" />
-                Add Flock
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto shrink-0">
+                <Button variant="outline" className="gap-2 w-full sm:w-auto h-11 sm:h-10" onClick={() => setIsAllocateDialogOpen(true)}>
+                  <Plus className="w-4 h-4" />
+                  Add Multiple Flocks
+                </Button>
+                <Button className="gap-2 w-full sm:w-auto h-11 sm:h-10 bg-blue-600 hover:bg-blue-700" onClick={openCreateDialog}>
+                  <Plus className="w-4 h-4" />
+                  Add Flock
+                </Button>
+              </div>
             </div>
 
             {/* Filters: inline on desktop, sheet on mobile */}
@@ -1287,10 +1297,16 @@ export default function FlocksPage() {
                   </div>
                   <h3 className="text-lg font-semibold text-slate-900 mb-2">No flocks found</h3>
                   <p className="text-slate-600 mb-6">Get started by creating your first flock.</p>
-                  <Button className="gap-2 bg-blue-600 hover:bg-blue-700" onClick={openCreateDialog}>
-                    <Plus className="w-4 h-4" />
-                    Add Flock
-                  </Button>
+                  <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                    <Button variant="outline" className="gap-2" onClick={() => setIsAllocateDialogOpen(true)}>
+                      <Plus className="w-4 h-4" />
+                      Add Multiple Flocks
+                    </Button>
+                    <Button className="gap-2 bg-blue-600 hover:bg-blue-700" onClick={openCreateDialog}>
+                      <Plus className="w-4 h-4" />
+                      Add Flock
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ) : (
@@ -1601,6 +1617,28 @@ export default function FlocksPage() {
       </div>
 
       {/* Create Flock Dialog */}
+      <BatchAllocationDialog
+        open={isAllocateDialogOpen}
+        onOpenChange={setIsAllocateDialogOpen}
+        // Only batches that still have birds to place. Allocated totals are
+        // derived from the flocks this page already holds -- the same rows
+        // spflock_gettotalquantityforbatch sums server-side, so the list cannot
+        // offer a batch the server would then refuse.
+        batches={flockBatches.map((b) => ({
+          batchId: b.batchId,
+          batchCode: b.batchCode,
+          batchName: b.batchName,
+          numberOfBirds: Number(b.numberOfBirds) || 0,
+          unallocatedBirds: Math.max(
+            0,
+            (Number(b.numberOfBirds) || 0) -
+              flocks.filter((f) => f.batchId === b.batchId).reduce((sum, f) => sum + (Number(f.quantity) || 0), 0),
+          ),
+        }))}
+        source="Flock Groups page"
+        onCreated={async () => { await loadFlocks() }}
+      />
+
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
         <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>

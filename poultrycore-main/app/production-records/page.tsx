@@ -1006,14 +1006,20 @@ export default function ProductionRecordsPage() {
                 />
                 <StatTile
                   isMobile={isMobile}
-                  label="Total Deaths"
+                  label="Recorded Mortality"
                   value={totalDeaths.toLocaleString()}
                   valueClass="text-red-600"
+                  // Renamed from "Total Deaths" (migration 319). This number is
+                  // mortality RECORDED HERE, and it never included a farm's
+                  // history from before it joined -- it is summed from production
+                  // records, and Initial Farm Setup writes none. Saying so in the
+                  // label is what stops it being read as lifetime mortality.
                   note={
                     <>
-                      The big number counts deaths in <b>active flocks</b>. <b>All logs</b> counts every day
-                      ever logged, including flocks that have since closed. Placed − left is{" "}
-                      {birdsLostPlacedMinusLeft.toLocaleString()}.
+                      Mortality recorded here during the selected period, in <b>active flocks</b>. <b>All logs</b>{" "}
+                      counts every day ever logged, including flocks that have since closed. Losses from before
+                      this farm started being tracked are held separately as the opening position and are not
+                      counted here. Placed − left is {birdsLostPlacedMinusLeft.toLocaleString()}.
                     </>
                   }
                   right={

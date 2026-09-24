@@ -99,6 +99,13 @@ builder.Services.AddScoped<IPoultryFinancialActivityService>(sp => new PoultryFi
 builder.Services.AddScoped<IWaterBalanceService>(sp => new WaterBalanceService(connectionString));
 
 builder.Services.AddScoped<IHouseService>(sp => new HouseService(connectionString));
+// Initial Farm Setup orchestrates the three services above inside one
+// transaction; it deliberately owns no insert of its own (migration 319).
+builder.Services.AddScoped<IFarmSetupService>(sp => new FarmSetupService(
+    connectionString,
+    sp.GetRequiredService<IMainFlockBatchService>(),
+    sp.GetRequiredService<IHouseService>(),
+    sp.GetRequiredService<IBirdFlockService>()));
 builder.Services.AddScoped<IHealthRecordService>(sp => new HealthRecordService(connectionString));
 
 // Audit logs service

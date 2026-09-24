@@ -53,6 +53,13 @@ export interface QuickLinkChoice extends NavItem {
  * picker that offered "Log out" as a Quick Link would be answering a question
  * nobody asked.
  *
+ * `tools` is excluded for the same reason. It holds one-off jobs -- Initial Farm
+ * Setup is run once in a farm's life and then never again -- and a shortcut to
+ * something you will not open twice is a wasted slot on a bar whose whole point
+ * is the pages you open daily. Anyone who pinned it while it lived under Setup
+ * simply loses the pin: resolveQuickLinks drops an href it cannot find rather
+ * than erroring.
+ *
  * First occurrence of an href wins, so a page that is both a default quick link
  * and a row in its own menu keeps the quick link's wording ("Egg sorting"
  * rather than "Egg Production"): that is the shorter name, chosen for exactly

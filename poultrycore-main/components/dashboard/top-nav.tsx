@@ -47,6 +47,7 @@ import {
   CalendarClock,
   Receipt,
   Scale,
+  Wrench,
 } from "lucide-react"
 
 /**
@@ -714,6 +715,30 @@ export function TopNavigation() {
               columns={4} widthRem={58} accent="orange"
             />
           )}
+
+          <NavMegaMenu
+            label="Tools" icon={Wrench}
+            title="Tools"
+            /* Says what the menu is FOR, not what is in it -- with a single row
+               the contents are already on screen, so listing them (the pattern
+               the other blurbs follow) would just repeat the row underneath.
+               What a reader actually needs here is why this is not simply part
+               of Setup: Setup is configuration you revisit, Tools is run once. */
+            blurb="One-time jobs, like onboarding a farm that already has birds."
+            groups={nav.tools}
+            /* Same single-column panel as Trackers, and the same 19rem: its
+               longest row, "Ingredients only tracker" at 24 chars, is wider
+               than anything here, so this width already clears "Initial Farm
+               Setup" with room to spare. Matching it keeps the two narrow
+               dropdowns the same object rather than two near-misses.
+
+               highlightActiveRow={false} because this panel has ONE row: the
+               accent fill that marks "you are here" in a seven-row panel would
+               here colour the whole interior, every time you open it from the
+               page it links to. The trigger above still lights up. */
+            columns={1} widthRem={19} layout="grid" accent="orange"
+            highlightActiveRow={false}
+          />
 
           <NavMegaMenu
             label="Setup" icon={Settings}

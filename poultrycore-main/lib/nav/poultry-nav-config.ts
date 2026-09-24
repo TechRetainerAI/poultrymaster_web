@@ -17,7 +17,7 @@ import {
   Activity, AlertTriangle, ArrowLeftRight, Banknote, BarChart3, Bell, Bird, BookOpen, Box, Boxes,
   Building2, Clock, CreditCard, DollarSign, Egg, Factory, FileText, HelpCircle, History, Hourglass,
   Coins, HandCoins, ListTodo, Package, PackageMinus, Pill, Receipt, Scale, Settings, ShoppingCart, Truck, User, UserCog, Users,
-  Users2, Wallet, Wheat, TrendingUp,
+  Users2, Wallet, Wheat, TrendingUp, Sparkles,
 } from "lucide-react"
 import type { UserPermissions } from "@/hooks/use-permissions"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
@@ -45,6 +45,13 @@ export interface PoultryNavConfig {
   salesMoney: MegaMenuGroup[]
   analytics: MegaMenuGroup[]
   setup: MegaMenuGroup[]
+  /**
+   * One-off and occasional jobs, as opposed to Setup's ongoing configuration.
+   * Onboarding lives here because it is run once in a farm's life and then
+   * never again -- among the Setup rows it read as something you might revisit,
+   * which is exactly what it must not be.
+   */
+  tools: MegaMenuGroup[]
   /** Right-hand panel. Mirrors the sidebar's bottom "System" group. */
   system: MegaMenuGroup[]
 }
@@ -393,6 +400,24 @@ export function buildPoultryNavConfig(
         items: [
           { id: "staff",     title: "Staff",               icon: Users2,  href: "/poultry-staff", visible: canSeeStaff },
           { id: "employees", title: "Users & Permissions", icon: UserCog, href: "/employees",     visible: canSeeStaff },
+        ],
+      },
+    ],
+
+    // One-off jobs. Kept apart from Setup on purpose -- see the note on
+    // PoultryNavConfig.tools above.
+    tools: [
+      {
+        key: "tools",
+        // Repeats the menu's own title, the way the Trackers group does -- a
+        // single-group panel has nothing to distinguish itself from.
+        label: "Tools",
+        items: [
+          // Named "Initial Farm Setup" because /poultry-setup already owns the
+          // label "Farm Setup", and two rows reading the same would be a coin
+          // toss. Rides canViewSettings like the Setup rows it came from; what
+          // it may create once inside is gated by its own IAM keys.
+          { id: "initial-farm-setup", title: "Initial Farm Setup", icon: Sparkles, href: "/poultry-farm-setup", visible: featureAccess.canViewSettings },
         ],
       },
     ],
