@@ -1,20 +1,24 @@
 "use client"
 
-// Employee Loans & Advances.
+// Employee Loans & Advances, water side.
 //
-// Money the farm has LENT TO ITS STAFF: what went out, what has come back, and
+// The poultry twin is app/poultry-employee-loans/page.tsx. Same page, same
+// rules; the two company types keep separate tables, so they keep separate
+// pages rather than one that branches on farm type.
+//
+// Money the company has LENT TO ITS STAFF: what went out, what has come back, and
 // how each repayment was made.
 //
 // THE TWO THINGS THIS PAGE MUST TEACH
 // -----------------------------------
-// 1. AN ADVANCE IS NOT A COST. Handing a worker 2,000 does not make the farm
+// 1. AN ADVANCE IS NOT A COST. Handing a worker 2,000 does not make the company
 //    2,000 poorer -- it swaps cash for a claim on that worker. It never reaches
 //    the Profit & Loss, and a salary advance is not payroll expense until it is
 //    earned. The page says so under the heading, because "where did my profit
 //    go" is the question an advance provokes.
 //
 // 2. A PAYROLL DEDUCTION IS NOT A RECEIPT. When 100 is withheld from a 2,200
-//    wage, the farm pays out 2,100. No money arrives, so no cash account moves
+//    wage, the company pays out 2,100. No money arrives, so no cash account moves
 //    and Cash Flow shows nothing -- the receivable simply comes down. The
 //    repayment history labels those rows "Payroll" with no account, and the
 //    reverse button is deliberately absent on them: undoing one means reopening
@@ -23,7 +27,7 @@
 //
 // WHY THE LIST IS SERVER-PAGED
 // ----------------------------
-// A farm that has been running for years has more advances than a browser
+// A company that has been running for years has more advances than a browser
 // should hold, and every filter here is applied in SQL rather than over a list
 // pulled down whole (sections 70-72). That is also why the count under the
 // table is the SERVER's count, not `rows.length`.
@@ -56,25 +60,25 @@ import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
 import { cn } from "@/lib/utils"
 import {
-  listPoultryCashAccounts, listPoultryStaff,
-  listPoultryEmployeeLoans, getPoultryEmployeeLoanSummary,
-  listPoultryEmployeeLoanRepayments,
-  createPoultryEmployeeLoan, disbursePoultryEmployeeLoan,
-  cancelPoultryEmployeeLoan, reversePoultryEmployeeLoan,
-  recordPoultryEmployeeLoanRepayment, reversePoultryEmployeeLoanRepayment,
+  listWaterCashAccounts, listWaterStaff,
+  listWaterEmployeeLoans, getWaterEmployeeLoanSummary,
+  listWaterEmployeeLoanRepayments,
+  createWaterEmployeeLoan, disburseWaterEmployeeLoan,
+  cancelWaterEmployeeLoan, reverseWaterEmployeeLoan,
+  recordWaterEmployeeLoanRepayment, reverseWaterEmployeeLoanRepayment,
   EMPLOYEE_LOAN_TYPES, EMPLOYEE_LOAN_TYPE_LABELS,
   EMPLOYEE_LOAN_REPAYMENT_METHODS, EMPLOYEE_LOAN_REPAYMENT_METHOD_LABELS,
   EMPLOYEE_LOAN_REPAYMENT_SOURCES, EMPLOYEE_LOAN_SOURCE_LABELS,
   EMPLOYEE_LOAN_STATUS_LABELS,
-  type PoultryEmployeeLoan, type PoultryEmployeeLoanRepayment,
-  type PoultryEmployeeLoanSummary, type PoultryCashAccount, type PoultryStaff,
-} from "@/lib/api/poultry-finance"
+  type WaterEmployeeLoan, type WaterEmployeeLoanRepayment,
+  type WaterEmployeeLoanSummary, type WaterCashAccount, type WaterStaff,
+} from "@/lib/api/water"
 
 const PAGE_SIZE = 25
 const today = () => new Date().toISOString().slice(0, 10)
 const fmtDate = (d?: string | null) => (d ? String(d).slice(0, 10) : "—")
 
-/** Active / Paid / All — the three a farm actually asks for (section 70). */
+/** Active / Paid / All — the three anyone actually asks for (section 70). */
 const QUICK_FILTERS = [
   { key: "Active", label: "Active" },
   { key: "Paid", label: "Paid" },
@@ -103,10 +107,10 @@ function statusClass(status: string) {
 function RepaymentHistory({
   rows, loading, fmt, onReverse,
 }: {
-  rows: PoultryEmployeeLoanRepayment[]
+  rows: WaterEmployeeLoanRepayment[]
   loading: boolean
   fmt: (n: number) => string
-  onReverse: (r: PoultryEmployeeLoanRepayment) => void
+  onReverse: (r: WaterEmployeeLoanRepayment) => void
 }) {
   if (loading) {
     return (
@@ -147,7 +151,7 @@ function RepaymentHistory({
             const reversed = r.status === "Reversed"
             const fromPayroll = r.sourceType === "Payroll"
             return (
-              <TableRow key={r.poultryEmployeeLoanRepaymentId}
+              <TableRow key={r.waterEmployeeLoanRepaymentId}
                         className={cn(reversed && "text-slate-400")}>
                 <TableCell className="whitespace-nowrap">{fmtDate(r.repaymentDate)}</TableCell>
                 <TableCell>
@@ -160,7 +164,7 @@ function RepaymentHistory({
                   {fromPayroll
                     ? (r.payrollPeriodStart
                         ? `Payroll ${fmtDate(r.payrollPeriodStart)} – ${fmtDate(r.payrollPeriodEnd)}`
-                        : `Payroll run ${r.poultryPayrollRunId ?? "—"}`)
+                        : `Payroll run ${r.waterPayrollRunId ?? "—"}`)
                     : (r.referenceNumber || r.cashAccountName || "—")}
                 </TableCell>
                 <TableCell className={cn("text-right tabular-nums", reversed && "line-through")}>
@@ -199,7 +203,7 @@ function RepaymentHistory({
 }
 
 // ---------------------------------------------------------------------------
-export default function PoultryEmployeeLoansPage() {
+export default function WaterEmployeeLoansPage() {
   const router = useRouter()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const logout = useLogout()
@@ -207,14 +211,14 @@ export default function PoultryEmployeeLoansPage() {
   const fmt = useFmt()
 
   useEffect(() => {
-    if (activeFarmType && activeFarmType !== "Poultry") router.replace("/dashboard")
+    if (activeFarmType && activeFarmType !== "Water") router.replace("/dashboard")
   }, [activeFarmType, router])
 
-  const [rows, setRows] = useState<PoultryEmployeeLoan[]>([])
+  const [rows, setRows] = useState<WaterEmployeeLoan[]>([])
   const [total, setTotal] = useState(0)
-  const [summary, setSummary] = useState<PoultryEmployeeLoanSummary | null>(null)
-  const [staff, setStaff] = useState<PoultryStaff[]>([])
-  const [accounts, setAccounts] = useState<PoultryCashAccount[]>([])
+  const [summary, setSummary] = useState<WaterEmployeeLoanSummary | null>(null)
+  const [staff, setStaff] = useState<WaterStaff[]>([])
+  const [accounts, setAccounts] = useState<WaterCashAccount[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
 
@@ -230,7 +234,7 @@ export default function PoultryEmployeeLoansPage() {
   // report when a card is expanded, and a page is 25 advances -- bounded, and
   // the same bound the list itself already is.
   const [historyByLoan, setHistoryByLoan] =
-    useState<Map<number, PoultryEmployeeLoanRepayment[]>>(new Map())
+    useState<Map<number, WaterEmployeeLoanRepayment[]>>(new Map())
   const [historyLoading, setHistoryLoading] = useState(false)
   /**
    * The advance whose detail is open, or null.
@@ -241,13 +245,13 @@ export default function PoultryEmployeeLoansPage() {
    * with the one below it meant closing it again. A reader who opens a detail
    * is asking about ONE advance; the list stays where it was behind it.
    */
-  const [detailFor, setDetailFor] = useState<PoultryEmployeeLoan | null>(null)
+  const [detailFor, setDetailFor] = useState<WaterEmployeeLoan | null>(null)
 
   const load = useCallback(async () => {
     setError("")
     try {
       const [page, sum] = await Promise.all([
-        listPoultryEmployeeLoans({
+        listWaterEmployeeLoans({
           status: status || null,
           search: search || null,
           staffId: staffId === "ALL" ? null : Number(staffId),
@@ -255,7 +259,7 @@ export default function PoultryEmployeeLoansPage() {
           limit: PAGE_SIZE,
           offset,
         }),
-        getPoultryEmployeeLoanSummary(),
+        getWaterEmployeeLoanSummary(),
       ])
       setRows(page.items)
       setTotal(page.totalCount)
@@ -272,14 +276,14 @@ export default function PoultryEmployeeLoansPage() {
   useEffect(() => {
     void (async () => {
       try {
-        const [s, a] = await Promise.all([listPoultryStaff(), listPoultryCashAccounts()])
+        const [s, a] = await Promise.all([listWaterStaff(), listWaterCashAccounts()])
         setStaff(s.filter((x) => x.isActive && !x.isDeleted))
         setAccounts(a)
       } catch { /* the page still works without the pickers pre-filled */ }
     })()
   }, [])
 
-  const loadHistories = useCallback(async (list: PoultryEmployeeLoan[]) => {
+  const loadHistories = useCallback(async (list: WaterEmployeeLoan[]) => {
     if (list.length === 0) { setHistoryByLoan(new Map()); return }
     setHistoryLoading(true)
     try {
@@ -287,10 +291,10 @@ export default function PoultryEmployeeLoansPage() {
         // One advance failing to load its statement must not blank the other
         // twenty-four, so each settles on its own.
         try {
-          return [l.poultryEmployeeLoanId,
-                  await listPoultryEmployeeLoanRepayments(l.poultryEmployeeLoanId)] as const
+          return [l.waterEmployeeLoanId,
+                  await listWaterEmployeeLoanRepayments(l.waterEmployeeLoanId)] as const
         } catch {
-          return [l.poultryEmployeeLoanId, [] as PoultryEmployeeLoanRepayment[]] as const
+          return [l.waterEmployeeLoanId, [] as WaterEmployeeLoanRepayment[]] as const
         }
       }))
       setHistoryByLoan(new Map(pairs))
@@ -305,11 +309,11 @@ export default function PoultryEmployeeLoansPage() {
 
   // ---- dialogs ----
   const [newOpen, setNewOpen] = useState(false)
-  const [repayFor, setRepayFor] = useState<PoultryEmployeeLoan | null>(null)
-  const [disburseFor, setDisburseFor] = useState<PoultryEmployeeLoan | null>(null)
-  const [reversingLoan, setReversingLoan] = useState<PoultryEmployeeLoan | null>(null)
+  const [repayFor, setRepayFor] = useState<WaterEmployeeLoan | null>(null)
+  const [disburseFor, setDisburseFor] = useState<WaterEmployeeLoan | null>(null)
+  const [reversingLoan, setReversingLoan] = useState<WaterEmployeeLoan | null>(null)
   const [reversingRepayment, setReversingRepayment] =
-    useState<PoultryEmployeeLoanRepayment | null>(null)
+    useState<WaterEmployeeLoanRepayment | null>(null)
   const [reason, setReason] = useState("")
   const [busy, setBusy] = useState(false)
 
@@ -350,7 +354,7 @@ export default function PoultryEmployeeLoansPage() {
             </div>
             <div className="flex gap-2">
               <Button variant="outline" asChild className="h-11 sm:h-10">
-                <Link href="/poultry-payroll">Payroll</Link>
+                <Link href="/water-payroll">Payroll</Link>
               </Button>
               <Button onClick={() => setNewOpen(true)} className="h-11 sm:h-10">
                 <Plus className="h-4 w-4 mr-1" /> New loan / advance
@@ -362,7 +366,7 @@ export default function PoultryEmployeeLoansPage() {
               period, and how many are live. */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
             <Stat label="Outstanding" value={fmt(summary?.outstandingTotal ?? 0)}
-                  hint="What staff still owe the farm" accent="indigo" />
+                  hint="What staff still owe the company" accent="indigo" />
             <Stat label="Advanced" value={fmt(summary?.disbursedInPeriod ?? 0)} accent="rose" />
             <Stat label="Repaid" value={fmt(summary?.repaidInPeriod ?? 0)} accent="emerald" />
             <Stat label="Active advances" value={String(summary?.activeLoans ?? 0)}
@@ -388,7 +392,7 @@ export default function PoultryEmployeeLoansPage() {
               <SelectContent>
                 <SelectItem value="ALL">All staff</SelectItem>
                 {staff.map((s) => (
-                  <SelectItem key={s.poultryStaffId} value={String(s.poultryStaffId)}>
+                  <SelectItem key={s.waterStaffId} value={String(s.waterStaffId)}>
                     {s.firstName} {s.lastName}
                   </SelectItem>
                 ))}
@@ -433,18 +437,18 @@ export default function PoultryEmployeeLoansPage() {
                    than alwaysExpanded, so the "View table format" toggle stays. */
                 defaultOpen
                 items={rows}
-                getKey={(l: PoultryEmployeeLoan) => l.poultryEmployeeLoanId}
-                primary={(l: PoultryEmployeeLoan) => (
-                  <>{l.loanNumber ?? `#${l.poultryEmployeeLoanId}`} · {l.staffName}</>
+                getKey={(l: WaterEmployeeLoan) => l.waterEmployeeLoanId}
+                primary={(l: WaterEmployeeLoan) => (
+                  <>{l.loanNumber ?? `#${l.waterEmployeeLoanId}`} · {l.staffName}</>
                 )}
-                secondary={(l: PoultryEmployeeLoan) => (
+                secondary={(l: WaterEmployeeLoan) => (
                   <>
                     <span>{fmtDate(l.disbursementDate)}</span>
                     <span>·</span>
                     <span className="text-xs">{EMPLOYEE_LOAN_TYPE_LABELS[l.loanType] ?? l.loanType}</span>
                   </>
                 )}
-                trailing={(l: PoultryEmployeeLoan) => (
+                trailing={(l: WaterEmployeeLoan) => (
                   <Badge className={statusClass(l.status)}>
                     {EMPLOYEE_LOAN_STATUS_LABELS[l.status] ?? l.status}
                   </Badge>
@@ -458,12 +462,12 @@ export default function PoultryEmployeeLoansPage() {
                    Outstanding spans the row because it IS the one they came
                    for: it is the bold column on the desktop table for the same
                    reason. */
-                highlights={(l: PoultryEmployeeLoan) => [
+                highlights={(l: WaterEmployeeLoan) => [
                   { label: "Outstanding", value: fmt(l.outstandingBalance), accent: "blue" as const, wide: true },
                   { label: "Advanced", value: fmt(l.principalAmount), accent: "rose" as const },
                   { label: "Repaid", value: fmt(l.totalRepaid), accent: "emerald" as const },
                 ]}
-                details={(l: PoultryEmployeeLoan) => [
+                details={(l: WaterEmployeeLoan) => [
                   { label: "Total repayable", value: fmt(l.totalRepayable) },
                   { label: "Repayment", value: EMPLOYEE_LOAN_REPAYMENT_METHOD_LABELS[l.repaymentMethod] ?? l.repaymentMethod },
                   { label: "Suggested per payroll", value: l.defaultPayrollDeduction ? fmt(l.defaultPayrollDeduction) : "—" },
@@ -472,7 +476,7 @@ export default function PoultryEmployeeLoansPage() {
                   { label: "Purpose", value: l.purpose ?? l.description ?? "—" },
                   { label: "Repayments", value: String(l.repaymentCount) },
                 ]}
-                actions={(l: PoultryEmployeeLoan) => (
+                actions={(l: WaterEmployeeLoan) => (
                   <>
                     {/* First, and on every card whatever the status: looking is
                         the one thing you can always do to an advance. */}
@@ -527,10 +531,10 @@ export default function PoultryEmployeeLoansPage() {
                       <TableBody>
                         {rows.map((l) => {
                           return (
-                            <TableRow key={l.poultryEmployeeLoanId} className="cursor-pointer"
+                            <TableRow key={l.waterEmployeeLoanId} className="cursor-pointer"
                                       onClick={() => setDetailFor(l)}>
                               <TableCell className="font-medium whitespace-nowrap">
-                                {l.loanNumber ?? `#${l.poultryEmployeeLoanId}`}
+                                {l.loanNumber ?? `#${l.waterEmployeeLoanId}`}
                               </TableCell>
                               <TableCell>{l.staffName}</TableCell>
                               <TableCell className="text-xs">
@@ -611,7 +615,7 @@ export default function PoultryEmployeeLoansPage() {
               <Info className="h-4 w-4 text-sky-700 mt-0.5 shrink-0" />
               <p className="text-xs text-sky-900">
                 Repayments taken from a wage do not show as money coming in, because none did —
-                the farm simply paid out less that month. They still reduce what the worker owes.
+                the company simply paid out less that month. They still reduce what the worker owes.
                 To undo one, reopen the payroll run that created it.
               </p>
             </CardContent>
@@ -622,28 +626,28 @@ export default function PoultryEmployeeLoansPage() {
       <NewLoanDialog
         open={newOpen} onOpenChange={setNewOpen} staff={staff} accounts={accounts}
         busy={busy} fmt={fmt}
-        onSave={(input) => run(async () => { await createPoultryEmployeeLoan(input); setNewOpen(false) },
+        onSave={(input) => run(async () => { await createWaterEmployeeLoan(input); setNewOpen(false) },
                                "Advance recorded")}
       />
 
       <DisburseDialog
         loan={disburseFor} onClose={() => setDisburseFor(null)} accounts={accounts} busy={busy} fmt={fmt}
         onSave={(id, input) => run(async () => {
-          await disbursePoultryEmployeeLoan(id, input); setDisburseFor(null)
+          await disburseWaterEmployeeLoan(id, input); setDisburseFor(null)
         }, "Advance handed over")}
       />
 
       <RepayDialog
         loan={repayFor} onClose={() => setRepayFor(null)} accounts={accounts} busy={busy} fmt={fmt}
         onSave={(input) => run(async () => {
-          await recordPoultryEmployeeLoanRepayment(input); setRepayFor(null)
+          await recordWaterEmployeeLoanRepayment(input); setRepayFor(null)
         }, "Repayment recorded")}
       />
 
       <LoanDetailDialog
         loan={detailFor}
         onClose={() => setDetailFor(null)}
-        rows={detailFor ? historyByLoan.get(detailFor.poultryEmployeeLoanId) ?? [] : []}
+        rows={detailFor ? historyByLoan.get(detailFor.waterEmployeeLoanId) ?? [] : []}
         loading={historyLoading}
         fmt={fmt}
         onReverse={(r) => { setReversingRepayment(r); setReason("") }}
@@ -684,10 +688,10 @@ export default function PoultryEmployeeLoansPage() {
                 const loan = reversingLoan
                 void run(async () => {
                   if (rep) {
-                    await reversePoultryEmployeeLoanRepayment(rep.poultryEmployeeLoanRepaymentId, reason || null)
+                    await reverseWaterEmployeeLoanRepayment(rep.waterEmployeeLoanRepaymentId, reason || null)
                   } else if (loan) {
-                    if (loan.status === "Draft") await cancelPoultryEmployeeLoan(loan.poultryEmployeeLoanId, reason || null)
-                    else await reversePoultryEmployeeLoan(loan.poultryEmployeeLoanId, reason || null)
+                    if (loan.status === "Draft") await cancelWaterEmployeeLoan(loan.waterEmployeeLoanId, reason || null)
+                    else await reverseWaterEmployeeLoan(loan.waterEmployeeLoanId, reason || null)
                   }
                   setReversingLoan(null); setReversingRepayment(null); setReason("")
                 }, "Done")
@@ -707,26 +711,26 @@ function NewLoanDialog({
 }: {
   open: boolean
   onOpenChange: (o: boolean) => void
-  staff: PoultryStaff[]
-  accounts: PoultryCashAccount[]
+  staff: WaterStaff[]
+  accounts: WaterCashAccount[]
   busy: boolean
   fmt: (n: number) => string
   onSave: (input: any) => Promise<boolean>
 }) {
   const [f, setF] = useState({
-    poultryStaffId: 0, loanType: "EmployeeLoan", principalAmount: 0,
+    waterStaffId: 0, loanType: "EmployeeLoan", principalAmount: 0,
     disbursementDate: today(), purpose: "", notes: "",
     repaymentMethod: "PayrollDeduction", defaultPayrollDeduction: 0,
     interestEnabled: false, interestAmount: 0,
-    disburseNow: true, poultryCashAccountId: 0, paymentMethod: "Cash", referenceNumber: "",
+    disburseNow: true, waterCashAccountId: 0, paymentMethod: "Cash", referenceNumber: "",
   })
   useEffect(() => {
-    if (open) setF((p) => ({ ...p, poultryStaffId: 0, principalAmount: 0, purpose: "", notes: "", referenceNumber: "" }))
+    if (open) setF((p) => ({ ...p, waterStaffId: 0, principalAmount: 0, purpose: "", notes: "", referenceNumber: "" }))
   }, [open])
 
   const totalRepayable = f.principalAmount + (f.interestEnabled ? f.interestAmount : 0)
-  const canSave = f.poultryStaffId > 0 && f.principalAmount > 0 &&
-                  (!f.disburseNow || f.poultryCashAccountId > 0)
+  const canSave = f.waterStaffId > 0 && f.principalAmount > 0 &&
+                  (!f.disburseNow || f.waterCashAccountId > 0)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -744,12 +748,12 @@ function NewLoanDialog({
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1">
             <Label>Employee *</Label>
-            <Select value={f.poultryStaffId ? String(f.poultryStaffId) : ""}
-                    onValueChange={(v) => setF({ ...f, poultryStaffId: Number(v) })}>
+            <Select value={f.waterStaffId ? String(f.waterStaffId) : ""}
+                    onValueChange={(v) => setF({ ...f, waterStaffId: Number(v) })}>
               <SelectTrigger><SelectValue placeholder="Choose a member of staff" /></SelectTrigger>
               <SelectContent>
                 {staff.map((s) => (
-                  <SelectItem key={s.poultryStaffId} value={String(s.poultryStaffId)}>
+                  <SelectItem key={s.waterStaffId} value={String(s.waterStaffId)}>
                     {s.firstName} {s.lastName} — {s.role}
                   </SelectItem>
                 ))}
@@ -806,7 +810,7 @@ function NewLoanDialog({
           <div className="sm:col-span-2 flex items-center justify-between rounded-md border p-3">
             <div>
               <Label className="text-sm">Charge interest</Label>
-              <p className="text-[11px] text-slate-500">Most farm advances are interest-free.</p>
+              <p className="text-[11px] text-slate-500">Most staff advances are interest-free.</p>
             </div>
             <Switch checked={f.interestEnabled}
                     onCheckedChange={(v) => setF({ ...f, interestEnabled: v })} />
@@ -838,12 +842,12 @@ function NewLoanDialog({
             <>
               <div className="space-y-1">
                 <Label>Pay from *</Label>
-                <Select value={f.poultryCashAccountId ? String(f.poultryCashAccountId) : ""}
-                        onValueChange={(v) => setF({ ...f, poultryCashAccountId: Number(v) })}>
+                <Select value={f.waterCashAccountId ? String(f.waterCashAccountId) : ""}
+                        onValueChange={(v) => setF({ ...f, waterCashAccountId: Number(v) })}>
                   <SelectTrigger><SelectValue placeholder="Choose a cash account" /></SelectTrigger>
                   <SelectContent>
                     {accounts.map((a: any) => (
-                      <SelectItem key={a.poultryCashAccountId} value={String(a.poultryCashAccountId)}>
+                      <SelectItem key={a.waterCashAccountId} value={String(a.waterCashAccountId)}>
                         {a.accountName} — {fmt(a.currentBalance ?? 0)}
                       </SelectItem>
                     ))}
@@ -863,7 +867,7 @@ function NewLoanDialog({
         <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button disabled={busy || !canSave} onClick={() => void onSave({
-            poultryStaffId: f.poultryStaffId,
+            waterStaffId: f.waterStaffId,
             loanType: f.loanType,
             principalAmount: f.principalAmount,
             disbursementDate: f.disbursementDate,
@@ -874,7 +878,7 @@ function NewLoanDialog({
             interestEnabled: f.interestEnabled,
             interestAmount: f.interestEnabled ? f.interestAmount : 0,
             disburseNow: f.disburseNow,
-            poultryCashAccountId: f.disburseNow ? f.poultryCashAccountId : null,
+            waterCashAccountId: f.disburseNow ? f.waterCashAccountId : null,
             paymentMethod: f.disburseNow ? f.paymentMethod : null,
             referenceNumber: f.referenceNumber || null,
           })}>
@@ -891,9 +895,9 @@ function NewLoanDialog({
 function DisburseDialog({
   loan, onClose, accounts, busy, fmt, onSave,
 }: {
-  loan: PoultryEmployeeLoan | null
+  loan: WaterEmployeeLoan | null
   onClose: () => void
-  accounts: PoultryCashAccount[]
+  accounts: WaterCashAccount[]
   busy: boolean
   fmt: (n: number) => string
   onSave: (id: number, input: any) => Promise<boolean>
@@ -920,7 +924,7 @@ function DisburseDialog({
               <SelectTrigger><SelectValue placeholder="Choose a cash account" /></SelectTrigger>
               <SelectContent>
                 {accounts.map((a: any) => (
-                  <SelectItem key={a.poultryCashAccountId} value={String(a.poultryCashAccountId)}>
+                  <SelectItem key={a.waterCashAccountId} value={String(a.waterCashAccountId)}>
                     {a.accountName} — {fmt(a.currentBalance ?? 0)}
                   </SelectItem>
                 ))}
@@ -935,8 +939,8 @@ function DisburseDialog({
         <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button disabled={busy || accountId <= 0}
-                  onClick={() => void onSave(loan.poultryEmployeeLoanId, {
-                    poultryCashAccountId: accountId,
+                  onClick={() => void onSave(loan.waterEmployeeLoanId, {
+                    waterCashAccountId: accountId,
                     paymentMethod: "Cash",
                     referenceNumber: reference || null,
                   })}>
@@ -954,9 +958,9 @@ function DisburseDialog({
 function RepayDialog({
   loan, onClose, accounts, busy, fmt, onSave,
 }: {
-  loan: PoultryEmployeeLoan | null
+  loan: WaterEmployeeLoan | null
   onClose: () => void
-  accounts: PoultryCashAccount[]
+  accounts: WaterCashAccount[]
   busy: boolean
   fmt: (n: number) => string
   onSave: (input: any) => Promise<boolean>
@@ -1016,7 +1020,7 @@ function RepayDialog({
               <SelectTrigger><SelectValue placeholder="Cash account" /></SelectTrigger>
               <SelectContent>
                 {accounts.map((a: any) => (
-                  <SelectItem key={a.poultryCashAccountId} value={String(a.poultryCashAccountId)}>
+                  <SelectItem key={a.waterCashAccountId} value={String(a.waterCashAccountId)}>
                     {a.accountName}
                   </SelectItem>
                 ))}
@@ -1036,11 +1040,11 @@ function RepayDialog({
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button disabled={busy || amount <= 0 || over || accountId <= 0}
                   onClick={() => void onSave({
-                    poultryEmployeeLoanId: loan.poultryEmployeeLoanId,
+                    waterEmployeeLoanId: loan.waterEmployeeLoanId,
                     amount,
                     sourceType: source,
                     repaymentDate: date,
-                    poultryCashAccountId: accountId,
+                    waterCashAccountId: accountId,
                     referenceNumber: reference || null,
                   })}>
             {busy && <Loader2 className="h-4 w-4 mr-1 animate-spin" />} Record it
@@ -1090,7 +1094,7 @@ function Stat({
 // text of unbounded length, and one long note would stretch a cell the short
 // facts have to share. They go underneath, and only when they exist.
 // ---------------------------------------------------------------------------
-function LoanFacts({ loan, fmt }: { loan: PoultryEmployeeLoan; fmt: (n: number) => string }) {
+function LoanFacts({ loan, fmt }: { loan: WaterEmployeeLoan; fmt: (n: number) => string }) {
   const facts: { head: string; value: string }[] = [
     { head: "Purpose", value: loan.purpose ?? loan.description ?? "—" },
     { head: "Interest", value: loan.interestEnabled ? fmt(loan.interestAmount) : "None" },
@@ -1139,12 +1143,12 @@ function LoanFacts({ loan, fmt }: { loan: PoultryEmployeeLoan; fmt: (n: number) 
 function LoanDetailDialog({
   loan, onClose, rows, loading, fmt, onReverse,
 }: {
-  loan: PoultryEmployeeLoan | null
+  loan: WaterEmployeeLoan | null
   onClose: () => void
-  rows: PoultryEmployeeLoanRepayment[]
+  rows: WaterEmployeeLoanRepayment[]
   loading: boolean
   fmt: (n: number) => string
-  onReverse: (r: PoultryEmployeeLoanRepayment) => void
+  onReverse: (r: WaterEmployeeLoanRepayment) => void
 }) {
   if (!loan) return null
 
@@ -1164,7 +1168,7 @@ function LoanDetailDialog({
       <DialogContent className="sm:max-w-5xl">
         <DialogHeader>
           <DialogTitle className="flex flex-wrap items-center gap-2">
-            {loan.loanNumber ?? `#${loan.poultryEmployeeLoanId}`}
+            {loan.loanNumber ?? `#${loan.waterEmployeeLoanId}`}
             <span className="text-slate-400">·</span>
             {loan.staffName}
             <Badge className={statusClass(loan.status)}>

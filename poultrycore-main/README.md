@@ -143,7 +143,7 @@ npm run build        # production build — also catches most code errors
 npx tsc --noEmit     # strict TypeScript type-check (build does NOT fail on type errors)
 ```
 
-> Note: there is **no automated test suite**. `npm run lint` just runs the build.
+> Note: `npm test` runs the vitest suite. `npm run lint` runs the hooks lint gate (`react-hooks/rules-of-hooks`) and then the build.
 > `next.config.mjs` ignores TypeScript errors during build, so run
 > `npx tsc --noEmit` if you want real type checking.
 

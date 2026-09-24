@@ -46,7 +46,6 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { HIGHLIGHT_TONES, type HighlightAccent } from "@/components/ui/mobile-card-list"
 import {
   AlertTriangle, Coins, Eye, Info, Loader2, Pencil, Receipt, SlidersHorizontal, Undo2,
 } from "lucide-react"
@@ -257,11 +256,11 @@ function OverviewTab({
             what it was bought for, what was added, what that comes to. */}
         <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
           <Figure label="Original acquisition cost" value={fmt(view.acquisitionCost)}
-                  accent="blue" hint={notes.acquisitionCostTooltip} />
+                  hint={notes.acquisitionCostTooltip} />
           <Figure label="Additional capitalised costs" value={fmt(view.additionalCost)}
-                  accent="violet" hint={notes.additionalCostTooltip} />
+                  hint={notes.additionalCostTooltip} />
           <Figure label="Total capitalised cost" value={fmt(view.totalCapitalizedCost)}
-                  accent="slate" hint={notes.totalCapitalizedCostTooltip} />
+                  strong hint={notes.totalCapitalizedCostTooltip} />
         </div>
       </section>
 
@@ -269,10 +268,10 @@ function OverviewTab({
         <SectionLabel>What it is worth now</SectionLabel>
         <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
           <Figure label="Accumulated depreciation" value={fmt(view.accumulatedDepreciation)}
-                  accent="amber" hint={notes.depreciationNonCashNote} />
+                  tone="amber" hint={notes.depreciationNonCashNote} />
           <Figure label="Current book value" value={fmt(view.currentBookValue)}
-                  accent="emerald" hint={notes.bookValueTooltip} />
-          <Figure label="Residual value" value={fmt(view.residualValue)} accent="slate"
+                  tone="emerald" strong hint={notes.bookValueTooltip} />
+          <Figure label="Residual value" value={fmt(view.residualValue)}
                   hint={`What the ${term} is expected to still be worth at the end of its life. Book value never falls below it.`} />
         </div>
         {/* §9. The identity, spelled out, so the book value is checkable rather
@@ -585,13 +584,13 @@ function DepreciationHistoryTab({
       {/* §27. The basis first: every row below is this schedule doing its work,
           and without it the amounts are just numbers. */}
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-        <Figure label="Depreciable basis" value={fmt(view.depreciableAmount)} accent="slate"
+        <Figure label="Depreciable basis" value={fmt(view.depreciableAmount)}
                 hint="Total capitalised cost less the residual value. This is what is charged to profit over the life." />
         <Figure label="Monthly charge"
-                value={view.monthlyDepreciation ? fmt(view.monthlyDepreciation) : "—"} accent="slate"
+                value={view.monthlyDepreciation ? fmt(view.monthlyDepreciation) : "—"}
                 hint={view.usefulLifeMonths ? `Straight line over ${view.usefulLifeMonths} months.` : "No useful life set yet."} />
-        <Figure label="Charged so far" value={fmt(view.accumulatedDepreciation)} accent="amber" />
-        <Figure label="Still to charge" value={fmt(view.remainingDepreciable)} accent="emerald" />
+        <Figure label="Charged so far" value={fmt(view.accumulatedDepreciation)} tone="amber" />
+        <Figure label="Still to charge" value={fmt(view.remainingDepreciable)} tone="emerald" />
       </div>
 
       {rows.length === 0 ? (
@@ -738,22 +737,50 @@ function SectionLabel({ children }: { children: ReactNode }) {
 }
 
 /**
- * A figure tile, in the SAME tones and markup as the highlight tiles on the
- * mobile card lists (HIGHLIGHT_TONES), so this panel reads as part of the same
- * design rather than a greyscale cousin of it.
+ * A figure tile.
  *
- * The colour carries meaning: blue is what was paid for the thing itself,
- * violet what was added to it, slate a derived figure, amber the cost that has
- * reached profit, emerald what the company still owns.
+ * NEUTRAL BY DEFAULT, AND THAT IS THE POINT
+ * -----------------------------------------
+ * These started as filled HIGHLIGHT_TONES tiles -- blue, violet, slate, amber,
+ * emerald across two rows -- which read as a rainbow rather than as meaning. The
+ * three cost figures are the worst case: acquisition, additional and total are
+ * three views of ONE number, and giving them three colours says they are three
+ * different kinds of thing.
+ *
+ * So the tile is a white card with a slate border, matching the register's own
+ * scorecards directly above it on the same page, and colour is spent on exactly
+ * two ideas: AMBER for cost that has reached profit, EMERALD for what the
+ * company still owns. `strong` rings the figure its row exists to produce.
  */
-function Figure({ label, value, accent = "slate", hint }: {
-  label: string; value: string; accent?: HighlightAccent; hint?: string
+function Figure({ label, value, tone, hint, strong }: {
+  label: string
+  value: string
+  /**
+   * Left off for most figures on purpose. Only TWO ideas earn a colour here:
+   * amber for cost that has reached profit, emerald for what the company still
+   * owns. Everything else is a neutral tile.
+   */
+  tone?: "amber" | "emerald"
+  hint?: string
+  /** The figure its row exists to produce. */
+  strong?: boolean
 }) {
-  const tone = HIGHLIGHT_TONES[accent]
   return (
-    <div className={cn("rounded-lg border px-3 py-2 shadow-sm", tone.tile)} title={hint}>
-      <p className={cn("text-[11px] font-semibold uppercase tracking-wide", tone.label)}>{label}</p>
-      <p className={cn("text-base font-extrabold leading-tight tabular-nums break-words", tone.value)}>
+    <div
+      className={cn(
+        "rounded-lg border bg-white px-3 py-2 shadow-sm",
+        tone === "amber" ? "border-amber-200"
+          : tone === "emerald" ? "border-emerald-200"
+          : "border-slate-200",
+        strong && "ring-1 ring-slate-300",
+      )}
+      title={hint}
+    >
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className={cn("text-base font-extrabold leading-tight tabular-nums break-words",
+        tone === "amber" ? "text-amber-800"
+          : tone === "emerald" ? "text-emerald-800"
+          : "text-slate-900")}>
         {value}
       </p>
     </div>

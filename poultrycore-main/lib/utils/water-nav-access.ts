@@ -76,6 +76,15 @@ const WATER_ROUTE_ACCESS: Record<string, (f: FeatureAccessPermissions, isAdmin: 
   // the page, on the keys migration 260 seeds.
   "/water-owner-money": (f) => f.canViewCashLedger,
   "/water-loans": (f) => f.canViewCashLedger,
+  // Migrations 313/314. Employee Loans & Advances is money the company LENT,
+  // the mirror of the line above, so it reads to the same audience and rides
+  // the same flag.
+  //
+  // Naming it here MATTERS even though this map defaults to allow: an
+  // unlisted route is visible to everyone, and a page that can disburse cash
+  // and reverse advances should not be. That is the opposite of the poultry
+  // allow-list, where omitting the href would have hidden it from everyone.
+  "/water-employee-loans": (f) => f.canViewCashLedger,
   "/water-payments": (f, isAdmin) => isAdmin || f.canViewFinancial || f.canEnterSales,
   "/water-daily-closing": (f, isAdmin) => isAdmin || f.canViewFinancial || f.canViewCashLedger,
 
@@ -112,11 +121,15 @@ const WATER_ROUTE_ACCESS: Record<string, (f: FeatureAccessPermissions, isAdmin: 
 
   // --- Reports / Setup -----------------------------------------------------
   "/water-reports": (f) => f.canViewReports,
-  // Surfaced in the Money group under Cash Flow as well as inside Reports. It
-  // is the same page either way, so it follows the same rule -- without this it
-  // would fall through to the default-allow and show to someone who cannot open
-  // Reports at all.
+  // Profit & Loss has TWO routes: the report inside the catalogue, and the
+  // Money row under Cash Flow. Same statement, different frame.
+  //
+  // The report follows the catalogue -- without this rule it would fall through
+  // to the default-allow and show to someone who cannot open Reports at all.
   "/water-reports/profit-loss": (f) => f.canViewReports,
+  // The Money row reads more widely, matching its poultry twin: someone who can
+  // see the financial pages gets the P&L whether or not they can open Reports.
+  "/water-profit-loss": (f, isAdmin) => isAdmin || f.canViewFinancial || f.canViewReports,
   "/water-setup": (f) => f.canViewWaterSetup,
   "/water-company-setup": (f) => f.canViewWaterSetup,
   // Migrations 274 and 276. Configuration, but it changes what the owner reads

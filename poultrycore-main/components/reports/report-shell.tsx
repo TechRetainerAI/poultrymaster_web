@@ -39,6 +39,25 @@ export interface ReportShellProps {
   busy?: boolean
   error?: string | null
   onClearError?: () => void
+  /**
+   * Which frame to draw around the report.
+   *
+   *   "report"  (default) the catalogue chrome: a back button to `backHref`,
+   *             the emerald accent bar, the white card and the farm / period /
+   *             currency / generated header. What all 43 callers get today.
+   *
+   *   "page"    a plain page: NO back button, no card, and a Money-page header
+   *             instead of the eyebrow one. For a statement that is reached
+   *             from the sidebar rather than from the Reports catalogue -- there
+   *             is nothing behind it to go back to, and a page that is not a
+   *             report should not be wearing a report's frame.
+   *
+   * The BODY is identical either way. Only the frame changes, so the figures on
+   * the two routes cannot drift apart.
+   */
+  chrome?: "report" | "page"
+  /** Optional icon for the "page" chrome's header tile. Ignored by "report". */
+  pageIcon?: ReactNode
   // Back-link target for the "Reports" button. Defaults to the water reports
   // index; poultry driver reports pass "/poultry-reports".
   backHref?: string
@@ -85,9 +104,11 @@ export interface ReportShellProps {
 
 export function ReportShell({
   title, description, busy, error, onClearError, backHref = "/water-reports",
+  chrome = "report", pageIcon,
   fromDate, toDate, onFromDateChange, onToDateChange, onClearFilters,
   filters, summary, children, filterSummary, pdf, mobileCards: mobileCardsProp = true,
 }: ReportShellProps) {
+  const isReport = chrome === "report"
   const farmName = useAuthStore((s) => s.activeFarmName)
   const user = useAuthStore((s) => s.user)
   const companyEmail = useAuthStore((s) => s.companies.find((c) => c.farmId === s.activeFarmId)?.email)
@@ -215,9 +236,15 @@ export function ReportShell({
 
         <main className="overflow-y-visible overflow-x-hidden p-4 sm:p-6 pb-16 print:p-0 min-w-0">
           <div className="mb-4 flex items-center justify-between gap-2 flex-wrap print:hidden">
-            <Button asChild variant="outline" size="sm">
-              <Link href={backHref}><ArrowLeft className="h-4 w-4 mr-1" /> Reports</Link>
-            </Button>
+            {/* The back button belongs to the CATALOGUE. On a page reached from
+                the sidebar it would offer to return you somewhere you have never
+                been, so the slot is held empty and the export buttons stay put
+                on the right. */}
+            {isReport ? (
+              <Button asChild variant="outline" size="sm">
+                <Link href={backHref}><ArrowLeft className="h-4 w-4 mr-1" /> Reports</Link>
+              </Button>
+            ) : <div />}
             <div className="flex items-center gap-2">
               {/* Emails a PDF of this report (generated client-side from the same
                   data) to the entered address, via POST /api/Email/Report. */}
@@ -238,10 +265,32 @@ export function ReportShell({
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden print:border-0 print:shadow-none print:rounded-none">
+          <div className={isReport
+            ? "bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden print:border-0 print:shadow-none print:rounded-none"
+            : undefined}>
             {/* Branded accent bar (screen only — print/PDF use their own letterhead). */}
-            <div className="h-1.5 bg-gradient-to-r from-emerald-600 to-emerald-500 print:hidden" />
-            <div className="p-4 sm:p-6 print:p-0">
+            {isReport && <div className="h-1.5 bg-gradient-to-r from-emerald-600 to-emerald-500 print:hidden" />}
+            <div className={isReport ? "p-4 sm:p-6 print:p-0" : undefined}>
+            {!isReport && (
+              /* The Money-page header, matching Cash Flow and the poultry P&L:
+                 an icon tile, a bold title, and the description. No farm
+                 eyebrow and no period/currency/generated line -- those belong to
+                 a document you print, and this one is a screen you work on. */
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex items-start gap-3 min-w-0">
+                  {pageIcon && (
+                    <div className="w-10 h-10 shrink-0 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-700">
+                      {pageIcon}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <h1 className="text-xl sm:text-2xl font-bold text-slate-900">{title}</h1>
+                    {description && <p className="text-sm text-slate-600">{description}</p>}
+                  </div>
+                </div>
+              </div>
+            )}
+            {isReport && (
             <header className="mb-4 border-b border-slate-200 pb-4 print:pb-3">
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div className="min-w-0">
@@ -276,6 +325,7 @@ export function ReportShell({
                 )}
               </div>
             </header>
+            )}
 
             {/* Filters row — hidden in print to keep the PDF tight. */}
             {(onFromDateChange || filters || onClearFilters) && (

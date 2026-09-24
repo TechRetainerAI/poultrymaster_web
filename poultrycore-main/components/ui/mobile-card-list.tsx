@@ -3,9 +3,9 @@
 /**
  * MobileCardList — the responsive list pattern from the poultry pages
  * (see app/customers/page.tsx for the original). On mobile, render each item
- * as a collapsible card with primary + secondary fields visible, full detail
- * grid + action buttons revealed on tap. On desktop, fall through to the
- * existing table.
+ * as a collapsible card with primary + secondary fields visible and the detail
+ * grid + action buttons open underneath (see `defaultOpen`; cards still
+ * collapse on tap). On desktop, fall through to the existing table.
  *
  * Usage:
  *
@@ -89,7 +89,18 @@ export interface MobileCardListProps<T> {
   trailing?: (item: T) => ReactNode
   /** Detail pages (#N4): start cards expanded and hide the "view table" toggle. */
   alwaysExpanded?: boolean
-  /** Start cards expanded but KEEP the "view table format" toggle available. */
+  /**
+   * Start cards expanded but KEEP the "view table format" toggle available.
+   *
+   * DEFAULTS TO TRUE. It began as an opt-in and ended up on 75 of the 86 lists
+   * that use this component, which is not a preference any more -- it is what
+   * the pattern is, and the handful of lists without it were the ones that
+   * looked wrong. A shut card shows two fields; the reason someone opened the
+   * page is usually in the third.
+   *
+   * Pass `defaultOpen={false}` for a list long enough that a screenful of open
+   * cards is worse than a tap.
+   */
   defaultOpen?: boolean
   /**
    * Tint alternate cards, the way the /poultry-daily-closing list does. On a
@@ -127,7 +138,7 @@ export const STRIPE_TONES = {
 } as const
 
 export function MobileCardList<T>({
-  items, getKey, primary, secondary, details, highlights, actions, extra, desktopTable, emptyState, trailing, alwaysExpanded = false, defaultOpen = false, striped = false, stripeAccent = "amber", pagination, flushMobile = false,
+  items, getKey, primary, secondary, details, highlights, actions, extra, desktopTable, emptyState, trailing, alwaysExpanded = false, defaultOpen = true, striped = false, stripeAccent = "amber", pagination, flushMobile = false,
 }: MobileCardListProps<T>) {
   const [showTable, setShowTable] = useState(false)
 
@@ -213,7 +224,12 @@ export function MobileCardList<T>({
                       )}
                       {extra && <div className="pt-2">{extra(item)}</div>}
                       {actions && (
-                        <div className="flex gap-2 pt-2">
+                        // flex-wrap: a card with three actions cannot fit them
+                        // across a phone. Buttons that set a flex-basis (rather
+                        // than flex-1's basis of 0) then drop to the next line
+                        // instead of squeezing until their labels overflow.
+                        // Rows that already fit are unaffected.
+                        <div className="flex flex-wrap gap-2 pt-2">
                           {actions(item)}
                         </div>
                       )}
