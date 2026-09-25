@@ -90,16 +90,27 @@ namespace PoultryFarmAPIWeb.Business
         }
 
         /// <summary>
-        /// The batch total, written once so the public reader and the
+        /// Birds a batch has given out, written once so the public reader and the
         /// in-transaction re-check cannot drift apart. Same stored function either
         /// way.
+        ///
+        /// <para><b>Measured on the PLACED basis</b> (migration 325). Summing flock
+        /// quantities alone undercounts a batch onboarded through Initial Farm
+        /// Setup, because since 319 such a flock carries its opening LIVE birds —
+        /// 919 of the 1,000 placed. The batch would then look like it had 81 spare,
+        /// and this is the guard that decides whether someone may allocate them.
+        /// spflock_getconsumedforbatch adds the opening historical reduction back,
+        /// so the batch is measured the way its NumberOfBirds means it.</para>
+        ///
+        /// <para>userId is carried for call-site symmetry only; the stored function
+        /// scopes by farm, exactly as its predecessor did — the userid filter there
+        /// has been commented out since it was written.</para>
         /// </summary>
         private static NpgsqlCommand BuildBatchTotalCommand(
             NpgsqlConnection conn, NpgsqlTransaction? transaction, int batchId, string userId, string farmId, int? flockIdToExclude)
         {
-            var cmd = new NpgsqlCommand("SELECT * FROM spflock_gettotalquantityforbatch(p_batchid => @BatchId::int, p_userid => @UserId::text, p_farmid => @FarmId::text, p_flockidtoexclude => @FlockIdToExclude::int)", conn, transaction);
+            var cmd = new NpgsqlCommand("SELECT * FROM spflock_getconsumedforbatch(p_batchid => @BatchId::int, p_farmid => @FarmId::text, p_flockidtoexclude => @FlockIdToExclude::int)", conn, transaction);
             cmd.Parameters.AddWithValue("@BatchId", batchId);
-            cmd.Parameters.AddWithValue("@UserId", userId);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@FlockIdToExclude", (object?)flockIdToExclude ?? DBNull.Value);
             return cmd;
@@ -296,7 +307,7 @@ namespace PoultryFarmAPIWeb.Business
             return flocks;
         }
 
-        public async Task<int> GetTotalFlockQuantityForBatch(int batchId, string userId, string farmId, int? flockIdToExclude = null)
+        public async Task<int> GetBirdsConsumedFromBatch(int batchId, string userId, string farmId, int? flockIdToExclude = null)
         {
             int totalQuantity = 0;
             using (NpgsqlConnection conn = new NpgsqlConnection(_connectionString))

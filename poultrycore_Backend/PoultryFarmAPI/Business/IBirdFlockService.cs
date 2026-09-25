@@ -12,7 +12,7 @@ namespace PoultryFarmAPIWeb.Business
         FlockModel GetFlockById(int flockId, string userId, string farmId);
         List<FlockModel> GetAllFlocks(string userId, string farmId);
         Task DeleteFlock(int flockId, string userId, string farmId);
-        Task<int> GetTotalFlockQuantityForBatch(int batchId, string userId, string farmId, int? flockIdToExclude = null);
+        Task<int> GetBirdsConsumedFromBatch(int batchId, string userId, string farmId, int? flockIdToExclude = null);
 
         /// <summary>
         /// Divide a batch into many flocks in one transaction: all of them or none.

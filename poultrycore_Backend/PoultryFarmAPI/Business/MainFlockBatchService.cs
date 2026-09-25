@@ -85,6 +85,12 @@ namespace PoultryFarmAPIWeb.Business
                 int o = reader.GetOrdinal("Notes");
                 model.Notes = reader.IsDBNull(o) ? null : reader.GetString(o);
             }
+            // Historical-purchase marker added in migration 326 — tolerate older sp shapes.
+            if (HasColumn(reader, "IsHistorical"))
+            {
+                int o = reader.GetOrdinal("IsHistorical");
+                model.IsHistorical = reader.IsDBNull(o) ? false : reader.GetBoolean(o);
+            }
             // Procurement dates added in migration 150 — tolerate older sp shapes.
             if (HasColumn(reader, "OrderPlacementDate"))
             {
@@ -108,7 +114,7 @@ namespace PoultryFarmAPIWeb.Business
         /// </summary>
         internal static NpgsqlCommand BuildInsertCommand(NpgsqlConnection conn, NpgsqlTransaction? transaction, MainFlockBatchModel model)
         {
-            var cmd = new NpgsqlCommand("SELECT * FROM spmainflockbatch_insert(p_userid => @UserId::text, p_farmid => @FarmId::text, p_batchcode => @BatchCode::text, p_batchname => @BatchName::text, p_breed => @Breed::text, p_numberofbirds => @NumberOfBirds::int, p_startdate => @StartDate::timestamp, p_status => @Status::text, p_costperchick => @CostPerChick::numeric, p_totalcost => @TotalCost::numeric, p_amountpaid => @AmountPaid::numeric, p_suppliertype => @SupplierType::text, p_supplierid => @SupplierId::int, p_notes => @Notes::text, p_dollarconversionrate => @DollarConversionRate::numeric, p_orderplacementdate => @OrderPlacementDate::date, p_estimatedarrivaldate => @EstimatedArrivalDate::date)", conn, transaction);
+            var cmd = new NpgsqlCommand("SELECT * FROM spmainflockbatch_insert(p_userid => @UserId::text, p_farmid => @FarmId::text, p_batchcode => @BatchCode::text, p_batchname => @BatchName::text, p_breed => @Breed::text, p_numberofbirds => @NumberOfBirds::int, p_startdate => @StartDate::timestamp, p_status => @Status::text, p_costperchick => @CostPerChick::numeric, p_totalcost => @TotalCost::numeric, p_amountpaid => @AmountPaid::numeric, p_suppliertype => @SupplierType::text, p_supplierid => @SupplierId::int, p_notes => @Notes::text, p_dollarconversionrate => @DollarConversionRate::numeric, p_orderplacementdate => @OrderPlacementDate::date, p_estimatedarrivaldate => @EstimatedArrivalDate::date, p_ishistorical => @IsHistorical::boolean)", conn, transaction);
             cmd.Parameters.AddWithValue("@UserId", model.UserId);
             cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
             cmd.Parameters.AddWithValue("@BatchCode", model.BatchCode);
@@ -126,6 +132,11 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@DollarConversionRate", (object?)model.DollarConversionRate ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@OrderPlacementDate", (object?)model.OrderPlacementDate ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@EstimatedArrivalDate", (object?)model.EstimatedArrivalDate ?? DBNull.Value);
+            // NULL is meaningful, and differs between the two calls: the insert
+            // coalesces it to false (an ordinary purchase is a new one), the
+            // update coalesces it to the batch's current value so the everyday
+            // edit form cannot silently un-flag a historical batch.
+            cmd.Parameters.AddWithValue("@IsHistorical", (object?)model.IsHistorical ?? DBNull.Value);
             return cmd;
         }
 
@@ -158,7 +169,7 @@ namespace PoultryFarmAPIWeb.Business
             try
             {
                 using var conn = new NpgsqlConnection(_connectionString);
-                using var cmd = new NpgsqlCommand("SELECT * FROM spmainflockbatch_update(p_batchid => @BatchId::int, p_userid => @UserId::text, p_farmid => @FarmId::text, p_batchcode => @BatchCode::text, p_batchname => @BatchName::text, p_breed => @Breed::text, p_numberofbirds => @NumberOfBirds::int, p_startdate => @StartDate::timestamp, p_status => @Status::text, p_costperchick => @CostPerChick::numeric, p_totalcost => @TotalCost::numeric, p_amountpaid => @AmountPaid::numeric, p_suppliertype => @SupplierType::text, p_supplierid => @SupplierId::int, p_notes => @Notes::text, p_dollarconversionrate => @DollarConversionRate::numeric, p_orderplacementdate => @OrderPlacementDate::date, p_estimatedarrivaldate => @EstimatedArrivalDate::date)", conn);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spmainflockbatch_update(p_batchid => @BatchId::int, p_userid => @UserId::text, p_farmid => @FarmId::text, p_batchcode => @BatchCode::text, p_batchname => @BatchName::text, p_breed => @Breed::text, p_numberofbirds => @NumberOfBirds::int, p_startdate => @StartDate::timestamp, p_status => @Status::text, p_costperchick => @CostPerChick::numeric, p_totalcost => @TotalCost::numeric, p_amountpaid => @AmountPaid::numeric, p_suppliertype => @SupplierType::text, p_supplierid => @SupplierId::int, p_notes => @Notes::text, p_dollarconversionrate => @DollarConversionRate::numeric, p_orderplacementdate => @OrderPlacementDate::date, p_estimatedarrivaldate => @EstimatedArrivalDate::date, p_ishistorical => @IsHistorical::boolean)", conn);
                 cmd.Parameters.AddWithValue("@BatchId", model.BatchId);
                 cmd.Parameters.AddWithValue("@UserId", model.UserId);
                 cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
@@ -177,6 +188,8 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.Parameters.AddWithValue("@DollarConversionRate", (object?)model.DollarConversionRate ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@OrderPlacementDate", (object?)model.OrderPlacementDate ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@EstimatedArrivalDate", (object?)model.EstimatedArrivalDate ?? DBNull.Value);
+                // NULL here means "leave the flag as it is" -- see the insert above.
+                cmd.Parameters.AddWithValue("@IsHistorical", (object?)model.IsHistorical ?? DBNull.Value);
 
                 await conn.OpenAsync();
                 await cmd.ExecuteNonQueryAsync();

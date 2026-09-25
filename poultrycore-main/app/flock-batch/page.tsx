@@ -20,6 +20,8 @@ import { Plus, Pencil, Trash2, Calendar as CalendarIcon, Bird, Users, Search, Re
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { getFlockBatches, getFlockBatch, createFlockBatch, updateFlockBatch, deleteFlockBatch, payFlockBatchBalance, type FlockBatch, type FlockBatchInput } from "@/lib/api/flock-batch"
 import { getFlocks, type Flock } from "@/lib/api/flock"
+import { getOpeningPositions, type OpeningFlockPosition } from "@/lib/api/poultry-farm-setup"
+import { consumedByBatch, unallocatedForBatch } from "@/lib/flocks/allocation"
 import { BatchAllocationDialog } from "@/components/poultry/batch-allocation-dialog"
 import { getSuppliers, type Supplier } from "@/lib/api/supplier"
 import { getUserContext } from "@/lib/utils/user-context"
@@ -36,6 +38,12 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { flockCountsTowardBirdTotals, getFlockLifecycleStatus } from "@/lib/utils/flock-eligibility"
 import { batchStatusFromToggles, batchTogglesFromStatus } from "@/lib/utils/batch-status"
+// The SAME fields Initial Farm Setup renders, so the two cannot drift apart.
+import {
+  BatchIdentityFields, BatchOrderFields, BatchPurchaseDetailFields,
+} from "@/components/poultry/batch-purchase-fields"
+import { BreedSelect } from "@/components/poultry/breed-select"
+import { paymentStatus as batchPaymentStatus, type BatchPurchaseDraft, type BatchPurchasePatch } from "@/lib/poultry/batch-purchase"
 import { Switch } from "@/components/ui/switch"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 
@@ -81,6 +89,8 @@ export default function FlockBatchesPage() {
   const { toast } = useToast()
   const [flockBatches, setFlockBatches] = useState<FlockBatch[]>([])
   const [allFlocks, setAllFlocks] = useState<Flock[]>([])
+  // Empty for any farm that has not been onboarded through Initial Farm Setup.
+  const [openingPositions, setOpeningPositions] = useState<OpeningFlockPosition[]>([])
   // Batch -> flocks allocation. `allocationBatchId` drives the tool; the prompt
   // is what a farmer sees the moment a batch is created, so dividing it is one
   // click away without ever being forced.
@@ -211,22 +221,26 @@ export default function FlockBatchesPage() {
     if (result.success && result.data) {
       setAllFlocks(result.data)
     }
+    // Opening positions are what turn flock quantities into PLACED birds below.
+    // A farm that has never run Initial Farm Setup simply has none, and every
+    // figure on this page is then exactly what it was.
+    const opening = await getOpeningPositions(userId, farmId)
+    if (opening.success && opening.data) {
+      setOpeningPositions(opening.data.positions)
+    }
   }
 
-  // Allocated birds per batch, DERIVED from the flock records this page already
-  // loads -- there is no stored counter, so this cannot drift out of step with
-  // what the server enforces (spflock_gettotalquantityforbatch sums the same rows).
-  const allocatedByBatch = useMemo(() => {
-    const map = new Map<number, number>()
-    for (const f of allFlocks) {
-      if (f.batchId == null) continue
-      map.set(f.batchId, (map.get(f.batchId) ?? 0) + (Number(f.quantity) || 0))
-    }
-    return map
-  }, [allFlocks])
+  // Allocated birds per batch, DERIVED from the records this page already loads
+  // -- there is no stored counter, so this cannot drift out of step with what the
+  // server enforces. consumedByBatch is the one definition of the rule and the
+  // server's spflock_getconsumedforbatch (migration 325) computes the same thing.
+  const allocatedByBatch = useMemo(
+    () => consumedByBatch(allFlocks, openingPositions),
+    [allFlocks, openingPositions],
+  )
 
   const unallocatedFor = (batch: FlockBatch) =>
-    Math.max(0, (Number(batch.numberOfBirds) || 0) - (allocatedByBatch.get(batch.batchId) ?? 0))
+    unallocatedForBatch(batch.numberOfBirds, allocatedByBatch.get(batch.batchId))
 
   const openAllocation = (batchId: number) => {
     setAllocationBatchId(batchId)
@@ -287,9 +301,9 @@ export default function FlockBatchesPage() {
       return
     }
 
-    if (!createForm.batchName.trim() || !createForm.batchCode.trim() || !createForm.breed.trim() || !createForm.startDate) {
+    if (!createForm.batchName.trim() || !createForm.batchCode.trim() || !createForm.startDate) {
       setCreateError("Please fill in all required fields")
-      toastFormGuide(toast, "Fill in batch name, batch code, breed, and start date — they help track birds from arrival.")
+      toastFormGuide(toast, "Fill in batch name, batch code, and start date — they help track birds from arrival.")
       return
     }
     if (createForm.numberOfBirds <= 0) {
@@ -387,9 +401,9 @@ export default function FlockBatchesPage() {
       return
     }
 
-    if (!editForm.batchName.trim() || !editForm.batchCode.trim() || !editForm.breed.trim() || !editForm.startDate) {
+    if (!editForm.batchName.trim() || !editForm.batchCode.trim() || !editForm.startDate) {
       setEditError("Please fill in all required fields")
-      toastFormGuide(toast, "Fill in batch name, batch code, breed, and start date — they help track birds from arrival.")
+      toastFormGuide(toast, "Fill in batch name, batch code, and start date — they help track birds from arrival.")
       return
     }
     if (editForm.numberOfBirds <= 0) {
@@ -637,14 +651,37 @@ export default function FlockBatchesPage() {
   // here re-render when the currency changes in Setup > Company.
   const fmtMoney = useFmt()
   const { symbol: currencySymbol } = useCurrency()
-  const paymentStatus = (total: number, paid: number) => {
-    const t = Number(total) || 0
-    const p = Number(paid) || 0
-    if (t <= 0) return { label: "No cost set", className: "bg-slate-100 text-slate-600 border-slate-200" }
-    if (p >= t) return { label: "Paid in full", className: "bg-green-100 text-green-800 border-green-200" }
-    if (p <= 0) return { label: "Unpaid", className: "bg-red-100 text-red-800 border-red-200" }
-    return { label: "Part payment", className: "bg-amber-100 text-amber-900 border-amber-200" }
+  // Shared with Initial Farm Setup, so the same batch never reads "Unpaid" on one
+  // screen and "Part payment" on another. See lib/poultry/batch-purchase.ts.
+  const paymentStatus = batchPaymentStatus
+  // The shared fieldsets work in TEXT, because that is what an input holds; this
+  // page's form state is numeric and its submit path depends on that. These two
+  // adapters are the seam, so the fields can be shared without reworking either.
+  const toDraft = (f: typeof createForm): BatchPurchaseDraft => ({
+    batchName: f.batchName, batchCode: f.batchCode, breed: f.breed,
+    numberOfBirds: f.numberOfBirds ? String(f.numberOfBirds) : "",
+    startDate: f.startDate,
+    costPerChick: f.costPerChick ? String(f.costPerChick) : "",
+    totalCost: f.totalCost ? String(f.totalCost) : "",
+    amountPaid: f.amountPaid ? String(f.amountPaid) : "",
+    supplierType: f.supplierType, supplierId: f.supplierId,
+    dollarConversionRate: f.dollarConversionRate ? String(f.dollarConversionRate) : "",
+    orderPlacementDate: f.orderPlacementDate, estimatedArrivalDate: f.estimatedArrivalDate,
+    notes: f.notes,
+  })
+
+  const fromDraft = (patch: BatchPurchasePatch) => {
+    const out: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(patch)) {
+      if (v === undefined) continue
+      // Only these are numbers on this page; everything else is already text.
+      out[k] = ["numberOfBirds", "costPerChick", "totalCost", "amountPaid", "dollarConversionRate"].includes(k)
+        ? Number(v) || 0
+        : v
+    }
+    return out
   }
+
   const createBalance = Math.max(0, (Number(createForm.totalCost) || 0) - (Number(createForm.amountPaid) || 0))
   const createStatus = paymentStatus(createForm.totalCost, createForm.amountPaid)
   const editBalance = Math.max(0, (Number(editForm.totalCost) || 0) - (Number(editForm.amountPaid) || 0))
@@ -1269,94 +1306,35 @@ export default function FlockBatchesPage() {
           <form onSubmit={handleCreateSubmit} className="space-y-4">
             <div className="rounded-xl border border-slate-200 overflow-hidden">
               <div className="bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Batch Details</div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Batch Name *</Label>
-                  <Input placeholder="e.g., Batch A - Rhode Island Reds" value={createForm.batchName} onChange={(e) => setCreateForm({ ...createForm, batchName: e.target.value })} required disabled={createLoading} />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Batch Code *</Label>
-                  <Input placeholder="e.g., B-001" value={createForm.batchCode} onChange={(e) => setCreateForm({ ...createForm, batchCode: e.target.value })} required disabled={createLoading} />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Breed *</Label>
-                  <Input placeholder="e.g., Rhode Island Red" value={createForm.breed} onChange={(e) => setCreateForm({ ...createForm, breed: e.target.value })} required disabled={createLoading} />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Start Date *</Label>
-                  <Input type="date" value={createForm.startDate} onChange={(e) => setCreateForm({ ...createForm, startDate: e.target.value })} required disabled={createLoading} />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Number of Birds *</Label>
-                  <NumberInput min="1" placeholder="e.g., 100" value={createForm.numberOfBirds} onChange={(e) => {
-                    const n = parseInt(e.target.value) || 0
-                    setCreateForm(prev => ({ ...prev, numberOfBirds: n, totalCost: prev.costPerChick > 0 ? +(prev.costPerChick * n).toFixed(2) : prev.totalCost }))
-                  }} required disabled={createLoading} />
-                </div>
-              </div>
+              <BatchIdentityFields
+                className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white"
+                value={toDraft(createForm)} disabled={createLoading}
+                knownBreeds={distinctBreeds}
+                onPatch={(patch) => setCreateForm((prev) => ({ ...prev, ...fromDraft(patch) }))}
+              />
             </div>
 
             <div className="rounded-xl border border-slate-200 overflow-hidden">
               <div className="bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">Purchase Details</div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Cost Per Chick</Label>
-                  <NumberInput min="0" step="0.01" placeholder="e.g., 2.50" value={createForm.costPerChick} onChange={(e) => {
-                    const c = parseFloat(e.target.value) || 0
-                    setCreateForm(prev => ({ ...prev, costPerChick: c, totalCost: prev.numberOfBirds > 0 ? +(c * prev.numberOfBirds).toFixed(2) : prev.totalCost }))
-                  }} disabled={createLoading} />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Total Cost</Label>
-                  <NumberInput min="0" step="0.01" placeholder="Auto-calculated" value={createForm.totalCost} onChange={(e) => setCreateForm({ ...createForm, totalCost: parseFloat(e.target.value) || 0 })} disabled={createLoading} />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Amount Paid Now ({currencySymbol})</Label>
-                  <NumberInput min="0" step="0.01" placeholder="e.g., 250.00" value={createForm.amountPaid} onChange={(e) => setCreateForm({ ...createForm, amountPaid: parseFloat(e.target.value) || 0 })} disabled={createLoading} />
-                  <p className="text-xs text-slate-500">Part payment is fine — pay the balance later by editing the batch.</p>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Type</Label>
-                  <Select value={createForm.supplierType} onValueChange={(v) => setCreateForm({ ...createForm, supplierType: v })} disabled={createLoading}>
-                    <SelectTrigger><SelectValue placeholder="Supplier Type" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="local">Local</SelectItem>
-                      <SelectItem value="foreign">Foreign</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Dollar Conversion Rate</Label>
-                  <NumberInput min="0" step="0.0001" placeholder="e.g., 15.5" value={createForm.dollarConversionRate} onChange={(e) => setCreateForm({ ...createForm, dollarConversionRate: parseFloat(e.target.value) || 0 })} disabled={createLoading} />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Supplier</Label>
-                  <Select value={createForm.supplierId} onValueChange={(v) => setCreateForm({ ...createForm, supplierId: v })} disabled={createLoading}>
-                    <SelectTrigger><SelectValue placeholder={suppliers.length === 0 ? "No suppliers found" : "Select supplier"} /></SelectTrigger>
-                    <SelectContent>
-                      {suppliers.map(s => (
-                        <SelectItem key={s.supplierId} value={String(s.supplierId)}>{s.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+              <BatchPurchaseDetailFields
+                className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white"
+                value={toDraft(createForm)} disabled={createLoading}
+                suppliers={suppliers} currencySymbol={currencySymbol}
+                /* The Total / Paid / Balance strip below says it better. */
+                showBalance={false}
+                onPatch={(patch) => setCreateForm((prev) => ({ ...prev, ...fromDraft(patch) }))}
+              />
             </div>
 
             <div className="rounded-xl border border-slate-200 overflow-hidden">
               <div className="bg-sky-600 px-4 py-2 text-sm font-semibold text-white">Order &amp; Delivery</div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Order Placement Date</Label>
-                  <Input type="date" value={createForm.orderPlacementDate} onChange={(e) => setCreateForm({ ...createForm, orderPlacementDate: e.target.value })} disabled={createLoading} />
-                  <p className="text-xs text-slate-500">When you placed the order with the supplier.</p>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Estimated Arrival Date</Label>
-                  <Input type="date" value={createForm.estimatedArrivalDate} onChange={(e) => setCreateForm({ ...createForm, estimatedArrivalDate: e.target.value })} disabled={createLoading} />
-                  <p className="text-xs text-slate-500">When the birds are expected to arrive.</p>
-                </div>
-                <div className="md:col-span-2 rounded-lg bg-slate-50 border border-slate-200 p-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="p-4 bg-white space-y-4">
+                <BatchOrderFields
+                  className="grid grid-cols-1 md:grid-cols-2 gap-4"
+                  value={toDraft(createForm)} disabled={createLoading}
+                  onPatch={(patch) => setCreateForm((prev) => ({ ...prev, ...fromDraft(patch) }))}
+                />
+                <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 flex flex-wrap items-center justify-between gap-2">
                   <div className="text-sm text-slate-600">
                     Total <span className="font-semibold text-slate-900 tabular-nums">{fmtMoney(createForm.totalCost)}</span>
                     <span className="mx-2 text-slate-300">•</span>
@@ -1432,8 +1410,9 @@ export default function FlockBatchesPage() {
                     <Input placeholder="e.g., B-001" value={editForm.batchCode} onChange={(e) => setEditForm({ ...editForm, batchCode: e.target.value })} required disabled={editLoading} />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium text-slate-700">Breed *</Label>
-                    <Input placeholder="e.g., Rhode Island Red" value={editForm.breed} onChange={(e) => setEditForm({ ...editForm, breed: e.target.value })} required disabled={editLoading} />
+                    <Label className="text-sm font-medium text-slate-700">Breed</Label>
+                    <BreedSelect value={editForm.breed} known={distinctBreeds} disabled={editLoading}
+                      onChange={(breed) => setEditForm({ ...editForm, breed })} />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-slate-700">Start Date *</Label>

@@ -37,15 +37,36 @@ import {
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { getUserContext } from "@/lib/utils/user-context"
+import { getSuppliers, type Supplier } from "@/lib/api/supplier"
+// updatedat is a whole instant, not a business date with a separate entry time.
+import { fmtInstant } from "@/lib/utils/company-datetime"
+// The same split the Batch Allocation tool proposes, so the two never disagree.
+import { BreedSelect } from "@/components/poultry/breed-select"
+import { PenCapacityDialog } from "@/components/poultry/pen-capacity-dialog"
+import { NewPenDialog } from "@/components/poultry/new-pen-dialog"
+import { BatchSizeDialog } from "@/components/poultry/batch-size-dialog"
+import { updateHouse } from "@/lib/api/house"
+import { getFlockBatch, updateFlockBatch } from "@/lib/api/flock-batch"
+// The SAME fields Flock Purchases renders — see components/poultry/batch-purchase-fields.
 import {
-  completeFarmSetup, getFarmSetupContext, getOpeningPositions,
-  type FarmSetupResult, type FarmSetupStatus, type FarmSetupWizardContext,
+  BatchIdentityFields, BatchOrderFields, BatchPurchaseDetailFields,
+} from "@/components/poultry/batch-purchase-fields"
+import {
+  completeFarmSetup, deleteFarmSetupDraft, getFarmSetupContext, getFarmSetupDraft,
+  getOpeningPositions, saveFarmSetupDraft,
+  type FarmSetupDraft, type FarmSetupResult, type FarmSetupStatus, type FarmSetupWizardContext,
   type OpeningPositionSummary,
 } from "@/lib/api/poultry-farm-setup"
 import {
   batchRowFromExisting, breakdown, defaultFlockName, emptyBatch, emptyFlock, emptyHouse,
   errorsBySection, flocksNeedingReconciliation, generateBatches, historicalReduction,
-  houseRowFromExisting, summarize, toRequest, validateSetup,
+  balanceBreakdown, batchAllocationViews, batchDraft, batchEditRows, distributePensEvenly,
+  fillPensToCapacity, fromBatchDraft,
+  houseCapacityNote, houseLoad, houseRowFromExisting, houseRowViews,
+  penOptions, seedReconciliation,
+  renameForHouse, summarize, summarizeBatchEditRows, summarizeBatchRows, summarizeHouseRows,
+  toRequest, validateSetup, visibleBatchEditRows, visibleBatchRows, visibleHouseRows,
+  type BatchAllocationStatus, type SetupRowError,
   type BatchRow, type FlockRow, type HouseRow, type SetupContext, type SetupDraft,
 } from "@/lib/farm-setup/wizard"
 // Prompt 1's bulk house generator, reused rather than rebuilt.
@@ -54,11 +75,18 @@ import { generateRows as generateHouseRows } from "@/lib/houses/bulk"
 type Screen = "choose" | "wizard" | "newBatch" | "done" | "completed"
 type Step = 0 | 1 | 2 | 3 | 4
 
-const STEPS = ["Batches", "Houses/Pens", "Flocks or Birds Groupings", "Opening Reconciliation", "Review"]
+// Houses come FIRST. The physical buildings are the one thing that is already
+// true before any birds are discussed, and knowing them means the batch step can
+// talk about where birds will go and the allocation step has somewhere to put
+// them. Asking for batches first meant describing cohorts with no idea yet what
+// pens existed to hold them.
+const STEPS = ["Houses/Pens", "Batches", "Allocate Batches / Create Flocks", "Opening Reconciliation", "Review"]
 
 // What each step is called in the address bar. Stable, readable names rather
-// than indexes, so a URL stays meaningful if a step is ever inserted.
-const STEP_SLUGS = ["batches", "houses", "flocks", "reconcile", "review"] as const
+// than indexes, so a URL stays meaningful if a step is ever inserted -- and, as
+// here, if the steps are reordered: a bookmarked ?step=batches still lands on
+// the batches step rather than on whatever now sits at that index.
+const STEP_SLUGS = ["houses", "batches", "flocks", "reconcile", "review"] as const
 
 /**
  * The address bar follows the wizard.
@@ -99,28 +127,27 @@ export default function PoultryFarmSetupPage() {
   const draftRef = useRef(draft)
   useEffect(() => { draftRef.current = draft }, [draft])
 
-  /** Survives F5, not the tab closing, and never reaches the server. */
-  const draftKey = () => {
-    const { farmId } = getUserContext()
-    return farmId ? `poultry-farm-setup:${farmId}` : null
-  }
+  /**
+   * The unfinished setup, kept on the SERVER (migration 328).
+   *
+   * It used to live in sessionStorage, which survived a refresh and nothing
+   * else: going to another page for reference and coming back lost it, because
+   * restoring needed the URL to still carry ?step= and a nav link gives a bare
+   * one. Closing the tab lost it outright. Twenty minutes of typing deserves
+   * better than a tab.
+   *
+   * Kept per COMPANY, so it follows the farm rather than the device.
+   */
+  const [savedDraft, setSavedDraft] = useState<FarmSetupDraft | null>(null)
+  const [draftState, setDraftState] = useState<"idle" | "saving" | "saved" | "error">("idle")
 
-  const clearSavedDraft = useCallback(() => {
-    try {
-      const k = draftKey()
-      if (k) window.sessionStorage.removeItem(k)
-    } catch { /* private mode, blocked storage -- the wizard still works */ }
+  const clearSavedDraft = useCallback(async () => {
+    const { userId, farmId } = getUserContext()
+    if (!userId || !farmId) return
+    await deleteFarmSetupDraft(userId, farmId)
+    setSavedDraft(null)
+    setDraftState("idle")
   }, [])
-
-  // Save on every change while the wizard is open. Small, and the alternative is
-  // losing a farm's worth of typing to a stray refresh.
-  useEffect(() => {
-    if (screen !== "wizard") return
-    try {
-      const k = draftKey()
-      if (k) window.sessionStorage.setItem(k, JSON.stringify({ step, draft }))
-    } catch { /* ignore */ }
-  }, [screen, step, draft])
 
   /** Move the wizard AND the address bar together. Never one without the other. */
   const navigate = useCallback((nextScreen: Screen, nextStep: Step = 0, replace = false) => {
@@ -175,6 +202,61 @@ export default function PoultryFarmSetupPage() {
   const [penPrefix, setPenPrefix] = useState("Pen")
   const [penStart, setPenStart] = useState("1")
   const [penCapacity, setPenCapacity] = useState("")
+  // Off by default: a farm returning to allocate a new batch came for the pens it
+  // can still use, not for a list of the eighteen that are full.
+  const [showAllHouses, setShowAllHouses] = useState(false)
+  // Allocation is done ONE BATCH AT A TIME; this is the one in the workspace.
+  // Empty until the farm picks one — the step opens on the batch list.
+  const [selectedBatchKey, setSelectedBatchKey] = useState("")
+  /**
+   * Where the allocation step is in its own sequence: pick a batch, pick the
+   * pens, then place the birds.
+   *
+   * Showing all three at once meant arriving at a wall — a batch already chosen
+   * for you, a grid of pens, and a table of rows, with nothing saying what to do
+   * first. One question at a time is the whole point of a wizard step.
+   */
+  const [allocPhase, setAllocPhase] = useState<"batch" | "pens" | "allocate">("batch")
+  // Debounced: this fires on every keystroke, and a request per character would
+  // be both wasteful and out of order. 1.2s is long enough to coalesce typing
+  // and short enough that walking away mid-sentence still keeps the sentence.
+  useEffect(() => {
+    if (screen !== "wizard") return
+    const { userId, farmId } = getUserContext()
+    if (!userId || !farmId) return
+
+    setDraftState("saving")
+    const timer = setTimeout(() => {
+      void saveFarmSetupDraft({
+        farmId,
+        draft: JSON.stringify(draft),
+        step,
+        phase: allocPhase,
+        updatedBy: userId,
+      }).then((res) => setDraftState(res.success ? "saved" : "error"))
+    }, 1200)
+    return () => clearTimeout(timer)
+  }, [screen, step, draft, allocPhase])
+
+  // Adding a pen from inside the allocation, when there is nowhere left to put
+  // the birds. Draft-only -- see NewPenDialog.
+  const [newPenOpen, setNewPenOpen] = useState(false)
+  // Off by default: a farm returning to place a new batch should not have to
+  // scroll past the three it finished eighteen months ago.
+  const [showAllBatches, setShowAllBatches] = useState(false)
+  // Off by default: existing assignments are context, and loading them into the
+  // form is what makes a farm think its history is being recreated.
+  const [showExistingFlocks, setShowExistingFlocks] = useState(false)
+  // Off by default: the Batches step is for describing NEW stock. What the farm
+  // already has is locked, adds nothing to fill in, and is still available to
+  // the allocation step regardless.
+  const [showExistingBatches, setShowExistingBatches] = useState(false)
+  // The pen whose capacity is being corrected from an allocation row, by key.
+  const [capacityPenKey, setCapacityPenKey] = useState<string | null>(null)
+  // The batch whose bird count is being corrected from the allocation header.
+  const [sizeBatchKey, setSizeBatchKey] = useState<string | null>(null)
+  // For the batch cards' supplier picker — the same list Flock Purchases shows.
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [penLocation, setPenLocation] = useState("")
 
   const status: FarmSetupStatus | null = context?.status ?? null
@@ -186,30 +268,43 @@ export default function PoultryFarmSetupPage() {
       return
     }
     setLoading(true)
-    const [ctxRes, openRes] = await Promise.all([
+    const [ctxRes, openRes, supRes, draftRes] = await Promise.all([
       getFarmSetupContext(userId, farmId),
       getOpeningPositions(userId, farmId),
+      // The batch cards offer the same supplier list Flock Purchases does, so a
+      // farm can record who it bought from without leaving setup.
+      getSuppliers(userId, farmId),
+      getFarmSetupDraft(userId, farmId),
     ])
+    if (supRes.success && supRes.data) setSuppliers(supRes.data)
     if (ctxRes.success && ctxRes.data) {
       setContext(ctxRes.data)
 
-      // A refresh mid-wizard should land where it left off, not throw the work
-      // away. Only when the URL still names a step AND this tab has the draft
-      // that went with it -- a bare ?step= with no draft is someone else's link.
+      // TWO WAYS BACK IN, and they deserve different answers.
+      //
+      // A REFRESH still names its step in the URL, so it resumes silently —
+      // being asked "do you want to carry on?" after pressing F5 is noise.
+      //
+      // ARRIVING FRESH (a nav link, a new device, a day later) has a bare URL.
+      // That gets an explicit offer instead, because restoring someone into a
+      // half-finished form they were not expecting is worse than asking.
       let restored = false
-      if (!ctxRes.data.status?.isComplete && typeof window !== "undefined") {
+      const saved = draftRes.success && draftRes.data?.hasDraft ? draftRes.data.draft : null
+      if (saved) setSavedDraft(saved)
+
+      if (saved && typeof window !== "undefined") {
         const slug = new URLSearchParams(window.location.search).get("step")
         const i = slug ? STEP_SLUGS.indexOf(slug as (typeof STEP_SLUGS)[number]) : -1
         if (i >= 0) {
           try {
-            const raw = window.sessionStorage.getItem(`poultry-farm-setup:${farmId}`)
-            const saved = raw ? JSON.parse(raw) : null
-            if (saved?.draft?.flocks && Array.isArray(saved.draft.batches)) {
-              setDraft(saved.draft as SetupDraft)
+            const parsed = JSON.parse(saved.draft) as SetupDraft
+            if (Array.isArray(parsed?.batches) && Array.isArray(parsed?.flocks)) {
+              setDraft(parsed)
+              if (saved.phase) setAllocPhase(saved.phase as "batch" | "pens" | "allocate")
               navigate("wizard", i as Step, true)
               restored = true
             }
-          } catch { /* corrupt or blocked storage -- fall through to the entry screen */ }
+          } catch { /* unreadable draft -- fall through and offer it instead */ }
         }
       }
       if (!restored) navigate(ctxRes.data.status?.isComplete ? "completed" : "choose", 0, true)
@@ -231,6 +326,10 @@ export default function PoultryFarmSetupPage() {
       houseId: h.houseId, houseName: h.houseName, capacity: h.capacity,
       occupied: h.occupied ?? 0, availableCapacity: h.availableCapacity, activeFlocks: h.activeFlocks ?? 0,
     })),
+    existingFlocks: (context?.flocks ?? []).map((f) => ({
+      flockId: f.flockId, name: f.name, batchId: f.batchId, houseId: f.houseId,
+      houseName: f.houseName, quantity: f.quantity ?? 0, active: f.active ?? true,
+    })),
     existingFlockNames: context?.existingFlockNames ?? [],
     allocatedByBatchId: context?.allocatedByBatchId ?? {},
     businessDate: context?.businessDate ? String(context.businessDate).split("T")[0] : new Date().toISOString().slice(0, 10),
@@ -244,6 +343,310 @@ export default function PoultryFarmSetupPage() {
   const setupError = errors.find((e) => e.index < 0)
   const totals = useMemo(() => summarize(draft), [draft])
   const needsReconciliation = useMemo(() => flocksNeedingReconciliation(draft.flocks), [draft.flocks])
+
+  // A returning farm's full pens are hidden by default — see visibleHouseRows.
+  // The rows stay in the draft either way; only the view changes.
+  const houseViews = useMemo(() => houseRowViews(draft, setupContext), [draft, setupContext])
+  const visibleHouses = useMemo(
+    () => visibleHouseRows(houseViews, showAllHouses),
+    [houseViews, showAllHouses],
+  )
+  const houseSummary = useMemo(() => summarizeHouseRows(houseViews), [houseViews])
+
+  const batchEditViews = useMemo(() => batchEditRows(draft), [draft])
+  const visibleBatchEdits = useMemo(
+    () => visibleBatchEditRows(batchEditViews, showExistingBatches),
+    [batchEditViews, showExistingBatches],
+  )
+  const batchEditSummary = useMemo(() => summarizeBatchEditRows(batchEditViews), [batchEditViews])
+
+  // Breeds this farm already uses, offered first in every breed picker. Drawn
+  // from the batches it has AND the ones being typed now, so a breed entered on
+  // the first batch is one click away on the second.
+  const knownBreeds = useMemo(() => {
+    const all = [
+      ...setupContext.existingBatches.map((b) => b.breed),
+      ...draft.batches.map((b) => b.breed),
+    ]
+    return Array.from(new Set(all.map((b) => (b ?? "").trim()).filter(Boolean)))
+  }, [setupContext.existingBatches, draft.batches])
+
+  // ---- The allocation workspace ---------------------------------------
+  const batchViews = useMemo(() => batchAllocationViews(draft, setupContext), [draft, setupContext])
+  const visibleBatches = useMemo(
+    // The batch being worked on stays listed even once it is complete.
+    () => visibleBatchRows(batchViews, showAllBatches, selectedBatchKey || undefined),
+    [batchViews, showAllBatches, selectedBatchKey],
+  )
+  const batchSummary = useMemo(() => summarizeBatchRows(batchViews), [batchViews])
+
+  // Exactly what was chosen — never a fallback to "whichever is first".
+  //
+  // It used to fall back, and the strip is ordered by status: typing into
+  // Originally Placed moved a batch from "unallocated" to "partial", it slid
+  // down the list, and the workspace followed it onto the next batch
+  // mid-keystroke. Choosing is now the farm's act, so nothing can move it.
+  const activeBatchKey = selectedBatchKey
+
+  /** Pick a batch and go to its pens — or straight to its rows if it has some. */
+  const chooseBatch = (key: string) => {
+    setSelectedBatchKey(key)
+    setAllocPhase(draft.flocks.some((f) => f.batchKey === key) ? "allocate" : "pens")
+  }
+
+  const activeBatch = useMemo(
+    () => batchViews.find((v) => v.batch.key === activeBatchKey) ?? null,
+    [batchViews, activeBatchKey],
+  )
+
+  // Filtered but INDEX-PRESERVING: patchFlock, removeFlock and the error maps all
+  // address a flock by its position in the draft, not in this view.
+  const activeBatchFlocks = useMemo(
+    () => draft.flocks
+      .map((row, index) => ({ row, index }))
+      .filter(({ row }) => row.batchKey === activeBatchKey),
+    [draft.flocks, activeBatchKey],
+  )
+
+  /** Pens this batch already has a row for. */
+  /** Pens this batch may still be put into — full ones are not choices. */
+  const allocatablePens = useMemo(
+    () => penOptions(houseViews),
+    [houseViews],
+  )
+
+  const pensInActiveBatch = useMemo(
+    () => new Set(activeBatchFlocks.map(({ row }) => row.houseKey).filter(Boolean)),
+    [activeBatchFlocks],
+  )
+
+  /**
+   * Tick a pen in, or out.
+   *
+   * Ticking creates the flock row for it, named and dated from the batch, so the
+   * farm picks WHERE the birds go and the numbers come after. Unticking removes
+   * that row — the rows are the selection, so there is nothing else to keep in
+   * step with it.
+   */
+  const togglePen = (houseKey: string, on: boolean) => {
+    const b = draft.batches.find((x) => x.key === activeBatchKey)
+    const house = draft.houses.find((h) => h.key === houseKey)
+    setDraft((d) => {
+      if (!on) {
+        return { ...d, flocks: d.flocks.filter((f) => !(f.batchKey === activeBatchKey && f.houseKey === houseKey)) }
+      }
+      if (d.flocks.some((f) => f.batchKey === activeBatchKey && f.houseKey === houseKey)) return d
+      return {
+        ...d,
+        flocks: [...d.flocks, {
+          ...emptyFlock(activeBatchKey, houseKey),
+          name: defaultFlockName(b?.batchCode ?? "", house?.houseName ?? ""),
+          startDate: b?.startDate ?? "",
+        }],
+      }
+    })
+  }
+
+  const selectAllPens = (on: boolean) => {
+    if (!activeBatchKey) return
+    if (!on) {
+      setDraft((d) => ({ ...d, flocks: d.flocks.filter((f) => f.batchKey !== activeBatchKey) }))
+      return
+    }
+    const b = draft.batches.find((x) => x.key === activeBatchKey)
+    setDraft((d) => {
+      const taken = new Set(d.flocks.filter((f) => f.batchKey === activeBatchKey).map((f) => f.houseKey))
+      const added = penOptions(houseRowViews(d, setupContext))
+        .filter((v) => !taken.has(v.row.key))
+        .map((v) => ({
+          ...emptyFlock(activeBatchKey, v.row.key),
+          name: defaultFlockName(b?.batchCode ?? "", v.row.houseName),
+          startDate: b?.startDate ?? "",
+        }))
+      return { ...d, flocks: [...d.flocks, ...added] }
+    })
+  }
+
+  /**
+   * Add a pen and put this batch in it.
+   *
+   * Ticking it straight away is the point: someone opens this because they have
+   * birds and nowhere to put them, so the pen existing is only half the answer.
+   */
+  const addPen = (pen: { name: string; capacity: string; location: string }) => {
+    const b = draft.batches.find((x) => x.key === activeBatchKey)
+    const row = { ...emptyHouse(pen.capacity, pen.location), houseName: pen.name }
+    setDraft((d) => ({
+      ...d,
+      houses: [...d.houses, row],
+      flocks: activeBatchKey
+        ? [...d.flocks, {
+            ...emptyFlock(activeBatchKey, row.key),
+            name: defaultFlockName(b?.batchCode ?? "", pen.name),
+            startDate: b?.startDate ?? "",
+          }]
+        : d.flocks,
+    }))
+    toast({ title: `${pen.name} added`, description: "It will be created when you finish the setup." })
+  }
+
+  /** "Pen 5" when the farm's pens are Pen 1..4 — otherwise just a blank. */
+  const suggestedPenName = useMemo(() => {
+    const numbers = draft.houses
+      .map((h) => /^\s*pen\s+(\d+)\s*$/i.exec(h.houseName || "")?.[1])
+      .filter(Boolean)
+      .map(Number)
+    return numbers.length > 0 ? `Pen ${Math.max(...numbers) + 1}` : ""
+  }, [draft.houses])
+
+  const autoFill = (mode: "even" | "capacity") => {
+    if (!activeBatch || activeBatchFlocks.length === 0) return
+    setDraft((d) => (mode === "even"
+      ? distributePensEvenly(d, activeBatch.batch.key, activeBatch.available)
+      : fillPensToCapacity(d, setupContext, activeBatch.batch.key, activeBatch.available)))
+    toast({
+      title: mode === "even" ? "Birds spread evenly" : "Pens filled to capacity",
+      description: "Every number is editable — change whatever does not match the farm.",
+    })
+  }
+
+  /** The next batch still needing work, for the "next batch" button. */
+  const nextBatchNeedingWork = useMemo(() => {
+    const order = visibleBatches.filter((v) => v.batch.key !== activeBatchKey)
+    return order.find((v) => v.status === "over")
+      ?? order.find((v) => v.remaining > 0)
+      ?? null
+  }, [visibleBatches, activeBatchKey])
+
+  const activeBatchPosition = useMemo(
+    () => visibleBatches.findIndex((v) => v.batch.key === activeBatchKey) + 1,
+    [visibleBatches, activeBatchKey],
+  )
+
+  // ---- Correcting a pen's capacity from the row that revealed it ------
+  const capacityPen = useMemo(() => {
+    if (!capacityPenKey) return null
+    const index = draft.houses.findIndex((h) => h.key === capacityPenKey)
+    if (index < 0) return null
+    return { index, row: draft.houses[index], load: houseLoad(capacityPenKey, draft, setupContext) }
+  }, [capacityPenKey, draft, setupContext])
+
+  /**
+   * Where the new capacity goes depends on whether the pen exists yet.
+   *
+   * An EXISTING pen is saved to the server now. Its capacity belongs to the pen,
+   * not to this draft, and the wizard would otherwise discard it: the setup
+   * payload sends an existing house as a reuse-by-id and the server ignores
+   * every other field on the row.
+   *
+   * A pen this setup is about to create has nowhere to be saved to yet, so it is
+   * simply edited in the draft and created with the rest.
+   */
+  const saveCapacity = async (capacity: number) => {
+    if (!capacityPen) return
+    const { index, row } = capacityPen
+
+    if (row.existingHouseId == null) {
+      patchHouse(index, { capacity: String(capacity) })
+      toast({ title: "Capacity updated", description: `${row.houseName || "The pen"} will be created holding ${capacity.toLocaleString()}.` })
+      return
+    }
+
+    const { userId, farmId } = getUserContext()
+    if (!userId || !farmId) throw new Error("Your session has expired. Sign in again.")
+
+    const result = await updateHouse(row.existingHouseId, {
+      userId, farmId,
+      name: row.houseName,
+      capacity,
+      location: row.location || null,
+    })
+    if (!result.success) throw new Error(result.message || "That pen could not be updated.")
+
+    // Re-read so houseLoad, the capacity note and the Houses step all see it.
+    await load()
+    toast({ title: "Capacity updated", description: `${row.houseName} now holds ${capacity.toLocaleString()} birds.` })
+  }
+
+  /**
+   * The one-click fix a row problem offers, or null when there is not one.
+   *
+   * Review is the last screen before the farm is created, so being told a pen is
+   * too small there and having to walk back three steps to fix it is the worst
+   * version of this message. The index on a row error is its position in
+   * draft.houses / draft.batches, which is exactly what the dialogs key on.
+   */
+  const fixFor = (e: SetupRowError): { label: string; onClick: () => void } | null => {
+    if (e.section === "houses" && e.field === "capacity") {
+      const row = draft.houses[e.index]
+      if (!row) return null
+      return { label: `Update ${row.houseName || "this pen"}`, onClick: () => setCapacityPenKey(row.key) }
+    }
+    if (e.section === "batches" && e.field === "numberOfBirds") {
+      const row = draft.batches[e.index]
+      if (!row) return null
+      return { label: `Update ${row.batchCode || row.batchName || "this batch"}`, onClick: () => setSizeBatchKey(row.key) }
+    }
+    return null
+  }
+
+  const sizeBatch = useMemo(
+    () => (sizeBatchKey ? batchViews.find((v) => v.batch.key === sizeBatchKey) ?? null : null),
+    [sizeBatchKey, batchViews],
+  )
+
+  /**
+   * Correct what a batch was bought with.
+   *
+   * A batch being created here is only edited in the draft. An EXISTING one is
+   * saved now — and is read back in full first, because the update overwrites
+   * the whole row: sending only the bird count would blank the cost, the
+   * supplier and the amount paid. The client payload is sparse but the stored
+   * function is not, so "just send what changed" quietly destroys the rest.
+   */
+  const saveBatchSize = async (numberOfBirds: number) => {
+    if (!sizeBatch) return
+    const { index, batch: row } = sizeBatch
+
+    if (row.existingBatchId == null) {
+      patchBatch(index, { numberOfBirds: String(numberOfBirds) })
+      toast({ title: "Bird count updated", description: `${row.batchCode || "The batch"} will be created with ${numberOfBirds.toLocaleString()} birds.` })
+      return
+    }
+
+    const { userId, farmId } = getUserContext()
+    if (!userId || !farmId) throw new Error("Your session has expired. Sign in again.")
+
+    const current = await getFlockBatch(row.existingBatchId, userId, farmId)
+    if (!current.success || !current.data) {
+      throw new Error(current.message || "That batch could not be read.")
+    }
+    const b = current.data
+
+    const result = await updateFlockBatch(row.existingBatchId, {
+      userId, farmId,
+      batchName: b.batchName, batchCode: b.batchCode, breed: b.breed,
+      startDate: b.startDate, status: b.status,
+      costPerChick: b.costPerChick, totalCost: b.totalCost, amountPaid: b.amountPaid,
+      supplierType: b.supplierType, supplierId: b.supplierId,
+      dollarConversionRate: b.dollarConversionRate ?? null,
+      orderPlacementDate: b.orderPlacementDate ?? null,
+      estimatedArrivalDate: b.estimatedArrivalDate ?? null,
+      notes: b.notes,
+      // The one thing being changed.
+      numberOfBirds,
+    })
+    if (!result.success) throw new Error(result.message || "That batch could not be updated.")
+
+    await load()
+    toast({ title: "Bird count updated", description: `${b.batchCode} now has ${numberOfBirds.toLocaleString()} birds.` })
+  }
+
+  const activeBatchExistingFlocks = useMemo(() => {
+    const batchId = activeBatch?.batch.existingBatchId
+    if (batchId == null) return []
+    return setupContext.existingFlocks.filter((f) => f.batchId === batchId)
+  }, [activeBatch, setupContext])
 
   const errorFor = (section: string, index: number, field: string) => {
     const live = fieldErrors[section]?.[index]?.[field]
@@ -269,16 +672,41 @@ export default function PoultryFarmSetupPage() {
         flocks: d.flocks.map((f) => (f.batchKey === gone.key ? { ...f, batchKey: "" } : f)),
       }
     })
-  const removeHouse = (i: number) =>
-    setDraft((d) => {
-      const gone = d.houses[i]
-      return {
-        ...d,
-        houses: d.houses.filter((_, x) => x !== i),
-        flocks: d.flocks.filter((f) => f.houseKey !== gone.key),
-      }
-    })
+  const removeHouse = (i: number) => {
+    const gone = draft.houses[i]
+    if (!gone) return
+    // Taking a pen out takes its allocations with it -- a flock cannot stand in a
+    // pen that is no longer part of the setup. That used to happen in silence.
+    const losing = draft.flocks.filter((f) => f.houseKey === gone.key).length
+    setDraft((d) => ({
+      ...d,
+      houses: d.houses.filter((_, x) => x !== i),
+      flocks: d.flocks.filter((f) => f.houseKey !== gone.key),
+    }))
+    if (losing > 0) {
+      toast({
+        title: `${gone.houseName || "Pen"} removed`,
+        description: `${losing} flock${losing === 1 ? "" : "s"} allocated to it ${losing === 1 ? "was" : "were"} removed too.`,
+        variant: "warning",
+      })
+    }
+  }
   const removeFlock = (i: number) => setDraft((d) => ({ ...d, flocks: d.flocks.filter((_, x) => x !== i) }))
+
+  /** Pick up an unfinished setup exactly where it was left. */
+  const resumeDraft = () => {
+    if (!savedDraft) return
+    try {
+      const parsed = JSON.parse(savedDraft.draft) as SetupDraft
+      setDraft(parsed)
+      if (savedDraft.phase) setAllocPhase(savedDraft.phase as "batch" | "pens" | "allocate")
+      setSubmitted(false)
+      setServerErrors({})
+      navigate("wizard", Math.min(4, Math.max(0, savedDraft.step)) as Step)
+    } catch {
+      toast({ title: "That draft could not be opened", description: "Start a new setup instead.", variant: "destructive" })
+    }
+  }
 
   const startExistingFarm = () => {
     // Pre-load whatever the farm already has so nothing is created twice.
@@ -297,7 +725,7 @@ export default function PoultryFarmSetupPage() {
   const generateBatchRows = () => {
     const n = parseInt(batchCount, 10)
     if (!Number.isFinite(n) || n < 1) {
-      toast({ title: "Nothing to generate", description: "Enter how many batches you have.", variant: "warning" })
+      toast({ title: "Nothing to create", description: "Enter how many batches you have.", variant: "warning" })
       return
     }
     const generated = generateBatches({
@@ -327,7 +755,7 @@ export default function PoultryFarmSetupPage() {
   const generateHouses = () => {
     const n = parseInt(penCount, 10)
     if (!Number.isFinite(n) || n < 1) {
-      toast({ title: "Nothing to generate", description: "Enter how many pens you need.", variant: "warning" })
+      toast({ title: "Nothing to create", description: "Enter how many pens you need.", variant: "warning" })
       return
     }
     // Prompt 1's generator, so the naming and limits are identical to the
@@ -346,47 +774,11 @@ export default function PoultryFarmSetupPage() {
     }))
   }
 
-  /** One flock row per house, named after its batch — the allocation convention. */
-  /**
-   * The birds already in a house, as the server counted them (active flocks
-   * placed there). Null for a house this wizard is about to create, which by
-   * definition holds nothing yet.
-   */
-  const houseOccupancy = useCallback((houseKey: string, houses: HouseRow[]) => {
-    const row = houses.find((h) => h.key === houseKey)
-    if (!row?.existingHouseId) return null
-    return setupContext.existingHouses.find((h) => h.houseId === row.existingHouseId) ?? null
-  }, [setupContext])
-
-  const buildFlockRows = () => {
-    const firstBatch = draft.batches[0]
-    setDraft((d) => {
-      const covered = new Set(d.flocks.map((f) => f.houseKey).filter(Boolean))
-      const added = d.houses
-        .filter((h) => !covered.has(h.key))
-        .map((h) => {
-          // Start from what is already standing in the pen, so a farm that has
-          // told us its houses does not then retype every bird count. Equal on
-          // both sides -- the difference is what the farm LOST, and it says so
-          // by lowering Current Live Birds, not by us guessing at it.
-          const held = houseOccupancy(h.key, d.houses)?.occupied ?? 0
-          return {
-            ...emptyFlock(firstBatch?.key ?? "", h.key),
-            name: defaultFlockName(firstBatch?.batchCode ?? "", h.houseName),
-            startDate: firstBatch?.startDate ?? "",
-            originallyPlaced: held > 0 ? String(held) : "",
-            currentLiveBirds: held > 0 ? String(held) : "",
-          }
-        })
-      return { ...d, flocks: [...added, ...d.flocks] }
-    })
-  }
-
   const goNext = () => {
     setSubmitted(true)
     // Only what this step can fix. A setup-wide complaint about missing flocks
-    // is true — and unfixable — while you are still filling in the batches, so
-    // it must not hold the Continue button hostage.
+    // is true — and unfixable — while you are still describing pens and batches,
+    // so it must not hold the Continue button hostage.
     const blocking = errors.filter((e) => {
       if (e.index >= 0) return e.section === sectionForStep(step)
       if (e.field === "flocks" && step < 2) return false
@@ -401,8 +793,38 @@ export default function PoultryFarmSetupPage() {
       return
     }
     setSubmitted(false)
-    if (step === 1) buildFlockRows()
-    navigate("wizard", Math.min(4, step + 1) as Step)
+    goToStep(Math.min(4, step + 1) as Step)
+  }
+
+  /**
+   * Jump straight to a step.
+   *
+   * Free movement in both directions: the rail is how someone goes back to fix
+   * one number without clicking Back four times, and refusing to move forward
+   * would make it decoration. Nothing is committed by moving — Complete Farm
+   * Setup still validates everything, and each step shows its own problems.
+   *
+   * Moving FORWARD runs the leaving-effect of every step it passes over, or a
+   * jump from Houses straight to Reconciliation would arrive at a step with no
+   * flock rows to reconcile. Both are functional updates, so they still apply
+   * in order when React batches them.
+   */
+  const goToStep = (target: Step) => {
+    if (target === step) return
+    if (target > step) {
+      // Leaving ALLOCATION (step 2) is the first moment both bird counts exist,
+      // so the first moment the mortality default can be worked out.
+      if (step <= 2 && target > 2) setDraft(seedReconciliation)
+    }
+    // Arriving at ALLOCATION, resume where this batch left off rather than
+    // restarting the sequence: a farm coming back from Review to fix one number
+    // should land on the numbers, not on the batch list.
+    if (target === 2) {
+      const hasRows = selectedBatchKey && draft.flocks.some((f) => f.batchKey === selectedBatchKey)
+      setAllocPhase(hasRows ? "allocate" : selectedBatchKey ? "pens" : "batch")
+    }
+    setSubmitted(false)
+    navigate("wizard", target)
   }
 
   const submit = async () => {
@@ -472,8 +894,46 @@ export default function PoultryFarmSetupPage() {
             ) : (
               <>
                 {/* ---- Already done ---------------------------------------- */}
+                {/* Offered on arrival, never forced. Shown above BOTH entry
+                    screens because a farm can have finished onboarding and still
+                    be halfway through a later session. */}
+                {savedDraft && (screen === "choose" || screen === "completed") && (
+                  <Card className="border-2 border-amber-300 bg-amber-50">
+                    <CardContent className="flex flex-col items-start gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <h3 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+                          You have an unfinished setup
+                        </h3>
+                        <p className="mt-1 text-sm leading-relaxed text-slate-700">
+                          {(() => {
+                            try {
+                              const d = JSON.parse(savedDraft.draft) as SetupDraft
+                              const parts = [
+                                `${d.batches?.length ?? 0} batch${(d.batches?.length ?? 0) === 1 ? "" : "es"}`,
+                                `${d.houses?.length ?? 0} pen${(d.houses?.length ?? 0) === 1 ? "" : "s"}`,
+                                `${d.flocks?.length ?? 0} flock${(d.flocks?.length ?? 0) === 1 ? "" : "s"}`,
+                              ]
+                              return `${parts.join(" · ")} — ${STEPS[Math.min(4, Math.max(0, savedDraft.step))]}`
+                            } catch { return "Saved on this farm." }
+                          })()}
+                        </p>
+                        <p className="mt-0.5 text-xs text-slate-600">
+                          Last edited {savedDraft.updatedAt ? fmtInstant(savedDraft.updatedAt) : "recently"}
+                          {savedDraft.updatedBy ? ` by ${savedDraft.updatedBy}` : ""}.
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 gap-2">
+                        <Button variant="outline" onClick={() => void clearSavedDraft()}>Discard</Button>
+                        <Button onClick={resumeDraft} className="gap-2 bg-amber-600 hover:bg-amber-700">
+                          Resume <ArrowRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
                 {screen === "completed" && status && (
-                  <CompletedPanel status={status} opening={opening} />
+                  <CompletedPanel status={status} opening={opening} onSetUpMore={startExistingFarm} />
                 )}
 
                 {/* ---- Entry choice ---------------------------------------- */}
@@ -598,85 +1058,12 @@ export default function PoultryFarmSetupPage() {
                 {/* ---- The wizard ------------------------------------------ */}
                 {screen === "wizard" && (
                   <>
-                    <StepBar step={step} />
+                    <StepBar step={step} onGo={goToStep} />
 
-                    {/* Step 1 — Batches */}
+                    {/* Step 1 — Houses/Pens */}
                     {step === 0 && (
-                      <Section icon={Boxes} title="What batches/groups of birds do you currently have?"
-                        description="Generate a run of batches, then edit any of them. Purchase cost and supplier are optional — if you do not know what you paid, leave them blank. Nothing here posts cash or revenue for a historical purchase.">
-                        <div className="grid grid-cols-1 md:grid-cols-6 gap-3 p-4 bg-slate-50 border-b border-slate-200 -mx-4 -mt-4 mb-1">
-                          <Field label="Number of Batches"><NumberInput min="1" value={batchCount} onChange={(e) => setBatchCount(e.target.value)} /></Field>
-                          <Field label="Name Prefix"><Input value={batchPrefix} onChange={(e) => setBatchPrefix(e.target.value)} placeholder="Batch" /></Field>
-                          <Field label="Code Prefix"><Input value={batchCodePrefix} onChange={(e) => setBatchCodePrefix(e.target.value)} placeholder="B" /></Field>
-                          <Field label="Starting Number"><NumberInput value={batchStart} onChange={(e) => setBatchStart(e.target.value)} /></Field>
-                          <Field label="Default Breed"><Input value={batchBreed} onChange={(e) => setBatchBreed(e.target.value)} placeholder="Bovan Brown" /></Field>
-                          <Field label="Default Birds"><NumberInput min="0" value={batchBirds} onChange={(e) => setBatchBirds(e.target.value)} placeholder="5000" /></Field>
-                          <Field className="md:col-span-2" label="Default Arrival Date">
-                            <Input type="date" value={batchDate} onChange={(e) => setBatchDate(e.target.value)} />
-                          </Field>
-                          <div className="md:col-span-6">
-                            <Button type="button" onClick={generateBatchRows} className="bg-blue-600 hover:bg-blue-700 gap-2">
-                              <Wand2 className="w-4 h-4" /> Generate
-                            </Button>
-                            <span className="text-xs text-slate-500 ml-3">
-                              Replaces the new rows below; batches you already have are kept. Everything stays editable.
-                            </span>
-                          </div>
-                        </div>
-                        <GridHeader columns={[
-                          ["col-span-3", "Batch Name *"], ["col-span-2", "Batch Code *"], ["col-span-2", "Breed *"],
-                          ["col-span-2", "Original Birds *"], ["col-span-2", "Arrival Date *"], ["col-span-1", ""],
-                        ]} />
-                        {draft.batches.map((b, i) => (
-                            <div key={b.key} className={`rounded-lg border px-3 py-3 md:grid md:grid-cols-12 md:gap-3 [&_input]:bg-white [&_button[role=combobox]]:bg-white [&_[data-slot=select-trigger]]:bg-white ${rowShell(i, submitted ? fieldErrors.batches?.[i] : undefined, serverErrors.batches?.[i])}`}>
-                              <RowHeader
-                                label={`Batch ${i + 1}`}
-                                badge={b.existingBatchId != null
-                                  ? <Badge variant="secondary" className="h-6 px-1.5 text-[10px]">Existing</Badge>
-                                  : <Badge variant="outline" className="h-6 px-1.5 text-[10px] border-blue-300 text-blue-700">New</Badge>}
-                                onRemove={() => removeBatch(i)}
-                              />
-                              <div className="grid grid-cols-12 gap-3 md:contents">
-                              <Field className="col-span-12 md:col-span-3"
-                                label="Batch Name *" mobileOnlyLabel error={errorFor("batches", i, "batchName")}>
-                                <Input value={b.batchName} disabled={b.existingBatchId != null}
-                                  onChange={(e) => patchBatch(i, { batchName: e.target.value })} placeholder="B1" />
-                              </Field>
-                              <Field className="col-span-12 sm:col-span-6 md:col-span-2" label="Batch Code *" mobileOnlyLabel error={errorFor("batches", i, "batchCode")}>
-                                <Input value={b.batchCode} disabled={b.existingBatchId != null}
-                                  onChange={(e) => patchBatch(i, { batchCode: e.target.value })} placeholder="B001" />
-                              </Field>
-                              <Field className="col-span-12 sm:col-span-6 md:col-span-2" label="Breed *" mobileOnlyLabel error={errorFor("batches", i, "breed")}>
-                                <Input value={b.breed} disabled={b.existingBatchId != null}
-                                  onChange={(e) => patchBatch(i, { breed: e.target.value })} placeholder="Bovan Brown" />
-                              </Field>
-                              <Field className="col-span-12 sm:col-span-6 md:col-span-2" label="Original Birds *" mobileOnlyLabel error={errorFor("batches", i, "numberOfBirds")}>
-                                <NumberInput min="0" value={b.numberOfBirds} disabled={b.existingBatchId != null}
-                                  onChange={(e) => patchBatch(i, { numberOfBirds: e.target.value })} placeholder="6000" />
-                              </Field>
-                              <Field className="col-span-12 sm:col-span-6 md:col-span-2" label="Arrival Date *" mobileOnlyLabel error={errorFor("batches", i, "startDate")}>
-                                <Input type="date" value={b.startDate} disabled={b.existingBatchId != null}
-                                  onChange={(e) => patchBatch(i, { startDate: e.target.value })} />
-                              </Field>
-                              </div>
-                              <div className="col-span-12 md:col-span-1 hidden md:flex items-end justify-end">
-                                <Button type="button" variant="ghost" size="icon" onClick={() => removeBatch(i)}
-                                  className="h-9 w-9 shrink-0 text-red-600 hover:bg-red-50" aria-label="Remove batch">
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </div>
-                            </div>
-                          ))}
-                          <Button type="button" variant="outline" size="sm" onClick={() => setDraft((d) => ({ ...d, batches: [emptyBatch(), ...d.batches] }))}>
-                            <Plus className="w-4 h-4 mr-1" /> Add Another Batch
-                          </Button>
-                      </Section>
-                    )}
-
-                    {/* Step 2 — Houses */}
-                    {step === 1 && (
                       <Section icon={Home} title="Where are your birds housed?"
-                        description="Generate a run of pens, then edit any of them. Houses you already have are listed and kept.">
+                        description="Create a run of new pens, then edit any of them. Pens you already have are listed so you can allocate to them — this step never deletes a pen from your farm.">
                         <div className="grid grid-cols-1 md:grid-cols-5 gap-3 p-4 bg-slate-50 border-b border-slate-200">
                           <Field label="Number of Pens"><NumberInput min="1" value={penCount} onChange={(e) => setPenCount(e.target.value)} /></Field>
                           <Field label="Naming Prefix"><Input value={penPrefix} onChange={(e) => setPenPrefix(e.target.value)} placeholder="Pen" /></Field>
@@ -685,35 +1072,64 @@ export default function PoultryFarmSetupPage() {
                           <Field label="Default Location"><Input value={penLocation} onChange={(e) => setPenLocation(e.target.value)} placeholder="Layer House A" /></Field>
                           <div className="md:col-span-5">
                             <Button type="button" onClick={generateHouses} className="bg-indigo-600 hover:bg-indigo-700 gap-2">
-                              <Wand2 className="w-4 h-4" /> Generate
+                              <Wand2 className="w-4 h-4" /> Create New Houses/Pens
                             </Button>
                             <span className="text-xs text-slate-500 ml-3">
                               Replaces the new rows below; houses you already have are kept. Everything stays editable.
                             </span>
                           </div>
                         </div>
-                        {draft.houses.length > 0 && (
+                        {/* A returning farm's full pens are hidden, not dropped: they
+                            stay in the draft and are still reused by id. */}
+                        {houseSummary.occupied > 0 && (
+                          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                            <span className="text-slate-600">
+                              {showAllHouses
+                                ? `Showing all ${houseSummary.total.toLocaleString()} pens, including ${houseSummary.occupied.toLocaleString()} that already hold birds.`
+                                : `${houseSummary.occupied.toLocaleString()} of your ${houseSummary.existing.toLocaleString()} existing pens already ${houseSummary.occupied === 1 ? "holds" : "hold"} birds and ${houseSummary.occupied === 1 ? "is" : "are"} hidden.`}
+                            </span>
+                            <label className="flex items-center gap-2 text-slate-700 shrink-0">
+                              <Checkbox checked={showAllHouses} onCheckedChange={(v) => setShowAllHouses(v === true)} />
+                              Show all houses/pens
+                            </label>
+                          </div>
+                        )}
+                        {visibleHouses.length > 0 && (
                           <GridHeader columns={[
                             ["col-span-4", "House/Pen Name *"], ["col-span-2", "Capacity"],
                             ["col-span-5", "Location"], ["col-span-1", ""],
                           ]} />
                         )}
                         {draft.houses.length === 0 && (
-                            <p className="text-slate-600 text-sm">No houses/pens yet. Generate some above, or add one row at a time.</p>
+                            <p className="text-slate-600 text-sm">No houses/pens yet. Create some above, or add one row at a time.</p>
                           )}
-                          {draft.houses.map((h, i) => (
+                          {draft.houses.length > 0 && visibleHouses.length === 0 && (
+                            <p className="text-slate-600 text-sm">
+                              None of your pens are empty. Add a new one above, or tick “Show all houses/pens” to see them.
+                            </p>
+                          )}
+                          {visibleHouses.map(({ row: h, index: i, isExisting, load }) => (
                             <div key={h.key} className={`rounded-lg border px-3 py-3 md:grid md:grid-cols-12 md:gap-3 [&_input]:bg-white [&_button[role=combobox]]:bg-white [&_[data-slot=select-trigger]]:bg-white ${rowShell(i, submitted ? fieldErrors.houses?.[i] : undefined, serverErrors.houses?.[i])}`}>
                               <RowHeader
                                 label={h.houseName || `House ${i + 1}`}
-                                badge={h.existingHouseId != null
+                                badge={isExisting
                                   ? <Badge variant="secondary" className="h-6 px-1.5 text-[10px]">Existing</Badge>
                                   : <Badge variant="outline" className="h-6 px-1.5 text-[10px] border-blue-300 text-blue-700">New</Badge>}
-                                onRemove={() => removeHouse(i)}
+                                onRemove={isExisting ? undefined : () => removeHouse(i)}
                               />
                               <div className="grid grid-cols-12 gap-3 md:contents">
                               <Field className="col-span-12 md:col-span-4"
-                                label="House/Pen Name *" mobileOnlyLabel error={errorFor("houses", i, "houseName")}>
-                                <Input value={h.houseName} disabled={h.existingHouseId != null}
+                                label="House/Pen Name *" mobileOnlyLabel error={errorFor("houses", i, "houseName")}
+                                hint={(() => {
+                                  // Only pens that hold something say anything. The
+                                  // list is empty pens by default, so labelling each
+                                  // of them "Empty" would be noise; these only show
+                                  // at all once "show all" is ticked, and then they
+                                  // must not read as free.
+                                  if (!load || !isExisting || load.activeFlocks === 0) return undefined
+                                  return `Holds ${load.occupied.toLocaleString()} in ${load.activeFlocks} flock${load.activeFlocks === 1 ? "" : "s"}`
+                                })()}>
+                                <Input value={h.houseName} disabled={isExisting}
                                   onChange={(e) => patchHouse(i, { houseName: e.target.value })} placeholder="Pen 1" />
                               </Field>
                               <Field className="col-span-12 sm:col-span-6 md:col-span-2" label="Capacity" mobileOnlyLabel error={errorFor("houses", i, "capacity")}>
@@ -724,10 +1140,18 @@ export default function PoultryFarmSetupPage() {
                               </Field>
                               </div>
                               <div className="col-span-12 md:col-span-1 hidden md:flex items-end justify-end">
-                                <Button type="button" variant="ghost" size="icon" onClick={() => removeHouse(i)}
-                                  className="h-9 w-9 shrink-0 text-red-600 hover:bg-red-50" aria-label="Remove house">
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
+                                {/* Only a pen this setup is CREATING can be taken
+                                    out of it. One the farm already has is not this
+                                    wizard's to discard — and a bin next to it reads
+                                    like it would delete the pen from the farm, which
+                                    it never did. Deleting a real pen is the Houses
+                                    page's job, and it refuses while birds are in it. */}
+                                {!isExisting && (
+                                  <Button type="button" variant="ghost" size="icon" onClick={() => removeHouse(i)}
+                                    className="h-9 w-9 shrink-0 text-red-600 hover:bg-red-50" aria-label="Remove house">
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                )}
                               </div>
                             </div>
                           ))}
@@ -737,16 +1161,470 @@ export default function PoultryFarmSetupPage() {
                       </Section>
                     )}
 
+                    {/* Step 2 — Batches */}
+                    {step === 1 && (
+                      <Section icon={Boxes} title="What batches/groups of birds do you currently have?"
+                        description="Create a run of new batches, then edit any of them. Purchase cost and supplier are optional — if you do not know what you paid, leave them blank. Nothing here posts cash or revenue for a historical purchase.">
+                        <div className="grid grid-cols-1 md:grid-cols-6 gap-3 p-4 bg-slate-50 border-b border-slate-200 -mx-4 -mt-4 mb-1">
+                          <Field label="Number of Batches"><NumberInput min="1" value={batchCount} onChange={(e) => setBatchCount(e.target.value)} /></Field>
+                          <Field label="Name Prefix"><Input value={batchPrefix} onChange={(e) => setBatchPrefix(e.target.value)} placeholder="Batch" /></Field>
+                          <Field label="Code Prefix"><Input value={batchCodePrefix} onChange={(e) => setBatchCodePrefix(e.target.value)} placeholder="B" /></Field>
+                          <Field label="Starting Number"><NumberInput value={batchStart} onChange={(e) => setBatchStart(e.target.value)} /></Field>
+                          {/* The same picker the batch rows use. It seeds every
+                              generated batch, so leaving it as free text was the
+                              one place a mistyped breed could still reach the
+                              whole setup in one go. */}
+                          <Field label="Default Breed">
+                            <BreedSelect value={batchBreed} known={knownBreeds}
+                              onChange={setBatchBreed} placeholder="Pick a breed" />
+                          </Field>
+                          <Field label="Default Birds"><NumberInput min="0" value={batchBirds} onChange={(e) => setBatchBirds(e.target.value)} placeholder="5000" /></Field>
+                          <Field className="md:col-span-2" label="Default Arrival Date">
+                            <Input type="date" value={batchDate} onChange={(e) => setBatchDate(e.target.value)} />
+                          </Field>
+                          <div className="md:col-span-6">
+                            <Button type="button" onClick={generateBatchRows} className="bg-blue-600 hover:bg-blue-700 gap-2">
+                              <Wand2 className="w-4 h-4" /> Create New Batches
+                            </Button>
+                            <span className="text-xs text-slate-500 ml-3">
+                              Replaces the new rows below; batches you already have are kept. Everything stays editable.
+                            </span>
+                          </div>
+                        </div>
+                        {/* Encouraged, not demanded. The optional fields are visible
+                            by default (not tucked behind a collapsed panel) because
+                            the ones a farm never notices are the ones it has to come
+                            back and fill in later. */}
+                        <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+                          <span className="font-medium">Complete batch information now.</span>{" "}
+                          You can skip the optional purchase details and add them later, but entering them
+                          now means your batch history, supplier and cost reporting are complete from the start.
+                        </div>
+
+                        {/* A CARD per batch, not a row. Every field the normal Flock
+                            Purchases form captures belongs here, and a dozen of them
+                            in one horizontal strip is unreadable. */}
+                        {batchEditSummary.existing > 0 && (
+                          <label className="flex items-center gap-2 text-sm text-slate-700">
+                            <Checkbox checked={showExistingBatches}
+                              onCheckedChange={(v) => setShowExistingBatches(v === true)} />
+                            Show the {batchEditSummary.existing.toLocaleString()} batch
+                            {batchEditSummary.existing === 1 ? "" : "es"} you already have
+                          </label>
+                        )}
+                        {visibleBatchEdits.length === 0 && (
+                          <p className="text-slate-600 text-sm">
+                            No new batches yet. Create some above, or add one at a time.
+                          </p>
+                        )}
+                        {visibleBatchEdits.map(({ row: b, index: i, isExisting: existing }) => {
+                            const locked = existing
+                            return (
+                            <div key={b.key} className={`rounded-lg border px-3 py-3 space-y-3 [&_input]:bg-white [&_button[role=combobox]]:bg-white [&_[data-slot=select-trigger]]:bg-white ${rowShell(i, submitted ? fieldErrors.batches?.[i] : undefined, serverErrors.batches?.[i])}`}>
+                              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                                <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                                  {b.batchCode || b.batchName || `Batch ${i + 1}`}
+                                  {existing
+                                    ? <Badge variant="secondary" className="h-6 px-1.5 text-[10px]">Existing</Badge>
+                                    : <Badge variant="outline" className="h-6 px-1.5 text-[10px] border-blue-300 text-blue-700">New</Badge>}
+                                </span>
+                                <Button type="button" variant="ghost" size="sm" onClick={() => removeBatch(i)}
+                                  className="h-8 px-2 text-red-600 hover:bg-red-50" aria-label="Remove batch">
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+
+                              {/* Which kind of purchase this is. The single most
+                                  consequential field on the card: it decides whether
+                                  an expense is posted, what date the birds take in
+                                  the stock ledger, and whether every bird must be in
+                                  a pen. An existing batch keeps what it was recorded
+                                  as — restating that is not this form's business. */}
+                              {!existing && (
+                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
+                                  <SectionLabel>Where did these birds come from?</SectionLabel>
+                                  <RadioRow
+                                    checked={b.isHistorical}
+                                    onSelect={() => patchBatch(i, { isHistorical: true })}
+                                    title="I already had these birds"
+                                    detail="Bought before you started using PoultryMaster. Nothing is posted to today's expenses or cash — what you still owe is still recorded."
+                                  />
+                                  <RadioRow
+                                    checked={!b.isHistorical}
+                                    onSelect={() => patchBatch(i, { isHistorical: false })}
+                                    title="I am buying these birds now"
+                                    detail="A real purchase happening now. Posts exactly as Flock Purchases would — expense, supplier balance and cash."
+                                  />
+                                </div>
+                              )}
+
+                              <SectionLabel>Batch details</SectionLabel>
+                              <BatchIdentityFields
+                                className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3"
+                                value={batchDraft(b)} disabled={locked}
+                                knownBreeds={knownBreeds}
+                                onPatch={(patch) => patchBatch(i, fromBatchDraft(patch))}
+                                errors={{
+                                  batchName: errorFor("batches", i, "batchName"),
+                                  batchCode: errorFor("batches", i, "batchCode"),
+                                  breed: errorFor("batches", i, "breed"),
+                                  numberOfBirds: errorFor("batches", i, "numberOfBirds"),
+                                  startDate: errorFor("batches", i, "startDate"),
+                                }}
+                              />
+                              {!existing && b.isHistorical && (
+                                <p className="text-xs text-slate-500">
+                                  Every one of these birds must end up in a pen — they are standing on your farm today.
+                                </p>
+                              )}
+
+                              {!existing && (
+                                <>
+                                  <SectionLabel>Purchase details <span className="font-normal normal-case text-slate-400">— optional</span></SectionLabel>
+                                  <BatchPurchaseDetailFields
+                                    className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3"
+                                    value={batchDraft(b)} suppliers={suppliers}
+                                    onPatch={(patch) => patchBatch(i, fromBatchDraft(patch))}
+                                    amountPaidHint={b.isHistorical
+                                      ? "Paid before you started tracking — posts no expense, but sets what you still owe."
+                                      : undefined}
+                                  />
+
+                                  <SectionLabel>Order &amp; delivery <span className="font-normal normal-case text-slate-400">— optional</span></SectionLabel>
+                                  <BatchOrderFields
+                                    className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3"
+                                    value={batchDraft(b)}
+                                    onPatch={(patch) => patchBatch(i, fromBatchDraft(patch))}
+                                  />
+                                </>
+                              )}
+                            </div>
+                            )
+                          })}
+                          <Button type="button" variant="outline" size="sm" onClick={() => setDraft((d) => ({ ...d, batches: [emptyBatch(), ...d.batches] }))}>
+                            <Plus className="w-4 h-4 mr-1" /> Add Another Batch
+                          </Button>
+                      </Section>
+                    )}
+
                     {/* Step 3 — Flocks & current birds */}
                     {step === 2 && (
                       <Section icon={Bird} title="What is in each house/pen today?"
                         description="Originally placed is what went into the pen. Current live birds is what is standing there now — that is the number tracking starts from.">
+                        {/* ONE BATCH AT A TIME. Mixing several batches' flocks in
+                            one table is what makes the arithmetic impossible to
+                            follow: "is this batch fully allocated?" is the question
+                            the step exists to answer, and it can only be answered
+                            about one batch. */}
+                        {/* The same opening move as Divide Into Flocks on the
+                            Flock Groups page: one dropdown, one question. The
+                            wizard's batch list is that dialog's, so a farmer who
+                            has used one already knows this one. */}
+                        {allocPhase === "batch" && (
+                        <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
+                          <div className="bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Select a Batch</div>
+                          <div className="p-4 space-y-3">
+                            {visibleBatches.length === 0 ? (
+                              <p className="text-slate-600 text-sm">
+                                Every batch is fully allocated. Tick “Show all batches” to look at one anyway.
+                              </p>
+                            ) : (
+                              <>
+                                <Label htmlFor="setup-alloc-batch">Batch</Label>
+                                <Select value={activeBatchKey || undefined} onValueChange={chooseBatch}>
+                                  <SelectTrigger id="setup-alloc-batch">
+                                    <SelectValue placeholder="Choose the batch to divide" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {visibleBatches.map((v) => (
+                                      <SelectItem key={v.batch.key} value={v.batch.key}>
+                                        {v.batch.batchCode || v.batch.batchName || `Batch ${v.index + 1}`}
+                                        {v.batch.batchName && v.batch.batchCode ? ` · ${v.batch.batchName}` : ""}
+                                        {" · "}
+                                        {v.status === "over"
+                                          ? `${(v.previouslyAllocated + v.thisAllocation - v.batchBirds).toLocaleString()} birds too many`
+                                          : `${v.remaining.toLocaleString()} of ${v.batchBirds.toLocaleString()} birds left`}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <p className="text-xs text-slate-500">
+                                  Pick the batch whose birds you are placing. You will choose the pens next.
+                                </p>
+                              </>
+                            )}
+                            {batchSummary.hidden > 0 && (
+                              <label className="flex items-center gap-2 pt-1 text-sm text-slate-700">
+                                <Checkbox checked={showAllBatches}
+                                  onCheckedChange={(v) => setShowAllBatches(v === true)} />
+                                Show all batches ({batchSummary.hidden} fully allocated)
+                              </label>
+                            )}
+                          </div>
+                        </div>
+                        )}
+
+                        {activeBatch && allocPhase !== "batch" && (
+                          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <span className="text-sm font-semibold text-slate-900">
+                                {activeBatch.batch.batchCode || activeBatch.batch.batchName}
+                                {activeBatch.batch.breed ? ` · ${activeBatch.batch.breed}` : ""}
+                              </span>
+                              <span className="flex items-center gap-3">
+                                {activeBatch.mustBeFullyAllocated && (
+                                  <span className="text-xs text-slate-600">
+                                    Birds you already had — every one of them needs a pen
+                                  </span>
+                                )}
+                                <Button type="button" variant="ghost" size="sm" className="h-7"
+                                  onClick={() => setAllocPhase("batch")}>Change batch</Button>
+                              </span>
+                            </div>
+                            <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                              <Figure label="Original birds" value={activeBatch.batchBirds} />
+                              <Figure label="Already allocated" value={activeBatch.previouslyAllocated} />
+                              <Figure label="This allocation" value={activeBatch.thisAllocation} tone="blue" />
+                              <Figure
+                                label={activeBatch.status === "over" ? "Over by" : "Remaining"}
+                                value={activeBatch.status === "over"
+                                  ? activeBatch.previouslyAllocated + activeBatch.thisAllocation - activeBatch.batchBirds
+                                  : activeBatch.remaining}
+                                tone={activeBatch.status === "over" ? "red" : activeBatch.remaining > 0 ? "amber" : "emerald"}
+                              />
+                            </div>
+
+                            {/* PICK THE PENS, then let the numbers fill themselves.
+                                Choosing where the birds go is the farmer's call;
+                                working out how many go in each is arithmetic, and
+                                arithmetic is what the application is for. */}
+                            {allocPhase === "pens" && (
+                            <div className="mt-3 rounded-xl border border-slate-200 overflow-hidden">
+                              <div className="bg-blue-600 px-4 py-2 text-sm font-semibold text-white flex items-center justify-between">
+                                <span>Choose Houses/Pens</span>
+                                <span className="font-normal">{activeBatchFlocks.length} selected</span>
+                              </div>
+                              <div className="p-4 bg-white">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Button type="button" variant="outline" size="sm"
+                                  onClick={() => selectAllPens(true)}>Select all</Button>
+                                <Button type="button" variant="outline" size="sm"
+                                  onClick={() => selectAllPens(false)}
+                                  disabled={activeBatchFlocks.length === 0}>Clear</Button>
+                                <Button type="button" variant="outline" size="sm" className="ml-auto"
+                                  onClick={() => setNewPenOpen(true)}>
+                                  <Plus className="mr-1 h-4 w-4" /> New pen
+                                </Button>
+                              </div>
+
+                              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                                {allocatablePens.map((v) => {
+                                  const on = pensInActiveBatch.has(v.row.key)
+                                  const free = v.load?.capacity == null
+                                    ? null
+                                    : Math.max(0, v.load.capacity - v.load.occupied)
+                                  return (
+                                    <label key={v.row.key}
+                                      className={`flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                                        on ? "border-blue-400 bg-blue-50" : "border-slate-200 bg-white hover:bg-slate-50"
+                                      }`}>
+                                      <Checkbox className="mt-0.5" checked={on}
+                                        onCheckedChange={(c) => togglePen(v.row.key, c === true)} />
+                                      <span className="min-w-0">
+                                        <span className="block truncate font-medium text-slate-900">
+                                          {v.row.houseName || "(unnamed)"}
+                                        </span>
+                                        <span className="block text-xs text-slate-500 tabular-nums">
+                                          {free == null ? "No limit set" : `${free.toLocaleString()} free`}
+                                        </span>
+                                      </span>
+                                    </label>
+                                  )
+                                })}
+                              </div>
+                              {allocatablePens.length === 0 && (
+                                <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+                                  <p className="flex items-start gap-2 text-amber-900">
+                                    <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                                    <span>
+                                      {draft.houses.length === 0
+                                        ? "You have no houses or pens yet, so there is nowhere to put these birds."
+                                        : "Every pen you have is full, so there is nowhere to put these birds."}
+                                    </span>
+                                  </p>
+                                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                                    <Button type="button" size="sm" onClick={() => setNewPenOpen(true)}
+                                      className="gap-1 bg-amber-600 hover:bg-amber-700">
+                                      <Plus className="h-4 w-4" /> Create a pen
+                                    </Button>
+                                    {draft.houses.length > 0 && (
+                                      <span className="text-xs text-amber-800">
+                                        — or raise a pen&apos;s capacity from the note on any row once it is placed.
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                              <div className="mt-3 flex flex-wrap items-center gap-2">
+                                <Button type="button" onClick={() => setAllocPhase("allocate")}
+                                  disabled={activeBatchFlocks.length === 0}
+                                  className="gap-1 bg-blue-600 hover:bg-blue-700">
+                                  Continue to allocation <ArrowRight className="h-4 w-4" />
+                                </Button>
+                                <span className="text-xs text-slate-500">
+                                  {activeBatchFlocks.length === 0
+                                    ? "Tick the pens these birds are in."
+                                    : `${activeBatchFlocks.length} pen${activeBatchFlocks.length === 1 ? "" : "s"} chosen.`}
+                                </span>
+                              </div>
+                              </div>
+                            </div>
+                            )}
+
+                            {/* Says plainly what will happen to the leftovers rather
+                                than letting them go unremarked. */}
+                            {activeBatch.status === "over" && (
+                              <p className="mt-2 flex items-start gap-2 text-sm text-red-700">
+                                <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                                <span>
+                                  This allocation is {(activeBatch.previouslyAllocated + activeBatch.thisAllocation - activeBatch.batchBirds).toLocaleString()} birds
+                                  more than {activeBatch.batch.batchCode || "the batch"} has. Lower a pen, or raise the batch.{" "}
+                                <button type="button"
+                                  onClick={() => setSizeBatchKey(activeBatch.batch.key)}
+                                  className="font-medium underline underline-offset-2 hover:no-underline">
+                                  Update {activeBatch.batch.batchCode || "this batch"}
+                                </button>
+                                </span>
+                              </p>
+                            )}
+                            {activeBatch.status === "partial" && activeBatch.remaining > 0 && (
+                              <p className="mt-2 text-sm text-amber-700">
+                                {activeBatch.mustBeFullyAllocated ? (
+                                  <>
+                                    {activeBatch.remaining.toLocaleString()} birds still need a pen — these are birds you
+                                    already had, so all of them must be somewhere. Put them in a pen, or correct the batch.{" "}
+                                <button type="button"
+                                  onClick={() => setSizeBatchKey(activeBatch.batch.key)}
+                                  className="font-medium underline underline-offset-2 hover:no-underline">
+                                  Update {activeBatch.batch.batchCode || "this batch"}
+                                </button>
+                                  </>
+                                ) : (
+                                  `${activeBatch.remaining.toLocaleString()} birds will stay unallocated — you can place them later.`
+                                )}
+                              </p>
+                            )}
+                            {activeBatch.status === "complete" && (
+                              <p className="mt-2 flex items-center gap-2 text-sm text-emerald-700">
+                                <CheckCircle2 className="h-4 w-4" /> Fully allocated.
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {allocPhase === "allocate" && (
+                        <>
+                        {/* The two fills, and the way back to the pen list. */}
+                        <div className="rounded-xl border border-slate-200 overflow-hidden">
+                          <div className="bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Allocation</div>
+                          <div className="flex flex-wrap items-center gap-2 p-3 bg-white">
+                          <Button type="button" variant="outline" size="sm"
+                            onClick={() => autoFill("capacity")}
+                            disabled={activeBatchFlocks.length === 0 || (activeBatch?.available ?? 0) === 0}>
+                            <Wand2 className="mr-1 h-4 w-4" /> Fill pens to capacity
+                          </Button>
+                          <Button type="button" variant="outline" size="sm"
+                            onClick={() => autoFill("even")}
+                            disabled={activeBatchFlocks.length === 0 || (activeBatch?.available ?? 0) === 0}>
+                            <Wand2 className="mr-1 h-4 w-4" /> Spread evenly
+                          </Button>
+                          <Button type="button" variant="ghost" size="sm"
+                            onClick={() => setAllocPhase("pens")}>Change pens</Button>
+                          <span className="ml-auto text-xs text-slate-500">
+                            A suggestion — every number stays editable.
+                          </span>
+                          </div>
+                        </div>
+
+                        <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+                          <span className="font-medium">Complete flock information now.</span>{" "}
+                          Only the essential fields are required to continue. You can fill in the rest later,
+                          but entering it now gives you a complete flock history from the beginning.
+                        </div>
+
+                        {/* Existing assignments are CONTEXT, never editable rows.
+                            Loading them into the form is what makes a returning farm
+                            think its whole history is being recreated. */}
+                        {activeBatchExistingFlocks.length > 0 && (
+                          <div className="space-y-2">
+                            <label className="flex items-center gap-2 text-sm text-slate-700">
+                              <Checkbox checked={showExistingFlocks} onCheckedChange={(v) => setShowExistingFlocks(v === true)} />
+                              Show existing flock assignments ({activeBatchExistingFlocks.length})
+                            </label>
+                            {showExistingFlocks && (
+                              <div className="rounded-lg border border-slate-200 bg-slate-50 divide-y divide-slate-200">
+                                {activeBatchExistingFlocks.map((f) => (
+                                  <div key={f.flockId} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
+                                    <span className="flex items-center gap-2 font-medium text-slate-800">
+                                      {f.name}
+                                      <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">Existing</Badge>
+                                    </span>
+                                    <span className="text-slate-600 tabular-nums">
+                                      {f.houseName ?? "No pen"} · {f.quantity.toLocaleString()} birds
+                                    </span>
+                                  </div>
+                                ))}
+                                <p className="px-3 py-2 text-xs text-slate-500">
+                                  Shown for context. Change these on the{" "}
+                                  <Link href="/flocks" className="text-blue-600 hover:underline">Flock Groups</Link> page.
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
                         <GridHeader columns={[
-                          ["col-span-2", "House/Pen *"], ["col-span-2", "Batch *"], ["col-span-2", "Flock Name *"],
+                          ["col-span-3", "House/Pen *"], ["col-span-3", "Flock Name *"],
                           ["col-span-2", "Originally Placed *"], ["col-span-2", "Current Live Birds *"], ["col-span-2", ""],
                         ]} />
-                        {draft.flocks.map((f, i) => {
+                        {activeBatchFlocks.map(({ row: f, index: i }) => {
                             const reduction = historicalReduction(f)
+                            // The pen is the first field on the row, so what it is
+                            // carrying is known before the bird counts are typed --
+                            // which is why it is said here rather than four clicks
+                            // later on Review. Context and a note, never a block:
+                            // capacity plans the NEXT placement, it does not get a
+                            // vote on what is already standing in the pen.
+                            const penLoad = f.houseKey ? houseLoad(f.houseKey, draft, setupContext) : null
+                            const penNoteText = penLoad ? houseCapacityNote(penLoad) : null
+                            const penHint = (() => {
+                              if (!penLoad) return undefined
+                              const parts: string[] = []
+                              if (penLoad.activeFlocks > 0) {
+                                parts.push(`Already holds ${penLoad.occupied.toLocaleString()} in ${penLoad.activeFlocks} flock${penLoad.activeFlocks === 1 ? "" : "s"} — this adds another`)
+                              }
+                              // Suppressed once the note is showing; it says the same
+                              // numbers and says them louder.
+                              if (penLoad.capacity != null && !penNoteText) {
+                                parts.push(`${Math.max(0, penLoad.capacity - penLoad.total).toLocaleString()} of ${penLoad.capacity.toLocaleString()} still free`)
+                              }
+                              return parts.length > 0 ? parts.join(" · ") : undefined
+                            })()
+                            // The note is the moment the farm learns the capacity is
+                            // wrong. Making them leave the row, find the pen, fix it
+                            // and come back is how a stale number stays stale, so the
+                            // fix is offered right here.
+                            const penNote = penNoteText ? (
+                              <>
+                                {penNoteText}{" "}
+                                <button type="button"
+                                  onClick={() => setCapacityPenKey(f.houseKey)}
+                                  className="font-medium underline underline-offset-2 hover:no-underline">
+                                  Update {penLoad?.label || "this pen"}
+                                </button>
+                              </>
+                            ) : null
                             return (
                               <div key={f.key} className={`rounded-lg border px-3 py-3 md:grid md:grid-cols-12 md:gap-3 [&_input]:bg-white [&_button[role=combobox]]:bg-white [&_[data-slot=select-trigger]]:bg-white ${rowShell(i, submitted ? fieldErrors.flocks?.[i] : undefined, serverErrors.flocks?.[i])}`}>
                                 <RowHeader
@@ -757,56 +1635,38 @@ export default function PoultryFarmSetupPage() {
                                   onRemove={() => removeFlock(i)}
                                 />
                                 <div className="grid grid-cols-12 gap-3 md:contents">
-                                <Field className="col-span-12 md:col-span-2" label="House/Pen *" mobileOnlyLabel
+                                <Field className="col-span-12 md:col-span-3" label="House/Pen *" mobileOnlyLabel
                                   error={errorFor("flocks", i, "houseKey")}
-                                  hint={(() => {
-                                    // The birds in that pen are already being counted by the flock
-                                    // that is in it. Creating a second flock here counts them twice,
-                                    // and nothing downstream will tell you that happened.
-                                    const occ = houseOccupancy(f.houseKey, draft.houses)
-                                    return occ && occ.activeFlocks > 0
-                                      ? `Already holds ${occ.occupied.toLocaleString()} in ${occ.activeFlocks} flock${occ.activeFlocks === 1 ? "" : "s"} — this adds another`
-                                      : undefined
-                                  })()}>
+                                  hint={penHint}
+                                  note={penNote}>
                                   <Select
                                     value={f.houseKey}
                                     onValueChange={(v) => {
-                                      // Only fill a row the user has not typed into; overwriting
-                                      // their numbers because they corrected the pen would be worse
-                                      // than not helping at all.
-                                      const held = houseOccupancy(v, draft.houses)?.occupied ?? 0
-                                      const untouched = !f.originallyPlaced.trim() && !f.currentLiveBirds.trim()
-                                      patchFlock(i, untouched && held > 0
-                                        ? { houseKey: v, originallyPlaced: String(held), currentLiveBirds: String(held) }
-                                        : { houseKey: v })
-                                    }}
-                                  >
-                                    <SelectTrigger><SelectValue placeholder="House" /></SelectTrigger>
-                                    <SelectContent>
-                                      {draft.houses.map((h) => <SelectItem key={h.key} value={h.key}>{h.houseName || "(unnamed)"}</SelectItem>)}
-                                    </SelectContent>
-                                  </Select>
-                                </Field>
-                                <Field className="col-span-12 md:col-span-2" label="Batch *" mobileOnlyLabel error={errorFor("flocks", i, "batchKey")}>
-                                  <Select
-                                    value={f.batchKey}
-                                    onValueChange={(v) => {
-                                      const b = draft.batches.find((x) => x.key === v)
-                                      const house = draft.houses.find((h) => h.key === f.houseKey)
+                                      const b = draft.batches.find((x) => x.key === f.batchKey)
+                                      const from = draft.houses.find((h) => h.key === f.houseKey)
+                                      const to = draft.houses.find((h) => h.key === v)
                                       patchFlock(i, {
-                                        batchKey: v,
-                                        name: defaultFlockName(b?.batchCode ?? "", house?.houseName ?? ""),
+                                        houseKey: v,
+                                        // Follows the pen while the name is still the
+                                        // one we generated; leaves a name the farm
+                                        // wrote alone. See renameForHouse.
+                                        name: renameForHouse(
+                                          f.name, b?.batchCode ?? "",
+                                          from?.houseName ?? "", to?.houseName ?? "",
+                                        ),
                                         startDate: f.startDate || (b?.startDate ?? ""),
                                       })
                                     }}
                                   >
-                                    <SelectTrigger><SelectValue placeholder="Batch" /></SelectTrigger>
+                                    <SelectTrigger><SelectValue placeholder="House" /></SelectTrigger>
                                     <SelectContent>
-                                      {draft.batches.map((b) => <SelectItem key={b.key} value={b.key}>{b.batchCode || b.batchName || "(unnamed)"}</SelectItem>)}
+                                      {penOptions(houseViews, f.houseKey).map((v) => (
+                                        <SelectItem key={v.row.key} value={v.row.key}>{v.row.houseName || "(unnamed)"}</SelectItem>
+                                      ))}
                                     </SelectContent>
                                   </Select>
                                 </Field>
-                                <Field className="col-span-12 md:col-span-2"
+                                <Field className="col-span-12 md:col-span-3"
                                   label="Flock Name *" mobileOnlyLabel error={errorFor("flocks", i, "name")}>
                                   <Input value={f.name} onChange={(e) => patchFlock(i, { name: e.target.value })} placeholder="B1 - Pen 1" />
                                 </Field>
@@ -822,6 +1682,35 @@ export default function PoultryFarmSetupPage() {
                                     className="h-9 w-9 shrink-0 text-red-600 hover:bg-red-50" aria-label="Remove flock">
                                     <Trash2 className="w-4 h-4" />
                                   </Button>
+                                </div>
+
+                                {/* Everything else the ordinary Add Flock form asks
+                                    for. Shown rather than hidden, so a farm that
+                                    knows these does not have to come back and edit
+                                    the flock afterwards. */}
+                                <div className="col-span-12 grid grid-cols-12 gap-3 border-t border-slate-100 pt-2">
+                                  <Field className="col-span-12 md:col-span-3" label="Breed"
+                                    hint="Blank takes the batch's breed">
+                                    <BreedSelect value={f.breed} known={knownBreeds}
+                                      onChange={(breed) => patchFlock(i, { breed })}
+                                      placeholder={draft.batches.find((x) => x.key === f.batchKey)?.breed || "Same as the batch"} />
+                                  </Field>
+                                  <Field className="col-span-12 md:col-span-6" label="Notes">
+                                    <Input value={f.notes ?? ""} onChange={(e) => patchFlock(i, { notes: e.target.value })}
+                                      placeholder="Anything worth remembering about this flock" />
+                                  </Field>
+                                  {/* Only meaningful for birds being bought now: an
+                                      established farm's birds are standing in the pen
+                                      by definition. */}
+                                  {!(draft.batches.find((x) => x.key === f.batchKey)?.isHistorical ?? true) && (
+                                    <Field className="col-span-12 md:col-span-3" label="Have the birds arrived?">
+                                      <label className="flex h-9 items-center gap-2 text-sm text-slate-700">
+                                        <Checkbox checked={f.hasArrived}
+                                          onCheckedChange={(v) => patchFlock(i, { hasArrived: v === true })} />
+                                        Yes, they are in the pen
+                                      </label>
+                                    </Field>
+                                  )}
                                 </div>
 
                                 {/* Age or date, per flock. */}
@@ -850,16 +1739,40 @@ export default function PoultryFarmSetupPage() {
                             )
                           })}
                           <Button type="button" variant="outline" size="sm"
-                            onClick={() => setDraft((d) => ({ ...d, flocks: [emptyFlock(d.batches[0]?.key ?? "", ""), ...d.flocks] }))}>
-                            <Plus className="w-4 h-4 mr-1" /> Add Another Flock
+                            onClick={() => {
+                              // Straight to the dialog when there is nothing to
+                              // pick — sending someone to an empty list to read
+                              // that it is empty is a wasted click.
+                              if (allocatablePens.length === 0) setNewPenOpen(true)
+                              else setAllocPhase("pens")
+                            }}
+                            disabled={!activeBatchKey}>
+                            <Plus className="w-4 h-4 mr-1" />
+                            {allocatablePens.length === 0 ? "Create a pen for this batch" : "Add a pen to this batch"}
                           </Button>
+
+                          {/* Moving between batches is selection, not saving: the
+                              whole setup is posted once, at the end, in one
+                              transaction. Saying "save" here would promise
+                              something that has not happened. */}
+                          {nextBatchNeedingWork && (
+                            <div className="flex justify-end pt-1">
+                              <Button type="button" variant="outline"
+                                onClick={() => chooseBatch(nextBatchNeedingWork.batch.key)}>
+                                Next batch: {nextBatchNeedingWork.batch.batchCode || nextBatchNeedingWork.batch.batchName}
+                                <ArrowRight className="ml-1 h-4 w-4" />
+                              </Button>
+                            </div>
+                          )}
+                        </>
+                        )}
                       </Section>
                     )}
 
                     {/* Step 4 — Opening reconciliation */}
                     {step === 3 && (
                       <Section icon={ClipboardList} title="What happened to the missing birds?"
-                        description="These losses happened before tracking began. They are recorded as an opening position and never appear as today’s deaths.">
+                        description="We have assumed the missing birds died — change any flock where that is wrong. These losses happened before tracking began, so they are recorded as an opening position and never appear as today’s deaths.">
                         <div className="p-4 space-y-4">
                           {needsReconciliation.length === 0 ? (
                             <div className="text-center py-8">
@@ -894,7 +1807,17 @@ export default function PoultryFarmSetupPage() {
                                     <label className="flex items-center gap-2 text-sm text-slate-700">
                                       <Checkbox
                                         checked={!f.historyKnown}
-                                        onCheckedChange={(v) => patchFlock(i, { historyKnown: v !== true })}
+                                        onCheckedChange={(v) => patchFlock(i, {
+                                          historyKnown: v !== true,
+                                          reconciliationTouched: true,
+                                          // Saying "I don't know" must actually clear
+                                          // the pre-filled figures, or a number the
+                                          // farm has just disowned would still be
+                                          // sitting in the row.
+                                          ...(v === true
+                                            ? { historicalMortality: "", historicalSold: "", historicalCulled: "", historicalTransferred: "" }
+                                            : {}),
+                                        })}
                                       />
                                       I don&apos;t know the historical breakdown
                                     </label>
@@ -902,10 +1825,10 @@ export default function PoultryFarmSetupPage() {
                                     {f.historyKnown ? (
                                       <>
                                         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                                          <Field label="Known mortality"><NumberInput min="0" value={f.historicalMortality} onChange={(e) => patchFlock(i, { historicalMortality: e.target.value })} /></Field>
-                                          <Field label="Sold"><NumberInput min="0" value={f.historicalSold} onChange={(e) => patchFlock(i, { historicalSold: e.target.value })} /></Field>
-                                          <Field label="Culled"><NumberInput min="0" value={f.historicalCulled} onChange={(e) => patchFlock(i, { historicalCulled: e.target.value })} /></Field>
-                                          <Field label="Transferred out"><NumberInput min="0" value={f.historicalTransferred} onChange={(e) => patchFlock(i, { historicalTransferred: e.target.value })} /></Field>
+                                          <Field label="Known mortality" hint="Takes whatever the others do not"><NumberInput min="0" value={f.historicalMortality} onChange={(e) => patchFlock(i, balanceBreakdown(f, { historicalMortality: e.target.value }))} /></Field>
+                                          <Field label="Sold"><NumberInput min="0" value={f.historicalSold} onChange={(e) => patchFlock(i, balanceBreakdown(f, { historicalSold: e.target.value }))} /></Field>
+                                          <Field label="Culled"><NumberInput min="0" value={f.historicalCulled} onChange={(e) => patchFlock(i, balanceBreakdown(f, { historicalCulled: e.target.value }))} /></Field>
+                                          <Field label="Transferred out"><NumberInput min="0" value={f.historicalTransferred} onChange={(e) => patchFlock(i, balanceBreakdown(f, { historicalTransferred: e.target.value }))} /></Field>
                                           <Field label="Other / unknown">
                                             <div className="h-10 flex items-center px-3 rounded-md border border-slate-200 bg-slate-100 text-slate-700 tabular-nums">
                                               {b.other.toLocaleString()}
@@ -964,30 +1887,92 @@ export default function PoultryFarmSetupPage() {
                             </p>
                           </div>
 
-                          <div className="rounded-lg border border-slate-200 bg-white divide-y divide-slate-100">
-                            {draft.flocks.map((f) => {
-                              const house = draft.houses.find((h) => h.key === f.houseKey)
-                              const b = breakdown(f)
-                              return (
-                                <div key={f.key} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
-                                  <span className="font-medium text-slate-900">{f.name}</span>
-                                  <span className="text-slate-600">
-                                    {house?.houseName} · placed {Number(f.originallyPlaced || 0).toLocaleString()} · current{" "}
-                                    {Number(f.currentLiveBirds || 0).toLocaleString()}
-                                    {b.difference > 0 && <span className="text-amber-700"> · opening reduction {b.difference.toLocaleString()}</span>}
-                                  </span>
-                                </div>
-                              )
-                            })}
+                          {/* WHAT WILL ACTUALLY BE CREATED, separated from what is
+                              only being reused. A farm reopening the tool needs to
+                              see at a glance that its existing records are not about
+                              to be duplicated. */}
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div className="rounded-lg border border-slate-200 bg-white p-3">
+                              <p className="mb-1 font-medium text-slate-900">Houses/pens</p>
+                              <p className="text-sm text-slate-600">
+                                {draft.houses.filter((h) => h.existingHouseId != null).length.toLocaleString()} existing, reused ·{" "}
+                                <span className="font-medium text-blue-700">
+                                  {draft.houses.filter((h) => h.existingHouseId == null).length.toLocaleString()} to create
+                                </span>
+                              </p>
+                            </div>
+                            <div className="rounded-lg border border-slate-200 bg-white p-3">
+                              <p className="mb-1 font-medium text-slate-900">Batches</p>
+                              <p className="text-sm text-slate-600">
+                                {draft.batches.filter((b) => b.existingBatchId != null).length.toLocaleString()} existing, reused ·{" "}
+                                <span className="font-medium text-blue-700">
+                                  {draft.batches.filter((b) => b.existingBatchId == null).length.toLocaleString()} to create
+                                </span>
+                              </p>
+                            </div>
                           </div>
+
+                          {/* Grouped by batch, because that is the unit the
+                              allocation step works in and the unit the arithmetic
+                              has to balance in. */}
+                          {batchViews.filter((v) => v.thisAllocation > 0 || draft.flocks.some((f) => f.batchKey === v.batch.key)).map((v) => (
+                            <div key={v.batch.key} className="rounded-lg border border-slate-200 bg-white">
+                              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2">
+                                <span className="flex items-center gap-2 font-medium text-slate-900">
+                                  {v.batch.batchCode || v.batch.batchName}
+                                  <BatchStatusBadge status={v.status} />
+                                  {v.batch.existingBatchId == null && !v.batch.isHistorical && (
+                                    <Badge variant="outline" className="h-5 px-1.5 text-[10px] border-blue-300 text-blue-700">
+                                      New purchase
+                                    </Badge>
+                                  )}
+                                </span>
+                                <span className="text-xs text-slate-600 tabular-nums">
+                                  original {v.batchBirds.toLocaleString()} · already {v.previouslyAllocated.toLocaleString()} ·
+                                  {" "}this {v.thisAllocation.toLocaleString()} · remaining {v.remaining.toLocaleString()}
+                                </span>
+                              </div>
+                              <div className="divide-y divide-slate-100">
+                                {draft.flocks.filter((f) => f.batchKey === v.batch.key).map((f) => {
+                                  const house = draft.houses.find((h) => h.key === f.houseKey)
+                                  const b = breakdown(f)
+                                  return (
+                                    <div key={f.key} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
+                                      <span className="font-medium text-slate-900">{f.name}</span>
+                                      <span className="text-slate-600">
+                                        {house?.houseName} · placed {Number(f.originallyPlaced || 0).toLocaleString()} · current{" "}
+                                        {Number(f.currentLiveBirds || 0).toLocaleString()}
+                                        {b.difference > 0 && <span className="text-amber-700"> · opening reduction {b.difference.toLocaleString()}</span>}
+                                      </span>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          ))}
 
                           {warnings.length > 0 && (
                             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-1">
-                              {warnings.map((w, i) => (
-                                <p key={i} className="text-sm text-amber-800 flex items-start gap-2">
-                                  <TriangleAlert className="w-4 h-4 shrink-0 mt-0.5" /> {w.message}
-                                </p>
-                              ))}
+                              {warnings.map((w, i) => {
+                                const fix = fixFor(w)
+                                return (
+                                  <p key={i} className="text-sm text-amber-800 flex items-start gap-2">
+                                    <TriangleAlert className="w-4 h-4 shrink-0 mt-0.5" />
+                                    <span>
+                                      {w.message}
+                                      {fix && (
+                                        <>
+                                          {" "}
+                                          <button type="button" onClick={fix.onClick}
+                                            className="font-medium underline underline-offset-2 hover:no-underline">
+                                            {fix.label}
+                                          </button>
+                                        </>
+                                      )}
+                                    </span>
+                                  </p>
+                                )
+                              })}
                             </div>
                           )}
 
@@ -998,11 +1983,26 @@ export default function PoultryFarmSetupPage() {
                               click. */}
                           {errors.length > 0 && (
                             <div className="rounded-lg border border-red-200 bg-red-50 p-3 space-y-1">
-                              {errors.map((e, i) => (
-                                <p key={i} className="text-sm text-red-700 flex items-start gap-2">
-                                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" /> {e.message}
-                                </p>
-                              ))}
+                              {errors.map((e, i) => {
+                                const fix = fixFor(e)
+                                return (
+                                  <p key={i} className="text-sm text-red-700 flex items-start gap-2">
+                                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                                    <span>
+                                      {e.message}
+                                      {fix && (
+                                        <>
+                                          {" "}
+                                          <button type="button" onClick={fix.onClick}
+                                            className="font-medium underline underline-offset-2 hover:no-underline">
+                                            {fix.label}
+                                          </button>
+                                        </>
+                                      )}
+                                    </span>
+                                  </p>
+                                )
+                              })}
                             </div>
                           )}
                         </div>
@@ -1029,7 +2029,12 @@ export default function PoultryFarmSetupPage() {
                           <ArrowLeft className="w-4 h-4" /> {step === 0 ? "Cancel" : "Back & Edit"}
                         </Button>
                         <div className="flex items-center gap-3">
-                          <span className="hidden text-xs text-slate-500 sm:inline">Step {step + 1} of {STEPS.length}</span>
+                          <span className="hidden text-xs text-slate-500 sm:inline">
+                            {draftState === "saving" ? "Saving…"
+                              : draftState === "saved" ? "Saved"
+                              : draftState === "error" ? "Not saved — check your connection"
+                              : `Step ${step + 1} of ${STEPS.length}`}
+                          </span>
                           {step < 4 ? (
                             <Button onClick={goNext} className="gap-1 bg-blue-600 hover:bg-blue-700">
                               Continue <ArrowRight className="w-4 h-4" />
@@ -1049,6 +2054,42 @@ export default function PoultryFarmSetupPage() {
           </div>
         </main>
       </div>
+
+      {/* Opened from the capacity note on an allocation row, so a stale capacity
+          can be fixed where it is discovered. */}
+      <PenCapacityDialog
+        open={capacityPen !== null}
+        onOpenChange={(next) => { if (!next) setCapacityPenKey(null) }}
+        penName={capacityPen?.load?.label || capacityPen?.row.houseName || ""}
+        capacity={capacityPen?.load?.capacity ?? null}
+        occupied={capacityPen?.load?.occupied ?? 0}
+        standing={capacityPen?.load?.standing ?? 0}
+        savesImmediately={capacityPen?.row.existingHouseId != null}
+        onSave={saveCapacity}
+      />
+
+      {/* Opened when the allocation runs out of pens, so "nowhere to put them"
+          comes with the way to fix it rather than directions elsewhere. */}
+      <NewPenDialog
+        open={newPenOpen}
+        onOpenChange={setNewPenOpen}
+        suggestedName={suggestedPenName}
+        takenNames={draft.houses.map((h) => h.houseName)}
+        onCreate={addPen}
+      />
+
+      {/* Opened from the batch's own warning, for the same reason: the message
+          says "raise the batch", so it should be possible to do it here. */}
+      <BatchSizeDialog
+        open={sizeBatch !== null}
+        onOpenChange={(next) => { if (!next) setSizeBatchKey(null) }}
+        batchLabel={sizeBatch?.batch.batchCode || sizeBatch?.batch.batchName || ""}
+        batchBirds={sizeBatch?.batchBirds ?? 0}
+        previouslyAllocated={sizeBatch?.previouslyAllocated ?? 0}
+        thisAllocation={sizeBatch?.thisAllocation ?? 0}
+        savesImmediately={sizeBatch?.batch.existingBatchId != null}
+        onSave={saveBatchSize}
+      />
     </div>
   )
 }
@@ -1077,7 +2118,7 @@ const rowShell = (index: number, live?: Record<string, string>, server?: Record<
 }
 
 function sectionForStep(step: Step): string {
-  return step === 0 ? "batches" : step === 1 ? "houses" : "flocks"
+  return step === 0 ? "houses" : step === 1 ? "batches" : "flocks"
 }
 
 /**
@@ -1086,7 +2127,7 @@ function sectionForStep(step: Step): string {
  * a row of pills says neither at a glance. Completed steps carry a tick so the
  * rail reads as progress rather than as a menu.
  */
-function StepBar({ step }: { step: Step }) {
+function StepBar({ step, onGo }: { step: Step; onGo: (step: Step) => void }) {
   return (
     <>
       {/* Phones: the rail does not fit, and a horizontal scrollbar hides the
@@ -1100,6 +2141,19 @@ function StepBar({ step }: { step: Step }) {
           <div className="h-full rounded-full bg-blue-600 transition-all"
             style={{ width: `${((step + 1) / STEPS.length) * 100}%` }} />
         </div>
+        <div className="mt-2 flex gap-1">
+          {STEPS.map((label, i) => (
+            <button key={label} type="button" onClick={() => onGo(i as Step)}
+              aria-label={`Go to ${label}`} aria-current={i === step ? "step" : undefined}
+              className={`h-7 flex-1 rounded-md text-xs font-medium transition-colors ${
+                i === step ? "bg-blue-600 text-white"
+                  : i < step ? "bg-blue-100 text-blue-700"
+                  : "bg-slate-100 text-slate-500"
+              }`}>
+              {i + 1}
+            </button>
+          ))}
+        </div>
       </div>
 
       <ol className="hidden sm:flex items-start gap-1 overflow-x-auto pb-1">
@@ -1108,7 +2162,12 @@ function StepBar({ step }: { step: Step }) {
         const current = i === step
         return (
           <li key={label} className="flex items-start gap-1 shrink-0">
-            <div className="flex flex-col items-center gap-1.5 w-[104px] sm:w-[128px] text-center">
+            {/* A step is a button. Someone who spots a wrong pen capacity on
+                Review should be able to get back to it in one click rather than
+                four, and a rail that only ever lights up is furniture. */}
+            <button type="button" onClick={() => onGo(i as Step)}
+              aria-current={current ? "step" : undefined}
+              className="flex flex-col items-center gap-1.5 w-[104px] sm:w-[128px] text-center rounded-md p-1 -m-1 transition-colors hover:bg-slate-50">
               <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ring-4 transition-colors ${
                 current ? "bg-blue-600 text-white ring-blue-100"
                   : done ? "bg-blue-100 text-blue-700 ring-transparent"
@@ -1121,7 +2180,7 @@ function StepBar({ step }: { step: Step }) {
               }`}>
                 {label}
               </span>
-            </div>
+            </button>
             {i < STEPS.length - 1 && (
               <span className={`h-8 w-6 sm:w-10 border-t-2 mt-4 ${done ? "border-blue-200" : "border-slate-200"}`} />
             )}
@@ -1164,17 +2223,84 @@ function Section({ title, description, icon: Icon, children }: {
 }
 
 /** The column headings for a grid step. Desktop only -- on mobile each field carries its own. */
-function RowHeader({ label, badge, onRemove }: { label: string; badge: React.ReactNode; onRemove: () => void }) {
+function RowHeader({ label, badge, onRemove }: {
+  label: string; badge: React.ReactNode
+  /** Omitted for a row that is not this setup's to remove. */
+  onRemove?: () => void
+}) {
   return (
     <div className="mb-3 flex items-center justify-between gap-2 border-b border-slate-100 pb-2 md:hidden">
       <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</span>
       <span className="flex items-center gap-1">
         {badge}
-        <Button type="button" variant="ghost" size="sm" onClick={onRemove} className="h-7 px-2 text-red-600 hover:bg-red-50">
-          <Trash2 className="h-4 w-4" />
-        </Button>
+        {onRemove && (
+          <Button type="button" variant="ghost" size="sm" onClick={onRemove} className="h-7 px-2 text-red-600 hover:bg-red-50">
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        )}
       </span>
     </div>
+  )
+}
+
+/** One number with its label. The allocation header is four of these. */
+function Figure({ label, value, tone = "slate" }: {
+  label: string; value: number; tone?: "slate" | "blue" | "amber" | "emerald" | "red"
+}) {
+  const tones = {
+    slate: "text-slate-900", blue: "text-blue-700", amber: "text-amber-700",
+    emerald: "text-emerald-700", red: "text-red-700",
+  } as const
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+      <p className="text-xs text-slate-500">{label}</p>
+      <p className={`text-base font-semibold tabular-nums ${tones[tone]}`}>{value.toLocaleString()}</p>
+    </div>
+  )
+}
+
+/** Where a batch stands, at a glance, in the batch strip. */
+function BatchStatusBadge({ status }: { status: BatchAllocationStatus }) {
+  const map = {
+    over: ["border-red-300 text-red-700", "Over"],
+    unallocated: ["border-blue-300 text-blue-700", "New"],
+    partial: ["border-amber-300 text-amber-700", "Partial"],
+    complete: ["border-emerald-300 text-emerald-700", "Done"],
+  } as const
+  const [className, label] = map[status]
+  return <Badge variant="outline" className={`h-5 px-1.5 text-[10px] ${className}`}>{label}</Badge>
+}
+
+/** A quiet heading inside a card, so a long form still reads as sections. */
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{children}</p>
+  )
+}
+
+/**
+ * A radio-style choice with room to say what it MEANS. The historical-versus-new
+ * decision changes what gets posted to the books, so it earns a sentence rather
+ * than a bare label.
+ */
+function RadioRow({ checked, onSelect, title, detail }: {
+  checked: boolean; onSelect: () => void; title: string; detail: string
+}) {
+  return (
+    <button type="button" onClick={onSelect}
+      className={`flex w-full items-start gap-2 rounded-lg border px-3 py-2 text-left transition-colors ${
+        checked ? "border-blue-400 bg-blue-50" : "border-slate-200 bg-white hover:bg-slate-50"
+      }`}>
+      <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${
+        checked ? "border-blue-600" : "border-slate-300"
+      }`}>
+        {checked && <span className="h-2 w-2 rounded-full bg-blue-600" />}
+      </span>
+      <span className="min-w-0">
+        <span className="block text-sm font-medium text-slate-900">{title}</span>
+        <span className="block text-xs leading-relaxed text-slate-600">{detail}</span>
+      </span>
+    </button>
   )
 }
 
@@ -1186,8 +2312,13 @@ function GridHeader({ columns }: { columns: [string, string][] }) {
   )
 }
 
-function Field({ label, error, hint, className, children, mobileOnlyLabel }: {
+function Field({ label, error, hint, note, className, children, mobileOnlyLabel }: {
   label?: React.ReactNode; error?: string; hint?: string; className?: string
+  /**
+   * Amber, for something worth acting on that must not block. Sits under `hint`.
+   * A node rather than a string so it can offer the fix as well as name it.
+   */
+  note?: React.ReactNode
   children: React.ReactNode
   /** The grid already shows this column's heading on desktop; only repeat it on mobile. */
   mobileOnlyLabel?: boolean
@@ -1199,6 +2330,11 @@ function Field({ label, error, hint, className, children, mobileOnlyLabel }: {
       )}
       {children}
       {hint && !error && <p className="text-xs text-slate-500">{hint}</p>}
+      {note && !error && (
+        <p className="text-xs text-amber-700 flex items-start gap-1">
+          <TriangleAlert className="w-3 h-3 shrink-0 mt-0.5" /> {note}
+        </p>
+      )}
       {error && (
         <p className="text-xs text-red-600 flex items-start gap-1">
           <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" /> {error}
@@ -1266,9 +2402,30 @@ function Stat({ label, value, tone = "slate", small }: {
  * button. Re-running the wizard would create the whole farm a second time, so
  * the way back in is deliberately absent.
  */
-function CompletedPanel({ status, opening }: { status: FarmSetupStatus; opening: OpeningPositionSummary | null }) {
+function CompletedPanel({ status, opening, onSetUpMore }: {
+  status: FarmSetupStatus; opening: OpeningPositionSummary | null; onSetUpMore: () => void
+}) {
   return (
     <div className="space-y-4">
+      {/* FIRST on the page. The tool is no longer one-shot, and starting another
+          setup is the only reason a farm opens this screen — everything below is
+          a record of what already happened. */}
+      <Card className="border-2 border-blue-300 bg-blue-50">
+        <CardContent className="flex flex-col items-start gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <h3 className="text-lg font-semibold text-slate-900">Do another bulk setup</h3>
+            <p className="mt-1 text-sm leading-relaxed text-slate-600">
+              Built new pens, or bought another batch? Run the setup again to add and allocate them in one go.
+              Your existing pens, batches and flocks are kept — nothing here is created twice.
+            </p>
+          </div>
+          <Button size="lg" onClick={onSetUpMore}
+            className="w-full shrink-0 gap-2 bg-blue-600 px-8 text-base hover:bg-blue-700 sm:w-auto">
+            <Plus className="h-5 w-5" /> Do another bulk setup
+          </Button>
+        </CardContent>
+      </Card>
+
       <Card className="border-emerald-200">
         <CardContent className="p-6 space-y-3">
           <div className="flex items-center gap-2">
@@ -1293,7 +2450,6 @@ function CompletedPanel({ status, opening }: { status: FarmSetupStatus; opening:
             <Link href="/houses" className="text-blue-600 hover:underline">Houses</Link>,{" "}
             <Link href="/flocks" className="text-blue-600 hover:underline">Flock Groups</Link> and{" "}
             <Link href="/production-records" className="text-blue-600 hover:underline">Production Records</Link>.
-            A new batch six months from now goes through Flock Purchases and Divide Into Flocks — not through here.
           </p>
         </CardContent>
       </Card>

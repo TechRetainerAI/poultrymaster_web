@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Npgsql;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 using System;
@@ -221,7 +222,21 @@ namespace PoultryFarmAPIWeb.Controllers
             if (string.IsNullOrEmpty(farmId)) return BadRequest("FarmId is required.");
             var existing = _service.GetById(id, userId, farmId);
             if (existing == null) return NotFound();
-            _service.Delete(id, userId, farmId);
+
+            try
+            {
+                _service.Delete(id, userId, farmId);
+            }
+            catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.ForeignKeyViolation)
+            {
+                // A house that still holds birds refuses to be deleted
+                // (sphouse_delete, migration 327). That is an expected answer, not
+                // a server fault: without this it reached the caller as an
+                // unhandled 500, which reads like the application broke rather
+                // than like the rule it is.
+                return Conflict(new { message = ex.MessageText });
+            }
+
             return NoContent();
         }
     }

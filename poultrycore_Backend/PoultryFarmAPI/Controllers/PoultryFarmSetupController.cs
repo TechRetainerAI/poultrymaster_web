@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Npgsql;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 using System;
@@ -105,15 +106,72 @@ namespace PoultryFarmAPIWeb.Controllers
                 .GroupBy(f => f.BatchId)
                 .ToDictionary(g => g.Key, g => g.Sum(f => f.Quantity));
 
+            // The flocks the farm already has, for the allocation step's read-only
+            // "existing assignments" panel. A projection rather than the whole
+            // model: this is context to look at, not something the wizard edits,
+            // and sending less is the cheapest way to keep it that way.
+            var existingFlockRows = flocks.Select(f => new
+            {
+                f.FlockId,
+                f.Name,
+                f.BatchId,
+                f.HouseId,
+                f.Quantity,
+                f.Active,
+                HouseName = houses.FirstOrDefault(h => h.HouseId == f.HouseId)?.HouseName,
+            }).ToList();
+
             return Ok(new
             {
                 Status = await _setupService.GetStatusAsync(userId, farmId),
                 BusinessDate = await _companyTime.GetBusinessDateAsync(farmId),
                 Batches = batches,
                 Houses = houses,
+                Flocks = existingFlockRows,
                 ExistingFlockNames = flocks.Select(f => f.Name).Where(n => !string.IsNullOrWhiteSpace(n)).ToList(),
                 AllocatedByBatchId = allocated,
             });
+        }
+
+        // ---- The unfinished setup ---------------------------------------
+        //
+        // A bulk setup is twenty minutes of typing, and it used to live only in
+        // the browser tab it was typed in. Kept per COMPANY so it follows the
+        // farm rather than the device -- see migration 328.
+
+        // GET: api/PoultryFarmSetup/draft
+        [HttpGet("draft")]
+        public async Task<ActionResult<object>> GetDraft([FromQuery] string userId, [FromQuery] string farmId)
+        {
+            if (string.IsNullOrEmpty(userId)) return BadRequest("UserId is required.");
+            if (string.IsNullOrEmpty(farmId)) return BadRequest("FarmId is required.");
+
+            var draft = await _setupService.GetDraftAsync(farmId);
+            // Absent is an ordinary answer here, not a 404: "have I got one?" is
+            // the question, and "no" is a fine reply.
+            return Ok(new { HasDraft = draft is not null, Draft = draft });
+        }
+
+        // PUT: api/PoultryFarmSetup/draft
+        [HttpPut("draft")]
+        public async Task<ActionResult<object>> SaveDraft([FromBody] FarmSetupDraftModel body)
+        {
+            if (body is null) return BadRequest("A request body is required.");
+            if (string.IsNullOrEmpty(body.FarmId)) return BadRequest("FarmId is required.");
+
+            var at = await _setupService.SaveDraftAsync(body);
+            return Ok(new { SavedAt = at });
+        }
+
+        // DELETE: api/PoultryFarmSetup/draft
+        [HttpDelete("draft")]
+        public async Task<ActionResult<object>> DeleteDraft([FromQuery] string userId, [FromQuery] string farmId)
+        {
+            if (string.IsNullOrEmpty(userId)) return BadRequest("UserId is required.");
+            if (string.IsNullOrEmpty(farmId)) return BadRequest("FarmId is required.");
+
+            var discarded = await _setupService.DeleteDraftAsync(farmId);
+            return Ok(new { Discarded = discarded });
         }
 
         // POST: api/PoultryFarmSetup/complete
@@ -155,31 +213,37 @@ namespace PoultryFarmAPIWeb.Controllers
                 }
             }
 
-            var status = await _setupService.GetStatusAsync(request.UserId, request.FarmId);
-            if (status.IsComplete)
-            {
-                return Conflict(new FarmSetupResult
-                {
-                    Success = false,
-                    Message = "Initial farm setup has already been completed for this company. Use Flock Purchases, Houses and Flock Groups to add more.",
-                });
-            }
+            // A COMPLETED SETUP NO LONGER REFUSES A SUBMISSION. This tool is meant
+            // to be reopened -- a farm that builds new pens or buys another batch
+            // comes back to it months later -- so "you have already done this" is
+            // the wrong answer. What must still be refused is creating the same
+            // thing twice, and every way of doing that (a duplicate batch code,
+            // house name or flock name) is already a validation error below.
 
             // Everything the validator compares against, read through the ordinary
             // farm-scoped readers -- which is also what keeps company scoping in one
             // place. A batch or house from another company is simply not in these
             // lists, so a row naming one is rejected as unavailable.
-            var existingBatches = await _batchService.GetAll(request.UserId, request.FarmId);
-            var existingFlocks = _flockService.GetAllFlocks(request.UserId, request.FarmId);
-            var existingHouses = BuildOccupancy(_houseService.GetAll(request.UserId, request.FarmId), existingFlocks);
-            var allocatedByBatch = existingFlocks
-                .Where(f => f.BatchId > 0)
-                .GroupBy(f => f.BatchId)
-                .ToDictionary(g => g.Key, g => g.Sum(f => f.Quantity));
+            //
+            // A local function because it is run TWICE: once here, to answer the
+            // caller properly, and again inside the setup lock, against whatever has
+            // been committed by then.
+            async Task<(List<FarmSetupRowError> Errors, List<FarmSetupRowError> Warnings)> ValidateNowAsync()
+            {
+                var existingBatches = await _batchService.GetAll(request.UserId, request.FarmId);
+                var existingFlocks = _flockService.GetAllFlocks(request.UserId, request.FarmId);
+                var existingHouses = BuildOccupancy(_houseService.GetAll(request.UserId, request.FarmId), existingFlocks);
+                var allocatedByBatch = existingFlocks
+                    .Where(f => f.BatchId > 0)
+                    .GroupBy(f => f.BatchId)
+                    .ToDictionary(g => g.Key, g => g.Sum(f => f.Quantity));
 
-            var (errors, warnings) = FarmSetupValidator.Validate(
-                request, existingBatches, existingHouses,
-                existingFlocks.Select(f => f.Name), allocatedByBatch);
+                return FarmSetupValidator.Validate(
+                    request, existingBatches, existingHouses,
+                    existingFlocks.Select(f => f.Name), allocatedByBatch);
+            }
+
+            var (errors, warnings) = await ValidateNowAsync();
 
             if (errors.Count > 0)
             {
@@ -202,11 +266,63 @@ namespace PoultryFarmAPIWeb.Controllers
             FarmSetupResult result;
             try
             {
-                result = await _setupService.CompleteAsync(request, businessDate);
+                // The same validation again, inside the company's setup lock, so a
+                // second tab that passed the check above cannot commit on top of
+                // what the first one just created.
+                result = await _setupService.CompleteAsync(
+                    request, businessDate,
+                    async () => (IReadOnlyList<FarmSetupRowError>)(await ValidateNowAsync()).Errors);
             }
-            catch (FarmSetupAlreadyCompleteException ex)
+            catch (FarmSetupConflictException ex)
             {
-                return Conflict(new FarmSetupResult { Success = false, Message = ex.Message });
+                // Nothing was created. The rows that clash are named, so the wizard
+                // can point at them instead of showing a bare conflict.
+                _logger.LogInformation(
+                    "Farm setup for farm {FarmId} was rejected under the lock: {Count} row(s) now clash.",
+                    request.FarmId, ex.Errors.Count);
+                return Conflict(new FarmSetupResult
+                {
+                    Success = false,
+                    Errors = ex.Errors.ToList(),
+                    Warnings = warnings,
+                    Message = ex.Message,
+                });
+            }
+            catch (FarmSetupStageException staged)
+            {
+                var pg = staged.Inner;
+                _logger.LogError(staged,
+                    "Farm setup failed for farm {FarmId} while {Stage}. {SqlState} {Message} | table={Table} column={Column} routine={Routine} position={Position} | where={Where}",
+                    request.FarmId, staged.Stage, pg.SqlState, pg.MessageText,
+                    pg.TableName, pg.ColumnName, pg.Routine, pg.Position, pg.Where);
+
+                return StatusCode(500, new FarmSetupResult
+                {
+                    Success = false,
+                    Message = $"Nothing was created. {staged.Message}"
+                              + (string.IsNullOrWhiteSpace(pg.Routine) ? "" : $" [{pg.Routine} @{pg.Position}]"),
+                });
+            }
+            catch (PostgresException pg)
+            {
+                // Nothing was created -- CompleteAsync rolled the whole setup back.
+                //
+                // Postgres says WHERE it failed: for an error raised inside a stored
+                // function, `Where` carries the PL/pgSQL context ("function X line
+                // N at SQL statement"). Throwing that away left a bare "column does
+                // not exist" with nothing to chase, so it is kept here.
+                _logger.LogError(pg,
+                    "Farm setup failed for farm {FarmId}; nothing was created. {SqlState} {Message} | table={Table} column={Column} routine={Routine} | where={Where}",
+                    request.FarmId, pg.SqlState, pg.MessageText, pg.TableName, pg.ColumnName, pg.Routine, pg.Where);
+
+                var detail = string.IsNullOrWhiteSpace(pg.Where)
+                    ? pg.MessageText
+                    : $"{pg.MessageText} — in {pg.Where.Replace('\n', ';')}";
+                return StatusCode(500, new FarmSetupResult
+                {
+                    Success = false,
+                    Message = $"Nothing was created. {pg.SqlState}: {detail}",
+                });
             }
             catch (Exception ex)
             {

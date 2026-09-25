@@ -23,7 +23,36 @@ namespace PoultryFarmAPIWeb.Business
         /// anything pretending to be a day's mortality.
         /// </para>
         /// </summary>
-        Task<FarmSetupResult> CompleteAsync(FarmSetupRequest request, System.DateTime effectiveBusinessDate);
+        /// <param name="revalidate">
+        /// Re-runs the caller's validation against freshly read data, and is invoked
+        /// INSIDE the company's setup lock.
+        ///
+        /// <para>This is what replaced "one setup per company, ever". The tool is
+        /// now meant to be reopened — a farm that builds new pens or buys another
+        /// batch comes back to it — so a completed setup can no longer be the thing
+        /// that refuses a submission. What must still be refused is creating the
+        /// same farm twice, and every way of doing that is already a validation
+        /// error: a duplicate batch code, house name or flock name.</para>
+        ///
+        /// <para>Validating once in the caller is not enough, because two tabs can
+        /// both pass before either commits. Running it again under the lock closes
+        /// that window: the second session reads what the first just committed and
+        /// is rejected with ordinary row errors rather than silently doubling the
+        /// farm.</para>
+        /// </param>
+        Task<FarmSetupResult> CompleteAsync(
+            FarmSetupRequest request,
+            System.DateTime effectiveBusinessDate,
+            System.Func<Task<IReadOnlyList<FarmSetupRowError>>> revalidate);
+
+        /// <summary>The company's unfinished setup, or null when there is none.</summary>
+        Task<FarmSetupDraftModel?> GetDraftAsync(string farmId);
+
+        /// <summary>Write the unfinished setup, replacing whatever was there.</summary>
+        Task<DateTime> SaveDraftAsync(FarmSetupDraftModel draft);
+
+        /// <summary>Throw it away. Returns false when there was nothing to discard.</summary>
+        Task<bool> DeleteDraftAsync(string farmId);
 
         /// <summary>
         /// Restate one flock's opening position. Refused once the flock has
@@ -51,12 +80,44 @@ namespace PoultryFarmAPIWeb.Business
     }
 
     /// <summary>
-    /// The wizard was already run for this company. Thrown rather than returned so
-    /// it cannot be ignored by a caller that forgot to look at a flag.
+    /// A database error during setup, with the step that caused it.
+    ///
+    /// <para>The setup runs about twenty statements in one transaction. A bare
+    /// SQLSTATE tells you what went wrong and nothing about where, which is a
+    /// long way to walk back. This names the step.</para>
     /// </summary>
-    public class FarmSetupAlreadyCompleteException : System.Exception
+    public class FarmSetupStageException : System.Exception
     {
-        public FarmSetupAlreadyCompleteException()
-            : base("Initial farm setup has already been completed for this company. Use the ordinary Flock Purchases, Houses and Flock Groups pages to add more.") { }
+        public string Stage { get; }
+        public Npgsql.PostgresException Inner { get; }
+
+        public FarmSetupStageException(string stage, Npgsql.PostgresException inner)
+            : base($"{inner.SqlState}: {inner.MessageText} — while {stage}", inner)
+        {
+            Stage = stage;
+            Inner = inner;
+        }
+    }
+
+    /// <summary>
+    /// Another session created part of this farm while this one was being filled
+    /// in, so submitting it now would create something twice. Carries the ordinary
+    /// row errors, so the wizard can point at the rows that clash rather than
+    /// showing a bare conflict.
+    ///
+    /// <para>Thrown rather than returned so it cannot be ignored by a caller that
+    /// forgot to look at a flag.</para>
+    /// </summary>
+    public class FarmSetupConflictException : System.Exception
+    {
+        public IReadOnlyList<FarmSetupRowError> Errors { get; }
+
+        public FarmSetupConflictException(IReadOnlyList<FarmSetupRowError> errors)
+            : base(errors.Count == 1
+                ? errors[0].Message
+                : $"{errors.Count} rows now clash with records created while this setup was open.")
+        {
+            Errors = errors;
+        }
     }
 }

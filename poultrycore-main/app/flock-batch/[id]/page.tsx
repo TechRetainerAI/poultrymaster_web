@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { BreedSelect } from "@/components/poultry/breed-select"
 import { useRouter, useParams } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -81,7 +82,7 @@ export default function EditFlockBatchPage() {
       return
     }
 
-    if (!formData.batchName.trim() || !formData.batchCode.trim() || !formData.breed.trim() || !formData.startDate) {
+    if (!formData.batchName.trim() || !formData.batchCode.trim() || !formData.startDate) {
       setError("Please fill in all required fields")
       return
     }
@@ -230,15 +231,12 @@ export default function EditFlockBatchPage() {
 
                   <div className="space-y-2">
                     <Label htmlFor="breed" className="text-sm font-medium text-slate-700">
-                      Breed *
+                      Breed
                     </Label>
-                    <Input
-                      id="breed"
-                      type="text"
-                      placeholder="e.g., Rhode Island Red"
+                    <BreedSelect
                       value={formData.breed}
-                      onChange={(e) => handleInputChange("breed", e.target.value)}
-                      required
+                      known={[]}
+                      onChange={(breed) => handleInputChange("breed", breed)}
                       disabled={saving}
                     />
                   </div>

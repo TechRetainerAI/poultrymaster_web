@@ -112,6 +112,74 @@ namespace PoultryFarmAPIWeb.Business
         }
 
         // ------------------------------------------------------------------
+        // The unfinished setup
+        // ------------------------------------------------------------------
+
+        public async Task<FarmSetupDraftModel?> GetDraftAsync(string farmId)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM sppoultryfarmsetupdraft_get(p_farmid => @FarmId::text)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+
+            using var reader = await cmd.ExecuteReaderAsync();
+            if (!await reader.ReadAsync()) return null;
+
+            return new FarmSetupDraftModel
+            {
+                FarmId = reader.GetString(reader.GetOrdinal("farmid")),
+                // Handed back as the text the wizard sent. The server never reads
+                // into it -- see the note in migration 328 on why it is jsonb.
+                Draft = reader.GetString(reader.GetOrdinal("draft")),
+                Step = reader.GetInt32(reader.GetOrdinal("step")),
+                Phase = reader.IsDBNull(reader.GetOrdinal("phase")) ? null : reader.GetString(reader.GetOrdinal("phase")),
+                UpdatedBy = reader.IsDBNull(reader.GetOrdinal("updatedby")) ? null : reader.GetString(reader.GetOrdinal("updatedby")),
+                UpdatedAt = reader.GetDateTime(reader.GetOrdinal("updatedat")),
+            };
+        }
+
+        public async Task<DateTime> SaveDraftAsync(FarmSetupDraftModel draft)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM sppoultryfarmsetupdraft_save(" +
+                "p_farmid => @FarmId::text, p_draft => @Draft::jsonb, p_step => @Step::int, " +
+                "p_phase => @Phase::text, p_updatedby => @UpdatedBy::text)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", draft.FarmId);
+            cmd.Parameters.AddWithValue("@Draft", string.IsNullOrWhiteSpace(draft.Draft) ? "{}" : draft.Draft);
+            cmd.Parameters.AddWithValue("@Step", draft.Step);
+            cmd.Parameters.AddWithValue("@Phase", (object?)draft.Phase ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@UpdatedBy", (object?)draft.UpdatedBy ?? DBNull.Value);
+
+            var at = await cmd.ExecuteScalarAsync();
+            return at is DateTime stamp ? stamp : DateTime.UtcNow;
+        }
+
+        public async Task<bool> DeleteDraftAsync(string farmId)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            return await DeleteDraftAsync(farmId, conn, null);
+        }
+
+        /// <summary>
+        /// The in-transaction form, so completing a setup discards its draft as
+        /// part of the same commit. A draft that outlived the farm it created
+        /// would offer to resume work that has already been done.
+        /// </summary>
+        private static async Task<bool> DeleteDraftAsync(
+            string farmId, NpgsqlConnection conn, NpgsqlTransaction? tx)
+        {
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM sppoultryfarmsetupdraft_delete(p_farmid => @FarmId::text)", conn, tx);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            var rows = await cmd.ExecuteScalarAsync();
+            return Convert.ToInt32(rows ?? 0) > 0;
+        }
+
+        // ------------------------------------------------------------------
         // Opening positions
         // ------------------------------------------------------------------
 
@@ -171,7 +239,10 @@ namespace PoultryFarmAPIWeb.Business
         // The setup itself
         // ------------------------------------------------------------------
 
-        public async Task<FarmSetupResult> CompleteAsync(FarmSetupRequest request, DateTime effectiveBusinessDate)
+        public async Task<FarmSetupResult> CompleteAsync(
+            FarmSetupRequest request,
+            DateTime effectiveBusinessDate,
+            Func<Task<IReadOnlyList<FarmSetupRowError>>> revalidate)
         {
             var source = string.IsNullOrWhiteSpace(request.Source) ? "Initial Farm Setup" : request.Source!.Trim();
             var result = new FarmSetupResult { EffectiveBusinessDate = effectiveBusinessDate.Date };
@@ -180,20 +251,35 @@ namespace PoultryFarmAPIWeb.Business
             await conn.OpenAsync();
             using var tx = await conn.BeginTransactionAsync();
 
+            // Which call we are on, so a database error names the step that raised
+            // it. Without this a failure anywhere in a twenty-statement sequence
+            // arrives as a bare SQLSTATE with nothing to chase.
+            var stage = "opening the transaction";
             try
             {
-                // One wizard per company at a time. Without this, two tabs can both
-                // pass the "not set up yet" check and each create the whole farm.
+                // One setup session per company at a time.
+                stage = "taking the company setup lock";
                 using (var lockCmd = new NpgsqlCommand("SELECT pg_advisory_xact_lock(hashtext(@Key))", conn, tx))
                 {
                     lockCmd.Parameters.AddWithValue("@Key", $"farm-setup:{request.FarmId}");
                     await lockCmd.ExecuteNonQueryAsync();
                 }
 
-                // Re-check under the lock: the authoritative "already done".
-                if (await ReadSetupRowAsync(request.FarmId, conn, tx) is not null)
+                // Re-validate under the lock, against what is committed RIGHT NOW.
+                //
+                // This used to be "has this company been set up before?", which made
+                // the tool usable exactly once. It is meant to be reopened -- a farm
+                // that builds new pens or buys another batch comes back -- so the
+                // question is no longer "has setup run?" but "would this submission
+                // create something that already exists?". Duplicate batch codes,
+                // house names and flock names are all ordinary validation errors,
+                // and running that validation again here is what stops two tabs
+                // that both passed it a moment ago from doubling the farm.
+                stage = "re-checking for clashes";
+                var conflicts = await revalidate();
+                if (conflicts.Count > 0)
                 {
-                    throw new FarmSetupAlreadyCompleteException();
+                    throw new FarmSetupConflictException(conflicts);
                 }
 
                 // ---- 1. Batches -------------------------------------------
@@ -217,18 +303,30 @@ namespace PoultryFarmAPIWeb.Business
                         Breed = FarmSetupValidator.Normalize(b.Breed),
                         NumberOfBirds = b.NumberOfBirds,
                         StartDate = b.StartDate,
-                        Status = "active",
+                        Status = string.IsNullOrWhiteSpace(b.Status) ? "active" : b.Status!.Trim(),
                         // Financials are optional for an established farm; an unknown
-                        // purchase price stays zero rather than being invented, and
-                        // nothing here posts cash or revenue for a historical buy.
+                        // purchase price stays zero rather than being invented.
                         CostPerChick = b.CostPerChick ?? 0m,
                         TotalCost = b.TotalCost ?? (b.CostPerChick ?? 0m) * b.NumberOfBirds,
-                        AmountPaid = 0m,
+                        // AmountPaid is no longer forced to zero (migration 326).
+                        // Zeroing it was how this used to avoid inventing an expense
+                        // for a purchase that happened months ago — at the cost of
+                        // making every historical batch look wholly unpaid, and of
+                        // being undone the first time anyone edited it through the
+                        // ordinary page. IsHistorical now carries that decision, and
+                        // carries it in the database, so what the farm really paid
+                        // can be recorded and what it still owes comes out right.
+                        AmountPaid = b.AmountPaid ?? 0m,
+                        IsHistorical = b.IsHistorical,
                         SupplierType = b.SupplierType ?? string.Empty,
                         SupplierId = b.SupplierId,
+                        DollarConversionRate = b.DollarConversionRate,
+                        OrderPlacementDate = b.OrderPlacementDate,
+                        EstimatedArrivalDate = b.EstimatedArrivalDate,
                         Notes = b.Notes,
                     };
 
+                    stage = $"creating batch \"{model.BatchCode}\"";
                     using var cmd = MainFlockBatchService.BuildInsertCommand(conn, tx, model);
                     batchIdByKey[key] = Convert.ToInt32(await cmd.ExecuteScalarAsync());
                     result.BatchesCreated++;
@@ -246,6 +344,7 @@ namespace PoultryFarmAPIWeb.Business
                         continue;
                     }
 
+                    stage = $"creating pen \"{FarmSetupValidator.Normalize(h.HouseName)}\"";
                     using var cmd = HouseService.BuildInsertCommand(
                         conn, tx, request.UserId, request.FarmId,
                         FarmSetupValidator.Normalize(h.HouseName), h.Capacity,
@@ -271,23 +370,32 @@ namespace PoultryFarmAPIWeb.Business
                         BatchId = batchId,
                         HouseId = houseId,
                         Name = FarmSetupValidator.Normalize(f.Name),
-                        Breed = ResolveBreed(request, f),
+                        // The flock's own breed when it gave one, otherwise its
+                        // batch's — the same prefill the single Add Flock form does.
+                        Breed = string.IsNullOrWhiteSpace(f.Breed)
+                            ? ResolveBreed(request, f)
+                            : FarmSetupValidator.Normalize(f.Breed),
                         StartDate = startDate,
                         // THE line that fixes the bug: the flock starts with what is
                         // standing in the pen today, not with what was placed months
                         // ago. No production record is needed to get here.
                         Quantity = f.CurrentLiveBirds,
                         Active = true,
-                        HasArrived = true,
+                        // Onboarded birds are standing in the pen, so arrived is the
+                        // default. A NEW purchase can be allocated before it lands,
+                        // which is what the ordinary Add Flock switch is for.
+                        HasArrived = f.HasArrived ?? true,
                         Notes = f.Notes,
                     };
 
+                    stage = $"creating flock \"{flock.Name}\"";
                     using var flockCmd = BirdFlockService.BuildFlockInsertCommand(conn, tx, flock);
                     var flockId = Convert.ToInt32(await flockCmd.ExecuteScalarAsync());
                     result.FlocksCreated++;
 
                     var (mortality, sold, culled, transferred, other) = FarmSetupValidator.Breakdown(f);
 
+                    stage = $"recording the opening position for \"{flock.Name}\"";
                     using var openingCmd = new NpgsqlCommand(
                         "SELECT * FROM sppoultryopeningposition_insert(" +
                         "p_farmid => @FarmId::text, p_flockid => @FlockId::int, " +
@@ -313,8 +421,35 @@ namespace PoultryFarmAPIWeb.Business
                     openingCmd.Parameters.AddWithValue("@Source", source);
                     openingCmd.Parameters.AddWithValue("@Notes", (object?)f.Notes ?? DBNull.Value);
                     openingCmd.Parameters.AddWithValue("@CreatedBy", request.UserId);
-                    await openingCmd.ExecuteNonQueryAsync();
+                    var openingPositionId = Convert.ToInt32(await openingCmd.ExecuteScalarAsync());
                     result.OpeningPositionsCreated++;
+
+                    // The bird ledger has to be told, or it keeps the full placed
+                    // figure the batch insert put there (spmainflockbatch_insert posts
+                    // 'Bird Batch Purchase' = numberofbirds) and the closing report
+                    // reports two different bird counts from the same screen.
+                    //
+                    // Inside THIS transaction, so a farm can never end up with flocks
+                    // that say 919 and a ledger that still says 1,000. Append-only and
+                    // keyed on the opening position id, so a retry posts nothing.
+                    var reduction = FarmSetupValidator.HistoricalReduction(f);
+                    if (reduction > 0)
+                    {
+                        stage = $"posting the opening bird movement for \"{flock.Name}\"";
+                        using var ledgerCmd = new NpgsqlCommand(
+                            "SELECT * FROM sppoultryopeningbirdstock_post(" +
+                            "p_farmid => @FarmId::text, p_openingpositionid => @OpeningId::int, " +
+                            "p_reduction => @Reduction::int, p_effectivedate => @EffectiveDate::date, " +
+                            "p_note => @Note::text, p_createdby => @CreatedBy::text)", conn, tx);
+                        ledgerCmd.Parameters.AddWithValue("@FarmId", request.FarmId);
+                        ledgerCmd.Parameters.AddWithValue("@OpeningId", openingPositionId);
+                        ledgerCmd.Parameters.AddWithValue("@Reduction", reduction);
+                        ledgerCmd.Parameters.AddWithValue("@EffectiveDate", effectiveBusinessDate.Date);
+                        ledgerCmd.Parameters.AddWithValue("@Note",
+                            $"Opening historical reduction for {FarmSetupValidator.Normalize(f.Name)} ({source})");
+                        ledgerCmd.Parameters.AddWithValue("@CreatedBy", request.UserId);
+                        result.OpeningLedgerMovements += Convert.ToInt32(await ledgerCmd.ExecuteScalarAsync());
+                    }
 
                     result.OriginallyPlaced += f.OriginallyPlaced;
                     result.OpeningLiveBirds += f.CurrentLiveBirds;
@@ -322,6 +457,7 @@ namespace PoultryFarmAPIWeb.Business
                 }
 
                 // ---- 5. Mark it done --------------------------------------
+                stage = "marking the setup complete";
                 using (var completeCmd = new NpgsqlCommand(
                     "SELECT * FROM sppoultryfarmsetup_complete(" +
                     "p_farmid => @FarmId::text, p_setupmode => @SetupMode::text, " +
@@ -345,7 +481,20 @@ namespace PoultryFarmAPIWeb.Business
                     await completeCmd.ExecuteNonQueryAsync();
                 }
 
+                // The draft has become the farm. Dropped inside the SAME commit, so
+                // there is never a moment where the setup exists and something still
+                // offers to resume it.
+                stage = "discarding the saved draft";
+                await DeleteDraftAsync(request.FarmId, conn, tx);
+
                 await tx.CommitAsync();
+            }
+            catch (PostgresException pg)
+            {
+                try { await tx.RollbackAsync(); } catch { /* connection already gone */ }
+                // Re-thrown with the step attached. The database says WHAT went
+                // wrong; only we know WHICH of twenty statements asked.
+                throw new FarmSetupStageException(stage, pg);
             }
             catch
             {
@@ -429,6 +578,31 @@ namespace PoultryFarmAPIWeb.Business
                         await tx.RollbackAsync();
                         return false;
                     }
+
+                    // Restating day one restates what the ledger was told about it.
+                    // A pure RECLASSIFICATION (the same reduction, now broken down)
+                    // leaves the size unchanged, so the append-only post computes a
+                    // delta of zero and writes nothing — which is exactly right: the
+                    // birds did not move, only their explanation did.
+                    //
+                    // The movement keeps the opening position's ORIGINAL effective
+                    // date. A correction is a restatement of that day, not a new event
+                    // on the day someone noticed, and re-dating it would shift the
+                    // opening position into a period it was never part of.
+                    using var ledgerCmd = new NpgsqlCommand(
+                        "SELECT * FROM sppoultryopeningbirdstock_post(" +
+                        "p_farmid => @FarmId::text, p_openingpositionid => @OpeningId::int, " +
+                        "p_reduction => @Reduction::int, " +
+                        "p_effectivedate => (SELECT o.effectivebusinessdate FROM poultryopeningflockposition o " +
+                        "WHERE o.openingpositionid = @OpeningId::int AND o.farmid = @FarmId::text), " +
+                        "p_note => @Note::text, p_createdby => @CreatedBy::text)", conn, tx);
+                    ledgerCmd.Parameters.AddWithValue("@FarmId", correction.FarmId);
+                    ledgerCmd.Parameters.AddWithValue("@OpeningId", Convert.ToInt32(id));
+                    ledgerCmd.Parameters.AddWithValue("@Reduction", difference);
+                    ledgerCmd.Parameters.AddWithValue("@Note",
+                        $"Opening historical reduction restated (flock {correction.FlockId})");
+                    ledgerCmd.Parameters.AddWithValue("@CreatedBy", correction.UserId);
+                    await ledgerCmd.ExecuteNonQueryAsync();
                 }
 
                 // The flock's own quantity is the opening live birds, so restating

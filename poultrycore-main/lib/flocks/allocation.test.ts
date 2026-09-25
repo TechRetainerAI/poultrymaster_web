@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest"
 import {
   MAX_ROWS,
   availableCapacity, buildRows, canFillByCapacity, defaultFlockName, distributeEqually,
-  errorsByRow, fillByCapacity, parseQuantity, summarize, toPayloadItems, totalRequested,
+  consumedByBatch, errorsByRow, fillByCapacity, parseQuantity, summarize, toPayloadItems,
+  totalRequested, unallocatedForBatch,
   validateRows,
   type AllocationRow, type HouseOccupancy,
 } from "./allocation"
@@ -330,5 +331,61 @@ describe("toPayloadItems", () => {
   it("carries no company or batch on a row — those live on the envelope", () => {
     const rows = buildRows("B3", SIX_PENS.slice(0, 1)).map((r) => ({ ...r, quantity: "1" }))
     expect(Object.keys(toPayloadItems(rows)[0]).sort()).toEqual(["houseId", "name", "quantity"])
+  })
+})
+
+// ---- Birds a batch has given out -------------------------------------------
+//
+// The regression these exist for: a flock onboarded through Initial Farm Setup
+// holds its opening LIVE birds, so counting quantities alone leaves the batch
+// looking like it still has the historical reduction to give.
+describe("consumedByBatch", () => {
+  it("counts flock quantities when there are no opening positions", () => {
+    const consumed = consumedByBatch([
+      { batchId: 1, quantity: 600 },
+      { batchId: 1, quantity: 400 },
+      { batchId: 2, quantity: 250 },
+    ])
+    expect(consumed.get(1)).toBe(1000)
+    expect(consumed.get(2)).toBe(250)
+  })
+
+  it("adds the opening historical reduction back, so a full batch reads full", () => {
+    // 1,000 placed, 919 standing, 81 lost before tracking began.
+    const consumed = consumedByBatch(
+      [{ batchId: 1, quantity: 919 }],
+      [{ batchId: 1, historicalReduction: 81 }],
+    )
+    expect(consumed.get(1)).toBe(1000)
+    expect(unallocatedForBatch(1000, consumed.get(1))).toBe(0)
+  })
+
+  it("leaves a genuinely partial batch partial", () => {
+    // 12,000 bought, 8,000 placed today, no history. 4,000 really are free.
+    const consumed = consumedByBatch([{ batchId: 7, quantity: 8000 }])
+    expect(unallocatedForBatch(12000, consumed.get(7))).toBe(4000)
+  })
+
+  it("keeps each batch's reduction on its own batch", () => {
+    const consumed = consumedByBatch(
+      [{ batchId: 1, quantity: 919 }, { batchId: 2, quantity: 500 }],
+      [{ batchId: 1, historicalReduction: 81 }],
+    )
+    expect(consumed.get(1)).toBe(1000)
+    expect(consumed.get(2)).toBe(500)
+  })
+
+  it("ignores rows with no batch, and junk quantities", () => {
+    const consumed = consumedByBatch(
+      [{ batchId: null, quantity: 500 }, { batchId: 1, quantity: null }, { batchId: 1, quantity: 300 }],
+      [{ batchId: undefined, historicalReduction: 40 }],
+    )
+    expect(consumed.get(1)).toBe(300)
+    expect(consumed.size).toBe(1)
+  })
+
+  it("never reports a batch as over-given, only as fully given", () => {
+    const consumed = consumedByBatch([{ batchId: 1, quantity: 1200 }])
+    expect(unallocatedForBatch(1000, consumed.get(1))).toBe(0)
   })
 })

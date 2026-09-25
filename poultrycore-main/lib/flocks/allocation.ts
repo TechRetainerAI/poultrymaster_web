@@ -292,6 +292,57 @@ export function totalRequested(rows: AllocationRow[]): number {
   }, 0)
 }
 
+/** Just enough of a flock to count it against its batch. */
+export interface BatchFlockQuantity {
+  batchId?: number | null
+  quantity?: number | null
+}
+
+/** Just enough of an opening position to count it against its batch. */
+export interface BatchOpeningReduction {
+  batchId?: number | null
+  historicalReduction?: number | null
+}
+
+/**
+ * Birds each batch has given out, keyed by batch id.
+ *
+ * TWO TERMS, BECAUSE THEY ARE MEASURED DIFFERENTLY. A batch's `numberOfBirds` is
+ * what was PLACED. Since migration 319 a flock created by Initial Farm Setup
+ * carries its opening LIVE birds -- 919 of the 1,000 placed -- so summing
+ * quantities alone leaves the batch looking like it still has 81 to give, and
+ * offers to place birds that died months ago. The opening historical reduction is
+ * added back so both sides of the comparison mean the same thing.
+ *
+ * The server computes this identically in spflock_getconsumedforbatch (migration
+ * 325); this copy exists so a page can show the figure without a round trip. A
+ * farm that never ran Initial Farm Setup has no opening positions, and the second
+ * term is then simply zero.
+ */
+export function consumedByBatch(
+  flocks: readonly BatchFlockQuantity[],
+  openingPositions: readonly BatchOpeningReduction[] = [],
+): Map<number, number> {
+  const map = new Map<number, number>()
+  const add = (batchId: number | null | undefined, n: number | null | undefined) => {
+    if (batchId == null) return
+    const value = Number(n)
+    if (!Number.isFinite(value) || value <= 0) return
+    map.set(batchId, (map.get(batchId) ?? 0) + value)
+  }
+  for (const f of flocks) add(f.batchId, f.quantity)
+  for (const p of openingPositions) add(p.batchId, p.historicalReduction)
+  return map
+}
+
+/** Birds a batch has left to give. Never negative. */
+export function unallocatedForBatch(
+  batchBirds: number | null | undefined,
+  consumed: number | null | undefined,
+): number {
+  return Math.max(0, (Number(batchBirds) || 0) - (Number(consumed) || 0))
+}
+
 export interface AllocationTotals {
   /** Birds the batch was bought with. */
   batchBirds: number
