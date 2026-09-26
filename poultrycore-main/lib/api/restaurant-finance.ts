@@ -86,6 +86,12 @@ export const LEDGER_SOURCE_LABELS: Record<string, string> = {
   LoanReceivedReversal: "Loan cancelled",
   LoanRepayment: "Loan repayment",
   LoanRepaymentReversal: "Repayment reversed",
+  // Payroll and staff loans & advances (migration 326)
+  Payroll: "Payroll (net pay)",
+  EmployeeLoanDisbursement: "Staff advance paid out",
+  EmployeeLoanReversal: "Staff advance reversed",
+  EmployeeLoanRepayment: "Staff advance repaid",
+  EmployeeLoanRepaymentReversal: "Staff repayment reversed",
 }
 
 export function ledgerSourceLabel(s: string | null | undefined): string {

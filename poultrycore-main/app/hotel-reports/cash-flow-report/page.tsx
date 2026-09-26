@@ -27,6 +27,14 @@ import {
 } from "@/lib/api/hotel"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
 
+// Staff loan movements (migration 325) post four source types; they are one
+// group here: advances paid out, repayments in, and their reversals.
+function sourceGroup(src: string | null | undefined): string {
+  const s = src ?? ""
+  return s.startsWith("EmployeeLoan") ? "StaffLoans" : s
+}
+const SOURCE_LABEL: Record<string, string> = { StaffLoans: "Staff loans" }
+
 export default function CashFlowReportPage() {
   const router = useRouter()
   const { toast } = useToast()
@@ -73,7 +81,7 @@ export default function CashFlowReportPage() {
     const txnDate = (t.txndate ?? "").slice(0, 10)
     if (txnDate < dateFrom || txnDate > dateTo) return false
     if (filterAccount !== "all" && String(t.hotelcashaccountid) !== filterAccount) return false
-    if (filterSource !== "all" && (t.sourcetype ?? "") !== filterSource) return false
+    if (filterSource !== "all" && sourceGroup(t.sourcetype) !== filterSource) return false
     return true
   })
 
@@ -110,11 +118,11 @@ export default function CashFlowReportPage() {
   }).filter(a => a.count > 0)
 
   // Source type breakdown
-  const sources = ["Payment", "Expense", "Order", "Payroll"]
+  const sources = ["Payment", "Expense", "Order", "Payroll", "StaffLoans"]
   const sourceBreakdown = sources.map(src => {
-    const srcTxns = filtered.filter(t => t.sourcetype === src)
+    const srcTxns = filtered.filter(t => sourceGroup(t.sourcetype) === src)
     const total = srcTxns.reduce((s, t) => s + Number(t.amount), 0)
-    return { source: src, count: srcTxns.length, total }
+    return { source: SOURCE_LABEL[src] ?? src, count: srcTxns.length, total }
   }).filter(s => s.count > 0)
 
   // Export data
@@ -215,6 +223,7 @@ export default function CashFlowReportPage() {
                   <SelectItem value="Expense">Expenses</SelectItem>
                   <SelectItem value="Order">Restaurant</SelectItem>
                   <SelectItem value="Payroll">Payroll</SelectItem>
+                  <SelectItem value="StaffLoans">Staff loans</SelectItem>
                 </SelectContent>
               </Select>
             </div>

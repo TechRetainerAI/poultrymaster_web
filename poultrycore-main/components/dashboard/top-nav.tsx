@@ -531,9 +531,9 @@ function RestaurantTopNav() {
         <NavMegaMenu
           label="Money" icon={Wallet}
           title="Money"
-          blurb="Tills, cash accounts, transfers, reconciliation, owner money, loans, daily closing and the cash statements."
+          blurb="Tills, cash accounts, transfers, reconciliation, owner money, loans, payroll, staff advances, daily closing and the cash statements."
           groups={nav.money}
-          columns={3} widthRem={40} layout="grid" accent="rose"
+          columns={4} widthRem={52} layout="grid" accent="rose"
         />
 
         <NavMegaMenu

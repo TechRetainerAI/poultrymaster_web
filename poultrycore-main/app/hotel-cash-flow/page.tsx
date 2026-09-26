@@ -389,6 +389,8 @@ export default function HotelCashFlowPage() {
                           <SelectItem value="ALL">All categories</SelectItem>
                           <SelectItem value="OperatingIn">Operating income</SelectItem>
                           <SelectItem value="OperatingOut">Operating expense</SelectItem>
+                          <SelectItem value="EmployeeLoanOut">Staff advances out</SelectItem>
+                          <SelectItem value="EmployeeLoanIn">Staff advances repaid</SelectItem>
                         </SelectContent>
                       </Select>
                       <Select value={typeFilter} onValueChange={setTypeFilter}>

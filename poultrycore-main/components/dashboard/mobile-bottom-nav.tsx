@@ -474,6 +474,7 @@ export function MobileBottomNav() {
           { title: "People", items: [
             { href: "/hotel-staff",   label: "Staff",   icon: Users2 },
             { href: "/hotel-payroll", label: "Payroll", icon: Banknote },
+            { href: "/hotel-employee-loans", label: "Loans & Advances", icon: HandCoins },
           ] as NavItem[] },
           // Reports used to be one row inside "Inventory & Reports" and Setup one
           // row inside "System". Both are now top-level sections of their own —

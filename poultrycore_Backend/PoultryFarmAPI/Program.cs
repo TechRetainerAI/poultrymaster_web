@@ -407,6 +407,8 @@ builder.Services.AddScoped<IRestaurantFloorService>(sp => new RestaurantFloorSer
 builder.Services.AddScoped<IRestaurantOrderService>(sp => new RestaurantOrderService(connectionString));
 // Migration 323: cash accounts, till shifts, transfers, owner money, loans, daily closing
 builder.Services.AddScoped<IRestaurantFinanceService>(sp => new RestaurantFinanceService(connectionString));
+// Restaurant payroll + staff loans & advances (migration 326)
+builder.Services.AddScoped<IRestaurantPayrollService>(sp => new RestaurantPayrollService(connectionString));
 // Phase R3: Kitchen Display System
 builder.Services.AddScoped<IRestaurantKdsService>(sp => new RestaurantKdsService(connectionString));
 // Phase R4: Reservations & Waitlist

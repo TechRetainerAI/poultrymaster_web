@@ -34,6 +34,9 @@ import {
   type CashBridgeLine, type CashTransfer, type DailyClosing, type LedgerPeriodRow, type LedgerRowAll,
   type LoanPayment, type OwnerMoneyEntry, type RestaurantLoan, type TakingsByAccountRow,
 } from "@/lib/api/restaurant-finance"
+import {
+  getPayrollReport, getStaffLoanStaffReport, type PayrollReportRow, type StaffLoanStaffRow,
+} from "@/lib/api/restaurant-payroll"
 
 const IN_GREEN = "#059669"
 const OUT_ROSE = "#e11d48"
@@ -566,4 +569,62 @@ export const profitVsCash: ReportDefinition<CashBridgeLine> = {
   ],
   tableTitle: "Every line of the bridge",
   emptyText: "Nothing happened in this period.",
+}
+
+// ===========================================================================
+// Payroll — runs PAID in the period, per staff member (migration 326)
+// ===========================================================================
+// Gross is the wage cost the P&L shows; net is what left the till. The gap is
+// staff loan repayments plus other deductions.
+
+export const payrollReport: ReportDefinition<PayrollReportRow> = {
+  load: async (r) => ({ rows: await getPayrollReport(r.from, r.to) }),
+  summary: (r, f) => [
+    { label: "Gross wages (P&L)", value: f.money(sum(r.rows, (x) => x.grossPay)) },
+    { label: "Net pay (cash out)", value: f.money(sum(r.rows, (x) => x.netPay)) },
+    { label: "Staff loan repayments", value: f.money(sum(r.rows, (x) => x.loanDeductions)) },
+    { label: "Staff paid", value: f.int(r.rows.length) },
+  ],
+  columns: [
+    { key: "s", label: "Staff", value: (r) => r.staffName ?? "—" },
+    { key: "role", label: "Role", value: (r) => r.staffRole ?? "", secondary: true },
+    { key: "runs", label: "Runs", value: (r, f) => f.int(r.runs), numeric: true, secondary: true },
+    { key: "basic", label: "Basic", value: (r, f) => f.money(r.basicPay), numeric: true, secondary: true },
+    { key: "extra", label: "Allowances, overtime & bonus", value: (r, f) => f.money(r.extras), numeric: true, secondary: true },
+    { key: "gross", label: "Gross", value: (r, f) => f.money(r.grossPay), numeric: true },
+    { key: "other", label: "Other deductions", value: (r, f) => f.money(r.otherDeductions), numeric: true, secondary: true },
+    { key: "loan", label: "Loan repayments", value: (r, f) => f.money(r.loanDeductions), numeric: true },
+    { key: "net", label: "Net pay", value: (r, f) => f.money(r.netPay), numeric: true },
+  ],
+  tableTitle: "Wages paid, by staff member",
+  tableHint: "Only payroll runs marked Paid, by pay date.",
+  emptyText: "No payroll was paid in this period. Pay staff from Money → Payroll.",
+}
+
+// ===========================================================================
+// Staff Loans & Advances — what each staff member owes (migration 326)
+// ===========================================================================
+
+export const staffLoansReport: ReportDefinition<StaffLoanStaffRow> = {
+  load: async (r) => ({ rows: await getStaffLoanStaffReport(r.from, r.to) }),
+  summary: (r, f) => [
+    { label: "Owed by staff now", value: f.money(sum(r.rows, (x) => x.outstanding)) },
+    { label: "Advanced in period", value: f.money(sum(r.rows, (x) => x.disbursedInPeriod)) },
+    { label: "Repaid in period", value: f.money(sum(r.rows, (x) => x.repaidCashInPeriod + x.repaidPayrollInPeriod)) },
+    { label: "Staff owing", value: f.int(r.rows.filter((x) => x.outstanding > 0).length) },
+  ],
+  columns: [
+    { key: "s", label: "Staff", value: (r) => (r.staffName ?? "—") + (r.staffIsActive ? "" : " (inactive)") },
+    { key: "role", label: "Role", value: (r) => r.role ?? "", secondary: true },
+    { key: "act", label: "Active loans", value: (r, f) => f.int(r.activeLoans), numeric: true, secondary: true },
+    { key: "owed", label: "Owed now", value: (r, f) => f.money(r.outstanding), numeric: true },
+    { key: "adv", label: "Advanced", value: (r, f) => f.money(r.disbursedInPeriod), numeric: true },
+    { key: "cash", label: "Repaid in cash", value: (r, f) => f.money(r.repaidCashInPeriod), numeric: true, secondary: true },
+    { key: "pay", label: "Repaid via payroll", value: (r, f) => f.money(r.repaidPayrollInPeriod), numeric: true, secondary: true },
+    { key: "int", label: "Interest", value: (r, f) => f.money(r.interestInPeriod), numeric: true, secondary: true },
+    { key: "last", label: "Last repayment", value: (r) => d10(r.lastRepaymentDate) || "—", secondary: true },
+  ],
+  tableTitle: "Staff loans and advances",
+  tableHint: "Owed now is today's balance; the other amounts are for the selected dates.",
+  emptyText: "No staff loans or advances yet.",
 }

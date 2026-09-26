@@ -688,7 +688,24 @@ export async function approveHotelExpense(id: number): Promise<void> { await jse
 export async function cancelHotelExpense(id: number, reason?: string): Promise<void> { await jsend<void>(`/Hotel/finance/expenses/${id}/cancel`, "POST", { farmId: activeFarmId(), reason }) }
 export async function listHotelExpenseCategories(): Promise<HotelExpenseCategory[]> { return jget<HotelExpenseCategory[]>("/Hotel/finance/expense-categories") }
 export async function createHotelExpenseCategory(input: { name: string }): Promise<HotelExpenseCategory> { return jsend<HotelExpenseCategory>("/Hotel/finance/expense-categories", "POST", { ...input, farmId: activeFarmId() }) }
-export async function listHotelCashAccounts(): Promise<HotelCashAccount[]> { return jget<HotelCashAccount[]>("/Hotel/finance/cash-accounts") }
+// The endpoint returns raw Postgres column names (hotelcashaccountid, accountname, ...),
+// not the camelCase this type declares. Add the camelCase fields and keep the originals,
+// so pages reading either spelling work.
+export async function listHotelCashAccounts(): Promise<HotelCashAccount[]> {
+  const rows = await jget<any[]>("/Hotel/finance/cash-accounts")
+  return (rows ?? []).map((r) => ({
+    ...r,
+    hotelCashAccountId: r.hotelCashAccountId ?? r.hotelcashaccountid,
+    farmId: r.farmId ?? r.farmid,
+    accountName: r.accountName ?? r.accountname,
+    accountType: r.accountType ?? r.accounttype,
+    openingBalance: r.openingBalance ?? r.openingbalance,
+    currentBalance: r.currentBalance ?? r.currentbalance,
+    isActive: r.isActive ?? r.isactive,
+    createdAt: r.createdAt ?? r.createdat,
+    updatedAt: r.updatedAt ?? r.updatedat,
+  }))
+}
 export async function createHotelCashAccount(input: { accountName: string; accountType: string; openingBalance: number; purpose?: string | null }): Promise<HotelCashAccount> { return jsend<HotelCashAccount>("/Hotel/finance/cash-accounts", "POST", { ...input, farmId: activeFarmId() }) }
 export async function deleteHotelCashAccount(id: number): Promise<void> { const farmId = activeFarmId(); const url = farmApiUrl(`/Hotel/finance/cash-accounts/${id}?farmId=${encodeURIComponent(farmId)}`); const res = await fetch(url, { method: "DELETE", headers: getAuthHeaders() }); if (!res.ok) throw new Error(await readApiError(res)) }
 export async function updateCashAccountPurpose(id: number, purpose: string | null): Promise<void> { await jsend<void>(`/Hotel/finance/cash-accounts/${id}/purpose`, "PATCH", { farmId: activeFarmId(), purpose }) }
@@ -823,12 +840,30 @@ export interface HotelPayrollItem {
   hotelpayrollitemid: number; hotelpayrollrunid: number
   hotelstaffid: number; staffname?: string | null; staffrole?: string | null
   basicpay: number; dailywage: number; commission: number; bonus: number
+  /** Total deducted: otherdeductions plus the line's staff loan deductions. */
   deductions: number; netpay: number
+  /** What the user typed as deductions (tax, penalties, ...), excluding loans. */
+  otherdeductions?: number
   paymentmethod?: string | null; notes?: string | null; createdat: string
 }
 
+/** A staff loan deduction on a payroll line. Draft until the run is approved, then Posted as a loan repayment. */
+export interface HotelPayrollDeduction {
+  hotelPayrollDeductionId: number
+  hotelPayrollItemId: number
+  hotelStaffId: number
+  hotelEmployeeLoanId: number
+  loanNumber?: string | null
+  loanType: string
+  deductionType: string
+  amount: number
+  status: "Draft" | "Posted" | "Reversed" | string
+  hotelEmployeeLoanRepaymentId?: number | null
+  outstandingBalance: number
+}
+
 export interface HotelPayrollRunDetail {
-  run: HotelPayrollRun; items: HotelPayrollItem[]
+  run: HotelPayrollRun; items: HotelPayrollItem[]; deductions: HotelPayrollDeduction[]
 }
 
 // Payroll API
@@ -845,7 +880,12 @@ export async function createHotelPayrollRun(input: { periodStart: string; period
   return jsend<HotelPayrollRun>("/Hotel/payroll-runs", "POST", { ...input, farmId: activeFarmId() })
 }
 
-export async function upsertHotelPayrollItem(runId: number, input: { hotelStaffId: number; staffName?: string; staffRole?: string; basicPay: number; dailyWage: number; commission: number; bonus: number; deductions: number; paymentMethod?: string; notes?: string }): Promise<any> {
+/**
+ * Save one payroll line. `deductions` is the OTHER deductions (not loans).
+ * `loanDeductions`: omit to keep the line's loan deductions as they are; pass a
+ * list to replace them (an empty list removes them all).
+ */
+export async function upsertHotelPayrollItem(runId: number, input: { hotelStaffId: number; staffName?: string; staffRole?: string; basicPay: number; dailyWage: number; commission: number; bonus: number; deductions: number; paymentMethod?: string; notes?: string; loanDeductions?: { loanId: number; amount: number }[] }): Promise<any> {
   return jsend<any>(`/Hotel/payroll-runs/${runId}/items`, "POST", { ...input, hotelPayrollRunId: runId, farmId: activeFarmId() })
 }
 
@@ -863,20 +903,19 @@ export async function approveHotelPayrollRun(id: number): Promise<void> {
   if (!res.ok) throw new Error(await readApiError(res))
 }
 
+// Mark paid, cancel and reopen take a JSON body: the API reads farmId from it.
+// (Mark paid and cancel used to send query strings only, which the API rejected.)
 export async function markHotelPayrollRunPaid(id: number, payDate?: string): Promise<void> {
-  const farmId = activeFarmId()
-  const qs = payDate ? `&payDate=${encodeURIComponent(payDate)}` : ""
-  const url = farmApiUrl(`/Hotel/payroll-runs/${id}/mark-paid?farmId=${encodeURIComponent(farmId)}${qs}`)
-  const res = await fetch(url, { method: "POST", headers: getAuthHeaders() })
-  if (!res.ok) throw new Error(await readApiError(res))
+  await jsend<void>(`/Hotel/payroll-runs/${id}/mark-paid`, "POST", { farmId: activeFarmId(), payDate: payDate || undefined })
 }
 
 export async function cancelHotelPayrollRun(id: number, reason?: string): Promise<void> {
-  const farmId = activeFarmId()
-  const qs = reason ? `&reason=${encodeURIComponent(reason)}` : ""
-  const url = farmApiUrl(`/Hotel/payroll-runs/${id}/cancel?farmId=${encodeURIComponent(farmId)}${qs}`)
-  const res = await fetch(url, { method: "POST", headers: getAuthHeaders() })
-  if (!res.ok) throw new Error(await readApiError(res))
+  await jsend<void>(`/Hotel/payroll-runs/${id}/cancel`, "POST", { farmId: activeFarmId(), cancelReason: reason || undefined })
+}
+
+/** Approved -> Draft, to correct a run before it is paid. Its staff loan repayments are reversed. */
+export async function reopenHotelPayrollRun(id: number, reason: string): Promise<void> {
+  await jsend<void>(`/Hotel/payroll-runs/${id}/reopen`, "POST", { farmId: activeFarmId(), reason })
 }
 
 export async function deleteHotelPayrollRun(id: number): Promise<void> {

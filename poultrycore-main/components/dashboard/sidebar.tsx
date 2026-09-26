@@ -489,6 +489,8 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/restaurant-daily-closing",       label: "Daily Closing",      icon: CalendarCheck },
     { href: "/restaurant-owner-money",         label: "Owner Money",        icon: PiggyBank },
     { href: "/restaurant-loans",               label: "Loans",              icon: Landmark },
+    { href: "/restaurant-payroll",             label: "Payroll",            icon: Banknote },
+    { href: "/restaurant-staff-loans",         label: "Staff Loans & Advances", icon: Coins },
     { href: "/restaurant-cash-flow",           label: "Cash Flow",          icon: Activity },
     { href: "/restaurant-profit-loss",         label: "Profit & Loss",      icon: BarChart3 },
     { href: "/restaurant-payments",            label: "Income & Expenses",  icon: DollarSign },
