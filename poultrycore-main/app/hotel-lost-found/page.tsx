@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useState, useMemo } from "react"
+import { useEffect, useRef, useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -16,8 +16,11 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { listLostFound, createLostFound, updateLostFoundStatus, listHotelRooms, type HotelRoom } from "@/lib/api/hotel"
+import { HotelOtherSelect, type HotelOtherSelectHandle } from "@/components/hotel/other-select"
 
-const CATEGORIES = ["Electronics", "Clothing", "Documents", "Jewelry", "Personal", "Other"]
+// "Other" is NOT listed here: HotelOtherSelect appends its own "Other" row that
+// opens a text box. Leaving it in would show the word twice.
+const CATEGORIES = ["Electronics", "Clothing", "Documents", "Jewelry", "Personal"]
 const STATUS_COLORS: Record<string, string> = { Found: "bg-amber-100 text-amber-700", Claimed: "bg-emerald-100 text-emerald-700", Stored: "bg-blue-100 text-blue-700", Disposed: "bg-slate-100 text-slate-700" }
 
 export default function HotelLostFoundPage() {
@@ -27,13 +30,20 @@ export default function HotelLostFoundPage() {
   const [loading, setLoading] = useState(true); const [statusFilter, setStatusFilter] = useState("ALL")
   const [search, setSearch] = useState(""); const [page, setPage] = useState(1); const pageSize = 10
   const [open, setOpen] = useState(false); const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState({ hotelRoomId: null as number | null, itemDescription: "", foundDate: new Date().toISOString().slice(0, 10), foundBy: "", foundLocation: "", category: "Other", storageLocation: "", notes: "" })
+  // Handle on the Category dropdown -- see handleSave.
+  const categoryOther = useRef<HotelOtherSelectHandle>(null)
+  const [form, setForm] = useState({ hotelRoomId: null as number | null, itemDescription: "", foundDate: new Date().toISOString().slice(0, 10), foundBy: "", foundLocation: "", category: "", storageLocation: "", notes: "" })
   const [claimOpen, setClaimOpen] = useState(false); const [claimTarget, setClaimTarget] = useState<any>(null); const [claimedBy, setClaimedBy] = useState("")
 
   useEffect(() => { if (!activeFarmType) return; if (activeFarmType !== "Hotel") { router.replace("/dashboard"); return }; load() }, [activeFarmType, router])
   async function load() { setLoading(true); try { const [lf, rm] = await Promise.all([listLostFound(), listHotelRooms()]); setItems(lf); setRooms(rm) } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) } finally { setLoading(false) } }
 
-  async function handleSave() { if (!form.itemDescription.trim()) { toast({ title: "Item description required", variant: "destructive" }); return }; setSaving(true); try { await createLostFound(form); toast({ title: "Item logged" }); setOpen(false); await load() } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) } finally { setSaving(false) } }
+  async function handleSave() { if (!form.itemDescription.trim()) { toast({ title: "Item description required", variant: "destructive" }); return }; setSaving(true); try {
+      await createLostFound(form)
+      // Before setOpen(false): closing unmounts the field and nulls the ref.
+      await categoryOther.current?.remember()
+      toast({ title: "Item logged" }); setOpen(false); await load()
+    } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) } finally { setSaving(false) } }
   async function doStatus(id: number, status: string, cb?: string) { try { await updateLostFoundStatus(id, status, cb); toast({ title: `Item marked as ${status}` }); setClaimOpen(false); await load() } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) } }
 
   const filtered = useMemo(() => items.filter((r: any) => {
@@ -47,7 +57,7 @@ export default function HotelLostFoundPage() {
     <div className="flex h-screen bg-slate-50"><DashboardSidebar onLogout={logout} /><div className="flex-1 flex flex-col min-w-0 overflow-hidden"><DashboardHeader />
       <main className="flex-1 overflow-auto p-4 md:p-6">
         <div className="flex items-center justify-between mb-4"><div className="flex items-center gap-3"><Package className="h-6 w-6 text-violet-600" /><h1 className="text-2xl font-bold">Lost & Found</h1></div>
-          <Button onClick={() => { setForm({ hotelRoomId: null, itemDescription: "", foundDate: new Date().toISOString().slice(0, 10), foundBy: "", foundLocation: "", category: "Other", storageLocation: "", notes: "" }); setOpen(true) }} className="bg-violet-600 hover:bg-violet-700"><Plus className="h-4 w-4 mr-1" /> Log Item</Button></div>
+          <Button onClick={() => { setForm({ hotelRoomId: null, itemDescription: "", foundDate: new Date().toISOString().slice(0, 10), foundBy: "", foundLocation: "", category: "", storageLocation: "", notes: "" }); setOpen(true) }} className="bg-violet-600 hover:bg-violet-700"><Plus className="h-4 w-4 mr-1" /> Log Item</Button></div>
         <div className="flex gap-2 flex-wrap mb-3">{[{ s: "ALL", l: "All" }, { s: "Found", l: "Found" }, { s: "Claimed", l: "Claimed" }, { s: "Stored", l: "Stored" }, { s: "Disposed", l: "Disposed" }].map(f => <Button key={f.s} variant={statusFilter === f.s ? "default" : "outline"} size="sm" onClick={() => { setStatusFilter(f.s); setPage(1) }} className={statusFilter === f.s ? "bg-violet-600" : ""}>{f.l}</Button>)}</div>
         <div className="mb-4 relative max-w-sm"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" /><Input placeholder="Search item, room, location..." className="pl-9" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} /></div>
         {loading ? <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-violet-600" /></div> : (
@@ -61,7 +71,7 @@ export default function HotelLostFoundPage() {
           <div className="space-y-3">
             <div><Label>Item Description *</Label><Input value={form.itemDescription} onChange={(e) => setForm({ ...form, itemDescription: e.target.value })} /></div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><div><Label>Room</Label><Select value={form.hotelRoomId ? String(form.hotelRoomId) : "__none__"} onValueChange={(v) => setForm({ ...form, hotelRoomId: v === "__none__" ? null : Number(v) })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__none__">None</SelectItem>{rooms.map((r: any) => <SelectItem key={r.hotelRoomId} value={String(r.hotelRoomId)}>Room {r.roomNumber}</SelectItem>)}</SelectContent></Select></div>
-              <div><Label>Category</Label><Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></div></div>
+              <div><Label>Category</Label><HotelOtherSelect ref={categoryOther} listKey="LostFoundCategory" baseOptions={CATEGORIES} value={form.category} onChange={(v) => setForm({ ...form, category: v ?? "" })} placeholder="Select category" otherLabel="Other (type category)" /></div></div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><div><Label>Found Date</Label><Input type="date" value={form.foundDate} onChange={(e) => setForm({ ...form, foundDate: e.target.value })} /></div><div><Label>Found By</Label><Input value={form.foundBy} onChange={(e) => setForm({ ...form, foundBy: e.target.value })} /></div></div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><div><Label>Found Location</Label><Input value={form.foundLocation} onChange={(e) => setForm({ ...form, foundLocation: e.target.value })} placeholder="e.g. Room 201 bathroom" /></div><div><Label>Storage Location</Label><Input value={form.storageLocation} onChange={(e) => setForm({ ...form, storageLocation: e.target.value })} placeholder="e.g. Front desk drawer 3" /></div></div>
           </div><DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={handleSave} disabled={saving} className="bg-violet-600 hover:bg-violet-700">{saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Log Item</Button></DialogFooter></DialogContent></Dialog>

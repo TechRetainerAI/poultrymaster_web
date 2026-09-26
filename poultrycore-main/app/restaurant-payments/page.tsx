@@ -47,10 +47,18 @@ export default function RestaurantPaymentsPage() {
     } finally { setLoading(false) }
   }
 
-  const paidOrders = useMemo(() => orders.filter(o => o.paymentStatus === "Paid" && o.status !== "Cancelled" && o.status !== "Refunded"), [orders])
-  const totalIncome = paidOrders.reduce((s, o) => s + o.totalAmount, 0)
-  const totalTips = paidOrders.reduce((s, o) => s + (o.paidAmount - o.totalAmount > 0 ? o.paidAmount - o.totalAmount : 0), 0)
-  const totalExpenses = expenses.reduce((s, e) => s + (e.amount ?? 0), 0)
+  // Income is the money actually received on orders in the period (paidAmount),
+  // net of refunds, not the bill total: a part-paid order counts what was paid.
+  // "Tips" used to be paidAmount - totalAmount, which was really the unreturned
+  // cash change the POS stored; payments can no longer exceed the bill
+  // (migration 323), so that card now shows what customers still owe.
+  const paidOrders = useMemo(() => orders.filter(o => o.paidAmount > 0 && o.status !== "Cancelled"), [orders])
+  const totalIncome = paidOrders.reduce((s, o) => s + o.paidAmount, 0)
+  const stillOwed = orders
+    .filter(o => !["Cancelled", "Refunded"].includes(o.status) && o.totalAmount > o.paidAmount)
+    .reduce((s, o) => s + (o.totalAmount - o.paidAmount), 0)
+  const countedExpenses = useMemo(() => expenses.filter(e => !["Rejected", "Draft"].includes(e.status)), [expenses])
+  const totalExpenses = countedExpenses.reduce((s, e) => s + (e.amount ?? 0), 0)
   const netProfit = totalIncome - totalExpenses
 
   const filteredOrders = useMemo(() => {
@@ -65,12 +73,14 @@ export default function RestaurantPaymentsPage() {
     return expenses.filter(e => (e.description ?? "").toLowerCase().includes(q) || (e.supplierName ?? "").toLowerCase().includes(q) || (e.categoryName ?? "").toLowerCase().includes(q))
   }, [expenses, search])
 
-  // Group income by payment method
+  // Group income by how the order was taken. Per-method takings live on
+  // Daily Closing and the Payment Methods report, which read the payment rows.
   const byMethod = useMemo(() => {
+    const labels: Record<string, string> = { DineIn: "Dine in", Takeaway: "Takeaway", Delivery: "Delivery", DriveThrough: "Drive through" }
     const map: Record<string, number> = {}
     paidOrders.forEach(o => {
-      const method = "Orders"
-      map[method] = (map[method] || 0) + o.totalAmount
+      const key = labels[o.orderType] ?? o.orderType
+      map[key] = (map[key] || 0) + o.paidAmount
     })
     return map
   }, [paidOrders])
@@ -78,12 +88,12 @@ export default function RestaurantPaymentsPage() {
   // Group expenses by category
   const byCategory = useMemo(() => {
     const map: Record<string, number> = {}
-    expenses.forEach(e => {
+    countedExpenses.forEach(e => {
       const cat = e.categoryName || "Uncategorized"
       map[cat] = (map[cat] || 0) + (e.amount ?? 0)
     })
     return map
-  }, [expenses])
+  }, [countedExpenses])
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -144,8 +154,8 @@ export default function RestaurantPaymentsPage() {
                 <Card className="border-amber-200">
                   <CardContent className="p-4 text-center">
                     <DollarSign className="h-5 w-5 text-amber-600 mx-auto mb-1" />
-                    <div className="text-2xl font-bold text-amber-700">{totalTips.toFixed(2)}</div>
-                    <div className="text-xs text-muted-foreground">Tips Received</div>
+                    <div className="text-2xl font-bold text-amber-700">{stillOwed.toFixed(2)}</div>
+                    <div className="text-xs text-muted-foreground">Still owed on open orders</div>
                   </CardContent>
                 </Card>
               </div>

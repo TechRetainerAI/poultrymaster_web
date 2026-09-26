@@ -61,6 +61,18 @@ namespace PoultryFarmAPIWeb.Models
 
         public string? Notes { get; set; }
 
+        /// <summary>
+        /// True when this purchase happened BEFORE the application started tracking
+        /// the farm (migration 326). Suppresses the expense posting and dates the
+        /// bird-stock movement to the placement; what the farm still owes is still
+        /// recorded, because that liability is current whatever the purchase was.
+        ///
+        /// <para>Nullable on the way IN so the ordinary Flock Purchases form, which
+        /// does not send it, cannot silently turn a historical purchase into a
+        /// current one — the stored function reads NULL as "leave it alone".</para>
+        /// </summary>
+        public bool? IsHistorical { get; set; }
+
         // Optional USD→local rate for foreign-supplier batch purchases.
         public decimal? DollarConversionRate { get; set; }
         // Procurement timing (migration 150). Both nullable — an order may predate

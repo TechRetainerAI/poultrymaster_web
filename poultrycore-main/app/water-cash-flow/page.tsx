@@ -205,6 +205,7 @@ export default function WaterCashFlowPage() {
 
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Water") { router.replace("/dashboard"); return }
+    if (!activeFarmId) return
     setLoading(true)
     void load()
   }, [activeFarmType, activeFarmId, router, load])

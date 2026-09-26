@@ -362,6 +362,80 @@ export async function listHotelCommSubjects(): Promise<HotelCommSubject[]> {
   return jget<HotelCommSubject[]>("/Hotel/setup/comm-subjects")
 }
 
+// ----- Custom option lists ("Other", remembered) -----
+
+/**
+ * Which remembered list a dropdown draws from. Must match the allow-list in
+ * HotelCustomOptionController — an unknown key is rejected with a 400.
+ */
+export type HotelCustomOptionListKey =
+  | "CommSubject"        // hotel-communications        -> Log Guest Communication / Subject
+  | "RequestType"        // hotel-guest-requests        -> New Guest Request / Type
+  | "LostFoundCategory"  // hotel-lost-found            -> Log Lost Item / Category
+  | "HKTaskType"         // hotel-housekeeping-schedule -> Add Schedule Entry / Task Type
+  | "MenuCategory"       // hotel-menu                  -> Add Menu Item / Category
+  | "SupplyCategory"     // hotel-inventory             -> Add Supply Item / Category
+  | "SupplyItemName"     // hotel-inventory             -> Add Supply Item / Name
+  | "MaintenanceAsset"   // hotel-maintenance           -> New Maintenance Request / Asset / Area
+  | "TableLocation"      // hotel-restaurant-tables     -> Add Table / Location
+
+export interface HotelCustomOption {
+  customOptionId: number
+  farmId: string
+  listKey: string
+  value: string
+  sortOrder: number
+  isActive: boolean
+  createdAt?: string | null
+  createdBy?: string | null
+}
+
+/**
+ * Values this hotel has added to one dropdown.
+ *
+ * Returns [] rather than throwing when the endpoint is not there yet: the route
+ * only exists once the Farm API has been redeployed with migration 300 applied,
+ * and a dropdown that threw on mount would take the whole dialog down with it.
+ * An empty list degrades to exactly today's behaviour — seed options only.
+ * Same fallback the Restaurant side needed for migration 291.
+ */
+export async function listHotelCustomOptions(listKey: HotelCustomOptionListKey): Promise<HotelCustomOption[]> {
+  try {
+    return await jget<HotelCustomOption[]>(`/Hotel/custom-options?listKey=${encodeURIComponent(listKey)}`)
+  } catch {
+    return []
+  }
+}
+
+/** Every list for this hotel, for a dialog with more than one "Other" dropdown. */
+export async function listAllHotelCustomOptions(): Promise<HotelCustomOption[]> {
+  try {
+    return await jget<HotelCustomOption[]>("/Hotel/custom-options")
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Remember a typed value. Idempotent server-side, so re-saving an existing value
+ * returns that row instead of creating a duplicate — a double-submit is harmless.
+ * Throws on a real failure so the caller can tell the operator it was not saved;
+ * callers still apply the typed value to the record either way.
+ */
+export async function createHotelCustomOption(
+  listKey: HotelCustomOptionListKey,
+  value: string,
+): Promise<HotelCustomOption> {
+  const farmId = activeFarmId()
+  return jsend<HotelCustomOption>("/Hotel/custom-options", "POST", { farmId, listKey, value })
+}
+
+/** Stop offering a value. Soft delete — records already using it are untouched. */
+export async function deleteHotelCustomOption(customOptionId: number): Promise<void> {
+  const farmId = activeFarmId()
+  await jsend<void>(`/Hotel/custom-options/${customOptionId}?farmId=${encodeURIComponent(farmId)}`, "DELETE")
+}
+
 // ----- ID Types -----
 
 export async function listHotelIdTypes(): Promise<HotelIdType[]> {
@@ -614,7 +688,24 @@ export async function approveHotelExpense(id: number): Promise<void> { await jse
 export async function cancelHotelExpense(id: number, reason?: string): Promise<void> { await jsend<void>(`/Hotel/finance/expenses/${id}/cancel`, "POST", { farmId: activeFarmId(), reason }) }
 export async function listHotelExpenseCategories(): Promise<HotelExpenseCategory[]> { return jget<HotelExpenseCategory[]>("/Hotel/finance/expense-categories") }
 export async function createHotelExpenseCategory(input: { name: string }): Promise<HotelExpenseCategory> { return jsend<HotelExpenseCategory>("/Hotel/finance/expense-categories", "POST", { ...input, farmId: activeFarmId() }) }
-export async function listHotelCashAccounts(): Promise<HotelCashAccount[]> { return jget<HotelCashAccount[]>("/Hotel/finance/cash-accounts") }
+// The endpoint returns raw Postgres column names (hotelcashaccountid, accountname, ...),
+// not the camelCase this type declares. Add the camelCase fields and keep the originals,
+// so pages reading either spelling work.
+export async function listHotelCashAccounts(): Promise<HotelCashAccount[]> {
+  const rows = await jget<any[]>("/Hotel/finance/cash-accounts")
+  return (rows ?? []).map((r) => ({
+    ...r,
+    hotelCashAccountId: r.hotelCashAccountId ?? r.hotelcashaccountid,
+    farmId: r.farmId ?? r.farmid,
+    accountName: r.accountName ?? r.accountname,
+    accountType: r.accountType ?? r.accounttype,
+    openingBalance: r.openingBalance ?? r.openingbalance,
+    currentBalance: r.currentBalance ?? r.currentbalance,
+    isActive: r.isActive ?? r.isactive,
+    createdAt: r.createdAt ?? r.createdat,
+    updatedAt: r.updatedAt ?? r.updatedat,
+  }))
+}
 export async function createHotelCashAccount(input: { accountName: string; accountType: string; openingBalance: number; purpose?: string | null }): Promise<HotelCashAccount> { return jsend<HotelCashAccount>("/Hotel/finance/cash-accounts", "POST", { ...input, farmId: activeFarmId() }) }
 export async function deleteHotelCashAccount(id: number): Promise<void> { const farmId = activeFarmId(); const url = farmApiUrl(`/Hotel/finance/cash-accounts/${id}?farmId=${encodeURIComponent(farmId)}`); const res = await fetch(url, { method: "DELETE", headers: getAuthHeaders() }); if (!res.ok) throw new Error(await readApiError(res)) }
 export async function updateCashAccountPurpose(id: number, purpose: string | null): Promise<void> { await jsend<void>(`/Hotel/finance/cash-accounts/${id}/purpose`, "PATCH", { farmId: activeFarmId(), purpose }) }
@@ -749,12 +840,30 @@ export interface HotelPayrollItem {
   hotelpayrollitemid: number; hotelpayrollrunid: number
   hotelstaffid: number; staffname?: string | null; staffrole?: string | null
   basicpay: number; dailywage: number; commission: number; bonus: number
+  /** Total deducted: otherdeductions plus the line's staff loan deductions. */
   deductions: number; netpay: number
+  /** What the user typed as deductions (tax, penalties, ...), excluding loans. */
+  otherdeductions?: number
   paymentmethod?: string | null; notes?: string | null; createdat: string
 }
 
+/** A staff loan deduction on a payroll line. Draft until the run is approved, then Posted as a loan repayment. */
+export interface HotelPayrollDeduction {
+  hotelPayrollDeductionId: number
+  hotelPayrollItemId: number
+  hotelStaffId: number
+  hotelEmployeeLoanId: number
+  loanNumber?: string | null
+  loanType: string
+  deductionType: string
+  amount: number
+  status: "Draft" | "Posted" | "Reversed" | string
+  hotelEmployeeLoanRepaymentId?: number | null
+  outstandingBalance: number
+}
+
 export interface HotelPayrollRunDetail {
-  run: HotelPayrollRun; items: HotelPayrollItem[]
+  run: HotelPayrollRun; items: HotelPayrollItem[]; deductions: HotelPayrollDeduction[]
 }
 
 // Payroll API
@@ -771,7 +880,12 @@ export async function createHotelPayrollRun(input: { periodStart: string; period
   return jsend<HotelPayrollRun>("/Hotel/payroll-runs", "POST", { ...input, farmId: activeFarmId() })
 }
 
-export async function upsertHotelPayrollItem(runId: number, input: { hotelStaffId: number; staffName?: string; staffRole?: string; basicPay: number; dailyWage: number; commission: number; bonus: number; deductions: number; paymentMethod?: string; notes?: string }): Promise<any> {
+/**
+ * Save one payroll line. `deductions` is the OTHER deductions (not loans).
+ * `loanDeductions`: omit to keep the line's loan deductions as they are; pass a
+ * list to replace them (an empty list removes them all).
+ */
+export async function upsertHotelPayrollItem(runId: number, input: { hotelStaffId: number; staffName?: string; staffRole?: string; basicPay: number; dailyWage: number; commission: number; bonus: number; deductions: number; paymentMethod?: string; notes?: string; loanDeductions?: { loanId: number; amount: number }[] }): Promise<any> {
   return jsend<any>(`/Hotel/payroll-runs/${runId}/items`, "POST", { ...input, hotelPayrollRunId: runId, farmId: activeFarmId() })
 }
 
@@ -789,20 +903,19 @@ export async function approveHotelPayrollRun(id: number): Promise<void> {
   if (!res.ok) throw new Error(await readApiError(res))
 }
 
+// Mark paid, cancel and reopen take a JSON body: the API reads farmId from it.
+// (Mark paid and cancel used to send query strings only, which the API rejected.)
 export async function markHotelPayrollRunPaid(id: number, payDate?: string): Promise<void> {
-  const farmId = activeFarmId()
-  const qs = payDate ? `&payDate=${encodeURIComponent(payDate)}` : ""
-  const url = farmApiUrl(`/Hotel/payroll-runs/${id}/mark-paid?farmId=${encodeURIComponent(farmId)}${qs}`)
-  const res = await fetch(url, { method: "POST", headers: getAuthHeaders() })
-  if (!res.ok) throw new Error(await readApiError(res))
+  await jsend<void>(`/Hotel/payroll-runs/${id}/mark-paid`, "POST", { farmId: activeFarmId(), payDate: payDate || undefined })
 }
 
 export async function cancelHotelPayrollRun(id: number, reason?: string): Promise<void> {
-  const farmId = activeFarmId()
-  const qs = reason ? `&reason=${encodeURIComponent(reason)}` : ""
-  const url = farmApiUrl(`/Hotel/payroll-runs/${id}/cancel?farmId=${encodeURIComponent(farmId)}${qs}`)
-  const res = await fetch(url, { method: "POST", headers: getAuthHeaders() })
-  if (!res.ok) throw new Error(await readApiError(res))
+  await jsend<void>(`/Hotel/payroll-runs/${id}/cancel`, "POST", { farmId: activeFarmId(), cancelReason: reason || undefined })
+}
+
+/** Approved -> Draft, to correct a run before it is paid. Its staff loan repayments are reversed. */
+export async function reopenHotelPayrollRun(id: number, reason: string): Promise<void> {
+  await jsend<void>(`/Hotel/payroll-runs/${id}/reopen`, "POST", { farmId: activeFarmId(), reason })
 }
 
 export async function deleteHotelPayrollRun(id: number): Promise<void> {

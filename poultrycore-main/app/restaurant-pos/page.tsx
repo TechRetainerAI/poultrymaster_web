@@ -12,12 +12,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Minus, Trash2, Search, ShoppingCart, CreditCard, Banknote, X, Check, UtensilsCrossed, Smartphone, Users, Printer, Download, Mail } from "lucide-react"
 import { PageSkeleton } from "@/components/restaurant/skeleton-loaders"
+import { TakePaymentDialog, type PaymentResult } from "@/components/restaurant/order-money-dialogs"
 import { Badge } from "@/components/ui/badge"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import {
   listMenuCategories, listMenuItems, listTables, listCustomers,
-  createOrder, addOrderItem, recalcOrder, addOrderPayment,
+  createOrder, addOrderItem, recalcOrder,
   updateOrderStatus, listOrderItems, getOrder, getReceiptTemplate,
   createLoyaltyAccount,
   type MenuCategory, type MenuItem, type RestaurantTable,
@@ -52,12 +53,11 @@ export default function RestaurantPOSPage() {
   const [activeOrder, setActiveOrder] = useState<Order | null>(null)
   const [activeOrderItems, setActiveOrderItems] = useState<OrderItem[]>([])
   const [payDialogOpen, setPayDialogOpen] = useState(false)
-  const [payMethod, setPayMethod] = useState("Cash")
-  const [payAmount, setPayAmount] = useState(0)
-  const [payTip, setPayTip] = useState(0)
   const [receiptTemplate, setReceiptTemplate] = useState<ReceiptTemplate | null>(null)
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false)
-  const [receiptOrder, setReceiptOrder] = useState<{order: Order, items: OrderItem[], payment: {method: string, amount: number, tip: number}} | null>(null)
+  // `amount` is what the customer handed over; `change` what went back. Only the
+  // part applied to the bill is recorded as a payment (migration 323).
+  const [receiptOrder, setReceiptOrder] = useState<{order: Order, items: OrderItem[], payment: {method: string, amount: number, tip: number, change: number}} | null>(null)
 
   useEffect(() => {
     if (activeFarmType === null || activeFarmType === undefined) return
@@ -98,7 +98,9 @@ export default function RestaurantPOSPage() {
         await addOrderItem(orderId, { menuItemId: item.menuItemId, itemName: item.name, quantity: item.quantity, unitPrice: item.price, notes: item.notes || undefined,
           modifiers: item.modifiers.map(m => ({ modifierId: m.modifierId, modifierName: m.name, priceAdjustment: m.price, quantity: 1 })) })
       }
-      await recalcOrder(orderId, 0, 0)
+      // No rates: the server applies the tax and service-charge rates saved in
+      // Restaurant Setup. Passing 0/0 here is what kept them from ever applying.
+      await recalcOrder(orderId)
       // Auto-enrol customer in loyalty if they have a name
       if (selectedCustomerId || customerName) {
         try { await createLoyaltyAccount(customerName || "Guest", undefined, selectedCustomerId || undefined) } catch { /* already enrolled or loyalty disabled */ }
@@ -109,16 +111,25 @@ export default function RestaurantPOSPage() {
     } catch (e: any) { toast({ title: "Order failed", description: e?.message, variant: "destructive" }) }
   }
 
-  async function handlePayment() {
-    if (!activeOrder) return
+  /**
+   * The payment is already recorded when this runs. The order is completed only
+   * once it is fully paid -- the server refuses to complete an unpaid order -- so
+   * a part payment keeps the order on screen with the balance still due.
+   */
+  async function handlePaid({ order, payment }: PaymentResult) {
+    setPayDialogOpen(false)
+    if (order.paymentStatus !== "Paid") {
+      setActiveOrder(order)
+      toast({ title: `${payment.applied.toFixed(2)} received`, description: `${(order.totalAmount - order.paidAmount).toFixed(2)} still due on ${order.orderNumber}.` })
+      return
+    }
     try {
-      await addOrderPayment(activeOrder.orderId, { paymentMethod: payMethod, amount: payAmount, tipAmount: payTip })
-      await updateOrderStatus(activeOrder.orderId, "Completed")
+      await updateOrderStatus(order.orderId, "Completed")
       toast({ title: "Payment recorded & order completed" })
-      setReceiptOrder({ order: activeOrder, items: [...activeOrderItems], payment: { method: payMethod, amount: payAmount, tip: payTip } })
-      setPayDialogOpen(false); setReceiptDialogOpen(true)
+      setReceiptOrder({ order, items: [...activeOrderItems], payment: { method: payment.method, amount: payment.tendered, tip: payment.tip, change: payment.change } })
+      setReceiptDialogOpen(true)
       setActiveOrder(null); setActiveOrderItems([]); setTables(await listTables(undefined, "Available"))
-    } catch (e: any) { toast({ title: "Payment failed", description: e?.message, variant: "destructive" }) }
+    } catch (e: any) { toast({ title: "Paid, but the order could not be completed", description: e?.message, variant: "destructive" }) }
   }
 
   const activeFarmName = useAuthStore((s) => s.activeFarmName) || "Restaurant"
@@ -188,6 +199,8 @@ export default function RestaurantPOSPage() {
     const rightX = pageW - 10
     doc.text(`Subtotal:`, rightX - 40, y); doc.text(order.subtotal.toFixed(2), rightX, y, { align: "right" }); y += 5
     if (order.discountAmount > 0) { doc.text(`Discount:`, rightX - 40, y); doc.text(`-${order.discountAmount.toFixed(2)}`, rightX, y, { align: "right" }); y += 5 }
+    if (order.serviceChargeAmount > 0) { doc.text(`Service:`, rightX - 40, y); doc.text(order.serviceChargeAmount.toFixed(2), rightX, y, { align: "right" }); y += 5 }
+    if (order.taxAmount > 0) { doc.text(`Tax:`, rightX - 40, y); doc.text(order.taxAmount.toFixed(2), rightX, y, { align: "right" }); y += 5 }
     doc.setFont("helvetica", "bold"); doc.setFontSize(11)
     doc.text(`Total:`, rightX - 40, y); doc.text(order.totalAmount.toFixed(2), rightX, y, { align: "right" }); y += 7
     doc.setFont("helvetica", "normal"); doc.setFontSize(9)
@@ -195,8 +208,8 @@ export default function RestaurantPOSPage() {
     // Payment info
     doc.text(`Payment: ${payment.method}`, 10, y); y += 5
     doc.text(`Amount Paid: ${payment.amount.toFixed(2)}`, 10, y); y += 5
-    if (payment.method === "Cash" && payment.amount > order.totalAmount) {
-      doc.text(`Change: ${(payment.amount - order.totalAmount).toFixed(2)}`, 10, y); y += 5
+    if (payment.change > 0) {
+      doc.text(`Change: ${payment.change.toFixed(2)}`, 10, y); y += 5
     }
     if (payment.tip > 0) { doc.text(`Tip: ${payment.tip.toFixed(2)}`, 10, y); y += 5 }
     y += 5
@@ -367,9 +380,12 @@ export default function RestaurantPOSPage() {
                   <div className="border-t p-4 space-y-3 bg-gray-50">
                     <div className="flex justify-between text-sm"><span className="text-muted-foreground">Subtotal</span><span className="font-medium">{activeOrder.subtotal.toFixed(2)}</span></div>
                     {activeOrder.discountAmount > 0 && <div className="flex justify-between text-sm text-red-600"><span>Discount</span><span>-{activeOrder.discountAmount.toFixed(2)}</span></div>}
+                    {activeOrder.serviceChargeAmount > 0 && <div className="flex justify-between text-sm"><span className="text-muted-foreground">Service charge</span><span>{activeOrder.serviceChargeAmount.toFixed(2)}</span></div>}
+                    {activeOrder.taxAmount > 0 && <div className="flex justify-between text-sm"><span className="text-muted-foreground">Tax</span><span>{activeOrder.taxAmount.toFixed(2)}</span></div>}
                     <div className="flex justify-between font-bold text-xl border-t pt-3"><span>Total</span><span className="text-rose-700">{activeOrder.totalAmount.toFixed(2)}</span></div>
-                    <Button className="w-full bg-green-600 hover:bg-green-700 h-12 text-base" onClick={() => { setPayAmount(activeOrder.totalAmount); setPayDialogOpen(true) }}>
-                      <CreditCard className="h-5 w-5 mr-2" /> Pay {activeOrder.totalAmount.toFixed(2)}
+                    {activeOrder.paidAmount > 0 && <div className="flex justify-between text-sm text-green-700"><span>Paid so far</span><span>{activeOrder.paidAmount.toFixed(2)}</span></div>}
+                    <Button className="w-full bg-green-600 hover:bg-green-700 h-12 text-base" onClick={() => setPayDialogOpen(true)}>
+                      <CreditCard className="h-5 w-5 mr-2" /> Pay {(activeOrder.totalAmount - activeOrder.paidAmount).toFixed(2)}
                     </Button>
                     <Button variant="outline" className="w-full" onClick={() => { setActiveOrder(null); setActiveOrderItems([]) }}>New Order</Button>
                   </div>
@@ -462,55 +478,9 @@ export default function RestaurantPOSPage() {
         </main>
       </div>
 
-      {/* Payment Dialog */}
-      <Dialog open={payDialogOpen} onOpenChange={setPayDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Process Payment</DialogTitle>
-            <DialogDescription>Order total: {activeOrder?.totalAmount.toFixed(2)}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label className="text-sm font-medium mb-2 block">Payment Method</Label>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { id: "Cash", icon: Banknote, label: "Cash" },
-                  { id: "Card", icon: CreditCard, label: "Card" },
-                  { id: "MobileMoney", icon: Smartphone, label: "Mobile Money" },
-                ].map(m => (
-                  <button key={m.id} onClick={() => setPayMethod(m.id)}
-                    className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all ${
-                      payMethod === m.id ? "border-rose-500 bg-rose-50 shadow-sm" : "border-gray-200 hover:border-gray-300"
-                    }`}>
-                    <m.icon className={`h-5 w-5 ${payMethod === m.id ? "text-rose-600" : "text-gray-500"}`} />
-                    <span className={`text-xs font-medium ${payMethod === m.id ? "text-rose-700" : "text-gray-600"}`}>{m.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Amount Received</Label>
-              <Input type="number" step="0.01" value={payAmount} onChange={e => setPayAmount(parseFloat(e.target.value) || 0)} className="h-12 text-lg font-bold text-center" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Tip (optional)</Label>
-              <Input type="number" step="0.01" value={payTip} onChange={e => setPayTip(parseFloat(e.target.value) || 0)} className="h-10" />
-            </div>
-            {payMethod === "Cash" && payAmount > (activeOrder?.totalAmount || 0) && (
-              <div className="p-3 bg-green-50 rounded-lg border border-green-200 text-center">
-                <span className="text-sm text-green-700">Change due: </span>
-                <span className="text-lg font-bold text-green-800">{(payAmount - (activeOrder?.totalAmount || 0)).toFixed(2)}</span>
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPayDialogOpen(false)}>Cancel</Button>
-            <Button className="bg-green-600 hover:bg-green-700" onClick={handlePayment}>
-              <Check className="h-4 w-4 mr-2" /> Complete Payment
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Payment: shared with the Orders screen. Records the amount applied to the
+          bill (never the cash tendered) and routes cash to the open till. */}
+      <TakePaymentDialog open={payDialogOpen} onOpenChange={setPayDialogOpen} order={activeOrder} onPaid={handlePaid} />
 
       {/* Receipt Dialog */}
       <Dialog open={receiptDialogOpen} onOpenChange={setReceiptDialogOpen}>
@@ -546,6 +516,16 @@ export default function RestaurantPOSPage() {
                     <span>Discount</span><span>-{receiptOrder.order.discountAmount.toFixed(2)}</span>
                   </div>
                 )}
+                {receiptOrder.order.serviceChargeAmount > 0 && (
+                  <div className="row" style={{display:"flex",justifyContent:"space-between"}}>
+                    <span>Service charge</span><span>{receiptOrder.order.serviceChargeAmount.toFixed(2)}</span>
+                  </div>
+                )}
+                {receiptOrder.order.taxAmount > 0 && (
+                  <div className="row" style={{display:"flex",justifyContent:"space-between"}}>
+                    <span>Tax</span><span>{receiptOrder.order.taxAmount.toFixed(2)}</span>
+                  </div>
+                )}
                 <div className="total-row" style={{display:"flex",justifyContent:"space-between",fontWeight:"bold",fontSize:"14px",margin:"4px 0"}}>
                   <span>TOTAL</span><span>{receiptOrder.order.totalAmount.toFixed(2)}</span>
                 </div>
@@ -553,9 +533,9 @@ export default function RestaurantPOSPage() {
                 <div className="row" style={{display:"flex",justifyContent:"space-between"}}>
                   <span>Paid ({receiptOrder.payment.method})</span><span>{receiptOrder.payment.amount.toFixed(2)}</span>
                 </div>
-                {receiptOrder.payment.method === "Cash" && receiptOrder.payment.amount > receiptOrder.order.totalAmount && (
+                {receiptOrder.payment.change > 0 && (
                   <div className="row" style={{display:"flex",justifyContent:"space-between"}}>
-                    <span>Change</span><span>{(receiptOrder.payment.amount - receiptOrder.order.totalAmount).toFixed(2)}</span>
+                    <span>Change</span><span>{receiptOrder.payment.change.toFixed(2)}</span>
                   </div>
                 )}
                 {receiptOrder.payment.tip > 0 && (

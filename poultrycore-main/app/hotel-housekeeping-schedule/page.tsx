@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -19,6 +19,7 @@ import {
   listHotelRooms, listHotelHKTaskTypes, listHotelStaff,
   type HotelRoom, type HotelHKTaskType, type HotelStaff,
 } from "@/lib/api/hotel"
+import { HotelOtherSelect, type HotelOtherSelectHandle } from "@/components/hotel/other-select"
 
 const STATUS_COLORS: Record<string, string> = { Scheduled: "bg-blue-100 text-blue-700", InProgress: "bg-amber-100 text-amber-700", Completed: "bg-emerald-100 text-emerald-700", Skipped: "bg-slate-100 text-slate-700" }
 
@@ -32,9 +33,9 @@ export default function HotelHKSchedulePage() {
   const [loading, setLoading] = useState(true); const [bulking, setBulking] = useState(false)
   const [schedDate, setSchedDate] = useState(new Date().toISOString().slice(0, 10))
   const [open, setOpen] = useState(false); const [saving, setSaving] = useState(false)
+  // Handle on the Task Type dropdown -- see handleSave.
+  const taskTypeOther = useRef<HotelOtherSelectHandle>(null)
   const [form, setForm] = useState({ scheduleDate: "", hotelRoomId: 0, assignedTo: "", taskType: "Daily Cleaning", priority: "Normal", notes: "" })
-  const [taskSelection, setTaskSelection] = useState("")
-  const [customTask, setCustomTask] = useState("")
   const [assignedSelection, setAssignedSelection] = useState("")
   const [customAssigned, setCustomAssigned] = useState("")
 
@@ -68,7 +69,6 @@ export default function HotelHKSchedulePage() {
 
   function openCreate() {
     setForm({ scheduleDate: schedDate, hotelRoomId: 0, assignedTo: "", taskType: "", priority: "Normal", notes: "" })
-    setTaskSelection(""); setCustomTask("")
     setAssignedSelection(""); setCustomAssigned("")
     setOpen(true)
   }
@@ -79,6 +79,8 @@ export default function HotelHKSchedulePage() {
     setSaving(true)
     try {
       await createHKSchedule({ ...form, scheduleDate: schedDate })
+      // Before setOpen(false): closing unmounts the field and nulls the ref.
+      await taskTypeOther.current?.remember()
       toast({ title: "Scheduled" }); setOpen(false); await load()
     } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
     finally { setSaving(false) }
@@ -100,25 +102,34 @@ export default function HotelHKSchedulePage() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <DashboardHeader />
         <main className="flex-1 overflow-auto p-4 md:p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="rounded-xl bg-violet-100 p-2.5"><CalendarCheck className="h-6 w-6 text-violet-700" /></div>
-              <div>
-                <h1 className="text-2xl font-bold text-slate-900">Housekeeping Schedule</h1>
+          {/* Stacks on a phone. Side by side, "Housekeeping Schedule" wrapped to
+              two lines and the 200px "Schedule All Occupied" button still pushed
+              "+ Add" past the right edge — both visible in the 2026-09-18
+              screenshots. min-w-0 on the text block is what actually lets the
+              heading wrap instead of forcing the row wider than the screen. */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="rounded-xl bg-violet-100 p-2.5 shrink-0"><CalendarCheck className="h-6 w-6 text-violet-700" /></div>
+              <div className="min-w-0">
+                <h1 className="text-xl sm:text-2xl font-bold text-slate-900 break-words">Housekeeping Schedule</h1>
                 <p className="text-sm text-slate-500">{items.length} entries for {schedDate}</p>
               </div>
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={handleBulk} disabled={bulking}>
+            {/* Full width and evenly split on a phone, so both buttons are
+                comfortably tappable rather than squeezed against the edge. */}
+            <div className="flex gap-2 shrink-0">
+              <Button variant="outline" onClick={handleBulk} disabled={bulking} className="flex-1 sm:flex-none h-10">
                 {bulking ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Users className="h-4 w-4 mr-1" />} Schedule All Occupied
               </Button>
-              <Button onClick={openCreate} className="bg-violet-600 hover:bg-violet-700"><Plus className="h-4 w-4 mr-1" /> Add</Button>
+              <Button onClick={openCreate} className="flex-1 sm:flex-none h-10 bg-violet-600 hover:bg-violet-700"><Plus className="h-4 w-4 mr-1" /> Add</Button>
             </div>
           </div>
 
-          <div className="flex items-center gap-4 mb-4">
-            <Label>Date:</Label>
-            <Input type="date" value={schedDate} onChange={(e) => setSchedDate(e.target.value)} className="w-44" />
+          {/* The date input was a fixed w-44 beside an inline label; on a phone
+              it left a stranded gap. It now takes the rest of the row. */}
+          <div className="flex items-center gap-3 mb-4">
+            <Label className="shrink-0">Date:</Label>
+            <Input type="date" value={schedDate} onChange={(e) => setSchedDate(e.target.value)} className="h-10 flex-1 sm:flex-none sm:w-44" />
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
@@ -198,18 +209,17 @@ export default function HotelHKSchedulePage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <Label>Task Type *</Label>
-                    <Select value={taskSelection || "__none__"} onValueChange={(v) => {
-                      const sel = v === "__none__" ? "" : v
-                      setTaskSelection(sel)
-                      if (sel !== "Other") { setCustomTask(""); setForm({ ...form, taskType: sel }) }
-                      else { setForm({ ...form, taskType: customTask || "" }) }
-                    }}>
-                      <SelectTrigger><SelectValue placeholder="Select task" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">Select task</SelectItem>
-                        {taskTypes.map((t) => <SelectItem key={t.hotelHKTaskTypeId} value={t.description}>{t.description}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                    <HotelOtherSelect
+                      ref={taskTypeOther}
+                      listKey="HKTaskType"
+                      baseOptions={taskTypes.map((t) => t.description)}
+                      value={form.taskType}
+                      onChange={(v) => setForm({ ...form, taskType: v ?? "" })}
+                      placeholder="Select task"
+                      includeNone
+                      noneLabel="Select task"
+                      otherLabel="Other (type task)"
+                    />
                   </div>
                   <div>
                     <Label>Priority</Label>
@@ -224,12 +234,6 @@ export default function HotelHKSchedulePage() {
                   </div>
                 </div>
 
-                {taskSelection === "Other" && (
-                  <div>
-                    <Label>Specify Task</Label>
-                    <Input value={customTask} onChange={(e) => { setCustomTask(e.target.value); setForm({ ...form, taskType: e.target.value }) }} placeholder="e.g. Window cleaning, Carpet shampooing" />
-                  </div>
-                )}
 
                 <div>
                   <Label>Assigned To</Label>

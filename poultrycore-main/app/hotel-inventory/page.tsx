@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useState, useMemo } from "react"
+import { useEffect, useRef, useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -18,6 +18,7 @@ import {
   listHotelInventory, createHotelInventoryItem, listHotelSupplyCategories, listHotelSupplyItems,
   type HotelInventoryItem, type HotelSupplyCategory, type HotelSupplyItem,
 } from "@/lib/api/hotel"
+import { HotelOtherSelect, type HotelOtherSelectHandle } from "@/components/hotel/other-select"
 
 export default function HotelInventoryPage() {
   const router = useRouter(); const { toast } = useToast(); const logout = useLogout()
@@ -27,11 +28,10 @@ export default function HotelInventoryPage() {
   const [supplyItems, setSupplyItems] = useState<HotelSupplyItem[]>([])
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false); const [saving, setSaving] = useState(false)
+  // Handles on both "Other" dropdowns -- see handleSave.
+  const supplyCategoryOther = useRef<HotelOtherSelectHandle>(null)
+  const supplyItemOther = useRef<HotelOtherSelectHandle>(null)
   const [form, setForm] = useState({ name: "", category: "", unit: "pcs", stockOnHand: 0, reorderLevel: 10, unitCost: 0 })
-  const [catSelection, setCatSelection] = useState("")
-  const [customCat, setCustomCat] = useState("")
-  const [nameSelection, setNameSelection] = useState("")
-  const [customName, setCustomName] = useState("")
 
   useEffect(() => { if (!activeFarmType) return; if (activeFarmType !== "Hotel") { router.replace("/dashboard"); return }; load() }, [activeFarmType, router])
 
@@ -50,8 +50,6 @@ export default function HotelInventoryPage() {
 
   function openCreate() {
     setForm({ name: "", category: "", unit: "pcs", stockOnHand: 0, reorderLevel: 10, unitCost: 0 })
-    setCatSelection(""); setCustomCat("")
-    setNameSelection(""); setCustomName("")
     setDialogOpen(true)
   }
 
@@ -59,7 +57,13 @@ export default function HotelInventoryPage() {
     if (!form.name.trim()) { toast({ title: "Name required", variant: "destructive" }); return }
     if (!form.category) { toast({ title: "Category required", variant: "destructive" }); return }
     setSaving(true)
-    try { await createHotelInventoryItem(form); toast({ title: "Item added" }); setDialogOpen(false); await load() }
+    try {
+      await createHotelInventoryItem(form)
+      // Before setDialogOpen(false): closing unmounts the fields and nulls the refs.
+      await supplyCategoryOther.current?.remember()
+      await supplyItemOther.current?.remember()
+      toast({ title: "Item added" }); setDialogOpen(false); await load()
+    }
     catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) } finally { setSaving(false) }
   }
 
@@ -91,46 +95,40 @@ export default function HotelInventoryPage() {
           <div className="space-y-4">
             <div>
               <Label>Category *</Label>
-              <Select value={catSelection || "__none__"} onValueChange={(v) => {
-                const sel = v === "__none__" ? "" : v
-                setCatSelection(sel)
-                if (sel !== "__other__") {
-                  setCustomCat(""); setForm({...form, category: sel, name: ""})
-                } else {
-                  setForm({...form, category: customCat || "", name: ""})
-                }
-                setNameSelection(""); setCustomName("")
-              }}>
-                <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Select category</SelectItem>
-                  {supplyCategories.map(c => <SelectItem key={c.hotelSupplyCategoryId} value={c.description}>{c.description}</SelectItem>)}
-                  <SelectItem value="__other__">Other (type category)</SelectItem>
-                </SelectContent>
-              </Select>
+              {/* This dropdown used to offer BOTH "Other" (a seeded row in
+                  hotelsupplycategories) and "Other (type category)" (this page's
+                  own sentinel) — two entries, one of which silently stored the
+                  word "Other" as the category. HotelOtherSelect drops any base
+                  option literally reading "Other" and appends exactly one. */}
+              <HotelOtherSelect
+                ref={supplyCategoryOther}
+                listKey="SupplyCategory"
+                baseOptions={supplyCategories.map(c => c.description)}
+                value={form.category}
+                /* Changing category must clear the name: the item list below is
+                   filtered by it, so a name from the previous category would be
+                   left selected but no longer offered. */
+                onChange={(v) => setForm({...form, category: v ?? "", name: ""})}
+                placeholder="Select category"
+                includeNone
+                noneLabel="Select category"
+                otherLabel="Other (type category)"
+              />
             </div>
-            {catSelection === "__other__" && (
-              <div><Label>Specify Category</Label><Input value={customCat} onChange={(e) => { setCustomCat(e.target.value); setForm({...form, category: e.target.value}) }} placeholder="e.g. Pool Supplies, Electronics" /></div>
-            )}
             <div>
               <Label>Name *</Label>
-              <Select value={nameSelection || "__none__"} onValueChange={(v) => {
-                const sel = v === "__none__" ? "" : v
-                setNameSelection(sel)
-                if (sel !== "Other") { setCustomName(""); setForm({...form, name: sel}) }
-                else { setForm({...form, name: customName || ""}) }
-              }}>
-                <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Select item</SelectItem>
-                  {filteredSupplyItems.map(si => <SelectItem key={si.hotelSupplyItemId} value={si.description}>{si.description}</SelectItem>)}
-                  <SelectItem value="Other">Other (type name)</SelectItem>
-                </SelectContent>
-              </Select>
+              <HotelOtherSelect
+                ref={supplyItemOther}
+                listKey="SupplyItemName"
+                baseOptions={filteredSupplyItems.map(si => si.description)}
+                value={form.name}
+                onChange={(v) => setForm({...form, name: v ?? ""})}
+                placeholder="Select item"
+                includeNone
+                noneLabel="Select item"
+                otherLabel="Other (type name)"
+              />
             </div>
-            {nameSelection === "Other" && (
-              <div><Label>Specify Item Name</Label><Input value={customName} onChange={(e) => { setCustomName(e.target.value); setForm({...form, name: e.target.value}) }} placeholder="e.g. Pool Chemicals, Room Keys" /></div>
-            )}
             <div><Label>Unit</Label><Input value={form.unit} onChange={(e) => setForm({...form, unit: e.target.value})} placeholder="pcs, kg, litres" /></div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <div><Label>Stock</Label><Input type="number" value={form.stockOnHand} onChange={(e) => setForm({...form, stockOnHand: Number(e.target.value)})} /></div>

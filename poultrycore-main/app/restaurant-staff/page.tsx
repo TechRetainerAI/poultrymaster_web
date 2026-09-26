@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -17,6 +18,7 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 
 import { farmApiUrl, getAuthHeaders, getUserContext, readApiError } from "@/lib/api/config"
+import { getStaffLoanStaffReport } from "@/lib/api/restaurant-payroll"
 
 function activeFarmId(): string {
   const { farmId } = getUserContext()
@@ -102,6 +104,8 @@ export default function RestaurantStaffPage() {
 
   const [loading, setLoading] = useState(true)
   const [staff, setStaff] = useState<StaffMember[]>([])
+  // What each staff member still owes on loans and advances (migration 326).
+  const [owed, setOwed] = useState<Map<number, number>>(new Map())
   const [search, setSearch] = useState("")
   const [filterRole, setFilterRole] = useState("all")
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -121,6 +125,11 @@ export default function RestaurantStaffPage() {
     try { setStaff(await listStaff()) }
     catch (e: any) { toast({ title: "Failed to load", description: e?.message, variant: "destructive" }) }
     finally { setLoading(false) }
+    // Loan balances are extra: if they cannot load, the staff list still works.
+    try {
+      const rows = await getStaffLoanStaffReport()
+      setOwed(new Map(rows.filter((r) => r.outstanding > 0).map((r) => [r.restaurantStaffId, r.outstanding])))
+    } catch { setOwed(new Map()) }
   }
 
   function openDialog(s?: StaffMember) {
@@ -283,6 +292,11 @@ export default function RestaurantStaffPage() {
                               <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{s.phone}</span>
                               {s.email && <span className="flex items-center gap-1"><Mail className="h-3 w-3" />{s.email}</span>}
                               {s.basePay > 0 && <span>{s.basePay.toFixed(0)}/{s.salaryType}</span>}
+                              {owed.has(s.restaurantStaffId) && (
+                                <Link href={`/restaurant-staff-loans?staffId=${s.restaurantStaffId}`} className="font-medium text-red-600 hover:underline" title="Open this staff member's loans">
+                                  owes {owed.get(s.restaurantStaffId)!.toFixed(2)}
+                                </Link>
+                              )}
                             </div>
                           </div>
                           <div className="flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 sm:transition-opacity">

@@ -84,8 +84,11 @@ namespace PoultryFarmAPIWeb.Business
                 await cmd.ExecuteNonQueryAsync();
             }
 
-            // Auto-deduct ingredient stock from recipes when order is completed
-            if (status == "Completed" || status == "Served")
+            // Auto-deduct ingredient stock from recipes once the order is completed.
+            // Only on Completed: the orders screen walks Served -> Completed, and
+            // running it on both deducted every order twice. The function is also
+            // idempotent since migration 323, so a retry cannot double-deduct.
+            if (status == "Completed")
             {
                 try
                 {
@@ -99,7 +102,7 @@ namespace PoultryFarmAPIWeb.Business
             }
         }
 
-        public async Task RecalcOrderAsync(int orderId, string farmId, decimal taxRate, decimal serviceChargeRate)
+        public async Task RecalcOrderAsync(int orderId, string farmId, decimal? taxRate, decimal? serviceChargeRate)
         {
             using var conn = new NpgsqlConnection(_cs);
             using var cmd = new NpgsqlCommand(
@@ -107,8 +110,8 @@ namespace PoultryFarmAPIWeb.Business
                 "p_taxrate => @TaxRate::numeric, p_servicechargerate => @ServiceChargeRate::numeric)", conn);
             cmd.Parameters.AddWithValue("@OrderId", orderId);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
-            cmd.Parameters.AddWithValue("@TaxRate", taxRate);
-            cmd.Parameters.AddWithValue("@ServiceChargeRate", serviceChargeRate);
+            cmd.Parameters.AddWithValue("@TaxRate", (object?)taxRate ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ServiceChargeRate", (object?)serviceChargeRate ?? DBNull.Value);
             await conn.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
         }
@@ -318,13 +321,21 @@ namespace PoultryFarmAPIWeb.Business
         // ORDER PAYMENTS
         // =====================================================================
 
-        public async Task<int> AddPaymentAsync(string farmId, int orderId, string paymentMethod, decimal amount, decimal tipAmount, string? reference, string? processedBy)
+        /// <summary>
+        /// Records a payment AND posts it to the cash ledger in the same function
+        /// call (migration 323). The amount is what was applied to the bill -- the
+        /// function refuses more than the balance due, so change is never stored.
+        /// Cash goes to <paramref name="shiftId"/>'s till, else the only open till,
+        /// else the main cash box; <paramref name="cashAccountId"/> overrides.
+        /// </summary>
+        public async Task<int> AddPaymentAsync(string farmId, int orderId, string paymentMethod, decimal amount, decimal tipAmount, string? reference, string? processedBy, int? cashAccountId = null, int? shiftId = null)
         {
             using var conn = new NpgsqlConnection(_cs);
             using var cmd = new NpgsqlCommand(
                 "SELECT sprestaurant_orderpayment_insert(p_farmid => @FarmId::text, p_orderid => @OrderId::int, " +
                 "p_paymentmethod => @PaymentMethod::text, p_amount => @Amount::numeric, " +
-                "p_tipamount => @TipAmount::numeric, p_reference => @Reference::text, p_processedby => @ProcessedBy::text)", conn);
+                "p_tipamount => @TipAmount::numeric, p_reference => @Reference::text, p_processedby => @ProcessedBy::text, " +
+                "p_cashaccountid => @CashAccountId::int, p_shiftid => @ShiftId::int)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@OrderId", orderId);
             cmd.Parameters.AddWithValue("@PaymentMethod", paymentMethod);
@@ -332,6 +343,31 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@TipAmount", tipAmount);
             cmd.Parameters.AddWithValue("@Reference", (object?)reference ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@ProcessedBy", (object?)processedBy ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@CashAccountId", (object?)cashAccountId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ShiftId", (object?)shiftId ?? DBNull.Value);
+            await conn.OpenAsync();
+            return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        }
+
+        /// <summary>
+        /// Gives money back: a negative payment row plus a ledger money-out, in one
+        /// function call. A refund of everything paid marks the order Refunded.
+        /// </summary>
+        public async Task<int> RefundAsync(string farmId, int orderId, decimal amount, string paymentMethod, string reason, string? processedBy, int? cashAccountId = null, int? shiftId = null)
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand(
+                "SELECT sprestaurant_orderpayment_refund(p_farmid => @FarmId::text, p_orderid => @OrderId::int, " +
+                "p_amount => @Amount::numeric, p_paymentmethod => @PaymentMethod::text, p_reason => @Reason::text, " +
+                "p_processedby => @ProcessedBy::text, p_cashaccountid => @CashAccountId::int, p_shiftid => @ShiftId::int)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@OrderId", orderId);
+            cmd.Parameters.AddWithValue("@Amount", amount);
+            cmd.Parameters.AddWithValue("@PaymentMethod", paymentMethod);
+            cmd.Parameters.AddWithValue("@Reason", reason ?? "");
+            cmd.Parameters.AddWithValue("@ProcessedBy", (object?)processedBy ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@CashAccountId", (object?)cashAccountId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ShiftId", (object?)shiftId ?? DBNull.Value);
             await conn.OpenAsync();
             return Convert.ToInt32(await cmd.ExecuteScalarAsync());
         }

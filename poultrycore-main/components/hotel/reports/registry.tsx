@@ -31,6 +31,7 @@ import {
   getHotelCancellations, getLengthOfStay, getHousekeepingProductivity,
   getHotelLoyaltyReport,
 } from "@/lib/api/hotel"
+import { getHotelEmployeeLoanStaffReport, type HotelEmployeeLoanStaffRow } from "@/lib/api/hotel-employee-loans"
 import type { HotelPerformanceKpis } from "@/lib/api/hotel"
 
 const VIOLET = "#6d28d9"
@@ -524,6 +525,55 @@ const loyalty: ReportDefinition<any> = {
 }
 
 // ===========================================================================
+// STAFF LOANS & ADVANCES (migration 325)
+// ===========================================================================
+// One row per staff member who has, or had, a loan: what they owe NOW, and what
+// was advanced and repaid between the dates. "Repaid via payroll" moved no cash
+// (it came off net pay); "repaid in cash" did.
+
+const staffLoans: ReportDefinition<HotelEmployeeLoanStaffRow> = {
+  load: async (r) => ({ rows: await getHotelEmployeeLoanStaffReport(r.from, r.to) }),
+  summary: (r, f) => {
+    const sum = (k: keyof HotelEmployeeLoanStaffRow) => r.rows.reduce((s, x) => s + (Number(x[k]) || 0), 0)
+    return [
+      { label: "Owed by staff now", value: f.money(sum("outstanding")) },
+      { label: "Advanced in period", value: f.money(sum("disbursedInPeriod")) },
+      { label: "Repaid in period", value: f.money(sum("repaidCashInPeriod") + sum("repaidPayrollInPeriod")) },
+      { label: "Staff owing", value: f.int(r.rows.filter((x) => x.outstanding > 0).length) },
+    ]
+  },
+  panel: (r, f) => {
+    const owing = r.rows.filter((x) => x.outstanding > 0).slice(0, 12)
+    if (owing.length === 0) return null
+    return chartCard("Who owes the most", "Outstanding balance per staff member, largest first.", (
+      <ResponsiveContainer width="100%" height={Math.max(160, owing.length * 32)}>
+        <BarChart data={owing} layout="vertical" margin={{ left: 8, right: 16 }}>
+          <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+          <XAxis type="number" tickFormatter={(v) => f.int(v)} />
+          <YAxis type="category" dataKey="staffName" width={120} tick={{ fontSize: 12 }} />
+          <Tooltip formatter={(v: any) => f.money(Number(v))} />
+          <Bar dataKey="outstanding" name="Owed" fill={VIOLET} radius={[0, 4, 4, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    ))
+  },
+  columns: [
+    { key: "s", label: "Staff", value: (r) => r.staffName + (r.staffIsActive ? "" : " (inactive)") },
+    { key: "d", label: "Department", value: (r) => r.department ?? "—", secondary: true },
+    { key: "a", label: "Active loans", value: (r, f) => f.int(r.activeLoans), numeric: true, secondary: true },
+    { key: "o", label: "Owed now", value: (r, f) => f.money(r.outstanding), numeric: true },
+    { key: "g", label: "Advanced", value: (r, f) => f.money(r.disbursedInPeriod), numeric: true },
+    { key: "rc", label: "Repaid in cash", value: (r, f) => f.money(r.repaidCashInPeriod), numeric: true, secondary: true },
+    { key: "rp", label: "Repaid via payroll", value: (r, f) => f.money(r.repaidPayrollInPeriod), numeric: true, secondary: true },
+    { key: "i", label: "Interest", value: (r, f) => f.money(r.interestInPeriod), numeric: true, secondary: true },
+    { key: "l", label: "Last repayment", value: (r) => (r.lastRepaymentDate ? String(r.lastRepaymentDate).slice(0, 10) : "—"), secondary: true },
+  ],
+  tableTitle: "Staff loans and advances",
+  tableHint: "Owed now is today’s balance; the other amounts are for the selected dates.",
+  emptyText: "No staff loans or advances yet.",
+}
+
+// ===========================================================================
 // The registry the hotel report router reads.
 // ===========================================================================
 
@@ -538,6 +588,7 @@ export const HOTEL_REPORT_REGISTRY: Record<string, ReportDefinition<any, any>> =
   "ancillary-revenue": ancillaryRevenue,
   "housekeeping-productivity": housekeepingProductivity,
   "loyalty-report": loyalty,
+  "staff-loans": staffLoans,
 }
 
 /**

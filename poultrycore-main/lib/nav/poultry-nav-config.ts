@@ -17,32 +17,47 @@ import {
   Activity, AlertTriangle, ArrowLeftRight, Banknote, BarChart3, Bell, Bird, BookOpen, Box, Boxes,
   Building2, Clock, CreditCard, DollarSign, Egg, Factory, FileText, HelpCircle, History, Hourglass,
   Coins, HandCoins, ListTodo, Package, PackageMinus, Pill, Receipt, Scale, Settings, ShoppingCart, Truck, User, UserCog, Users,
-  Users2, Wallet, Wheat, TrendingUp,
+  Users2, Wallet, Wheat, TrendingUp, Sparkles,
 } from "lucide-react"
 import type { UserPermissions } from "@/hooks/use-permissions"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
-import type { MegaMenuGroup, NavGroup } from "./nav-model"
+import type { MegaMenuGroup, NavGroup, NavItem } from "./nav-model"
+import { resolveQuickLinks } from "./quick-links"
 
 export interface PoultryNavDeps {
   permissions: UserPermissions
   /** Opens the alerts drawer (useAlertsStore.open). */
   onOpenAlerts: () => void
   alertCount?: number
+
+  /**
+   * The user's own Quick Links, from migration 318. Undefined or null means
+   * they have never customised -- the defaults below stand. `[]` means they
+   * cleared the bar, which is a different answer and must survive as one.
+   */
+  quickLinkHrefs?: string[] | null
 }
 
 export interface PoultryNavConfig {
-  /** Stays a narrow single-column dropdown — it's a 3-item shortcut bar. */
+  /** Stays a narrow single-column dropdown — a shortcut bar, not a menu. */
   quickLinks: NavGroup
   operations: MegaMenuGroup[]
   salesMoney: MegaMenuGroup[]
   analytics: MegaMenuGroup[]
   setup: MegaMenuGroup[]
+  /**
+   * One-off and occasional jobs, as opposed to Setup's ongoing configuration.
+   * Onboarding lives here because it is run once in a farm's life and then
+   * never again -- among the Setup rows it read as something you might revisit,
+   * which is exactly what it must not be.
+   */
+  tools: MegaMenuGroup[]
   /** Right-hand panel. Mirrors the sidebar's bottom "System" group. */
   system: MegaMenuGroup[]
 }
 
 export function buildPoultryNavConfig(
-  { permissions, onOpenAlerts, alertCount }: PoultryNavDeps,
+  { permissions, onOpenAlerts, alertCount, quickLinkHrefs }: PoultryNavDeps,
 ): PoultryNavConfig {
   const { featureAccess, isAdmin } = permissions
   const canSeeStaff = isAdmin || featureAccess.canSeeEmployees
@@ -54,14 +69,72 @@ export function buildPoultryNavConfig(
   const money = (href: string) =>
     isFinancialNavItemVisible(href, featureAccess, isAdmin, { tempShowPayments: true })
 
-  return {
+  const config: PoultryNavConfig = {
     quickLinks: {
       label: "Quick Links",
-      items: [
-        { href: "/poultry-daily-closing", label: "Daily Closing",      icon: FileText },
+      // WHAT EARNS A PLACE HERE: a page the farm opens most days.
+      //
+      // Not "everything important" -- a shortcut list containing everything is
+      // not a shortcut, it is a second copy of the rail, and the thing you
+      // actually wanted stops being findable. Weekly and monthly work
+      // (deliveries, stock, payroll, the report catalogue) stays one click away
+      // in its own group, which is where someone looking for it goes.
+      //
+      // Ordered by the shape of a day: record what was produced and what went
+      // into it, record what was sold and collected and who still owes, record
+      // what was spent, check where the money actually stands, then close the
+      // day.
+      //
+      // THE LAST THREE ARE VIEWS, NOT ENTRY SCREENS. Customer Balances, Cash
+      // Flow and Profit & Loss record nothing -- they are here because they
+      // are what an owner opens to ask "where are we?", which is a daily
+      // question even though none of them is a daily task. They sit after the
+      // rows that put the numbers there, so the list still reads in the order
+      // the work happens.
+      //
+      // AND GATED, which it was not before. Quick Links carries pages that are
+      // permission-checked in their own groups -- /sales has been money()-gated
+      // in the Sales column for as long as it has been here, and Payments and
+      // Expenses are too. Returning this list unfiltered made the shortcut a
+      // way AROUND the permission: a staff member denied Sales in the rail
+      // could still reach it from here. The water rail already filters its
+      // quick links; this brings poultry into line.
+      //
+      // Only the financial rows carry a gate. money() is a default-DENY
+      // allow-list, so running the production rows through it would hide
+      // Production Records and Feed Usage from everyone.
+      items: ([
         { href: "/production-records",    label: "Production Records", icon: Factory },
-        { href: "/sales",                 label: "Sales",              icon: ShoppingCart },
-      ],
+        { href: "/egg-production",        label: "Egg sorting",        icon: Egg },
+        // Ungated, like the production rows above it and like its own row in
+        // Operations > Purchase. money() is a default-DENY allow-list, so
+        // sending a non-financial page through it hides it from everyone.
+        //
+        // "Raw Materials", not the full "Raw Materials & Supplies" it carries in
+        // Operations: NavDropdown's panel is a fixed w-52 (208px) and its rows
+        // do not truncate, so the full name is the one label here that wraps to
+        // a second line. Same page, and the shortcut bar does not need the
+        // qualifier to be unambiguous.
+        { href: "/poultry-raw-materials", label: "Raw Materials",       icon: Box },
+        { href: "/sales",                 label: "Sales",              icon: ShoppingCart,
+          visible: money("/sales") },
+        { href: "/poultry-payments",      label: "Payments received",  icon: Wallet,
+          visible: money("/poultry-payments") },
+        { href: "/customer-balances",     label: "Customer Balances",  icon: Users,
+          visible: money("/customer-balances") },
+        { href: "/expenses",              label: "Expenses",           icon: DollarSign,
+          visible: money("/expenses") },
+        { href: "/cash-flow",             label: "Cash Flow",          icon: Wallet,
+          visible: money("/cash-flow") },
+        // The Money-page skin, NOT the report route: this row is beside Cash
+        // Flow and Expenses, and a report's back button on it would offer to
+        // return you to a catalogue you never opened.
+        { href: "/poultry-profit-loss", label: "Profit & Loss", icon: TrendingUp,
+          visible: money("/poultry-profit-loss") },
+        { href: "/poultry-daily-closing", label: "Daily Closing",      icon: FileText },
+      ] as (NavItem & { visible?: boolean })[])
+        .filter((i) => i.visible !== false)
+        .map(({ visible, ...item }) => item),
     },
 
     operations: [
@@ -91,11 +164,17 @@ export function buildPoultryNavConfig(
           { id: "inventory",      title: "Inventory",                 icon: Boxes,         href: "/poultry-inventory" },
           { id: "stock",          title: "Stock movements",           icon: Boxes,         href: "/poultry-stock" },
           { id: "raw-materials",  title: "Raw Materials & Supplies",  icon: Box,           href: "/poultry-raw-materials" },
-          { id: "supplies",       title: "Supplies",                  icon: ShoppingCart,  href: "/supplies" },
+          // Supplies and Other Inventory are hidden rather than deleted: the
+          // pages still exist and still work by URL, and their rows are one
+          // uncomment away if the farm wants them back. Both overlapped what
+          // Raw Materials & Supplies and Inventory above already cover.
+          // { id: "supplies",       title: "Supplies",                  icon: ShoppingCart,  href: "/supplies" },
           { id: "health",         title: "Health Records",            icon: AlertTriangle, href: "/health" },
-          { id: "internal-use",   title: "Internal Use",              icon: PackageMinus,  href: "/poultry-internal-use" },
+          // Internal Use moved to Sales, Expenses & Money > Expenses. Stock
+          // taken for the farm's own use is a COST, not a stock count -- it is
+          // read beside the other outflows, not beside what is on the shelf.
           { id: "loss-records",   title: "Loss & Damage",             icon: AlertTriangle, href: "/poultry-loss-records" },
-          { id: "other-inventory", title: "Other Inventory",          icon: Package,       href: "/inventory" },
+          // { id: "other-inventory", title: "Other Inventory",          icon: Package,       href: "/inventory" },
         ],
       },
       {
@@ -147,6 +226,12 @@ export function buildPoultryNavConfig(
         label: "Expenses",
         items: [
           { id: "expenses",      title: "Expenses",     icon: DollarSign, href: "/expenses",               visible: money("/expenses") },
+          // Moved here from Operations > Inventory & Health. Stock the farm
+          // consumes itself is money going out in kind -- it belongs with the
+          // outflows it is, rather than with the stock counts it is measured
+          // from. Ungated, exactly as it was in its old home, so nobody loses
+          // access to a page they can reach today.
+          { id: "internal-use",  title: "Internal Use", icon: PackageMinus, href: "/poultry-internal-use" },
           // Payroll is money going out, so it sits with the other outflows
           // rather than with staff master data in Setup > People. It is also the
           // one ungated row here, which keeps this column from ever vanishing.
@@ -190,10 +275,11 @@ export function buildPoultryNavConfig(
           // Between the two on purpose: it is the bridge between them, and it
           // reads the same functions both of them read.
           { id: "financial-activity", title: "Financial Activity", icon: Activity, href: "/poultry-financial-activity", visible: money("/poultry-financial-activity") },
-          // The same page as Reports > Profit & Loss. Surfaced beside Cash Flow
-          // because the two answer the pair of questions owners ask together:
-          // what did we earn, and where did the money go.
-          { id: "profit-loss",   title: "Profit & Loss", icon: TrendingUp, href: "/poultry/reports/profit-loss", visible: money("/poultry/reports/profit-loss") },
+          // The same STATEMENT as Reports > Profit & Loss, in the Money frame.
+          // Surfaced beside Cash Flow because the two answer the pair of
+          // questions owners ask together: what did we earn, and where did the
+          // money go.
+          { id: "profit-loss",   title: "Profit & Loss", icon: TrendingUp, href: "/poultry-profit-loss", visible: money("/poultry-profit-loss") },
           // The pre-cash-account page. HIDDEN from the menu: it counts EVERY
           // sale and expense while Cash Flow counts only what was linked to a
           // cash account, and two rows one above the other showing different
@@ -224,7 +310,7 @@ export function buildPoultryNavConfig(
         label: "Trackers",
         // Row ORDER is the order the user asked for, not a derived one: what
         // the farm looks at daily comes first (eggs, feed, then feed stock),
-        // then the birds and their medication, then the weekly Report.
+        // then the birds and their medication, then the Analytical Report.
         // Ingredients only tracker trails the group -- it is the mill's own view,
         // consulted far less often than the three above it.
         items: [
@@ -233,7 +319,7 @@ export function buildPoultryNavConfig(
           { id: "feed-inventory-tracker", title: "Feed inventory tracker", icon: History, href: "/feed-inventory-tracker" },
           { id: "birds-left",         title: "Birds tracker",      icon: Bird,      href: "/birds-left-tracker" },
           { id: "medication-tracker", title: "Medication tracker", icon: Pill,      href: "/medication-tracker" },
-          { id: "weekly-report",      title: "Report",             icon: FileText,  href: "/weekly-report" },
+          { id: "weekly-report",      title: "Analytical Report",  icon: FileText,  href: "/weekly-report" },
           { id: "feed-ingredient-tracker", title: "Ingredients only tracker", icon: Wheat, href: "/feed-ingredient-tracker" },
         ],
       },
@@ -318,6 +404,24 @@ export function buildPoultryNavConfig(
       },
     ],
 
+    // One-off jobs. Kept apart from Setup on purpose -- see the note on
+    // PoultryNavConfig.tools above.
+    tools: [
+      {
+        key: "tools",
+        // Repeats the menu's own title, the way the Trackers group does -- a
+        // single-group panel has nothing to distinguish itself from.
+        label: "Tools",
+        items: [
+          // Named "Initial Farm Setup" because /poultry-setup already owns the
+          // label "Farm Setup", and two rows reading the same would be a coin
+          // toss. Rides canViewSettings like the Setup rows it came from; what
+          // it may create once inside is gated by its own IAM keys.
+          { id: "initial-farm-setup", title: "Initial Farm Setup", icon: Sparkles, href: "/poultry-farm-setup", visible: featureAccess.canViewSettings },
+        ],
+      },
+    ],
+
     system: [
       {
         key: "system",
@@ -337,5 +441,14 @@ export function buildPoultryNavConfig(
         ],
       },
     ],
+  }
+
+  // LAST, over the finished config. resolveQuickLinks resolves the stored
+  // hrefs against THIS object, whose rows have already been permission-gated,
+  // so a pinned page the user may not see is dropped rather than revealed. See
+  // lib/nav/quick-links.ts.
+  return {
+    ...config,
+    quickLinks: { ...config.quickLinks, items: resolveQuickLinks(config, quickLinkHrefs) },
   }
 }

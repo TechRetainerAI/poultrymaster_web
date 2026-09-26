@@ -31,10 +31,10 @@ namespace PoultryFarmAPIWeb.Business
     public interface IRestaurantGiftCardService
     {
         Task<List<GiftCardModel>> ListAsync(string farmId, string? status = null);
-        Task<(int id, string cardNumber)> CreateAsync(string farmId, string cardType, decimal amount, string? purchaserName, string? purchaserPhone, string? recipientName, string? recipientEmail, string? message, DateTime? expiryDate);
+        Task<(int id, string cardNumber)> CreateAsync(string farmId, string cardType, decimal amount, string? purchaserName, string? purchaserPhone, string? recipientName, string? recipientEmail, string? message, DateTime? expiryDate, string paymentMethod = "Cash", int? cashAccountId = null, string? processedBy = null);
         Task<GiftCardRedeemResult> RedeemAsync(string cardNumber, string farmId, decimal amount, int? orderId = null, string? processedBy = null);
-        Task ReloadAsync(string cardNumber, string farmId, decimal amount, string? processedBy = null);
-        Task<GiftCardModel?> CheckBalanceAsync(string cardNumber);
+        Task ReloadAsync(string cardNumber, string farmId, decimal amount, string? processedBy = null, string paymentMethod = "Cash", int? cashAccountId = null);
+        Task<GiftCardModel?> CheckBalanceAsync(string cardNumber, string farmId);
         Task<List<GiftCardTxModel>> GetTransactionsAsync(int giftCardId, string farmId);
         Task<GiftCardStatsModel> GetStatsAsync(string farmId);
     }

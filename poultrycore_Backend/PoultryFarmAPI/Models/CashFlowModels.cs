@@ -24,6 +24,8 @@ namespace PoultryFarmAPIWeb.Models
         public string? Description { get; set; }
         /// <summary>Informational only. Cash Flow never filters or totals by account.</summary>
         public int? CashAccountId { get; set; }
+        /// <summary>The account's name, where the rail's rows carry one (Restaurant, 323). Null otherwise.</summary>
+        public string? AccountName { get; set; }
         /// <summary>Signed: positive in, negative out.</summary>
         public decimal Amount { get; set; }
         public decimal Inflow { get; set; }
@@ -59,6 +61,20 @@ namespace PoultryFarmAPIWeb.Models
         public decimal FinancingOut { get; set; }
 
         public int MovementCount { get; set; }
+
+        /// <summary>
+        /// Money moved between the company's own accounts in the period, as the rail's
+        /// _summary function reports it. Never part of MoneyIn/MoneyOut. 0 when the
+        /// rail's summary has no such column.
+        /// </summary>
+        public decimal TransferVolume { get; set; }
+
+        /// <summary>
+        /// The rail's `ledgercash` summary column, passed through. For Restaurant (323)
+        /// it is every ledger row up to the period end and equals ClosingCash by
+        /// construction. 0 when the rail's summary has no such column.
+        /// </summary>
+        public decimal LedgerCash { get; set; }
     }
 
     public class CashFlowResponse

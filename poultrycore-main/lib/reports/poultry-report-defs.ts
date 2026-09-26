@@ -760,6 +760,22 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
   },
 
   // 15b -----------------------------------------------------------------------
+  // NOT RENDERED, and it cannot simply be deleted.
+  //
+  // /poultry/reports/profit-loss renders PoultryProfitLossView instead: since
+  // migration 272 a P&L is a STATEMENT -- Revenue, Gross, Operating, Net, with
+  // Financing and Capital printed beside it and never inside it -- which the
+  // slug engine's table/cards shape cannot express.
+  //
+  // This entry stays because POULTRY_REPORT_DEFS is a TOTAL
+  // Record<PoultryReportSlug, ...> and "profit-loss" is a member of that union,
+  // which in turn is what lets the Reports index build its card with
+  // item("profit-loss"). Removing the entry is a type error; removing the union
+  // member takes the index card with it.
+  //
+  // So it is kept as the slug's catalogue record, and the columns/cards below
+  // are what a table-shaped P&L WOULD look like if the statement view were ever
+  // retired. Do not wire a route to it without reading 272 first.
   "profit-loss": {
     slug: "profit-loss",
     title: "Poultry Profit and Loss Report",

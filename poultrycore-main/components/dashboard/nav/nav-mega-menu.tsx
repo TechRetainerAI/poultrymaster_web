@@ -32,6 +32,13 @@ export interface NavMegaMenuProps {
   widthRem?: number
   accent?: NavAccent
   /**
+   * Fill the current page's row with the accent. On by default, and right for
+   * every multi-row panel. Turn it OFF for a single-row panel, where the fill
+   * covers the entire interior and stops reading as a state. The trigger in the
+   * bar still shows you are here either way.
+   */
+  highlightActiveRow?: boolean
+  /**
    * "columns" = CSS multi-column, which balances by HEIGHT — a group is never
    * split (break-inside-avoid) but group N is not pinned to column N. Fine for
    * Reports, whose many small groups are meant to flow; wrong for a 3-group
@@ -80,7 +87,7 @@ const GRID_FIT_CLASS: Record<1 | 2 | 3 | 4, string> = {
 export function NavMegaMenu({
   label, icon: TriggerIcon, groups, title, blurb, viewAll,
   columns = 4, widthRem = 56, accent = "sky", layout = "columns", fitColumns = false,
-  triggerActiveHrefs, closeDelayMs = 180,
+  triggerActiveHrefs, closeDelayMs = 180, highlightActiveRow = true,
 }: NavMegaMenuProps) {
   const pathname = usePathname()
   const pop = useNavPopover({ closeDelayMs, menuWidthPx: widthRem * 16 })
@@ -203,11 +210,11 @@ export function NavMegaMenu({
                     // <Link> — buttons shrink to fit and centre by default.
                     const rowClass = cn(
                       "w-full text-left flex items-start gap-2 px-2 py-1.5 rounded-md text-sm transition-colors",
-                      active ? cn(a.rowActive, "font-medium") : a.rowIdle,
+                      active && highlightActiveRow ? cn(a.rowActive, "font-medium") : a.rowIdle,
                     )
                     const rowInner = (
                       <>
-                        <Icon className={cn("h-4 w-4 mt-0.5 shrink-0", active ? a.iconActive : a.iconIdle)} />
+                        <Icon className={cn("h-4 w-4 mt-0.5 shrink-0", active && highlightActiveRow ? a.iconActive : a.iconIdle)} />
                         {/* title=, because `truncate` fails silently: a panel
                             1rem too narrow eats the end of a label with nothing
                             on screen to say so. The width arithmetic in

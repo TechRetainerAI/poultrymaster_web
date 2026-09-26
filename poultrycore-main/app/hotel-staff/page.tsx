@@ -1,4 +1,5 @@
 "use client"
+import Link from "next/link"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -18,6 +19,7 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { listHotelStaff, createHotelStaff, updateHotelStaff, deleteHotelStaff, type HotelStaff } from "@/lib/api/hotel"
+import { getHotelEmployeeLoanStaffReport } from "@/lib/api/hotel-employee-loans"
 
 const DEPARTMENTS = ["Front Desk", "Housekeeping", "Restaurant", "Kitchen", "Bar", "Maintenance", "Security", "Management", "Finance", "Laundry", "Spa", "Other"]
 const ROLES = [
@@ -67,9 +69,21 @@ export default function HotelStaffPage() {
   const emptyForm: StaffForm = { firstName: "", lastName: "", email: "", phone: "", role: "Other", department: "Front Desk", salaryAmount: 0, hireDate: new Date().toISOString().slice(0, 10), isActive: true }
   const [form, setForm] = useState<StaffForm>(emptyForm)
   const [deleteTarget, setDeleteTarget] = useState<any>(null)
+  // What each staff member still owes on loans and advances (staff id -> amount).
+  const [owed, setOwed] = useState<Map<number, { amount: number; loans: number }>>(new Map())
 
   useEffect(() => { if (!activeFarmType) return; if (activeFarmType !== "Hotel") { router.replace("/dashboard"); return }; load() }, [activeFarmType, router])
-  async function load() { setLoading(true); try { setStaff(await listHotelStaff()) } catch (e: any) { toast({ title: "Failed to load staff", description: e?.message, variant: "destructive" }) } finally { setLoading(false) } }
+  async function load() {
+    setLoading(true)
+    try { setStaff(await listHotelStaff()) }
+    catch (e: any) { toast({ title: "Failed to load staff", description: e?.message, variant: "destructive" }) }
+    finally { setLoading(false) }
+    // Loan balances are extra: if they fail to load, the staff list still works.
+    try {
+      const rows = await getHotelEmployeeLoanStaffReport()
+      setOwed(new Map(rows.filter((r) => r.outstanding > 0).map((r) => [r.hotelStaffId, { amount: r.outstanding, loans: r.activeLoans }])))
+    } catch { setOwed(new Map()) }
+  }
 
   function openCreate() {
     setEditing(null)
@@ -144,10 +158,10 @@ export default function HotelStaffPage() {
         {loading ? <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-violet-600" /></div> : (
           <Card><CardContent className="p-0">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[770px]">
+              <table className="w-full text-sm min-w-[860px]">
               <thead className="bg-slate-50 border-b"><tr>
                 <th className="text-left p-3">Name</th><th className="text-left p-3">Role</th><th className="text-left p-3">Department</th>
-                <th className="text-left p-3">Phone</th><th className="text-left p-3">Status</th><th className="text-right p-3">Salary</th><th className="text-right p-3">Actions</th>
+                <th className="text-left p-3">Phone</th><th className="text-left p-3">Status</th><th className="text-right p-3">Salary</th><th className="text-right p-3">Owes (loans)</th><th className="text-right p-3">Actions</th>
               </tr></thead>
               <tbody>
                 {filtered.map((s: any, idx: number) => {
@@ -164,6 +178,14 @@ export default function HotelStaffPage() {
                         </Badge>
                       </td>
                       <td className="p-3 text-right font-semibold tabular-nums">{gn(s, "salaryAmount") > 0 ? gn(s, "salaryAmount").toFixed(2) : (gn(s, "salaryamount") > 0 ? gn(s, "salaryamount").toFixed(2) : "0.00")}</td>
+                      <td className="p-3 text-right tabular-nums">
+                        {owed.has(gid(s)) ? (
+                          <Link href={`/hotel-employee-loans?staffId=${gid(s)}`} className="font-semibold text-red-600 hover:underline" title="Open this staff member's loans">
+                            {owed.get(gid(s))!.amount.toFixed(2)}
+                            <span className="block text-xs font-normal text-slate-500">{owed.get(gid(s))!.loans} active</span>
+                          </Link>
+                        ) : <span className="text-slate-400">—</span>}
+                      </td>
                       <td className="p-3 text-right space-x-1">
                         <Button variant="ghost" size="icon" onClick={() => openEdit(s)}><Edit2 className="h-4 w-4" /></Button>
                         <Button variant="ghost" size="icon" className="text-red-600" onClick={() => setDeleteTarget(s)}><Trash2 className="h-4 w-4" /></Button>
@@ -171,7 +193,7 @@ export default function HotelStaffPage() {
                     </tr>
                   )
                 })}
-                {filtered.length === 0 && <tr><td colSpan={7} className="p-8 text-center text-slate-400">No staff found. Add your hotel workers.</td></tr>}
+                {filtered.length === 0 && <tr><td colSpan={8} className="p-8 text-center text-slate-400">No staff found. Add your hotel workers.</td></tr>}
               </tbody>
               </table>
             </div>

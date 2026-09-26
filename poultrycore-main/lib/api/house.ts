@@ -32,6 +32,36 @@ export interface HouseInput {
   location?: string | null
 }
 
+/** One row of a bulk create. The company is stated once, on the envelope. */
+export interface BulkHouseItem {
+  houseName: string
+  capacity?: number | null
+  location?: string | null
+}
+
+export interface BulkHouseCreateInput {
+  userId: string
+  farmId: string
+  houses: BulkHouseItem[]
+  /** Which screen this batch came from; recorded in the audit trail. */
+  source?: string
+}
+
+/** A validation failure pinned to the row that caused it. */
+export interface BulkHouseRowError {
+  index: number
+  field: string
+  message: string
+}
+
+export interface BulkHouseCreateResult {
+  success: boolean
+  createdCount: number
+  houses: House[]
+  errors: BulkHouseRowError[]
+  message?: string
+}
+
 export interface ApiResponse<T = any> {
   success: boolean
   data?: T
@@ -48,6 +78,24 @@ function mapHouse(raw: any): House {
     capacity: raw.capacity ?? raw.Capacity ?? null,
     createdDate: raw.createdDate ?? raw.CreatedDate ?? undefined,
     location: raw.location ?? raw.Location ?? null,
+  }
+}
+
+// Backend BulkHouseCreateResult (PascalCase) -> camelCase, tolerating a body
+// that never arrived (network error, HTML error page).
+function mapBulkResult(raw: any): BulkHouseCreateResult {
+  const houses = raw?.houses ?? raw?.Houses ?? []
+  const errors = raw?.errors ?? raw?.Errors ?? []
+  return {
+    success: Boolean(raw?.success ?? raw?.Success ?? false),
+    createdCount: Number(raw?.createdCount ?? raw?.CreatedCount ?? 0),
+    houses: Array.isArray(houses) ? houses.map(mapHouse) : [],
+    errors: (Array.isArray(errors) ? errors : []).map((e: any) => ({
+      index: Number(e?.index ?? e?.Index ?? -1),
+      field: e?.field ?? e?.Field ?? "",
+      message: e?.message ?? e?.Message ?? "",
+    })),
+    message: raw?.message ?? raw?.Message ?? undefined,
   }
 }
 
@@ -91,7 +139,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<ApiResponse
       } else {
         console.warn(`[v0] House API error (${res.status}):`, body && (body.message || body.Message) || res.statusText)
       }
-      return { success: false, message: (body && (body.message || body.Message)) || res.statusText }
+      // Hand the parsed body back too: a rejected bulk batch carries per-row
+      // errors, and a bare statusText would lose them.
+      return { success: false, message: (body && (body.message || body.Message)) || res.statusText, data: body }
     }
 
     return { success: true, data: body }
@@ -154,6 +204,48 @@ export async function createHouse(input: HouseInput): Promise<ApiResponse<House>
     data: mapHouse(res.data),
     message: res.message,
   }
+}
+
+/**
+ * POST /api/House/bulk -- create many houses for the active company at once.
+ *
+ * Same endpoint family, same permission and the same stored function as
+ * createHouse; the server does the N inserts inside one transaction, so either
+ * every house in the batch exists afterwards or none does.
+ *
+ * `source` names the screen the batch came from and ends up on the per-house
+ * audit rows, which is what lets the Farm Setup Wizard and the Batch-to-Flock
+ * allocation screen reuse this without becoming indistinguishable in the log.
+ */
+export async function createHousesBulk(input: BulkHouseCreateInput): Promise<ApiResponse<BulkHouseCreateResult>> {
+  const payload = {
+    UserId: input.userId,
+    FarmId: input.farmId,
+    Source: input.source ?? "Houses page",
+    Houses: input.houses.map((h) => ({
+      HouseName: h.houseName,
+      Capacity: h.capacity ?? null,
+      Location: h.location ?? null,
+    })),
+  }
+
+  const res = await request<any>(`/api/House/bulk`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+
+  // A rejected batch still carries the per-row errors the grid needs, but
+  // `request` only hands back a message on a non-2xx. Re-read the body here so a
+  // 400 can point at row 3 rather than saying "Bad Request".
+  if (!res.success) {
+    return {
+      success: false,
+      message: res.message || "Failed to create houses",
+      data: mapBulkResult(res.data),
+    }
+  }
+
+  return { success: true, data: mapBulkResult(res.data), message: res.data?.message ?? res.message }
 }
 
 // PUT /api/House/{id}

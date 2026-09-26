@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
 import { usePermissions } from "@/hooks/use-permissions"
@@ -15,6 +15,8 @@ import { navPathActive, type NavAccent, type NavGroup, type NavItem } from "@/li
 import { NAV_SURFACE } from "./nav/nav-surface"
 import { WATER_REPORT_NAV_GROUPS, POULTRY_REPORT_NAV_GROUPS, HOTEL_REPORT_NAV_GROUPS, RESTAURANT_REPORT_NAV_GROUPS } from "@/lib/nav/report-nav-adapters"
 import { buildWaterNavConfig } from "@/lib/nav/water-nav-config"
+import { useQuickLinkHrefs } from "@/lib/store/quick-links-store"
+import { QuickLinksDialog } from "@/components/dashboard/quick-links-dialog"
 import { buildPoultryNavConfig } from "@/lib/nav/poultry-nav-config"
 import { buildHotelNavConfig } from "@/lib/nav/hotel-nav-config"
 import { buildRestaurantNavConfig } from "@/lib/nav/restaurant-nav-config"
@@ -45,9 +47,38 @@ import {
   CalendarClock,
   Receipt,
   Scale,
+  Wrench,
 } from "lucide-react"
 
-function NavDropdown({ group, accent = "sky" }: { group: NavGroup; accent?: NavAccent }) {
+/**
+ * "Customise" at the foot of the Quick Links panel (318).
+ *
+ * A BUTTON, not a row: it goes nowhere. It sits under a rule rather than among
+ * the shortcuts because a list of pages with one not-a-page in it is how a
+ * reader ends up clicking the wrong thing in a hurry.
+ */
+function CustomiseQuickLinksButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-slate-300 transition-colors hover:bg-slate-700 hover:text-white"
+    >
+      <Settings className="h-4 w-4 text-slate-400" />
+      Customise…
+    </button>
+  )
+}
+
+function NavDropdown({ group, accent = "sky", footer }: {
+  group: NavGroup
+  accent?: NavAccent
+  /**
+   * Pinned under the rows, inside the panel. Quick Links uses it for
+   * "Customise", which is not a destination and so is not a row.
+   */
+  footer?: React.ReactNode
+}) {
   const pathname = usePathname()
   // Width passed so a dropdown opened near the right edge can't run off-screen
   // (the pre-extraction copy had no clamp at all).
@@ -61,7 +92,9 @@ function NavDropdown({ group, accent = "sky" }: { group: NavGroup; accent?: NavA
   // After the hooks — bailing earlier would break the hook order. A group whose
   // rows were all permission-filtered would otherwise show as a trigger that
   // opens an empty panel.
-  if (group.items.length === 0) return null
+  // Not `return null` any more when empty: a user who removed every link
+  // would lose the only way back to the picker along with the last row.
+  if (group.items.length === 0 && !footer) return null
 
   return (
     <div
@@ -109,6 +142,11 @@ function NavDropdown({ group, accent = "sky" }: { group: NavGroup; accent?: NavA
               </Link>
             )
           })}
+          {footer && (
+            <div className="mt-1 border-t border-slate-700 pt-1">
+              {footer}
+            </div>
+          )}
         </div>,
         document.body
       )}
@@ -149,18 +187,25 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
   const openAlerts = useAlertsStore((s) => s.open)
   const alertCount = useAlertsStore((s) => s.alerts.length)
 
+  // The user's own Quick Links (318). null = never customised = the config's
+  // defaults, which is also what renders while it loads.
+  const quickLinkHrefs = useQuickLinkHrefs()
+  const [customiseOpen, setCustomiseOpen] = useState(false)
+
   const nav = useMemo(
-    () => buildWaterNavConfig({ permissions, onOpenAlerts: openAlerts, alertCount }),
-    [permissions, openAlerts, alertCount],
+    () => buildWaterNavConfig({ permissions, onOpenAlerts: openAlerts, alertCount, quickLinkHrefs }),
+    [permissions, openAlerts, alertCount, quickLinkHrefs],
   )
 
   return (
+    <>
     <div className="hidden lg:block bg-sky-600 border-b border-sky-700">
       <div className="flex items-center gap-1 px-4 pt-1.5 pb-2.5 nav-rail-scroll">
         <NavLink item={{ href: "/water-dashboard", label: "Dashboard", icon: Droplets }} />
         <div className="h-5 w-px bg-white/30 mx-1" />
 
-        <NavDropdown group={nav.quickLinks} />
+        <NavDropdown group={nav.quickLinks}
+                     footer={<CustomiseQuickLinksButton onClick={() => setCustomiseOpen(true)} />} />
 
         {/* Panel widths below are sized to the longest label each one carries,
             not picked by eye. NavMegaMenu's padding is shared with the poultry
@@ -218,11 +263,11 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
           columns={3} widthRem={41} layout="grid" fitColumns
         />
 
-        {/* Analytics is a menu, not a destination — there is no landing page,
+        {/* Trackers is a menu, not a destination — there is no landing page,
             so no viewAll. A report prints a period; an analytic is explored. */}
         <NavMegaMenu
-          label="Analytics" icon={LineChart}
-          title="Analytics"
+          label="Trackers" icon={LineChart}
+          title="Trackers"
           blurb="Explore where your stock actually moved."
           groups={nav.analytics}
           /* Longest label "Inventory tracker" (17 chars ~= 129px):
@@ -275,6 +320,8 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
         </div>
       </div>
     </div>
+    <QuickLinksDialog open={customiseOpen} onOpenChange={setCustomiseOpen} nav={nav} />
+    </>
   )
 }
 
@@ -377,9 +424,9 @@ function HotelTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
         <NavMegaMenu
           label="Sales & Money" icon={Wallet}
           title="Sales & Money"
-          blurb="Billing, payments, expenses and cash."
+          blurb="Billing, payments, expenses, customers, suppliers and assets."
           groups={nav.salesMoney}
-          columns={2} widthRem={21} layout="grid" accent="violet"
+          columns={3} widthRem={28} layout="grid" accent="violet"
         />
 
         <NavMegaMenu
@@ -476,8 +523,24 @@ function RestaurantTopNav() {
         <NavMegaMenu
           label="Inventory" icon={Package}
           title="Inventory"
-          blurb="Ingredients, stock tracking, and expense management."
+          blurb="Ingredients and stock levels."
           groups={nav.inventoryReports}
+          columns={1} widthRem={18} layout="grid" accent="rose"
+        />
+
+        <NavMegaMenu
+          label="Money" icon={Wallet}
+          title="Money"
+          blurb="Tills, cash accounts, transfers, reconciliation, owner money, loans, payroll, staff advances, daily closing and the cash statements."
+          groups={nav.money}
+          columns={4} widthRem={52} layout="grid" accent="rose"
+        />
+
+        <NavMegaMenu
+          label="Expenses" icon={Receipt}
+          title="Expenses"
+          blurb="Record what the restaurant spends, by category."
+          groups={nav.expenses}
           columns={1} widthRem={18} layout="grid" accent="rose"
         />
 
@@ -540,10 +603,23 @@ function RestaurantTopNav() {
 export function TopNavigation() {
   const permissions = usePermissions()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
-  // Must be read before the farm-type early returns below, or the hook order
-  // changes when the user switches company type.
+  // EVERY hook must be read before the farm-type early returns below, or the
+  // hook COUNT changes with the company type and React throws "Rendered fewer
+  // hooks than expected".
+  //
+  // That is not theoretical: activeFarmType comes from a PERSISTED store, so the
+  // first paint has it undefined and falls through to the Poultry path at the
+  // bottom -- six hooks -- and the moment rehydration sets it to "Water" this
+  // function returns at four. Two of these were moved up once for exactly that
+  // reason and the two below them were left behind, which crashed every Water
+  // page that renders DashboardHeader.
+  //
+  // The two poultry-only values are read unconditionally and simply go unused in
+  // the other branches. A hook is not free to skip.
   const openAlerts = useAlertsStore((s) => s.open)
   const alertCount = useAlertsStore((s) => s.alerts.length)
+  const quickLinkHrefs = useQuickLinkHrefs()
+  const [customiseOpen, setCustomiseOpen] = useState(false)
 
   // Water and Generic companies each get their own nav rail — falling through
   // to the Poultry layout below would show "Flocks / Houses / Egg sorting" on
@@ -565,7 +641,10 @@ export function TopNavigation() {
   // dropdowns collapse into grouped panels. Contents live in
   // lib/nav/poultry-nav-config.ts. The sidebar and mobile nav keep their own
   // copies and were left alone.
-  const nav = buildPoultryNavConfig({ permissions, onOpenAlerts: openAlerts, alertCount })
+  //
+  // quickLinkHrefs and customiseOpen are read at the top of the function, above
+  // the early returns — see the note there.
+  const nav = buildPoultryNavConfig({ permissions, onOpenAlerts: openAlerts, alertCount, quickLinkHrefs })
 
   return (
     <>
@@ -574,7 +653,8 @@ export function TopNavigation() {
           <NavLink item={{ href: "/dashboard", label: "Dashboard", icon: Home }} accent="orange" />
           <div className="h-5 w-px bg-white/30 mx-1" />
 
-          <NavDropdown group={nav.quickLinks} accent="orange" />
+          <NavDropdown group={nav.quickLinks} accent="orange"
+                       footer={<CustomiseQuickLinksButton onClick={() => setCustomiseOpen(true)} />} />
 
           <NavMegaMenu
             label="Operations" icon={Factory}
@@ -617,8 +697,8 @@ export function TopNavigation() {
           />
 
           <NavMegaMenu
-            label="Analytics" icon={BarChart3}
-            title="Analytics"
+            label="Trackers" icon={BarChart3}
+            title="Trackers"
             blurb="Day-to-day tracker"
             groups={nav.analytics}
             /* "Ingredients only tracker" is the longest label and sets the
@@ -653,6 +733,30 @@ export function TopNavigation() {
           )}
 
           <NavMegaMenu
+            label="Tools" icon={Wrench}
+            title="Tools"
+            /* Says what the menu is FOR, not what is in it -- with a single row
+               the contents are already on screen, so listing them (the pattern
+               the other blurbs follow) would just repeat the row underneath.
+               What a reader actually needs here is why this is not simply part
+               of Setup: Setup is configuration you revisit, Tools is run once. */
+            blurb="One-time jobs, like onboarding a farm that already has birds."
+            groups={nav.tools}
+            /* Same single-column panel as Trackers, and the same 19rem: its
+               longest row, "Ingredients only tracker" at 24 chars, is wider
+               than anything here, so this width already clears "Initial Farm
+               Setup" with room to spare. Matching it keeps the two narrow
+               dropdowns the same object rather than two near-misses.
+
+               highlightActiveRow={false} because this panel has ONE row: the
+               accent fill that marks "you are here" in a seven-row panel would
+               here colour the whole interior, every time you open it from the
+               page it links to. The trigger above still lights up. */
+            columns={1} widthRem={19} layout="grid" accent="orange"
+            highlightActiveRow={false}
+          />
+
+          <NavMegaMenu
             label="Setup" icon={Settings}
             title="Setup"
             blurb="Houses, flocks, products, delivery, customers and your team."
@@ -684,6 +788,8 @@ export function TopNavigation() {
           </div>
         </div>
       </div>
+
+      <QuickLinksDialog open={customiseOpen} onOpenChange={setCustomiseOpen} nav={nav} />
 
       {/* Mobile: top nav replaced by MobileBottomNav (bottom tab bar) */}
     </>

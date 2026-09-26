@@ -68,6 +68,15 @@ namespace PoultryFarmAPIWeb.Filters
             // ---- Poultry, via the shared/legacy controller names -------------
             ["flock"] = "poultry.flocks",
             ["mainflockbatch"] = "poultry.flock-batches",
+            // Migration 319. Initial Farm Setup creates batches, houses AND
+            // flocks, and this table can only name one resource. It names
+            // flocks because that is what the wizard ultimately produces and
+            // because poultry.flocks.* certainly exists in the catalog -- a
+            // brand-new "poultry.farm-setup" key would be held by no role and
+            // would lock the page out the day enforcement is switched on. The
+            // batch and house rights are checked explicitly inside
+            // PoultryFarmSetupController, gated on Iam:Enforced.
+            ["poultryfarmsetup"] = "poultry.flocks",
             ["house"] = "poultry.houses",
             ["health"] = "poultry.health",
             ["feedusage"] = "poultry.feed-usage",

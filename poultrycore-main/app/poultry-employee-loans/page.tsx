@@ -28,7 +28,7 @@
 // pulled down whole (sections 70-72). That is also why the count under the
 // table is the SERVER's count, not `rows.length`.
 
-import { Fragment, useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -48,8 +48,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
 import {
-  HandCoins, Loader2, Plus, Undo2, Wallet, Users, AlertTriangle, Info,
-  ChevronDown, ChevronRight,
+  HandCoins, Loader2, Plus, Undo2, Wallet, Users, AlertTriangle, Info, Eye,
 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
@@ -120,9 +119,16 @@ function RepaymentHistory({
     return <p className="py-3 text-sm text-slate-500">Nothing repaid yet.</p>
   }
   return (
-    // The same bordered white panel the overview above it sits in, so the
-    // expanded area reads as two tables rather than one table and a loose grid.
-    <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+    // The same bordered white panel the facts grid above it sits in, so the
+    // dialog reads as two blocks of one record rather than a grid with a loose
+    // table under it.
+    //
+    // overflow-x-auto, NOT overflow-hidden. Eight columns do not fit a phone,
+    // and hidden does not shrink them -- it CLIPS them, silently taking the
+    // balance-after column and the reverse button off the right-hand edge of a
+    // statement whose whole job is to be reconcilable. It scrolls sideways
+    // instead. (overflow-x-auto still clips the corners the border rounds.)
+    <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
@@ -226,8 +232,16 @@ export default function PoultryEmployeeLoansPage() {
   const [historyByLoan, setHistoryByLoan] =
     useState<Map<number, PoultryEmployeeLoanRepayment[]>>(new Map())
   const [historyLoading, setHistoryLoading] = useState(false)
-  /** Desktop rows expand independently; the cards manage their own. */
-  const [expanded, setExpanded] = useState<Set<number>>(new Set())
+  /**
+   * The advance whose detail is open, or null.
+   *
+   * ONE dialog, not a set of expanded rows. The detail is an overview plus a
+   * repayment statement -- two tables -- and unfolding that inside the list
+   * pushed every other advance off the screen, so comparing the row you opened
+   * with the one below it meant closing it again. A reader who opens a detail
+   * is asking about ONE advance; the list stays where it was behind it.
+   */
+  const [detailFor, setDetailFor] = useState<PoultryEmployeeLoan | null>(null)
 
   const load = useCallback(async () => {
     setError("")
@@ -411,6 +425,13 @@ export default function PoultryEmployeeLoansPage() {
             <>
               <MobileCardList
                 striped
+                /* Open on arrival. The card's own tiles answer "how much?" while
+                   it is shut, but the rest -- what it was for, what account it
+                   came out of, how it is being repaid -- is why a reader came to
+                   this page at all, and a stack of shut cards makes them tap
+                   every one to find the advance they meant. defaultOpen rather
+                   than alwaysExpanded, so the "View table format" toggle stays. */
+                defaultOpen
                 items={rows}
                 getKey={(l: PoultryEmployeeLoan) => l.poultryEmployeeLoanId}
                 primary={(l: PoultryEmployeeLoan) => (
@@ -428,13 +449,22 @@ export default function PoultryEmployeeLoansPage() {
                     {EMPLOYEE_LOAN_STATUS_LABELS[l.status] ?? l.status}
                   </Badge>
                 )}
+                /* Tinted, and in the colours the four Stat cards at the top
+                   of the page already use for the same three figures -- blue
+                   for what is still owed, rose for money out, emerald for money
+                   back. A grey tile beside a grey tile makes the reader work
+                   out which number is the one they came for.
+
+                   Outstanding spans the row because it IS the one they came
+                   for: it is the bold column on the desktop table for the same
+                   reason. */
                 highlights={(l: PoultryEmployeeLoan) => [
-                  { label: "Outstanding", value: fmt(l.outstandingBalance) },
-                  { label: "Advanced", value: fmt(l.principalAmount) },
+                  { label: "Outstanding", value: fmt(l.outstandingBalance), accent: "blue" as const, wide: true },
+                  { label: "Advanced", value: fmt(l.principalAmount), accent: "rose" as const },
+                  { label: "Repaid", value: fmt(l.totalRepaid), accent: "emerald" as const },
                 ]}
                 details={(l: PoultryEmployeeLoan) => [
                   { label: "Total repayable", value: fmt(l.totalRepayable) },
-                  { label: "Repaid", value: fmt(l.totalRepaid) },
                   { label: "Repayment", value: EMPLOYEE_LOAN_REPAYMENT_METHOD_LABELS[l.repaymentMethod] ?? l.repaymentMethod },
                   { label: "Suggested per payroll", value: l.defaultPayrollDeduction ? fmt(l.defaultPayrollDeduction) : "—" },
                   { label: "Paid from", value: l.cashAccountName ?? "—" },
@@ -442,29 +472,22 @@ export default function PoultryEmployeeLoansPage() {
                   { label: "Purpose", value: l.purpose ?? l.description ?? "—" },
                   { label: "Repayments", value: String(l.repaymentCount) },
                 ]}
-                extra={(l: PoultryEmployeeLoan) => (
-                  <div className="space-y-2">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Repayment history
-                    </div>
-                    <RepaymentHistory
-                      rows={historyByLoan.get(l.poultryEmployeeLoanId) ?? []}
-                      loading={historyLoading}
-                      fmt={fmt}
-                      onReverse={(r) => { setReversingRepayment(r); setReason("") }}
-                    />
-                  </div>
-                )}
                 actions={(l: PoultryEmployeeLoan) => (
                   <>
+                    {/* First, and on every card whatever the status: looking is
+                        the one thing you can always do to an advance. */}
+                    <Button size="sm" variant="outline" className="flex-1 basis-32 h-10"
+                            onClick={() => setDetailFor(l)}>
+                      <Eye className="h-4 w-4 mr-1" /> Details
+                    </Button>
                     {l.status === "Draft" && (
-                      <Button size="sm" variant="outline" className="flex-1 h-10"
+                      <Button size="sm" variant="outline" className="flex-1 basis-32 h-10"
                               onClick={() => setDisburseFor(l)}>
                         <Wallet className="h-4 w-4 mr-1" /> Hand over
                       </Button>
                     )}
                     {l.status === "Active" && (
-                      <Button size="sm" variant="outline" className="flex-1 h-10"
+                      <Button size="sm" variant="outline" className="flex-1 basis-32 h-10"
                               onClick={() => setRepayFor(l)}>
                         <HandCoins className="h-4 w-4 mr-1" /> Record repayment
                       </Button>
@@ -488,7 +511,6 @@ export default function PoultryEmployeeLoansPage() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-8" />
                           <TableHead>Loan #</TableHead>
                           <TableHead>Employee</TableHead>
                           <TableHead>Type</TableHead>
@@ -499,86 +521,65 @@ export default function PoultryEmployeeLoansPage() {
                           <TableHead className="text-right">Outstanding</TableHead>
                           <TableHead>Repayment</TableHead>
                           <TableHead>Status</TableHead>
-                          <TableHead className="w-44" />
+                          <TableHead className="w-52" />
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {rows.map((l) => {
-                          const open = expanded.has(l.poultryEmployeeLoanId)
                           return (
-                            <Fragment key={l.poultryEmployeeLoanId}>
-                              <TableRow className="cursor-pointer"
-                                        onClick={() => setExpanded((prev) => {
-                                          const next = new Set(prev)
-                                          if (next.has(l.poultryEmployeeLoanId)) next.delete(l.poultryEmployeeLoanId)
-                                          else next.add(l.poultryEmployeeLoanId)
-                                          return next
-                                        })}>
-                                <TableCell className="text-slate-400">
-                                  {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                                </TableCell>
-                                <TableCell className="font-medium whitespace-nowrap">
-                                  {l.loanNumber ?? `#${l.poultryEmployeeLoanId}`}
-                                </TableCell>
-                                <TableCell>{l.staffName}</TableCell>
-                                <TableCell className="text-xs">
-                                  {EMPLOYEE_LOAN_TYPE_LABELS[l.loanType] ?? l.loanType}
-                                </TableCell>
-                                <TableCell className="whitespace-nowrap">{fmtDate(l.disbursementDate)}</TableCell>
-                                <TableCell className="text-right tabular-nums">{fmt(l.principalAmount)}</TableCell>
-                                <TableCell className="text-right tabular-nums">{fmt(l.totalRepayable)}</TableCell>
-                                <TableCell className="text-right tabular-nums">{fmt(l.totalRepaid)}</TableCell>
-                                <TableCell className="text-right tabular-nums font-semibold">
-                                  {fmt(l.outstandingBalance)}
-                                </TableCell>
-                                <TableCell className="text-xs">
-                                  {EMPLOYEE_LOAN_REPAYMENT_METHOD_LABELS[l.repaymentMethod] ?? l.repaymentMethod}
-                                </TableCell>
-                                <TableCell>
-                                  <Badge className={statusClass(l.status)}>
-                                    {EMPLOYEE_LOAN_STATUS_LABELS[l.status] ?? l.status}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell onClick={(e) => e.stopPropagation()}>
-                                  <div className="flex gap-1 justify-end">
-                                    {l.status === "Draft" && (
-                                      <Button size="sm" variant="outline" onClick={() => setDisburseFor(l)}>
-                                        Hand over
-                                      </Button>
-                                    )}
-                                    {l.status === "Active" && (
-                                      <Button size="sm" variant="outline" onClick={() => setRepayFor(l)}>
-                                        Repay
-                                      </Button>
-                                    )}
-                                    {l.status !== "Reversed" && l.status !== "Cancelled" && (
-                                      <Button size="sm" variant="ghost"
-                                              onClick={() => { setReversingLoan(l); setReason("") }}>
-                                        <Undo2 className="h-4 w-4" />
-                                      </Button>
-                                    )}
-                                  </div>
-                                </TableCell>
-                              </TableRow>
-                              {open && (
-                                <TableRow className="bg-slate-50/60 hover:bg-slate-50/60">
-                                  <TableCell colSpan={12} className="p-4">
-                                    {/* Section 17: the overview, then the
-                                        statement that explains the balance. */}
-                                    <OverviewTable loan={l} fmt={fmt} />
-                                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">
-                                      Repayment history
-                                    </div>
-                                    <RepaymentHistory
-                                      rows={historyByLoan.get(l.poultryEmployeeLoanId) ?? []}
-                                      loading={historyLoading}
-                                      fmt={fmt}
-                                      onReverse={(r) => { setReversingRepayment(r); setReason("") }}
-                                    />
-                                  </TableCell>
-                                </TableRow>
-                              )}
-                            </Fragment>
+                            <TableRow key={l.poultryEmployeeLoanId} className="cursor-pointer"
+                                      onClick={() => setDetailFor(l)}>
+                              <TableCell className="font-medium whitespace-nowrap">
+                                {l.loanNumber ?? `#${l.poultryEmployeeLoanId}`}
+                              </TableCell>
+                              <TableCell>{l.staffName}</TableCell>
+                              <TableCell className="text-xs">
+                                {EMPLOYEE_LOAN_TYPE_LABELS[l.loanType] ?? l.loanType}
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap">{fmtDate(l.disbursementDate)}</TableCell>
+                              <TableCell className="text-right tabular-nums">{fmt(l.principalAmount)}</TableCell>
+                              <TableCell className="text-right tabular-nums">{fmt(l.totalRepayable)}</TableCell>
+                              <TableCell className="text-right tabular-nums">{fmt(l.totalRepaid)}</TableCell>
+                              <TableCell className="text-right tabular-nums font-semibold">
+                                {fmt(l.outstandingBalance)}
+                              </TableCell>
+                              <TableCell className="text-xs">
+                                {EMPLOYEE_LOAN_REPAYMENT_METHOD_LABELS[l.repaymentMethod] ?? l.repaymentMethod}
+                              </TableCell>
+                              <TableCell>
+                                <Badge className={statusClass(l.status)}>
+                                  {EMPLOYEE_LOAN_STATUS_LABELS[l.status] ?? l.status}
+                                </Badge>
+                              </TableCell>
+                              <TableCell onClick={(e) => e.stopPropagation()}>
+                                <div className="flex gap-1 justify-end">
+                                  {/* The row itself opens this too. The button
+                                      is what makes it reachable by keyboard --
+                                      a clickable <tr> is not focusable -- and
+                                      what tells a reader the row does
+                                      anything at all. */}
+                                  <Button size="sm" variant="ghost" onClick={() => setDetailFor(l)}>
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                  {l.status === "Draft" && (
+                                    <Button size="sm" variant="outline" onClick={() => setDisburseFor(l)}>
+                                      Hand over
+                                    </Button>
+                                  )}
+                                  {l.status === "Active" && (
+                                    <Button size="sm" variant="outline" onClick={() => setRepayFor(l)}>
+                                      Repay
+                                    </Button>
+                                  )}
+                                  {l.status !== "Reversed" && l.status !== "Cancelled" && (
+                                    <Button size="sm" variant="ghost"
+                                            onClick={() => { setReversingLoan(l); setReason("") }}>
+                                      <Undo2 className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                </div>
+                              </TableCell>
+                          </TableRow>
                           )
                         })}
                       </TableBody>
@@ -639,6 +640,15 @@ export default function PoultryEmployeeLoansPage() {
         }, "Repayment recorded")}
       />
 
+      <LoanDetailDialog
+        loan={detailFor}
+        onClose={() => setDetailFor(null)}
+        rows={detailFor ? historyByLoan.get(detailFor.poultryEmployeeLoanId) ?? [] : []}
+        loading={historyLoading}
+        fmt={fmt}
+        onReverse={(r) => { setReversingRepayment(r); setReason("") }}
+      />
+
       {/* One reason dialog for both kinds of undo. */}
       <Dialog open={!!reversingLoan || !!reversingRepayment}
               onOpenChange={(o) => { if (!o) { setReversingLoan(null); setReversingRepayment(null); setReason("") } }}>
@@ -662,7 +672,7 @@ export default function PoultryEmployeeLoansPage() {
             <Textarea value={reason} onChange={(e) => setReason(e.target.value)}
                       placeholder="Why is this being undone?" />
           </div>
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
             <Button variant="outline"
                     onClick={() => { setReversingLoan(null); setReversingRepayment(null); setReason("") }}>
               Keep it
@@ -850,7 +860,7 @@ function NewLoanDialog({
           )}
         </div>
 
-        <div className="flex justify-end gap-2 pt-2">
+        <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button disabled={busy || !canSave} onClick={() => void onSave({
             poultryStaffId: f.poultryStaffId,
@@ -922,7 +932,7 @@ function DisburseDialog({
             <Input value={reference} onChange={(e) => setReference(e.target.value)} />
           </div>
         </div>
-        <div className="flex justify-end gap-2 pt-2">
+        <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button disabled={busy || accountId <= 0}
                   onClick={() => void onSave(loan.poultryEmployeeLoanId, {
@@ -1022,7 +1032,7 @@ function RepayDialog({
             Still owed afterwards: <strong className="tabular-nums">{fmt(left)}</strong>
           </div>
         </div>
-        <div className="flex justify-end gap-2 pt-2">
+        <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button disabled={busy || amount <= 0 || over || accountId <= 0}
                   onClick={() => void onSave({
@@ -1070,16 +1080,18 @@ function Stat({
 // ---------------------------------------------------------------------------
 // The advance's own facts (section 17).
 //
-// Headed columns with the values in a row underneath -- the same shape as the
-// list above it, so the expanded area reads as more of the same table rather
-// than as a different kind of thing that happens to be nested inside one.
+// A label/value GRID, not the headed table this used to be. As six columns it
+// was shaped to match the list it was nested inside; in a dialog there is no
+// list to match, and six headed columns in a modal give every fact the same
+// narrow share of the width whether it reads "None" or carries a two-line
+// purpose.
 //
-// Notes and the reversal reason are NOT columns. They are free text of
-// unbounded length, and one long note would stretch a column that six short
+// Notes and the reversal reason are still not part of the grid. They are free
+// text of unbounded length, and one long note would stretch a cell the short
 // facts have to share. They go underneath, and only when they exist.
 // ---------------------------------------------------------------------------
-function OverviewTable({ loan, fmt }: { loan: PoultryEmployeeLoan; fmt: (n: number) => string }) {
-  const cols: { head: string; value: string }[] = [
+function LoanFacts({ loan, fmt }: { loan: PoultryEmployeeLoan; fmt: (n: number) => string }) {
+  const facts: { head: string; value: string }[] = [
     { head: "Purpose", value: loan.purpose ?? loan.description ?? "—" },
     { head: "Interest", value: loan.interestEnabled ? fmt(loan.interestAmount) : "None" },
     { head: "Suggested per payroll",
@@ -1090,29 +1102,14 @@ function OverviewTable({ loan, fmt }: { loan: PoultryEmployeeLoan; fmt: (n: numb
   ]
 
   return (
-    <div className="mb-3">
-      <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent">
-              {cols.map((c) => (
-                <TableHead key={c.head} className="whitespace-nowrap">{c.head}</TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <TableRow className="hover:bg-transparent">
-              {cols.map((c) => (
-                // whitespace-normal: TableCell ships whitespace-nowrap, which
-                // would push a long purpose through the column beside it.
-                <TableCell key={c.head}
-                           className="text-sm break-words whitespace-normal text-slate-900">
-                  {c.value}
-                </TableCell>
-              ))}
-            </TableRow>
-          </TableBody>
-        </Table>
+    <div>
+      <div className="grid gap-x-6 gap-y-3 rounded-md border border-slate-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-3">
+        {facts.map((f) => (
+          <div key={f.head} className="min-w-0">
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">{f.head}</div>
+            <div className="text-sm break-words text-slate-900">{f.value}</div>
+          </div>
+        ))}
       </div>
 
       {(loan.notes || loan.reversalReason) && (
@@ -1126,5 +1123,89 @@ function OverviewTable({ loan, fmt }: { loan: PoultryEmployeeLoan; fmt: (n: numb
         </div>
       )}
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Everything about one advance, in a dialog.
+//
+// The money first, because "what is still owed" is why the detail was opened;
+// then the facts of the advance; then the statement that explains the balance.
+//
+// The repayment rows come from the page's own history map rather than a fetch
+// of their own -- the page already holds the history for every advance on the
+// current page, so opening a detail costs nothing and shows no spinner.
+// ---------------------------------------------------------------------------
+function LoanDetailDialog({
+  loan, onClose, rows, loading, fmt, onReverse,
+}: {
+  loan: PoultryEmployeeLoan | null
+  onClose: () => void
+  rows: PoultryEmployeeLoanRepayment[]
+  loading: boolean
+  fmt: (n: number) => string
+  onReverse: (r: PoultryEmployeeLoanRepayment) => void
+}) {
+  if (!loan) return null
+
+  const money = [
+    { label: "Advanced", value: fmt(loan.principalAmount) },
+    { label: "Repayable", value: fmt(loan.totalRepayable) },
+    { label: "Repaid", value: fmt(loan.totalRepaid) },
+    { label: "Outstanding", value: fmt(loan.outstandingBalance), strong: true },
+  ]
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+      {/* Only the desktop cap is set here. DialogContent already ships
+          w-full, max-w-[calc(100%-2rem)], max-h-[90vh] and overflow-y-auto, so
+          a phone gets a full-width sheet that scrolls, and repeating those
+          would just be four classes to keep in step with the shared one. */}
+      <DialogContent className="sm:max-w-5xl">
+        <DialogHeader>
+          <DialogTitle className="flex flex-wrap items-center gap-2">
+            {loan.loanNumber ?? `#${loan.poultryEmployeeLoanId}`}
+            <span className="text-slate-400">·</span>
+            {loan.staffName}
+            <Badge className={statusClass(loan.status)}>
+              {EMPLOYEE_LOAN_STATUS_LABELS[loan.status] ?? loan.status}
+            </Badge>
+          </DialogTitle>
+          <DialogDescription>
+            {EMPLOYEE_LOAN_TYPE_LABELS[loan.loanType] ?? loan.loanType}
+            {" · issued "}{fmtDate(loan.disbursementDate)}
+            {" · repaid by "}
+            {EMPLOYEE_LOAN_REPAYMENT_METHOD_LABELS[loan.repaymentMethod] ?? loan.repaymentMethod}
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* min-w-0: DialogContent is a GRID, and a grid item is min-width
+            auto -- so without this the repayment table below stretches the
+            dialog itself instead of scrolling inside its own panel, and the
+            whole sheet runs off the side of a phone. */}
+        <div className="min-w-0 space-y-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {money.map((m) => (
+              <div key={m.label} className="rounded-md border border-slate-200 bg-white p-3">
+                <div className="text-[11px] uppercase tracking-wide text-slate-500">{m.label}</div>
+                <div className={cn("mt-0.5 text-base sm:text-lg tabular-nums break-words",
+                                   m.strong ? "font-bold text-slate-900" : "font-semibold text-slate-700")}>
+                  {m.value}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <LoanFacts loan={loan} fmt={fmt} />
+
+          <div>
+            <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Repayment history
+            </div>
+            <RepaymentHistory rows={rows} loading={loading} fmt={fmt} onReverse={onReverse} />
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }

@@ -176,6 +176,7 @@ export default function HotelReportRoutePage() {
         currency={profile.currency}
         accent="violet"
         indexHref="/hotel-reports"
+        enableEmail
       >
         <div className="space-y-4">
           {summaryCards.length > 0 && <StatGrid cards={summaryCards} />}

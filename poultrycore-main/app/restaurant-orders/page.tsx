@@ -15,6 +15,7 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import { listOrders, getOrder, updateOrderStatus, listOrderItems, linkOrderToCustomer, type Order, type OrderItem } from "@/lib/api/restaurant"
 import { markOnlineOrdersSeen } from "@/lib/utils/online-order-alerts"
+import { TakePaymentDialog, RefundDialog, type PaymentResult } from "@/components/restaurant/order-money-dialogs"
 
 const STATUS_BADGES: Record<string, string> = {
   Placed: "bg-blue-500", Confirmed: "bg-indigo-500", Preparing: "bg-amber-500",
@@ -47,6 +48,12 @@ export default function RestaurantOrdersPage() {
   const [detailItems, setDetailItems] = useState<OrderItem[]>([])
   const [detailOpen, setDetailOpen] = useState(false)
   const [linking, setLinking] = useState(false)
+  // Money on an order. `completeAfterPay` is set when staff pressed Completed on
+  // an order that still owes money: the server refuses that, so payment is taken
+  // first and the order is completed once it is fully paid.
+  const [payOrder, setPayOrder] = useState<Order | null>(null)
+  const [completeAfterPay, setCompleteAfterPay] = useState(false)
+  const [refundOrderFor, setRefundOrderFor] = useState<Order | null>(null)
 
   useEffect(() => {
     if (activeFarmType === null || activeFarmType === undefined) return
@@ -103,11 +110,35 @@ export default function RestaurantOrdersPage() {
     } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
   }
 
-  async function changeStatus(orderId: number, status: string) {
+  async function changeStatus(orderId: number, status: string, justPaid = false) {
+    const order = detailOrder?.orderId === orderId ? detailOrder : orders.find(o => o.orderId === orderId)
+    if (status === "Completed" && !justPaid && order && order.totalAmount > 0 && order.paidAmount < order.totalAmount) {
+      // Read it fresh so the balance due is current, then take payment first.
+      try { setPayOrder(await getOrder(orderId)); setCompleteAfterPay(true) }
+      catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
+      return
+    }
     try {
       await updateOrderStatus(orderId, status); toast({ title: `Order ${status}` }); loadOrders()
       if (detailOrder?.orderId === orderId) setDetailOrder(await getOrder(orderId))
     } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
+  }
+
+  async function handlePaid({ order, payment }: PaymentResult) {
+    setPayOrder(null)
+    const finish = completeAfterPay && order.paymentStatus === "Paid"
+    setCompleteAfterPay(false)
+    toast({ title: `${payment.applied.toFixed(2)} received`,
+      description: payment.change > 0 ? `Give ${payment.change.toFixed(2)} change.` : order.paymentStatus === "Paid" ? "Order fully paid." : `${(order.totalAmount - order.paidAmount).toFixed(2)} still due.` })
+    if (finish) { await changeStatus(order.orderId, "Completed", true); return }
+    loadOrders()
+    if (detailOrder?.orderId === order.orderId) setDetailOrder(order)
+  }
+
+  function handleRefunded(order: Order) {
+    setRefundOrderFor(null)
+    loadOrders()
+    if (detailOrder?.orderId === order.orderId) setDetailOrder(order)
   }
 
   /**
@@ -453,6 +484,7 @@ export default function RestaurantOrdersPage() {
               <div className="space-y-1.5 text-sm">
                 <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>{detailOrder.subtotal.toFixed(2)}</span></div>
                 {detailOrder.discountAmount > 0 && <div className="flex justify-between text-red-600"><span>Discount</span><span>-{detailOrder.discountAmount.toFixed(2)}</span></div>}
+                {detailOrder.serviceChargeAmount > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Service charge</span><span>{detailOrder.serviceChargeAmount.toFixed(2)}</span></div>}
                 {detailOrder.taxAmount > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Tax</span><span>{detailOrder.taxAmount.toFixed(2)}</span></div>}
                 <div className="flex justify-between font-bold text-lg border-t pt-2"><span>Total</span><span className="text-rose-700">{detailOrder.totalAmount.toFixed(2)}</span></div>
                 <div className="flex justify-between text-sm">
@@ -468,10 +500,37 @@ export default function RestaurantOrdersPage() {
                   ))}
                 </div>
               )}
+              {/* Money actions. Paying is open until the order is settled; refunding
+                  needs something paid. Cancelling a paid order is refused by the
+                  server — refund it instead. */}
+              {(() => {
+                const canPay = !["Cancelled", "Refunded"].includes(detailOrder.status) && detailOrder.paidAmount < detailOrder.totalAmount
+                const canRefund = detailOrder.status !== "Refunded" && detailOrder.paidAmount > 0
+                if (!canPay && !canRefund) return null
+                return (
+                  <div className="flex gap-2">
+                    {canPay && (
+                      <Button variant="outline" className="flex-1 border-green-300 text-green-700" onClick={() => { setCompleteAfterPay(false); setPayOrder(detailOrder) }}>
+                        <DollarSign className="h-4 w-4 mr-1" /> Take payment ({(detailOrder.totalAmount - detailOrder.paidAmount).toFixed(2)})
+                      </Button>
+                    )}
+                    {canRefund && (
+                      <Button variant="outline" className="flex-1 border-rose-300 text-rose-700" onClick={() => setRefundOrderFor(detailOrder)}>
+                        Refund
+                      </Button>
+                    )}
+                  </div>
+                )
+              })()}
             </div>
           )}
         </DialogContent>
       </Dialog>
+
+      <TakePaymentDialog open={!!payOrder} onOpenChange={(o) => { if (!o) { setPayOrder(null); setCompleteAfterPay(false) } }}
+        order={payOrder} onPaid={handlePaid} />
+      <RefundDialog open={!!refundOrderFor} onOpenChange={(o) => { if (!o) setRefundOrderFor(null) }}
+        order={refundOrderFor} onRefunded={handleRefunded} />
     </div>
   )
 }

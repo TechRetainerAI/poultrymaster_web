@@ -30,6 +30,9 @@ const HOTEL_ROUTE_ACCESS: Record<string, (f: FeatureAccessPermissions, isAdmin: 
   // --- People --------------------------------------------------------------
   "/hotel-staff":           (f, isAdmin) => isAdmin || f.canSeeEmployees,
   "/hotel-payroll":         (f) => f.canViewHotelPayroll,
+  // Staff loans ride on payroll: the same people set the deductions. Without a
+  // rule here the sidebar showed the page to every staff member.
+  "/hotel-employee-loans":  (f) => f.canViewHotelPayroll,
 
   // --- Inventory & Maintenance ---------------------------------------------
   "/hotel-inventory":       (f) => f.canViewHotelInventory,

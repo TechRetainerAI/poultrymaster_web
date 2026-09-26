@@ -840,10 +840,15 @@ export async function updateOrderStatus(id: number, status: string, reason?: str
   const res = await fetch(url, { method: "PATCH", headers: getAuthHeaders(), body: JSON.stringify({ status, reason }) })
   if (!res.ok) throw new Error(await readApiError(res))
 }
-export async function recalcOrder(id: number, taxRate: number, serviceChargeRate: number): Promise<void> {
+/**
+ * Re-totals an order. Leave the rates out to apply the tax and service-charge
+ * rates saved in Restaurant Setup (migration 323) — service charge is dine-in
+ * only. Passing numbers overrides them for this order.
+ */
+export async function recalcOrder(id: number, taxRate?: number | null, serviceChargeRate?: number | null): Promise<void> {
   const farmId = activeFarmId()
   const url = farmApiUrl(`/Restaurant/orders/${id}/recalc?farmId=${encodeURIComponent(farmId)}`)
-  const res = await fetch(url, { method: "POST", headers: getAuthHeaders(), body: JSON.stringify({ taxRate, serviceChargeRate }) })
+  const res = await fetch(url, { method: "POST", headers: getAuthHeaders(), body: JSON.stringify({ taxRate: taxRate ?? null, serviceChargeRate: serviceChargeRate ?? null }) })
   if (!res.ok) throw new Error(await readApiError(res))
 }
 
@@ -903,7 +908,23 @@ export interface OrderPayment {
   reference?: string | null; status: string; processedBy?: string | null; createdAt: string
 }
 export interface PaymentInput {
-  paymentMethod: string; amount: number; tipAmount?: number; reference?: string | null
+  /** Cash | Card | MobileMoney | GiftCard (reference = card number). */
+  paymentMethod: string
+  /** The amount APPLIED to the bill. The server refuses more than the balance due — never send cash tendered. */
+  amount: number
+  tipAmount?: number
+  reference?: string | null
+  /** Optional: the account the money goes into, overriding the method's default. */
+  cashAccountId?: number | null
+  /** Optional: the open till shift a cash payment goes into. Required when several tills are open. */
+  shiftId?: number | null
+}
+export interface RefundInput {
+  amount: number
+  paymentMethod: string
+  reason: string
+  cashAccountId?: number | null
+  shiftId?: number | null
 }
 
 export async function listOrderPayments(orderId: number): Promise<OrderPayment[]> {
@@ -915,6 +936,11 @@ export async function addOrderPayment(orderId: number, input: PaymentInput): Pro
   const res = await fetch(url, { method: "POST", headers: getAuthHeaders(), body: JSON.stringify(input) })
   if (!res.ok) throw new Error(await readApiError(res))
   return res.json()
+}
+/** Gives money back on an order. Refunding everything paid marks the order Refunded. */
+export async function refundOrder(orderId: number, input: RefundInput): Promise<{ orderPaymentId: number }> {
+  const farmId = activeFarmId()
+  return jsend<{ orderPaymentId: number }>(`/Restaurant/orders/${orderId}/refunds?farmId=${encodeURIComponent(farmId)}`, "POST", input)
 }
 
 // ----- Discounts -----
@@ -1975,6 +2001,9 @@ export interface GiftCardRedeemResult { success: boolean; newBalance: number; me
 export interface GiftCardCreateInput {
   cardType?: string; amount: number; purchaserName?: string | null; purchaserPhone?: string | null
   recipientName?: string | null; recipientEmail?: string | null; message?: string | null; expiryDate?: string | null
+  /** How the buyer paid: Cash | Card | MobileMoney | Complimentary (no money in). */
+  paymentMethod?: string
+  cashAccountId?: number | null
 }
 
 export async function listGiftCards(status?: string): Promise<GiftCard[]> {
@@ -1989,9 +2018,9 @@ export async function redeemGiftCard(cardNumber: string, amount: number, orderId
   const farmId = activeFarmId()
   return jsend<GiftCardRedeemResult>(`/Restaurant/gift-cards/redeem?farmId=${encodeURIComponent(farmId)}`, "POST", { cardNumber, amount, orderId })
 }
-export async function reloadGiftCard(cardNumber: string, amount: number): Promise<void> {
+export async function reloadGiftCard(cardNumber: string, amount: number, paymentMethod = "Cash", cashAccountId?: number | null): Promise<void> {
   const farmId = activeFarmId()
-  await jsend<void>(`/Restaurant/gift-cards/reload?farmId=${encodeURIComponent(farmId)}`, "POST", { cardNumber, amount })
+  await jsend<void>(`/Restaurant/gift-cards/reload?farmId=${encodeURIComponent(farmId)}`, "POST", { cardNumber, amount, paymentMethod, cashAccountId: cashAccountId ?? null })
 }
 export async function checkGiftCardBalance(cardNumber: string): Promise<GiftCard | null> {
   try {
@@ -2024,6 +2053,8 @@ export interface RestaurantExpense {
 export interface RestaurantExpenseInput {
   expenseDate: string; categoryId?: number | null; description: string
   amount: number; paymentMethod?: string; supplierName?: string | null; receiptRef?: string | null
+  /** The cash account it was paid from. Null = the default account for the payment method. */
+  cashAccountId?: number | null
 }
 export interface ReceiptTemplate {
   receiptTemplateId: number; farmId: string; headerText?: string | null; footerText?: string | null

@@ -244,6 +244,13 @@ const SOURCE_LABELS: Record<string, string> = {
   "Internal transfer": "Internal transfer",
   // Says WHY the bucket exists, which "Uncategorised" alone does not.
   Uncategorised: "No category set",
+
+  // Hotel (migration 316). These arrive as sourceType values from
+  // sphotelcashflow_detail and must be mapped to friendly names.
+  GuestPayment: "Guest payments",
+  RestaurantOrder: "Restaurant / F&B",
+  DepositCollected: "Guest deposits",
+  DepositRefunded: "Deposit refunds",
 }
 
 /** Exact values from POULTRY_CASH_REASONS — sppoultrycashaccount_adjust (129:148)
@@ -371,6 +378,12 @@ const SOURCE_TYPE_LABELS: Record<string, string> = {
   OwnerContribution: "Owner contribution",
   OwnerDraw: "Owner draw",
   LoanRepayment: "Loan repayment",
+
+  // Hotel (migration 316)
+  GuestPayment: "Guest payment",
+  RestaurantOrder: "Restaurant order",
+  DepositCollected: "Deposit collected",
+  DepositRefunded: "Deposit refunded",
 }
 
 /**

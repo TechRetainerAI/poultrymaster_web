@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useMemo } from "react"
 import { useRouter } from "next/navigation"
+import { BreedSelect } from "@/components/poultry/breed-select"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
@@ -46,6 +47,7 @@ import {
   shouldAutoActivateFlock,
 } from "@/lib/utils/flock-eligibility"
 import { clearFlocksCache } from "@/lib/utils/flock-utils"
+import { BatchAllocationDialog } from "@/components/poultry/batch-allocation-dialog"
 import { getUserContext } from "@/lib/utils/user-context"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useToast } from "@/hooks/use-toast"
@@ -106,6 +108,13 @@ export default function FlocksPage() {
   // Data for filter dropdowns
   const [houses, setHouses] = useState<House[]>([])
   const [flockBatches, setFlockBatches] = useState<FlockBatch[]>([])
+  // Breeds this farm already uses, offered first in the breed picker. Taken from
+  // the batches AND the flocks, because a flock may carry a breed its batch does
+  // not -- that is what the per-flock override is for.
+  const knownBreeds = useMemo(() => {
+    const all = [...flockBatches.map((b) => b.breed), ...flocks.map((f) => f.breed)]
+    return Array.from(new Set(all.map((b) => (b ?? "").trim()).filter(Boolean)))
+  }, [flockBatches, flocks])
 
   // Map of flockId -> noOfBirdsLeft from the most recent production record
   const [flockBirdsLeftMap, setFlockBirdsLeftMap] = useState<Record<number, number>>({})
@@ -116,6 +125,9 @@ export default function FlocksPage() {
 
   // Create dialog state
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  // "Add Multiple Flocks" -- the same allocation workflow the Flock Purchases
+  // page opens, entered here with no batch chosen yet.
+  const [isAllocateDialogOpen, setIsAllocateDialogOpen] = useState(false)
   const [createLoading, setCreateLoading] = useState(false)
   const [createError, setCreateError] = useState("")
   const emptyFlockForm = { name: "", startDate: "", breed: "", quantity: 0, active: true, hasArrived: false, houseId: null as number | null, batchId: 0, inactivationReason: "", otherReason: "", notes: "" }
@@ -463,7 +475,7 @@ export default function FlocksPage() {
     e.preventDefault()
     const { farmId, userId } = getUserContext()
     if (!farmId || !userId) { toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" }); return }
-    if (!createForm.name.trim() || !createForm.breed.trim() || !createForm.startDate) { toastFormGuide(toast, "Add a flock name, breed, and the date the flock started."); return }
+    if (!createForm.name.trim() || !createForm.startDate) { toastFormGuide(toast, "Add a flock name and the date the flock started."); return }
     if (createForm.quantity <= 0) { toastFormGuide(toast, "Enter how many birds are in this flock — use a number greater than zero."); return }
     if (!createForm.batchId || createForm.batchId === 0) { toastFormGuide(toast, "Link this flock to a batch so bird counts stay accurate."); return }
     if (createSelectedBatch && createForm.quantity > createSelectedBatch.numberOfBirds) { toastFormGuide(toast, `That batch only has ${createSelectedBatch.numberOfBirds} birds available — lower the flock size or pick another batch.`); return }
@@ -546,7 +558,7 @@ export default function FlocksPage() {
     if (!editingFlockId) return
     const { farmId, userId } = getUserContext()
     if (!farmId || !userId) { toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" }); return }
-    if (!editForm.name.trim() || !editForm.breed.trim() || !editForm.startDate) { toastFormGuide(toast, "Add a flock name, breed, and the date the flock started."); return }
+    if (!editForm.name.trim() || !editForm.startDate) { toastFormGuide(toast, "Add a flock name and the date the flock started."); return }
     if (editForm.quantity <= 0) { toastFormGuide(toast, "Enter how many birds are in this flock — use a number greater than zero."); return }
     if (editSelectedBatch && editForm.quantity > editSelectedBatch.numberOfBirds) { toastFormGuide(toast, `That batch only has ${editSelectedBatch.numberOfBirds} birds available — lower the flock size or pick another batch.`); return }
     // Room/house capacity — exclude the flock being edited from current occupancy.
@@ -920,10 +932,16 @@ export default function FlocksPage() {
                   <p className="text-sm text-slate-600">Manage your bird flocks</p>
                 </div>
               </div>
-              <Button className="gap-2 w-full sm:w-auto h-11 sm:h-10 bg-blue-600 hover:bg-blue-700 shrink-0" onClick={openCreateDialog}>
-                <Plus className="w-4 h-4" />
-                Add Flock
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto shrink-0">
+                <Button variant="outline" className="gap-2 w-full sm:w-auto h-11 sm:h-10" onClick={() => setIsAllocateDialogOpen(true)}>
+                  <Plus className="w-4 h-4" />
+                  Add Multiple Flocks
+                </Button>
+                <Button className="gap-2 w-full sm:w-auto h-11 sm:h-10 bg-blue-600 hover:bg-blue-700" onClick={openCreateDialog}>
+                  <Plus className="w-4 h-4" />
+                  Add Flock
+                </Button>
+              </div>
             </div>
 
             {/* Filters: inline on desktop, sheet on mobile */}
@@ -1287,10 +1305,16 @@ export default function FlocksPage() {
                   </div>
                   <h3 className="text-lg font-semibold text-slate-900 mb-2">No flocks found</h3>
                   <p className="text-slate-600 mb-6">Get started by creating your first flock.</p>
-                  <Button className="gap-2 bg-blue-600 hover:bg-blue-700" onClick={openCreateDialog}>
-                    <Plus className="w-4 h-4" />
-                    Add Flock
-                  </Button>
+                  <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                    <Button variant="outline" className="gap-2" onClick={() => setIsAllocateDialogOpen(true)}>
+                      <Plus className="w-4 h-4" />
+                      Add Multiple Flocks
+                    </Button>
+                    <Button className="gap-2 bg-blue-600 hover:bg-blue-700" onClick={openCreateDialog}>
+                      <Plus className="w-4 h-4" />
+                      Add Flock
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ) : (
@@ -1601,6 +1625,28 @@ export default function FlocksPage() {
       </div>
 
       {/* Create Flock Dialog */}
+      <BatchAllocationDialog
+        open={isAllocateDialogOpen}
+        onOpenChange={setIsAllocateDialogOpen}
+        // Only batches that still have birds to place. Allocated totals are
+        // derived from the flocks this page already holds -- the same rows
+        // spflock_gettotalquantityforbatch sums server-side, so the list cannot
+        // offer a batch the server would then refuse.
+        batches={flockBatches.map((b) => ({
+          batchId: b.batchId,
+          batchCode: b.batchCode,
+          batchName: b.batchName,
+          numberOfBirds: Number(b.numberOfBirds) || 0,
+          unallocatedBirds: Math.max(
+            0,
+            (Number(b.numberOfBirds) || 0) -
+              flocks.filter((f) => f.batchId === b.batchId).reduce((sum, f) => sum + (Number(f.quantity) || 0), 0),
+          ),
+        }))}
+        source="Flock Groups page"
+        onCreated={async () => { await loadFlocks() }}
+      />
+
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
         <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -1633,8 +1679,9 @@ export default function FlocksPage() {
                   <Input placeholder="e.g., Flock A - Rhode Island Reds" value={createForm.name} onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })} required disabled={createLoading} />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Breed *</Label>
-                  <Input placeholder="e.g., Rhode Island Red" value={createForm.breed} onChange={(e) => setCreateForm({ ...createForm, breed: e.target.value })} required disabled={createLoading} />
+                  <Label className="text-sm font-medium text-slate-700">Breed</Label>
+                  <BreedSelect value={createForm.breed} known={knownBreeds} disabled={createLoading}
+                    onChange={(breed) => setCreateForm({ ...createForm, breed })} />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-slate-700">Start Date *</Label>
@@ -1751,8 +1798,9 @@ export default function FlocksPage() {
                     <Input placeholder="e.g., Flock A - Rhode Island Reds" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} required disabled={editLoading} />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium text-slate-700">Breed *</Label>
-                    <Input placeholder="e.g., Rhode Island Red" value={editForm.breed} onChange={(e) => setEditForm({ ...editForm, breed: e.target.value })} required disabled={editLoading} />
+                    <Label className="text-sm font-medium text-slate-700">Breed</Label>
+                    <BreedSelect value={editForm.breed} known={knownBreeds} disabled={editLoading}
+                      onChange={(breed) => setEditForm({ ...editForm, breed })} />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-slate-700">Start Date *</Label>

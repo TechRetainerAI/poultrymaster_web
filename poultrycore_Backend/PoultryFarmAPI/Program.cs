@@ -99,6 +99,13 @@ builder.Services.AddScoped<IPoultryFinancialActivityService>(sp => new PoultryFi
 builder.Services.AddScoped<IWaterBalanceService>(sp => new WaterBalanceService(connectionString));
 
 builder.Services.AddScoped<IHouseService>(sp => new HouseService(connectionString));
+// Initial Farm Setup orchestrates the three services above inside one
+// transaction; it deliberately owns no insert of its own (migration 319).
+builder.Services.AddScoped<IFarmSetupService>(sp => new FarmSetupService(
+    connectionString,
+    sp.GetRequiredService<IMainFlockBatchService>(),
+    sp.GetRequiredService<IHouseService>(),
+    sp.GetRequiredService<IBirdFlockService>()));
 builder.Services.AddScoped<IHealthRecordService>(sp => new HealthRecordService(connectionString));
 
 // Audit logs service
@@ -202,6 +209,9 @@ builder.Services.AddScoped<IWaterOwnerMoneyService>(sp => new WaterOwnerMoneySer
 // Loans (259): borrowed money, repayments split into principal, interest and
 // fees, and exactly one cash movement per repayment.
 builder.Services.AddScoped<IWaterLoanService>(sp => new WaterLoanService(connectionString));
+// Employee Loans & Advances (313/314) -- money lent TO staff, the mirror
+// of the line above. Also serves the water structured payroll deductions.
+builder.Services.AddScoped<IWaterEmployeeLoanService>(sp => new WaterEmployeeLoanService(connectionString));
 // Financial settings (274): when inventory costs reach the P&L. Two independent
 // choices, packaging and treatment, resolved against item overrides by the SPs.
 // Also carries the per-item override read/write, which on the water side is its
@@ -231,6 +241,8 @@ builder.Services.AddScoped<IPoultryLoanService>(sp => new PoultryLoanService(con
 // of the line above. Also serves the structured payroll deductions, because
 // a loan repayment deduction is the reason that table exists.
 builder.Services.AddScoped<IPoultryEmployeeLoanService>(sp => new PoultryEmployeeLoanService(connectionString));
+// 318. Per-user, per-company Quick Links. A preference store, not an access one.
+builder.Services.AddScoped<IUserQuickLinkService>(sp => new UserQuickLinkService(connectionString));
 // Financial settings (261): when inventory costs reach the P&L. Two independent
 // choices, feed and medication, resolved against item overrides by the SPs.
 builder.Services.AddScoped<IPoultryFinancialSettingsService>(sp => new PoultryFinancialSettingsService(connectionString));
@@ -240,6 +252,10 @@ builder.Services.AddScoped<IPoultryInventoryValuationService>(sp => new PoultryI
 builder.Services.AddScoped<IPoultryDeferredInventoryCostService>(sp => new PoultryDeferredInventoryCostService(connectionString));
 builder.Services.AddScoped<IPoultryCapitalAssetService>(sp => new PoultryCapitalAssetService(connectionString));
 builder.Services.AddScoped<IPoultryProfitLossService>(sp => new PoultryProfitLossService(connectionString));
+builder.Services.AddScoped<IHotelProfitLossService>(sp => new HotelProfitLossService(connectionString));
+// 316. The water P&L's analytical layer. Reads spwaterreport_periodpnl through
+// spwaterreport_plsummary and never recomputes what it reports.
+builder.Services.AddScoped<IWaterProfitLossService>(sp => new WaterProfitLossService(connectionString));
 
 // Poultry Staff + Attendance + Payroll (port of the Water W6 module). Payroll
 // approve upserts a linked dbo.Expense (Category 'Payroll'); mark-paid posts a
@@ -358,6 +374,8 @@ builder.Services.AddScoped<IGenericPayrollService>(sp => new GenericPayrollServi
 // Phase H2: Guests, bookings
 // =================================================================
 builder.Services.AddScoped<IHotelSetupService>(sp => new HotelSetupService(connectionString));
+// Values operators type into an "Other" box, remembered per hotel (migration 300).
+builder.Services.AddScoped<IHotelCustomOptionService>(sp => new HotelCustomOptionService(connectionString));
 builder.Services.AddScoped<IHotelRoomService>(sp => new HotelRoomService(connectionString));
 builder.Services.AddScoped<IHotelGuestService>(sp => new HotelGuestService(connectionString));
 builder.Services.AddScoped<IHotelBookingService>(sp => new HotelBookingService(connectionString));
@@ -368,6 +386,14 @@ builder.Services.AddScoped<IHotelHousekeepingService>(sp => new HotelHousekeepin
 builder.Services.AddScoped<IHotelEmailService, HotelEmailService>();
 // Phase H-Cash: Cash ledger integration
 builder.Services.AddScoped<IHotelCashLedgerService, HotelCashLedgerService>();
+// Phase H-Cust: Customer balance management
+builder.Services.AddScoped<IHotelCustomerService>(sp => new HotelCustomerService(connectionString));
+// Phase H-Loan: Employee loans & advances
+builder.Services.AddScoped<IHotelEmployeeLoanService>(sp => new HotelEmployeeLoanService(connectionString));
+// Phase H-Supp: Supplier balance & payments
+builder.Services.AddScoped<IHotelSupplierService>(sp => new HotelSupplierService(connectionString));
+// Phase H-Asset: Capital assets & depreciation
+builder.Services.AddScoped<IHotelCapitalAssetService>(sp => new HotelCapitalAssetService(connectionString));
 // =================================================================
 
 // =================================================================
@@ -379,6 +405,10 @@ builder.Services.AddScoped<IRestaurantMenuService>(sp => new RestaurantMenuServi
 // Phase R2: Floor plan + POS / Orders
 builder.Services.AddScoped<IRestaurantFloorService>(sp => new RestaurantFloorService(connectionString));
 builder.Services.AddScoped<IRestaurantOrderService>(sp => new RestaurantOrderService(connectionString));
+// Migration 323: cash accounts, till shifts, transfers, owner money, loans, daily closing
+builder.Services.AddScoped<IRestaurantFinanceService>(sp => new RestaurantFinanceService(connectionString));
+// Restaurant payroll + staff loans & advances (migration 326)
+builder.Services.AddScoped<IRestaurantPayrollService>(sp => new RestaurantPayrollService(connectionString));
 // Phase R3: Kitchen Display System
 builder.Services.AddScoped<IRestaurantKdsService>(sp => new RestaurantKdsService(connectionString));
 // Phase R4: Reservations & Waitlist
