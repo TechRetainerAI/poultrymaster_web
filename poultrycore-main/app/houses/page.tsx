@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Home, Plus, Pencil, Trash2, Loader2, Layers } from "lucide-react"
 import { getHouses, createHouse, updateHouse, deleteHouse } from "@/lib/api/house"
+import { getFlocks, type Flock } from "@/lib/api/flock"
 import { BulkHouseDialog } from "@/components/poultry/bulk-house-dialog"
 import { getUserContext } from "@/lib/utils/user-context"
 import { useToast } from "@/hooks/use-toast"
@@ -22,6 +23,10 @@ export default function HousesPage() {
   const router = useRouter()
   const { toast } = useToast()
   const [houses, setHouses] = useState<any[]>([])
+  // Birds per house, so an occupied pen can say why it cannot be deleted rather
+  // than offering a button that will be refused. The server refuses it too
+  // (sphouse_delete, migration 327) — this is so nobody has to find out that way.
+  const [flocks, setFlocks] = useState<Flock[]>([])
   const [loading, setLoading] = useState(true)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deletingHouse, setDeletingHouse] = useState<any | null>(null)
@@ -47,9 +52,13 @@ export default function HousesPage() {
       const { userId, farmId } = getUserContext()
       if (!userId) throw new Error("User not found")
       if (!farmId) throw new Error("Farm not selected")
-      const res = await getHouses(userId, farmId)
+      const [res, flockRes] = await Promise.all([
+        getHouses(userId, farmId),
+        getFlocks(userId, farmId),
+      ])
       if (res.success && res.data) setHouses(res.data as any[])
       else toast({ title: "Could not load houses", description: res.message || "Failed to load houses", variant: "destructive" })
+      if (flockRes.success && flockRes.data) setFlocks(flockRes.data)
     } catch (e: any) {
       toast({ title: "Could not load houses", description: e?.message || "Failed to load houses", variant: "destructive" })
     } finally {
@@ -102,6 +111,17 @@ export default function HousesPage() {
     setDeletingHouse(h)
     setDeleteDialogOpen(true)
   }
+
+  // Occupancy, on the one definition the rest of the module uses: ACTIVE flocks.
+  const occupancy = useMemo(() => {
+    const map = new Map<number, { flocks: number; birds: number }>()
+    for (const f of flocks) {
+      if (f.houseId == null || !f.active) continue
+      const at = map.get(f.houseId) ?? { flocks: 0, birds: 0 }
+      map.set(f.houseId, { flocks: at.flocks + 1, birds: at.birds + (Number(f.quantity) || 0) })
+    }
+    return map
+  }, [flocks])
 
   const remove = async () => {
     if (!deletingHouse) return
@@ -175,9 +195,23 @@ export default function HousesPage() {
                           <Button size="icon" variant="ghost" onClick={() => openEdit(h)} className="h-8 w-8">
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button size="icon" variant="ghost" onClick={() => openDeleteDialog(h)} className="h-8 w-8 text-red-600">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          {(() => {
+                            // A house holding birds is not deletable: flock.houseid
+                            // has no foreign key, so the delete would succeed and
+                            // leave every flock in it pointing at nothing.
+                            const held = occupancy.get(h.houseId)
+                            const blocked = (held?.flocks ?? 0) > 0
+                            return (
+                              <Button size="icon" variant="ghost" disabled={blocked}
+                                onClick={() => openDeleteDialog(h)}
+                                title={blocked
+                                  ? `Holds ${held!.birds.toLocaleString()} bird${held!.birds === 1 ? "" : "s"} in ${held!.flocks} flock${held!.flocks === 1 ? "" : "s"}. Move or close them before deleting this house.`
+                                  : "Delete this house"}
+                                className="h-8 w-8 text-red-600 disabled:text-slate-300">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )
+                          })()}
                         </div>
                       </div>
                     </CardHeader>

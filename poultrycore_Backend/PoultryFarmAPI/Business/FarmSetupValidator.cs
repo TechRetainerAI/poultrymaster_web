@@ -20,13 +20,16 @@ namespace PoultryFarmAPIWeb.Business
     /// <item><b>Batch total is an ERROR.</b> Flocks claiming 7,000 birds originally
     /// placed out of a 6,000-bird batch is not a thing that can be true, and the
     /// existing single-flock path already refuses it.</item>
-    /// <item><b>House capacity is a WARNING.</b> Capacity is a number somebody
-    /// typed into a setup form; the birds standing in the pen are a fact. An
-    /// established farm onboarding 2,400 birds into a pen recorded as holding
-    /// 2,000 is telling us the capacity is wrong, and refusing the onboarding
-    /// would be refusing reality. The operational path (Batch Allocation) still
-    /// blocks, because there the birds have not been placed yet and the number is
-    /// a plan rather than a fact.</item>
+    /// <item><b>House capacity is a WARNING.</b> Capacity is a FORWARD-planning
+    /// figure: it is what decides which pen the next batch can go into (see
+    /// FlockAllocationValidator, which fills pens to their remaining capacity).
+    /// It is not a claim about what is already standing in a pen, so it gets no
+    /// vote on an onboarding. A farm bringing 2,400 birds into a pen recorded as
+    /// taking 2,000 is telling us the capacity is stale, and the cost of leaving
+    /// it stale is felt at the NEXT placement -- which is what the message says.
+    /// The operational path (Batch Allocation) still blocks, because there the
+    /// birds have not been placed yet and the number is a plan rather than a
+    /// fact.</item>
     /// </list>
     ///
     /// <para>
@@ -49,6 +52,25 @@ namespace PoultryFarmAPIWeb.Business
 
         public static string DuplicateKey(string? raw) =>
             Whitespace.Replace(Normalize(raw), " ").ToLowerInvariant();
+
+        /// <summary>
+        /// Whether a batch row represents a purchase made before tracking began.
+        ///
+        /// <para>A REUSED batch answers from what is stored against it, not from
+        /// what the request claims: the row only carries an id, and the client has
+        /// no business restating the nature of a purchase it is not creating.</para>
+        /// </summary>
+        public static bool IsHistoricalBatch(
+            FarmSetupBatchInput batch,
+            IReadOnlyDictionary<int, MainFlockBatchModel> existingBatchById)
+        {
+            if (batch.ExistingBatchId.HasValue)
+            {
+                return existingBatchById.TryGetValue(batch.ExistingBatchId.Value, out var existing)
+                    && (existing.IsHistorical ?? false);
+            }
+            return batch.IsHistorical;
+        }
 
         /// <summary>
         /// Birds unaccounted for between placement and the opening date. Never
@@ -219,7 +241,9 @@ namespace PoultryFarmAPIWeb.Business
                     else newBatchCodes[codeKey] = i;
                 }
 
-                if (Normalize(b.Breed).Length == 0) Error("batches", i, "breed", "Breed is required.");
+                // Breed is OPTIONAL -- see the note in lib/farm-setup/wizard.ts.
+                // It reaches the database as an empty string, never null: both
+                // flock.breed and mainflockbatch.breed are NOT NULL.
                 if (b.NumberOfBirds <= 0) Error("batches", i, "numberOfBirds", "Enter how many birds the batch originally had — more than zero.");
                 if (b.StartDate == default) Error("batches", i, "startDate", "Give the batch an arrival or placement date.");
             }
@@ -278,6 +302,8 @@ namespace PoultryFarmAPIWeb.Business
             // batch and capacity checks below see the whole setup rather than a row.
             var placedByBatchKey = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             var standingByHouseKey = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            // Of the standing birds, the ones being placed from a NEW purchase.
+            var newBirdsByHouseKey = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
             for (var i = 0; i < flocks.Count; i++)
             {
@@ -331,7 +357,21 @@ namespace PoultryFarmAPIWeb.Business
                 if (houseKey.Length == 0 || !houseKeys.ContainsKey(houseKey))
                     Error("flocks", i, "houseKey", "Choose which house/pen this flock is in.");
                 else if (f.CurrentLiveBirds > 0)
+                {
                     standingByHouseKey[houseKey] = (standingByHouseKey.TryGetValue(houseKey, out var s) ? s : 0) + f.CurrentLiveBirds;
+
+                    // Birds from a NEW purchase are being placed by a decision made
+                    // right now, so capacity gets to refuse them. Birds from a batch
+                    // the farm already had are standing in the pen whatever the
+                    // capacity says. Tracked separately so the check below can tell
+                    // a bad plan from an out-of-date number.
+                    if (batchKey.Length > 0 && batchKeys.TryGetValue(batchKey, out var flockBatch)
+                        && !IsHistoricalBatch(flockBatch, existingBatchById))
+                    {
+                        newBirdsByHouseKey[houseKey] =
+                            (newBirdsByHouseKey.TryGetValue(houseKey, out var n) ? n : 0) + f.CurrentLiveBirds;
+                    }
+                }
             }
 
             // ---- Batch integrity: an ERROR --------------------------------
@@ -353,14 +393,33 @@ namespace PoultryFarmAPIWeb.Business
                 }
 
                 if (capacity <= 0) continue;  // already reported as a row error
+
+                var label = batch.ExistingBatchId.HasValue
+                    ? existingBatchById[batch.ExistingBatchId.Value].BatchCode
+                    : Normalize(batch.BatchCode);
+
                 if (placed + alreadyAllocated > capacity)
                 {
-                    var label = batch.ExistingBatchId.HasValue
-                        ? existingBatchById[batch.ExistingBatchId.Value].BatchCode
-                        : Normalize(batch.BatchCode);
                     var allocatedNote = alreadyAllocated > 0 ? $" ({alreadyAllocated:N0} already allocated)" : string.Empty;
                     Error("batches", index, "numberOfBirds",
                         $"Flocks from {label} were placed with {placed:N0} birds{allocatedNote}, but the batch only had {capacity:N0}.");
+                }
+                // A HISTORICAL batch must be fully accounted for. Its birds are not a
+                // plan — they are standing in pens right now, so every one of them
+                // has a pen. Birds left over would mean the farm cannot say where
+                // they are, and they would sit in the bird ledger forever as stock
+                // that no flock holds.
+                //
+                // A NEW purchase is the opposite case and stays partial-legal: 12,000
+                // chicks bought today may genuinely have only 8,000 placed so far,
+                // with the rest to go in next week.
+                else if (IsHistoricalBatch(batch, existingBatchById)
+                         && placed + alreadyAllocated < capacity)
+                {
+                    var missing = capacity - (placed + alreadyAllocated);
+                    Error("batches", index, "numberOfBirds",
+                        $"{label} is a batch you already had, so all {capacity:N0} of its birds must be in a pen — " +
+                        $"{missing:N0} are unaccounted for. Put them in a pen, or lower the batch to {placed + alreadyAllocated:N0}.");
                 }
             }
 
@@ -389,9 +448,47 @@ namespace PoultryFarmAPIWeb.Business
                         ? existingHouseById[house.ExistingHouseId.Value].HouseName
                         : Normalize(house.HouseName);
                     var occupiedNote = occupied > 0 ? $" and already holds {occupied:N0}" : string.Empty;
-                    Warn("houses", index, "capacity",
-                        $"{label} is recorded as holding {capacity.Value:N0} birds{occupiedNote}, but you are placing {standing:N0} in it. The birds are real — check the capacity.");
+                    newBirdsByHouseKey.TryGetValue(key, out var newBirds);
+
+                    if (newBirds > 0)
+                    {
+                        // Birds from a new purchase are still a PLAN, and a plan that
+                        // overfills a pen is refused — the same answer the Batch
+                        // Allocation tool gives, because it is the same decision.
+                        var room = Math.Max(0, capacity.Value - occupied - (standing - newBirds));
+                        Error("houses", index, "capacity",
+                            $"{label} holds {capacity.Value:N0} birds{occupiedNote}. " +
+                            $"You are placing {newBirds:N0} newly bought birds in it and only {room:N0} will fit.");
+                    }
+                    else
+                    {
+                        // Every bird here is already standing in the pen. Capacity is
+                        // a forward-planning figure and does not get to refuse a fact;
+                        // what it costs is the NEXT placement, which is what this says.
+                        Warn("houses", index, "capacity",
+                            $"{label} is recorded as taking {capacity.Value:N0} birds{occupiedNote}, " +
+                            $"but this setup puts {standing:N0} in it. " +
+                            $"Update the capacity — it is what decides where your next batch can go.");
+                    }
                 }
+            }
+
+            // ---- Optional data: INFORMATIONAL only ------------------------
+            // Never blocks. The point is that a farm should not discover six months
+            // later that it could have recorded who it bought from; the point is
+            // not to make it do so now.
+            for (var i = 0; i < batches.Count; i++)
+            {
+                var b = batches[i];
+                if (b.ExistingBatchId.HasValue) continue;
+
+                var label = Normalize(b.BatchCode).Length > 0 ? Normalize(b.BatchCode) : $"Batch {i + 1}";
+                if (!b.SupplierId.HasValue)
+                    Warn("batches", i, "supplierId", $"{label} has no supplier recorded. You can complete this later.");
+                if ((b.CostPerChick ?? 0m) == 0m && (b.TotalCost ?? 0m) == 0m)
+                    Warn("batches", i, "costPerChick", $"{label} has no purchase cost recorded. You can complete this later.");
+                if (Normalize(b.Breed).Length == 0)
+                    Warn("batches", i, "breed", $"{label} has no breed recorded. You can complete this later.");
             }
 
             return (errors, warnings);

@@ -103,11 +103,24 @@ export interface FarmSetupResult {
   message?: string
 }
 
+/** A flock the farm already has — read-only context for the allocation step. */
+export interface ExistingFlockRow {
+  flockId: number
+  name: string
+  batchId?: number | null
+  houseId?: number | null
+  houseName?: string | null
+  quantity: number
+  active: boolean
+}
+
 export interface FarmSetupWizardContext {
   status: FarmSetupStatus
   businessDate: string
   batches: any[]
   houses: any[]
+  /** What is already placed, so the wizard can show it without offering to edit it. */
+  flocks: ExistingFlockRow[]
   existingFlockNames: string[]
   allocatedByBatchId: Record<number, number>
 }
@@ -188,6 +201,74 @@ export function getFarmSetupContext(userId: string, farmId: string): Promise<Api
 export function getOpeningPositions(userId: string, farmId: string): Promise<ApiResponse<OpeningPositionSummary>> {
   const qs = new URLSearchParams({ userId, farmId }).toString()
   return read<OpeningPositionSummary>(`/PoultryFarmSetup/opening-positions?${qs}`)
+}
+
+/**
+ * An unfinished setup, kept against the COMPANY (migration 328).
+ *
+ * `draft` is the wizard's own draft object as JSON text — the server stores it
+ * without reading into it, so the shape can change without a migration.
+ */
+export interface FarmSetupDraft {
+  farmId: string
+  draft: string
+  step: number
+  phase?: string | null
+  updatedBy?: string | null
+  updatedAt?: string | null
+}
+
+export function getFarmSetupDraft(
+  userId: string, farmId: string,
+): Promise<ApiResponse<{ hasDraft: boolean; draft: FarmSetupDraft | null }>> {
+  const qs = new URLSearchParams({ userId, farmId }).toString()
+  return read<{ hasDraft: boolean; draft: FarmSetupDraft | null }>(`/PoultryFarmSetup/draft?${qs}`)
+}
+
+/** PUT rather than POST: there is one draft per company and this replaces it. */
+export async function saveFarmSetupDraft(
+  payload: FarmSetupDraft,
+): Promise<ApiResponse<{ savedAt: string }>> {
+  try {
+    const url = IS_BROWSER
+      ? buildApiUrl(`/PoultryFarmSetup/draft`)
+      : `${DIRECT_API_BASE_URL}/api/PoultryFarmSetup/draft`
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        FarmId: payload.farmId,
+        Draft: payload.draft,
+        Step: payload.step,
+        Phase: payload.phase ?? null,
+        UpdatedBy: payload.updatedBy ?? null,
+      }),
+    })
+    const text = await response.text()
+    const body = text ? (() => { try { return JSON.parse(text) } catch { return null } })() : null
+    if (!response.ok) {
+      return { success: false, message: (body && (body.message || body.Message)) || `Request failed (${response.status})` }
+    }
+    return { success: true, data: camel(body) }
+  } catch (error: any) {
+    return { success: false, message: error?.message || "Could not reach the server." }
+  }
+}
+
+export async function deleteFarmSetupDraft(
+  userId: string, farmId: string,
+): Promise<ApiResponse<{ discarded: boolean }>> {
+  try {
+    const qs = new URLSearchParams({ userId, farmId }).toString()
+    const url = IS_BROWSER
+      ? buildApiUrl(`/PoultryFarmSetup/draft?${qs}`)
+      : `${DIRECT_API_BASE_URL}/api/PoultryFarmSetup/draft?${qs}`
+    const response = await fetch(url, { method: "DELETE", headers: getAuthHeaders() })
+    if (!response.ok) return { success: false, message: `Request failed (${response.status})` }
+    return { success: true, data: { discarded: true } }
+  } catch (error: any) {
+    return { success: false, message: error?.message || "Could not reach the server." }
+  }
 }
 
 /** Create the whole farm in one transaction. */

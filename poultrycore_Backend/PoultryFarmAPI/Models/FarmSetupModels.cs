@@ -24,12 +24,38 @@ namespace PoultryFarmAPIWeb.Models
         public int NumberOfBirds { get; set; }
         public DateTime StartDate { get; set; }
 
+        /// <summary>
+        /// Whether this purchase happened BEFORE the application started tracking
+        /// the farm.
+        ///
+        /// <para>Per BATCH, not per session, because the two genuinely mix: a farm
+        /// onboarded last year comes back today having just bought a new batch, and
+        /// that one is a real purchase with real cash behind it while the others
+        /// are history. It drives three things — whether an expense is posted, what
+        /// date the bird-stock movement takes, and whether the batch must be fully
+        /// allocated (historical birds are standing somewhere; newly bought ones
+        /// may not be placed yet).</para>
+        /// </summary>
+        public bool IsHistorical { get; set; } = true;
+
         // Optional. An established farm often does not know what it paid, and the
-        // point of onboarding is the bird position, not the ledger.
+        // point of onboarding is the bird position, not the ledger. All of it is
+        // still offered, because a farm that DOES know should not have to leave
+        // setup and re-edit the batch afterwards to record it.
         public decimal? CostPerChick { get; set; }
         public decimal? TotalCost { get; set; }
+        /// <summary>
+        /// What was actually paid. For a historical purchase this posts no expense
+        /// and no cash — that money moved before any reported period — but it is
+        /// what makes the OUTSTANDING balance right, and that liability is current.
+        /// </summary>
+        public decimal? AmountPaid { get; set; }
         public int? SupplierId { get; set; }
         public string? SupplierType { get; set; }
+        public decimal? DollarConversionRate { get; set; }
+        public DateTime? OrderPlacementDate { get; set; }
+        public DateTime? EstimatedArrivalDate { get; set; }
+        public string? Status { get; set; }
         public string? Notes { get; set; }
     }
 
@@ -64,6 +90,23 @@ namespace PoultryFarmAPIWeb.Models
 
         public int OriginallyPlaced { get; set; }
         public int CurrentLiveBirds { get; set; }
+
+        /// <summary>
+        /// Optional override. A flock normally inherits its batch's breed, which is
+        /// what the single Add Flock form prefills, but a farm that split one
+        /// purchase across breeds can say so rather than having to edit the flock
+        /// afterwards.
+        /// </summary>
+        public string? Breed { get; set; }
+
+        /// <summary>
+        /// Whether the birds are physically in the pen. True for anything an
+        /// established farm is onboarding — they are standing there. Meaningful for
+        /// a NEW purchase, where a batch may be ordered and allocated before it
+        /// arrives, which is exactly what the ordinary Add Flock form's switch is
+        /// for. Null means "the usual": arrived.
+        /// </summary>
+        public bool? HasArrived { get; set; }
 
         /// <summary>Supplied when the farm knows it. Otherwise derived from <see cref="CurrentAgeInWeeks"/>.</summary>
         public DateTime? StartDate { get; set; }
@@ -101,6 +144,26 @@ namespace PoultryFarmAPIWeb.Models
         /// <summary>Recorded on every audit row. Defaults to "Initial Farm Setup".</summary>
         public string? Source { get; set; }
         public string? Notes { get; set; }
+    }
+
+    /// <summary>
+    /// An unfinished setup, kept so a farm can walk away and come back.
+    ///
+    /// <para>ONE PER COMPANY, not per user — a farm's onboarding is one piece of
+    /// work, and the manager who starts it at a desk should be able to finish it
+    /// in the pens. <see cref="UpdatedBy"/> records who touched it last so the
+    /// wizard can say so before someone resumes a colleague's work.</para>
+    /// </summary>
+    public class FarmSetupDraftModel
+    {
+        public string FarmId { get; set; } = string.Empty;
+        /// <summary>The wizard's own draft object, verbatim. Opaque to the server.</summary>
+        public string Draft { get; set; } = "{}";
+        /// <summary>Where they were, so resuming lands on the screen they left.</summary>
+        public int Step { get; set; }
+        public string? Phase { get; set; }
+        public string? UpdatedBy { get; set; }
+        public DateTime? UpdatedAt { get; set; }
     }
 
     /// <summary>A problem pinned to the row that caused it.</summary>
@@ -211,6 +274,14 @@ namespace PoultryFarmAPIWeb.Models
         public int HousesReused { get; set; }
         public int FlocksCreated { get; set; }
         public int OpeningPositionsCreated { get; set; }
+
+        /// <summary>
+        /// Bird-ledger movements posted for the opening historical reductions
+        /// (migration 325). Lower than <see cref="OpeningPositionsCreated"/> whenever
+        /// a flock lost nothing before tracking began — there is no movement to make
+        /// for a flock that still holds everything it was placed with.
+        /// </summary>
+        public int OpeningLedgerMovements { get; set; }
 
         public int OriginallyPlaced { get; set; }
         public int OpeningLiveBirds { get; set; }

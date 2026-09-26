@@ -16,22 +16,24 @@ namespace PoultryFarmAPIWeb.Controllers
         private readonly IBirdFlockService _flockService;
         private readonly IMainFlockBatchService _batchService;
         private readonly IHouseService _houseService;
-        private readonly IFarmSetupService _setupService;
         private readonly IAuditLogService _auditLog;
         private readonly ILogger<FlockController> _logger;
 
+        // IFarmSetupService is deliberately NOT a dependency any more. It was here
+        // only to read opening positions so the batch total could be corrected in
+        // C#; migration 325 moved that into the stored function every caller
+        // already reads, which removed both the dependency and the chance of two
+        // answers.
         public FlockController(
             IBirdFlockService flockService,
             IMainFlockBatchService batchService,
             IHouseService houseService,
-            IFarmSetupService setupService,
             IAuditLogService auditLog,
             ILogger<FlockController> logger)
         {
             _flockService = flockService;
             _batchService = batchService;
             _houseService = houseService;
-            _setupService = setupService;
             _auditLog = auditLog;
             _logger = logger;
         }
@@ -40,26 +42,26 @@ namespace PoultryFarmAPIWeb.Controllers
         /// Birds a batch has actually given out.
         ///
         /// <para>
-        /// spflock_gettotalquantityforbatch sums flock QUANTITIES, which for a flock
-        /// created by Initial Farm Setup is its opening LIVE birds -- 960 of the
-        /// 1,050 that were placed. Reading that alone would leave the batch looking
-        /// like it still has 90 birds spare and invite someone to allocate birds
-        /// that died months ago. The opening historical reduction is added back so
-        /// the batch is measured by what was placed, which is what its
-        /// NumberOfBirds means (migration 319).
+        /// A flock created by Initial Farm Setup carries its opening LIVE birds --
+        /// 919 of the 1,000 that were placed (migration 319). Measured by quantity
+        /// alone the batch looks like it still has 81 spare, which invites someone
+        /// to allocate birds that died months ago. The opening historical reduction
+        /// has to be added back so the batch is measured by what was PLACED, which
+        /// is what its NumberOfBirds means.
+        /// </para>
+        ///
+        /// <para>
+        /// That addition used to happen here, in C#, and only here -- so this
+        /// controller and the allocation guard inside
+        /// <see cref="IBirdFlockService.AllocateBatchToFlocks"/> gave two different
+        /// answers, and the one that decided whether the birds could be created was
+        /// the wrong one. It now lives in spflock_getconsumedforbatch (migration
+        /// 325), which every caller reads, so there is one answer. This wrapper is
+        /// kept only because the name says what the number means.
         /// </para>
         /// </summary>
-        private async Task<int> ConsumedFromBatchAsync(int batchId, string userId, string farmId)
-        {
-            var allocated = await _flockService.GetTotalFlockQuantityForBatch(batchId, userId, farmId);
-
-            var opening = await _setupService.GetOpeningPositionsAsync(farmId);
-            var openingReduction = opening.Positions
-                .Where(p => p.BatchId == batchId)
-                .Sum(p => p.HistoricalReduction);
-
-            return allocated + openingReduction;
-        }
+        private Task<int> ConsumedFromBatchAsync(int batchId, string userId, string farmId) =>
+            _flockService.GetBirdsConsumedFromBatch(batchId, userId, farmId);
 
         // GET: api/Flock/{id}?userId=xxx&farmId=yyy
         [HttpGet("{id:int}")]
@@ -116,7 +118,7 @@ namespace PoultryFarmAPIWeb.Controllers
                     return BadRequest(new { message = $"Flock Batch with ID {model.BatchId} not found." });
                 }
 
-                var existingFlockQuantityInBatch = await _flockService.GetTotalFlockQuantityForBatch(model.BatchId, model.UserId, model.FarmId);
+                var existingFlockQuantityInBatch = await _flockService.GetBirdsConsumedFromBatch(model.BatchId, model.UserId, model.FarmId);
                 if (existingFlockQuantityInBatch + model.Quantity > batch.NumberOfBirds)
                 {
                     return BadRequest(new { message = $"The total quantity of birds ({existingFlockQuantityInBatch + model.Quantity}) exceeds the available birds in batch '{batch.BatchName}' ({batch.NumberOfBirds})." });
@@ -421,7 +423,7 @@ namespace PoultryFarmAPIWeb.Controllers
             }
 
             // Calculate total quantity excluding the current flock's original quantity
-            var totalQuantityExcludingCurrent = await _flockService.GetTotalFlockQuantityForBatch(model.BatchId, model.UserId, model.FarmId, id);
+            var totalQuantityExcludingCurrent = await _flockService.GetBirdsConsumedFromBatch(model.BatchId, model.UserId, model.FarmId, id);
             
             if (totalQuantityExcludingCurrent + model.Quantity > batch.NumberOfBirds)
             {

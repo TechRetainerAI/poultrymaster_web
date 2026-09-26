@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useMemo } from "react"
 import { useRouter } from "next/navigation"
+import { BreedSelect } from "@/components/poultry/breed-select"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
@@ -107,6 +108,13 @@ export default function FlocksPage() {
   // Data for filter dropdowns
   const [houses, setHouses] = useState<House[]>([])
   const [flockBatches, setFlockBatches] = useState<FlockBatch[]>([])
+  // Breeds this farm already uses, offered first in the breed picker. Taken from
+  // the batches AND the flocks, because a flock may carry a breed its batch does
+  // not -- that is what the per-flock override is for.
+  const knownBreeds = useMemo(() => {
+    const all = [...flockBatches.map((b) => b.breed), ...flocks.map((f) => f.breed)]
+    return Array.from(new Set(all.map((b) => (b ?? "").trim()).filter(Boolean)))
+  }, [flockBatches, flocks])
 
   // Map of flockId -> noOfBirdsLeft from the most recent production record
   const [flockBirdsLeftMap, setFlockBirdsLeftMap] = useState<Record<number, number>>({})
@@ -467,7 +475,7 @@ export default function FlocksPage() {
     e.preventDefault()
     const { farmId, userId } = getUserContext()
     if (!farmId || !userId) { toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" }); return }
-    if (!createForm.name.trim() || !createForm.breed.trim() || !createForm.startDate) { toastFormGuide(toast, "Add a flock name, breed, and the date the flock started."); return }
+    if (!createForm.name.trim() || !createForm.startDate) { toastFormGuide(toast, "Add a flock name and the date the flock started."); return }
     if (createForm.quantity <= 0) { toastFormGuide(toast, "Enter how many birds are in this flock — use a number greater than zero."); return }
     if (!createForm.batchId || createForm.batchId === 0) { toastFormGuide(toast, "Link this flock to a batch so bird counts stay accurate."); return }
     if (createSelectedBatch && createForm.quantity > createSelectedBatch.numberOfBirds) { toastFormGuide(toast, `That batch only has ${createSelectedBatch.numberOfBirds} birds available — lower the flock size or pick another batch.`); return }
@@ -550,7 +558,7 @@ export default function FlocksPage() {
     if (!editingFlockId) return
     const { farmId, userId } = getUserContext()
     if (!farmId || !userId) { toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" }); return }
-    if (!editForm.name.trim() || !editForm.breed.trim() || !editForm.startDate) { toastFormGuide(toast, "Add a flock name, breed, and the date the flock started."); return }
+    if (!editForm.name.trim() || !editForm.startDate) { toastFormGuide(toast, "Add a flock name and the date the flock started."); return }
     if (editForm.quantity <= 0) { toastFormGuide(toast, "Enter how many birds are in this flock — use a number greater than zero."); return }
     if (editSelectedBatch && editForm.quantity > editSelectedBatch.numberOfBirds) { toastFormGuide(toast, `That batch only has ${editSelectedBatch.numberOfBirds} birds available — lower the flock size or pick another batch.`); return }
     // Room/house capacity — exclude the flock being edited from current occupancy.
@@ -1671,8 +1679,9 @@ export default function FlocksPage() {
                   <Input placeholder="e.g., Flock A - Rhode Island Reds" value={createForm.name} onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })} required disabled={createLoading} />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Breed *</Label>
-                  <Input placeholder="e.g., Rhode Island Red" value={createForm.breed} onChange={(e) => setCreateForm({ ...createForm, breed: e.target.value })} required disabled={createLoading} />
+                  <Label className="text-sm font-medium text-slate-700">Breed</Label>
+                  <BreedSelect value={createForm.breed} known={knownBreeds} disabled={createLoading}
+                    onChange={(breed) => setCreateForm({ ...createForm, breed })} />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-slate-700">Start Date *</Label>
@@ -1789,8 +1798,9 @@ export default function FlocksPage() {
                     <Input placeholder="e.g., Flock A - Rhode Island Reds" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} required disabled={editLoading} />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium text-slate-700">Breed *</Label>
-                    <Input placeholder="e.g., Rhode Island Red" value={editForm.breed} onChange={(e) => setEditForm({ ...editForm, breed: e.target.value })} required disabled={editLoading} />
+                    <Label className="text-sm font-medium text-slate-700">Breed</Label>
+                    <BreedSelect value={editForm.breed} known={knownBreeds} disabled={editLoading}
+                      onChange={(breed) => setEditForm({ ...editForm, breed })} />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-slate-700">Start Date *</Label>
