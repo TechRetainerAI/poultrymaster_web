@@ -200,7 +200,7 @@ export function BulkHouseDialog({ open, onOpenChange, existingNames, source, onC
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] flex flex-col">
+      <DialogContent className="w-[95vw] sm:max-w-5xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Add Multiple Houses/Pens</DialogTitle>
           <DialogDescription>
@@ -213,9 +213,9 @@ export function BulkHouseDialog({ open, onOpenChange, existingNames, source, onC
           {/* ---- Generator -------------------------------------------------- */}
           <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
             <div className="bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Generate Houses/Pens</div>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 p-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 items-end gap-4 p-4">
               <div className="space-y-2">
-                <Label htmlFor="bulk-count">Number of Houses/Pens *</Label>
+                <Label htmlFor="bulk-count">No. of Houses/Pens *</Label>
                 <NumberInput id="bulk-count" min="1" max={String(MAX_ROWS)} value={count} onChange={(e) => setCount(e.target.value)} placeholder="10" />
               </div>
               <div className="space-y-2">
@@ -230,7 +230,7 @@ export function BulkHouseDialog({ open, onOpenChange, existingNames, source, onC
                 <Label htmlFor="bulk-capacity">Default Capacity (birds)</Label>
                 <NumberInput id="bulk-capacity" min="0" value={defaultCapacity} onChange={(e) => setDefaultCapacity(e.target.value)} placeholder="2000" />
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 sm:col-span-2 lg:col-span-1">
                 <Label htmlFor="bulk-location">Default Location</Label>
                 <Input id="bulk-location" value={defaultLocation} onChange={(e) => setDefaultLocation(e.target.value)} placeholder="Layer House A" />
               </div>
@@ -250,7 +250,7 @@ export function BulkHouseDialog({ open, onOpenChange, existingNames, source, onC
                   </Button>
                 </>
               )}
-              <span className="text-xs text-slate-500">
+              <span className="basis-full text-xs text-slate-500 lg:basis-auto lg:ml-auto">
                 Generating replaces the rows below. Everything stays editable.
               </span>
             </div>
