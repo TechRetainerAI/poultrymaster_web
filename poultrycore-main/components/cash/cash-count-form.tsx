@@ -91,6 +91,8 @@ export function CashCountForm({
    * screen. The dialog keeps the stacked layout — it has no width to spend.
    */
   horizontal = false,
+  /** Section band colour of the stacked layout. Poultry omits it (sky); Hotel passes "purple". */
+  sectionColor = "sky",
 }: {
   systemBalance: number
   reasons: readonly CashCountReason[]
@@ -106,6 +108,7 @@ export function CashCountForm({
   initial?: CashCountInitial | null
   intent?: "draft" | "post"
   horizontal?: boolean
+  sectionColor?: "sky" | "purple"
 }) {
   const { toast } = useToast()
   const label = submitLabel ?? (intent === "draft"
@@ -284,7 +287,7 @@ export function CashCountForm({
   // balance dialog on the cash account page for the pattern being matched.
   return (
     <div className="space-y-4">
-      <FormSection title={vocab.action} color="sky" columns={2}>
+      <FormSection title={vocab.action} color={sectionColor} columns={2}>
         <FormField label={`${vocab.amountLabel} *`}>
           <NumberInput
             step="0.01"

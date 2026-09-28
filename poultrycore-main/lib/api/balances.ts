@@ -10,7 +10,7 @@ import { farmApiUrl, getAuthHeaders, getUserContext } from "./config"
 import { explainHttpError } from "@/lib/api/http-error"
 import { forceReauth } from "./session-expiry"
 
-export type BalanceModule = "poultry" | "water" | "generic"
+export type BalanceModule = "poultry" | "water" | "generic" | "restaurant" | "hotel"
 
 /**
  * Route prefix per module. Generic nests the farm id in the path, and then one
@@ -24,6 +24,13 @@ function prefix(module: BalanceModule, farmId: string): string {
       return "/Water"
     case "generic":
       return `/generic-company/${encodeURIComponent(farmId)}/balances`
+    // Migration 329: the standalone Restaurant answers the same contract.
+    case "restaurant":
+      return "/Restaurant"
+    // Migration 332: under /balances, because api/Hotel/customer-payments and
+    // supplier-payments already exist (the Draft/Approve documents of 319/321).
+    case "hotel":
+      return "/Hotel/balances"
     default:
       return "/Poultry"
   }
@@ -34,7 +41,7 @@ function prefix(module: BalanceModule, farmId: string): string {
  * need the extra "balances" segment; Generic's prefix already ends in it.
  */
 function auditPath(module: BalanceModule): string {
-  return module === "generic" ? "audit" : "balances/audit"
+  return module === "generic" || module === "hotel" ? "audit" : "balances/audit"
 }
 
 function activeFarmId(): string {

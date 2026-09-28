@@ -377,8 +377,8 @@ builder.Services.AddScoped<IHotelFrontDeskService>(sp => new HotelFrontDeskServi
 builder.Services.AddScoped<IHotelHousekeepingService>(sp => new HotelHousekeepingService(connectionString));
 // Phase H-Email: Hotel email notifications
 builder.Services.AddScoped<IHotelEmailService, HotelEmailService>();
-// Phase H-Cash: Cash ledger integration
-builder.Services.AddScoped<IHotelCashLedgerService, HotelCashLedgerService>();
+// Phase H-Cash: the fire-and-forget HotelCashLedgerService was removed by migration 327 --
+// every Hotel cash movement now posts through fnhotelcash_post inside its own transaction.
 // Phase H-Cust: Customer balance management
 builder.Services.AddScoped<IHotelCustomerService>(sp => new HotelCustomerService(connectionString));
 // Phase H-Loan: Employee loans & advances
@@ -387,6 +387,11 @@ builder.Services.AddScoped<IHotelEmployeeLoanService>(sp => new HotelEmployeeLoa
 builder.Services.AddScoped<IHotelSupplierService>(sp => new HotelSupplierService(connectionString));
 // Phase H-Asset: Capital assets & depreciation
 builder.Services.AddScoped<IHotelCapitalAssetService>(sp => new HotelCapitalAssetService(connectionString));
+// Owner Money, Loans (Financing), Cash Transfers, Reconciliation (migration 331)
+builder.Services.AddScoped<IHotelMoneyService>(sp => new HotelMoneyService(connectionString));
+builder.Services.AddScoped<IHotelBalanceService>(sp => new HotelBalanceService(connectionString));
+builder.Services.AddScoped<IHotelSuppliesService>(sp => new HotelSuppliesService(connectionString));
+builder.Services.AddScoped<IHotelFinancialActivityService>(sp => new HotelFinancialActivityService(connectionString));
 // =================================================================
 
 // =================================================================
@@ -402,6 +407,13 @@ builder.Services.AddScoped<IRestaurantOrderService>(sp => new RestaurantOrderSer
 builder.Services.AddScoped<IRestaurantFinanceService>(sp => new RestaurantFinanceService(connectionString));
 // Restaurant payroll + staff loans & advances (migration 326)
 builder.Services.AddScoped<IRestaurantPayrollService>(sp => new RestaurantPayrollService(connectionString));
+// Restaurant Capital Investments/Assets + depreciation (migration 328)
+builder.Services.AddScoped<IRestaurantCapitalAssetService>(sp => new RestaurantCapitalAssetService(connectionString));
+// Restaurant suppliers, purchases, supplier payments, deferred inventory cost (migration 329)
+builder.Services.AddScoped<IRestaurantSupplierService>(sp => new RestaurantSupplierService(connectionString));
+builder.Services.AddScoped<IRestaurantInternalUseService>(sp => new RestaurantInternalUseService(connectionString)); // migration 330
+builder.Services.AddScoped<IRestaurantCustomerBalanceService>(sp => new RestaurantCustomerBalanceService(connectionString)); // migration 333
+builder.Services.AddScoped<IRestaurantFinancialActivityService>(sp => new RestaurantFinancialActivityService(connectionString)); // migration 335
 // Phase R3: Kitchen Display System
 builder.Services.AddScoped<IRestaurantKdsService>(sp => new RestaurantKdsService(connectionString));
 // Phase R4: Reservations & Waitlist

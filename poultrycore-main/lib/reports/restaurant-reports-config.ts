@@ -89,7 +89,7 @@ const RAW_GROUPS: RawGroup[] = [
         description: "Why the cash moved differently from the profit, line by line" },
       { slug: "payroll", title: "Payroll", dateMode: "range", isNew: true,
         description: "Wages paid per staff member: gross, deductions, staff loan repayments and net pay" },
-      { slug: "staff-loans", title: "Staff Loans & Advances", dateMode: "range", isNew: true,
+      { slug: "staff-loans", title: "Employee Loans & Advances", dateMode: "range", isNew: true,
         description: "What each staff member owes, and what was advanced and repaid in the period" },
     ],
   },

@@ -16,7 +16,7 @@ import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import {
   listRestaurantOrders, listRestaurantTables, listMenuItems, createRestaurantOrder,
-  updateRestaurantOrderStatus, listHotelBookings, listHotelStaff, addStayCharge,
+  updateRestaurantOrderStatus, listHotelBookings, listHotelStaff,
   type HotelRestaurantOrder, type HotelRestaurantTable, type HotelMenuItem, type HotelBooking, type HotelStaff,
 } from "@/lib/api/hotel"
 
@@ -126,28 +126,20 @@ export default function HotelRestaurantPage() {
     setSaving(true)
     try {
       const tbl = posForm.tableNumber === "__none__" ? undefined : posForm.tableNumber || undefined
+      const chargeToRoom = posForm.customerType === "guest" && posForm.chargeToRoom && !!posForm.hotelBookingId
+      // One request: the server puts room-charged lines on the guest's folio, or posts
+      // the till payment, in the same transaction as the order (migration 327).
       await createRestaurantOrder({
         tableNumber: tbl,
         serverName: posForm.serverName || undefined,
         hotelBookingId: posForm.hotelBookingId ?? undefined,
+        chargeToRoom,
+        paymentMethod: chargeToRoom ? undefined : posForm.paymentMethod,
         items: cart.map(c => ({ menuItemId: c.menuItem.hotelMenuItemId ?? c.menuItem.hotelmenuitemid, quantity: c.quantity, unitPrice: Number(c.menuItem.price) }))
       })
 
-      // If charging to room, post each item as a stay charge on the guest's folio
-      if (posForm.customerType === "guest" && posForm.chargeToRoom && posForm.hotelBookingId) {
-        for (const c of cart) {
-          await addStayCharge({
-            hotelBookingId: posForm.hotelBookingId,
-            chargeType: "Restaurant",
-            description: `${c.menuItem.name}${c.quantity > 1 ? ` x${c.quantity}` : ""}`,
-            quantity: c.quantity,
-            unitPrice: Number(c.menuItem.price),
-          })
-        }
-      }
-
       printReceipt(cart, cartTotal)
-      toast({ title: posForm.chargeToRoom ? `Charged to room — ${cartTotal.toFixed(2)}` : `Order created — ${cartTotal.toFixed(2)}` })
+      toast({ title: chargeToRoom ? `Charged to room — ${cartTotal.toFixed(2)}` : `Order created — ${cartTotal.toFixed(2)}` })
       setPosOpen(false); setCart([]); await load()
     } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
     finally { setSaving(false) }
@@ -217,7 +209,7 @@ export default function HotelRestaurantPage() {
                       <td className="p-3 text-right font-semibold">{Number(o.totalAmount ?? o.totalamount ?? 0).toFixed(2)}</td>
                       <td className="p-3 text-xs text-slate-500">{(o.orderTime ?? o.ordertime) ? new Date(o.orderTime ?? o.ordertime).toLocaleString() : "—"}</td>
                       <td className="p-3 text-right">
-                        {next[o.status] && <Button size="sm" variant="outline" onClick={async () => { await updateRestaurantOrderStatus(id, next[o.status]); toast({ title: `→ ${next[o.status]}` }); await load() }}>{next[o.status]}</Button>}
+                        {next[o.status] && <Button size="sm" variant="outline" onClick={async () => { try { await updateRestaurantOrderStatus(id, next[o.status]); toast({ title: `→ ${next[o.status]}` }); await load() } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) } }}>{next[o.status]}</Button>}
                       </td>
                     </tr>
                   )

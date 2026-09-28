@@ -81,10 +81,12 @@ export interface PaymentsReceivedPageProps {
   saleHref: (saleId: number) => string | null
   /** IAM keys gating this page. */
   permissions: { view: string; reverse: string }
+  /** Header icon colour. Optional; defaults to sky as before. */
+  iconClassName?: string
 }
 
 export function PaymentsReceivedPage({
-  module, companyType, saleHref, permissions,
+  module, companyType, saleHref, permissions, iconClassName,
 }: PaymentsReceivedPageProps) {
   const fmt = useFmt()
   const router = useRouter()
@@ -501,7 +503,7 @@ export function PaymentsReceivedPage({
         <DashboardHeader />
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <h1 className="mb-1 flex items-center gap-2 text-2xl font-semibold text-slate-900">
-            <Wallet className="h-6 w-6 text-sky-600" /> Payments received
+            <Wallet className={cn("h-6 w-6", iconClassName ?? "text-sky-600")} /> Payments received
           </h1>
           <p className="mb-4 text-sm text-slate-500">
             One row per payment the customer actually made. A payment spread over several sales is one payment

@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
-import { useRouter } from "next/navigation"
+import { Suspense, useEffect, useRef, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Trash2, Edit2, Package, AlertTriangle, Search, DollarSign, TrendingDown, Warehouse, ClipboardCheck } from "lucide-react"
+import { Plus, Trash2, Edit2, Package, AlertTriangle, Search, DollarSign, TrendingDown, Warehouse, ClipboardCheck, ShoppingCart, Hourglass, Undo2 } from "lucide-react"
 import { PageSkeleton } from "@/components/restaurant/skeleton-loaders"
 import { OtherSelect, type OtherSelectHandle } from "@/components/restaurant/other-select"
 import { Badge } from "@/components/ui/badge"
@@ -26,6 +26,13 @@ import {
   type WasteSummary, type InventoryValue, type RestaurantSupplier,
 } from "@/lib/api/restaurant"
 import { fmtInstant } from "@/lib/utils/company-datetime"
+import { useFmt } from "@/lib/currency"
+import { listCashAccounts, type CashAccount } from "@/lib/api/restaurant-finance"
+import { RestaurantPurchaseDialog } from "@/components/restaurant/purchase-dialog"
+import {
+  listPurchases, reversePurchase, listCostModes, setCostMode, listSuppliers as listSupplierRows,
+  COST_MODE_LABELS, type RestaurantPurchase, type RestaurantCostModeRow, type RestaurantSupplierRow, type CostMode,
+} from "@/lib/api/restaurant-suppliers"
 
 // "Other" is NOT listed here — OtherSelect appends its own, which opens a text box.
 const CATEGORIES = ["Proteins", "Dairy", "Produce", "Dry Goods", "Spices", "Beverages", "Frozen", "Oils & Fats", "Bakery", "Sauces"]
@@ -33,8 +40,22 @@ const UNITS = ["kg", "g", "L", "mL", "pcs", "dozen", "bag", "box", "bottle", "ca
 const STORAGE_AREAS = ["Walk-in Cooler", "Freezer", "Dry Store", "Bar", "Kitchen Counter", "Pantry"]
 const WASTE_REASONS = ["Spoilage", "PrepWaste", "Returned", "Expired", "Spillage", "Overproduction"]
 
+// useSearchParams needs a Suspense boundary for the static build.
 export default function RestaurantInventoryPage() {
+  return <Suspense fallback={<PageSkeleton />}><RestaurantInventoryInner /></Suspense>
+}
+
+const PURCHASE_STATUS_CLASS: Record<string, string> = {
+  Paid: "bg-emerald-100 text-emerald-700",
+  "Partially Paid": "bg-amber-100 text-amber-700",
+  Unpaid: "bg-red-100 text-red-700",
+  Reversed: "bg-slate-100 text-slate-500 line-through",
+}
+
+function RestaurantInventoryInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const gh = useFmt()
   const { toast } = useToast()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
 
@@ -62,12 +83,27 @@ export default function RestaurantInventoryPage() {
   const [wasteDialogOpen, setWasteDialogOpen] = useState(false)
   const [wasteForm, setWasteForm] = useState<WasteInput>({ ingredientName: "", quantity: 0, unit: "kg", reason: "Spoilage" })
 
-  // Adjust stock dialog
+  // Adjust stock dialog. A delivery is NOT an adjustment any more (migration
+  // 329): it carries a cost, a supplier and money, so it goes through Record
+  // Purchase.
   const [adjustDialogOpen, setAdjustDialogOpen] = useState(false)
   const [adjustId, setAdjustId] = useState(0)
   const [adjustQty, setAdjustQty] = useState(0)
-  const [adjustType, setAdjustType] = useState("PurchaseIn")
+  const [adjustType, setAdjustType] = useState("AdjustmentIn")
   const [adjustReason, setAdjustReason] = useState("")
+
+  // Purchases (migration 329) -- Poultry's "Record Purchase", with its
+  // ?purchase=1[&itemId=&qty=] deep link.
+  const [tab, setTab] = useState("ingredients")
+  const [purchases, setPurchases] = useState<RestaurantPurchase[]>([])
+  const [costModes, setCostModes] = useState<RestaurantCostModeRow[]>([])
+  const [cashAccounts, setCashAccounts] = useState<CashAccount[]>([])
+  const [supplierRows, setSupplierRows] = useState<RestaurantSupplierRow[]>([])
+  const [purchaseOpen, setPurchaseOpen] = useState(false)
+  const [purchaseDefaults, setPurchaseDefaults] = useState<{ itemId?: number | null; quantity?: number | null }>({})
+  const [purchaseFocus, setPurchaseFocus] = useState<number | null>(null)
+  const [reversing, setReversing] = useState<RestaurantPurchase | null>(null)
+  const [reverseReason, setReverseReason] = useState("")
 
   useEffect(() => {
     if (activeFarmType === null || activeFarmType === undefined) return
@@ -78,14 +114,60 @@ export default function RestaurantInventoryPage() {
   async function loadAll() {
     setLoading(true)
     try {
-      const [ing, low, wl, ws, iv, sup] = await Promise.all([
+      const [ing, low, wl, ws, iv, sup, pur, cm, acc, sr] = await Promise.all([
         listIngredients(), getLowStock().catch(() => []),
         listWaste().catch(() => []), getWasteSummary().catch(() => []),
         getInventoryValue().catch(() => []), listRestaurantSuppliers().catch(() => []),
+        listPurchases().catch(() => [] as RestaurantPurchase[]),
+        listCostModes().catch(() => [] as RestaurantCostModeRow[]),
+        listCashAccounts().catch(() => [] as CashAccount[]),
+        listSupplierRows().catch(() => [] as RestaurantSupplierRow[]),
       ])
       setIngredients(ing); setLowStock(low); setWasteLog(wl); setWasteSummary(ws); setInvValue(iv); setSuppliers(sup)
+      setPurchases(pur); setCostModes(cm); setCashAccounts(acc); setSupplierRows(sr)
     } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
     finally { setLoading(false) }
+  }
+
+  // Deep links: ?purchase=1[&itemId=&qty=] opens Record Purchase (the nav row
+  // and low-stock links use it); ?tab=purchases[&purchaseId=] lands on one
+  // purchase (Supplier Balances / Payments link there).
+  useEffect(() => {
+    if (loading) return
+    const t = searchParams.get("tab")
+    if (t) setTab(t)
+    const pid = searchParams.get("purchaseId")
+    if (pid) { setTab("purchases"); setPurchaseFocus(Number(pid)) }
+    if (searchParams.get("purchase") === "1") {
+      const itemId = searchParams.get("itemId"), qty = searchParams.get("qty")
+      setPurchaseDefaults({ itemId: itemId ? Number(itemId) : null, quantity: qty ? Number(qty) : null })
+      setPurchaseOpen(true)
+      router.replace("/restaurant-inventory")
+    }
+  }, [loading, searchParams, router])
+
+  function openPurchase(itemId?: number) {
+    setPurchaseDefaults({ itemId: itemId ?? null })
+    setPurchaseOpen(true)
+  }
+
+  async function handleReversePurchase() {
+    if (!reversing) return
+    if (!reverseReason.trim()) { toast({ title: "A reason is required", variant: "destructive" }); return }
+    try {
+      await reversePurchase(reversing.purchaseId, reverseReason.trim())
+      toast({ title: "Purchase reversed" })
+      setReversing(null); setReverseReason("")
+      loadAll()
+    } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
+  }
+
+  async function handleCostMode(category: string, mode: CostMode) {
+    try {
+      await setCostMode(category, mode)
+      toast({ title: "Saved", description: `${category}: ${COST_MODE_LABELS[mode]}. Applies to purchases recorded from now on.` })
+      setCostModes(await listCostModes())
+    } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
   }
 
   function openIngDialog(i?: Ingredient) {
@@ -155,7 +237,10 @@ export default function RestaurantInventoryPage() {
                 <div className="h-10 w-10 rounded-lg bg-rose-100 flex items-center justify-center flex-shrink-0"><Package className="h-5 w-5 text-rose-600" /></div>
                 <div className="min-w-0"><h1 className="text-xl sm:text-2xl font-bold text-gray-900">Inventory & Recipes</h1><p className="text-sm text-muted-foreground">{ingredients.length} ingredients tracked</p></div>
               </div>
-              <Button className="bg-rose-600 hover:bg-rose-700 w-full sm:w-auto flex-shrink-0" onClick={() => openIngDialog()}><Plus className="h-4 w-4 mr-2" /> Add Ingredient</Button>
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto flex-shrink-0">
+                <Button variant="outline" className="border-rose-200 text-rose-700 hover:bg-rose-50 w-full sm:w-auto" onClick={() => openPurchase()}><ShoppingCart className="h-4 w-4 mr-2" /> Record Purchase</Button>
+                <Button className="bg-rose-600 hover:bg-rose-700 w-full sm:w-auto" onClick={() => openIngDialog()}><Plus className="h-4 w-4 mr-2" /> Add Ingredient</Button>
+              </div>
             </div>
 
             {/* Stats */}
@@ -183,11 +268,13 @@ export default function RestaurantInventoryPage() {
               </Card>
             )}
 
-            <Tabs defaultValue="ingredients" className="space-y-4">
+            <Tabs value={tab} onValueChange={setTab} className="space-y-4">
               <TabsList className="bg-white border shadow-sm flex-wrap h-auto">
                 <TabsTrigger value="ingredients" className="data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700"><Package className="h-4 w-4 mr-2" /> Ingredients <Badge variant="secondary" className="ml-2 h-5 px-1.5">{ingredients.length}</Badge></TabsTrigger>
                 <TabsTrigger value="waste" className="data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700"><TrendingDown className="h-4 w-4 mr-2" /> Waste Log <Badge variant="secondary" className="ml-2 h-5 px-1.5">{wasteLog.length}</Badge></TabsTrigger>
                 <TabsTrigger value="value" className="data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700"><DollarSign className="h-4 w-4 mr-2" /> Inventory Value</TabsTrigger>
+                <TabsTrigger value="purchases" className="data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700"><ShoppingCart className="h-4 w-4 mr-2" /> Purchases <Badge variant="secondary" className="ml-2 h-5 px-1.5">{purchases.length}</Badge></TabsTrigger>
+                <TabsTrigger value="costs" className="data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700"><Hourglass className="h-4 w-4 mr-2" /> Cost recognition</TabsTrigger>
               </TabsList>
 
               {/* Ingredients Tab */}
@@ -242,7 +329,8 @@ export default function RestaurantInventoryPage() {
                                 gating them on group-hover hid Adjust/Edit/Delete completely
                                 on a phone -- that was a reachability bug, not just styling. */}
                             <div className="flex gap-1 mt-3 pt-3 border-t sm:mt-0 sm:pt-0 sm:border-t-0 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 sm:transition-opacity sm:justify-end">
-                              <Button variant="outline" size="sm" className="h-8 flex-1 sm:flex-none sm:h-7 text-xs" onClick={() => { setAdjustId(i.ingredientId); setAdjustQty(0); setAdjustType("PurchaseIn"); setAdjustReason(""); setAdjustDialogOpen(true) }}>Adjust</Button>
+                              <Button variant="outline" size="sm" className="h-8 flex-1 sm:flex-none sm:h-7 text-xs" onClick={() => openPurchase(i.ingredientId)}>Purchase</Button>
+                              <Button variant="outline" size="sm" className="h-8 flex-1 sm:flex-none sm:h-7 text-xs" onClick={() => { setAdjustId(i.ingredientId); setAdjustQty(0); setAdjustType("AdjustmentIn"); setAdjustReason(""); setAdjustDialogOpen(true) }}>Adjust</Button>
                               <Button variant="outline" size="sm" className="h-8 flex-1 sm:flex-none sm:h-7 sm:w-7 sm:p-0 text-xs" onClick={() => openIngDialog(i)}><Edit2 className="h-3 w-3 mr-1 sm:mr-0" /><span className="sm:hidden">Edit</span></Button>
                               <Button variant="outline" size="sm" className="h-8 flex-1 sm:flex-none sm:h-7 sm:w-7 sm:p-0 text-xs" onClick={() => delIng(i.ingredientId)}><Trash2 className="h-3 w-3 text-red-500 mr-1 sm:mr-0" /><span className="sm:hidden">Delete</span></Button>
                             </div>
@@ -329,6 +417,116 @@ export default function RestaurantInventoryPage() {
                   </CardContent>
                 </Card>
               </TabsContent>
+
+              {/* Purchases Tab (migration 329) */}
+              <TabsContent value="purchases">
+                <Card>
+                  <CardHeader>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <div className="h-9 w-9 rounded-lg bg-rose-100 flex items-center justify-center"><ShoppingCart className="h-5 w-5 text-rose-600" /></div>
+                        <div><CardTitle className="text-lg">Purchases</CardTitle><CardDescription>Stock bought, what it cost and what is still owed</CardDescription></div>
+                      </div>
+                      <Button className="bg-rose-600 hover:bg-rose-700 w-full sm:w-auto" onClick={() => openPurchase()}><ShoppingCart className="h-4 w-4 mr-2" /> Record Purchase</Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {purchaseFocus != null && (
+                      <div className="mb-3 flex items-center justify-between rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+                        <span>Showing purchase PO-{purchaseFocus} only</span>
+                        <Button variant="ghost" size="sm" className="h-7" onClick={() => { setPurchaseFocus(null); router.replace("/restaurant-inventory?tab=purchases") }}>Show all purchases</Button>
+                      </div>
+                    )}
+                    {purchases.length === 0 ? (
+                      <p className="text-center py-8 text-muted-foreground text-sm">No purchases recorded yet</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {purchases.filter((pu) => purchaseFocus == null || pu.purchaseId === purchaseFocus).map((pu) => (
+                          <div key={pu.purchaseId} className="p-3 border rounded-lg">
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="font-medium">{pu.ingredientName}</span>
+                                  <Badge variant="outline" className="text-[10px] h-5">PO-{pu.purchaseId}</Badge>
+                                  <Badge className={`text-[10px] h-5 ${PURCHASE_STATUS_CLASS[pu.status === "Reversed" ? "Reversed" : pu.paymentStatus ?? ""] ?? ""}`}>
+                                    {pu.status === "Reversed" ? "Reversed" : pu.paymentStatus}
+                                  </Badge>
+                                  {pu.costMode === "EXPENSE_WHEN_CONSUMED" && (
+                                    <Badge variant="outline" className="text-[10px] h-5 border-amber-300 bg-amber-50 text-amber-700">Expense when consumed</Badge>
+                                  )}
+                                </div>
+                                <div className="text-xs text-muted-foreground mt-0.5">
+                                  {pu.purchaseDate?.slice(0, 10)} · {pu.quantity} {pu.unit} × {gh(pu.unitCost)} · {pu.supplierName ?? "No supplier"}
+                                  {pu.dueDate && pu.balance > 0 ? ` · due ${pu.dueDate.slice(0, 10)}` : ""}
+                                </div>
+                                {pu.status === "Reversed" && pu.reversalReason && (
+                                  <div className="text-xs text-slate-500 mt-0.5">Reversed: {pu.reversalReason}</div>
+                                )}
+                              </div>
+                              <div className="text-right">
+                                <div className="font-bold">{gh(pu.totalCost)}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  paid {gh(pu.amountPaid + pu.allocated)}{pu.balance > 0 ? ` · owed ${gh(pu.balance)}` : ""}
+                                </div>
+                              </div>
+                            </div>
+                            {pu.status === "Posted" && (
+                              <div className="flex justify-end mt-2">
+                                <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => { setReversing(pu); setReverseReason("") }}>
+                                  <Undo2 className="h-3 w-3 mr-1" /> Reverse
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Cost recognition Tab (migration 329) -- Poultry's Financial
+                  settings "Cost recognition", per restaurant ingredient category. */}
+              <TabsContent value="costs">
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center gap-2">
+                      <div className="h-9 w-9 rounded-lg bg-amber-100 flex items-center justify-center"><Hourglass className="h-5 w-5 text-amber-600" /></div>
+                      <div>
+                        <CardTitle className="text-lg">Cost recognition</CardTitle>
+                        <CardDescription>
+                          When each category&apos;s purchases reach Profit &amp; Loss. Expense when purchased charges the whole purchase on the day it is bought;
+                          expense when consumed holds it as stock value until it is sold, wasted or adjusted out (see Deferred inventory cost).
+                          A change applies to purchases recorded from now on.
+                        </CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {costModes.length === 0 ? (
+                      <p className="text-center py-8 text-muted-foreground text-sm">Give your ingredients a category to choose how it is expensed</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {costModes.map((m) => (
+                          <div key={m.category} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 border rounded-lg">
+                            <div>
+                              <span className="font-medium">{m.category}</span>
+                              <span className="text-xs text-muted-foreground ml-2">{m.ingredientCount} item{m.ingredientCount === 1 ? "" : "s"}</span>
+                            </div>
+                            <Select value={m.costMode} onValueChange={(v) => handleCostMode(m.category, v as CostMode)}>
+                              <SelectTrigger className="h-10 sm:w-[240px]"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="EXPENSE_WHEN_PURCHASED">{COST_MODE_LABELS.EXPENSE_WHEN_PURCHASED}</SelectItem>
+                                <SelectItem value="EXPENSE_WHEN_CONSUMED">{COST_MODE_LABELS.EXPENSE_WHEN_CONSUMED}</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
             </Tabs>
           </div>
         </main>
@@ -381,13 +579,12 @@ export default function RestaurantInventoryPage() {
       {/* Adjust Stock Dialog */}
       <Dialog open={adjustDialogOpen} onOpenChange={setAdjustDialogOpen}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Adjust Stock</DialogTitle><DialogDescription>Record stock received or removed</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>Adjust Stock</DialogTitle><DialogDescription>Correct a count or record stock removed. A delivery from a supplier is recorded with Record Purchase, so it carries its cost.</DialogDescription></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1.5"><Label>Type</Label>
               <Select value={adjustType} onValueChange={setAdjustType}>
                 <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="PurchaseIn">Purchase / Received (+)</SelectItem>
                   <SelectItem value="AdjustmentIn">Adjustment In (+)</SelectItem>
                   <SelectItem value="AdjustmentOut">Adjustment Out (-)</SelectItem>
                   <SelectItem value="TransferOut">Transfer Out (-)</SelectItem>
@@ -442,6 +639,32 @@ export default function RestaurantInventoryPage() {
             <div className="space-y-1.5"><Label>Notes</Label><Input value={wasteForm.notes || ""} onChange={e => setWasteForm({ ...wasteForm, notes: e.target.value })} className="h-10" /></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setWasteDialogOpen(false)}>Cancel</Button><Button onClick={handleLogWaste} className="bg-rose-600 hover:bg-rose-700">Log Waste</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <RestaurantPurchaseDialog
+        open={purchaseOpen}
+        onOpenChange={setPurchaseOpen}
+        ingredients={ingredients}
+        suppliers={supplierRows}
+        cashAccounts={cashAccounts}
+        costModes={costModes}
+        defaults={purchaseDefaults}
+        onSaved={loadAll}
+      />
+
+      {/* Reverse purchase */}
+      <Dialog open={reversing != null} onOpenChange={(o) => { if (!o) setReversing(null) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reverse purchase</DialogTitle>
+            <DialogDescription>
+              {reversing ? `PO-${reversing.purchaseId}: ${reversing.quantity} ${reversing.unit ?? ""} ${reversing.ingredientName ?? ""}. ` : ""}
+              The stock goes back out and anything paid comes back to its account today. Not possible once any of this stock has been used or a supplier payment was applied.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5"><Label>Reason *</Label><Input value={reverseReason} onChange={(e) => setReverseReason(e.target.value)} placeholder="e.g. Recorded twice" className="h-10" /></div>
+          <DialogFooter><Button variant="outline" onClick={() => setReversing(null)}>Cancel</Button><Button onClick={handleReversePurchase} className="bg-red-600 hover:bg-red-700">Reverse</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

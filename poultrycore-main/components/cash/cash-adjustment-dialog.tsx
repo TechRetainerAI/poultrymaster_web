@@ -106,7 +106,15 @@ export function CashAdjustmentDialog({
   editing,
   onSubmit,
   onDone,
+  allowedTypes,
 }: {
+  /**
+   * Optional: offer only these types. Absent (every existing caller) means all
+   * five, exactly as before. The Restaurant passes the three it can record as a
+   * real document (owner money, loan) and leaves out the ones it has no
+   * adjustment record for.
+   */
+  allowedTypes?: readonly AdjustmentTypeValue[]
   open: boolean
   onOpenChange: (open: boolean) => void
   accounts: AdjustableAccountOption[]
@@ -284,7 +292,7 @@ export function CashAdjustmentDialog({
               <Select value={type} onValueChange={(v) => setType(v as AdjustmentTypeValue)}>
                 <SelectTrigger><SelectValue placeholder="What kind of adjustment?" /></SelectTrigger>
                 <SelectContent>
-                  {ADJUSTMENT_TYPES.map((t) => (
+                  {ADJUSTMENT_TYPES.filter((t) => !allowedTypes || allowedTypes.includes(t.value)).map((t) => (
                     <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
                   ))}
                 </SelectContent>

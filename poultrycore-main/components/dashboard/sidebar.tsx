@@ -71,6 +71,8 @@ import { filterRestaurantNavItems } from "@/lib/utils/restaurant-nav-access"
 import { useLogout } from "@/hooks/use-logout"
 import { buildPoultryNavConfig } from "@/lib/nav/poultry-nav-config"
 import { buildWaterNavConfig } from "@/lib/nav/water-nav-config"
+import { buildHotelNavConfig } from "@/lib/nav/hotel-nav-config"
+import { buildRestaurantNavConfig } from "@/lib/nav/restaurant-nav-config"
 import { useQuickLinkHrefs } from "@/lib/store/quick-links-store"
 import { QuickLinksDialog } from "@/components/dashboard/quick-links-dialog"
 import type { MegaMenuGroup, NavGroup } from "@/lib/nav/nav-model"
@@ -379,6 +381,9 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/hotel-check-out",    label: "Check-out",     icon: Activity },
     { href: "/hotel-guests",       label: "Guests",        icon: Users },
     { href: "/hotel-guest-folio",  label: "Guest Folio",   icon: FileText },
+    // From the old Finance list, beside the folio it is issued from; matches
+    // Operations > Front Desk in lib/nav/hotel-nav-config.ts.
+    { href: "/hotel-invoices",     label: "Invoices",      icon: FileText },
     { href: "/hotel-stay-history", label: "Stay History",  icon: FileText },
   ])
   const hotelGuestServicesItems = gateHotel([
@@ -398,24 +403,13 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/hotel-menu",              label: "Menu",         icon: FileText },
     { href: "/hotel-kitchen",           label: "Kitchen",      icon: Activity },
   ])
-  const hotelFinanceItems = gateHotel([
-    { href: "/hotel-billing",           label: "Billing",           icon: DollarSign },
-    { href: "/hotel-invoices",          label: "Invoices",          icon: FileText },
-    { href: "/hotel-payments",          label: "Payments",          icon: CreditCard },
-    { href: "/hotel-expenses",          label: "Expenses",          icon: DollarSign },
-    { href: "/hotel-customers",         label: "Customers",         icon: Users },
-    { href: "/hotel-customer-payments", label: "Customer Payments", icon: Receipt },
-    { href: "/hotel-suppliers",         label: "Suppliers",         icon: Truck },
-    { href: "/hotel-supplier-payments", label: "Supplier Payments", icon: Banknote },
-    { href: "/hotel-assets",            label: "Capital Assets",    icon: Briefcase },
-    { href: "/hotel-cash-accounts",     label: "Cash Accounts",     icon: Wallet },
-    { href: "/hotel-cash-flow",         label: "Cash Flow",         icon: Activity },
-    { href: "/hotel-profit-loss",       label: "Profit & Loss",     icon: BarChart3 },
-  ])
+  // The old flat "Finance" list is gone: its rows are now the three Sales,
+  // Expenses & Money groups read from hotelNav.salesMoney (see the render
+  // below), plus Invoices in Front Desk and Customers / Customer Payments /
+  // Suppliers in Setup > Finance. Payroll and Employee Loans & Advances left
+  // People for the Expenses column, where Poultry has them.
   const hotelPeopleItems = gateHotel([
     { href: "/hotel-staff",           label: "Staff",            icon: UserCog },
-    { href: "/hotel-payroll",         label: "Payroll",          icon: Banknote },
-    { href: "/hotel-employee-loans",  label: "Loans & Advances", icon: Coins },
   ])
   const hotelInventoryItems = gateHotel([
     { href: "/hotel-inventory",   label: "Supplies",     icon: Boxes },
@@ -481,25 +475,10 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const restaurantInventoryItems = gateRestaurant([
     { href: "/restaurant-inventory", label: "Ingredients & Stock", icon: Boxes },
   ])
-  const restaurantMoneyItems = gateRestaurant([
-    { href: "/restaurant-tills",               label: "Tills & Shifts",     icon: Calculator },
-    { href: "/restaurant-cash-accounts",       label: "Cash Accounts",      icon: Wallet },
-    { href: "/restaurant-cash-transfers",      label: "Cash Transfers",     icon: ArrowLeftRight },
-    { href: "/restaurant-cash-reconciliation", label: "Reconciliation",     icon: Scale },
-    { href: "/restaurant-daily-closing",       label: "Daily Closing",      icon: CalendarCheck },
-    { href: "/restaurant-owner-money",         label: "Owner Money",        icon: PiggyBank },
-    { href: "/restaurant-loans",               label: "Loans",              icon: Landmark },
-    { href: "/restaurant-payroll",             label: "Payroll",            icon: Banknote },
-    { href: "/restaurant-staff-loans",         label: "Staff Loans & Advances", icon: Coins },
-    { href: "/restaurant-cash-flow",           label: "Cash Flow",          icon: Activity },
-    { href: "/restaurant-profit-loss",         label: "Profit & Loss",      icon: BarChart3 },
-    { href: "/restaurant-payments",            label: "Income & Expenses",  icon: DollarSign },
-  ])
-  const restaurantExpenseItems = gateRestaurant([
-    { href: "/restaurant-expenses",                label: "Record Expenses",    icon: Receipt },
-    { href: "/restaurant-expenses?tab=categories", label: "Expense Categories", icon: Tag },
-    { href: "/restaurant-reports/expenses",        label: "Expense Report",     icon: BarChart3 },
-  ])
+  // Money and Expenses are no longer hand-written here: they are the three
+  // Sales, Expenses & Money groups read from restaurantNav.salesMoney, and
+  // Tills & Shifts / Daily Closing moved to Quick Links -- the same rows, in
+  // the same order, as the top nav.
   const restaurantGrowthItems = gateRestaurant([
     { href: "/restaurant-crm",           label: "Customers & CRM",    icon: Users },
     { href: "/restaurant-loyalty",       label: "Loyalty & Rewards",  icon: CreditCard },
@@ -514,7 +493,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   ])
   const restaurantMenuSetupItems = gateRestaurant([
     { href: "/restaurant-menu",   label: "Menu Items",      icon: UtensilsCrossed },
-    { href: "/restaurant-staff",  label: "Staff & Roles",   icon: UserCog },
+    { href: "/restaurant-staff",  label: "Staff",           icon: UserCog },
     { href: "/restaurant-setup",  label: "Restaurant Setup", icon: Settings },
   ])
 
@@ -531,6 +510,11 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const waterNav = isWater
     ? buildWaterNavConfig({ permissions, onOpenAlerts: openAlerts, alertCount: alerts.length, quickLinkHrefs })
     : null
+  // Hotel and Restaurant read their rail's config for the Sales, Expenses &
+  // Money groups (and Restaurant's Quick Links), so those rows cannot drift
+  // from the top nav. The rest of both lists is still hand-written below.
+  const hotelNav = isHotel ? buildHotelNavConfig({ permissions }) : null
+  const restaurantNav = isRestaurant ? buildRestaurantNavConfig({}, permissions) : null
 
   /**
    * Quick Links, plus the row that opens the picker (318).
@@ -859,7 +843,10 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
             <div className="border-t border-slate-800 mx-2" />
             {renderGroup("Restaurant & Bar", hotelRestaurantItems, "hotelRestaurant")}
             <div className="border-t border-slate-800 mx-2" />
-            {renderGroup("Finance", hotelFinanceItems, "hotelFinance")}
+            {/* Three adjacent groups with no divider between them, so they
+                still read as the one "Sales, Expenses & Money" menu -- the
+                same treatment as Poultry's below. */}
+            {renderGroups(fromMegaMenu(hotelNav!.salesMoney, "hotelMoney"))}
             <div className="border-t border-slate-800 mx-2" />
             {renderGroup("People", hotelPeopleItems, "hotelPeople")}
             <div className="border-t border-slate-800 mx-2" />
@@ -868,9 +855,12 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
             {renderGroup("Reports", hotelReportsItems, "hotelReports")}
             <div className="border-t border-slate-800 mx-2" />
             {renderGroup("Setup", hotelAdminItems, "hotelAdmin")}
+            {renderGroups(fromMegaMenu(hotelNav!.setup.filter((g) => g.key === "finance"), "hotelSetup", "Setup · "))}
           </>
         ) : isRestaurant ? (
           <>
+            {renderGroup("Quick Links", fromNavGroup(restaurantNav!.quickLinks), "restaurantQuickLinks")}
+            <div className="border-t border-slate-800 mx-2" />
             {renderGroup("Orders", restaurantOrdersItems, "restaurantOrders")}
             <div className="border-t border-slate-800 mx-2" />
             {renderGroup("Kitchen", restaurantKitchenItems, "restaurantKitchen")}
@@ -880,16 +870,13 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
             {renderGroup("Delivery & Online", restaurantDeliveryOnlineItems, "restaurantDeliveryOnline")}
             <div className="border-t border-slate-800 mx-2" />
             {renderGroup("Inventory", restaurantInventoryItems, "restaurantInventory")}
-            {restaurantMoneyItems.length > 0 && (
+            {/* Three adjacent groups, no divider between them: the one
+                "Sales, Expenses & Money" menu. Empty groups are dropped by
+                fromMegaMenu, and the divider goes with them. */}
+            {fromMegaMenu(restaurantNav!.salesMoney, "restaurantMoney").length > 0 && (
               <>
                 <div className="border-t border-slate-800 mx-2" />
-                {renderGroup("Money", restaurantMoneyItems, "restaurantMoney")}
-              </>
-            )}
-            {restaurantExpenseItems.length > 0 && (
-              <>
-                <div className="border-t border-slate-800 mx-2" />
-                {renderGroup("Expenses", restaurantExpenseItems, "restaurantExpenses")}
+                {renderGroups(fromMegaMenu(restaurantNav!.salesMoney, "restaurantMoney"))}
               </>
             )}
             {restaurantGrowthItems.length > 0 && (

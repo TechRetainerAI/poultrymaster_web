@@ -47,6 +47,7 @@ export function RecordCashAdjustmentDialog({
   reconcileHref,
   onSubmit,
   onDone,
+  accent = "sky",
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -57,6 +58,8 @@ export function RecordCashAdjustmentDialog({
   /** amount is SIGNED: positive adds cash, negative removes it. */
   onSubmit: (input: { accountId: number; amount: number; reason: string }) => Promise<unknown>
   onDone?: () => void
+  /** The module's colour. Poultry and Water omit it and keep sky; Hotel passes "violet". */
+  accent?: "sky" | "violet"
 }) {
   const { toast } = useToast()
   const [accountId, setAccountId] = useState<number | null>(null)
@@ -115,7 +118,7 @@ export function RecordCashAdjustmentDialog({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Scale className="h-5 w-5 text-sky-600" />
+            <Scale className={accent === "violet" ? "h-5 w-5 text-violet-600" : "h-5 w-5 text-sky-600"} />
             Record Cash Adjustment
           </DialogTitle>
           <DialogDescription>
@@ -124,7 +127,7 @@ export function RecordCashAdjustmentDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          <FormSection title="Adjustment" color="sky" columns={2}>
+          <FormSection title="Adjustment" color={accent === "violet" ? "purple" : "sky"} columns={2}>
             <FormField label="Cash account *">
               <Select
                 value={accountId != null ? String(accountId) : ""}
