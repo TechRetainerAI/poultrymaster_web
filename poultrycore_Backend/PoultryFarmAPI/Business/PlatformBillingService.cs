@@ -784,12 +784,23 @@ namespace PoultryFarmAPIWeb.Business
             await conn.OpenAsync();
             using var tx = await conn.BeginTransactionAsync();
 
+            // References are minted as "<invoicenumber>-<guid>", so a payment
+            // still settles even when a SECOND checkout attempt has since
+            // replaced the invoice's stored reference — paying the first link
+            // must never fall into a void (spec Part 60, duplicate checkout).
+            var numberFromRef = reference.Contains('-') ? reference[..reference.LastIndexOf('-')] : reference;
+
             long invoiceId; long accountId; decimal balance; string number; string curr;
             using (var q = new NpgsqlCommand(@"
                 SELECT id, accountid, balance, invoicenumber, currencycode
-                  FROM platforminvoices WHERE externalreference = @R FOR UPDATE", conn, (NpgsqlTransaction)tx))
+                  FROM platforminvoices
+                 WHERE externalreference = @R OR invoicenumber = @N
+                 ORDER BY (externalreference = @R) DESC
+                 LIMIT 1
+                 FOR UPDATE", conn, (NpgsqlTransaction)tx))
             {
                 q.Parameters.AddWithValue("@R", reference);
+                q.Parameters.AddWithValue("@N", numberFromRef);
                 using var r = await q.ExecuteReaderAsync();
                 if (!await r.ReadAsync()) return (false, $"No invoice matches reference {reference}.");
                 invoiceId = r.GetInt64(0); accountId = r.GetInt64(1);
@@ -916,6 +927,15 @@ namespace PoultryFarmAPIWeb.Business
                 var (ok, msg) = await SettleAsync(extId, reference!, amountMinor, currency, paidAt, channel);
                 resultMsg = msg; resultStatus = ok ? "Processed" : "Failed";
             }
+            else if (eventType == "charge.failed" && !string.IsNullOrWhiteSpace(reference))
+            {
+                // A failed attempt is a first-class record too (spec Part 14):
+                // the invoice stays unpaid, nothing is restricted (Part 20 —
+                // enforcement is a separate switch), but the failure and its
+                // provider message are kept on our side of the ledger.
+                var (ok, msg) = await RecordFailedPaymentAsync(conn, extId, reference!, amountMinor, currency, payload);
+                resultMsg = msg; resultStatus = ok ? "Processed" : "Failed";
+            }
             else
             {
                 resultMsg = $"Event {eventType} acknowledged."; resultStatus = "Ignored";
@@ -932,6 +952,55 @@ namespace PoultryFarmAPIWeb.Business
                 await upd.ExecuteNonQueryAsync();
             }
             return (true, resultMsg);
+        }
+
+        /// <summary>Record a failed charge against its invoice's account — idempotently, like success.</summary>
+        private async Task<(bool Ok, string Message)> RecordFailedPaymentAsync(
+            NpgsqlConnection conn, string? externalPaymentId, string reference, long amountMinor,
+            string currency, string payload)
+        {
+            var numberFromRef = reference.Contains('-') ? reference[..reference.LastIndexOf('-')] : reference;
+            long? accountId = null; long? invoiceId = null;
+            using (var q = new NpgsqlCommand(@"
+                SELECT id, accountid FROM platforminvoices
+                 WHERE externalreference = @R OR invoicenumber = @N
+                 ORDER BY (externalreference = @R) DESC LIMIT 1", conn))
+            {
+                q.Parameters.AddWithValue("@R", reference);
+                q.Parameters.AddWithValue("@N", numberFromRef);
+                using var r = await q.ExecuteReaderAsync();
+                if (await r.ReadAsync()) { invoiceId = r.GetInt64(0); accountId = r.GetInt64(1); }
+            }
+            if (accountId is null) return (true, $"Failed charge {reference} matches no invoice; recorded as event only.");
+
+            string? failureMessage = null;
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(payload);
+                if (doc.RootElement.TryGetProperty("data", out var data)
+                    && data.TryGetProperty("gateway_response", out var gr))
+                    failureMessage = gr.GetString();
+            }
+            catch { }
+
+            using (var ins = new NpgsqlCommand(@"
+                INSERT INTO platformpayments
+                       (accountid, invoiceid, provider, externalpaymentid, externalreference,
+                        amount, currencycode, status, failuremessage)
+                VALUES (@A, @I, 'paystack', @EP, @R, @Amt, @C, 'Failed', @FM)
+                ON CONFLICT (provider, externalreference) WHERE externalreference IS NOT NULL DO NOTHING", conn))
+            {
+                ins.Parameters.AddWithValue("@A", accountId.Value);
+                ins.Parameters.AddWithValue("@I", (object?)invoiceId ?? DBNull.Value);
+                ins.Parameters.AddWithValue("@EP", (object?)externalPaymentId ?? DBNull.Value);
+                ins.Parameters.AddWithValue("@R", reference);
+                ins.Parameters.AddWithValue("@Amt", PlatformBillingRules.Money(amountMinor / 100m));
+                ins.Parameters.AddWithValue("@C", currency);
+                ins.Parameters.AddWithValue("@FM", (object?)failureMessage ?? DBNull.Value);
+                await ins.ExecuteNonQueryAsync();
+            }
+            await LogEventAsync(conn, accountId, null, "PaymentFailed", null, failureMessage, "system", reference);
+            return (true, $"Failed charge recorded for {reference}.");
         }
 
         // ------------------------------------------------------------------
