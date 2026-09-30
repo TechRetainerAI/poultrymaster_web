@@ -1,12 +1,14 @@
 "use client"
 
-// Administration → Subscription & Billing (spec Part 22, house-styled).
+// Administration → Subscription & Billing (spec Part 22).
 //
-// Lives as a tab of the Business Office Administration hub, not a standalone
-// page: billing is org administration, and the owner already comes here for
-// employees, access and companies. Visual language follows the original
-// billing page — rounded tier cards with Current badges — extended from one
-// poultry plan to one card per company.
+// Layout follows the shape of a professional SaaS billing centre: one hero
+// card anchors the state (plan · market · trial) and the money (next bill +
+// Pay — the CTA lives beside the number it pays), companies are a divided
+// list rather than a card grid so six rows scan like a statement, totals are
+// the list's footer, and invoices/payments share one tabbed card. Unpriced
+// companies get a quiet "Pricing pending" pill, not an alarm-coloured card —
+// they are informational, nothing is wrong.
 //
 // Payment truth: returning with ?billing=success only names a reference to
 // VERIFY with the provider; the redirect itself never marks anything paid.
@@ -17,12 +19,13 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { useToast } from "@/hooks/use-toast"
-import { Loader2, CreditCard, Receipt, Info, Landmark, CalendarClock, Building2, Wallet } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useToast } from "@/hooks/use-toast"
+import { Loader2, CreditCard, Info, Building2 } from "lucide-react"
 import {
   getBillingSummary,
   getPlatformInvoices,
@@ -51,69 +54,98 @@ function money(v: number | null | undefined, currency: string) {
   return `${currency} ${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
-function StatusPill({ status }: { status: string }) {
-  const s = status.toLowerCase()
+/** Tier badges carry the plan ladder's visual weight: higher tier, warmer colour. */
+function TierBadge({ name }: { name?: string | null }) {
+  if (!name) return <span className="text-slate-400">—</span>
+  const n = name.toLowerCase()
   const cls =
-    s === "active" || s === "paid" || s === "resolved" || s === "succeeded"
-      ? "bg-green-100 text-green-800"
-      : s === "trial" || s === "open"
-        ? "bg-amber-100 text-amber-800"
-        : s === "pastdue" || s === "failed"
-          ? "bg-red-100 text-red-800"
-          : "bg-slate-100 text-slate-700"
-  return <Badge className={cls}>{status}</Badge>
+    n === "growth"
+      ? "bg-indigo-50 text-indigo-700 ring-indigo-600/20"
+      : n === "business"
+        ? "bg-violet-50 text-violet-700 ring-violet-600/20"
+        : n === "enterprise"
+          ? "bg-amber-50 text-amber-800 ring-amber-600/20"
+          : "bg-slate-50 text-slate-600 ring-slate-500/20"
+  return (
+    <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${cls}`}>
+      {name}
+    </span>
+  )
 }
 
-/** One company as a plan card, in the original billing page's card language. */
-function CompanyPlanCard({ c, onExplain }: { c: CompanyBillingRow; onExplain: (farmId: string) => void }) {
-  const unpriced = c.pricingStatus === "PricingNotConfigured"
-  const inactive = c.participationStatus !== "Active" && c.participationStatus !== "EnterpriseContract"
+function StatusBadge({ status }: { status: string }) {
+  const s = status.toLowerCase()
+  const cls =
+    s === "active" || s === "paid" || s === "succeeded"
+      ? "bg-green-50 text-green-700 ring-green-600/20"
+      : s === "trial" || s === "open" || s === "evaluation"
+        ? "bg-amber-50 text-amber-800 ring-amber-600/20"
+        : s === "pastdue" || s === "failed" || s === "suspended"
+          ? "bg-red-50 text-red-700 ring-red-600/20"
+          : "bg-slate-50 text-slate-600 ring-slate-500/20"
   return (
-    <div
-      className={`rounded-xl border p-4 shadow-sm transition-colors ${
-        unpriced
-          ? "border-amber-200 bg-amber-50/60"
-          : inactive
-            ? "border-slate-200 bg-slate-50"
-            : "border-indigo-200 bg-indigo-50/50"
-      }`}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="font-semibold text-slate-900 truncate">{c.companyName}</p>
-          <p className="text-xs text-slate-500">{c.businessType}</p>
-        </div>
-        <StatusPill status={inactive ? c.participationStatus : (c.tierName ?? "—")} />
+    <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${cls}`}>
+      {status}
+    </span>
+  )
+}
+
+/** One statement row per company. */
+function CompanyRow({ c, onExplain }: { c: CompanyBillingRow; onExplain: (farmId: string) => void }) {
+  const unpriced = c.pricingStatus === "PricingNotConfigured"
+  const evaluation = c.pricingStatus === "Evaluation"
+  const inactive = c.participationStatus !== "Active" && c.participationStatus !== "EnterpriseContract"
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 sm:px-6">
+      <div className="min-w-0 flex-1 basis-48">
+        <p className="truncate font-medium text-slate-900">{c.companyName}</p>
+        <p className="text-xs text-slate-500">{c.businessType}</p>
       </div>
 
-      <div className="mt-3">
-        {unpriced ? (
-          <p className="text-sm font-medium text-amber-800">Pricing being finalized</p>
+      <div className="hidden w-32 text-sm text-slate-600 sm:block">
+        {c.metricType === "ManualScale" && c.metricValue === 0 ? (
+          <span className="text-slate-400">No scale set</span>
         ) : (
           <>
-            <p className="text-2xl font-bold tracking-tight text-slate-900">
-              {money(c.monthlyAmount, c.currencyCode)}
-            </p>
-            <p className="text-xs text-slate-500">per month</p>
+            {c.metricValue.toLocaleString()}
+            <span className="text-slate-400"> {c.metricType === "ActiveBirdCount" ? "birds" : "units"}</span>
           </>
         )}
       </div>
 
-      <div className="mt-2 flex items-center justify-between text-xs text-slate-600">
-        <span>
-          {c.metricType === "ManualScale" && c.metricValue === 0
-            ? "Scale not set"
-            : `${c.metricValue.toLocaleString()} ${c.metricType === "ActiveBirdCount" ? "birds" : "scale"}`}
-        </span>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 px-2 text-xs text-indigo-700"
-          onClick={() => onExplain(c.farmId)}
-        >
-          <Info className="h-3.5 w-3.5 mr-1" /> Why this price?
-        </Button>
+      <div className="w-24">
+        {inactive ? <StatusBadge status={c.participationStatus} /> : <TierBadge name={c.tierName} />}
       </div>
+
+      <div className="w-36 text-right">
+        {unpriced ? (
+          <span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-600/20">
+            Pricing pending
+          </span>
+        ) : evaluation ? (
+          <span className="text-xs text-slate-500">
+            Free until {c.evaluationUntilUtc ? new Date(c.evaluationUntilUtc).toLocaleDateString() : "review"}
+          </span>
+        ) : inactive ? (
+          <span className="text-slate-400">—</span>
+        ) : (
+          <span className="tabular-nums font-semibold text-slate-900">
+            {money(c.monthlyAmount, c.currencyCode)}
+            <span className="text-xs font-normal text-slate-400">/mo</span>
+          </span>
+        )}
+      </div>
+
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-8 w-8 p-0 text-slate-400 hover:text-indigo-600"
+        title="Why this price?"
+        onClick={() => onExplain(c.farmId)}
+      >
+        <Info className="h-4 w-4" />
+      </Button>
     </div>
   )
 }
@@ -214,23 +246,6 @@ export function BillingPanel() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center gap-2 text-slate-600 py-12 justify-center">
-        <Loader2 className="h-5 w-5 animate-spin" /> Loading your billing…
-      </div>
-    )
-  }
-  if (loadError || !summary) {
-    return (
-      <Alert variant="destructive">
-        <AlertDescription>{loadError || "Could not load billing."}</AlertDescription>
-      </Alert>
-    )
-  }
-
-  const { account: acct, preview, companies } = summary
-
   const act = async (fn: () => Promise<{ ok: boolean; message: string }>) => {
     const r = await fn()
     toast({ title: r.ok ? "Done" : "Not changed", description: r.message, variant: r.ok ? undefined : "destructive" })
@@ -247,146 +262,122 @@ export function BillingPanel() {
     }
   }
 
-  return (
-    <div className="space-y-6">
-      {/* No surprises: tier changes are announced before they charge (spec 30) */}
-      {summary.pendingTierChanges?.length > 0 && (
-        <Alert>
-          <AlertDescription className="space-y-1">
-            {summary.pendingTierChanges.map((p) => (
-              <div key={p.farmId}>
-                <strong>{p.companyName}</strong> now qualifies for <strong>{p.toTierName}</strong>. Its
-                subscription changes from {p.fromTierName} to {p.toTierName} beginning{" "}
-                {new Date(p.effectiveDate).toLocaleDateString()} — nothing changes mid-period.
-              </div>
-            ))}
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {acct.pendingMarketCode && (
-        <Alert>
-          <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
-            <span>
-              Billing market change to <strong>{acct.pendingMarketCode}</strong> takes effect{" "}
-              {acct.pendingMarketEffective ? new Date(acct.pendingMarketEffective).toLocaleDateString() : "next cycle"}.
-            </span>
-            <Button size="sm" variant="outline" onClick={() => void act(cancelMarketChange)}>
-              Cancel change
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {acct.cancelAtPeriodEnd && (
-        <Alert>
-          <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
-            <span>
-              Your subscription will not renew. You keep full access through{" "}
-              {acct.currentPeriodEnd ? new Date(acct.currentPeriodEnd).toLocaleDateString() : "the period end"}.
-            </span>
-            <Button size="sm" variant="outline" onClick={() => void act(reactivateSubscription)}>
-              Reactivate
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
-      {/* Overview strip — same compact stat style the rest of Administration uses */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
-          <div className="flex items-center gap-2 text-xs text-slate-500">
-            <Landmark className="h-3.5 w-3.5" /> Billing market
-          </div>
-          <p className="mt-1 text-lg font-bold text-slate-900">
-            {acct.marketCode} · {acct.currencyCode}
-          </p>
-          <p className="text-xs text-slate-500 capitalize">{acct.billingCycle}</p>
-        </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
-          <div className="flex items-center gap-2 text-xs text-slate-500">
-            <CalendarClock className="h-3.5 w-3.5" /> Status
-          </div>
-          <div className="mt-1"><StatusPill status={acct.status} /></div>
-          {acct.status === "Trial" && acct.trialDaysLeft != null && (
-            <p className="text-xs text-slate-500 mt-1">{acct.trialDaysLeft} trial days left</p>
-          )}
-        </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
-          <div className="flex items-center gap-2 text-xs text-slate-500">
-            <Building2 className="h-3.5 w-3.5" /> Companies billed
-          </div>
-          <p className="mt-1 text-lg font-bold text-slate-900">
-            {preview.eligibleCompanyCount}
-            <span className="text-sm font-normal text-slate-500"> of {companies.length}</span>
-          </p>
-        </div>
-        <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-3.5 shadow-sm">
-          <div className="flex items-center gap-2 text-xs text-indigo-700">
-            <Wallet className="h-3.5 w-3.5" /> Next bill estimate
-          </div>
-          <p className="mt-1 text-lg font-bold text-indigo-900">{money(preview.total, preview.currencyCode)}</p>
-          <p className="text-xs text-indigo-700/70">
-            {new Date(preview.periodStart).toLocaleDateString()} – {new Date(preview.periodEnd).toLocaleDateString()}
-          </p>
-        </div>
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center gap-2 py-16 text-slate-600">
+        <Loader2 className="h-5 w-5 animate-spin" /> Loading your billing…
       </div>
+    )
+  }
+  if (loadError || !summary) {
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>{loadError || "Could not load billing."}</AlertDescription>
+      </Alert>
+    )
+  }
 
-      {/* Company plan cards */}
-      <div className="space-y-3">
-        <div className="text-center space-y-1">
-          <p className="text-xl font-semibold tracking-tight text-slate-900">Your companies&apos; plans</p>
-          <p className="text-sm text-slate-600">
-            Each company is priced from its own scale, in your billing market — one consolidated bill.
-          </p>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {companies.map((c) => (
-            <CompanyPlanCard key={c.farmId} c={c} onExplain={(id) => void openExplain(id)} />
+  const { account: acct, preview, companies } = summary
+  const trialEnded = acct.status === "Trial" && (acct.trialDaysLeft ?? 0) <= 0
+  const canPay = !preview.hasUnpricedCompanies && preview.total > 0
+
+  return (
+    <div className="space-y-5">
+      {/* Notices — thin, informational, above the fold */}
+      {summary.pendingTierChanges?.length > 0 && (
+        <div className="rounded-lg border border-indigo-200 bg-indigo-50/60 px-4 py-3 text-sm text-indigo-900">
+          {summary.pendingTierChanges.map((p) => (
+            <p key={p.farmId}>
+              <strong>{p.companyName}</strong> now qualifies for <strong>{p.toTierName}</strong> — its plan
+              changes from {p.fromTierName} on {new Date(p.effectiveDate).toLocaleDateString()}. Nothing
+              changes mid-period.
+            </p>
           ))}
         </div>
-      </div>
+      )}
+      {acct.pendingMarketCode && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+          <span>
+            Billing market changes to <strong>{acct.pendingMarketCode}</strong> on{" "}
+            {acct.pendingMarketEffective ? new Date(acct.pendingMarketEffective).toLocaleDateString() : "next cycle"}.
+          </span>
+          <Button size="sm" variant="ghost" className="h-7 text-slate-500" onClick={() => void act(cancelMarketChange)}>
+            Undo
+          </Button>
+        </div>
+      )}
+      {acct.cancelAtPeriodEnd && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-red-200 bg-red-50/60 px-4 py-3 text-sm text-red-900">
+          <span>
+            Your subscription will not renew. Full access continues through{" "}
+            {acct.currentPeriodEnd ? new Date(acct.currentPeriodEnd).toLocaleDateString() : "the period end"}.
+          </span>
+          <Button size="sm" variant="outline" onClick={() => void act(reactivateSubscription)}>
+            Reactivate
+          </Button>
+        </div>
+      )}
 
-      {/* Bill summary + pay */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="max-w-sm ml-auto space-y-1 text-sm">
-            <div className="flex justify-between">
-              <span className="text-slate-600">Subtotal</span>
-              <span>{money(preview.subtotal, preview.currencyCode)}</span>
+      {/* Hero: state on the left, money + CTA on the right */}
+      <Card className="overflow-hidden">
+        <div className="flex flex-col sm:flex-row">
+          <div className="flex-1 p-5 sm:p-6">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium text-slate-500">VisibilityCore subscription</p>
+              <StatusBadge status={trialEnded ? "Trial ended" : acct.status} />
             </div>
-            {preview.discountAmount > 0 && (
-              <div className="flex justify-between text-green-700">
-                <span>Multi-company discount ({preview.discountPercent}%)</span>
-                <span>-{money(preview.discountAmount, preview.currencyCode)}</span>
-              </div>
+            <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
+              {acct.marketCode} · {acct.currencyCode}
+              <span className="ml-2 align-middle text-sm font-normal capitalize text-slate-500">
+                billed {acct.billingCycle}
+              </span>
+            </p>
+            {acct.status === "Trial" && !trialEnded && (
+              <p className="mt-1 text-sm text-slate-500">{acct.trialDaysLeft} trial days remaining</p>
             )}
-            {preview.taxAmount > 0 && (
-              <div className="flex justify-between">
-                <span className="text-slate-600">Tax</span>
-                <span>{money(preview.taxAmount, preview.currencyCode)}</span>
-              </div>
-            )}
-            <div className="flex justify-between font-bold text-base pt-1 border-t">
-              <span>Total / month</span>
-              <span>{money(preview.total, preview.currencyCode)}</span>
+            <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+              <button
+                className="text-indigo-600 hover:underline"
+                onClick={() => void act(() => setBillingCycle(acct.billingCycle === "annual" ? "monthly" : "annual"))}
+              >
+                Switch to {acct.billingCycle === "annual" ? "monthly" : "annual"} billing
+              </button>
+              <button
+                className="text-indigo-600 hover:underline"
+                onClick={() => {
+                  setMarketOpen(true)
+                  void loadMarketPreview(marketTarget)
+                }}
+              >
+                Change billing market
+              </button>
+              {!acct.cancelAtPeriodEnd && (
+                <button
+                  className="text-slate-400 hover:text-red-600 hover:underline"
+                  onClick={() => void act(() => cancelSubscription())}
+                >
+                  Cancel subscription
+                </button>
+              )}
             </div>
           </div>
 
-          {preview.hasUnpricedCompanies && (
-            <Alert className="mt-4">
-              <AlertDescription>
-                Pricing for some of your business types is being finalized. Those companies are shown above
-                but not charged, and checkout is paused until pricing is configured. Please contact
-                VisibilityCore support.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          <div className="mt-4 flex justify-end">
+          <div className="border-t border-slate-100 bg-slate-50/70 p-5 sm:w-80 sm:border-l sm:border-t-0 sm:p-6">
+            <p className="text-sm font-medium text-slate-500">Next bill</p>
+            <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight text-slate-900">
+              {money(preview.total, preview.currencyCode)}
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500">
+              {new Date(preview.periodStart).toLocaleDateString()} –{" "}
+              {new Date(preview.periodEnd).toLocaleDateString()}
+              {preview.discountAmount > 0 && (
+                <span className="text-green-600"> · includes {preview.discountPercent}% discount</span>
+              )}
+            </p>
             <Button
+              className="mt-4 w-full gap-2"
               onClick={() => void startCheckout()}
-              disabled={checkoutBusy || verifying || preview.hasUnpricedCompanies || preview.total <= 0}
-              className="gap-2"
+              disabled={checkoutBusy || verifying || !canPay}
             >
               {checkoutBusy || verifying ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -395,120 +386,146 @@ export function BillingPanel() {
               )}
               {verifying ? "Confirming payment…" : "Pay this period"}
             </Button>
+            {preview.hasUnpricedCompanies && (
+              <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                Checkout opens once pricing is configured for all your business types.
+              </p>
+            )}
           </div>
-        </CardContent>
+        </div>
       </Card>
 
-      {/* Manage: cycle, market, cancellation — controlled flows, never casual dropdowns */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Manage subscription</CardTitle>
+      {/* Companies — a statement, not a card grid */}
+      <Card className="overflow-hidden">
+        <CardHeader className="border-b border-slate-100 py-4">
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Building2 className="h-4 w-4 text-slate-400" /> Companies on this bill
+            </CardTitle>
+            <span className="text-sm text-slate-500">
+              {preview.eligibleCompanyCount} of {companies.length} billed
+            </span>
+          </div>
         </CardHeader>
-        <CardContent className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void act(() => setBillingCycle(acct.billingCycle === "annual" ? "monthly" : "annual"))}
-          >
-            Switch to {acct.billingCycle === "annual" ? "monthly" : "annual"} billing
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setMarketOpen(true)
-              void loadMarketPreview(marketTarget)
-            }}
-          >
-            Request billing market change
-          </Button>
-          {!acct.cancelAtPeriodEnd && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-red-700 border-red-200 hover:bg-red-50"
-              onClick={() => void act(() => cancelSubscription())}
-            >
-              Cancel at period end
-            </Button>
+        <div className="divide-y divide-slate-100">
+          {companies.map((c) => (
+            <CompanyRow key={c.farmId} c={c} onExplain={(id) => void openExplain(id)} />
+          ))}
+        </div>
+        <div className="border-t border-slate-100 bg-slate-50/70 px-4 py-4 sm:px-6">
+          <div className="ml-auto max-w-xs space-y-1 text-sm">
+            <div className="flex justify-between text-slate-600">
+              <span>Subtotal</span>
+              <span className="tabular-nums">{money(preview.subtotal, preview.currencyCode)}</span>
+            </div>
+            {preview.discountAmount > 0 && (
+              <div className="flex justify-between text-green-700">
+                <span>Multi-company discount ({preview.discountPercent}%)</span>
+                <span className="tabular-nums">-{money(preview.discountAmount, preview.currencyCode)}</span>
+              </div>
+            )}
+            {preview.taxAmount > 0 && (
+              <div className="flex justify-between text-slate-600">
+                <span>Tax</span>
+                <span className="tabular-nums">{money(preview.taxAmount, preview.currencyCode)}</span>
+              </div>
+            )}
+            <div className="flex justify-between border-t border-slate-200 pt-1.5 text-base font-semibold text-slate-900">
+              <span>Total / month</span>
+              <span className="tabular-nums">{money(preview.total, preview.currencyCode)}</span>
+            </div>
+          </div>
+          {preview.hasUnpricedCompanies && (
+            <p className="mt-3 text-xs leading-relaxed text-slate-500">
+              Pricing for some business types is being finalized. Those companies are listed but not charged;
+              contact VisibilityCore support to enable them.
+            </p>
           )}
-        </CardContent>
+        </div>
       </Card>
 
-      {/* Invoices */}
+      {/* History: invoices and payments share one card */}
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Receipt className="h-4 w-4" /> Invoices
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="overflow-x-auto">
-          {invoices.length === 0 ? (
-            <p className="text-sm text-slate-500">No invoices yet. Your first invoice is created when you pay.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Invoice #</TableHead>
-                  <TableHead>Period</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead className="text-right">Balance</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {invoices.map((inv) => (
-                  <TableRow key={inv.id}>
-                    <TableCell className="font-mono text-xs">{inv.invoiceNumber}</TableCell>
-                    <TableCell className="text-xs">
-                      {new Date(inv.periodStart).toLocaleDateString()} –{" "}
-                      {new Date(inv.periodEnd).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell className="text-right">{money(inv.totalAmount, inv.currencyCode)}</TableCell>
-                    <TableCell className="text-right">{money(inv.balance, inv.currencyCode)}</TableCell>
-                    <TableCell><StatusPill status={inv.status} /></TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Payment history */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Payment history</CardTitle>
-        </CardHeader>
-        <CardContent className="overflow-x-auto">
-          {payments.length === 0 ? (
-            <p className="text-sm text-slate-500">No payments yet.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Provider</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead>Invoice</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {payments.map((p) => (
-                  <TableRow key={p.id}>
-                    <TableCell className="text-xs">
-                      {p.paymentDateUtc ? new Date(p.paymentDateUtc).toLocaleString() : "—"}
-                    </TableCell>
-                    <TableCell className="capitalize">{p.provider}</TableCell>
-                    <TableCell className="text-right">{money(p.amount, p.currencyCode)}</TableCell>
-                    <TableCell className="font-mono text-xs">{p.invoiceNumber ?? "—"}</TableCell>
-                    <TableCell><StatusPill status={p.status} /></TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+        <CardContent className="pt-5">
+          <Tabs defaultValue="invoices">
+            <TabsList>
+              <TabsTrigger value="invoices">Invoices</TabsTrigger>
+              <TabsTrigger value="payments">Payments</TabsTrigger>
+            </TabsList>
+            <TabsContent value="invoices" className="pt-3">
+              {invoices.length === 0 ? (
+                <p className="py-6 text-center text-sm text-slate-500">
+                  No invoices yet — your first invoice is created when you pay.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Invoice</TableHead>
+                        <TableHead>Period</TableHead>
+                        <TableHead className="text-right">Amount</TableHead>
+                        <TableHead className="text-right">Balance</TableHead>
+                        <TableHead>Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {invoices.map((inv) => (
+                        <TableRow key={inv.id}>
+                          <TableCell className="font-mono text-xs">{inv.invoiceNumber}</TableCell>
+                          <TableCell className="text-xs text-slate-600">
+                            {new Date(inv.periodStart).toLocaleDateString()} –{" "}
+                            {new Date(inv.periodEnd).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {money(inv.totalAmount, inv.currencyCode)}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {money(inv.balance, inv.currencyCode)}
+                          </TableCell>
+                          <TableCell><StatusBadge status={inv.status} /></TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </TabsContent>
+            <TabsContent value="payments" className="pt-3">
+              {payments.length === 0 ? (
+                <p className="py-6 text-center text-sm text-slate-500">No payments yet.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Provider</TableHead>
+                        <TableHead className="text-right">Amount</TableHead>
+                        <TableHead>Invoice</TableHead>
+                        <TableHead>Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {payments.map((p) => (
+                        <TableRow key={p.id}>
+                          <TableCell className="text-xs text-slate-600">
+                            {p.paymentDateUtc ? new Date(p.paymentDateUtc).toLocaleString() : "—"}
+                          </TableCell>
+                          <TableCell className="capitalize">{p.provider}</TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {money(p.amount, p.currencyCode)}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">{p.invoiceNumber ?? "—"}</TableCell>
+                          <TableCell><StatusBadge status={p.status} /></TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
 
@@ -516,9 +533,9 @@ export function BillingPanel() {
       <Dialog open={marketOpen} onOpenChange={setMarketOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Request billing market change</DialogTitle>
+            <DialogTitle>Change billing market</DialogTitle>
             <DialogDescription>
-              Takes effect at your next billing cycle. Current invoices and the running period never change.
+              Takes effect at your next billing cycle — current invoices and the running period never change.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -532,25 +549,24 @@ export function BillingPanel() {
             </Select>
 
             {marketPreviewData && (
-              <div className="rounded-lg border p-3 text-sm space-y-1">
+              <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 text-sm">
                 {!marketPreviewData.marketActive ? (
-                  <p className="text-amber-700">
+                  <p className="text-amber-800">
                     {marketPreviewData.marketName} is not open yet — the request will be declined until
                     VisibilityCore launches there.
                   </p>
                 ) : marketPreviewData.preview.hasUnpricedCompanies ? (
-                  <p className="text-amber-700">
-                    Pricing for some of your business types is not configured in{" "}
-                    {marketPreviewData.marketName} yet.
+                  <p className="text-amber-800">
+                    Pricing for some of your business types is not configured in {marketPreviewData.marketName} yet.
                   </p>
                 ) : (
                   <p>
                     Estimated new total:{" "}
-                    <strong>
+                    <strong className="tabular-nums">
                       {marketPreviewData.preview.currencyCode}{" "}
                       {marketPreviewData.preview.total.toLocaleString()}
                     </strong>{" "}
-                    / month (currently {preview.currencyCode} {preview.total.toLocaleString()})
+                    /month <span className="text-slate-500">(currently {preview.currencyCode} {preview.total.toLocaleString()})</span>
                   </p>
                 )}
               </div>
@@ -582,7 +598,7 @@ export function BillingPanel() {
         </DialogContent>
       </Dialog>
 
-      {/* Why this price? — read from the stored evaluation */}
+      {/* Why this price? — read from the stored evaluation (spec 22.5) */}
       <Dialog open={explainOpen} onOpenChange={setExplainOpen}>
         <DialogContent>
           <DialogHeader>
@@ -597,11 +613,11 @@ export function BillingPanel() {
                     <span className="text-slate-500">Current usage</span>
                     <span>{explain.metricValue.toLocaleString()}</span>
                     <span className="text-slate-500">Plan</span>
-                    <span>{explain.tierName ?? "—"}</span>
+                    <span><TierBadge name={explain.tierName} /></span>
                     <span className="text-slate-500">Billing market</span>
                     <span>{explain.marketName}</span>
                     <span className="text-slate-500">Price</span>
-                    <span>
+                    <span className="tabular-nums">
                       {explain.pricingStatus === "PricingNotConfigured"
                         ? "Being finalized"
                         : `${money(explain.monthlyAmount, explain.currencyCode)}/month`}
@@ -615,7 +631,7 @@ export function BillingPanel() {
                       </>
                     )}
                   </div>
-                  <p className="text-xs text-slate-500 pt-1">
+                  <p className="pt-1 text-xs text-slate-500">
                     Evaluated {new Date(explain.evaluatedAtUtc).toLocaleString()}. Your price only changes at
                     the start of a billing cycle — never mid-period.
                   </p>

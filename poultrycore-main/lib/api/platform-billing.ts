@@ -35,6 +35,7 @@ export interface CompanyBillingRow {
   currencyCode: string
   pricingStatus: string
   participationStatus: string
+  evaluationUntilUtc?: string | null
 }
 
 export interface BillPreview {
