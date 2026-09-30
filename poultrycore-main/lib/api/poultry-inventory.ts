@@ -621,8 +621,9 @@ export const rejectPoultryDailyClosing = (id: number, reason: string) =>
   jsend<void>(`/Poultry/daily-closings/${id}/reject?farmId=${encodeURIComponent(activeFarmId())}&reason=${encodeURIComponent(reason)}`, "POST")
 export const deletePoultryDailyClosing = (id: number) =>
   jsend<void>(`/Poultry/daily-closings/${id}?farmId=${encodeURIComponent(activeFarmId())}`, "DELETE")
-export const reopenPoultryDailyClosing = (id: number) =>
-  jsend<void>(`/Poultry/daily-closings/${id}/reopen?farmId=${encodeURIComponent(activeFarmId())}`, "POST")
+// Migration 333: reopening needs a reason, which is kept in the day's history.
+export const reopenPoultryDailyClosing = (id: number, reason: string) =>
+  jsend<void>(`/Poultry/daily-closings/${id}/reopen?farmId=${encodeURIComponent(activeFarmId())}`, "POST", { reason })
 export const recreatePoultryDailyClosing = (id: number) =>
   jsend<void>(`/Poultry/daily-closings/${id}/recreate?farmId=${encodeURIComponent(activeFarmId())}`, "POST")
 export const savePoultryDailyClosingNotes = (id: number, input: { actualCashCounted?: number; managerNotes?: string | null }) =>

@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast"
 import { ArrowLeft, Scale, Send, Save, ClipboardCheck, CheckCircle2, AlertTriangle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getUserContext } from "@/lib/utils/user-context"
+import { safeReturnPath } from "@/lib/activity/completeness"
 import { getFlocks, type Flock } from "@/lib/api/flock"
 import { getProductionRecords, type ProductionRecord } from "@/lib/api/production-record"
 import {
@@ -236,7 +237,10 @@ export default function AllocateBatchPage() {
     setSaving(false)
     if (postRes.success) {
       toast({ title: "Allocation posted", description: "Flock records, inventory and bird counts have been updated." })
-      router.push("/batch-production-records")
+      // Opened from Farm Completeness (?returnTo=): go back there, so the
+      // flocks just posted can be seen dropping off the missing list.
+      const back = safeReturnPath(new URLSearchParams(window.location.search).get("returnTo"))
+      router.push(back ?? "/batch-production-records")
     } else {
       toast({ title: "Posting failed", description: postRes.message, variant: "destructive" })
     }

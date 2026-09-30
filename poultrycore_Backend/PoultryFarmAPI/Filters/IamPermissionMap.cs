@@ -43,6 +43,13 @@ namespace PoultryFarmAPIWeb.Filters
             // Iam:Enforced is switched on. Access is bounded instead by the QR
             // token, the per-table throttle, and the staff confirmation gate.
             "restaurant/public",
+            // Missing Activity Detector (332). One report spans checks from
+            // several resources (production today; driver returns, cash and
+            // approvals later), and this table can name only one. The route
+            // still requires authentication ([Authorize]); each check is gated
+            // on its OWN permission inside ActivityCheckService, following
+            // Iam:Enforced exactly as this filter does.
+            "activitychecks",
         };
 
         /// <summary>
@@ -64,6 +71,10 @@ namespace PoultryFarmAPIWeb.Filters
             ["inventoryitem"] = "*.inventory",
             ["inventorytransaction"] = "*.stock",
             ["dashboard"] = "*.reports",
+            // 333. "Is this company's day closed?" -- module-neutral so Business
+            // Office can ask it of every company; the module's own daily-closing
+            // view right answers it.
+            ["dailyclosingstatus"] = "*.daily-closing",
 
             // ---- Poultry, via the shared/legacy controller names -------------
             ["flock"] = "poultry.flocks",
