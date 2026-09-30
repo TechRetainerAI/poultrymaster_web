@@ -1097,8 +1097,8 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
                 activeHrefs: ["/reports", "/poultry/reports"],
               }, [{ key: "poultryReports:all", title: "All reports", items: poultryReportsItems }])}
               {renderMenu("Tools", Wrench, poultryNav!.tools, "menu:poultryTools", {
-                blurb: "One-time jobs, like onboarding a farm that already has birds.",
-                columns: 1, highlightActiveRow: false,
+                blurb: "Jobs run once: onboarding a farm, closing out a finished flock.",
+                columns: 1,
               })}
               {renderMenu("Setup", Settings, poultryNav!.setup, "menu:poultrySetup", {
                 blurb: "Houses, flocks, products, delivery, customers and your team.",

@@ -1,6 +1,6 @@
 import { getFlocks, type Flock } from "@/lib/api/flock"
 import { getUserContext } from "@/lib/utils/user-context"
-import { flockCountsTowardBirdTotals, getFlockLifecycleStatus } from "@/lib/utils/flock-eligibility"
+import { flockCountsTowardBirdTotals, getFlockLifecycleStatus, isFlockOpenForEntry } from "@/lib/utils/flock-eligibility"
 
 // Cache for flocks to avoid repeated API calls
 let flocksCache: Flock[] | null = null
@@ -50,7 +50,10 @@ export function clearFlocksCache() {
 function flockSelectLabel(flock: Flock): string {
   const status = getFlockLifecycleStatus(flock)
   const statusNote =
-    status === "pending" ? " · Pending arrival" : status === "inactive" ? " · Inactive" : ""
+    status === "pending" ? " · Pending arrival"
+    : status === "inactive" ? " · Inactive"
+    : status === "closed" ? " · Closed"
+    : ""
   return `${flock.name} (${flock.breed}) - ${flock.quantity} birds${statusNote}`
 }
 
@@ -66,7 +69,11 @@ export function getFlocksForSelect(): { value: string; label: string }[] {
     }))
 }
 
-/** All flocks on the farm — for expenses (includes pending / inactive). */
+/**
+ * All flocks on the farm — for expenses (includes pending / inactive / closed).
+ * Closed flocks stay: a late invoice for a flock that has finished is still that
+ * flock's cost, and its lifetime summary should see it.
+ */
 export function getFlocksForExpenseSelect(): { value: string; label: string }[] {
   if (!flocksCache) return []
 
@@ -76,12 +83,17 @@ export function getFlocksForExpenseSelect(): { value: string; label: string }[] 
   }))
 }
 
-/** Flocks that have physically arrived — for production logging. */
-export function getFlocksForProductionSelect(): { value: string; label: string }[] {
+/**
+ * Flocks that have physically arrived — for production logging. Closed flocks
+ * are left out (332): the database refuses production for them, so offering one
+ * would only lead to an error. keepFlockId keeps the flock an edited record
+ * already belongs to.
+ */
+export function getFlocksForProductionSelect(keepFlockId?: number | null): { value: string; label: string }[] {
   if (!flocksCache) return []
 
   return flocksCache
-    .filter((flock) => flock.hasArrived)
+    .filter((flock) => flock.hasArrived && isFlockOpenForEntry(flock, keepFlockId))
     .map((flock) => ({
       value: flock.flockId.toString(),
       label: flockSelectLabel(flock),

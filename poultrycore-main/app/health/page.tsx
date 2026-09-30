@@ -18,6 +18,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Plus, Edit, Trash2, Heart, Droplet, Pill, Search, RefreshCw, Calendar as CalendarIcon, ArrowUpDown, ArrowUp, ArrowDown, Building2, Package, Loader2, Filter, ChevronDown, ChevronUp } from "lucide-react"
 import { getFlocks, type Flock } from "@/lib/api/flock"
+import { isFlockOpenForEntry } from "@/lib/utils/flock-eligibility"
 import { getHouses, type House } from "@/lib/api/house"
 import { getUserContext } from "@/lib/utils/user-context"
 import { useToast } from "@/hooks/use-toast"
@@ -575,7 +576,8 @@ export default function HealthPage() {
                                 <SelectValue placeholder="Select flock" />
                               </SelectTrigger>
                               <SelectContent>
-                                {flocks.map(flock => (
+                                {/* Closed flocks are not offered for new records (332); the list filters above still show them. */}
+                                {flocks.filter(flock => isFlockOpenForEntry(flock)).map(flock => (
                                   <SelectItem key={flock.flockId} value={flock.flockId.toString()}>
                                     {flock.name}
                                   </SelectItem>
@@ -1175,7 +1177,7 @@ export default function HealthPage() {
                               <SelectValue placeholder="Select flock" />
                             </SelectTrigger>
                             <SelectContent>
-                              {flocks.map(flock => (
+                              {flocks.filter(flock => isFlockOpenForEntry(flock, formData.flockId ?? null)).map(flock => (
                                 <SelectItem key={flock.flockId} value={flock.flockId.toString()}>
                                   {flock.name}
                                 </SelectItem>

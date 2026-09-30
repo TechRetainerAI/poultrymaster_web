@@ -19,6 +19,7 @@ import { getFlockBatches, type FlockBatch } from "@/lib/api/flock-batch"
 import { getUserContext } from "@/lib/utils/user-context"
 import { getProductionRecords, createProductionRecord, updateProductionRecord, type ProductionRecordInput } from "@/lib/api/production-record"
 import { getFlocks } from "@/lib/api/flock"
+import { isFlockOpenForEntry } from "@/lib/utils/flock-eligibility"
 
 export default function EditEggProductionPage() {
   const router = useRouter()
@@ -345,7 +346,9 @@ export default function EditEggProductionPage() {
                         <SelectValue placeholder="Select a flock" />
                       </SelectTrigger>
                       <SelectContent>
-                        {flocks.map((flock: any) => (
+                        {flocks
+                          .filter((flock: any) => isFlockOpenForEntry(flock, Number(formData.flockId) || null))
+                          .map((flock: any) => (
                           <SelectItem key={flock.flockId} value={flock.flockId.toString()}>
                             {flock.name}
                           </SelectItem>

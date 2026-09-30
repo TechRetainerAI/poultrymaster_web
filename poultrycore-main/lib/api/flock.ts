@@ -31,6 +31,16 @@ export interface Flock {
   otherReason?: string
   notes?: string
   batchName?: string
+  /**
+   * The closed state (migration 332). Set only by Close Flock and cleared only
+   * by Reopen Flock. A closed flock is also inactive, but an inactive flock is
+   * not necessarily closed -- see isFlockClosed in lib/utils/flock-eligibility.
+   */
+  closedDate?: string | null
+  closedAt?: string | null
+  closedBy?: string | null
+  closeReason?: string | null
+  closeoutId?: number | null
 }
 
 export interface FlockInput {
@@ -213,6 +223,11 @@ export async function getFlocks(userId?: string, farmId?: string): Promise<ApiRe
         inactivationReason: flock.InactivationReason ?? flock.inactivationReason ?? null,
         otherReason: flock.OtherReason ?? flock.otherReason ?? null,
         notes: flock.Notes ?? flock.notes ?? null,
+        closedDate: flock.ClosedDate ?? flock.closedDate ?? null,
+        closedAt: flock.ClosedAt ?? flock.closedAt ?? null,
+        closedBy: flock.ClosedBy ?? flock.closedBy ?? null,
+        closeReason: flock.CloseReason ?? flock.closeReason ?? null,
+        closeoutId: flock.CloseoutId ?? flock.closeoutId ?? null,
       }
     })
 
@@ -407,6 +422,11 @@ export async function getFlock(id: number, userId?: string, farmId?: string): Pr
       inactivationReason: data.InactivationReason ?? data.inactivationReason ?? '',
       otherReason: data.OtherReason ?? data.otherReason ?? '',
       notes: data.Notes ?? data.notes ?? '',
+      closedDate: data.ClosedDate ?? data.closedDate ?? null,
+      closedAt: data.ClosedAt ?? data.closedAt ?? null,
+      closedBy: data.ClosedBy ?? data.closedBy ?? null,
+      closeReason: data.CloseReason ?? data.closeReason ?? null,
+      closeoutId: data.CloseoutId ?? data.closeoutId ?? null,
     }
 
     console.log("[v0] Mapped flock:", mapped)

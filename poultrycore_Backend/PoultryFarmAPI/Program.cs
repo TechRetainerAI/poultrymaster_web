@@ -107,6 +107,14 @@ builder.Services.AddScoped<IFarmSetupService>(sp => new FarmSetupService(
     sp.GetRequiredService<IHouseService>(),
     sp.GetRequiredService<IBirdFlockService>()));
 builder.Services.AddScoped<IHealthRecordService>(sp => new HealthRecordService(connectionString));
+// End-of-flock closeout (migration 332). Sales and payments go through the
+// ordinary services -- it owns no sale SQL of its own.
+builder.Services.AddScoped<IFlockCloseoutService>(sp => new FlockCloseoutService(
+    connectionString,
+    sp.GetRequiredService<IBirdFlockService>(),
+    sp.GetRequiredService<IHouseService>(),
+    sp.GetRequiredService<ISaleService>(),
+    sp.GetRequiredService<IPoultryPaymentService>()));
 
 // Audit logs service
 builder.Services.AddScoped<IAuditLogService>(sp => new AuditLogService(connectionString));

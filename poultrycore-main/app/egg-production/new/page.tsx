@@ -19,6 +19,7 @@ import { getUserContext } from "@/lib/utils/user-context"
 import { getProductionRecords, createProductionRecord, updateProductionRecord, type ProductionRecordInput } from "@/lib/api/production-record"
 import { isFinishedFeedCategory } from "@/lib/utils/feed-item-ledger"
 import { getFlocks } from "@/lib/api/flock"
+import { isFlockOpenForEntry } from "@/lib/utils/flock-eligibility"
 import { listPoultryRawMaterialItems, listPoultryRawMaterialPurchases, type PoultryRawMaterialItem } from "@/lib/api/poultry-inventory"
 import { usePickSettings } from "@/hooks/use-pick-settings"
 
@@ -353,7 +354,7 @@ export default function NewEggProductionPage() {
                       </SelectTrigger>
                       <SelectContent>
                         {flocks
-                          .filter((flock: any) => flock.hasArrived)
+                          .filter((flock: any) => flock.hasArrived && isFlockOpenForEntry(flock))
                           .filter((flock: any) => selectedBatchId === "ALL" || String(flock.batchId) === selectedBatchId)
                           .map((flock: any) => (
                             <SelectItem key={flock.flockId} value={flock.flockId.toString()}>
