@@ -16,6 +16,10 @@ export interface BillingAccount {
   trialDaysLeft?: number | null
   billingEmail?: string | null
   verificationStatus: string
+  cancelAtPeriodEnd: boolean
+  currentPeriodEnd?: string | null
+  pendingMarketCode?: string | null
+  pendingMarketEffective?: string | null
 }
 
 export interface CompanyBillingRow {
@@ -47,6 +51,7 @@ export interface BillPreview {
 }
 
 export interface BillingSummary {
+  pendingTierChanges: PendingTierChange[]
   account: BillingAccount
   companies: CompanyBillingRow[]
   preview: BillPreview
@@ -164,4 +169,153 @@ export async function verifyPlatformPayment(reference: string): Promise<{ ok: bo
   )
   const body = await res.json().catch(() => ({}))
   return { ok: res.ok && body?.ok === true, message: body?.message || "Verification failed." }
+}
+
+// ---------- Phase B ----------
+
+export interface PendingTierChange {
+  farmId: string
+  companyName: string
+  fromTierName: string
+  toTierName: string
+  effectiveDate: string
+}
+
+export interface MarketChangePreview {
+  marketCode: string
+  marketName: string
+  currencyCode: string
+  marketActive: boolean
+  companies: CompanyBillingRow[]
+  preview: BillPreview
+}
+
+export interface PlanUsage {
+  farmId: string
+  companyName: string
+  billingProfileCode: string
+  metricType: string
+  metricValue: number
+  tierCode?: string | null
+  monthlyAmount?: number | null
+  currencyCode: string
+  pricingStatus: string
+  evaluatedAtUtc: string
+  managedBy: string
+}
+
+async function jpost(path: string, body: unknown): Promise<{ ok: boolean; message: string }> {
+  const res = await fetch(farmApiUrl(path), {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(body),
+  })
+  const data = await res.json().catch(() => ({}))
+  return { ok: res.ok && data?.ok !== false, message: data?.message || (res.ok ? "Done." : `Failed (${res.status})`) }
+}
+
+export async function previewMarket(marketCode: string): Promise<MarketChangePreview> {
+  const { userId } = getUserContext()
+  return jget<MarketChangePreview>(
+    `/PlatformBilling/market-preview?userId=${encodeURIComponent(userId)}&marketCode=${encodeURIComponent(marketCode)}`
+  )
+}
+
+export async function requestMarketChange(marketCode: string, reason: string) {
+  const { userId } = getUserContext()
+  return jpost(`/PlatformBilling/market-change`, { userId, marketCode, reason })
+}
+
+export async function cancelMarketChange(): Promise<{ ok: boolean; message: string }> {
+  const { userId } = getUserContext()
+  const res = await fetch(
+    farmApiUrl(`/PlatformBilling/market-change?userId=${encodeURIComponent(userId)}`),
+    { method: "DELETE", headers: getAuthHeaders() }
+  )
+  const data = await res.json().catch(() => ({}))
+  return { ok: res.ok, message: data?.message || "" }
+}
+
+export async function setBillingCycle(cycle: "monthly" | "annual") {
+  const { userId } = getUserContext()
+  return jpost(`/PlatformBilling/billing-cycle`, { userId, cycle })
+}
+
+export async function cancelSubscription(reason?: string) {
+  const { userId } = getUserContext()
+  return jpost(`/PlatformBilling/cancel`, { userId, reason })
+}
+
+export async function reactivateSubscription() {
+  const { userId } = getUserContext()
+  return jpost(`/PlatformBilling/reactivate`, { userId })
+}
+
+/** The company-level "Plan & Usage" view — read-only, managed by the Business Office. */
+export async function getPlanUsage(farmId: string): Promise<PlanUsage> {
+  const { userId } = getUserContext()
+  return jget<PlanUsage>(
+    `/PlatformBilling/plan-usage?userId=${encodeURIComponent(userId)}&farmId=${encodeURIComponent(farmId)}`
+  )
+}
+
+// ---------- Platform admin (SystemAdmin / PlatformOwner only) ----------
+
+export async function getAdminConfig(): Promise<Record<string, unknown[]>> {
+  const { userId } = getUserContext()
+  return jget<Record<string, unknown[]>>(
+    `/PlatformBillingAdmin/config?userId=${encodeURIComponent(userId)}`
+  )
+}
+
+export async function adminPutSetting(key: string, value: string) {
+  const { userId } = getUserContext()
+  const res = await fetch(farmApiUrl(`/PlatformBillingAdmin/setting`), {
+    method: "PUT", headers: getAuthHeaders(), body: JSON.stringify({ userId, key, value }),
+  })
+  return { ok: res.ok }
+}
+
+export async function adminPostPrice(body: {
+  marketCode: string; tierCode: string; profileCode?: string | null
+  monthlyPrice: number; annualPrice?: number | null
+}) {
+  const { userId } = getUserContext()
+  const res = await fetch(farmApiUrl(`/PlatformBillingAdmin/price`), {
+    method: "POST", headers: getAuthHeaders(), body: JSON.stringify({ userId, ...body }),
+  })
+  return { ok: res.ok, message: res.ok ? "Price configured." : await res.text() }
+}
+
+export async function adminPutDiscounts(rules: { minCompanies: number; percent: number }[]) {
+  const { userId } = getUserContext()
+  const res = await fetch(farmApiUrl(`/PlatformBillingAdmin/discounts`), {
+    method: "PUT", headers: getAuthHeaders(), body: JSON.stringify({ userId, rules }),
+  })
+  return { ok: res.ok }
+}
+
+export async function adminPutCompanyState(body: Record<string, unknown>) {
+  const { userId } = getUserContext()
+  const res = await fetch(farmApiUrl(`/PlatformBillingAdmin/company-state`), {
+    method: "PUT", headers: getAuthHeaders(), body: JSON.stringify({ userId, ...body }),
+  })
+  return { ok: res.ok, message: res.ok ? "Saved." : await res.text() }
+}
+
+export async function adminCreditNote(invoiceNumber: string, amount: number, reason: string) {
+  const { userId } = getUserContext()
+  const res = await fetch(farmApiUrl(`/PlatformBillingAdmin/credit-note`), {
+    method: "POST", headers: getAuthHeaders(),
+    body: JSON.stringify({ userId, invoiceNumber, amount, reason }),
+  })
+  return { ok: res.ok, message: res.ok ? "Credit applied." : await res.text() }
+}
+
+export async function adminRunMaintenance(): Promise<{ report?: string }> {
+  const { userId } = getUserContext()
+  const res = await fetch(farmApiUrl(`/PlatformBillingAdmin/run-maintenance`), {
+    method: "POST", headers: getAuthHeaders(), body: JSON.stringify({ userId, key: "run" }),
+  })
+  return res.ok ? res.json() : { report: `Failed (${res.status})` }
 }

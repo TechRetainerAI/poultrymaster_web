@@ -86,6 +86,100 @@ namespace PoultryFarmAPIWeb.Controllers
             var (ok, message) = await _svc.VerifyAndSettleAsync(userId, reference);
             return ok ? Ok(new { ok, message }) : BadRequest(new { ok, message });
         }
+
+        // -------- Market change: a controlled request flow (spec 3.7/46) ----
+
+        /// <summary>What the bill would look like in another market — nothing persisted.</summary>
+        [HttpGet("market-preview")]
+        public async Task<ActionResult<MarketChangePreviewModel>> MarketPreview(
+            [FromQuery] string userId, [FromQuery] string marketCode)
+        {
+            if (string.IsNullOrWhiteSpace(userId)) return BadRequest("userId is required.");
+            var m = await _svc.PreviewMarketAsync(userId, marketCode);
+            return m is null ? NotFound($"Unknown market {marketCode}.") : Ok(m);
+        }
+
+        [HttpPost("market-change")]
+        public async Task<IActionResult> RequestMarketChange([FromBody] MarketChangeRequestBody req)
+        {
+            if (string.IsNullOrWhiteSpace(req?.UserId)) return BadRequest("userId is required.");
+            var (ok, message) = await _svc.RequestMarketChangeAsync(req.UserId, req.MarketCode ?? "", req.Reason);
+            return ok ? Ok(new { ok, message }) : BadRequest(new { ok, message });
+        }
+
+        [HttpDelete("market-change")]
+        public async Task<IActionResult> CancelMarketChange([FromQuery] string userId)
+        {
+            if (string.IsNullOrWhiteSpace(userId)) return BadRequest("userId is required.");
+            var (ok, message) = await _svc.CancelMarketChangeAsync(userId);
+            return ok ? Ok(new { ok, message }) : BadRequest(new { ok, message });
+        }
+
+        // -------- Cycle & cancellation (spec 11.3 / 21) ---------------------
+
+        [HttpPost("billing-cycle")]
+        public async Task<IActionResult> SetCycle([FromBody] BillingCycleBody req)
+        {
+            if (string.IsNullOrWhiteSpace(req?.UserId)) return BadRequest("userId is required.");
+            var (ok, message) = await _svc.SetBillingCycleAsync(req.UserId, req.Cycle ?? "");
+            return ok ? Ok(new { ok, message }) : BadRequest(new { ok, message });
+        }
+
+        [HttpPost("cancel")]
+        public async Task<IActionResult> Cancel([FromBody] CancelBody req)
+        {
+            if (string.IsNullOrWhiteSpace(req?.UserId)) return BadRequest("userId is required.");
+            var (ok, message) = await _svc.CancelAtPeriodEndAsync(req.UserId, req.Reason);
+            return ok ? Ok(new { ok, message }) : BadRequest(new { ok, message });
+        }
+
+        [HttpPost("reactivate")]
+        public async Task<IActionResult> Reactivate([FromBody] CancelBody req)
+        {
+            if (string.IsNullOrWhiteSpace(req?.UserId)) return BadRequest("userId is required.");
+            var (ok, message) = await _svc.ReactivateAsync(req.UserId);
+            return ok ? Ok(new { ok, message }) : BadRequest(new { ok, message });
+        }
+
+        // -------- Company-level Plan & Usage + entitlements (23/17) ---------
+
+        [HttpGet("plan-usage")]
+        public async Task<ActionResult<PlanUsageModel>> PlanUsage(
+            [FromQuery] string userId, [FromQuery] string farmId)
+        {
+            if (string.IsNullOrWhiteSpace(userId)) return BadRequest("userId is required.");
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            var m = await _svc.GetPlanUsageAsync(userId, farmId);
+            return m is null ? NotFound("No plan information exists for this company yet.") : Ok(m);
+        }
+
+        [HttpGet("entitlements")]
+        public async Task<ActionResult<List<EntitlementModel>>> Entitlements(
+            [FromQuery] string userId, [FromQuery] string farmId)
+        {
+            if (string.IsNullOrWhiteSpace(userId)) return BadRequest("userId is required.");
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            return Ok(await _svc.GetEntitlementsAsync(userId, farmId));
+        }
+    }
+
+    public class MarketChangeRequestBody
+    {
+        public string UserId { get; set; } = string.Empty;
+        public string? MarketCode { get; set; }
+        public string? Reason { get; set; }
+    }
+
+    public class BillingCycleBody
+    {
+        public string UserId { get; set; } = string.Empty;
+        public string? Cycle { get; set; }
+    }
+
+    public class CancelBody
+    {
+        public string UserId { get; set; } = string.Empty;
+        public string? Reason { get; set; }
     }
 
     /// <summary>

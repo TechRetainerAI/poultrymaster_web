@@ -175,3 +175,46 @@ namespace PlatformBilling.Tests
             Assert.Equal("SCHOOL_STUDENTS", PlatformBillingRules.ResolveProfileCode("Generic", "SCHOOL_STUDENTS"));
     }
 }
+
+namespace PlatformBilling.Tests
+{
+    public class PhaseBRulesTests
+    {
+        [Theory]
+        [InlineData("VC-7-202609-abc123", "VC-7-202609")]
+        [InlineData("VC-12-202610-deadbeef", "VC-12-202610")]
+        [InlineData("noguid", "noguid")]
+        public void Invoice_number_recovers_from_any_reference(string reference, string expected) =>
+            Assert.Equal(expected, PoultryFarmAPIWeb.Business.PlatformBillingRules.InvoiceNumberFromReference(reference));
+
+        [Fact]
+        public void Annual_cycle_uses_the_configured_annual_price_never_a_multiple()
+        {
+            var entry = new PoultryFarmAPIWeb.Business.PriceEntry(1, "growth", null, "GHS", 1000, 10000, true);
+            Assert.Equal(1000m, PoultryFarmAPIWeb.Business.PlatformBillingRules.CyclePrice(entry, "monthly"));
+            Assert.Equal(10000m, PoultryFarmAPIWeb.Business.PlatformBillingRules.CyclePrice(entry, "annual"));
+        }
+
+        [Fact]
+        public void Annual_cycle_with_no_annual_price_is_unpriced_not_guessed()
+        {
+            var entry = new PoultryFarmAPIWeb.Business.PriceEntry(1, "growth", null, "GHS", 1000, null, true);
+            Assert.Null(PoultryFarmAPIWeb.Business.PlatformBillingRules.CyclePrice(entry, "annual"));
+        }
+
+        [Theory]
+        [InlineData(0, "Active")]      // due today: still fine
+        [InlineData(1, "PastDue")]     // one day over
+        [InlineData(14, "PastDue")]    // last grace-window day
+        [InlineData(15, "GracePeriod")]
+        [InlineData(28, "GracePeriod")]
+        [InlineData(29, "Suspended")]
+        public void Dunning_ladder_matches_the_configured_windows(int daysOverdue, string expected)
+        {
+            var due = new DateTime(2026, 9, 1);
+            var today = due.AddDays(daysOverdue);
+            Assert.Equal(expected,
+                PoultryFarmAPIWeb.Business.PlatformBillingRules.AccountStatusFor(due, today, 14, 14));
+        }
+    }
+}

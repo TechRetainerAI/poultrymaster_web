@@ -25,6 +25,9 @@ namespace PoultryFarmAPIWeb.Models
         public DateTime? CurrentPeriodEnd { get; set; }
         public bool CancelAtPeriodEnd { get; set; }
         public string? Provider { get; set; }
+        /// <summary>A requested market change waiting for its effective date (spec 3.7).</summary>
+        public string? PendingMarketCode { get; set; }
+        public DateTime? PendingMarketEffective { get; set; }
     }
 
     /// <summary>
@@ -54,6 +57,52 @@ namespace PoultryFarmAPIWeb.Models
         public string PricingStatus { get; set; } = string.Empty;
         public string ParticipationStatus { get; set; } = "Active";
         public long? EvaluationId { get; set; }
+        /// <summary>Set while the company is inside its own evaluation window (spec 10.3).</summary>
+        public DateTime? EvaluationUntilUtc { get; set; }
+    }
+
+    /// <summary>"Your operation now qualifies for Growth…" — announced, never a surprise charge (spec 30).</summary>
+    public class PendingTierChangeModel
+    {
+        public string FarmId { get; set; } = string.Empty;
+        public string CompanyName { get; set; } = string.Empty;
+        public string FromTierName { get; set; } = string.Empty;
+        public string ToTierName { get; set; } = string.Empty;
+        public DateTime EffectiveDate { get; set; }
+    }
+
+    public class MarketChangePreviewModel
+    {
+        public string MarketCode { get; set; } = string.Empty;
+        public string MarketName { get; set; } = string.Empty;
+        public string CurrencyCode { get; set; } = string.Empty;
+        public bool MarketActive { get; set; }
+        public List<CompanyBillingRowModel> Companies { get; set; } = new();
+        public BillPreviewModel Preview { get; set; } = new();
+    }
+
+    /// <summary>The company-level "Plan &amp; Usage" view (spec 23) — read-only, managed by the Business Office.</summary>
+    public class PlanUsageModel
+    {
+        public string FarmId { get; set; } = string.Empty;
+        public string CompanyName { get; set; } = string.Empty;
+        public string BillingProfileCode { get; set; } = string.Empty;
+        public string MetricType { get; set; } = string.Empty;
+        public decimal MetricValue { get; set; }
+        public string? TierCode { get; set; }
+        public decimal? MonthlyAmount { get; set; }
+        public string CurrencyCode { get; set; } = string.Empty;
+        public string PricingStatus { get; set; } = string.Empty;
+        public DateTime EvaluatedAtUtc { get; set; }
+        public string ManagedBy { get; set; } = string.Empty;
+    }
+
+    public class EntitlementModel
+    {
+        public string TierCode { get; set; } = string.Empty;
+        public string Capability { get; set; } = string.Empty;
+        public bool Enabled { get; set; }
+        public decimal? Limit { get; set; }
     }
 
     /// <summary>The consolidated bill preview (spec Part 29) — same engine, no charge.</summary>
@@ -80,6 +129,7 @@ namespace PoultryFarmAPIWeb.Models
         public BillPreviewModel Preview { get; set; } = new();
         /// <summary>False while the master enforcement switch is off — nothing is ever restricted.</summary>
         public bool EnforcementEnabled { get; set; }
+        public List<PendingTierChangeModel> PendingTierChanges { get; set; } = new();
     }
 
     public class PlatformInvoiceModel

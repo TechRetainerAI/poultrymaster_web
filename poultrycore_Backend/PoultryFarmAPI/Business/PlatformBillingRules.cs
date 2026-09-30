@@ -106,6 +106,41 @@ namespace PoultryFarmAPIWeb.Business
             $"VC-{accountId}-{periodStart:yyyyMM}";
 
         /// <summary>
+        /// Every checkout reference is "&lt;invoicenumber&gt;-&lt;guid&gt;"; this
+        /// recovers the invoice number so a payment settles even when a later
+        /// checkout attempt replaced the invoice's stored reference.
+        /// </summary>
+        public static string InvoiceNumberFromReference(string reference) =>
+            reference.Contains('-') ? reference[..reference.LastIndexOf('-')] : reference;
+
+        /// <summary>
+        /// The monthly-equivalent charge for a billing cycle. Annual uses the
+        /// explicitly configured annual price — never "12 x monthly" computed
+        /// in code (spec 11.3); an annual cycle with no annual price is
+        /// unpriced, not guessed.
+        /// </summary>
+        public static decimal? CyclePrice(PriceEntry entry, string billingCycle) =>
+            string.Equals(billingCycle, "annual", StringComparison.OrdinalIgnoreCase)
+                ? entry.AnnualPrice
+                : entry.MonthlyPrice;
+
+        /// <summary>
+        /// Where an account stands against its oldest unpaid invoice
+        /// (spec Part 20): Active until due, then PastDue, then GracePeriod
+        /// after the grace days, then Suspended after the suspend window.
+        /// Pure bookkeeping — whether anything is actually restricted is the
+        /// enforcement switch's business, not this function's.
+        /// </summary>
+        public static string AccountStatusFor(DateTime oldestUnpaidDueDate, DateTime today, int graceDays, int suspendDaysAfterGrace)
+        {
+            if (today <= oldestUnpaidDueDate) return "Active";
+            var overdue = (today - oldestUnpaidDueDate).Days;
+            if (overdue <= graceDays) return "PastDue";
+            if (overdue <= graceDays + suspendDaysAfterGrace) return "GracePeriod";
+            return "Suspended";
+        }
+
+        /// <summary>
         /// Paystack minor units. GHS/NGN/USD are all 2-decimal; the check
         /// exists so a future zero-decimal market cannot be charged 100x.
         /// </summary>

@@ -1,4 +1,4 @@
-// Platform billing engine (migration 329).
+// Platform billing engine (migrations 329 + 330).
 //
 // The pipeline (spec Part 28): account → market/currency → eligible companies
 // → per-company profile → metric → tier → price → evaluation snapshot → lines
@@ -6,20 +6,14 @@
 // provider checkout → settlement. Every step reads configuration (never
 // source-code prices) and writes an auditable record.
 //
-// Deliberate Phase A boundaries:
-//   * Enforcement is governed by platformbillingsettings.enforcementenabled,
-//     seeded FALSE — no customer loses access because this code shipped.
-//   * Only POULTRY_BIRDS has an authoritative metric (the migration-204
-//     birds-left formula, wrapped in spplatformbilling_activebirds). Every
-//     other profile reads companybillingstates.manualscalevalue (0 when
-//     unset) and qualifies through configuration, so Hotel/Restaurant/Water/
-//     Generic bill without invented counts (spec 4.2–4.5).
-//   * Legacy Login-API Paystack checkout is untouched; this engine settles
-//     only its own invoices, so the two cannot double-charge.
+// Provider access goes through IPlatformPaymentProvider (Part 12): this file
+// never mentions a Paystack URL. Enforcement stays behind
+// platformbillingsettings.enforcementenabled — status transitions here are
+// bookkeeping until that switch is deliberately turned on.
 
+using Microsoft.Extensions.Logging;
 using Npgsql;
 using PoultryFarmAPIWeb.Models;
-using System.Data;
 
 namespace PoultryFarmAPIWeb.Business
 {
@@ -32,33 +26,54 @@ namespace PoultryFarmAPIWeb.Business
         Task<StartCheckoutResponse> StartCheckoutAsync(StartCheckoutRequest req);
         Task<(bool Ok, string Message)> VerifyAndSettleAsync(string userId, string reference);
         Task<(bool Ok, string Message)> ProcessPaystackWebhookAsync(string payload, string signatureHeader);
+
+        // Phase B
+        Task<(bool Ok, string Message)> RequestMarketChangeAsync(string userId, string marketCode, string? reason);
+        Task<(bool Ok, string Message)> CancelMarketChangeAsync(string userId);
+        Task<MarketChangePreviewModel?> PreviewMarketAsync(string userId, string marketCode);
+        Task<(bool Ok, string Message)> SetBillingCycleAsync(string userId, string cycle);
+        Task<(bool Ok, string Message)> CancelAtPeriodEndAsync(string userId, string? reason);
+        Task<(bool Ok, string Message)> ReactivateAsync(string userId);
+        Task<PlanUsageModel?> GetPlanUsageAsync(string userId, string farmId);
+        Task<List<EntitlementModel>> GetEntitlementsAsync(string userId, string farmId);
+        Task<string> RunDailyMaintenanceAsync(string actor);
+        Task<bool> IsPlatformAdminAsync(string userId);
     }
 
     public class PlatformBillingService : IPlatformBillingService
     {
         private readonly string _cs;
-        private readonly string _paystackSecret;
-        private readonly IHttpClientFactory _httpFactory;
+        private readonly IPlatformPaymentProvider _provider;
+        private readonly ILogger<PlatformBillingService> _log;
 
-        public PlatformBillingService(string connectionString, string paystackSecretKey, IHttpClientFactory httpFactory)
+        public PlatformBillingService(string connectionString, IPlatformPaymentProvider provider,
+            ILogger<PlatformBillingService> log)
         {
             _cs = connectionString;
-            _paystackSecret = paystackSecretKey;
-            _httpFactory = httpFactory;
+            _provider = provider;
+            _log = log;
         }
 
         // ------------------------------------------------------------------
         // Configuration
         // ------------------------------------------------------------------
 
-        private sealed record Config(
+        internal sealed record Config(
             Dictionary<string, (string Name, string Currency, string Provider, bool Active)> Markets,
             Dictionary<string, (string Name, int Rank)> Tiers,
             Dictionary<string, (string Name, string MetricType)> Profiles,
             List<TierRule> TierRules,
-            List<PriceEntry> GhEntriesByMarket, // entries of the active book for one market (loaded per account)
+            List<PriceEntry> Entries,
             List<DiscountRule> Discounts,
-            Dictionary<string, string> Settings);
+            Dictionary<string, string> Settings)
+        {
+            public int IntSetting(string key, int fallback) =>
+                Settings.TryGetValue(key, out var v) && int.TryParse(v, out var n) ? n : fallback;
+            public decimal DecSetting(string key, decimal fallback) =>
+                Settings.TryGetValue(key, out var v) && decimal.TryParse(v, out var n) ? n : fallback;
+            public bool BoolSetting(string key) =>
+                Settings.TryGetValue(key, out var v) && string.Equals(v, "true", StringComparison.OrdinalIgnoreCase);
+        }
 
         private async Task<Config> LoadConfigAsync(NpgsqlConnection conn, string marketCode)
         {
@@ -114,21 +129,14 @@ namespace PoultryFarmAPIWeb.Business
         // Account
         // ------------------------------------------------------------------
 
-        /// <summary>
-        /// Load the caller's billing account, creating it on first sight from
-        /// their Business Office declaration (spec 3.3/3.4: declared market,
-        /// never IP). Existing owners get the promised 150-day trial measured
-        /// from their signup date — never reset by this migration (spec 10.2).
-        /// </summary>
         private async Task<BillingAccountModel> EnsureAccountAsync(NpgsqlConnection conn, string userId)
         {
             var acct = await ReadAccountAsync(conn, userId);
             if (acct != null) return acct;
 
-            // Business Office declaration + signup date from the identity row.
-            string? officeCountry = null, officeCurrency = null, orgCode = null, email = null, name = null;
+            string? officeCountry = null, orgCode = null, email = null, name = null;
             using (var u = new NpgsqlCommand(@"
-                SELECT businessofficecountry, businessofficecurrency, organizationcode, email,
+                SELECT businessofficecountry, organizationcode, email,
                        COALESCE(NULLIF(TRIM(CONCAT(firstname,' ',lastname)), ''), username)
                   FROM aspnetusers WHERE id = @Id", conn))
             {
@@ -137,18 +145,16 @@ namespace PoultryFarmAPIWeb.Business
                 if (await r.ReadAsync())
                 {
                     officeCountry = r.IsDBNull(0) ? null : r.GetString(0);
-                    officeCurrency = r.IsDBNull(1) ? null : r.GetString(1);
-                    orgCode = r.IsDBNull(2) ? null : r.GetString(2);
-                    email = r.IsDBNull(3) ? null : r.GetString(3);
-                    name = r.IsDBNull(4) ? null : r.GetString(4);
+                    orgCode = r.IsDBNull(1) ? null : r.GetString(1);
+                    email = r.IsDBNull(2) ? null : r.GetString(2);
+                    name = r.IsDBNull(3) ? null : r.GetString(3);
                 }
             }
 
             // aspnetusers carries no creation date, so the trial anchors to the
             // oldest company this owner has — an EXISTING customer's trial is
-            // therefore measured from when they actually started, not from the
-            // day this feature shipped (spec 10.2). A brand-new owner with no
-            // companies yet anchors to now.
+            // measured from when they actually started, not from the day this
+            // feature shipped (spec 10.2).
             var created = DateTime.UtcNow;
             using (var fc = new NpgsqlCommand(@"
                 SELECT MIN(f.createdat) FROM userfarms uf JOIN farms f ON f.farmid = uf.farmid
@@ -158,18 +164,16 @@ namespace PoultryFarmAPIWeb.Business
                 if (await fc.ExecuteScalarAsync() is DateTime firstFarm) created = firstFarm;
             }
 
-            // Declared country → market. Only Ghana is active today; anything
-            // else still gets an account (GH is the only configured market)
-            // and can request a market change through the controlled flow.
+            // Declared country → market; only an ACTIVE market is assignable,
+            // never geolocation (spec 3.4).
             var market = "GH";
             var c = (officeCountry ?? "").Trim().ToUpperInvariant();
             if (c is "NG" or "NIGERIA") market = "NG";
             else if (c is "US" or "USA" or "UNITED STATES") market = "US";
-            using (var m = new NpgsqlCommand("SELECT active, currencycode FROM billingmarkets WHERE code = @C", conn))
+            using (var m = new NpgsqlCommand("SELECT active FROM billingmarkets WHERE code = @C", conn))
             {
                 m.Parameters.AddWithValue("@C", market);
-                using var r = await m.ExecuteReaderAsync();
-                if (!await r.ReadAsync() || !r.GetBoolean(0)) market = "GH";
+                if (await m.ExecuteScalarAsync() is not true) market = "GH";
             }
 
             var trialDays = 150;
@@ -196,6 +200,7 @@ namespace PoultryFarmAPIWeb.Business
                 await ins.ExecuteNonQueryAsync();
             }
             await LogEventAsync(conn, null, null, "AccountCreated", null, market, userId, "auto-provisioned from Business Office");
+            _log.LogInformation("Billing account auto-provisioned for {UserId} in market {Market}", userId, market);
             return (await ReadAccountAsync(conn, userId))!;
         }
 
@@ -204,7 +209,8 @@ namespace PoultryFarmAPIWeb.Business
             using var cmd = new NpgsqlCommand(@"
                 SELECT id, owneruserid, orgcode, billingmarketcode, currencycode, billingemail,
                        billingcontactname, status, billingcycle, trialstartutc, trialendutc,
-                       verificationstatus, currentperiodstart, currentperiodend, cancelatperiodend, provider
+                       verificationstatus, currentperiodstart, currentperiodend, cancelatperiodend, provider,
+                       pendingmarketcode, pendingmarketeffective
                   FROM organizationbillingaccounts WHERE owneruserid = @U", conn);
             cmd.Parameters.AddWithValue("@U", userId);
             using var r = await cmd.ExecuteReaderAsync();
@@ -227,6 +233,8 @@ namespace PoultryFarmAPIWeb.Business
                 CurrentPeriodEnd = r.IsDBNull(13) ? null : r.GetDateTime(13),
                 CancelAtPeriodEnd = r.GetBoolean(14),
                 Provider = r.IsDBNull(15) ? null : r.GetString(15),
+                PendingMarketCode = r.IsDBNull(16) ? null : r.GetString(16),
+                PendingMarketEffective = r.IsDBNull(17) ? null : r.GetDateTime(17),
             };
             if (a.TrialEndUtc.HasValue)
                 a.TrialDaysLeft = Math.Max(0, (int)Math.Ceiling((a.TrialEndUtc.Value - DateTime.UtcNow).TotalDays));
@@ -237,22 +245,23 @@ namespace PoultryFarmAPIWeb.Business
         // Companies + evaluation
         // ------------------------------------------------------------------
 
-        private sealed record CompanyRow(string FarmId, string Name, string Family, string? Template);
+        private sealed record CompanyRow(string FarmId, string Name, string Family, string? Template, string? TemplateDefaultProfile);
 
         /// <summary>
-        /// The organization's companies — the same list the Companies screen
-        /// shows, via the platform's own spcompany_getbyuserid, restricted to
-        /// Admin (this platform's owner role; the vocabulary is Admin|Staff,
-        /// there is no 'Owner'). Server-side ownership is the query itself —
-        /// a farmid the caller does not own simply never appears (spec 31).
+        /// The organization's companies — the platform's own
+        /// spcompany_getbyuserid (the list the Companies screen shows),
+        /// restricted to Admin: the owner role in this platform's Admin|Staff
+        /// vocabulary. Ownership is the query itself (spec 31). The template's
+        /// configured default profile rides along for the 4.6 resolution chain.
         /// </summary>
         private static async Task<List<CompanyRow>> LoadCompaniesAsync(NpgsqlConnection conn, string userId)
         {
             var list = new List<CompanyRow>();
             using var cmd = new NpgsqlCommand(@"
-                SELECT c.farmid, c.name, c.type, g.genericbusinesstemplate
+                SELECT c.farmid, c.name, c.type, g.genericbusinesstemplate, tp.defaultbillingprofile
                   FROM spcompany_getbyuserid(p_userid => @U::text) c
                   LEFT JOIN genericcompanyprofiles g ON g.farmid = c.farmid
+                  LEFT JOIN businesstemplatebillingprofiles tp ON tp.templatecode = g.genericbusinesstemplate
                  WHERE LOWER(COALESCE(c.role, 'admin')) = 'admin'
                  ORDER BY c.name", conn);
             cmd.Parameters.AddWithValue("@U", userId);
@@ -260,12 +269,13 @@ namespace PoultryFarmAPIWeb.Business
             while (await r.ReadAsync())
                 list.Add(new CompanyRow(r.GetString(0), r.GetString(1),
                     r.IsDBNull(2) ? "Poultry" : r.GetString(2),
-                    r.IsDBNull(3) ? null : r.GetString(3)));
+                    r.IsDBNull(3) ? null : r.GetString(3),
+                    r.IsDBNull(4) ? null : r.GetString(4)));
             return list;
         }
 
         private sealed record CompanyState(string? ProfileOverride, string Participation,
-            decimal? ManualScale, decimal? CustomPrice, decimal? GrandfatheredPrice);
+            decimal? ManualScale, decimal? CustomPrice, decimal? GrandfatheredPrice, DateTime? EvaluationUntilUtc);
 
         private static async Task<CompanyState> EnsureCompanyStateAsync(NpgsqlConnection conn, long accountId, string farmId)
         {
@@ -279,7 +289,7 @@ namespace PoultryFarmAPIWeb.Business
             }
             using var cmd = new NpgsqlCommand(@"
                 SELECT billingprofilecode, participationstatus, manualscalevalue,
-                       custommonthlyprice, grandfatheredmonthlyprice
+                       custommonthlyprice, grandfatheredmonthlyprice, evaluationtrialenduntilutc
                   FROM companybillingstates WHERE farmid = @F", conn);
             cmd.Parameters.AddWithValue("@F", farmId);
             using var r = await cmd.ExecuteReaderAsync();
@@ -289,10 +299,10 @@ namespace PoultryFarmAPIWeb.Business
                 r.GetString(1),
                 r.IsDBNull(2) ? null : r.GetDecimal(2),
                 r.IsDBNull(3) ? null : r.GetDecimal(3),
-                r.IsDBNull(4) ? null : r.GetDecimal(4));
+                r.IsDBNull(4) ? null : r.GetDecimal(4),
+                r.IsDBNull(5) ? null : r.GetDateTime(5));
         }
 
-        /// <summary>The authoritative metric for a profile — never a fork of a domain formula.</summary>
         private static async Task<decimal> MetricValueAsync(NpgsqlConnection conn, string metricType, string farmId, CompanyState state)
         {
             if (string.Equals(metricType, "ActiveBirdCount", StringComparison.OrdinalIgnoreCase))
@@ -302,16 +312,18 @@ namespace PoultryFarmAPIWeb.Business
                 var v = await cmd.ExecuteScalarAsync();
                 return v is decimal d ? d : Convert.ToDecimal(v ?? 0);
             }
-            // ManualScale (and any not-yet-authoritative metric): the configured value, 0 when unset.
             return state.ManualScale ?? 0m;
         }
 
         private async Task<CompanyBillingRowModel> EvaluateCompanyAsync(
             NpgsqlConnection conn, Config cfg, BillingAccountModel acct, CompanyRow company,
-            string reason, DateTime periodStart, DateTime periodEnd, NpgsqlTransaction? tx = null)
+            string reason, DateTime periodStart, DateTime periodEnd,
+            bool persistEvaluation = true, NpgsqlTransaction? tx = null)
         {
             var state = await EnsureCompanyStateAsync(conn, acct.Id, company.FarmId);
-            var profileCode = PlatformBillingRules.ResolveProfileCode(company.Family, state.ProfileOverride);
+            // Resolution chain (4.6): company override > template default > family map.
+            var profileCode = PlatformBillingRules.ResolveProfileCode(
+                company.Family, state.ProfileOverride ?? company.TemplateDefaultProfile);
             var (profileName, metricType) = cfg.Profiles.TryGetValue(profileCode, out var p)
                 ? p : (profileCode, "ManualScale");
 
@@ -331,8 +343,17 @@ namespace PoultryFarmAPIWeb.Business
             if (!string.Equals(state.Participation, "Active", StringComparison.OrdinalIgnoreCase)
                 && !string.Equals(state.Participation, "EnterpriseContract", StringComparison.OrdinalIgnoreCase))
             {
-                // Archived / Exempt / Suspended companies contribute no line (spec 9.1/9.2).
-                row.PricingStatus = "Exempt";
+                row.PricingStatus = "Exempt";   // Archived / Exempt / Suspended contribute no line (9.1/9.2)
+                return row;
+            }
+
+            // A company still inside its own evaluation window (10.3) is shown
+            // but not billed, and does NOT block the rest of the invoice.
+            if (state.EvaluationUntilUtc.HasValue && state.EvaluationUntilUtc.Value > DateTime.UtcNow)
+            {
+                row.PricingStatus = "Evaluation";
+                row.EvaluationUntilUtc = state.EvaluationUntilUtc;
+                row.MetricValue = await MetricValueAsync(conn, metricType, company.FarmId, state);
                 return row;
             }
 
@@ -353,16 +374,17 @@ namespace PoultryFarmAPIWeb.Business
             }
             else if (row.TierCode != null)
             {
-                var entry = PlatformBillingRules.ResolvePrice(cfg.GhEntriesByMarket, row.TierCode, profileCode);
-                if (entry != null)
+                var entry = PlatformBillingRules.ResolvePrice(cfg.Entries, row.TierCode, profileCode);
+                var cyclePrice = entry is null ? null : PlatformBillingRules.CyclePrice(entry, acct.BillingCycle);
+                if (entry != null && cyclePrice.HasValue)
                 {
                     entryId = entry.Id;
-                    row.MonthlyAmount = PlatformBillingRules.Money(entry.MonthlyPrice);
+                    row.MonthlyAmount = PlatformBillingRules.Money(cyclePrice.Value);
                     row.PricingStatus = "Resolved";
                 }
                 else
                 {
-                    row.PricingStatus = "PricingNotConfigured"; // never zero, never a guess (spec 39)
+                    row.PricingStatus = "PricingNotConfigured";  // never zero, never a guess (39)
                 }
             }
             else
@@ -370,7 +392,8 @@ namespace PoultryFarmAPIWeb.Business
                 row.PricingStatus = "PricingNotConfigured";
             }
 
-            // The snapshot that answers "why was this charged" months later (spec 5.1).
+            if (!persistEvaluation) return row;
+
             using var ins = new NpgsqlCommand(@"
                 INSERT INTO companybillingevaluations
                        (accountid, farmid, billingprofilecode, metrictype, metricvalue, tiercode,
@@ -396,15 +419,18 @@ namespace PoultryFarmAPIWeb.Business
             return row;
         }
 
-        private static (DateTime Start, DateTime End) CurrentPeriod()
+        /// <summary>Monthly = calendar month; annual = twelve months from the month start (11.3).</summary>
+        private static (DateTime Start, DateTime End) CurrentPeriod(string billingCycle)
         {
             var today = DateTime.UtcNow.Date;
             var start = new DateTime(today.Year, today.Month, 1);
-            return (start, start.AddMonths(1).AddDays(-1));
+            return string.Equals(billingCycle, "annual", StringComparison.OrdinalIgnoreCase)
+                ? (start, start.AddYears(1).AddDays(-1))
+                : (start, start.AddMonths(1).AddDays(-1));
         }
 
         // ------------------------------------------------------------------
-        // Summary / preview
+        // Summary / preview / pending changes
         // ------------------------------------------------------------------
 
         public async Task<BillingSummaryModel> GetSummaryAsync(string userId)
@@ -413,39 +439,94 @@ namespace PoultryFarmAPIWeb.Business
             await conn.OpenAsync();
             var acct = await EnsureAccountAsync(conn, userId);
             var cfg = await LoadConfigAsync(conn, acct.MarketCode);
-            var (ps, pe) = CurrentPeriod();
+            var (ps, pe) = CurrentPeriod(acct.BillingCycle);
 
             var companies = new List<CompanyBillingRowModel>();
             foreach (var c in await LoadCompaniesAsync(conn, userId))
                 companies.Add(await EvaluateCompanyAsync(conn, cfg, acct, c, "Preview", ps, pe));
 
-            var billable = companies.Where(x => x.PricingStatus is "Resolved" or "CustomPrice" or "Grandfathered").ToList();
-            var discount = PlatformBillingRules.PickDiscount(cfg.Discounts, billable.Count);
-            var taxRate = cfg.Settings.TryGetValue("taxratepercent", out var tr) && decimal.TryParse(tr, out var trd) ? trd : 0m;
-            var (sub, disc, tax, total) = PlatformBillingRules.Totals(
-                billable.Select(x => x.MonthlyAmount ?? 0m), discount?.Percent ?? 0m, taxRate);
-
-            return new BillingSummaryModel
+            var summary = new BillingSummaryModel
             {
                 Account = acct,
                 Companies = companies,
-                EnforcementEnabled = cfg.Settings.TryGetValue("enforcementenabled", out var en)
-                                     && string.Equals(en, "true", StringComparison.OrdinalIgnoreCase),
-                Preview = new BillPreviewModel
-                {
-                    Subtotal = sub,
-                    EligibleCompanyCount = billable.Count,
-                    DiscountPercent = discount?.Percent ?? 0m,
-                    DiscountAmount = disc,
-                    TaxRate = taxRate,
-                    TaxAmount = tax,
-                    Total = total,
-                    CurrencyCode = acct.CurrencyCode,
-                    HasUnpricedCompanies = companies.Any(x => x.PricingStatus == "PricingNotConfigured"),
-                    PeriodStart = ps,
-                    PeriodEnd = pe,
-                },
+                EnforcementEnabled = cfg.BoolSetting("enforcementenabled"),
+                Preview = BuildPreview(cfg, acct, companies, ps, pe),
+                PendingTierChanges = await PendingTierChangesAsync(conn, cfg, acct, companies, ps),
             };
+            return summary;
+        }
+
+        private static BillPreviewModel BuildPreview(Config cfg, BillingAccountModel acct,
+            List<CompanyBillingRowModel> companies, DateTime ps, DateTime pe)
+        {
+            var billable = companies.Where(x => x.PricingStatus is "Resolved" or "CustomPrice" or "Grandfathered").ToList();
+            var discount = PlatformBillingRules.PickDiscount(cfg.Discounts, billable.Count);
+            var taxRate = cfg.DecSetting("taxratepercent", 0m);
+            var (sub, disc, tax, total) = PlatformBillingRules.Totals(
+                billable.Select(x => x.MonthlyAmount ?? 0m), discount?.Percent ?? 0m, taxRate);
+            return new BillPreviewModel
+            {
+                Subtotal = sub,
+                EligibleCompanyCount = billable.Count,
+                DiscountPercent = discount?.Percent ?? 0m,
+                DiscountAmount = disc,
+                TaxRate = taxRate,
+                TaxAmount = tax,
+                Total = total,
+                CurrencyCode = acct.CurrencyCode,
+                HasUnpricedCompanies = companies.Any(x => x.PricingStatus == "PricingNotConfigured"),
+                PeriodStart = ps,
+                PeriodEnd = pe,
+            };
+        }
+
+        /// <summary>
+        /// "Your operation now qualifies for Growth…" (spec 5.3/30): a change
+        /// is pending when the tier evaluated NOW differs from the tier this
+        /// company was last INVOICED at. Recorded once per period as a
+        /// TierChangeScheduled event so support can see when the customer was
+        /// told.
+        /// </summary>
+        private async Task<List<PendingTierChangeModel>> PendingTierChangesAsync(
+            NpgsqlConnection conn, Config cfg, BillingAccountModel acct,
+            List<CompanyBillingRowModel> companies, DateTime periodStart)
+        {
+            var changes = new List<PendingTierChangeModel>();
+            foreach (var c in companies.Where(x => x.TierCode != null && x.PricingStatus == "Resolved"))
+            {
+                string? invoicedTier = null;
+                using (var q = new NpgsqlCommand(@"
+                    SELECT tiercode FROM companybillingevaluations
+                     WHERE farmid = @F AND evaluationreason = 'InvoiceGeneration' AND tiercode IS NOT NULL
+                     ORDER BY evaluatedatutc DESC LIMIT 1", conn))
+                {
+                    q.Parameters.AddWithValue("@F", c.FarmId);
+                    invoicedTier = await q.ExecuteScalarAsync() as string;
+                }
+                if (invoicedTier is null || string.Equals(invoicedTier, c.TierCode, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                var effective = CurrentPeriod(acct.BillingCycle).Start >= periodStart
+                    ? periodStart : CurrentPeriod(acct.BillingCycle).Start;
+                changes.Add(new PendingTierChangeModel
+                {
+                    FarmId = c.FarmId,
+                    CompanyName = c.CompanyName,
+                    FromTierName = cfg.Tiers.TryGetValue(invoicedTier, out var ft) ? ft.Name : invoicedTier,
+                    ToTierName = c.TierName ?? c.TierCode!,
+                    EffectiveDate = effective,
+                });
+
+                var reference = $"{c.FarmId}:{periodStart:yyyyMM}";
+                using var exists = new NpgsqlCommand(@"
+                    SELECT 1 FROM billingevents
+                     WHERE eventtype = 'TierChangeScheduled' AND reference = @R LIMIT 1", conn);
+                exists.Parameters.AddWithValue("@R", reference);
+                if (await exists.ExecuteScalarAsync() is null)
+                    await LogEventAsync(conn, acct.Id, c.FarmId, "TierChangeScheduled",
+                        invoicedTier, c.TierCode, "system", reference);
+            }
+            return changes;
         }
 
         public async Task<PricingExplainModel?> ExplainAsync(string userId, string farmId)
@@ -484,7 +565,6 @@ namespace PoultryFarmAPIWeb.Business
                 MarketName = cfg.Markets.TryGetValue(acct.MarketCode, out var mk) ? mk.Name : acct.MarketCode,
             };
 
-            // "Next tier at N" — the smallest rule bound above the current value.
             var next = cfg.TierRules
                 .Where(x => x.ProfileCode.Equals(profile, StringComparison.OrdinalIgnoreCase)
                             && x.MinValue > model.MetricValue)
@@ -556,16 +636,10 @@ namespace PoultryFarmAPIWeb.Business
             return list;
         }
 
-        /// <summary>
-        /// The current period's invoice, created transactionally on first
-        /// need. UNIQUE(accountid, periodstart) is the deterministic period
-        /// identity (spec 33): a concurrent second call re-reads the same
-        /// invoice instead of creating another.
-        /// </summary>
         private async Task<(long Id, string Number, decimal Balance, string Status)> EnsureCurrentInvoiceAsync(
             NpgsqlConnection conn, BillingAccountModel acct, Config cfg)
         {
-            var (ps, pe) = CurrentPeriod();
+            var (ps, pe) = CurrentPeriod(acct.BillingCycle);
 
             async Task<(long, string, decimal, string)?> ReadExistingAsync()
             {
@@ -586,7 +660,8 @@ namespace PoultryFarmAPIWeb.Business
 
             var companies = new List<CompanyBillingRowModel>();
             foreach (var c in await LoadCompaniesAsync(conn, acct.OwnerUserId))
-                companies.Add(await EvaluateCompanyAsync(conn, cfg, acct, c, "InvoiceGeneration", ps, pe, (NpgsqlTransaction)tx));
+                companies.Add(await EvaluateCompanyAsync(conn, cfg, acct, c, "InvoiceGeneration", ps, pe,
+                    persistEvaluation: true, (NpgsqlTransaction)tx));
 
             var billable = companies.Where(x => x.PricingStatus is "Resolved" or "CustomPrice" or "Grandfathered").ToList();
             if (companies.Any(x => x.PricingStatus == "PricingNotConfigured"))
@@ -596,7 +671,7 @@ namespace PoultryFarmAPIWeb.Business
                 throw new InvalidOperationException("There are no billable companies on this account yet.");
 
             var discount = PlatformBillingRules.PickDiscount(cfg.Discounts, billable.Count);
-            var taxRate = cfg.Settings.TryGetValue("taxratepercent", out var trs) && decimal.TryParse(trs, out var trd) ? trd : 0m;
+            var taxRate = cfg.DecSetting("taxratepercent", 0m);
             var (sub, disc, tax, total) = PlatformBillingRules.Totals(
                 billable.Select(x => x.MonthlyAmount ?? 0m), discount?.Percent ?? 0m, taxRate);
             var number = PlatformBillingRules.InvoiceNumber(acct.Id, ps);
@@ -630,7 +705,6 @@ namespace PoultryFarmAPIWeb.Business
                 var idObj = await ins.ExecuteScalarAsync();
                 if (idObj is null)
                 {
-                    // Lost the race: someone else created this period's invoice.
                     await tx.RollbackAsync();
                     return (await ReadExistingAsync())!.Value;
                 }
@@ -659,11 +733,13 @@ namespace PoultryFarmAPIWeb.Business
 
             await LogEventAsync(conn, acct.Id, null, "InvoiceGenerated", null, number, acct.OwnerUserId, null, (NpgsqlTransaction)tx);
             await tx.CommitAsync();
+            _log.LogInformation("Invoice {Number} generated for account {AccountId}: {Total} {Currency}",
+                number, acct.Id, total, acct.CurrencyCode);
             return (invoiceId, number, total, "Open");
         }
 
         // ------------------------------------------------------------------
-        // Checkout + settlement (Paystack behind the provider seam)
+        // Checkout + settlement (through the provider seam)
         // ------------------------------------------------------------------
 
         public async Task<StartCheckoutResponse> StartCheckoutAsync(StartCheckoutRequest req)
@@ -679,10 +755,10 @@ namespace PoultryFarmAPIWeb.Business
 
             if (!cfg.Markets.TryGetValue(acct.MarketCode, out var market) || !market.Active)
                 return new StartCheckoutResponse { Success = false, Message = $"Billing market {acct.MarketCode} is not open yet." };
-            if (!string.Equals(market.Provider, "paystack", StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(market.Provider, _provider.Name, StringComparison.OrdinalIgnoreCase))
                 return new StartCheckoutResponse { Success = false, Message = "No payment provider is configured for this market yet." };
-            if (string.IsNullOrWhiteSpace(_paystackSecret))
-                return new StartCheckoutResponse { Success = false, Message = "Paystack is not configured on this service (PAYSTACK_SECRET_KEY)." };
+            if (!_provider.IsConfigured)
+                return new StartCheckoutResponse { Success = false, Message = $"{_provider.Name} is not configured on this service (PAYSTACK_SECRET_KEY)." };
 
             (long Id, string Number, decimal Balance, string Status) invoice;
             try { invoice = await EnsureCurrentInvoiceAsync(conn, acct, cfg); }
@@ -692,30 +768,13 @@ namespace PoultryFarmAPIWeb.Business
             if (invoice.Balance <= 0m || invoice.Status == "Paid")
                 return new StartCheckoutResponse { Success = false, Message = "This period's invoice is already settled." };
 
-            // Server-computed amount + our reference; the browser never chooses a price (spec 31.1).
             var reference = $"{invoice.Number}-{Guid.NewGuid():N}"[..40];
-            var http = _httpFactory.CreateClient();
-            http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _paystackSecret);
-            var payload = System.Text.Json.JsonSerializer.Serialize(new
-            {
-                email = acct.BillingEmail ?? "billing@visibilitycore.com",
-                amount = PlatformBillingRules.ToMinorUnits(invoice.Balance, acct.CurrencyCode),
-                currency = acct.CurrencyCode.ToUpperInvariant(),
-                reference,
-                callback_url = req.SuccessUrl,
-                metadata = new { invoiceNumber = invoice.Number, accountId = acct.Id, cancelUrl = req.FailureUrl },
-            });
-            using var content = new StringContent(payload, System.Text.Encoding.UTF8, "application/json");
-            var resp = await http.PostAsync("https://api.paystack.co/transaction/initialize", content);
-            var text = await resp.Content.ReadAsStringAsync();
-            if (!resp.IsSuccessStatusCode)
-                return new StartCheckoutResponse { Success = false, Message = $"Paystack initialize failed: {text}" };
-
-            using var doc = System.Text.Json.JsonDocument.Parse(text);
-            var data = doc.RootElement.GetProperty("data");
-            var url = data.TryGetProperty("authorization_url", out var au) ? au.GetString() : null;
-            if (string.IsNullOrWhiteSpace(url))
-                return new StartCheckoutResponse { Success = false, Message = "Paystack did not return a checkout URL." };
+            var checkout = await _provider.CreateCheckoutAsync(
+                acct.BillingEmail ?? "billing@visibilitycore.com",
+                PlatformBillingRules.ToMinorUnits(invoice.Balance, acct.CurrencyCode),
+                acct.CurrencyCode, reference, req.SuccessUrl, req.FailureUrl, invoice.Number, acct.Id);
+            if (!checkout.Ok)
+                return new StartCheckoutResponse { Success = false, Message = checkout.Message };
 
             using (var upd = new NpgsqlCommand(
                 "UPDATE platforminvoices SET externalreference = @R WHERE id = @I", conn))
@@ -725,11 +784,12 @@ namespace PoultryFarmAPIWeb.Business
                 await upd.ExecuteNonQueryAsync();
             }
             await LogEventAsync(conn, acct.Id, null, "CheckoutInitiated", null, reference, req.UserId, null);
+            _log.LogInformation("Checkout {Reference} started for invoice {Number}", reference, invoice.Number);
 
             return new StartCheckoutResponse
             {
                 Success = true,
-                CheckoutUrl = url,
+                CheckoutUrl = checkout.CheckoutUrl,
                 Reference = reference,
                 InvoiceNumber = invoice.Number,
                 Amount = invoice.Balance,
@@ -737,45 +797,15 @@ namespace PoultryFarmAPIWeb.Business
             };
         }
 
-        /// <summary>
-        /// Authoritative confirmation by provider verify — the return URL
-        /// alone never settles anything (spec 13.4). Shares the idempotent
-        /// settlement path with the webhook, so browser-return and webhook
-        /// racing each other still posts exactly once.
-        /// </summary>
         public async Task<(bool Ok, string Message)> VerifyAndSettleAsync(string userId, string reference)
         {
-            if (string.IsNullOrWhiteSpace(_paystackSecret))
-                return (false, "Paystack is not configured on this service.");
-            var http = _httpFactory.CreateClient();
-            http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _paystackSecret);
-            var resp = await http.GetAsync($"https://api.paystack.co/transaction/verify/{Uri.EscapeDataString(reference)}");
-            var text = await resp.Content.ReadAsStringAsync();
-            if (!resp.IsSuccessStatusCode) return (false, $"Paystack verify failed: {text}");
-
-            using var doc = System.Text.Json.JsonDocument.Parse(text);
-            var data = doc.RootElement.GetProperty("data");
-            var status = data.TryGetProperty("status", out var st) ? st.GetString() : null;
-            if (!string.Equals(status, "success", StringComparison.OrdinalIgnoreCase))
-                return (false, $"Payment is not successful yet (status: {status}).");
-
-            return await SettleAsync(
-                externalPaymentId: data.TryGetProperty("id", out var pid) ? pid.GetRawText() : null,
-                reference: reference,
-                amountMinor: data.TryGetProperty("amount", out var am) ? am.GetInt64() : 0,
-                currency: data.TryGetProperty("currency", out var cu) ? cu.GetString() ?? "" : "",
-                paidAtUtc: data.TryGetProperty("paid_at", out var pa) && pa.ValueKind == System.Text.Json.JsonValueKind.String
-                           && DateTime.TryParse(pa.GetString(), null, System.Globalization.DateTimeStyles.AdjustToUniversal, out var dt)
-                           ? dt : DateTime.UtcNow,
-                methodSummary: data.TryGetProperty("channel", out var ch) ? ch.GetString() : null);
+            if (!_provider.IsConfigured) return (false, "Payment provider is not configured on this service.");
+            var charge = await _provider.VerifyAsync(reference);
+            if (!charge.Ok) return (false, charge.Message ?? "Verification failed.");
+            return await SettleAsync(charge.ExternalPaymentId, charge.Reference, charge.AmountMinor,
+                charge.Currency, charge.PaidAtUtc, charge.MethodSummary);
         }
 
-        /// <summary>
-        /// One settlement per provider payment, no matter how many webhook
-        /// deliveries or verify calls carry it: the UNIQUE index on
-        /// (provider, externalreference) turns duplicates into no-ops
-        /// inside the same transaction that applies the money (spec 13.3).
-        /// </summary>
         private async Task<(bool Ok, string Message)> SettleAsync(
             string? externalPaymentId, string reference, long amountMinor, string currency,
             DateTime paidAtUtc, string? methodSummary)
@@ -784,15 +814,14 @@ namespace PoultryFarmAPIWeb.Business
             await conn.OpenAsync();
             using var tx = await conn.BeginTransactionAsync();
 
-            // References are minted as "<invoicenumber>-<guid>", so a payment
-            // still settles even when a SECOND checkout attempt has since
-            // replaced the invoice's stored reference — paying the first link
-            // must never fall into a void (spec Part 60, duplicate checkout).
-            var numberFromRef = reference.Contains('-') ? reference[..reference.LastIndexOf('-')] : reference;
+            // References are "<invoicenumber>-<guid>": the fallback match means a
+            // payment settles even when a SECOND checkout attempt replaced the
+            // invoice's stored reference (Part 60, duplicate checkout).
+            var numberFromRef = PlatformBillingRules.InvoiceNumberFromReference(reference);
 
-            long invoiceId; long accountId; decimal balance; string number; string curr;
+            long invoiceId; long accountId; string number; string curr;
             using (var q = new NpgsqlCommand(@"
-                SELECT id, accountid, balance, invoicenumber, currencycode
+                SELECT id, accountid, invoicenumber, currencycode
                   FROM platforminvoices
                  WHERE externalreference = @R OR invoicenumber = @N
                  ORDER BY (externalreference = @R) DESC
@@ -804,37 +833,35 @@ namespace PoultryFarmAPIWeb.Business
                 using var r = await q.ExecuteReaderAsync();
                 if (!await r.ReadAsync()) return (false, $"No invoice matches reference {reference}.");
                 invoiceId = r.GetInt64(0); accountId = r.GetInt64(1);
-                balance = r.GetDecimal(2); number = r.GetString(3); curr = r.GetString(4);
+                number = r.GetString(2); curr = r.GetString(3);
             }
 
             var amount = PlatformBillingRules.Money(amountMinor / 100m);
             if (!string.Equals(curr, currency, StringComparison.OrdinalIgnoreCase))
                 return (false, $"Payment currency {currency} does not match invoice currency {curr}.");
 
-            long paymentId;
             using (var ins = new NpgsqlCommand(@"
                 INSERT INTO platformpayments
                        (accountid, invoiceid, provider, externalpaymentid, externalreference,
                         amount, currencycode, status, paymentdateutc, methodsummary)
-                VALUES (@A, @I, 'paystack', @EP, @R, @Amt, @C, 'Succeeded', @Paid, @M)
+                VALUES (@A, @I, @Prov, @EP, @R, @Amt, @C, 'Succeeded', @Paid, @M)
                 ON CONFLICT (provider, externalreference) WHERE externalreference IS NOT NULL DO NOTHING
                 RETURNING id", conn, (NpgsqlTransaction)tx))
             {
                 ins.Parameters.AddWithValue("@A", accountId);
                 ins.Parameters.AddWithValue("@I", invoiceId);
+                ins.Parameters.AddWithValue("@Prov", _provider.Name);
                 ins.Parameters.AddWithValue("@EP", (object?)externalPaymentId ?? DBNull.Value);
                 ins.Parameters.AddWithValue("@R", reference);
                 ins.Parameters.AddWithValue("@Amt", amount);
                 ins.Parameters.AddWithValue("@C", curr);
                 ins.Parameters.AddWithValue("@Paid", paidAtUtc);
                 ins.Parameters.AddWithValue("@M", (object?)methodSummary ?? DBNull.Value);
-                var idObj = await ins.ExecuteScalarAsync();
-                if (idObj is null)
+                if (await ins.ExecuteScalarAsync() is null)
                 {
                     await tx.RollbackAsync();
-                    return (true, "Payment already recorded."); // duplicate delivery — business posting happened once
+                    return (true, "Payment already recorded.");   // duplicate delivery posts once (13.3)
                 }
-                paymentId = (long)idObj;
             }
 
             using (var updInv = new NpgsqlCommand(@"
@@ -851,12 +878,13 @@ namespace PoultryFarmAPIWeb.Business
 
             using (var updAcct = new NpgsqlCommand(@"
                 UPDATE organizationbillingaccounts
-                   SET status = 'Active', provider = 'paystack',
+                   SET status = 'Active', provider = @Prov,
                        currentperiodstart = (SELECT periodstart FROM platforminvoices WHERE id = @I),
                        currentperiodend   = (SELECT periodend   FROM platforminvoices WHERE id = @I),
                        updatedatutc = now() AT TIME ZONE 'utc'
                  WHERE id = @A", conn, (NpgsqlTransaction)tx))
             {
+                updAcct.Parameters.AddWithValue("@Prov", _provider.Name);
                 updAcct.Parameters.AddWithValue("@I", invoiceId);
                 updAcct.Parameters.AddWithValue("@A", accountId);
                 await updAcct.ExecuteNonQueryAsync();
@@ -865,6 +893,8 @@ namespace PoultryFarmAPIWeb.Business
             await LogEventAsync(conn, accountId, null, "PaymentSucceeded", null,
                 $"{number} {curr} {amount}", "system", reference, (NpgsqlTransaction)tx);
             await tx.CommitAsync();
+            _log.LogInformation("Payment {Reference} of {Amount} {Currency} settled invoice {Number}",
+                reference, amount, curr, number);
             return (true, $"Payment of {curr} {amount} applied to {number}.");
         }
 
@@ -874,92 +904,67 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<(bool Ok, string Message)> ProcessPaystackWebhookAsync(string payload, string signatureHeader)
         {
-            // Authenticity first (spec 13.2): HMAC-SHA512 of the raw body with the secret key.
-            if (string.IsNullOrWhiteSpace(_paystackSecret)) return (false, "Provider not configured.");
-            var computed = Convert.ToHexString(
-                new System.Security.Cryptography.HMACSHA512(System.Text.Encoding.UTF8.GetBytes(_paystackSecret))
-                    .ComputeHash(System.Text.Encoding.UTF8.GetBytes(payload))).ToLowerInvariant();
-            if (!string.Equals(computed, signatureHeader?.Trim(), StringComparison.OrdinalIgnoreCase))
-                return (false, "Invalid signature.");
+            var ev = _provider.ParseWebhook(payload, signatureHeader);
+            if (!ev.SignatureValid) return (false, "Invalid signature.");
 
             var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
                 System.Text.Encoding.UTF8.GetBytes(payload))).ToLowerInvariant();
 
-            string eventType = "unknown"; string? reference = null; string? extId = null;
-            long amountMinor = 0; string currency = ""; string? channel = null; DateTime paidAt = DateTime.UtcNow;
-            try
-            {
-                using var doc = System.Text.Json.JsonDocument.Parse(payload);
-                eventType = doc.RootElement.TryGetProperty("event", out var ev) ? ev.GetString() ?? "unknown" : "unknown";
-                if (doc.RootElement.TryGetProperty("data", out var data))
-                {
-                    reference = data.TryGetProperty("reference", out var rf) ? rf.GetString() : null;
-                    extId = data.TryGetProperty("id", out var idp) ? idp.GetRawText() : null;
-                    amountMinor = data.TryGetProperty("amount", out var am) ? am.GetInt64() : 0;
-                    currency = data.TryGetProperty("currency", out var cu) ? cu.GetString() ?? "" : "";
-                    channel = data.TryGetProperty("channel", out var chp) ? chp.GetString() : null;
-                    if (data.TryGetProperty("paid_at", out var pa) && pa.ValueKind == System.Text.Json.JsonValueKind.String)
-                        DateTime.TryParse(pa.GetString(), null, System.Globalization.DateTimeStyles.AdjustToUniversal, out paidAt);
-                }
-            }
-            catch { /* recorded below as unparseable; never 500 back at the provider */ }
-
             using var conn = new NpgsqlConnection(_cs);
             await conn.OpenAsync();
 
-            // The event store is the delivery-level dedupe (spec 13.1): the
-            // same payload landing twice is recorded once and processed once.
             using (var ins = new NpgsqlCommand(@"
                 INSERT INTO billingwebhookevents (provider, externaleventid, eventtype, payloadhash)
-                VALUES ('paystack', @E, @T, @H)
+                VALUES (@P, @E, @T, @H)
                 ON CONFLICT (provider, payloadhash) DO NOTHING RETURNING id", conn))
             {
-                ins.Parameters.AddWithValue("@E", (object?)extId ?? DBNull.Value);
-                ins.Parameters.AddWithValue("@T", eventType);
+                ins.Parameters.AddWithValue("@P", _provider.Name);
+                ins.Parameters.AddWithValue("@E", (object?)ev.ExternalPaymentId ?? DBNull.Value);
+                ins.Parameters.AddWithValue("@T", ev.EventType);
                 ins.Parameters.AddWithValue("@H", hash);
                 if (await ins.ExecuteScalarAsync() is null)
                     return (true, "Duplicate delivery ignored.");
             }
 
             string resultMsg; string resultStatus;
-            if (eventType == "charge.success" && !string.IsNullOrWhiteSpace(reference))
+            if (ev.EventType == "charge.success" && !string.IsNullOrWhiteSpace(ev.Reference))
             {
-                var (ok, msg) = await SettleAsync(extId, reference!, amountMinor, currency, paidAt, channel);
+                var (ok, msg) = await SettleAsync(ev.ExternalPaymentId, ev.Reference!, ev.AmountMinor,
+                    ev.Currency, ev.PaidAtUtc, ev.MethodSummary);
                 resultMsg = msg; resultStatus = ok ? "Processed" : "Failed";
             }
-            else if (eventType == "charge.failed" && !string.IsNullOrWhiteSpace(reference))
+            else if (ev.EventType == "charge.failed" && !string.IsNullOrWhiteSpace(ev.Reference))
             {
-                // A failed attempt is a first-class record too (spec Part 14):
-                // the invoice stays unpaid, nothing is restricted (Part 20 —
-                // enforcement is a separate switch), but the failure and its
-                // provider message are kept on our side of the ledger.
-                var (ok, msg) = await RecordFailedPaymentAsync(conn, extId, reference!, amountMinor, currency, payload);
+                var (ok, msg) = await RecordFailedPaymentAsync(conn, ev.ExternalPaymentId, ev.Reference!,
+                    ev.AmountMinor, ev.Currency, ev.FailureMessage);
                 resultMsg = msg; resultStatus = ok ? "Processed" : "Failed";
             }
             else
             {
-                resultMsg = $"Event {eventType} acknowledged."; resultStatus = "Ignored";
+                resultMsg = $"Event {ev.EventType} acknowledged."; resultStatus = "Ignored";
             }
 
             using (var upd = new NpgsqlCommand(@"
                 UPDATE billingwebhookevents
                    SET processedatutc = now() AT TIME ZONE 'utc', processingstatus = @S, error = @Err
-                 WHERE provider='paystack' AND payloadhash = @H", conn))
+                 WHERE provider = @P AND payloadhash = @H", conn))
             {
                 upd.Parameters.AddWithValue("@S", resultStatus);
                 upd.Parameters.AddWithValue("@Err", resultStatus == "Failed" ? resultMsg : (object)DBNull.Value);
+                upd.Parameters.AddWithValue("@P", _provider.Name);
                 upd.Parameters.AddWithValue("@H", hash);
                 await upd.ExecuteNonQueryAsync();
             }
+            _log.LogInformation("Webhook {EventType} -> {Status}: {Message}", ev.EventType, resultStatus, resultMsg);
             return (true, resultMsg);
         }
 
-        /// <summary>Record a failed charge against its invoice's account — idempotently, like success.</summary>
+        /// <summary>A failed attempt is a first-class record too (spec Part 14), idempotently.</summary>
         private async Task<(bool Ok, string Message)> RecordFailedPaymentAsync(
             NpgsqlConnection conn, string? externalPaymentId, string reference, long amountMinor,
-            string currency, string payload)
+            string currency, string? failureMessage)
         {
-            var numberFromRef = reference.Contains('-') ? reference[..reference.LastIndexOf('-')] : reference;
+            var numberFromRef = PlatformBillingRules.InvoiceNumberFromReference(reference);
             long? accountId = null; long? invoiceId = null;
             using (var q = new NpgsqlCommand(@"
                 SELECT id, accountid FROM platforminvoices
@@ -973,25 +978,16 @@ namespace PoultryFarmAPIWeb.Business
             }
             if (accountId is null) return (true, $"Failed charge {reference} matches no invoice; recorded as event only.");
 
-            string? failureMessage = null;
-            try
-            {
-                using var doc = System.Text.Json.JsonDocument.Parse(payload);
-                if (doc.RootElement.TryGetProperty("data", out var data)
-                    && data.TryGetProperty("gateway_response", out var gr))
-                    failureMessage = gr.GetString();
-            }
-            catch { }
-
             using (var ins = new NpgsqlCommand(@"
                 INSERT INTO platformpayments
                        (accountid, invoiceid, provider, externalpaymentid, externalreference,
                         amount, currencycode, status, failuremessage)
-                VALUES (@A, @I, 'paystack', @EP, @R, @Amt, @C, 'Failed', @FM)
+                VALUES (@A, @I, @P, @EP, @R, @Amt, @C, 'Failed', @FM)
                 ON CONFLICT (provider, externalreference) WHERE externalreference IS NOT NULL DO NOTHING", conn))
             {
                 ins.Parameters.AddWithValue("@A", accountId.Value);
                 ins.Parameters.AddWithValue("@I", (object?)invoiceId ?? DBNull.Value);
+                ins.Parameters.AddWithValue("@P", _provider.Name);
                 ins.Parameters.AddWithValue("@EP", (object?)externalPaymentId ?? DBNull.Value);
                 ins.Parameters.AddWithValue("@R", reference);
                 ins.Parameters.AddWithValue("@Amt", PlatformBillingRules.Money(amountMinor / 100m));
@@ -1004,7 +1000,400 @@ namespace PoultryFarmAPIWeb.Business
         }
 
         // ------------------------------------------------------------------
-        // Payments list + audit
+        // Market change (spec 3.7/46) — a controlled request, never a dropdown
+        // ------------------------------------------------------------------
+
+        public async Task<(bool Ok, string Message)> RequestMarketChangeAsync(string userId, string marketCode, string? reason)
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            await conn.OpenAsync();
+            var acct = await EnsureAccountAsync(conn, userId);
+            var code = (marketCode ?? "").Trim().ToUpperInvariant();
+            if (string.Equals(code, acct.MarketCode, StringComparison.OrdinalIgnoreCase))
+                return (false, "That is already your billing market.");
+
+            using (var m = new NpgsqlCommand("SELECT active FROM billingmarkets WHERE code = @C", conn))
+            {
+                m.Parameters.AddWithValue("@C", code);
+                var active = await m.ExecuteScalarAsync();
+                if (active is null) return (false, $"Unknown billing market {code}.");
+                if (active is not true) return (false, $"Billing market {code} is not open yet.");
+            }
+
+            // Effective next cycle: current invoices and the running period are
+            // never touched (46 — historical invoices unchanged).
+            var effective = CurrentPeriod(acct.BillingCycle).End.AddDays(1);
+            using (var upd = new NpgsqlCommand(@"
+                UPDATE organizationbillingaccounts
+                   SET pendingmarketcode = @C, pendingmarketeffective = @E,
+                       updatedatutc = now() AT TIME ZONE 'utc'
+                 WHERE id = @A", conn))
+            {
+                upd.Parameters.AddWithValue("@C", code);
+                upd.Parameters.AddWithValue("@E", effective.Date);
+                upd.Parameters.AddWithValue("@A", acct.Id);
+                await upd.ExecuteNonQueryAsync();
+            }
+            await LogEventAsync(conn, acct.Id, null, "BillingMarketChangeRequested",
+                acct.MarketCode, code, userId, reason ?? "");
+            return (true, $"Billing market change to {code} takes effect {effective:d}. Your current period is unchanged.");
+        }
+
+        public async Task<(bool Ok, string Message)> CancelMarketChangeAsync(string userId)
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            await conn.OpenAsync();
+            var acct = await EnsureAccountAsync(conn, userId);
+            if (acct.PendingMarketCode is null) return (false, "No market change is pending.");
+            using (var upd = new NpgsqlCommand(@"
+                UPDATE organizationbillingaccounts
+                   SET pendingmarketcode = NULL, pendingmarketeffective = NULL,
+                       updatedatutc = now() AT TIME ZONE 'utc'
+                 WHERE id = @A", conn))
+            {
+                upd.Parameters.AddWithValue("@A", acct.Id);
+                await upd.ExecuteNonQueryAsync();
+            }
+            await LogEventAsync(conn, acct.Id, null, "BillingMarketChangeCancelled", acct.PendingMarketCode, acct.MarketCode, userId, null);
+            return (true, "Pending market change cancelled.");
+        }
+
+        /// <summary>The "show resulting price impact" half of 3.7 — same engine, target market's config, nothing persisted.</summary>
+        public async Task<MarketChangePreviewModel?> PreviewMarketAsync(string userId, string marketCode)
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            await conn.OpenAsync();
+            var acct = await EnsureAccountAsync(conn, userId);
+            var code = (marketCode ?? "").Trim().ToUpperInvariant();
+            var cfg = await LoadConfigAsync(conn, code);
+            if (!cfg.Markets.TryGetValue(code, out var market)) return null;
+
+            var previewAcct = new BillingAccountModel
+            {
+                Id = acct.Id,
+                OwnerUserId = acct.OwnerUserId,
+                MarketCode = code,
+                CurrencyCode = market.Currency,
+                BillingCycle = acct.BillingCycle,
+            };
+            var (ps, pe) = CurrentPeriod(acct.BillingCycle);
+            var companies = new List<CompanyBillingRowModel>();
+            foreach (var c in await LoadCompaniesAsync(conn, userId))
+                companies.Add(await EvaluateCompanyAsync(conn, cfg, previewAcct, c, "Preview", ps, pe,
+                    persistEvaluation: false));
+
+            return new MarketChangePreviewModel
+            {
+                MarketCode = code,
+                MarketName = market.Name,
+                CurrencyCode = market.Currency,
+                MarketActive = market.Active,
+                Companies = companies,
+                Preview = BuildPreview(cfg, previewAcct, companies, ps, pe),
+            };
+        }
+
+        // ------------------------------------------------------------------
+        // Cycle, cancellation
+        // ------------------------------------------------------------------
+
+        public async Task<(bool Ok, string Message)> SetBillingCycleAsync(string userId, string cycle)
+        {
+            var c = (cycle ?? "").Trim().ToLowerInvariant();
+            if (c is not ("monthly" or "annual")) return (false, "Billing cycle must be monthly or annual.");
+            using var conn = new NpgsqlConnection(_cs);
+            await conn.OpenAsync();
+            var acct = await EnsureAccountAsync(conn, userId);
+            if (string.Equals(acct.BillingCycle, c, StringComparison.OrdinalIgnoreCase))
+                return (false, $"Billing cycle is already {c}.");
+            using (var upd = new NpgsqlCommand(@"
+                UPDATE organizationbillingaccounts SET billingcycle = @C, updatedatutc = now() AT TIME ZONE 'utc'
+                 WHERE id = @A", conn))
+            {
+                upd.Parameters.AddWithValue("@C", c);
+                upd.Parameters.AddWithValue("@A", acct.Id);
+                await upd.ExecuteNonQueryAsync();
+            }
+            await LogEventAsync(conn, acct.Id, null, "BillingCycleChanged", acct.BillingCycle, c, userId, null);
+            return (true, $"Billing cycle set to {c}. It applies from your next invoice; the current period is unchanged.");
+        }
+
+        public async Task<(bool Ok, string Message)> CancelAtPeriodEndAsync(string userId, string? reason)
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            await conn.OpenAsync();
+            var acct = await EnsureAccountAsync(conn, userId);
+            if (acct.CancelAtPeriodEnd) return (false, "Cancellation is already scheduled.");
+            using (var upd = new NpgsqlCommand(@"
+                UPDATE organizationbillingaccounts SET cancelatperiodend = TRUE, updatedatutc = now() AT TIME ZONE 'utc'
+                 WHERE id = @A", conn))
+            {
+                upd.Parameters.AddWithValue("@A", acct.Id);
+                await upd.ExecuteNonQueryAsync();
+            }
+            await LogEventAsync(conn, acct.Id, null, "CancellationRequested", null,
+                acct.CurrentPeriodEnd?.ToString("yyyy-MM-dd") ?? "period end", userId, reason);
+            var paidThrough = acct.CurrentPeriodEnd?.ToString("d") ?? "the end of the current period";
+            return (true, $"Your subscription will not renew. You keep full access through {paidThrough}.");
+        }
+
+        public async Task<(bool Ok, string Message)> ReactivateAsync(string userId)
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            await conn.OpenAsync();
+            var acct = await EnsureAccountAsync(conn, userId);
+            if (!acct.CancelAtPeriodEnd && acct.Status != "Cancelled")
+                return (false, "The subscription is not cancelled.");
+            using (var upd = new NpgsqlCommand(@"
+                UPDATE organizationbillingaccounts
+                   SET cancelatperiodend = FALSE,
+                       status = CASE WHEN status = 'Cancelled' THEN 'Active' ELSE status END,
+                       updatedatutc = now() AT TIME ZONE 'utc'
+                 WHERE id = @A", conn))
+            {
+                upd.Parameters.AddWithValue("@A", acct.Id);
+                await upd.ExecuteNonQueryAsync();
+            }
+            await LogEventAsync(conn, acct.Id, null, "SubscriptionReactivated", null, null, userId, null);
+            return (true, "Welcome back — your subscription will continue.");   // no duplicate subscription (21)
+        }
+
+        // ------------------------------------------------------------------
+        // Company Plan & Usage (spec 23) + entitlements (17)
+        // ------------------------------------------------------------------
+
+        public async Task<PlanUsageModel?> GetPlanUsageAsync(string userId, string farmId)
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            await conn.OpenAsync();
+
+            // The viewer must be a member of this company; anyone in the farm
+            // may SEE the plan, only the Business Office manages it (57).
+            using (var member = new NpgsqlCommand(
+                "SELECT 1 FROM userfarms WHERE userid = @U AND farmid = @F", conn))
+            {
+                member.Parameters.AddWithValue("@U", userId);
+                member.Parameters.AddWithValue("@F", farmId);
+                if (await member.ExecuteScalarAsync() is null) return null;
+            }
+
+            using var cmd = new NpgsqlCommand(@"
+                SELECT e.billingprofilecode, e.metrictype, e.metricvalue, e.tiercode, e.monthlyamount,
+                       e.currencycode, e.pricingstatus, e.evaluatedatutc, f.name,
+                       COALESCE(a.billingcontactname, a.orgcode, 'your Business Office')
+                  FROM companybillingevaluations e
+                  JOIN farms f ON f.farmid = e.farmid
+                  JOIN organizationbillingaccounts a ON a.id = e.accountid
+                 WHERE e.farmid = @F
+                 ORDER BY e.evaluatedatutc DESC LIMIT 1", conn);
+            cmd.Parameters.AddWithValue("@F", farmId);
+            using var r = await cmd.ExecuteReaderAsync();
+            if (!await r.ReadAsync()) return null;
+
+            return new PlanUsageModel
+            {
+                FarmId = farmId,
+                CompanyName = r.GetString(8),
+                BillingProfileCode = r.GetString(0),
+                MetricType = r.GetString(1),
+                MetricValue = r.GetDecimal(2),
+                TierCode = r.IsDBNull(3) ? null : r.GetString(3),
+                MonthlyAmount = r.IsDBNull(4) ? null : r.GetDecimal(4),
+                CurrencyCode = r.GetString(5),
+                PricingStatus = r.GetString(6),
+                EvaluatedAtUtc = r.GetDateTime(7),
+                ManagedBy = r.GetString(9),
+            };
+        }
+
+        public async Task<List<EntitlementModel>> GetEntitlementsAsync(string userId, string farmId)
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            await conn.OpenAsync();
+            var list = new List<EntitlementModel>();
+
+            string? tierCode = null;
+            using (var q = new NpgsqlCommand(@"
+                SELECT e.tiercode FROM companybillingevaluations e
+                 WHERE e.farmid = @F AND e.tiercode IS NOT NULL
+                 ORDER BY e.evaluatedatutc DESC LIMIT 1", conn))
+            {
+                q.Parameters.AddWithValue("@F", farmId);
+                tierCode = await q.ExecuteScalarAsync() as string;
+            }
+            if (tierCode is null) return list;   // no tier yet: nothing restricted, nothing listed
+
+            using var cmd = new NpgsqlCommand(@"
+                SELECT capability, enabled, limitvalue FROM planentitlements WHERE tiercode = @T", conn);
+            cmd.Parameters.AddWithValue("@T", tierCode);
+            using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+                list.Add(new EntitlementModel
+                {
+                    TierCode = tierCode,
+                    Capability = r.GetString(0),
+                    Enabled = r.GetBoolean(1),
+                    Limit = r.IsDBNull(2) ? null : r.GetDecimal(2),
+                });
+            return list;   // a capability with NO row is unlimited by convention (17)
+        }
+
+        // ------------------------------------------------------------------
+        // Daily maintenance (spec 20/33) — deterministic, idempotent, lockable
+        // ------------------------------------------------------------------
+
+        public async Task<string> RunDailyMaintenanceAsync(string actor)
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            await conn.OpenAsync();
+
+            // One runner at a time across every instance.
+            using (var lk = new NpgsqlCommand("SELECT pg_try_advisory_lock(3290001)", conn))
+                if (await lk.ExecuteScalarAsync() is not true)
+                    return "Another maintenance run holds the lock; skipped.";
+
+            var report = new List<string>();
+            try
+            {
+                // 1. Apply due market changes at a period boundary (3.7).
+                using (var due = new NpgsqlCommand(@"
+                    SELECT id, owneruserid, billingmarketcode, pendingmarketcode FROM organizationbillingaccounts
+                     WHERE pendingmarketcode IS NOT NULL AND pendingmarketeffective <= CURRENT_DATE", conn))
+                using (var r = await due.ExecuteReaderAsync())
+                {
+                    var rows = new List<(long, string, string, string)>();
+                    while (await r.ReadAsync()) rows.Add((r.GetInt64(0), r.GetString(1), r.GetString(2), r.GetString(3)));
+                    r.Close();
+                    foreach (var (id, owner, oldM, newM) in rows)
+                    {
+                        using var upd = new NpgsqlCommand(@"
+                            UPDATE organizationbillingaccounts a
+                               SET billingmarketcode = @N,
+                                   currencycode = m.currencycode,
+                                   pendingmarketcode = NULL, pendingmarketeffective = NULL,
+                                   updatedatutc = now() AT TIME ZONE 'utc'
+                              FROM billingmarkets m
+                             WHERE a.id = @A AND m.code = @N AND m.active", conn);
+                        upd.Parameters.AddWithValue("@N", newM);
+                        upd.Parameters.AddWithValue("@A", id);
+                        if (await upd.ExecuteNonQueryAsync() > 0)
+                        {
+                            await LogEventAsync(conn, id, null, "BillingMarketChanged", oldM, newM, actor, "scheduled");
+                            report.Add($"market {oldM}->{newM} applied for account {id}");
+                        }
+                    }
+                }
+
+                // 2. Invoice past-due bookkeeping + account status ladder (20).
+                using (var upd = new NpgsqlCommand(@"
+                    UPDATE platforminvoices SET status = 'PastDue'
+                     WHERE status = 'Open' AND duedate < CURRENT_DATE", conn))
+                    report.Add($"{await upd.ExecuteNonQueryAsync()} invoices past due");
+
+                var graceDays = 14; var suspendDays = 14;
+                using (var s = new NpgsqlCommand(
+                    "SELECT key, value FROM platformbillingsettings WHERE key IN ('gracedays','suspenddaysaftergrace')", conn))
+                using (var r = await s.ExecuteReaderAsync())
+                    while (await r.ReadAsync())
+                    {
+                        if (r.GetString(0) == "gracedays") int.TryParse(r.GetString(1), out graceDays);
+                        else int.TryParse(r.GetString(1), out suspendDays);
+                    }
+
+                using (var q = new NpgsqlCommand(@"
+                    SELECT a.id, a.status, MIN(i.duedate)
+                      FROM organizationbillingaccounts a
+                      JOIN platforminvoices i ON i.accountid = a.id AND i.status IN ('Open','PastDue') AND i.balance > 0
+                     WHERE a.status IN ('Active','PastDue','GracePeriod','Suspended')
+                     GROUP BY a.id, a.status", conn))
+                using (var r = await q.ExecuteReaderAsync())
+                {
+                    var rows = new List<(long, string, DateTime)>();
+                    while (await r.ReadAsync()) rows.Add((r.GetInt64(0), r.GetString(1), r.GetDateTime(2)));
+                    r.Close();
+                    foreach (var (id, current, oldestDue) in rows)
+                    {
+                        var target = PlatformBillingRules.AccountStatusFor(
+                            oldestDue, DateTime.UtcNow.Date, graceDays, suspendDays);
+                        if (target == current) continue;
+                        using var upd = new NpgsqlCommand(
+                            "UPDATE organizationbillingaccounts SET status = @S, updatedatutc = now() AT TIME ZONE 'utc' WHERE id = @A", conn);
+                        upd.Parameters.AddWithValue("@S", target);
+                        upd.Parameters.AddWithValue("@A", id);
+                        await upd.ExecuteNonQueryAsync();
+                        await LogEventAsync(conn, id, null, $"Account{target}", current, target, actor, "dunning");
+                        report.Add($"account {id}: {current} -> {target}");
+                    }
+                }
+
+                // 3. Complete scheduled cancellations at period end (21).
+                using (var q = new NpgsqlCommand(@"
+                    SELECT id, owneruserid FROM organizationbillingaccounts
+                     WHERE cancelatperiodend AND currentperiodend IS NOT NULL AND currentperiodend < CURRENT_DATE
+                       AND status <> 'Cancelled'", conn))
+                using (var r = await q.ExecuteReaderAsync())
+                {
+                    var rows = new List<(long, string)>();
+                    while (await r.ReadAsync()) rows.Add((r.GetInt64(0), r.GetString(1)));
+                    r.Close();
+                    foreach (var (id, owner) in rows)
+                    {
+                        using var upd = new NpgsqlCommand(
+                            "UPDATE organizationbillingaccounts SET status = 'Cancelled', updatedatutc = now() AT TIME ZONE 'utc' WHERE id = @A", conn);
+                        upd.Parameters.AddWithValue("@A", id);
+                        await upd.ExecuteNonQueryAsync();
+                        await LogEventAsync(conn, id, null, "SubscriptionCancelled", null, null, actor, "period end reached");
+                        report.Add($"account {id} cancelled at period end");
+                    }
+                }
+
+                // 4. Auto-generate the new period's invoice for Active accounts —
+                //    only when deliberately enabled (33; ships off).
+                var autoInvoice = false;
+                using (var s = new NpgsqlCommand(
+                    "SELECT value FROM platformbillingsettings WHERE key='autoinvoiceenabled'", conn))
+                    autoInvoice = string.Equals(await s.ExecuteScalarAsync() as string, "true", StringComparison.OrdinalIgnoreCase);
+                if (autoInvoice)
+                {
+                    using var q = new NpgsqlCommand(@"
+                        SELECT owneruserid FROM organizationbillingaccounts a
+                         WHERE a.status = 'Active' AND NOT a.cancelatperiodend
+                           AND NOT EXISTS (SELECT 1 FROM platforminvoices i
+                                            WHERE i.accountid = a.id AND i.periodstart = date_trunc('month', CURRENT_DATE)::date)", conn);
+                    var owners = new List<string>();
+                    using (var r = await q.ExecuteReaderAsync())
+                        while (await r.ReadAsync()) owners.Add(r.GetString(0));
+                    foreach (var owner in owners)
+                    {
+                        try
+                        {
+                            var acct = await EnsureAccountAsync(conn, owner);
+                            var cfg = await LoadConfigAsync(conn, acct.MarketCode);
+                            var inv = await EnsureCurrentInvoiceAsync(conn, acct, cfg);
+                            report.Add($"invoice {inv.Number} auto-generated");
+                        }
+                        catch (InvalidOperationException ex)
+                        {
+                            // Unpriced companies block generation loudly, not silently (39).
+                            _log.LogWarning("Auto-invoice skipped for {Owner}: {Reason}", owner, ex.Message);
+                            report.Add($"auto-invoice skipped for account of {owner}: {ex.Message}");
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                using var ul = new NpgsqlCommand("SELECT pg_advisory_unlock(3290001)", conn);
+                await ul.ExecuteNonQueryAsync();
+            }
+
+            var text = report.Count == 0 ? "Nothing to do." : string.Join("; ", report);
+            _log.LogInformation("Billing maintenance: {Report}", text);
+            return text;
+        }
+
+        // ------------------------------------------------------------------
+        // Payments list, admin gate, audit
         // ------------------------------------------------------------------
 
         public async Task<List<PlatformPaymentModel>> GetPaymentsAsync(string userId)
@@ -1037,7 +1426,24 @@ namespace PoultryFarmAPIWeb.Business
             return list;
         }
 
-        private static async Task LogEventAsync(NpgsqlConnection conn, long? accountId, string? farmId,
+        /// <summary>
+        /// Platform pricing is edited only by SystemAdmin / PlatformOwner
+        /// (spec 27.1) — the same roles DatabaseBootstrap seeds for the
+        /// platform's own operators. Company owners never qualify.
+        /// </summary>
+        public async Task<bool> IsPlatformAdminAsync(string userId)
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand(@"
+                SELECT 1 FROM aspnetuserroles ur
+                  JOIN aspnetroles r ON r.id = ur.roleid
+                 WHERE ur.userid = @U AND r.name IN ('SystemAdmin','PlatformOwner') LIMIT 1", conn);
+            cmd.Parameters.AddWithValue("@U", userId);
+            return await cmd.ExecuteScalarAsync() is not null;
+        }
+
+        internal static async Task LogEventAsync(NpgsqlConnection conn, long? accountId, string? farmId,
             string eventType, string? oldValue, string? newValue, string? actor, string? reference,
             NpgsqlTransaction? tx = null)
         {

@@ -21,6 +21,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2, CreditCard, Receipt, Info, Landmark, CalendarClock, Building2, Wallet } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   getBillingSummary,
   getPlatformInvoices,
@@ -28,11 +30,18 @@ import {
   startPlatformCheckout,
   verifyPlatformPayment,
   explainCompanyPricing,
+  previewMarket,
+  requestMarketChange,
+  cancelMarketChange,
+  setBillingCycle,
+  cancelSubscription,
+  reactivateSubscription,
   type BillingSummary,
   type PlatformInvoice,
   type PlatformPayment,
   type PricingExplain,
   type CompanyBillingRow,
+  type MarketChangePreview,
 } from "@/lib/api/platform-billing"
 
 const RETURN_PATH = "/business-office/setup?tab=billing"
@@ -123,6 +132,11 @@ export function BillingPanel() {
   const [verifying, setVerifying] = useState(false)
   const [explain, setExplain] = useState<PricingExplain | null>(null)
   const [explainOpen, setExplainOpen] = useState(false)
+  const [marketOpen, setMarketOpen] = useState(false)
+  const [marketTarget, setMarketTarget] = useState("NG")
+  const [marketReason, setMarketReason] = useState("")
+  const [marketPreviewData, setMarketPreviewData] = useState<MarketChangePreview | null>(null)
+  const [marketBusy, setMarketBusy] = useState(false)
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -217,8 +231,66 @@ export function BillingPanel() {
 
   const { account: acct, preview, companies } = summary
 
+  const act = async (fn: () => Promise<{ ok: boolean; message: string }>) => {
+    const r = await fn()
+    toast({ title: r.ok ? "Done" : "Not changed", description: r.message, variant: r.ok ? undefined : "destructive" })
+    if (r.ok) void reload()
+  }
+
+  const loadMarketPreview = async (code: string) => {
+    setMarketTarget(code)
+    setMarketPreviewData(null)
+    try {
+      setMarketPreviewData(await previewMarket(code))
+    } catch {
+      setMarketPreviewData(null)
+    }
+  }
+
   return (
     <div className="space-y-6">
+      {/* No surprises: tier changes are announced before they charge (spec 30) */}
+      {summary.pendingTierChanges?.length > 0 && (
+        <Alert>
+          <AlertDescription className="space-y-1">
+            {summary.pendingTierChanges.map((p) => (
+              <div key={p.farmId}>
+                <strong>{p.companyName}</strong> now qualifies for <strong>{p.toTierName}</strong>. Its
+                subscription changes from {p.fromTierName} to {p.toTierName} beginning{" "}
+                {new Date(p.effectiveDate).toLocaleDateString()} — nothing changes mid-period.
+              </div>
+            ))}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {acct.pendingMarketCode && (
+        <Alert>
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+            <span>
+              Billing market change to <strong>{acct.pendingMarketCode}</strong> takes effect{" "}
+              {acct.pendingMarketEffective ? new Date(acct.pendingMarketEffective).toLocaleDateString() : "next cycle"}.
+            </span>
+            <Button size="sm" variant="outline" onClick={() => void act(cancelMarketChange)}>
+              Cancel change
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {acct.cancelAtPeriodEnd && (
+        <Alert>
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+            <span>
+              Your subscription will not renew. You keep full access through{" "}
+              {acct.currentPeriodEnd ? new Date(acct.currentPeriodEnd).toLocaleDateString() : "the period end"}.
+            </span>
+            <Button size="sm" variant="outline" onClick={() => void act(reactivateSubscription)}>
+              Reactivate
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
       {/* Overview strip — same compact stat style the rest of Administration uses */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
@@ -327,6 +399,42 @@ export function BillingPanel() {
         </CardContent>
       </Card>
 
+      {/* Manage: cycle, market, cancellation — controlled flows, never casual dropdowns */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Manage subscription</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void act(() => setBillingCycle(acct.billingCycle === "annual" ? "monthly" : "annual"))}
+          >
+            Switch to {acct.billingCycle === "annual" ? "monthly" : "annual"} billing
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setMarketOpen(true)
+              void loadMarketPreview(marketTarget)
+            }}
+          >
+            Request billing market change
+          </Button>
+          {!acct.cancelAtPeriodEnd && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-red-700 border-red-200 hover:bg-red-50"
+              onClick={() => void act(() => cancelSubscription())}
+            >
+              Cancel at period end
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Invoices */}
       <Card>
         <CardHeader className="pb-3">
@@ -403,6 +511,76 @@ export function BillingPanel() {
           )}
         </CardContent>
       </Card>
+
+      {/* Market change: request + shown price impact + confirmation (spec 3.7) */}
+      <Dialog open={marketOpen} onOpenChange={setMarketOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Request billing market change</DialogTitle>
+            <DialogDescription>
+              Takes effect at your next billing cycle. Current invoices and the running period never change.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Select value={marketTarget} onValueChange={(v) => void loadMarketPreview(v)}>
+              <SelectTrigger><SelectValue placeholder="New market" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="GH">Ghana — GHS</SelectItem>
+                <SelectItem value="NG">Nigeria — NGN</SelectItem>
+                <SelectItem value="US">United States — USD</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {marketPreviewData && (
+              <div className="rounded-lg border p-3 text-sm space-y-1">
+                {!marketPreviewData.marketActive ? (
+                  <p className="text-amber-700">
+                    {marketPreviewData.marketName} is not open yet — the request will be declined until
+                    VisibilityCore launches there.
+                  </p>
+                ) : marketPreviewData.preview.hasUnpricedCompanies ? (
+                  <p className="text-amber-700">
+                    Pricing for some of your business types is not configured in{" "}
+                    {marketPreviewData.marketName} yet.
+                  </p>
+                ) : (
+                  <p>
+                    Estimated new total:{" "}
+                    <strong>
+                      {marketPreviewData.preview.currencyCode}{" "}
+                      {marketPreviewData.preview.total.toLocaleString()}
+                    </strong>{" "}
+                    / month (currently {preview.currencyCode} {preview.total.toLocaleString()})
+                  </p>
+                )}
+              </div>
+            )}
+
+            <Input
+              placeholder="Reason (e.g. business relocated)"
+              value={marketReason}
+              onChange={(e) => setMarketReason(e.target.value)}
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setMarketOpen(false)}>Close</Button>
+              <Button
+                disabled={marketBusy || marketTarget === acct.marketCode}
+                onClick={async () => {
+                  setMarketBusy(true)
+                  try {
+                    await act(() => requestMarketChange(marketTarget, marketReason))
+                    setMarketOpen(false)
+                  } finally {
+                    setMarketBusy(false)
+                  }
+                }}
+              >
+                {marketBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirm request"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Why this price? — read from the stored evaluation */}
       <Dialog open={explainOpen} onOpenChange={setExplainOpen}>
