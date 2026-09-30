@@ -18,7 +18,8 @@ import { OrganizationProfilePanel } from "@/components/business-office/organizat
 import { UsersPermissionsPanel } from "@/components/business-office/users-permissions-panel"
 import { CompaniesPanel } from "@/components/business-office/companies-panel"
 import { IamPanel } from "@/components/business-office/iam-panel"
-import { UserCog, Users, Building2, KeyRound } from "lucide-react"
+import { BillingPanel } from "@/components/business-office/billing-panel"
+import { UserCog, Users, Building2, KeyRound, CreditCard } from "lucide-react"
 
 // Access sits after Employees & Users deliberately: you hire someone there, then
 // look at what they can do here. It is additive — Employees & Users keeps its own
@@ -31,6 +32,9 @@ const SECTIONS = [
   { key: "users", icon: Users, title: "Employees & Users", short: "Employees", Panel: UsersPermissionsPanel },
   { key: "iam", icon: KeyRound, title: "Access Management", short: "Access", Panel: IamPanel },
   { key: "companies", icon: Building2, title: "Companies", short: "Companies", Panel: CompaniesPanel },
+  // Billing sits last: you set the organization up, then you pay for it. One
+  // consolidated VisibilityCore bill across every company (migration 329).
+  { key: "billing", icon: CreditCard, title: "Subscription & Billing", short: "Billing", Panel: BillingPanel },
 ] as const
 
 function BusinessSetupContent() {
