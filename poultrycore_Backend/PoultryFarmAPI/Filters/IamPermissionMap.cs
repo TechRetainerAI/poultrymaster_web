@@ -143,9 +143,15 @@ namespace PoultryFarmAPIWeb.Filters
             ["poultry/driver-delivery-expenses"] = "poultry.driver-returns",
             ["poultry/feed-formulas"] = "poultry.feed-formulas",
             ["poultry/feed-production"] = "poultry.feed-production",
+            // 335. Distributing feed records feed usage on flocks' production
+            // records, so it rides the existing feed-usage keys. Reversal is
+            // checked explicitly against .delete in the controller.
+            ["poultry/feed-distributions"] = "poultry.feed-usage",
             ["poultry/raw-material-items"] = "poultry.raw-materials",
             ["poultry/raw-material-adjustments"] = "poultry.raw-materials",
             ["poultry/raw-material-purchases"] = "poultry.raw-materials",
+            // 337. How long the stock lasts is part of seeing the stock.
+            ["poultry/stock-supply"] = "poultry.raw-materials",
             // 268. A read-only view of the same stock, valued two ways. It is
             // the raw materials it values, so it rides their resource rather
             // than inventing a permission nobody has been granted.

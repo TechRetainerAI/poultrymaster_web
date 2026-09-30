@@ -428,6 +428,12 @@ export function buildPoultryNavConfig(
           // Links row; closing, reopening and the policy are gated inside the
           // page and on the API by poultry.daily-closing.approve.
           { id: "daily-closing", title: "Daily Closing", icon: CalendarCheck, href: "/poultry-daily-closing" },
+          // Distribute Feed (335): one feed to many flocks in one post, as feed
+          // lines on each flock's production record. Ungated like the
+          // Production rows; the API gates on poultry.feed-usage.
+          { id: "feed-distribution", title: "Distribute Feed", icon: Wheat, href: "/poultry-feed-distribution" },
+          // Days of Supply (337): how long each raw material lasts at its actual usage.
+          { id: "days-of-supply", title: "Days of Supply", icon: Package, href: "/poultry-days-of-supply" },
         ],
       },
     ],

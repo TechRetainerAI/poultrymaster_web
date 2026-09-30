@@ -259,6 +259,10 @@ builder.Services.AddScoped<IPoultryProductionGapService>(sp => new PoultryProduc
 // Office "Today: Closed / Not Closed" view reads; other modules add their own.
 builder.Services.AddScoped<IPoultryDailyClosingControlService>(sp => new PoultryDailyClosingControlService(connectionString));
 builder.Services.AddScoped<IDailyClosingStatusProvider, PoultryDailyClosingStatusProvider>();
+// Distribute Feed (335): posts feed lines through spproductionrecord_update.
+builder.Services.AddScoped<IPoultryFeedDistributionService>(sp => new PoultryFeedDistributionService(connectionString));
+// Days of supply (337): how long each raw material lasts at its actual usage.
+builder.Services.AddScoped<IPoultryStockSupplyService>(sp => new PoultryStockSupplyService(connectionString));
 builder.Services.AddScoped<IPoultryInventoryValuationService>(sp => new PoultryInventoryValuationService(connectionString));
 builder.Services.AddScoped<IPoultryDeferredInventoryCostService>(sp => new PoultryDeferredInventoryCostService(connectionString));
 builder.Services.AddScoped<IPoultryCapitalAssetService>(sp => new PoultryCapitalAssetService(connectionString));
