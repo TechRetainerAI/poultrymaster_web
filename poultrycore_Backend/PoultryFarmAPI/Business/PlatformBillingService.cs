@@ -127,10 +127,9 @@ namespace PoultryFarmAPIWeb.Business
 
             // Business Office declaration + signup date from the identity row.
             string? officeCountry = null, officeCurrency = null, orgCode = null, email = null, name = null;
-            DateTime created = DateTime.UtcNow;
             using (var u = new NpgsqlCommand(@"
                 SELECT businessofficecountry, businessofficecurrency, organizationcode, email,
-                       COALESCE(NULLIF(TRIM(CONCAT(firstname,' ',lastname)), ''), username), createddate
+                       COALESCE(NULLIF(TRIM(CONCAT(firstname,' ',lastname)), ''), username)
                   FROM aspnetusers WHERE id = @Id", conn))
             {
                 u.Parameters.AddWithValue("@Id", userId);
@@ -142,8 +141,21 @@ namespace PoultryFarmAPIWeb.Business
                     orgCode = r.IsDBNull(2) ? null : r.GetString(2);
                     email = r.IsDBNull(3) ? null : r.GetString(3);
                     name = r.IsDBNull(4) ? null : r.GetString(4);
-                    created = r.IsDBNull(5) ? DateTime.UtcNow : r.GetDateTime(5);
                 }
+            }
+
+            // aspnetusers carries no creation date, so the trial anchors to the
+            // oldest company this owner has — an EXISTING customer's trial is
+            // therefore measured from when they actually started, not from the
+            // day this feature shipped (spec 10.2). A brand-new owner with no
+            // companies yet anchors to now.
+            var created = DateTime.UtcNow;
+            using (var fc = new NpgsqlCommand(@"
+                SELECT MIN(f.createdat) FROM userfarms uf JOIN farms f ON f.farmid = uf.farmid
+                 WHERE uf.userid = @U", conn))
+            {
+                fc.Parameters.AddWithValue("@U", userId);
+                if (await fc.ExecuteScalarAsync() is DateTime firstFarm) created = firstFarm;
             }
 
             // Declared country → market. Only Ghana is active today; anything
