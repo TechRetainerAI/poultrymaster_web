@@ -240,20 +240,21 @@ namespace PoultryFarmAPIWeb.Business
         private sealed record CompanyRow(string FarmId, string Name, string Family, string? Template);
 
         /// <summary>
-        /// The organization's companies: farms this user reaches through
-        /// userfarms as Owner. Server-side ownership is the query itself —
+        /// The organization's companies — the same list the Companies screen
+        /// shows, via the platform's own spcompany_getbyuserid, restricted to
+        /// Admin (this platform's owner role; the vocabulary is Admin|Staff,
+        /// there is no 'Owner'). Server-side ownership is the query itself —
         /// a farmid the caller does not own simply never appears (spec 31).
         /// </summary>
         private static async Task<List<CompanyRow>> LoadCompaniesAsync(NpgsqlConnection conn, string userId)
         {
             var list = new List<CompanyRow>();
             using var cmd = new NpgsqlCommand(@"
-                SELECT f.farmid, f.name, f.type, g.genericbusinesstemplate
-                  FROM userfarms uf
-                  JOIN farms f ON f.farmid = uf.farmid
-                  LEFT JOIN genericcompanyprofiles g ON g.farmid = f.farmid
-                 WHERE uf.userid = @U AND LOWER(COALESCE(uf.role,'')) = 'owner'
-                 ORDER BY f.name", conn);
+                SELECT c.farmid, c.name, c.type, g.genericbusinesstemplate
+                  FROM spcompany_getbyuserid(p_userid => @U::text) c
+                  LEFT JOIN genericcompanyprofiles g ON g.farmid = c.farmid
+                 WHERE LOWER(COALESCE(c.role, 'admin')) = 'admin'
+                 ORDER BY c.name", conn);
             cmd.Parameters.AddWithValue("@U", userId);
             using var r = await cmd.ExecuteReaderAsync();
             while (await r.ReadAsync())
