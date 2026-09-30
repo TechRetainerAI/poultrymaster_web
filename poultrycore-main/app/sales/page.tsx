@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useMemo } from "react"
+import { parseDateParam } from "@/lib/utils/date-param"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -289,6 +290,13 @@ export default function SalesPage() {
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [draftDateFrom, setDraftDateFrom] = useState("")
   const [draftDateTo, setDraftDateTo] = useState("")
+
+  // ?date=yyyy-MM-dd (Daily Closing's "Review" links): open on that one day.
+  useEffect(() => {
+    const d = parseDateParam(window.location.search)
+    if (!d) return
+    setDateFrom(d); setDateTo(d); setDraftDateFrom(d); setDraftDateTo(d)
+  }, [])
   const hasDraftChanges = draftDateFrom !== dateFrom || draftDateTo !== dateTo
   const [showAllColumnsMobile, setShowAllColumnsMobile] = useState(false)
   const isMobile = useIsMobile()

@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { parseDateParam } from "@/lib/utils/date-param"
 import { useRouter } from "next/navigation"
 import { BatchProductionRecordModal } from "@/components/production/batch-production-record-modal"
 import { Button } from "@/components/ui/button"
@@ -125,6 +126,13 @@ export default function BatchProductionRecordsPage() {
   /** Mobile sheet: draft values until Apply. */
   const [draftDateFrom, setDraftDateFrom] = useState("")
   const [draftDateTo, setDraftDateTo] = useState("")
+
+  // ?date=yyyy-MM-dd (Daily Closing's "Review" links): open on that one day.
+  useEffect(() => {
+    const d = parseDateParam(window.location.search)
+    if (!d) return
+    setDateFrom(d); setDateTo(d); setDraftDateFrom(d); setDraftDateTo(d)
+  }, [])
   const [draftStatus, setDraftStatus] = useState<string>("ALL")
   const [draftBatch, setDraftBatch] = useState<string>("ALL")
   const [draftMonth, setDraftMonth] = useState<string>("ALL")

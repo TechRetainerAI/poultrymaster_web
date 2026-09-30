@@ -11,8 +11,8 @@
 // useBusinessDate — never the browser's clock. The API refuses a future date
 // anyway; the cap just stops the picker offering one.
 
-import { Suspense, useState } from "react"
-import { useSearchParams } from "next/navigation"
+import { Suspense, useCallback } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { ChevronLeft, ChevronRight, ClipboardCheck } from "lucide-react"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -30,7 +30,15 @@ function FarmCompletenessInner() {
   const { businessDate: today } = useBusinessDate()
   // null = follow the company's today (and keep following it past midnight).
   // ?date= comes from Daily Closing's "Resolve" on missing production.
-  const [picked, setPicked] = useState<string | null>(() => toBusinessDate(searchParams.get("date")))
+  const router = useRouter()
+  // The URL is the one source for the day shown. Links to this same page
+  // ("Sep 22 is not closed" -> Review) only change ?date= without reloading,
+  // so reading it once into state ignored them until a refresh. Changing the
+  // day writes the URL back, which also makes Back and refresh keep the day.
+  const picked = toBusinessDate(searchParams.get("date"))
+  const setPicked = useCallback((d: string | null) => {
+    router.replace(d ? `/poultry-farm-completeness?date=${d}` : "/poultry-farm-completeness", { scroll: false })
+  }, [router])
 
   const shown = picked && picked < today ? picked : today
   const isToday = shown === today

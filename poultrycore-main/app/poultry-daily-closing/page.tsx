@@ -89,7 +89,14 @@ function PoultryDailyClosingInner() {
   const mayClose = can(CLOSE_RIGHT)
 
   // null = the company's today, decided by the server.
-  const [picked, setPicked] = useState<string | null>(() => toBusinessDate(searchParams.get("date")))
+  // The URL is the one source for the day shown. Links to this same page
+  // ("Sep 22 is not closed" -> Review) only change ?date= without reloading,
+  // so reading it once into state ignored them until a refresh. Changing the
+  // day writes the URL back, which also makes Back and refresh keep the day.
+  const picked = toBusinessDate(searchParams.get("date"))
+  const setPicked = useCallback((d: string | null) => {
+    router.replace(d ? `/poultry-daily-closing?date=${d}` : "/poultry-daily-closing", { scroll: false })
+  }, [router])
   const [tab, setTab] = useState("day")
   const [view, setView] = useState<ClosingDayView | null>(null)
   const [loading, setLoading] = useState(true)

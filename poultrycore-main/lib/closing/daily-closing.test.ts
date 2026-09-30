@@ -75,9 +75,12 @@ describe("closeReadiness", () => {
 describe("closingActionHref", () => {
   it("maps each server action key to a page", () => {
     expect(closingActionHref("missing-production", "2026-09-20")).toBe("/poultry-farm-completeness?date=2026-09-20")
-    expect(closingActionHref("unposted-batches", "2026-09-20")).toBe("/batch-production-records")
+    expect(closingActionHref("unposted-batches", "2026-09-20")).toBe("/batch-production-records?date=2026-09-20")
+    expect(closingActionHref("production-records", "2026-09-20")).toBe("/production-records?date=2026-09-20")
+    expect(closingActionHref("driver-returns", "2026-09-20")).toBe("/poultry-driver-returns?date=2026-09-20")
+    expect(closingActionHref("customer-balances", "2026-09-20")).toBe("/sales?date=2026-09-20")
+    // Current by nature: no date to carry.
     expect(closingActionHref("cash-count", "2026-09-20")).toBe("/poultry-cash-reconciliation")
-    expect(closingActionHref("driver-returns", "2026-09-20")).toBe("/poultry-driver-returns")
   })
 
   it("links the previous day across a month boundary", () => {

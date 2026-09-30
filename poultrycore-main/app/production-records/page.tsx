@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { parseDateParam } from "@/lib/utils/date-param"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -159,6 +160,13 @@ export default function ProductionRecordsPage() {
   /** Mobile sheet: draft values until Apply (fixes iOS + Radix Select in Sheet). */
   const [draftDateFrom, setDraftDateFrom] = useState("")
   const [draftDateTo, setDraftDateTo] = useState("")
+
+  // ?date=yyyy-MM-dd (Daily Closing's "Review" links): open on that one day.
+  useEffect(() => {
+    const d = parseDateParam(window.location.search)
+    if (!d) return
+    setDateFrom(d); setDateTo(d); setDraftDateFrom(d); setDraftDateTo(d)
+  }, [])
   const [draftBatchId, setDraftBatchId] = useState<string>("ALL")
   const [draftFlockId, setDraftFlockId] = useState<string>("ALL")
   const [draftMonth, setDraftMonth] = useState<string>("ALL")

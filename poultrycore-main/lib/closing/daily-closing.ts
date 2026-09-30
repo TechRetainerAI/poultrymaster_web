@@ -78,18 +78,21 @@ export function closingActionHref(action: string | null | undefined, businessDat
   switch (action) {
     case "missing-production":
       return date ? `/poultry-farm-completeness?date=${date}` : "/poultry-farm-completeness"
+    // Lists that can filter by day open on the day being closed (?date=).
     case "unposted-batches":
-      return "/batch-production-records"
+      return date ? `/batch-production-records?date=${date}` : "/batch-production-records"
     case "production-records":
-      return "/production-records"
+      return date ? `/production-records?date=${date}` : "/production-records"
     case "cash-count":
       return "/poultry-cash-reconciliation"
     case "inventory":
       return "/poultry-raw-materials"
+    // "Sold on credit" is about that day's sales; Customer Balances only shows
+    // what is owed now, so review the day's sales instead.
     case "customer-balances":
-      return "/customer-balances"
+      return date ? `/sales?date=${date}` : "/customer-balances"
     case "driver-returns":
-      return "/poultry-driver-returns"
+      return date ? `/poultry-driver-returns?date=${date}` : "/poultry-driver-returns"
     case "previous-day": {
       const prev = date ? shiftBusinessDate(date, -1) : null
       return prev ? `/poultry-daily-closing?date=${prev}` : null
