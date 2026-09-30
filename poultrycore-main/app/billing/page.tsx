@@ -228,6 +228,19 @@ function PaymentsPageInner() {
                 </AlertDescription>
               </Alert>
             )}
+            {/* Part 55: billing now lives with the Business Office. This page
+                stays working for existing bookmarks; the banner is the path
+                to the consolidated multi-company bill. */}
+            <Alert>
+              <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+                <span>
+                  Billing has a new home: manage all your companies&apos; subscriptions in one place.
+                </span>
+                <Button size="sm" variant="outline" onClick={() => router.push("/business-office/billing")}>
+                  Open Business Office billing
+                </Button>
+              </AlertDescription>
+            </Alert>
             {checkoutError && (
               <Alert variant="destructive">
                 <AlertDescription>{checkoutError}</AlertDescription>

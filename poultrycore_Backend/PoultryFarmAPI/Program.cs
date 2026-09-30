@@ -243,6 +243,14 @@ builder.Services.AddScoped<IPoultryLoanService>(sp => new PoultryLoanService(con
 builder.Services.AddScoped<IPoultryEmployeeLoanService>(sp => new PoultryEmployeeLoanService(connectionString));
 // 318. Per-user, per-company Quick Links. A preference store, not an access one.
 builder.Services.AddScoped<IUserQuickLinkService>(sp => new UserQuickLinkService(connectionString));
+// 329. Platform billing: the Business Office's consolidated subscription.
+// The Paystack key comes from env (PAYSTACK_SECRET_KEY) like the Login API's;
+// when it is absent every checkout answers "not configured" instead of failing.
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<IPlatformBillingService>(sp => new PlatformBillingService(
+    connectionString,
+    builder.Configuration["PAYSTACK_SECRET_KEY"] ?? builder.Configuration["PaystackSettings:SecretKey"] ?? "",
+    sp.GetRequiredService<IHttpClientFactory>()));
 // Financial settings (261): when inventory costs reach the P&L. Two independent
 // choices, feed and medication, resolved against item overrides by the SPs.
 builder.Services.AddScoped<IPoultryFinancialSettingsService>(sp => new PoultryFinancialSettingsService(connectionString));
