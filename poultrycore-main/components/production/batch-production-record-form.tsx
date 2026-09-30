@@ -57,6 +57,7 @@ import {
   totalCostOfProduction as calcTotalCost, totalLosses as calcTotalLosses,
 } from "@/lib/production/production-record-calc"
 import { isFinishedFeedCategory } from "@/lib/utils/feed-item-ledger"
+import { formatShortDate, type MissingProductionPrefill } from "@/lib/activity/completeness"
 
 // Doc §4a: classify a raw-material item as Feed or Medication by its category.
 // Feed here means FINISHED feed only. /feed/i also matched "FeedIngredient", so
@@ -117,17 +118,25 @@ export interface BatchProductionRecordFormProps {
   recordId?: number
   formId?: string
   hideActions?: boolean
-  onSaved?: (status: BatchStatus) => void
+  /** `recordId` is the saved batch (the new id on create), so a caller can go straight to allocation. */
+  onSaved?: (status: BatchStatus, recordId?: number | null) => void
   onCancel?: () => void
   onStateChange?: (state: BatchProductionRecordFormState) => void
   /** Lets the modal footer drive the two save outcomes. */
   onRegisterSave?: (save: (status: BatchStatus) => void) => void
+  /**
+   * Create mode only. Opened from the dashboard's "Complete Missing Production"
+   * (migration 332): pre-selects exactly the flocks that have not reported on
+   * that business date, as a custom selection, and sets the date. Everything
+   * stays editable — this only decides the starting point.
+   */
+  prefill?: MissingProductionPrefill | null
 }
 
 export function BatchProductionRecordForm({
   mode, displayMode, recordId,
   formId = "batch-production-record-form", hideActions = false,
-  onSaved, onCancel, onStateChange, onRegisterSave,
+  onSaved, onCancel, onStateChange, onRegisterSave, prefill,
 }: BatchProductionRecordFormProps) {
   const { toast } = useToast()
   const isEdit = mode === "edit"
@@ -135,6 +144,9 @@ export function BatchProductionRecordForm({
 
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(isEdit)
+  // Create mode never sets `loading`, so the prefill banner needs its own
+  // signal to avoid counting flocks before they have arrived.
+  const [flocksLoaded, setFlocksLoaded] = useState(false)
   const [error, setError] = useState("")
   const [dirty, setDirty] = useState(false)
 
@@ -144,11 +156,23 @@ export function BatchProductionRecordForm({
   const [batches, setBatches] = useState<FlockBatch[]>([])
   const [flocks, setFlocks] = useState<Flock[]>([])
   const [priorCustomNames, setPriorCustomNames] = useState<string[]>([])
-  const [scopeValue, setScopeValue] = useState<string>(SCOPE_ALL)
-  const [batchName, setBatchName] = useState("")
-  const [selectedFlockIds, setSelectedFlockIds] = useState<number[]>([])
+  // Only in create mode: an edit always shows what the record actually holds.
+  const missingPrefill = !isEdit && prefill && prefill.flockIds.length > 0 ? prefill : null
+  const [scopeValue, setScopeValue] = useState<string>(missingPrefill ? SCOPE_CUSTOM : SCOPE_ALL)
+  // A name that says what the batch is for when it shows up in the batch list.
+  const [batchName, setBatchName] = useState(
+    missingPrefill ? `Missing production – ${formatShortDate(missingPrefill.date)}` : "",
+  )
+  const [selectedFlockIds, setSelectedFlockIds] = useState<number[]>(missingPrefill?.flockIds ?? [])
+  const missingFlockIds = useMemo(() => new Set(missingPrefill?.flockIds ?? []), [missingPrefill])
 
   const activeFlocks = useMemo(() => flocks.filter((f) => f.active), [flocks])
+  // Of the flocks the dashboard said were missing, how many this form can
+  // actually offer. A flock closed since the link was built is simply absent.
+  const prefillMatched = useMemo(
+    () => activeFlocks.filter((f) => missingFlockIds.has(f.flockId)).length,
+    [activeFlocks, missingFlockIds],
+  )
 
   const batchSelectionType: BatchSelectionType =
     scopeValue === SCOPE_ALL ? "AllBatches" : scopeValue === SCOPE_CUSTOM ? "CustomBatch" : "SpecificBatch"
@@ -215,7 +239,7 @@ export function BatchProductionRecordForm({
 
   // ---- Core fields --------------------------------------------------------
   const [form, setForm] = useState({
-    date: today,
+    date: (!isEdit && prefill?.date) || today,
     brokenEggs: "", meatyEggs: "", softEggs: "", lostEggs: "",
     feedType: "", feedKg: "",
     medication: "", deaths: "", birdsLeft: "", notes: "",
@@ -353,6 +377,7 @@ export function BatchProductionRecordForm({
         hydrated.current = true
         setDirty(false)
         setLoading(false)
+        setFlocksLoaded(true)
       }
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -461,7 +486,8 @@ export function BatchProductionRecordForm({
       }
 
       setDirty(false)
-      onSaved?.(status)
+      const savedId = isEdit ? (recordId ?? null) : ((res as { data?: { id?: number } | null }).data?.id ?? null)
+      onSaved?.(status, savedId)
     } catch (err: any) {
       setError(err?.message || "Failed to save")
     } finally {
@@ -526,6 +552,31 @@ export function BatchProductionRecordForm({
         accent="sky"
         icon={Boxes}
       >
+        {missingPrefill && (
+          <Alert className="mb-3 border-amber-200 bg-amber-50 text-amber-900">
+            <AlertTriangle className="h-4 w-4 !text-amber-600" />
+            <AlertDescription className="text-amber-900">
+              <p>
+                Completing missing production for <b>{!flocksLoaded ? missingPrefill.flockIds.length : prefillMatched}</b>{" "}
+                flock{(!flocksLoaded ? missingPrefill.flockIds.length : prefillMatched) === 1 ? "" : "s"} on{" "}
+                <b>{formatShortDate(missingPrefill.date)}</b>. They are pre-selected and marked below.
+              </p>
+              <p className="mt-1 text-xs">
+                Production is recorded when this batch is allocated and <b>posted</b>. &ldquo;Log Batch Production&rdquo;
+                takes you straight to allocation to do that; &ldquo;Save as Draft&rdquo; does not clear the dashboard.
+                {form.date !== missingPrefill.date && (
+                  <> The date has been changed from {formatShortDate(missingPrefill.date)}; these flocks are only
+                  missing on that day.</>
+                )}
+                {flocksLoaded && prefillMatched < missingPrefill.flockIds.length && (
+                  <> {missingPrefill.flockIds.length - prefillMatched} flagged flock
+                  {missingPrefill.flockIds.length - prefillMatched === 1 ? " is" : "s are"} no longer active and
+                  {missingPrefill.flockIds.length - prefillMatched === 1 ? " was" : " were"} left out.</>
+                )}
+              </p>
+            </AlertDescription>
+          </Alert>
+        )}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-1.5">
             <Label>Batch scope</Label>
@@ -583,6 +634,11 @@ export function BatchProductionRecordForm({
                     onCheckedChange={(c) => toggleFlock(f.flockId, c === true)}
                   />
                   {f.name}
+                  {missingFlockIds.has(f.flockId) && (
+                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">
+                      missing
+                    </span>
+                  )}
                 </label>
               ))}
             </div>

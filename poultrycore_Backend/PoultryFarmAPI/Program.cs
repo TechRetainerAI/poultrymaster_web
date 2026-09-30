@@ -256,6 +256,21 @@ builder.Services.AddScoped<IUserQuickLinkService>(sp => new UserQuickLinkService
 builder.Services.AddScoped<IPoultryFinancialSettingsService>(sp => new PoultryFinancialSettingsService(connectionString));
 // Company time (298). Cross-vertical on purpose: one company, one business day.
 builder.Services.AddScoped<ICompanyTimeService>(sp => new CompanyTimeService(connectionString));
+// Missing Activity Detector (332). Each IActivityCheck is one deterministic
+// "expected but not done" question; ActivityCheckService runs the ones that
+// apply to the company's type. A new check is one class + one line here.
+builder.Services.AddScoped<IActivityCheck>(sp => new PoultryProductionCompletenessCheck(connectionString));
+builder.Services.AddScoped<IActivityCheckService, ActivityCheckService>();
+builder.Services.AddScoped<IPoultryProductionGapService>(sp => new PoultryProductionGapService(connectionString));
+// Daily Farm Closing / management control (333): the workspace, close, reopen
+// history and policy. The status provider is what a module-neutral Business
+// Office "Today: Closed / Not Closed" view reads; other modules add their own.
+builder.Services.AddScoped<IPoultryDailyClosingControlService>(sp => new PoultryDailyClosingControlService(connectionString));
+builder.Services.AddScoped<IDailyClosingStatusProvider, PoultryDailyClosingStatusProvider>();
+// Distribute Feed (335): posts feed lines through spproductionrecord_update.
+builder.Services.AddScoped<IPoultryFeedDistributionService>(sp => new PoultryFeedDistributionService(connectionString));
+// Days of supply (337): how long each raw material lasts at its actual usage.
+builder.Services.AddScoped<IPoultryStockSupplyService>(sp => new PoultryStockSupplyService(connectionString));
 builder.Services.AddScoped<IPoultryInventoryValuationService>(sp => new PoultryInventoryValuationService(connectionString));
 builder.Services.AddScoped<IPoultryDeferredInventoryCostService>(sp => new PoultryDeferredInventoryCostService(connectionString));
 builder.Services.AddScoped<IPoultryCapitalAssetService>(sp => new PoultryCapitalAssetService(connectionString));

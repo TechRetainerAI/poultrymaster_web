@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import { parseDateParam } from "@/lib/utils/date-param"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -196,6 +197,13 @@ export default function PoultryDriverReturnsPage() {
   const [returnsSearch, setReturnsSearch] = useState("")
   const [returnsDateFrom, setReturnsDateFrom] = useState("")
   const [returnsDateTo, setReturnsDateTo] = useState("")
+
+  // ?date=yyyy-MM-dd (Daily Closing's "Review" links): open both lists on that day.
+  useEffect(() => {
+    const d = parseDateParam(window.location.search)
+    if (!d) return
+    setLoadingsDateFrom(d); setLoadingsDateTo(d); setReturnsDateFrom(d); setReturnsDateTo(d)
+  }, [])
   const [filterDriver,  setFilterDriver]  = useState<string>("ALL")
   const [filterVehicle, setFilterVehicle] = useState<string>("ALL")
   const [filterRoute,   setFilterRoute]   = useState<string>("ALL")

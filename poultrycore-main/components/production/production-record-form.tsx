@@ -111,19 +111,33 @@ export interface ProductionRecordFormProps {
   record?: ProductionRecord | null
   /** Pre-selects the flock in create mode (e.g. from a flock page). */
   flockId?: number | null
+  /**
+   * Create mode: the business date to start on ("yyyy-MM-dd"), e.g. from the
+   * dashboard's missing-production list. Falls back to today.
+   */
+  date?: string | null
   /** DOM id on the <form>, so a sticky footer button can submit it via form=. */
   formId?: string
   /** Modal chrome renders its own actions; page mode renders its own. */
   hideActions?: boolean
-  onSaved?: (recordId: number | null) => void
+  /**
+   * Create mode: feed / medication lines to start with instead of blank ones --
+   * the step-through catch-up carries the previous day's lines forward. Still
+   * fully editable; the stock check runs on them like any typed line.
+   */
+  initialFeedLines?: FeedLineDraft[] | null
+  initialMedLines?: MedLineDraft[] | null
+  /** `input` is exactly what was saved, for callers that carry values forward. */
+  onSaved?: (recordId: number | null, input?: ProductionRecordInput) => void
   onCancel?: () => void
   /** Lifted so the modal header/footer can show context and a live summary. */
   onStateChange?: (state: ProductionRecordFormState) => void
 }
 
 export function ProductionRecordForm({
-  mode, displayMode, recordId, record: recordProp, flockId: initialFlockId,
+  mode, displayMode, recordId, record: recordProp, flockId: initialFlockId, date: initialDate,
   formId = "production-record-form", hideActions = false,
+  initialFeedLines, initialMedLines,
   onSaved, onCancel, onStateChange,
 }: ProductionRecordFormProps) {
   const { toast } = useToast()
@@ -152,7 +166,7 @@ export function ProductionRecordForm({
 
   const [form, setForm] = useState({
     flockId: initialFlockId != null ? String(initialFlockId) : "",
-    date: today,
+    date: (!isEdit && initialDate) || today,
     morning: "", noon: "", evening: "", fourth: "", fifth: "", sixth: "",
     brokenEggs: "", meatyEggs: "", softEggs: "", lostEggs: "",
     feedKg: "", feedType: "",
@@ -169,8 +183,10 @@ export function ProductionRecordForm({
   }, [])
 
   // ---------------------------------------------------------------- feed/med
-  const [feedLines, setFeedLines] = useState<FeedLineDraft[]>(
-    isEdit ? [] : [emptyFeedLine()],
+  const [feedLines, setFeedLines] = useState<FeedLineDraft[]>(() =>
+    isEdit ? []
+      : initialFeedLines?.length ? initialFeedLines.map((l) => ({ ...l }))
+        : [emptyFeedLine()],
   )
   const addFeedLine = () => { setDirty(true); setFeedLines((d) => [...d, emptyFeedLine()]) }
   const removeFeedLine = (idx: number) => { setDirty(true); setFeedLines((d) => d.filter((_, i) => i !== idx)) }
@@ -179,8 +195,10 @@ export function ProductionRecordForm({
     setFeedLines((d) => d.map((row, i) => (i === idx ? { ...row, ...p } : row)))
   }
 
-  const [medLines, setMedLines] = useState<MedLineDraft[]>(
-    isEdit ? [] : [emptyMedLine(), emptyMedLine()],
+  const [medLines, setMedLines] = useState<MedLineDraft[]>(() =>
+    isEdit ? []
+      : initialMedLines?.length ? initialMedLines.map((l) => ({ ...l }))
+        : [emptyMedLine(), emptyMedLine()],
   )
   const addMedLine = () => { setDirty(true); setMedLines((d) => [...d, emptyMedLine()]) }
   const removeMedLine = (idx: number) => { setDirty(true); setMedLines((d) => d.filter((_, i) => i !== idx)) }
@@ -385,7 +403,13 @@ export function ProductionRecordForm({
         // Exclude the record being edited, or it reports itself as the flock's
         // previous entry.
         const editingId = recordId ?? loadedRecord?.id
-        const pool = editingId != null ? res.data.filter((r: any) => r.id !== editingId) : res.data
+        // Only records BEFORE this entry's date: a back-dated entry (a missed
+        // day being caught up) must open with the birds left on the day
+        // before it, not with the flock's latest record, which may be days
+        // after the gap.
+        const pool = res.data.filter((r: any) =>
+          (editingId == null || r.id !== editingId) &&
+          String(r.date ?? r.Date ?? "").slice(0, 10) < form.date)
         const mostRecent = getLatestRecordForFlock(pool, flockIdNum)
         if (mostRecent) {
           const lastBirdsLeft = getBirdsLeftFromRecord(mostRecent)
@@ -680,7 +704,7 @@ export function ProductionRecordForm({
       }
 
       setDirty(false)
-      onSaved?.(savedId)
+      onSaved?.(savedId, input)
     } catch (err: any) {
       setError(err?.message || "Failed to save")
     } finally {
