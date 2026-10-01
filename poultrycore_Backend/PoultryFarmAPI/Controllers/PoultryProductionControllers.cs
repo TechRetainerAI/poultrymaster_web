@@ -175,14 +175,39 @@ namespace PoultryFarmAPIWeb.Controllers
         [HttpDelete("{id:int}")] public async Task<IActionResult> Delete(int id, [FromQuery] string farmId)
         { if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required."); await _svc.DeleteAsync(id, farmId); return NoContent(); }
 
-        [HttpPost("{id:int}/reopen")] public async Task<IActionResult> Reopen(int id, [FromQuery] string farmId)
-        { if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required."); await _svc.ReopenAsync(id, farmId); return NoContent(); }
+        // Migration 333: reopening a closed day needs a reason, and is recorded in
+        // poultrydailyclosingevents with who and why. The route map resolves this
+        // POST to .create, so under enforcement the approve right -- the one that
+        // closes a day -- is checked explicitly, as PoultryDailyClosingControlController does.
+        [HttpPost("{id:int}/reopen")] public async Task<IActionResult> Reopen(
+            int id, [FromQuery] string farmId, [FromBody] PoultryDailyClosingReopenRequest? body,
+            [FromServices] IIamService iam, [FromServices] IConfiguration config)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            if (string.IsNullOrWhiteSpace(body?.Reason)) return BadRequest(new { message = "A reason is required to reopen a day." });
+            var denied = await PoultryDailyClosingControlController.RequireCloseRightAsync(this, iam, config, farmId, "reopen a closed day");
+            if (denied is not null) return denied;
+            try
+            {
+                await _svc.ReopenAsync(id, farmId, body!.Reason!.Trim(), PoultryDailyClosingControlController.Actor(User));
+            }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001")
+            {
+                return BadRequest(new { message = ex.MessageText });
+            }
+            return NoContent();
+        }
 
         [HttpPost("{id:int}/recreate")] public async Task<IActionResult> Recreate(int id, [FromQuery] string farmId)
         { if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required."); await _svc.RecreateAsync(id, farmId); return NoContent(); }
 
         [HttpPost("{id:int}/notes")] public async Task<IActionResult> UpdateNotes(int id, [FromBody] PoultryDailyClosingNotesRequest req)
         { if (string.IsNullOrWhiteSpace(req.FarmId)) return BadRequest("Company ID is required."); await _svc.UpdateNotesAsync(id, req.FarmId, req.ActualCashCounted, req.ManagerNotes); return NoContent(); }
+    }
+
+    public class PoultryDailyClosingReopenRequest
+    {
+        public string? Reason { get; set; }
     }
 
     public class PoultryDailyClosingNotesRequest

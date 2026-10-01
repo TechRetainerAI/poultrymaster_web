@@ -31,19 +31,20 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
-  AlertCircle, ArrowLeft, ArrowRight, Bird, Boxes, Check, CheckCircle2, ClipboardList,
+  AlertCircle, ArrowLeft, ArrowRight, Bird, Boxes, Check, CheckCircle2, ChevronDown, ClipboardList,
   Home, Loader2, Plus, Sparkles, Trash2, TriangleAlert, Wand2,
 } from "lucide-react"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { getUserContext } from "@/lib/utils/user-context"
 import { getSuppliers, type Supplier } from "@/lib/api/supplier"
+import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poultry-finance"
 // updatedat is a whole instant, not a business date with a separate entry time.
 import { fmtInstant } from "@/lib/utils/company-datetime"
 // The same split the Batch Allocation tool proposes, so the two never disagree.
 import { BreedSelect } from "@/components/poultry/breed-select"
 import { PenCapacityDialog } from "@/components/poultry/pen-capacity-dialog"
-import { NewPenDialog } from "@/components/poultry/new-pen-dialog"
+import { NewPenDialog, type NewPen } from "@/components/poultry/new-pen-dialog"
 import { BatchSizeDialog } from "@/components/poultry/batch-size-dialog"
 import { updateHouse } from "@/lib/api/house"
 import { getFlockBatch, updateFlockBatch } from "@/lib/api/flock-batch"
@@ -70,7 +71,7 @@ import {
   type BatchRow, type FlockRow, type HouseRow, type SetupContext, type SetupDraft,
 } from "@/lib/farm-setup/wizard"
 // Prompt 1's bulk house generator, reused rather than rebuilt.
-import { generateRows as generateHouseRows } from "@/lib/houses/bulk"
+import { generateRows as generateHouseRows, nextStartNumber } from "@/lib/houses/bulk"
 
 type Screen = "choose" | "wizard" | "newBatch" | "done" | "completed"
 type Step = 0 | 1 | 2 | 3 | 4
@@ -192,7 +193,9 @@ export default function PoultryFarmSetupPage() {
   const [batchCount, setBatchCount] = useState("2")
   const [batchPrefix, setBatchPrefix] = useState("Batch")
   const [batchCodePrefix, setBatchCodePrefix] = useState("B")
-  const [batchStart, setBatchStart] = useState("1")
+  // null = follow the farm, as the pen generator does. Typing takes over;
+  // clearing the field hands it back.
+  const [batchStartOverride, setBatchStartOverride] = useState<string | null>(null)
   const [batchBreed, setBatchBreed] = useState("")
   const [batchBirds, setBatchBirds] = useState("")
   const [batchDate, setBatchDate] = useState("")
@@ -200,11 +203,14 @@ export default function PoultryFarmSetupPage() {
   // House generator (prompt 1's fields), kept beside the grid it fills.
   const [penCount, setPenCount] = useState("6")
   const [penPrefix, setPenPrefix] = useState("Pen")
-  const [penStart, setPenStart] = useState("1")
+  // null = follow the farm: the next number after its highest "<prefix> <n>".
+  // Typing a number takes over; clearing the field hands it back.
+  const [penStartOverride, setPenStartOverride] = useState<string | null>(null)
   const [penCapacity, setPenCapacity] = useState("")
-  // Off by default: a farm returning to allocate a new batch came for the pens it
-  // can still use, not for a list of the eighteen that are full.
-  const [showAllHouses, setShowAllHouses] = useState(false)
+  // "all" by default so the farm sees every pen it has; "empty" narrows the list
+  // to the pens it can still put a new flock in; "new" hides the farm's existing
+  // pens altogether and leaves only the ones this setup is creating.
+  const [houseFilter, setHouseFilter] = useState<"all" | "empty" | "new">("all")
   // Allocation is done ONE BATCH AT A TIME; this is the one in the workspace.
   // Empty until the farm picks one — the step opens on the batch list.
   const [selectedBatchKey, setSelectedBatchKey] = useState("")
@@ -257,6 +263,16 @@ export default function PoultryFarmSetupPage() {
   const [sizeBatchKey, setSizeBatchKey] = useState<string | null>(null)
   // For the batch cards' supplier picker — the same list Flock Purchases shows.
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  // For the batch cards' "paid from" picker — the active accounts, as Expenses shows.
+  const [cashAccounts, setCashAccounts] = useState<PoultryCashAccount[]>([])
+  // Review step: which batch cards are opened up to show their full details.
+  const [openReviewBatches, setOpenReviewBatches] = useState<Set<string>>(() => new Set())
+  const toggleReviewBatch = (key: string) => setOpenReviewBatches((prev) => {
+    const next = new Set(prev)
+    if (next.has(key)) next.delete(key)
+    else next.add(key)
+    return next
+  })
   const [penLocation, setPenLocation] = useState("")
 
   const status: FarmSetupStatus | null = context?.status ?? null
@@ -277,6 +293,10 @@ export default function PoultryFarmSetupPage() {
       getFarmSetupDraft(userId, farmId),
     ])
     if (supRes.success && supRes.data) setSuppliers(supRes.data)
+    // Optional: a farm with no cash accounts (or an older server) still sets up.
+    listPoultryCashAccounts()
+      .then((a) => setCashAccounts(a.filter((x) => x.isActive)))
+      .catch(() => setCashAccounts([]))
     if (ctxRes.success && ctxRes.data) {
       setContext(ctxRes.data)
 
@@ -344,13 +364,29 @@ export default function PoultryFarmSetupPage() {
   const totals = useMemo(() => summarize(draft), [draft])
   const needsReconciliation = useMemo(() => flocksNeedingReconciliation(draft.flocks), [draft.flocks])
 
-  // A returning farm's full pens are hidden by default — see visibleHouseRows.
+  // The "Empty" filter hides pens that already hold birds — see visibleHouseRows.
   // The rows stay in the draft either way; only the view changes.
   const houseViews = useMemo(() => houseRowViews(draft, setupContext), [draft, setupContext])
   const visibleHouses = useMemo(
-    () => visibleHouseRows(houseViews, showAllHouses),
-    [houseViews, showAllHouses],
+    () => houseFilter === "new"
+      ? houseViews.filter((v) => !v.isExisting)
+      : visibleHouseRows(houseViews, houseFilter === "all"),
+    [houseViews, houseFilter],
   )
+  const suggestedPenStart = useMemo(
+    () => nextStartNumber(penPrefix, setupContext.existingHouses.map((h) => h.houseName)),
+    [penPrefix, setupContext],
+  )
+  const penStart = penStartOverride ?? String(suggestedPenStart)
+  // Past the highest of BOTH series, so neither "Batch 12" nor "B12" collides.
+  const suggestedBatchStart = useMemo(
+    () => Math.max(
+      nextStartNumber(batchPrefix, setupContext.existingBatches.map((b) => b.batchName)),
+      nextStartNumber(batchCodePrefix, setupContext.existingBatches.map((b) => b.batchCode)),
+    ),
+    [batchPrefix, batchCodePrefix, setupContext],
+  )
+  const batchStart = batchStartOverride ?? String(suggestedBatchStart)
   const houseSummary = useMemo(() => summarizeHouseRows(houseViews), [houseViews])
 
   const batchEditViews = useMemo(() => batchEditRows(draft), [draft])
@@ -473,21 +509,28 @@ export default function PoultryFarmSetupPage() {
    * Ticking it straight away is the point: someone opens this because they have
    * birds and nowhere to put them, so the pen existing is only half the answer.
    */
-  const addPen = (pen: { name: string; capacity: string; location: string }) => {
+  const addPen = (pens: NewPen[]) => {
+    if (pens.length === 0) return
     const b = draft.batches.find((x) => x.key === activeBatchKey)
-    const row = { ...emptyHouse(pen.capacity, pen.location), houseName: pen.name }
+    const rows = pens.map((pen) => ({ ...emptyHouse(pen.capacity, pen.location), houseName: pen.name }))
     setDraft((d) => ({
       ...d,
-      houses: [...d.houses, row],
+      houses: [...d.houses, ...rows],
+      // Every new pen is selected for the batch being placed: that is why it was added.
       flocks: activeBatchKey
-        ? [...d.flocks, {
+        ? [...d.flocks, ...rows.map((row) => ({
             ...emptyFlock(activeBatchKey, row.key),
-            name: defaultFlockName(b?.batchCode ?? "", pen.name),
+            name: defaultFlockName(b?.batchCode ?? "", row.houseName),
             startDate: b?.startDate ?? "",
-          }]
+          }))]
         : d.flocks,
     }))
-    toast({ title: `${pen.name} added`, description: "It will be created when you finish the setup." })
+    toast({
+      title: pens.length === 1 ? `${pens[0].name} added` : `${pens.length} pens added`,
+      description: pens.length === 1
+        ? "It will be created when you finish the setup."
+        : `${pens[0].name} to ${pens[pens.length - 1].name}. They will be created when you finish the setup.`,
+    })
   }
 
   /** "Pen 5" when the farm's pens are Pen 1..4 — otherwise just a blank. */
@@ -1067,7 +1110,11 @@ export default function PoultryFarmSetupPage() {
                         <div className="grid grid-cols-1 md:grid-cols-5 gap-3 p-4 bg-slate-50 border-b border-slate-200">
                           <Field label="Number of Pens"><NumberInput min="1" value={penCount} onChange={(e) => setPenCount(e.target.value)} /></Field>
                           <Field label="Naming Prefix"><Input value={penPrefix} onChange={(e) => setPenPrefix(e.target.value)} placeholder="Pen" /></Field>
-                          <Field label="Starting Number"><NumberInput value={penStart} onChange={(e) => setPenStart(e.target.value)} /></Field>
+                          <Field label="Starting Number"
+                            hint={penStartOverride == null && suggestedPenStart > 1 ? `Continues after your existing ${(penPrefix.trim() || "numbered")} pens` : undefined}>
+                            <NumberInput value={penStart} placeholder={String(suggestedPenStart)}
+                              onChange={(e) => setPenStartOverride(e.target.value.trim() === "" ? null : e.target.value)} />
+                          </Field>
                           <Field label="Default Capacity"><NumberInput min="0" value={penCapacity} onChange={(e) => setPenCapacity(e.target.value)} placeholder="5000" /></Field>
                           <Field label="Default Location"><Input value={penLocation} onChange={(e) => setPenLocation(e.target.value)} placeholder="Layer House A" /></Field>
                           <div className="md:col-span-5">
@@ -1079,19 +1126,34 @@ export default function PoultryFarmSetupPage() {
                             </span>
                           </div>
                         </div>
-                        {/* A returning farm's full pens are hidden, not dropped: they
+                        {/* Pens filtered out by "Empty" are hidden, not dropped: they
                             stay in the draft and are still reused by id. */}
-                        {houseSummary.occupied > 0 && (
+                        {draft.houses.length > 0 && (
                           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
                             <span className="text-slate-600">
-                              {showAllHouses
-                                ? `Showing all ${houseSummary.total.toLocaleString()} pens, including ${houseSummary.occupied.toLocaleString()} that already hold birds.`
-                                : `${houseSummary.occupied.toLocaleString()} of your ${houseSummary.existing.toLocaleString()} existing pens already ${houseSummary.occupied === 1 ? "holds" : "hold"} birds and ${houseSummary.occupied === 1 ? "is" : "are"} hidden.`}
+                              {houseFilter === "all"
+                                ? houseSummary.occupied > 0
+                                  ? `Showing all ${houseSummary.total.toLocaleString()} pens, including ${houseSummary.occupied.toLocaleString()} that already ${houseSummary.occupied === 1 ? "holds" : "hold"} birds.`
+                                  : `Showing all ${houseSummary.total.toLocaleString()} pens.`
+                                : houseFilter === "new"
+                                  ? `Your ${houseSummary.existing.toLocaleString()} existing ${houseSummary.existing === 1 ? "pen is" : "pens are"} hidden — showing only the new ones.`
+                                : houseSummary.occupied > 0
+                                  ? `Showing empty pens only — ${houseSummary.occupied.toLocaleString()} that already ${houseSummary.occupied === 1 ? "holds" : "hold"} birds ${houseSummary.occupied === 1 ? "is" : "are"} hidden.`
+                                  : "Showing empty pens only."}
                             </span>
-                            <label className="flex items-center gap-2 text-slate-700 shrink-0">
-                              <Checkbox checked={showAllHouses} onCheckedChange={(v) => setShowAllHouses(v === true)} />
-                              Show all houses/pens
-                            </label>
+                            <div role="group" aria-label="Filter houses/pens" className="inline-flex shrink-0 rounded-md border border-slate-300 bg-white p-0.5">
+                              {([
+                                ["all", `All houses/pens (${houseSummary.total.toLocaleString()})`],
+                                ["empty", `Empty houses/pens (${(houseSummary.total - houseSummary.occupied).toLocaleString()})`],
+                                ["new", `Hide existing (${houseSummary.existing.toLocaleString()})`],
+                              ] as const).map(([value, label]) => (
+                                <button key={value} type="button" aria-pressed={houseFilter === value}
+                                  onClick={() => setHouseFilter(value)}
+                                  className={`rounded px-3 py-1 text-xs font-medium transition-colors ${houseFilter === value ? "bg-indigo-600 text-white" : "text-slate-700 hover:bg-slate-100"}`}>
+                                  {label}
+                                </button>
+                              ))}
+                            </div>
                           </div>
                         )}
                         {visibleHouses.length > 0 && (
@@ -1105,7 +1167,9 @@ export default function PoultryFarmSetupPage() {
                           )}
                           {draft.houses.length > 0 && visibleHouses.length === 0 && (
                             <p className="text-slate-600 text-sm">
-                              None of your pens are empty. Add a new one above, or tick “Show all houses/pens” to see them.
+                              {houseFilter === "new"
+                                ? "No new pens yet. Create some above, or choose “All houses/pens” to see the ones you have."
+                                : "None of your pens are empty. Add a new one above, or choose “All houses/pens” to see them."}
                             </p>
                           )}
                           {visibleHouses.map(({ row: h, index: i, isExisting, load }) => (
@@ -1122,10 +1186,9 @@ export default function PoultryFarmSetupPage() {
                                 label="House/Pen Name *" mobileOnlyLabel error={errorFor("houses", i, "houseName")}
                                 hint={(() => {
                                   // Only pens that hold something say anything. The
-                                  // list is empty pens by default, so labelling each
-                                  // of them "Empty" would be noise; these only show
-                                  // at all once "show all" is ticked, and then they
-                                  // must not read as free.
+                                  // "Empty" filter lists only empty pens, so labelling
+                                  // each of them "Empty" would be noise; under "All"
+                                  // an occupied pen must not read as free.
                                   if (!load || !isExisting || load.activeFlocks === 0) return undefined
                                   return `Holds ${load.occupied.toLocaleString()} in ${load.activeFlocks} flock${load.activeFlocks === 1 ? "" : "s"}`
                                 })()}>
@@ -1169,7 +1232,11 @@ export default function PoultryFarmSetupPage() {
                           <Field label="Number of Batches"><NumberInput min="1" value={batchCount} onChange={(e) => setBatchCount(e.target.value)} /></Field>
                           <Field label="Name Prefix"><Input value={batchPrefix} onChange={(e) => setBatchPrefix(e.target.value)} placeholder="Batch" /></Field>
                           <Field label="Code Prefix"><Input value={batchCodePrefix} onChange={(e) => setBatchCodePrefix(e.target.value)} placeholder="B" /></Field>
-                          <Field label="Starting Number"><NumberInput value={batchStart} onChange={(e) => setBatchStart(e.target.value)} /></Field>
+                          <Field label="Starting Number"
+                            hint={batchStartOverride == null && suggestedBatchStart > 1 ? "Continues after your existing batches" : undefined}>
+                            <NumberInput value={batchStart} placeholder={String(suggestedBatchStart)}
+                              onChange={(e) => setBatchStartOverride(e.target.value.trim() === "" ? null : e.target.value)} />
+                          </Field>
                           {/* The same picker the batch rows use. It seeds every
                               generated batch, so leaving it as free text was the
                               one place a mistyped breed could still reach the
@@ -1178,7 +1245,7 @@ export default function PoultryFarmSetupPage() {
                             <BreedSelect value={batchBreed} known={knownBreeds}
                               onChange={setBatchBreed} placeholder="Pick a breed" />
                           </Field>
-                          <Field label="Default Birds"><NumberInput min="0" value={batchBirds} onChange={(e) => setBatchBirds(e.target.value)} placeholder="5000" /></Field>
+                          <Field label="Default Birds"><NumberInput min="0" value={batchBirds} onChange={(e) => setBatchBirds(e.target.value)} /></Field>
                           <Field className="md:col-span-2" label="Default Arrival Date">
                             <Input type="date" value={batchDate} onChange={(e) => setBatchDate(e.target.value)} />
                           </Field>
@@ -1295,7 +1362,27 @@ export default function PoultryFarmSetupPage() {
                                     className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3"
                                     value={batchDraft(b)}
                                     onPatch={(patch) => patchBatch(i, fromBatchDraft(patch))}
-                                  />
+                                  >
+                                    <Field label={b.isHistorical ? "Paid from cash account" : "Pay from cash account"}
+                                      hint={b.isHistorical
+                                        ? "Recorded only. That money left before you started tracking, so the account's balance is not changed."
+                                        : "The amount paid comes out of this account's balance."}>
+                                      <Select value={b.poultryCashAccountId != null ? String(b.poultryCashAccountId) : "none"}
+                                        onValueChange={(v) => patchBatch(i, { poultryCashAccountId: v === "none" ? null : Number(v) })}>
+                                        <SelectTrigger className="bg-white">
+                                          <SelectValue placeholder="None" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="none">{b.isHistorical ? "None" : "None (no cash movement)"}</SelectItem>
+                                          {cashAccounts.map((a) => (
+                                            <SelectItem key={a.poultryCashAccountId} value={String(a.poultryCashAccountId)}>
+                                              {a.accountName} ({a.currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </Field>
+                                  </BatchOrderFields>
                                 </>
                               )}
                             </div>
@@ -1364,6 +1451,31 @@ export default function PoultryFarmSetupPage() {
                         </div>
                         )}
 
+                        {/* Once chosen, the batch stays in view but locked: the
+                            pens and numbers below all belong to it, so it is
+                            changed only on purpose, through "Change batch". */}
+                        {activeBatch && allocPhase !== "batch" && (
+                          <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
+                            <div className="bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Selected Batch</div>
+                            <div className="p-4 space-y-2">
+                              <Label htmlFor="setup-alloc-batch-readonly">Batch</Label>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Input id="setup-alloc-batch-readonly" readOnly aria-readonly="true" tabIndex={-1}
+                                  className="flex-1 min-w-[12rem] cursor-default bg-slate-100 text-slate-700 focus-visible:ring-0"
+                                  value={[
+                                    activeBatch.batch.batchCode || activeBatch.batch.batchName || `Batch ${activeBatch.index + 1}`,
+                                    activeBatch.batch.batchName && activeBatch.batch.batchCode ? activeBatch.batch.batchName : "",
+                                    activeBatch.batch.breed,
+                                    `${activeBatch.batchBirds.toLocaleString()} birds`,
+                                    activeBatch.batch.startDate ? `started ${activeBatch.batch.startDate}` : "",
+                                  ].filter(Boolean).join(" · ")} />
+                                <Button type="button" variant="outline" size="sm"
+                                  onClick={() => setAllocPhase("batch")}>Change batch</Button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
                         {activeBatch && allocPhase !== "batch" && (
                           <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1371,15 +1483,11 @@ export default function PoultryFarmSetupPage() {
                                 {activeBatch.batch.batchCode || activeBatch.batch.batchName}
                                 {activeBatch.batch.breed ? ` · ${activeBatch.batch.breed}` : ""}
                               </span>
-                              <span className="flex items-center gap-3">
-                                {activeBatch.mustBeFullyAllocated && (
-                                  <span className="text-xs text-slate-600">
-                                    Birds you already had — every one of them needs a pen
-                                  </span>
-                                )}
-                                <Button type="button" variant="ghost" size="sm" className="h-7"
-                                  onClick={() => setAllocPhase("batch")}>Change batch</Button>
-                              </span>
+                              {activeBatch.mustBeFullyAllocated && (
+                                <span className="text-xs text-slate-600">
+                                  Birds you already had — every one of them needs a pen
+                                </span>
+                              )}
                             </div>
                             <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
                               <Figure label="Original birds" value={activeBatch.batchBirds} />
@@ -1418,24 +1526,40 @@ export default function PoultryFarmSetupPage() {
                               </div>
 
                               <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-                                {allocatablePens.map((v) => {
+                                {/* Every pen is listed, full ones included, so none
+                                    seems to have vanished. A full pen cannot be
+                                    ticked; one this batch already uses stays
+                                    clickable so it can be unticked. */}
+                                {houseViews.map((v) => {
                                   const on = pensInActiveBatch.has(v.row.key)
+                                  const full = !v.hasRoom
+                                  const locked = full && !on
                                   const free = v.load?.capacity == null
                                     ? null
                                     : Math.max(0, v.load.capacity - v.load.occupied)
                                   return (
                                     <label key={v.row.key}
-                                      className={`flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
-                                        on ? "border-blue-400 bg-blue-50" : "border-slate-200 bg-white hover:bg-slate-50"
+                                      title={locked ? "This pen is full" : undefined}
+                                      className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                                        on ? "cursor-pointer border-blue-400 bg-blue-50"
+                                          : locked ? "cursor-not-allowed border-slate-200 bg-slate-100"
+                                          : "cursor-pointer border-slate-200 bg-white hover:bg-slate-50"
                                       }`}>
-                                      <Checkbox className="mt-0.5" checked={on}
+                                      <Checkbox className="mt-0.5" checked={on} disabled={locked}
                                         onCheckedChange={(c) => togglePen(v.row.key, c === true)} />
-                                      <span className="min-w-0">
-                                        <span className="block truncate font-medium text-slate-900">
-                                          {v.row.houseName || "(unnamed)"}
+                                      <span className="min-w-0 flex-1">
+                                        <span className="flex items-center gap-1.5">
+                                          <span className={`truncate font-medium ${locked ? "text-slate-500" : "text-slate-900"}`}>
+                                            {v.row.houseName || "(unnamed)"}
+                                          </span>
+                                          {full && (
+                                            <Badge variant="outline" className="h-5 shrink-0 border-red-300 px-1.5 text-[10px] text-red-700">Full</Badge>
+                                          )}
                                         </span>
                                         <span className="block text-xs text-slate-500 tabular-nums">
-                                          {free == null ? "No limit set" : `${free.toLocaleString()} free`}
+                                          {full && v.load?.capacity != null
+                                            ? `${v.load.total.toLocaleString()} of ${v.load.capacity.toLocaleString()} birds`
+                                            : free == null ? "No limit set" : `${free.toLocaleString()} free`}
                                         </span>
                                       </span>
                                     </label>
@@ -1540,7 +1664,7 @@ export default function PoultryFarmSetupPage() {
                             <Wand2 className="mr-1 h-4 w-4" /> Spread evenly
                           </Button>
                           <Button type="button" variant="ghost" size="sm"
-                            onClick={() => setAllocPhase("pens")}>Change pens</Button>
+                            onClick={() => setAllocPhase("pens")}>Change House/Pen</Button>
                           <span className="ml-auto text-xs text-slate-500">
                             A suggestion — every number stays editable.
                           </span>
@@ -1584,10 +1708,8 @@ export default function PoultryFarmSetupPage() {
                           </div>
                         )}
 
-                        <GridHeader columns={[
-                          ["col-span-3", "House/Pen *"], ["col-span-3", "Flock Name *"],
-                          ["col-span-2", "Originally Placed *"], ["col-span-2", "Current Live Birds *"], ["col-span-2", ""],
-                        ]} />
+                        {/* Each flock card carries its own labels, so every row
+                            reads on its own however far down the list it is. */}
                         {activeBatchFlocks.map(({ row: f, index: i }) => {
                             const reduction = historicalReduction(f)
                             // The pen is the first field on the row, so what it is
@@ -1635,7 +1757,7 @@ export default function PoultryFarmSetupPage() {
                                   onRemove={() => removeFlock(i)}
                                 />
                                 <div className="grid grid-cols-12 gap-3 md:contents">
-                                <Field className="col-span-12 md:col-span-3" label="House/Pen *" mobileOnlyLabel
+                                <Field className="col-span-12 md:col-span-3" label="House/Pen *"
                                   error={errorFor("flocks", i, "houseKey")}
                                   hint={penHint}
                                   note={penNote}>
@@ -1667,13 +1789,13 @@ export default function PoultryFarmSetupPage() {
                                   </Select>
                                 </Field>
                                 <Field className="col-span-12 md:col-span-3"
-                                  label="Flock Name *" mobileOnlyLabel error={errorFor("flocks", i, "name")}>
+                                  label="Flock Name *" error={errorFor("flocks", i, "name")}>
                                   <Input value={f.name} onChange={(e) => patchFlock(i, { name: e.target.value })} placeholder="B1 - Pen 1" />
                                 </Field>
-                                <Field className="col-span-12 sm:col-span-6 md:col-span-2" label="Originally Placed *" mobileOnlyLabel error={errorFor("flocks", i, "originallyPlaced")}>
+                                <Field className="col-span-12 sm:col-span-6 md:col-span-2" label="Originally Placed *" error={errorFor("flocks", i, "originallyPlaced")}>
                                   <NumberInput min="0" value={f.originallyPlaced} onChange={(e) => patchFlock(i, { originallyPlaced: e.target.value })} placeholder="1000" />
                                 </Field>
-                                <Field className="col-span-12 sm:col-span-6 md:col-span-2" label="Current Live Birds *" mobileOnlyLabel error={errorFor("flocks", i, "currentLiveBirds")}>
+                                <Field className="col-span-12 sm:col-span-6 md:col-span-2" label="Current Live Birds *" error={errorFor("flocks", i, "currentLiveBirds")}>
                                   <NumberInput min="0" value={f.currentLiveBirds} onChange={(e) => patchFlock(i, { currentLiveBirds: e.target.value })} placeholder="919" />
                                 </Field>
                                 </div>
@@ -1738,18 +1860,6 @@ export default function PoultryFarmSetupPage() {
                               </div>
                             )
                           })}
-                          <Button type="button" variant="outline" size="sm"
-                            onClick={() => {
-                              // Straight to the dialog when there is nothing to
-                              // pick — sending someone to an empty list to read
-                              // that it is empty is a wasted click.
-                              if (allocatablePens.length === 0) setNewPenOpen(true)
-                              else setAllocPhase("pens")
-                            }}
-                            disabled={!activeBatchKey}>
-                            <Plus className="w-4 h-4 mr-1" />
-                            {allocatablePens.length === 0 ? "Create a pen for this batch" : "Add a pen to this batch"}
-                          </Button>
 
                           {/* Moving between batches is selection, not saving: the
                               whole setup is posted once, at the end, in one
@@ -1915,41 +2025,114 @@ export default function PoultryFarmSetupPage() {
                           {/* Grouped by batch, because that is the unit the
                               allocation step works in and the unit the arithmetic
                               has to balance in. */}
-                          {batchViews.filter((v) => v.thisAllocation > 0 || draft.flocks.some((f) => f.batchKey === v.batch.key)).map((v) => (
-                            <div key={v.batch.key} className="rounded-lg border border-slate-200 bg-white">
-                              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2">
+                          {batchViews.filter((v) => v.thisAllocation > 0 || draft.flocks.some((f) => f.batchKey === v.batch.key)).map((v) => {
+                            const open = openReviewBatches.has(v.batch.key)
+                            const bt = v.batch
+                            const batchFlocks = draft.flocks.filter((f) => f.batchKey === bt.key)
+                            const money = (raw: string) => normalizeMoney(raw)
+                            const total = Number(bt.totalCost || 0) || (Number(bt.costPerChick || 0) * Number(bt.numberOfBirds || 0))
+                            const paid = Number(bt.amountPaid || 0)
+                            const supplier = suppliers.find((x) => x.supplierId === bt.supplierId)
+                            const account = cashAccounts.find((a) => a.poultryCashAccountId === bt.poultryCashAccountId)
+                            return (
+                            <div key={bt.key} className="rounded-lg border border-slate-200 bg-white">
+                              <button type="button" onClick={() => toggleReviewBatch(bt.key)} aria-expanded={open}
+                                className="flex w-full flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 text-left hover:bg-slate-50">
                                 <span className="flex items-center gap-2 font-medium text-slate-900">
-                                  {v.batch.batchCode || v.batch.batchName}
+                                  <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform ${open ? "" : "-rotate-90"}`} />
+                                  {bt.batchCode || bt.batchName}
                                   <BatchStatusBadge status={v.status} />
-                                  {v.batch.existingBatchId == null && !v.batch.isHistorical && (
+                                  {bt.existingBatchId == null && !bt.isHistorical && (
                                     <Badge variant="outline" className="h-5 px-1.5 text-[10px] border-blue-300 text-blue-700">
                                       New purchase
                                     </Badge>
                                   )}
+                                  <span className="text-xs font-normal text-blue-600">{open ? "Hide details" : "View details"}</span>
                                 </span>
                                 <span className="text-xs text-slate-600 tabular-nums">
                                   original {v.batchBirds.toLocaleString()} · already {v.previouslyAllocated.toLocaleString()} ·
                                   {" "}this {v.thisAllocation.toLocaleString()} · remaining {v.remaining.toLocaleString()}
                                 </span>
-                              </div>
+                              </button>
+
+                              {open && (
+                                <div className="border-b border-slate-100 bg-slate-50 px-3 py-3">
+                                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Batch details</p>
+                                  <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm md:grid-cols-4">
+                                    <Detail label="Batch name" value={bt.batchName} />
+                                    <Detail label="Batch code" value={bt.batchCode} />
+                                    <Detail label="Breed" value={bt.breed} />
+                                    <Detail label="Number of birds" value={v.batchBirds.toLocaleString()} />
+                                    <Detail label="Start date" value={bt.startDate} />
+                                    <Detail label="Source" value={bt.existingBatchId != null ? "Existing batch (reused)" : bt.isHistorical ? "Already had these birds" : "Buying these birds now"} />
+                                    <Detail label="Supplier" value={supplier?.name} />
+                                    <Detail label="Supplier type" value={bt.supplierType === "foreign" ? "Foreign" : bt.supplierType ? "Local" : ""} />
+                                    <Detail label="Cost per chick" value={money(bt.costPerChick)} />
+                                    <Detail label="Total cost" value={total > 0 ? total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ""} />
+                                    <Detail label="Amount paid" value={money(bt.amountPaid)} />
+                                    <Detail label="Balance owed" value={total > 0 ? Math.max(0, total - paid).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ""} />
+                                    <Detail label={bt.isHistorical ? "Paid from cash account" : "Pay from cash account"} value={account?.accountName} />
+                                    {bt.supplierType === "foreign" && <Detail label="Dollar rate" value={bt.dollarConversionRate} />}
+                                    <Detail label="Order placed" value={bt.orderPlacementDate} />
+                                    <Detail label="Estimated arrival" value={bt.estimatedArrivalDate} />
+                                    {bt.notes && <Detail label="Notes" value={bt.notes} wide />}
+                                  </dl>
+                                </div>
+                              )}
+
+                              <p className="border-b border-slate-100 bg-white px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                Flocks in this batch ({batchFlocks.length})
+                              </p>
                               <div className="divide-y divide-slate-100">
-                                {draft.flocks.filter((f) => f.batchKey === v.batch.key).map((f) => {
+                                {batchFlocks.map((f) => {
                                   const house = draft.houses.find((h) => h.key === f.houseKey)
                                   const b = breakdown(f)
                                   return (
-                                    <div key={f.key} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
-                                      <span className="font-medium text-slate-900">{f.name}</span>
-                                      <span className="text-slate-600">
-                                        {house?.houseName} · placed {Number(f.originallyPlaced || 0).toLocaleString()} · current{" "}
-                                        {Number(f.currentLiveBirds || 0).toLocaleString()}
-                                        {b.difference > 0 && <span className="text-amber-700"> · opening reduction {b.difference.toLocaleString()}</span>}
-                                      </span>
+                                    <div key={f.key} className="px-3 py-2 text-sm">
+                                      <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <span className="flex items-center gap-2 font-medium text-slate-900">
+                                          <Bird className="h-4 w-4 text-violet-600" />
+                                          <span className="text-xs font-normal text-slate-500">Flock</span>
+                                          {f.name}
+                                        </span>
+                                        <span className="text-slate-600">
+                                          {house?.houseName} · placed {Number(f.originallyPlaced || 0).toLocaleString()} · current{" "}
+                                          {Number(f.currentLiveBirds || 0).toLocaleString()}
+                                          {b.difference > 0 && <span className="text-amber-700"> · opening reduction {b.difference.toLocaleString()}</span>}
+                                        </span>
+                                      </div>
+                                      {open && (
+                                        <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 rounded-md border border-violet-100 bg-violet-50/40 p-2 md:grid-cols-4">
+                                          <Detail label="Flock name" value={f.name} />
+                                          <Detail label="House/Pen" value={house?.houseName} />
+                                          <Detail label="Breed" value={f.breed || (bt.breed ? `${bt.breed} (batch)` : "")} />
+                                          <Detail label="Originally placed" value={Number(f.originallyPlaced || 0).toLocaleString()} />
+                                          <Detail label="Current live birds" value={Number(f.currentLiveBirds || 0).toLocaleString()} />
+                                          <Detail label="Opening reduction" value={b.difference.toLocaleString()} />
+                                          {f.ageMode === "age"
+                                            ? <Detail label="Current age" value={f.currentAgeInWeeks ? `${f.currentAgeInWeeks} weeks (date estimated)` : ""} />
+                                            : <Detail label="Placement date" value={f.startDate} />}
+                                          {!bt.isHistorical && <Detail label="Birds arrived" value={f.hasArrived ? "Yes" : "Not yet"} />}
+                                          {b.difference > 0 && (
+                                            <>
+                                              <Detail label="Known mortality" value={b.mortality.toLocaleString()} />
+                                              <Detail label="Sold" value={b.sold.toLocaleString()} />
+                                              <Detail label="Culled" value={b.culled.toLocaleString()} />
+                                              <Detail label="Transferred" value={b.transferred.toLocaleString()} />
+                                              <Detail label="Other / unknown" value={b.other.toLocaleString()} />
+                                              <Detail label="History" value={f.historyKnown ? "Known" : "Unknown"} />
+                                            </>
+                                          )}
+                                          {f.notes && <Detail label="Notes" value={f.notes} wide />}
+                                        </dl>
+                                      )}
                                     </div>
                                   )
                                 })}
                               </div>
                             </div>
-                          ))}
+                            )
+                          })}
 
                           {warnings.length > 0 && (
                             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-1">
@@ -2302,6 +2485,23 @@ function RadioRow({ checked, onSelect, title, detail }: {
       </span>
     </button>
   )
+}
+
+/** One read-only fact on the Review step. Blank values read "—" rather than vanishing. */
+function Detail({ label, value, wide }: { label: string; value?: string | null; wide?: boolean }) {
+  return (
+    <div className={wide ? "col-span-2 md:col-span-4" : undefined}>
+      <dt className="text-xs text-slate-500">{label}</dt>
+      <dd className="break-words font-medium text-slate-900">{value && String(value).trim() ? value : "—"}</dd>
+    </div>
+  )
+}
+
+/** "1234.5" -> "1,234.50"; blank stays blank. */
+const normalizeMoney = (raw: string | null | undefined) => {
+  const t = (raw ?? "").trim()
+  if (!t || !Number.isFinite(Number(t))) return ""
+  return Number(t).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 function GridHeader({ columns }: { columns: [string, string][] }) {

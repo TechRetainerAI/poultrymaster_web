@@ -17,7 +17,7 @@ import {
   Activity, AlertTriangle, ArrowLeftRight, Banknote, BarChart3, Bell, Bird, BookOpen, Box, Boxes,
   Building2, Clock, CreditCard, DollarSign, Egg, Factory, FileText, HelpCircle, History, Hourglass,
   Coins, HandCoins, ListTodo, Package, PackageMinus, Pill, Receipt, Scale, Settings, ShoppingCart, Truck, User, UserCog, Users,
-  Users2, Wallet, Wheat, TrendingUp, Sparkles,
+  Users2, Wallet, Wheat, TrendingUp, Sparkles, ClipboardCheck, CalendarCheck,
 } from "lucide-react"
 import type { UserPermissions } from "@/hooks/use-permissions"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
@@ -49,7 +49,8 @@ export interface PoultryNavConfig {
    * One-off and occasional jobs, as opposed to Setup's ongoing configuration.
    * Onboarding lives here because it is run once in a farm's life and then
    * never again -- among the Setup rows it read as something you might revisit,
-   * which is exactly what it must not be.
+   * which is exactly what it must not be. Flock Closeout joins it for the same
+   * reason: it is run once per flock, at the end of its life, not day to day.
    */
   tools: MegaMenuGroup[]
   /** Right-hand panel. Mirrors the sidebar's bottom "System" group. */
@@ -418,6 +419,22 @@ export function buildPoultryNavConfig(
           // toss. Rides canViewSettings like the Setup rows it came from; what
           // it may create once inside is gated by its own IAM keys.
           { id: "initial-farm-setup", title: "Initial Farm Setup", icon: Sparkles, href: "/poultry-farm-setup", visible: featureAccess.canViewSettings },
+          // Missing Activity Detector (332): which expected activities -- today
+          // or any past day -- have not been recorded. Not gated here, like the
+          // Production rows it reports on; the API gates each check on its own
+          // permission and the page shows nothing it refuses.
+          { id: "farm-completeness", title: "Farm Completeness", icon: ClipboardCheck, href: "/poultry-farm-completeness" },
+          // Daily Farm Closing (333): the end-of-day check-and-close that the
+          // completeness page above feeds into. Ungated to match its Quick
+          // Links row; closing, reopening and the policy are gated inside the
+          // page and on the API by poultry.daily-closing.approve.
+          { id: "daily-closing", title: "Daily Closing", icon: CalendarCheck, href: "/poultry-daily-closing" },
+          // Distribute Feed (335): one feed to many flocks in one post, as feed
+          // lines on each flock's production record. Ungated like the
+          // Production rows; the API gates on poultry.feed-usage.
+          { id: "feed-distribution", title: "Distribute Feed", icon: Wheat, href: "/poultry-feed-distribution" },
+          // Days of Supply (337): how long each raw material lasts at its actual usage.
+          { id: "days-of-supply", title: "Days of Supply", icon: Package, href: "/poultry-days-of-supply" },
         ],
       },
     ],

@@ -22,6 +22,9 @@ export interface FlockBatch {
   orderPlacementDate?: string | null;
   /** Expected arrival date for the ordered birds (migration 150). */
   estimatedArrivalDate?: string | null;
+  /** Poultry cash account the purchase was paid from (migrations 330/331). */
+  poultryCashAccountId?: number | null;
+  poultryCashAccountName?: string | null;
   createdDate: string;
 }
 
@@ -89,6 +92,8 @@ function mapFlockBatch(raw: any): FlockBatch {
     dollarConversionRate: (raw.dollarConversionRate ?? raw.DollarConversionRate) == null ? null : Number(raw.dollarConversionRate ?? raw.DollarConversionRate),
     orderPlacementDate: raw.orderPlacementDate ?? raw.OrderPlacementDate ?? null,
     estimatedArrivalDate: raw.estimatedArrivalDate ?? raw.EstimatedArrivalDate ?? null,
+    poultryCashAccountId: (raw.poultryCashAccountId ?? raw.PoultryCashAccountId) == null ? null : Number(raw.poultryCashAccountId ?? raw.PoultryCashAccountId),
+    poultryCashAccountName: raw.poultryCashAccountName ?? raw.PoultryCashAccountName ?? null,
     createdDate: raw.createdDate ?? raw.CreatedDate ?? '',
   }
 }
@@ -216,6 +221,11 @@ export interface FlockBatchInput {
   dollarConversionRate?: number | null;
   orderPlacementDate?: string | null;
   estimatedArrivalDate?: string | null;
+  /**
+   * Create: the account the amount paid comes out of; null = no cash movement.
+   * Update: omit to leave the stored account alone, 0 to clear it, an id to set it.
+   */
+  poultryCashAccountId?: number | null;
 }
 
 export async function createFlockBatch(flockBatch: FlockBatchInput): Promise<ApiResponse<FlockBatch>> {
@@ -241,6 +251,7 @@ export async function createFlockBatch(flockBatch: FlockBatchInput): Promise<Api
       DollarConversionRate: flockBatch.dollarConversionRate ?? null,
       OrderPlacementDate: flockBatch.orderPlacementDate ?? null,
       EstimatedArrivalDate: flockBatch.estimatedArrivalDate ?? null,
+      PoultryCashAccountId: flockBatch.poultryCashAccountId ?? null,
     };
 
     console.log("[v0] Creating flock batch:", url, payload);
@@ -348,6 +359,7 @@ export async function createFlockBatch(flockBatch: FlockBatchInput): Promise<Api
 
         if (flockBatch.orderPlacementDate !== undefined) payload.OrderPlacementDate = flockBatch.orderPlacementDate;
         if (flockBatch.estimatedArrivalDate !== undefined) payload.EstimatedArrivalDate = flockBatch.estimatedArrivalDate;
+        if (flockBatch.poultryCashAccountId !== undefined) payload.PoultryCashAccountId = flockBatch.poultryCashAccountId;
         
         console.log("[v0] Updating flock batch:", url, payload);
     

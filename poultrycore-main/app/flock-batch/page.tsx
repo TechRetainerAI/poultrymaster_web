@@ -24,6 +24,7 @@ import { getOpeningPositions, type OpeningFlockPosition } from "@/lib/api/poultr
 import { consumedByBatch, unallocatedForBatch } from "@/lib/flocks/allocation"
 import { BatchAllocationDialog } from "@/components/poultry/batch-allocation-dialog"
 import { getSuppliers, type Supplier } from "@/lib/api/supplier"
+import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poultry-finance"
 import { getUserContext } from "@/lib/utils/user-context"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useToast } from "@/hooks/use-toast"
@@ -134,6 +135,13 @@ export default function FlockBatchesPage() {
 
   // Suppliers for dropdown
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  // "Pay from cash account" — the active accounts, as Expenses offers them.
+  const [cashAccounts, setCashAccounts] = useState<PoultryCashAccount[]>([])
+  useEffect(() => {
+    listPoultryCashAccounts()
+      .then((a) => setCashAccounts(a.filter((x) => x.isActive)))
+      .catch(() => setCashAccounts([]))
+  }, [])
 
   useEffect(() => {
     if (isMobile) setShowAllColumnsMobile(false)
@@ -166,6 +174,7 @@ export default function FlockBatchesPage() {
     dollarConversionRate: 0,
     orderPlacementDate: "",
     estimatedArrivalDate: "",
+    poultryCashAccountId: "" as string,
   })
 
   // Edit dialog state
@@ -190,6 +199,7 @@ export default function FlockBatchesPage() {
     dollarConversionRate: 0,
     orderPlacementDate: "",
     estimatedArrivalDate: "",
+    poultryCashAccountId: "" as string,
   })
   const [editFetching, setEditFetching] = useState(false)
 
@@ -287,6 +297,7 @@ export default function FlockBatchesPage() {
       dollarConversionRate: 0,
       orderPlacementDate: "",
       estimatedArrivalDate: "",
+      poultryCashAccountId: "",
     })
     setCreateError("")
     setIsCreateDialogOpen(true)
@@ -333,6 +344,7 @@ export default function FlockBatchesPage() {
       notes: createForm.notes || undefined,
       orderPlacementDate: createForm.orderPlacementDate || null,
       estimatedArrivalDate: createForm.estimatedArrivalDate || null,
+      poultryCashAccountId: createForm.poultryCashAccountId ? Number(createForm.poultryCashAccountId) : null,
     }
 
     const result = await createFlockBatch(flockBatchData)
@@ -384,6 +396,7 @@ export default function FlockBatchesPage() {
         notes: b.notes || "",
         orderPlacementDate: b.orderPlacementDate ? b.orderPlacementDate.split('T')[0] : "",
         estimatedArrivalDate: b.estimatedArrivalDate ? b.estimatedArrivalDate.split('T')[0] : "",
+        poultryCashAccountId: b.poultryCashAccountId != null ? String(b.poultryCashAccountId) : "",
       })
     } else {
       setEditError(result.message || "Failed to load flock batch")
@@ -431,6 +444,8 @@ export default function FlockBatchesPage() {
       notes: editForm.notes || undefined,
       orderPlacementDate: editForm.orderPlacementDate || null,
       estimatedArrivalDate: editForm.estimatedArrivalDate || null,
+      // 0 clears the account; the update moves the batch's cash with it.
+      poultryCashAccountId: editForm.poultryCashAccountId ? Number(editForm.poultryCashAccountId) : 0,
       farmId,
       userId,
     }
@@ -1323,6 +1338,11 @@ export default function FlockBatchesPage() {
                 /* The Total / Paid / Balance strip below says it better. */
                 showBalance={false}
                 onPatch={(patch) => setCreateForm((prev) => ({ ...prev, ...fromDraft(patch) }))}
+                afterSupplier={
+                  <CashAccountField accounts={cashAccounts} disabled={createLoading}
+                    value={createForm.poultryCashAccountId}
+                    onChange={(v) => setCreateForm((prev) => ({ ...prev, poultryCashAccountId: v }))} />
+                }
               />
             </div>
 
@@ -1458,10 +1478,6 @@ export default function FlockBatchesPage() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium text-slate-700">Dollar Conversion Rate</Label>
-                    <NumberInput min="0" step="0.0001" placeholder="e.g., 15.5" value={editForm.dollarConversionRate} onChange={(e) => setEditForm({ ...editForm, dollarConversionRate: parseFloat(e.target.value) || 0 })} disabled={editLoading} />
-                  </div>
-                  <div className="space-y-2">
                     <Label className="text-sm font-medium text-slate-700">Supplier</Label>
                     <Select value={editForm.supplierId} onValueChange={(v) => setEditForm({ ...editForm, supplierId: v })} disabled={editLoading}>
                       <SelectTrigger><SelectValue placeholder={suppliers.length === 0 ? "No suppliers found" : "Select supplier"} /></SelectTrigger>
@@ -1471,6 +1487,13 @@ export default function FlockBatchesPage() {
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+                  <CashAccountField accounts={cashAccounts} disabled={editLoading}
+                    value={editForm.poultryCashAccountId}
+                    onChange={(v) => setEditForm({ ...editForm, poultryCashAccountId: v })} />
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">Dollar Conversion Rate</Label>
+                    <NumberInput min="0" step="0.0001" placeholder="e.g., 15.5" value={editForm.dollarConversionRate} onChange={(e) => setEditForm({ ...editForm, dollarConversionRate: parseFloat(e.target.value) || 0 })} disabled={editLoading} />
                   </div>
                 </div>
               </div>
@@ -1650,6 +1673,36 @@ export default function FlockBatchesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  )
+}
+
+/**
+ * "Pay from cash account" for a batch purchase: the amount paid comes out of
+ * the chosen account (migration 330). Blank = no cash movement. The value is
+ * the account id as a string, "" for none.
+ */
+function CashAccountField({ accounts, value, onChange, disabled }: {
+  accounts: PoultryCashAccount[]
+  value: string
+  onChange: (value: string) => void
+  disabled?: boolean
+}) {
+  return (
+    <div className="space-y-2">
+      <Label className="text-sm font-medium text-slate-700">Pay from cash account</Label>
+      <Select value={value || "none"} onValueChange={(v) => onChange(v === "none" ? "" : v)} disabled={disabled}>
+        <SelectTrigger><SelectValue placeholder="None (no cash movement)" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="none">None (no cash movement)</SelectItem>
+          {accounts.map((a) => (
+            <SelectItem key={a.poultryCashAccountId} value={String(a.poultryCashAccountId)}>
+              {a.accountName} ({a.currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-slate-500">The amount paid comes out of this account&apos;s balance.</p>
     </div>
   )
 }

@@ -401,7 +401,8 @@ namespace PoultryFarmAPIWeb.Business
         Task ApproveAsync(int id, string farmId, string? approvedBy);
         Task RejectAsync(int id, string farmId, string? reason);
         Task DeleteAsync(int id, string farmId);
-        Task ReopenAsync(int id, string farmId);
+        /// <summary>Migration 333: a reason is required and the reopen is kept in history.</summary>
+        Task ReopenAsync(int id, string farmId, string reason, string? reopenedBy);
         Task RecreateAsync(int id, string farmId);
         Task UpdateNotesAsync(int id, string farmId, decimal? actualCashCounted, string? managerNotes);
     }
@@ -469,10 +470,11 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@PoultryDailyClosingId", id); cmd.Parameters.AddWithValue("@FarmId", farmId);
             await c.OpenAsync(); await cmd.ExecuteNonQueryAsync();
         }
-        public async Task ReopenAsync(int id, string farmId)
+        public async Task ReopenAsync(int id, string farmId, string reason, string? reopenedBy)
         {
-            using var c = new NpgsqlConnection(_cs); using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrydailyclosing_reopen(p_poultrydailyclosingid => @PoultryDailyClosingId::int, p_farmid => @FarmId::text)", c);
+            using var c = new NpgsqlConnection(_cs); using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrydailyclosing_reopen(p_poultrydailyclosingid => @PoultryDailyClosingId::int, p_farmid => @FarmId::text, p_reason => @Reason::text, p_reopenedby => @ReopenedBy::text)", c);
             cmd.Parameters.AddWithValue("@PoultryDailyClosingId", id); cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@Reason", reason); cmd.Parameters.AddWithValue("@ReopenedBy", (object?)reopenedBy ?? DBNull.Value);
             await c.OpenAsync(); await cmd.ExecuteNonQueryAsync();
         }
         public async Task RecreateAsync(int id, string farmId)

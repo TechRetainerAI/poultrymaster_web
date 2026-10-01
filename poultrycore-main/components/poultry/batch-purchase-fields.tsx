@@ -95,12 +95,15 @@ export interface BatchPurchaseDetailProps extends BatchFieldsProps {
    * grid would be saying the same number twice.
    */
   showBalance?: boolean
+  /** Rendered in the grid cell right after Supplier, so it sits on the same row
+   *  -- Flock Purchases puts its "Pay from cash account" picker there. */
+  afterSupplier?: React.ReactNode
 }
 
 /** Cost, payment and who it was bought from. */
 export function BatchPurchaseDetailFields({
   value, onPatch, disabled, className, errors, suppliers, currencySymbol = "",
-  amountPaidHint, showBalance = true,
+  amountPaidHint, showBalance = true, afterSupplier,
 }: BatchPurchaseDetailProps) {
   const balance = batchBalance(value.totalCost, value.amountPaid)
   return (
@@ -149,6 +152,7 @@ export function BatchPurchaseDetailFields({
           </SelectContent>
         </Select>
       </Cell>
+      {afterSupplier}
       {/* Only means anything for a foreign purchase, so it stays out of the way
           for the common case -- but never hides a rate that is already set, or
           editing a batch could make its own data unreachable. */}
@@ -163,7 +167,8 @@ export function BatchPurchaseDetailFields({
 }
 
 /** When it was ordered, when it is due, and anything worth remembering. */
-export function BatchOrderFields({ value, onPatch, disabled, className, errors }: BatchFieldsProps) {
+/** `children` go in the same grid, after the arrival date — the wizard puts its cash-account picker there. */
+export function BatchOrderFields({ value, onPatch, disabled, className, errors, children }: BatchFieldsProps & { children?: React.ReactNode }) {
   return (
     <div className={className ?? GRID}>
       <Cell label="Order Placement Date" hint="When you placed the order with the supplier."
@@ -176,6 +181,7 @@ export function BatchOrderFields({ value, onPatch, disabled, className, errors }
         <Input type="date" value={value.estimatedArrivalDate}
           onChange={(e) => onPatch({ estimatedArrivalDate: e.target.value })} disabled={disabled} />
       </Cell>
+      {children}
     </div>
   )
 }

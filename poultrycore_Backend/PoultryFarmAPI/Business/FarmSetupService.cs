@@ -320,6 +320,7 @@ namespace PoultryFarmAPIWeb.Business
                         IsHistorical = b.IsHistorical,
                         SupplierType = b.SupplierType ?? string.Empty,
                         SupplierId = b.SupplierId,
+                        PoultryCashAccountId = b.PoultryCashAccountId,
                         DollarConversionRate = b.DollarConversionRate,
                         OrderPlacementDate = b.OrderPlacementDate,
                         EstimatedArrivalDate = b.EstimatedArrivalDate,

@@ -44,6 +44,7 @@ import { getBirdsLeftForFlockFromRecords } from "@/lib/utils/production-records"
 import {
   flockCountsTowardBirdTotals,
   getFlockLifecycleStatus,
+  isFlockClosed,
   shouldAutoActivateFlock,
 } from "@/lib/utils/flock-eligibility"
 import { clearFlocksCache } from "@/lib/utils/flock-utils"
@@ -133,6 +134,9 @@ export default function FlocksPage() {
   const emptyFlockForm = { name: "", startDate: "", breed: "", quantity: 0, active: true, hasArrived: false, houseId: null as number | null, batchId: 0, inactivationReason: "", otherReason: "", notes: "" }
   const [createForm, setCreateForm] = useState({ ...emptyFlockForm })
   const [createSelectedBatch, setCreateSelectedBatch] = useState<FlockBatch | null>(null)
+
+  // Closing and reopening flocks live on their own page, Tools > Flock
+  // Closeout (/flock-closeout). This page only shows the Closed state.
 
   // Edit dialog state
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
@@ -712,10 +716,12 @@ export default function FlocksPage() {
     }
 
     if (selectedStatus !== "ALL") {
-      const wantActive = selectedStatus === "active"
       currentList = currentList.filter((flock) => {
         const life = getFlockLifecycleStatus(flock)
-        return wantActive ? life === "active" : life !== "active"
+        if (selectedStatus === "active") return life === "active"
+        if (selectedStatus === "closed") return life === "closed"
+        // "Inactive" is everything not running that has not been closed out.
+        return life !== "active" && life !== "closed"
       })
     }
 
@@ -907,6 +913,13 @@ export default function FlocksPage() {
         </Badge>
       )
     }
+    if (life === "closed") {
+      return (
+        <Badge variant="secondary" className="bg-slate-800 text-white">
+          Closed
+        </Badge>
+      )
+    }
     return (
       <Badge variant="secondary" className="bg-gray-100 text-gray-800">
         Inactive
@@ -983,6 +996,7 @@ export default function FlocksPage() {
                               <SelectItem value="ALL">All Statuses</SelectItem>
                               <SelectItem value="active">Active</SelectItem>
                               <SelectItem value="inactive">Inactive</SelectItem>
+                              <SelectItem value="closed">Closed</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -1115,6 +1129,7 @@ export default function FlocksPage() {
                     <SelectItem value="ALL">All Statuses</SelectItem>
                     <SelectItem value="active">Active</SelectItem>
                     <SelectItem value="inactive">Inactive</SelectItem>
+                    <SelectItem value="closed">Closed</SelectItem>
                   </SelectContent>
                 </Select>
 
@@ -1353,7 +1368,7 @@ export default function FlocksPage() {
                                   <Button variant="outline" size="sm" className="flex-1 h-10" onClick={() => openEditDialog(flock.flockId)}>
                                     <Pencil className="h-4 w-4 mr-2" /> Edit
                                   </Button>
-                                  {permissions.canDelete && (
+                                  {permissions.canDelete && !isFlockClosed(flock) && (
                                     <Button variant="outline" size="sm" className="flex-1 h-10 text-red-600 border-red-200 hover:bg-red-50" onClick={() => openDeleteDialog(flock.flockId)}>
                                       <Trash2 className="h-4 w-4 mr-2" /> Delete
                                     </Button>
@@ -1470,6 +1485,14 @@ export default function FlocksPage() {
                                       <p>Start date not reached — not counted in farm bird totals yet.</p>
                                     </TooltipContent>
                                   )}
+                                  {getFlockLifecycleStatus(flock) === "closed" && (
+                                    <TooltipContent>
+                                      <p>
+                                        Closed {(flock.closedDate ?? "").slice(0, 10)}
+                                        {flock.closeReason ? ` — ${flock.closeReason}` : ""}
+                                      </p>
+                                    </TooltipContent>
+                                  )}
                                   {getFlockLifecycleStatus(flock) === "inactive" && flock.inactivationReason && (
                                     <TooltipContent>
                                       <p>
@@ -1522,8 +1545,14 @@ export default function FlocksPage() {
                             {hasInactiveFlocks && (
                               <TableCell className="text-slate-600 hidden xl:table-cell">
                                 <div className="flex items-center gap-2">
-                                  <span>{flock.inactivationReason || '-'}</span>
-                                  {flock.inactivationReason === 'other' && flock.otherReason && <span>({flock.otherReason})</span>}
+                                  {isFlockClosed(flock) ? (
+                                    <span>Closed: {flock.closeReason || '-'}</span>
+                                  ) : (
+                                    <>
+                                      <span>{flock.inactivationReason || '-'}</span>
+                                      {flock.inactivationReason === 'other' && flock.otherReason && <span>({flock.otherReason})</span>}
+                                    </>
+                                  )}
                                 </div>
                               </TableCell>
                             )}
@@ -1535,7 +1564,8 @@ export default function FlocksPage() {
                                 <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-blue-50 hover:text-blue-600" onClick={() => openEditDialog(flock.flockId)}>
                                   <Pencil className="w-4 h-4" />
                                 </Button>
-                                {permissions.canDelete && (
+                                {/* A closed flock is history: it is reopened, never deleted. */}
+                                {permissions.canDelete && !isFlockClosed(flock) && (
                                   <Button
                                     variant="ghost"
                                     size="icon"
@@ -1770,6 +1800,15 @@ export default function FlocksPage() {
           </DialogHeader>
           {editError && (
             <Alert variant="destructive"><AlertDescription>{editError}</AlertDescription></Alert>
+          )}
+          {editingFlockId != null && isFlockClosed(flocks.find((f) => f.flockId === editingFlockId)) && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                This flock is closed. Its name, breed and notes can still be corrected; to change its birds,
+                house, dates or status, reopen it first from Tools &gt; Flock Closeout.
+              </AlertDescription>
+            </Alert>
           )}
           {editFetching ? (
             <div className="py-8 text-center">
