@@ -32,7 +32,7 @@ export interface Flock {
   notes?: string
   batchName?: string
   /**
-   * The closed state (migration 332). Set only by Close Flock and cleared only
+   * The closed state (migration 338). Set only by Close Flock and cleared only
    * by Reopen Flock. A closed flock is also inactive, but an inactive flock is
    * not necessarily closed -- see isFlockClosed in lib/utils/flock-eligibility.
    */

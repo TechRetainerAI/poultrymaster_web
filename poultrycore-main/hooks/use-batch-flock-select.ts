@@ -26,7 +26,7 @@ export interface FlockSelectOption {
 
 export interface BatchFlockSelectOptions {
   /**
-   * Leave closed flocks out (migration 332). Data-entry forms -- production,
+   * Leave closed flocks out (migration 338). Data-entry forms -- production,
    * feed -- set this: the database refuses their writes for a closed flock.
    * Expenses do not: a late invoice for a finished flock is still its cost.
    */

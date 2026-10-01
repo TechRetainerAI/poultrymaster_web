@@ -322,7 +322,7 @@ export default function SalesPage() {
   )
 
   /**
-   * A closed flock (332) has no birds left, and the database refuses a bird sale
+   * A closed flock (338) has no birds left, and the database refuses a bird sale
    * against one -- so it is disabled in the picker while the product is birds.
    * Its remaining eggs can still be sold. The flock a sale being edited already
    * belongs to stays pickable so the form can show it.

@@ -17,7 +17,7 @@ import {
   Activity, AlertTriangle, ArrowLeftRight, Banknote, BarChart3, Bell, Bird, BookOpen, Box, Boxes,
   Building2, Clock, CreditCard, DollarSign, Egg, Factory, FileText, HelpCircle, History, Hourglass,
   Coins, HandCoins, ListTodo, Package, PackageMinus, Pill, Receipt, Scale, Settings, ShoppingCart, Truck, User, UserCog, Users,
-  Users2, Wallet, Wheat, TrendingUp, Sparkles, ClipboardCheck, CalendarCheck,
+  Users2, Wallet, Wheat, TrendingUp, Sparkles, ClipboardCheck, CalendarCheck, Flag,
 } from "lucide-react"
 import type { UserPermissions } from "@/hooks/use-permissions"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
@@ -419,6 +419,9 @@ export function buildPoultryNavConfig(
           // toss. Rides canViewSettings like the Setup rows it came from; what
           // it may create once inside is gated by its own IAM keys.
           { id: "initial-farm-setup", title: "Initial Farm Setup", icon: Sparkles, href: "/poultry-farm-setup", visible: featureAccess.canViewSettings },
+          // Flock Closeout (migrations 338/339). Gated on its own IAM key, the same
+          // one the page and the API check, so the row never offers a page that would refuse.
+          { id: "flock-closeout", title: "Flock Closeout", icon: Flag, href: "/flock-closeout", visible: permissions.can("poultry.flock-closeout.view") },
           // Missing Activity Detector (332): which expected activities -- today
           // or any past day -- have not been recorded. Not gated here, like the
           // Production rows it reports on; the API gates each check on its own

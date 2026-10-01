@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace PoultryFarmAPIWeb.Models
 {
     /// <summary>
-    /// Where a flock's birds are, from fnflock_birdposition (migration 332). Every
+    /// Where a flock's birds are, from fnflock_birdposition (migration 338). Every
     /// figure is derived from the flock, its opening position, its production
     /// records, its tagged bird sales and its closeout dispositions -- nothing
     /// here is typed in, so it cannot drift from what those records say.
@@ -125,7 +125,7 @@ namespace PoultryFarmAPIWeb.Models
         public string FarmId { get; set; } = string.Empty;
         public string Reason { get; set; } = string.Empty;
         /// <summary>
-        /// Migration 333. True (the default): reverse the closeout's sales --
+        /// Migration 339. True (the default): reverse the closeout's sales --
         /// their payments are reversed, the money leaves the cash account, the
         /// sales are removed and the birds come back. False: keep the sales
         /// (they really happened) and only unlock them.
@@ -150,7 +150,7 @@ namespace PoultryFarmAPIWeb.Models
         public string? Destination { get; set; }
         public string? Notes { get; set; }
         public DateTime? ReversedAt { get; set; }
-        /// <summary>333: when a reopen reversed this sale (the sale row is then gone).</summary>
+        /// <summary>339: when a reopen reversed this sale (the sale row is then gone).</summary>
         public DateTime? SaleReversedAt { get; set; }
         public decimal? TotalAmount { get; set; }
         public string? CustomerName { get; set; }

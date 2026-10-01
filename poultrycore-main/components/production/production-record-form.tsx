@@ -145,7 +145,7 @@ export function ProductionRecordForm({
   const isModal = displayMode === "modal"
 
   const { labels: pickLabelText, enableFourthPick, enableFifthPick, enableSixthPick } = usePickSettings()
-  // Closed flocks are not offered (332) -- except the one an edited record
+  // Closed flocks are not offered (338) -- except the one an edited record
   // already belongs to, which is only known once the record has loaded.
   const [keepFlockId, setKeepFlockId] = useState<number | null>(
     isEdit ? ((recordProp as any)?.flockId ?? initialFlockId ?? null) : null,

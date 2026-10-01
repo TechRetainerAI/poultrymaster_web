@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 namespace PoultryFarmAPIWeb.Controllers
 {
     /// <summary>
-    /// End-of-flock closeout (migration 332).
+    /// End-of-flock closeout (migration 338).
     ///
     /// <para>
     /// Permissions come from IamPermissionMap's "flock-closeout" entry, so they

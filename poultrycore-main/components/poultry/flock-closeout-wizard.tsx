@@ -1,6 +1,6 @@
 "use client"
 
-// Close Flock — the end-of-flock / spent-layer closeout wizard (migration 332).
+// Close Flock — the end-of-flock / spent-layer closeout wizard (migration 338).
 //
 // Three steps, in the order the decision is actually made:
 //   1. Reconcile  what the records say is standing, derived server-side

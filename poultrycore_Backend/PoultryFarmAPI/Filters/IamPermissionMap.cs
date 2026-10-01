@@ -78,7 +78,7 @@ namespace PoultryFarmAPIWeb.Filters
 
             // ---- Poultry, via the shared/legacy controller names -------------
             ["flock"] = "poultry.flocks",
-            // 332. Its own resource so closing a flock is not simply "can edit
+            // 338. Its own resource so closing a flock is not simply "can edit
             // flocks". POST = create (close); the /reverse route resolves to
             // approve (reopen) via ApproveSegments with no extra wiring.
             ["flock-closeout"] = "poultry.flock-closeout",

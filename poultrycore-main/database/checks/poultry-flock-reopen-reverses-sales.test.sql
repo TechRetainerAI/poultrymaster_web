@@ -1,13 +1,13 @@
--- Behavioural checks for migration 333: reopening a flock reverses its
+-- Behavioural checks for migration 339: reopening a flock reverses its
 -- closeout sales and the money they brought in.
 --
--- Run inside a transaction you ROLL BACK (the apply script does, after 332's
+-- Run inside a transaction you ROLL BACK (the apply script does, after 338's
 -- checks). Prints "ok"/"FAIL" per check and RAISES at the end on any failure.
 --
 --   R. Paid in full: cash back out of the account, payment Reversed (kept,
 --      with the reason), sale gone, birds back, history keeps the snapshot
 --   P. Part paid on credit: same, and the receivable disappears with the sale
---   K. Reopen KEEPING sales: 332's behaviour, nothing money-side moves
+--   K. Reopen KEEPING sales: 338's behaviour, nothing money-side moves
 --   S. A customer payment that also pays another sale refuses the reopen,
 --      and nothing at all has changed when it does
 
@@ -52,7 +52,7 @@ BEGIN
     INSERT INTO houses (userid, farmid, housename, capacity)
     VALUES ('reopen-test', v_farm, 'Reopen Test House', 500) RETURNING houseid INTO v_house;
     INSERT INTO mainflockbatch (userid, farmid, batchcode, batchname, breed, numberofbirds, startdate, costperchick, totalcost)
-    VALUES ('reopen-test', v_farm, 'RO-333', 'Reopen batch', 'Isa Brown', 100, v_start, 5, 500)
+    VALUES ('reopen-test', v_farm, 'RO-339', 'Reopen batch', 'Isa Brown', 100, v_start, 5, 500)
     RETURNING batchid INTO v_batch;
     INSERT INTO flock (userid, farmid, name, breed, startdate, quantity, active, batchid, houseid, hasarrived)
     VALUES ('reopen-test', v_farm, 'RO Flock', 'Isa Brown', v_start, 100, TRUE, v_batch, v_house, TRUE)
