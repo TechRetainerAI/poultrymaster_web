@@ -584,7 +584,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     // Flow and Loans. Same gate it had in the money group, carried across with
     // it -- and because systemItems is shared, every company type now has a
     // link to its own subscription instead of only Poultry.
-    ...gateFinancial([{ href: "/business-office/setup?tab=billing", label: "Billing", icon: CreditCard }]),
+    ...gateFinancial([{ href: "/business-office/billing", label: "Billing", icon: CreditCard }]),
     ...(permissions.featureAccess.canViewActivityLog
       ? [{ href: "/audit-logs", label: "Activity Log", icon: Activity }] : []),
     // The poultry farm profile. Water, Generic and Hotel have their own setup links

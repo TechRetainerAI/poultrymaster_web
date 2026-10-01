@@ -244,7 +244,7 @@ function PaymentsPageInner() {
                 <span>
                   Billing has a new home: manage all your companies&apos; subscriptions in one place.
                 </span>
-                <Button size="sm" variant="outline" onClick={() => router.push("/business-office/setup?tab=billing")}>
+                <Button size="sm" variant="outline" onClick={() => router.push("/business-office/billing")}>
                   Open Business Office billing
                 </Button>
               </AlertDescription>

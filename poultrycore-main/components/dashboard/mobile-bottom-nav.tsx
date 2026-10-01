@@ -331,7 +331,7 @@ export function MobileBottomNav() {
             { href: "/profile",   label: "Account",   icon: User },
             { href: "/companies", label: "Companies", icon: Building2 },
             // The account's own subscription, matching the sidebar and top nav.
-            { href: "/business-office/setup?tab=billing",   label: "Billing",   icon: CreditCard },
+            { href: "/business-office/billing",   label: "Billing",   icon: CreditCard },
             ...(permissions.featureAccess.canViewActivityLog
               ? [{ href: "/audit-logs", label: "Activity Log", icon: Activity }] : []),
             { href: "/terms", label: "Terms & Conditions", icon: FileText },
@@ -418,7 +418,7 @@ export function MobileBottomNav() {
             { href: "/profile",   label: "Account",   icon: User },
             { href: "/companies", label: "Companies", icon: Building2 },
             // The account's own subscription, matching the sidebar and top nav.
-            { href: "/business-office/setup?tab=billing",   label: "Billing",   icon: CreditCard },
+            { href: "/business-office/billing",   label: "Billing",   icon: CreditCard },
             ...(permissions.featureAccess.canViewActivityLog
               ? [{ href: "/audit-logs", label: "Activity Log", icon: Activity }] : []),
             { href: "/terms", label: "Terms & Conditions", icon: FileText },
@@ -525,7 +525,7 @@ export function MobileBottomNav() {
             { href: "/profile",     label: "Account",   icon: User },
             { href: "/companies",   label: "Companies", icon: Building2 },
             // The account's own subscription, not a guest folio (/hotel-billing).
-            { href: "/business-office/setup?tab=billing",     label: "Billing",   icon: CreditCard },
+            { href: "/business-office/billing",     label: "Billing",   icon: CreditCard },
           ] as NavItem[] },
           ]),
         ]),

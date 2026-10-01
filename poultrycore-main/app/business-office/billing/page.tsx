@@ -1,33 +1,29 @@
 "use client"
 
-// Billing lives as a tab of Administration (/business-office/setup?tab=billing).
-// This route survives only so links minted while it was a standalone page —
-// and the provider's checkout return URLs — keep working; query params
-// (billing=success&reference=…) are carried across so verification still runs.
+// Subscription & Billing — its own Business Office page, sitting in the
+// sidebar right below Administration (it used to be a tab of Administration;
+// the old ?tab=billing link now redirects here). Checkout return
+// URLs (billing=success&reference=…) land on this route and the panel runs
+// verification from the query params.
 
-import { useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
 import { Suspense } from "react"
-import { Loader2 } from "lucide-react"
+import { BusinessOfficeShell } from "@/components/dashboard/business-office-shell"
+import { BillingPanel } from "@/components/business-office/billing-panel"
 
-export default function BillingRedirect() {
+export default function BusinessOfficeBillingPage() {
   return (
-    <Suspense fallback={null}>
-      <RedirectInner />
-    </Suspense>
-  )
-}
-
-function RedirectInner() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  useEffect(() => {
-    const qs = searchParams.toString()
-    router.replace(`/business-office/setup?tab=billing${qs ? `&${qs}` : ""}`)
-  }, [router, searchParams])
-  return (
-    <div className="flex items-center gap-2 text-slate-600 py-12 justify-center">
-      <Loader2 className="h-5 w-5 animate-spin" /> Opening billing…
-    </div>
+    <BusinessOfficeShell active="billing">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Subscription & Billing</h1>
+          <p className="text-sm text-slate-600 sm:text-base">One consolidated VisibilityCore subscription across every company in your organization.</p>
+        </div>
+        {/* BillingPanel reads checkout-return query params, so it needs a
+            Suspense boundary during prerender (house pattern). */}
+        <Suspense fallback={null}>
+          <BillingPanel />
+        </Suspense>
+      </main>
+    </BusinessOfficeShell>
   )
 }

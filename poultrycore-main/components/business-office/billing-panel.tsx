@@ -47,7 +47,7 @@ import {
   type MarketChangePreview,
 } from "@/lib/api/platform-billing"
 
-const RETURN_PATH = "/business-office/setup?tab=billing"
+const RETURN_PATH = "/business-office/billing"
 
 function money(v: number | null | undefined, currency: string) {
   if (v === null || v === undefined) return "—"
@@ -222,7 +222,7 @@ export function BillingPanel() {
     setCheckoutBusy(true)
     try {
       const base = `${window.location.origin}${RETURN_PATH}`
-      const res = await startPlatformCheckout(`${base}&billing=success`, `${base}&billing=cancel`)
+      const res = await startPlatformCheckout(`${base}?billing=success`, `${base}?billing=cancel`)
       if (!res.success || !res.checkoutUrl) {
         toast({ variant: "destructive", title: "Could not start checkout", description: res.message })
         return
