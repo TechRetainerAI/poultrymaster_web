@@ -1,7 +1,7 @@
 "use client"
 
 /**
- * Restaurant — Staff Loans & Advances (money LENT TO STAFF).
+ * Restaurant — Employee Loans & Advances (money LENT TO STAFF).
  * Money the restaurant itself borrowed is on the Loans page (/restaurant-loans).
  *
  * The rules live in the database (migration 326):
@@ -30,12 +30,12 @@ import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { HandCoins, Plus, Wallet, Users, CalendarClock, Info, Pencil, Undo2, Ban, Search, Banknote } from "lucide-react"
+import { HandCoins, Plus, Wallet, Info, Pencil, Undo2, Ban, Search, Banknote, Eye } from "lucide-react"
+import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useFmt } from "@/lib/currency"
-import { StatCard } from "@/components/restaurant/stat-card"
 import { EmptyState } from "@/components/restaurant/empty-state"
 import { PageHeader } from "@/components/restaurant/page-header"
 import { PageSkeleton } from "@/components/restaurant/skeleton-loaders"
@@ -301,7 +301,7 @@ function StaffLoansInner() {
   )
 
   return shell(<>
-    <PageHeader icon={HandCoins} title="Staff Loans & Advances" subtitle="Money lent to staff, and how it is being paid back">
+    <PageHeader icon={HandCoins} title="Employee Loans & Advances" subtitle="Money lent to staff, and how it is being paid back">
       <div className="flex gap-2">
         <Button variant="outline" asChild><Link href="/restaurant-payroll"><Banknote className="h-4 w-4 mr-1" />Payroll</Link></Button>
         <Button className="bg-rose-600 hover:bg-rose-700" onClick={openCreate}><Plus className="h-4 w-4 mr-1" />New advance</Button>
@@ -318,13 +318,18 @@ function StaffLoansInner() {
       </p>
     </div>
 
+    {/* Poultry's four cards (app/poultry-employee-loans): the balance, the two
+        flows, and how many are live. */}
     {summary && (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label={`Owed by staff · ${summary.activeCount} active`} value={fmt(summary.totalOutstanding)} icon={Wallet} color="red" />
-        <StatCard label={`Given out · ${summary.draftCount} draft`} value={fmt(summary.totalDisbursed)} icon={HandCoins} color="rose" />
-        <StatCard label={`Repaid · ${fmt(summary.repaidViaPayroll)} via payroll`} value={fmt(summary.totalRepaid)} icon={Users} color="green" />
-        <StatCard label="Set aside on draft payroll" value={fmt(summary.draftPayrollClaims)} icon={CalendarClock} color="amber" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Stat label="Outstanding" value={fmt(summary.totalOutstanding)} hint="What staff still owe the restaurant" accent="indigo" />
+        <Stat label="Advanced" value={fmt(summary.totalDisbursed)} hint={summary.draftCount ? `${summary.draftCount} draft` : undefined} accent="rose" />
+        <Stat label="Repaid" value={fmt(summary.totalRepaid)} hint={`${fmt(summary.repaidViaPayroll)} via payroll`} accent="emerald" />
+        <Stat label="Active advances" value={String(summary.activeCount)} hint={`${summary.staffWithLoans} member(s) of staff`} />
       </div>
+    )}
+    {summary && summary.draftPayrollClaims > 0 && (
+      <p className="text-xs text-amber-700">{fmt(summary.draftPayrollClaims)} is set aside on draft payroll runs and is repaid when they are approved.</p>
     )}
 
     <div className="space-y-3">
@@ -354,7 +359,71 @@ function StaffLoansInner() {
         description="Give a staff member an advance and set how much comes off each payroll."
         actionLabel="New advance" onAction={openCreate} />
     ) : (
-      <Card><CardContent className="p-0"><div className="overflow-x-auto">
+      <Card><CardContent className="p-0 lg:p-2">
+        {/* Poultry's phone card (app/poultry-employee-loans): Outstanding /
+            Advanced / Repaid tiles, the plan underneath, and Details / Record
+            repayment / Reverse. The table stays for desktop and "View table
+            format". */}
+        <MobileCardList
+          striped
+          defaultOpen
+          items={filtered}
+          getKey={(l: StaffLoan) => l.staffLoanId}
+          primary={(l: StaffLoan) => <>{l.loanNumber} · {l.staffName ?? "—"}</>}
+          secondary={(l: StaffLoan) => (
+            <>
+              <span>{dateOnly(l.disbursementDate ?? l.createdAt)}</span>
+              <span>·</span>
+              <span className="text-xs">{staffLoanTypeLabel(l.loanType)}</span>
+            </>
+          )}
+          trailing={(l: StaffLoan) => <Badge variant="outline" className={`text-xs ${STATUS_STYLE[l.status] ?? ""}`}>{l.status}</Badge>}
+          highlights={(l: StaffLoan) => [
+            { label: "Outstanding", value: fmt(l.status === "Active" || l.status === "Paid" ? l.outstandingBalance : 0), accent: "blue" as const, wide: true },
+            { label: "Advanced", value: fmt(l.principalAmount), accent: "rose" as const },
+            { label: "Repaid", value: fmt(l.totalPrincipalRepaid + l.totalInterestRepaid), accent: "emerald" as const },
+          ]}
+          details={(l: StaffLoan) => [
+            { label: "Total repayable", value: fmt(l.totalRepayable) },
+            { label: "Repayment", value: staffLoanMethodLabel(l.repaymentMethod) },
+            { label: "Suggested per payroll", value: l.defaultPayrollDeduction ? fmt(l.defaultPayrollDeduction) : "—" },
+            { label: "Paid from", value: l.cashAccountName ?? "—" },
+            { label: "Reference", value: l.reference ?? "—" },
+            { label: "Purpose", value: l.notes ?? "—" },
+            { label: "Repayments", value: String(l.repaymentCount) },
+            ...(l.draftPayrollClaims > 0 ? [{ label: "On draft payroll", value: fmt(l.draftPayrollClaims) }] : []),
+          ]}
+          actions={(l: StaffLoan) => (
+            <>
+              <Button size="sm" variant="outline" className="flex-1 basis-32 h-10 bg-white" onClick={() => openDetail(l)}>
+                <Eye className="h-4 w-4 mr-1" /> Details
+              </Button>
+              {l.status === "Draft" && (
+                <Button size="sm" variant="outline" className="flex-1 basis-32 h-10 bg-white"
+                        onClick={() => { setPayOut(l); setPayOutForm({ cashAccountId: "", date: todayIso(), reference: l.reference ?? "" }) }}>
+                  <HandCoins className="h-4 w-4 mr-1" /> Pay out
+                </Button>
+              )}
+              {l.status === "Active" && (
+                <Button size="sm" variant="outline" className="flex-1 basis-32 h-10 bg-white"
+                        onClick={() => { setRepayTarget(l); setRepayForm({ amount: "", source: "Cash", cashAccountId: "", date: todayIso(), reference: "", notes: "" }) }}>
+                  <Wallet className="h-4 w-4 mr-1" /> Record repayment
+                </Button>
+              )}
+              {l.status === "Draft" && (
+                <Button size="sm" variant="ghost" className="h-10" onClick={() => { setReasonAction({ kind: "cancel", loan: l }); setReason("") }}>
+                  <Ban className="h-4 w-4 mr-1" /> Cancel
+                </Button>
+              )}
+              {l.status === "Active" && (
+                <Button size="sm" variant="ghost" className="h-10" onClick={() => { setReasonAction({ kind: "reverse", loan: l }); setReason("") }}>
+                  <Undo2 className="h-4 w-4 mr-1" /> Reverse
+                </Button>
+              )}
+            </>
+          )}
+          desktopTable={
+      <div className="overflow-x-auto">
         <table className="w-full text-sm min-w-[820px]">
           <thead><tr className="border-b bg-gray-50 text-gray-600">
             <th className="text-left p-3">Loan</th><th className="text-left p-3">Staff</th><th className="text-left p-3">Type</th>
@@ -382,7 +451,10 @@ function StaffLoansInner() {
             ))}
           </tbody>
         </table>
-      </div></CardContent></Card>
+      </div>
+          }
+        />
+      </CardContent></Card>
     )}
 
     {/* ===== create / edit ===== */}
@@ -551,4 +623,20 @@ function StaffLoansInner() {
       </DialogContent>
     </Dialog>
   </>)
+}
+
+/** Poultry's summary card (app/poultry-employee-loans). */
+function Stat({ label, value, hint, accent = "slate" }: {
+  label: string; value: string; hint?: string; accent?: "slate" | "emerald" | "rose" | "indigo"
+}) {
+  const colour = { slate: "text-slate-900", emerald: "text-emerald-700", rose: "text-rose-600", indigo: "text-indigo-700" }[accent]
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <p className="text-xs font-medium text-slate-500 uppercase tracking-wider truncate">{label}</p>
+        <div className={`text-lg sm:text-xl font-bold mt-1 truncate ${colour}`}>{value}</div>
+        {hint && <div className="text-xs text-slate-500 mt-0.5 truncate">{hint}</div>}
+      </CardContent>
+    </Card>
+  )
 }

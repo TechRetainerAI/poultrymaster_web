@@ -107,6 +107,11 @@ namespace PoultryFarmAPIWeb.Models
         public string? Location { get; set; }
         public string? SerialNumber { get; set; }
         public string? Notes { get; set; }
+        // 332: Poultry's "Paid from" / "Amount paid now"; the rest is owed to the supplier.
+        public int? HotelSupplierId { get; set; }
+        public int? HotelCashAccountId { get; set; }
+        public decimal? AmountPaid { get; set; }
+        public string? DueDate { get; set; }
     }
 
     public class HotelCapitalAssetUpdateRequest
@@ -130,6 +135,11 @@ namespace PoultryFarmAPIWeb.Models
         public decimal Amount { get; set; }
         public string? Description { get; set; }
         public string? CostDate { get; set; }
+        // 332: as on the create request.
+        public int? HotelSupplierId { get; set; }
+        public int? HotelCashAccountId { get; set; }
+        public decimal? AmountPaid { get; set; }
+        public string? DueDate { get; set; }
     }
 
     public class HotelAssetReasonRequest

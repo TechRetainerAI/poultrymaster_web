@@ -19,13 +19,17 @@ namespace PoultryFarmAPIWeb.Models
         // Revenue
         public decimal RoomRevenue { get; set; }
         public decimal RestaurantRevenue { get; set; }
-        public decimal DepositsNet { get; set; }
+        public decimal DepositsNet { get; set; }   // 327: deposits held (refundable), NOT in TotalRevenue
         public decimal TotalRevenue { get; set; }
 
         // Expenses
         public decimal StaffWages { get; set; }
         public decimal TotalExpenseCategory { get; set; }
         public decimal TotalExpenses { get; set; }
+
+        // Depreciation & Financing (327): non-cash, after operating expenses
+        public decimal Depreciation { get; set; }
+        public decimal TotalOtherCosts { get; set; }
 
         // Profit
         public decimal NetProfit { get; set; }

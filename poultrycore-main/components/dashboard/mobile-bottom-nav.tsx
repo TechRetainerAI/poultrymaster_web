@@ -12,6 +12,7 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useAlertsStore } from "@/lib/store/alerts-store"
 import { buildPoultryNavConfig } from "@/lib/nav/poultry-nav-config"
 import { buildWaterNavConfig } from "@/lib/nav/water-nav-config"
+import { buildHotelNavConfig } from "@/lib/nav/hotel-nav-config"
 import { useQuickLinkHrefs } from "@/lib/store/quick-links-store"
 import { QuickLinksDialog } from "@/components/dashboard/quick-links-dialog"
 import { HOTEL_REPORT_NAV_GROUPS, POULTRY_REPORT_NAV_GROUPS, RESTAURANT_REPORT_NAV_GROUPS } from "@/lib/nav/report-nav-adapters"
@@ -427,6 +428,7 @@ export function MobileBottomNav() {
     }
 
     if (activeFarmType === "Hotel") {
+      const hnav = buildHotelNavConfig({ permissions })
       return {
         bg: "bg-violet-600",
         borderTop: "border-violet-700",
@@ -448,6 +450,11 @@ export function MobileBottomNav() {
             { href: "/hotel-guest-folio",  label: "Guest Folio",  icon: FileText },
             { href: "/hotel-stay-history", label: "Stay History", icon: FileText },
             { href: "/hotel-night-audit",  label: "Night Audit",  icon: FileText },
+            // Both came from the old "Billing & Money" section. Invoices sits
+            // beside the folio it is issued from (as in the desktop Front Desk);
+            // Daily Closing beside Night Audit, the other end-of-day screen.
+            { href: "/hotel-invoices",      label: "Invoices",      icon: FileText },
+            { href: "/hotel-daily-closing", label: "Daily Closing", icon: FileText },
           ] as NavItem[] },
           { title: "Guest Services", items: [
             { href: "/hotel-communications", label: "Guest Log",    icon: FileText },
@@ -463,18 +470,18 @@ export function MobileBottomNav() {
             { href: "/hotel-restaurant-tables",     label: "Tables",      icon: Boxes },
             { href: "/hotel-kitchen",               label: "Kitchen",     icon: Activity },
           ] as NavItem[] },
-          { title: "Billing & Money", items: [
-            { href: "/hotel-billing",       label: "Billing",       icon: DollarSign },
-            { href: "/hotel-invoices",      label: "Invoices",      icon: FileText },
-            { href: "/hotel-payments",      label: "Payments",      icon: CreditCard },
-            { href: "/hotel-expenses",      label: "Expenses",      icon: DollarSign },
-            { href: "/hotel-cash-accounts", label: "Cash Accounts", icon: Wallet },
-            { href: "/hotel-daily-closing", label: "Daily Closing", icon: FileText },
-          ] as NavItem[] },
+          ]),
+
+          // Derived from buildHotelNavConfig -- the source the desktop rail and
+          // the sidebar read -- instead of the hand-written "Billing & Money"
+          // list, which had drifted to 6 of the 12 money pages (no Customers,
+          // Suppliers, Supplier Payments, Assets, Cash Flow or P&L). Payroll and
+          // Employee Loans & Advances moved into its Expenses column.
+          { title: "Sales, Expenses & Money", groups: fromMegaMenu(hnav.salesMoney) },
+
+          ...asSections([
           { title: "People", items: [
             { href: "/hotel-staff",   label: "Staff",   icon: Users2 },
-            { href: "/hotel-payroll", label: "Payroll", icon: Banknote },
-            { href: "/hotel-employee-loans", label: "Loans & Advances", icon: HandCoins },
           ] as NavItem[] },
           // Reports used to be one row inside "Inventory & Reports" and Setup one
           // row inside "System". Both are now top-level sections of their own —
@@ -507,7 +514,10 @@ export function MobileBottomNav() {
             groups: [{ title: "", items: [
               { href: "/hotel-company-setup", label: "Company Setup", icon: Building2 },
               { href: "/hotel-setup",         label: "Hotel Setup",   icon: Settings },
-            ] as NavItem[] }],
+            ] as NavItem[] },
+            // Customers, Customer Payments and Suppliers, as in the desktop
+            // Setup > Finance (and Poultry's).
+            ...fromMegaMenu(hnav.setup.filter((g) => g.key === "finance"))],
           },
 
           ...asSections([
@@ -530,14 +540,16 @@ export function MobileBottomNav() {
       // the top nav and sidebar read — so the surfaces cannot drift apart again.
       // Badges are deliberately not passed: useOnlineOrderCounts is a hook, this is an
       // IIFE, and hoisting it would make every non-Restaurant company poll too.
-      const rnav = buildRestaurantNavConfig()
+      // Permissions ARE passed now, so the sheet hides the same rows the desktop
+      // rail and the sidebar hide.
+      const rnav = buildRestaurantNavConfig({}, permissions)
       const restaurantMore = compactSections([
+        { title: "Quick Links",         groups: [{ title: "", items: rnav.quickLinks.items }] },
         { title: "Orders & Kitchen",    groups: fromMegaMenu(rnav.ordersKitchen) },
         { title: "Dining",              groups: fromMegaMenu(rnav.dining) },
         { title: "Delivery & Online",   groups: fromMegaMenu(rnav.deliveryOnline) },
         { title: "Inventory",           groups: fromMegaMenu(rnav.inventoryReports) },
-        { title: "Money",               groups: fromMegaMenu(rnav.money) },
-        { title: "Expenses",            groups: fromMegaMenu(rnav.expenses) },
+        { title: "Sales, Expenses & Money", groups: fromMegaMenu(rnav.salesMoney) },
         { title: "Reports",             groups: fromMegaMenu(RESTAURANT_REPORT_NAV_GROUPS) },
         { title: "Growth",              groups: fromMegaMenu(rnav.growth) },
         { title: "Setup",               groups: fromMegaMenu(rnav.setup) },

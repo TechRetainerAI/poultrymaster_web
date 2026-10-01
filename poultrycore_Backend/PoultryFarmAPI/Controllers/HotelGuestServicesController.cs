@@ -1,12 +1,13 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Npgsql;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Helpers;
 
 namespace PoultryFarmAPIWeb.Controllers
 {
     // Request models
-    public class CreateDepositRequest { public string FarmId { get; set; } = ""; public int HotelBookingId { get; set; } public int HotelGuestId { get; set; } public string DepositType { get; set; } = "Collected"; public decimal Amount { get; set; } public string? Method { get; set; } public string? Reference { get; set; } public string? Notes { get; set; } }
+    public class CreateDepositRequest { public string FarmId { get; set; } = ""; public int HotelBookingId { get; set; } public int HotelGuestId { get; set; } public string DepositType { get; set; } = "Collected"; public decimal Amount { get; set; } public string? Method { get; set; } public string? Reference { get; set; } public string? Notes { get; set; } public int? HotelCashAccountId { get; set; } }
     public class CreateCommunicationRequest { public string FarmId { get; set; } = ""; public int HotelGuestId { get; set; } public int? HotelBookingId { get; set; } public string CommType { get; set; } = "Note"; public string? Subject { get; set; } public string Message { get; set; } = ""; public string Priority { get; set; } = "Normal"; public string? AssignedTo { get; set; } }
     public class UpdateCommunicationStatusRequest { public string FarmId { get; set; } = ""; public string Status { get; set; } = ""; }
     public class CreateGuestRequestReq { public string FarmId { get; set; } = ""; public int? HotelBookingId { get; set; } public int? HotelRoomId { get; set; } public string RequestType { get; set; } = "Other"; public string? Description { get; set; } public string? ScheduledTime { get; set; } public string? AssignedTo { get; set; } public string? Notes { get; set; } }
@@ -20,7 +21,9 @@ namespace PoultryFarmAPIWeb.Controllers
     public class CreateShiftHandoverRequest { public string FarmId { get; set; } = ""; public string? ShiftDate { get; set; } public string ShiftType { get; set; } = "Night"; public string HandoverBy { get; set; } = ""; public string? HandoverTo { get; set; } public string? KeyMessages { get; set; } public string? PendingItems { get; set; } public string? VipGuests { get; set; } public string? Incidents { get; set; } public decimal? CashBalance { get; set; } }
     public class AcknowledgeHandoverRequest { public string FarmId { get; set; } = ""; public string ReceivedBy { get; set; } = ""; }
 
-    [ApiController][Authorize][Route("api/Hotel")]
+    // Deposits move Front Desk cash through sphoteldeposit_record (327); its refusals
+    // come back as 400 with the sentence (HotelBusinessRuleFilter).
+    [ApiController][Authorize][Route("api/Hotel")][HotelBusinessRuleFilter]
     public class HotelGuestServicesController : ControllerBase
     {
         private readonly string _cs;
@@ -65,7 +68,7 @@ namespace PoultryFarmAPIWeb.Controllers
                 SELECT b.hotelbookingid, b.bookingref, b.checkindate, b.checkoutdate, b.status, b.nightlyrate, b.totalamount,
                        r.roomnumber, rt.name AS roomtypename,
                        ci.checkintime, co.checkouttime,
-                       COALESCE((SELECT SUM(p.amount) FROM hotelpayments p WHERE p.hotelbookingid=b.hotelbookingid AND p.farmid=@f),0) AS totalpaid,
+                       COALESCE((SELECT SUM(p.amount) FROM hotelpayments p WHERE p.hotelbookingid=b.hotelbookingid AND p.farmid=@f AND p.status<>'Void'),0) AS totalpaid,
                        COALESCE((SELECT SUM(sc.totalamount) FROM hotelstaycharges sc WHERE sc.hotelbookingid=b.hotelbookingid AND sc.farmid=@f),0) AS totalcharges
                 FROM hotelbookings b
                 LEFT JOIN hotelrooms r ON b.hotelroomid=r.hotelroomid
@@ -159,7 +162,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
             decimal roomTotal = Convert.ToDecimal(booking.GetValueOrDefault("totalamount", 0m));
             decimal chargesTotal = charges.Sum(c => Convert.ToDecimal(c.GetValueOrDefault("totalamount", 0m)));
-            decimal paymentsTotal = payments.Sum(p => Convert.ToDecimal(p.GetValueOrDefault("amount", 0m)));
+            decimal paymentsTotal = payments.Where(p => (p.GetValueOrDefault("status")?.ToString() ?? "Posted") != "Void").Sum(p => Convert.ToDecimal(p.GetValueOrDefault("amount", 0m)));
             decimal depositsCollected = deposits.Where(d => (d.GetValueOrDefault("deposittype", "")?.ToString() ?? "") == "Collected").Sum(d => Convert.ToDecimal(d.GetValueOrDefault("amount", 0m)));
             decimal depositsRefunded = deposits.Where(d => (d.GetValueOrDefault("deposittype", "")?.ToString() ?? "") == "Refunded").Sum(d => Convert.ToDecimal(d.GetValueOrDefault("amount", 0m)));
 
@@ -189,14 +192,25 @@ namespace PoultryFarmAPIWeb.Controllers
         {
             var auth = HotelAuthHelper.VerifyFarmOwnership(User, req.FarmId); if (auth != null) return auth;
             using var conn = new NpgsqlConnection(_cs); await conn.OpenAsync();
-            using var cmd = new NpgsqlCommand("INSERT INTO hoteldeposits(farmid,hotelbookingid,hotelguestid,deposittype,amount,method,reference,notes,processedby) VALUES(@f,@b,@g,@t,@a,@m,@r,@n,@p) RETURNING *", conn);
-            cmd.Parameters.AddWithValue("@f", req.FarmId); cmd.Parameters.AddWithValue("@b", req.HotelBookingId);
-            cmd.Parameters.AddWithValue("@g", req.HotelGuestId); cmd.Parameters.AddWithValue("@t", req.DepositType);
-            cmd.Parameters.AddWithValue("@a", req.Amount); cmd.Parameters.AddWithValue("@m", (object?)req.Method ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@r", (object?)req.Reference ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@n", (object?)req.Notes ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@p", HotelAuthHelper.GetUserName(User));
-            using var r = await cmd.ExecuteReaderAsync();
+            // Deposit row + Front Desk ledger row in one transaction (327).
+            int depositId;
+            using (var cmd = new NpgsqlCommand(
+                "SELECT sphoteldeposit_record(p_farmid => @f::text, p_bookingid => @b::int, p_guestid => @g::int, " +
+                "p_deposittype => @t::text, p_amount => @a::numeric, p_method => @m::text, p_reference => @r::text, " +
+                "p_notes => @n::text, p_by => @p::text, p_cashaccountid => @ca::int)", conn))
+            {
+                cmd.Parameters.AddWithValue("@f", req.FarmId); cmd.Parameters.AddWithValue("@b", req.HotelBookingId);
+                cmd.Parameters.AddWithValue("@g", req.HotelGuestId); cmd.Parameters.AddWithValue("@t", req.DepositType);
+                cmd.Parameters.AddWithValue("@a", req.Amount); cmd.Parameters.AddWithValue("@m", (object?)req.Method ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@r", (object?)req.Reference ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@n", (object?)req.Notes ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@p", (object?)HotelAuthHelper.GetUserName(User) ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@ca", (object?)req.HotelCashAccountId ?? DBNull.Value);
+                depositId = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            }
+            using var get = new NpgsqlCommand("SELECT * FROM hoteldeposits WHERE hoteldepositid=@id AND farmid=@f", conn);
+            get.Parameters.AddWithValue("@id", depositId); get.Parameters.AddWithValue("@f", req.FarmId);
+            using var r = await get.ExecuteReaderAsync();
             return await r.ReadAsync() ? Ok(ReadRow(r)) : StatusCode(500);
         }
 

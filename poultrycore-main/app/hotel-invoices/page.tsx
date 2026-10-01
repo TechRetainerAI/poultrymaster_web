@@ -14,6 +14,8 @@ import { useToast } from "@/hooks/use-toast"
 import { listInvoices, type HotelInvoice } from "@/lib/api/hotel"
 
 const STATUS_COLOR: Record<string, string> = { Draft: "bg-slate-100 text-slate-700", Issued: "bg-blue-100 text-blue-700", Paid: "bg-emerald-100 text-emerald-700", PartiallyPaid: "bg-amber-100 text-amber-700", Void: "bg-red-100 text-red-700" }
+// Poultry's wording for a part-paid document ("Partially paid"); the stored value stays PartiallyPaid.
+const STATUS_LABEL: Record<string, string> = { PartiallyPaid: "Partially paid" }
 
 export default function HotelInvoicesPage() {
   const router = useRouter(); const { toast } = useToast(); const logout = useLogout()
@@ -53,7 +55,7 @@ export default function HotelInvoicesPage() {
                 <td className="p-3 text-right font-semibold">{Number(i.totalAmount ?? i.totalamount ?? 0).toFixed(2)}</td>
                 <td className="p-3 text-right text-emerald-700">{Number(i.amountPaid ?? i.amountpaid ?? 0).toFixed(2)}</td>
                 <td className={`p-3 text-right font-bold ${Number(i.balance ?? 0) > 0 ? "text-red-700" : "text-emerald-700"}`}>{Number(i.balance ?? 0).toFixed(2)}</td>
-                <td className="p-3"><Badge variant="outline" className={STATUS_COLOR[i.status] ?? ""}>{i.status}</Badge></td>
+                <td className="p-3"><Badge variant="outline" className={STATUS_COLOR[i.status] ?? ""}>{STATUS_LABEL[i.status] ?? i.status}</Badge></td>
                 <td className="p-3 text-right"><Button variant="ghost" size="sm" onClick={() => setPrintInvoice(i)}><Printer className="h-4 w-4 mr-1" />Print</Button></td>
               </tr>
             ))}

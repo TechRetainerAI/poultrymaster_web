@@ -16,6 +16,8 @@ import { useToast } from "@/hooks/use-toast"
 import { listOrders, getOrder, updateOrderStatus, listOrderItems, linkOrderToCustomer, type Order, type OrderItem } from "@/lib/api/restaurant"
 import { markOnlineOrdersSeen } from "@/lib/utils/online-order-alerts"
 import { TakePaymentDialog, RefundDialog, type PaymentResult } from "@/components/restaurant/order-money-dialogs"
+import { Input } from "@/components/ui/input"
+import { markOrderPayLater } from "@/lib/restaurant/balances"
 
 const STATUS_BADGES: Record<string, string> = {
   Placed: "bg-blue-500", Confirmed: "bg-indigo-500", Preparing: "bg-amber-500",
@@ -54,6 +56,8 @@ export default function RestaurantOrdersPage() {
   const [payOrder, setPayOrder] = useState<Order | null>(null)
   const [completeAfterPay, setCompleteAfterPay] = useState(false)
   const [refundOrderFor, setRefundOrderFor] = useState<Order | null>(null)
+  // Migration 333: close a saved customer's order unpaid; it goes on Customer Balances.
+  const [payLaterFor, setPayLaterFor] = useState<Order | null>(null)
 
   useEffect(() => {
     if (activeFarmType === null || activeFarmType === undefined) return
@@ -506,12 +510,19 @@ export default function RestaurantOrdersPage() {
               {(() => {
                 const canPay = !["Cancelled", "Refunded"].includes(detailOrder.status) && detailOrder.paidAmount < detailOrder.totalAmount
                 const canRefund = detailOrder.status !== "Refunded" && detailOrder.paidAmount > 0
+                // Pay later: only a saved customer, only before the order is closed.
+                const canPayLater = canPay && !!detailOrder.customerId && detailOrder.status !== "Completed"
                 if (!canPay && !canRefund) return null
                 return (
                   <div className="flex gap-2">
                     {canPay && (
                       <Button variant="outline" className="flex-1 border-green-300 text-green-700" onClick={() => { setCompleteAfterPay(false); setPayOrder(detailOrder) }}>
                         <DollarSign className="h-4 w-4 mr-1" /> Take payment ({(detailOrder.totalAmount - detailOrder.paidAmount).toFixed(2)})
+                      </Button>
+                    )}
+                    {canPayLater && (
+                      <Button variant="outline" className="flex-1 border-amber-300 text-amber-700" onClick={() => setPayLaterFor(detailOrder)}>
+                        <Clock className="h-4 w-4 mr-1" /> Pay later
                       </Button>
                     )}
                     {canRefund && (
@@ -529,8 +540,69 @@ export default function RestaurantOrdersPage() {
 
       <TakePaymentDialog open={!!payOrder} onOpenChange={(o) => { if (!o) { setPayOrder(null); setCompleteAfterPay(false) } }}
         order={payOrder} onPaid={handlePaid} />
+      <PayLaterDialog order={payLaterFor} onClose={() => setPayLaterFor(null)}
+        onDone={async (o) => {
+          setPayLaterFor(null)
+          toast({ title: `Order ${o.orderNumber} completed — pay later`,
+                  description: `${(o.totalAmount - o.paidAmount).toFixed(2)} is now on Customer Balances.` })
+          loadOrders()
+          if (detailOrder?.orderId === o.orderId) setDetailOrder(await getOrder(o.orderId))
+        }} />
       <RefundDialog open={!!refundOrderFor} onOpenChange={(o) => { if (!o) setRefundOrderFor(null) }}
         order={refundOrderFor} onRefunded={handleRefunded} />
     </div>
+  )
+}
+
+/**
+ * Close an order as "Pay later" (migration 333). The order is completed unpaid
+ * or part-paid and what is left is owed by its saved customer, on Customer
+ * Balances. An optional due date; without one it is due today (Poultry's terms
+ * of 0 days).
+ */
+function PayLaterDialog({ order, onClose, onDone }: {
+  order: Order | null
+  onClose: () => void
+  onDone: (order: Order) => void | Promise<void>
+}) {
+  const { toast } = useToast()
+  const [dueDate, setDueDate] = useState("")
+  const [saving, setSaving] = useState(false)
+  useEffect(() => { if (order) setDueDate("") }, [order])
+  if (!order) return null
+  const owed = order.totalAmount - order.paidAmount
+  async function confirm() {
+    if (!order) return
+    setSaving(true)
+    try {
+      await markOrderPayLater(order.orderId, { dueDate: dueDate || null })
+      await onDone(order)
+    } catch (e: any) {
+      toast({ title: "Could not complete as pay later", description: e?.message, variant: "destructive" })
+    } finally { setSaving(false) }
+  }
+  return (
+    <Dialog open={!!order} onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Pay later — {order.orderNumber}</DialogTitle>
+          <DialogDescription>
+            The order is completed now and {owed.toFixed(2)} is owed by {order.customerName || "this customer"}.
+            It shows on Customer Balances until it is paid. The sale counts today; the cash counts when it is received.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium" htmlFor="paylater-due">Due date (optional)</label>
+          <Input id="paylater-due" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+          <p className="text-xs text-muted-foreground">Leave empty if it is due today.</p>
+        </div>
+        <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:justify-end">
+          <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button className="bg-rose-600 hover:bg-rose-700" onClick={() => void confirm()} disabled={saving}>
+            {saving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}Complete as pay later
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }

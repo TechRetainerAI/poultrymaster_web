@@ -17,6 +17,10 @@ import { OtherSelect, type OtherSelectHandle } from "@/components/restaurant/oth
 import { Badge } from "@/components/ui/badge"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
+import { CurrencySelect } from "@/components/ui/currency-select"
+import { CompanyTimeZoneField } from "@/components/settings/company-timezone-field"
+import { fetchFarmSettings, updateFarmCurrency, useFarmSettingsStore } from "@/lib/currency"
+import { currencySymbolFor } from "@/lib/constants/currencies"
 import {
   getRestaurantProfile, upsertRestaurantProfile,
   listMenuSchedules, createMenuSchedule, updateMenuSchedule, deleteMenuSchedule,
@@ -44,6 +48,7 @@ const CUISINE_TYPES = [
 export default function RestaurantSetupPage() {
   const router = useRouter()
   const { toast } = useToast()
+  const applyFarmSettings = useFarmSettingsStore((st) => st.apply)
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
 
   // Handle on the Cuisine Type dropdown — see saveProfile.
@@ -117,6 +122,24 @@ export default function RestaurantSetupPage() {
       // A cuisine typed under "Other" joins the list once the profile holding
       // it saved.
       await cuisineOther.current?.remember()
+      // Currency is a COMPANY setting: it has to reach the company (Farms) row,
+      // which is what useFmt()/fmtMoney() read, not only this profile — the same
+      // sync the Poultry Company Setup does. The symbol is only replaced when
+      // the code actually changes, so a preferred "GHC" is not undone on re-save.
+      try {
+        const current = await fetchFarmSettings()
+        const picked = (profile.defaultCurrency ?? "").toUpperCase()
+        if (picked && picked !== (current?.currencyCode ?? "").toUpperCase()) {
+          const updated = await updateFarmCurrency({
+            currencyCode: picked,
+            currencySymbol: currencySymbolFor(picked),
+            showCurrencySymbol: current?.showCurrencySymbol ?? true,
+          })
+          if (updated) applyFarmSettings(updated)
+        }
+      } catch {
+        toast({ title: "Currency not applied app-wide", description: "The profile saved, but the display currency could not be updated. Set it in Setup > Company.", variant: "destructive" })
+      }
       toast({ title: "Profile saved successfully" })
     } catch (e: any) {
       toast({ title: "Save failed", description: e?.message, variant: "destructive" })
@@ -377,15 +400,16 @@ export default function RestaurantSetupPage() {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 pt-4 border-t">
                       <div className="space-y-1.5">
                         <Label className="text-sm font-medium flex items-center gap-1.5"><DollarSign className="h-3.5 w-3.5 text-muted-foreground" /> Currency</Label>
-                        <Select value={profile.defaultCurrency || "GHS"} onValueChange={v => setProfile({ ...profile, defaultCurrency: v })}>
-                          <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {["GHS", "USD", "EUR", "GBP", "NGN", "KES", "ZAR", "XOF"].map(c => (
-                              <SelectItem key={c} value={c}>{c}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        {/* The same world-currency picker as Poultry, and saved to
+                            the company row (see saveProfile) — one currency for
+                            the whole company, not one per module. */}
+                        <CurrencySelect value={profile.defaultCurrency || "GHS"}
+                          onChange={(o) => setProfile({ ...profile, defaultCurrency: o.code })} />
                       </div>
+                      {/* Company time zone lives on the company row and saves
+                          itself, exactly as on the Poultry / Water / Generic
+                          setup pages. */}
+                      <CompanyTimeZoneField />
                       <div className="space-y-1.5">
                         <Label className="text-sm font-medium">Tax Rate (%)</Label>
                         <Input type="number" step="0.01" min={0} value={profile.taxRate || 0} onChange={e => setProfile({ ...profile, taxRate: parseFloat(e.target.value) || 0 })} className="h-10" />

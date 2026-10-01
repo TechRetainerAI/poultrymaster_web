@@ -89,6 +89,8 @@ const PAYABLE_TYPE_LABELS: Record<string, string> = {
   FlockBatch: "Flock batch",
   Expense: "Expense",
   Purchase: "Purchase",
+  // Restaurant (migration 329): an unpaid capital investment.
+  AssetCost: "Capital investment",
 }
 
 export function payableTypeLabel(t: string | null | undefined): string {
@@ -100,7 +102,9 @@ export function payableTypeLabel(t: string | null | undefined): string {
 export interface PaymentsLedgerPageProps {
   module: BalanceModule
   /** Company type this page belongs to; other types are redirected away. */
-  companyType: "Poultry" | "Water" | "Generic"
+  companyType: "Poultry" | "Water" | "Generic" | "Restaurant" | "Hotel"
+  /** Header icon colour. Optional; defaults to amber as before. */
+  iconClassName?: string
   /** Route to a supplier's profile. */
   partyHref: (partyId: number) => string
   /** Route to a payable document, or null when it has no page of its own. */
@@ -111,7 +115,7 @@ export interface PaymentsLedgerPageProps {
 }
 
 export function PaymentsLedgerPage({
-  module, companyType, partyHref, documentHref, loadCashAccounts, permissions,
+  module, companyType, partyHref, documentHref, loadCashAccounts, permissions, iconClassName,
 }: PaymentsLedgerPageProps) {
   const fmt = useFmt()
   const router = useRouter()
@@ -626,7 +630,7 @@ export function PaymentsLedgerPage({
         <DashboardHeader />
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <h1 className="mb-1 flex items-center gap-2 text-2xl font-semibold text-slate-900">
-            <Receipt className="h-6 w-6 text-amber-600" />
+            <Receipt className={iconClassName ? `h-6 w-6 ${iconClassName}` : "h-6 w-6 text-amber-600"} />
             Supplier Payments
           </h1>
           <p className="mb-4 text-sm text-slate-500">

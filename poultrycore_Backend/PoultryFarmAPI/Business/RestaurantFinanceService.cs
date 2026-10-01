@@ -54,6 +54,12 @@ namespace PoultryFarmAPIWeb.Business
         Task<int> PostCountAsync(string farmId, RestaurantCashCountRequest req, string by);
         Task ReverseCountAsync(string farmId, int countId, string reason, string by);
 
+        // Count drafts (migration 338): Draft -> Post -> (Reverse), money moves only on post.
+        Task<int> SaveCountDraftAsync(string farmId, RestaurantCashCountRequest req, string by);
+        Task UpdateCountDraftAsync(string farmId, int countId, RestaurantCashCountUpdateRequest req);
+        Task DiscardCountDraftAsync(string farmId, int countId);
+        Task<RestaurantCashCountPostResult> PostCountDraftAsync(string farmId, int countId, string by);
+
         // Daily closing
         Task<RestaurantDailyClosingPreview?> PreviewDayAsync(string farmId, DateTime date);
         Task<List<RestaurantDailyClosing>> ListClosingsAsync(string farmId, int limit, DateTime? from = null, DateTime? to = null);
@@ -223,6 +229,30 @@ namespace PoultryFarmAPIWeb.Business
             ExecAsync("SELECT sprestaurant_cashcount_reverse(p_farmid => @f::text, p_countid => @id::int, " +
                       "p_reason => @r::text, p_reversedby => @by::text)",
                 ("f", farmId), ("id", countId), ("r", reason), ("by", by));
+
+        // ---- count drafts (migration 338) --------------------------------------
+
+        public Task<int> SaveCountDraftAsync(string farmId, RestaurantCashCountRequest req, string by) =>
+            ScalarIntAsync("SELECT sprestaurant_cashcount_savedraft(p_farmid => @f::text, p_cashaccountid => @a::int, " +
+                           "p_counted => @c::numeric, p_notes => @n::text, p_createdby => @by::text)",
+                ("f", farmId), ("a", req.CashAccountId), ("c", req.Counted), ("n", req.Notes), ("by", by));
+
+        public Task UpdateCountDraftAsync(string farmId, int countId, RestaurantCashCountUpdateRequest req) =>
+            ExecAsync("SELECT sprestaurant_cashcount_updatedraft(p_farmid => @f::text, p_id => @id::int, " +
+                      "p_counted => @c::numeric, p_notes => @n::text)",
+                ("f", farmId), ("id", countId), ("c", req.Counted), ("n", req.Notes));
+
+        public Task DiscardCountDraftAsync(string farmId, int countId) =>
+            ExecAsync("SELECT sprestaurant_cashcount_discard(p_farmid => @f::text, p_id => @id::int)",
+                ("f", farmId), ("id", countId));
+
+        public async Task<RestaurantCashCountPostResult> PostCountDraftAsync(string farmId, int countId, string by)
+        {
+            var rows = await QueryAsync<RestaurantCashCountPostResult>(
+                "SELECT * FROM sprestaurant_cashcount_postdraft(p_farmid => @f::text, p_id => @id::int, p_postedby => @by::text)",
+                ("f", farmId), ("id", countId), ("by", by));
+            return rows.FirstOrDefault() ?? new RestaurantCashCountPostResult { CountId = countId };
+        }
 
         // ---- daily closing -----------------------------------------------------
 

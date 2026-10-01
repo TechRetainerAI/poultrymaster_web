@@ -372,7 +372,7 @@ app.UseAuthorization();
 
 app.MapGet("/", async (HttpContext http) =>
 {
-    http.Response.ContentType = "text/plain; charset=utf-8";
+    http.Response.ContentType = "te-xt/plain; charset=utf-8";
     await http.Response.WriteAsync(
         "Welcome to Poultry Master User Management API. Use /api/Authentication, /api/Payments, etc.");
 });

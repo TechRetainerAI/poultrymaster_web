@@ -281,7 +281,7 @@ export default function RestaurantPayrollPage() {
   return shell(<>
     <PageHeader icon={Banknote} title="Payroll" subtitle="Pay runs for restaurant staff, with staff loan deductions">
       <div className="flex gap-2">
-        <Button variant="outline" asChild><Link href="/restaurant-staff-loans"><HandCoins className="h-4 w-4 mr-1" />Staff loans</Link></Button>
+        <Button variant="outline" asChild><Link href="/restaurant-staff-loans"><HandCoins className="h-4 w-4 mr-1" />Employee Loans &amp; Advances</Link></Button>
         <Button className="bg-rose-600 hover:bg-rose-700" onClick={() => { setNewForm({ periodStart: firstOfMonth(), periodEnd: todayIso(), payDate: todayIso(), cashAccountId: "", notes: "" }); setNewOpen(true) }}>
           <Plus className="h-4 w-4 mr-1" />New payroll run
         </Button>
