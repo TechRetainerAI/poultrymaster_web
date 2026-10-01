@@ -51,6 +51,13 @@ namespace PoultryFarmAPIWeb.Models
         /// </summary>
         public decimal? AmountPaid { get; set; }
         public int? SupplierId { get; set; }
+
+        /// <summary>
+        /// The poultry cash account the purchase was paid from (migration 330). A
+        /// current purchase takes its amount paid out of it; a historical one only
+        /// records it, because that money left before tracking began.
+        /// </summary>
+        public int? PoultryCashAccountId { get; set; }
         public string? SupplierType { get; set; }
         public decimal? DollarConversionRate { get; set; }
         public DateTime? OrderPlacementDate { get; set; }

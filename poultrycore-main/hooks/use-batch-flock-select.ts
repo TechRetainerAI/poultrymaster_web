@@ -13,6 +13,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { getUserContext } from "@/lib/utils/user-context"
 import { getValidFlocks } from "@/lib/utils/flock-utils"
+import { isFlockOpenForEntry } from "@/lib/utils/flock-eligibility"
 import { getFlockBatches, type FlockBatch } from "@/lib/api/flock-batch"
 import type { Flock } from "@/lib/api/flock"
 
@@ -23,7 +24,19 @@ export interface FlockSelectOption {
   label: string
 }
 
-export function useBatchFlockSelect() {
+export interface BatchFlockSelectOptions {
+  /**
+   * Leave closed flocks out (migration 332). Data-entry forms -- production,
+   * feed -- set this: the database refuses their writes for a closed flock.
+   * Expenses do not: a late invoice for a finished flock is still its cost.
+   */
+  excludeClosed?: boolean
+  /** The flock an edited record already belongs to; always kept visible. */
+  keepFlockId?: number | null
+}
+
+export function useBatchFlockSelect(options: BatchFlockSelectOptions = {}) {
+  const { excludeClosed = false, keepFlockId = null } = options
   const [allFlocks, setAllFlocks] = useState<Flock[]>([])
   const [batches, setBatches] = useState<FlockBatch[]>([])
   const [selectedBatchId, setSelectedBatchId] = useState<string>(BATCH_ALL)
@@ -65,11 +78,12 @@ export function useBatchFlockSelect() {
 
   // Flocks narrowed to the selected batch. When ALL, return everything.
   const filteredFlocks = useMemo<Flock[]>(() => {
-    if (selectedBatchId === BATCH_ALL) return allFlocks
+    const open = excludeClosed ? allFlocks.filter((f) => isFlockOpenForEntry(f, keepFlockId)) : allFlocks
+    if (selectedBatchId === BATCH_ALL) return open
     const batchIdNum = Number(selectedBatchId)
-    if (!Number.isFinite(batchIdNum)) return allFlocks
-    return allFlocks.filter((f) => f.batchId === batchIdNum)
-  }, [allFlocks, selectedBatchId])
+    if (!Number.isFinite(batchIdNum)) return open
+    return open.filter((f) => f.batchId === batchIdNum)
+  }, [allFlocks, selectedBatchId, excludeClosed, keepFlockId])
 
   // Pre-built {value,label} options the page can drop straight into <SelectItem>.
   const flockOptions = useMemo<FlockSelectOption[]>(

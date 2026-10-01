@@ -139,6 +139,24 @@ namespace PoultryFarmAPIWeb.Controllers
         public async Task<IActionResult> ReverseCount(int id, [FromQuery] string farmId, [FromBody] RestaurantReverseRequest req)
         { var d = Deny(farmId); if (d != null) return d; await _svc.ReverseCountAsync(farmId, id, req.Reason, Me); return NoContent(); }
 
+        // ===== CASH COUNT DRAFTS (migration 338): Draft -> Post -> (Reverse) =====
+
+        [HttpPost("counts/draft")]
+        public async Task<IActionResult> SaveCountDraft([FromQuery] string farmId, [FromBody] RestaurantCashCountRequest req)
+        { var d = Deny(farmId); if (d != null) return d; return Ok(new { countId = await _svc.SaveCountDraftAsync(farmId, req, Me) }); }
+
+        [HttpPut("counts/{id:int}/draft")]
+        public async Task<IActionResult> UpdateCountDraft(int id, [FromQuery] string farmId, [FromBody] RestaurantCashCountUpdateRequest req)
+        { var d = Deny(farmId); if (d != null) return d; await _svc.UpdateCountDraftAsync(farmId, id, req); return NoContent(); }
+
+        [HttpDelete("counts/{id:int}/draft")]
+        public async Task<IActionResult> DiscardCountDraft(int id, [FromQuery] string farmId)
+        { var d = Deny(farmId); if (d != null) return d; await _svc.DiscardCountDraftAsync(farmId, id); return NoContent(); }
+
+        [HttpPost("counts/{id:int}/post")]
+        public async Task<IActionResult> PostCountDraft(int id, [FromQuery] string farmId)
+        { var d = Deny(farmId); if (d != null) return d; return Ok(await _svc.PostCountDraftAsync(farmId, id, Me)); }
+
         // ===== DAILY CLOSING =====
 
         [HttpGet("daily-closing/preview")]

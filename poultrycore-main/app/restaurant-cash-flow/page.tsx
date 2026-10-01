@@ -29,8 +29,10 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { useIsMobile } from "@/hooks/use-mobile"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import {
-  UtensilsCrossed, TrendingUp, TrendingDown, Lightbulb, Info, ChevronDown, Wallet, Calculator, FileBarChart,
+  UtensilsCrossed, TrendingUp, TrendingDown, Lightbulb, Info, ChevronDown, Calculator, FileBarChart, Plus, ExternalLink,
 } from "lucide-react"
+import { CashAdjustmentDialog, type AdjustableAccountOption } from "@/components/cash/cash-adjustment-dialog"
+import { listCashAccounts, recordOwnerMoney, createLoan } from "@/lib/api/restaurant-finance"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useFmt } from "@/lib/currency"
 import { useLogout } from "@/hooks/use-logout"
@@ -75,6 +77,19 @@ export default function RestaurantCashFlowPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [insightsOpen, setInsightsOpen] = useState(false)
+  // Poultry's Add Adjustment (app/cash-flow). Each type is recorded as the real
+  // Restaurant document it is, the way Poultry routes them: owner money, or a
+  // loan. Opening Balance and Correction are not offered -- the Restaurant has
+  // no cash-adjustment record (an account's opening balance is set when it is
+  // created on Cash Accounts, and a counted difference is a cash count there).
+  const [adjustOpen, setAdjustOpen] = useState(false)
+  const [accounts, setAccounts] = useState<AdjustableAccountOption[]>([])
+  useEffect(() => {
+    if (!adjustOpen) return
+    listCashAccounts()
+      .then((list) => setAccounts(list.map((a) => ({ accountId: a.cashAccountId, accountName: a.name, isActive: a.isActive }))))
+      .catch(() => setAccounts([]))
+  }, [adjustOpen])
 
   const canView = permissions.isAdmin || permissions.featureAccess.canViewCashLedger
 
@@ -227,15 +242,25 @@ export default function RestaurantCashFlowPage() {
               <UtensilsCrossed className="h-5 w-5 text-rose-600" /> Cash Flow
             </h1>
             <p className="mt-1 text-xs text-slate-500">What the restaurant received and spent</p>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <Button size="sm" variant="outline" asChild><Link href="/restaurant-cash-accounts"><Wallet className="h-4 w-4 mr-1" /> Cash Accounts</Link></Button>
-              <Button size="sm" variant="outline" asChild><Link href="/restaurant-tills"><Calculator className="h-4 w-4 mr-1" /> Tills & Shifts</Link></Button>
-              <Button size="sm" variant="outline" asChild><Link href="/restaurant-reports/cash-flow-detail"><FileBarChart className="h-4 w-4 mr-1" /> Cash Flow report</Link></Button>
-              <Button size="sm" variant="outline" className="whitespace-nowrap"
+            {/* Poultry's three header buttons (app/cash-flow), two-up on a phone
+                with View Cash Accounts spanning its own row; the Restaurant's
+                Tills and report links follow as quieter links. */}
+            <div className="mt-2 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+              <Button size="sm" variant="outline" className="w-full whitespace-nowrap sm:w-auto"
                       onClick={() => setInsightsOpen(true)} disabled={loading}>
                 <Lightbulb className="h-4 w-4 mr-1" /> Cash Flow Insights
                 {warnings.count > 0 && <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-semibold text-white">{warnings.count}</span>}
               </Button>
+              <Button size="sm" className="w-full whitespace-nowrap sm:w-auto" onClick={() => setAdjustOpen(true)}>
+                <Plus className="h-4 w-4 mr-1" /> Add Adjustment
+              </Button>
+              <Button asChild size="sm" variant="outline" className="col-span-2 w-full whitespace-nowrap sm:col-span-1 sm:ml-auto sm:w-auto">
+                <Link href="/restaurant-cash-accounts"><ExternalLink className="h-4 w-4 mr-1" /> View Cash Accounts</Link>
+              </Button>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+              <Link href="/restaurant-tills" className="inline-flex items-center gap-1 text-slate-600 hover:text-rose-700"><Calculator className="h-3.5 w-3.5" /> Tills & Shifts</Link>
+              <Link href="/restaurant-reports/cash-flow-detail" className="inline-flex items-center gap-1 text-slate-600 hover:text-rose-700"><FileBarChart className="h-3.5 w-3.5" /> Cash Flow report</Link>
             </div>
           </div>
 
@@ -248,10 +273,12 @@ export default function RestaurantCashFlowPage() {
             </CollapsibleTrigger>
             <CollapsibleContent>
               <p className="px-3 pb-3 text-xs leading-snug text-slate-600">
-                Built from the cash ledger every till, cash box, bank and wallet posts to: order payments
-                (tips included), refunds, expenses, gift-card sales, owner money, loans and till over/short.
-                This is what actually entered and left the business — not what was ordered. Money moved
-                between your own accounts (transfers, till floats and drops) is left out.
+                Built from your orders, expenses, purchases and capital records, through the cash ledger every
+                till, cash box, bank and wallet posts to. Operating money is what the restaurant earned and
+                spent; capital is money put in or taken out by owners and lenders. Transfers between your own
+                cash accounts (and till floats and drops) are not cash flow and are excluded — they are managed
+                in <Link href="/restaurant-cash-accounts" className="underline">Cash Accounts</Link>. Customer
+                and Supplier Balances show what is still owed either way.
               </p>
             </CollapsibleContent>
           </Collapsible>
@@ -344,7 +371,7 @@ export default function RestaurantCashFlowPage() {
                   {visible.length === 0 ? (
                     <p className="px-4 py-8 text-center text-sm text-slate-500">No cash movement in this period.</p>
                   ) : (
-                    <MobileCardList defaultOpen striped stripeAccent="rose" items={pg.pageItems} pagination={pg.paginationProps}
+                    <MobileCardList defaultOpen striped items={pg.pageItems} pagination={pg.paginationProps}
                       getKey={(r: any) => `${r.rowSource}-${r.id}`}
                       primary={(r: any) => categoryLabel(r.category)}
                       secondary={(r: any) => `${fmtDateTime(r.transactionDate, r)} · ${flowGroupLabel(r.flowGroup)}`}
@@ -388,6 +415,30 @@ export default function RestaurantCashFlowPage() {
           )}
         </main>
       </div>
+      <CashAdjustmentDialog
+        open={adjustOpen}
+        onOpenChange={setAdjustOpen}
+        accounts={accounts}
+        fmtMoney={gh}
+        allowedTypes={["OwnerInjection", "LoanReceived", "Withdrawal"]}
+        onSubmit={async ({ accountId, adjustmentType, adjustmentDate, amount, description, lenderName, ownerName }) => {
+          if (accountId == null) throw new Error("Choose the cash account.")
+          if (adjustmentType === "LoanReceived") {
+            if (amount <= 0) throw new Error("A loan received is a positive amount. Correct an existing loan on Loans (Financing).")
+            await createLoan({ lenderName: (lenderName ?? "").trim(), principal: amount, amountReceived: amount,
+                               receivedAccountId: accountId, loanDate: adjustmentDate, notes: description || null })
+            return
+          }
+          if (adjustmentType === "OwnerInjection" || adjustmentType === "Withdrawal") {
+            await recordOwnerMoney({ entryType: adjustmentType === "OwnerInjection" ? "Contribution" : "Draw",
+                                     cashAccountId: accountId, amount: Math.abs(amount), entryDate: adjustmentDate,
+                                     ownerName, notes: description || null })
+            return
+          }
+          throw new Error("This kind of adjustment is not recorded here. Use Cash Accounts.")
+        }}
+        onDone={() => { setAdjustOpen(false); setLoading(true); void load() }}
+      />
       <CashFlowInsightsDialog open={insightsOpen} onOpenChange={setInsightsOpen}
         periodLabel={`${dateFrom} to ${dateTo}`} totals={totals} insights={insights}
         inBuckets={inBuckets} outBuckets={outBuckets} breakdownTotals={totals}

@@ -56,6 +56,13 @@ namespace PoultryFarmAPIWeb.Models
         // Optional FK to dbo.Supplier.
         public int? SupplierId { get; set; }
 
+        // Poultry cash account the down payment came from (migration 330). The
+        // purchase expense is paid from it; NULL moves no cash, as before.
+        public int? PoultryCashAccountId { get; set; }
+
+        // Display only, filled from the JOIN on GET (migration 331).
+        public string? PoultryCashAccountName { get; set; }
+
         // Denormalized supplier name for display (filled from JOIN on GET).
         public string SupplierName { get; set; } = string.Empty;
 

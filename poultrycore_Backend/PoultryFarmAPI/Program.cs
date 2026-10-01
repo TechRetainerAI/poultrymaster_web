@@ -107,6 +107,14 @@ builder.Services.AddScoped<IFarmSetupService>(sp => new FarmSetupService(
     sp.GetRequiredService<IHouseService>(),
     sp.GetRequiredService<IBirdFlockService>()));
 builder.Services.AddScoped<IHealthRecordService>(sp => new HealthRecordService(connectionString));
+// End-of-flock closeout (migration 332). Sales and payments go through the
+// ordinary services -- it owns no sale SQL of its own.
+builder.Services.AddScoped<IFlockCloseoutService>(sp => new FlockCloseoutService(
+    connectionString,
+    sp.GetRequiredService<IBirdFlockService>(),
+    sp.GetRequiredService<IHouseService>(),
+    sp.GetRequiredService<ISaleService>(),
+    sp.GetRequiredService<IPoultryPaymentService>()));
 
 // Audit logs service
 builder.Services.AddScoped<IAuditLogService>(sp => new AuditLogService(connectionString));
@@ -243,11 +251,39 @@ builder.Services.AddScoped<IPoultryLoanService>(sp => new PoultryLoanService(con
 builder.Services.AddScoped<IPoultryEmployeeLoanService>(sp => new PoultryEmployeeLoanService(connectionString));
 // 318. Per-user, per-company Quick Links. A preference store, not an access one.
 builder.Services.AddScoped<IUserQuickLinkService>(sp => new UserQuickLinkService(connectionString));
+// 329/330. Platform billing: the Business Office's consolidated subscription.
+// Paystack sits behind IPlatformPaymentProvider; the key comes from env
+// (PAYSTACK_SECRET_KEY) and when absent every checkout answers "not
+// configured" instead of failing. The worker is the single billing scheduler.
+builder.Services.AddHttpClient();
+builder.Services.AddSingleton<IPlatformPaymentProvider>(sp => new PaystackPlatformProvider(
+    builder.Configuration["PAYSTACK_SECRET_KEY"] ?? builder.Configuration["PaystackSettings:SecretKey"] ?? "",
+    sp.GetRequiredService<IHttpClientFactory>()));
+builder.Services.AddScoped<IPlatformBillingService>(sp => new PlatformBillingService(
+    connectionString,
+    sp.GetRequiredService<IPlatformPaymentProvider>(),
+    sp.GetRequiredService<ILogger<PlatformBillingService>>()));
+builder.Services.AddHostedService<PlatformBillingWorker>();
 // Financial settings (261): when inventory costs reach the P&L. Two independent
 // choices, feed and medication, resolved against item overrides by the SPs.
 builder.Services.AddScoped<IPoultryFinancialSettingsService>(sp => new PoultryFinancialSettingsService(connectionString));
 // Company time (298). Cross-vertical on purpose: one company, one business day.
 builder.Services.AddScoped<ICompanyTimeService>(sp => new CompanyTimeService(connectionString));
+// Missing Activity Detector (332). Each IActivityCheck is one deterministic
+// "expected but not done" question; ActivityCheckService runs the ones that
+// apply to the company's type. A new check is one class + one line here.
+builder.Services.AddScoped<IActivityCheck>(sp => new PoultryProductionCompletenessCheck(connectionString));
+builder.Services.AddScoped<IActivityCheckService, ActivityCheckService>();
+builder.Services.AddScoped<IPoultryProductionGapService>(sp => new PoultryProductionGapService(connectionString));
+// Daily Farm Closing / management control (333): the workspace, close, reopen
+// history and policy. The status provider is what a module-neutral Business
+// Office "Today: Closed / Not Closed" view reads; other modules add their own.
+builder.Services.AddScoped<IPoultryDailyClosingControlService>(sp => new PoultryDailyClosingControlService(connectionString));
+builder.Services.AddScoped<IDailyClosingStatusProvider, PoultryDailyClosingStatusProvider>();
+// Distribute Feed (335): posts feed lines through spproductionrecord_update.
+builder.Services.AddScoped<IPoultryFeedDistributionService>(sp => new PoultryFeedDistributionService(connectionString));
+// Days of supply (337): how long each raw material lasts at its actual usage.
+builder.Services.AddScoped<IPoultryStockSupplyService>(sp => new PoultryStockSupplyService(connectionString));
 builder.Services.AddScoped<IPoultryInventoryValuationService>(sp => new PoultryInventoryValuationService(connectionString));
 builder.Services.AddScoped<IPoultryDeferredInventoryCostService>(sp => new PoultryDeferredInventoryCostService(connectionString));
 builder.Services.AddScoped<IPoultryCapitalAssetService>(sp => new PoultryCapitalAssetService(connectionString));
@@ -384,8 +420,8 @@ builder.Services.AddScoped<IHotelFrontDeskService>(sp => new HotelFrontDeskServi
 builder.Services.AddScoped<IHotelHousekeepingService>(sp => new HotelHousekeepingService(connectionString));
 // Phase H-Email: Hotel email notifications
 builder.Services.AddScoped<IHotelEmailService, HotelEmailService>();
-// Phase H-Cash: Cash ledger integration
-builder.Services.AddScoped<IHotelCashLedgerService, HotelCashLedgerService>();
+// Phase H-Cash: the fire-and-forget HotelCashLedgerService was removed by migration 327 --
+// every Hotel cash movement now posts through fnhotelcash_post inside its own transaction.
 // Phase H-Cust: Customer balance management
 builder.Services.AddScoped<IHotelCustomerService>(sp => new HotelCustomerService(connectionString));
 // Phase H-Loan: Employee loans & advances
@@ -394,6 +430,11 @@ builder.Services.AddScoped<IHotelEmployeeLoanService>(sp => new HotelEmployeeLoa
 builder.Services.AddScoped<IHotelSupplierService>(sp => new HotelSupplierService(connectionString));
 // Phase H-Asset: Capital assets & depreciation
 builder.Services.AddScoped<IHotelCapitalAssetService>(sp => new HotelCapitalAssetService(connectionString));
+// Owner Money, Loans (Financing), Cash Transfers, Reconciliation (migration 331)
+builder.Services.AddScoped<IHotelMoneyService>(sp => new HotelMoneyService(connectionString));
+builder.Services.AddScoped<IHotelBalanceService>(sp => new HotelBalanceService(connectionString));
+builder.Services.AddScoped<IHotelSuppliesService>(sp => new HotelSuppliesService(connectionString));
+builder.Services.AddScoped<IHotelFinancialActivityService>(sp => new HotelFinancialActivityService(connectionString));
 // =================================================================
 
 // =================================================================
@@ -409,6 +450,13 @@ builder.Services.AddScoped<IRestaurantOrderService>(sp => new RestaurantOrderSer
 builder.Services.AddScoped<IRestaurantFinanceService>(sp => new RestaurantFinanceService(connectionString));
 // Restaurant payroll + staff loans & advances (migration 326)
 builder.Services.AddScoped<IRestaurantPayrollService>(sp => new RestaurantPayrollService(connectionString));
+// Restaurant Capital Investments/Assets + depreciation (migration 328)
+builder.Services.AddScoped<IRestaurantCapitalAssetService>(sp => new RestaurantCapitalAssetService(connectionString));
+// Restaurant suppliers, purchases, supplier payments, deferred inventory cost (migration 329)
+builder.Services.AddScoped<IRestaurantSupplierService>(sp => new RestaurantSupplierService(connectionString));
+builder.Services.AddScoped<IRestaurantInternalUseService>(sp => new RestaurantInternalUseService(connectionString)); // migration 330
+builder.Services.AddScoped<IRestaurantCustomerBalanceService>(sp => new RestaurantCustomerBalanceService(connectionString)); // migration 333
+builder.Services.AddScoped<IRestaurantFinancialActivityService>(sp => new RestaurantFinancialActivityService(connectionString)); // migration 335
 // Phase R3: Kitchen Display System
 builder.Services.AddScoped<IRestaurantKdsService>(sp => new RestaurantKdsService(connectionString));
 // Phase R4: Reservations & Waitlist

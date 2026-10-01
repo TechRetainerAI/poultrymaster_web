@@ -31,8 +31,12 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import {
   Hotel, TrendingUp, TrendingDown, Lightbulb, Info,
-  ExternalLink, ChevronDown,
+  ExternalLink, ChevronDown, Plus,
 } from "lucide-react"
+import { CashAdjustmentDialog, type AdjustableAccountOption } from "@/components/cash/cash-adjustment-dialog"
+import {
+  listHotelMoneyAccounts, adjustHotelCashAccount, recordHotelOwnerMoney, createHotelLoan,
+} from "@/lib/api/hotel-money"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useFmt } from "@/lib/currency"
 import { useLogout } from "@/hooks/use-logout"
@@ -79,6 +83,18 @@ export default function HotelCashFlowPage() {
   const [error, setError] = useState("")
 
   const [insightsOpen, setInsightsOpen] = useState(false)
+  // Poultry's Add Adjustment (app/cash-flow), all five types, each recorded as
+  // the Hotel document it really is: Opening Balance / Correction -> a cash
+  // adjustment on the account (331), Owner injection / Withdrawal -> owner
+  // money, Loan received -> a loan (Loans (Financing)).
+  const [adjustOpen, setAdjustOpen] = useState(false)
+  const [adjustAccounts, setAdjustAccounts] = useState<AdjustableAccountOption[]>([])
+  useEffect(() => {
+    if (!adjustOpen) return
+    listHotelMoneyAccounts()
+      .then((list) => setAdjustAccounts(list.map((a) => ({ accountId: a.hotelCashAccountId, accountName: a.accountName, isActive: a.isActive }))))
+      .catch(() => setAdjustAccounts([]))
+  }, [adjustOpen])
 
   const canView = permissions.isAdmin || permissions.featureAccess.canViewCashLedger
 
@@ -267,7 +283,7 @@ export default function HotelCashFlowPage() {
           <div className="mb-3">
             <div>
               <h1 className="text-xl font-semibold text-slate-900 flex items-center gap-2">
-                <Hotel className="h-5 w-5 text-amber-600" />
+                <Hotel className="h-5 w-5 text-violet-600" />
                 Cash Flow
               </h1>
               <p className="mt-1 text-xs text-slate-500">What the hotel earned and spent</p>
@@ -283,7 +299,10 @@ export default function HotelCashFlowPage() {
                   </span>
                 )}
               </Button>
-              <Button asChild size="sm" variant="outline" className="w-full whitespace-nowrap sm:w-auto sm:ml-auto">
+              <Button size="sm" className="w-full whitespace-nowrap sm:w-auto bg-violet-600 hover:bg-violet-700" onClick={() => setAdjustOpen(true)}>
+                <Plus className="h-4 w-4 mr-1" /> Add Adjustment
+              </Button>
+              <Button asChild size="sm" variant="outline" className="col-span-2 w-full whitespace-nowrap sm:col-span-1 sm:ml-auto sm:w-auto">
                 <Link href="/hotel-cash-accounts">
                   <ExternalLink className="h-4 w-4 mr-1" /> View Cash Accounts
                 </Link>
@@ -305,11 +324,14 @@ export default function HotelCashFlowPage() {
             </CollapsibleTrigger>
             <CollapsibleContent>
               <p className="px-3 pb-3 text-xs leading-snug text-slate-600">
-                Built from your guest payments, restaurant walk-in orders, approved expenses and
-                paid payroll. Room-service orders charged to a guest folio are counted when the
-                guest settles their invoice, not when the order is placed. Transfers between your
-                own cash accounts are not cash flow and are excluded — they are managed in{" "}
-                <Link href="/hotel-cash-accounts" className="underline">Cash Accounts</Link>.
+                Built from your guest payments, walk-in restaurant orders, deposits, approved expenses,
+                supply purchases, supplier payments, payroll, staff advances, capital investments,
+                owner money, loans and cash adjustments. Room-service orders charged to a guest folio
+                are counted when the guest pays, not when the order is placed. Operating money is what
+                the hotel earned and spent; capital is money put in or taken out by owners and lenders.
+                Transfers between your own cash accounts are not cash flow and are excluded — they are
+                managed in{" "}<Link href="/hotel-cash-accounts" className="underline">Cash Accounts</Link>.
+                Customer and Supplier Balances show what is still owed either way.
               </p>
             </CollapsibleContent>
           </Collapsible>
@@ -348,15 +370,16 @@ export default function HotelCashFlowPage() {
                       note="For selected period"
                       tone={summary.netCashFlow >= 0 ? "text-emerald-700" : "text-rose-700"}
                       tip="Money In minus Money Out. Positive means the hotel ended the period with more cash than it started with." />
-                <Tile label="Operating Net"
+                <Tile label="Net Cash Flow (Strictly business)"
                       value={`${summary.operatingIn - summary.operatingOut > 0 ? "+" : ""}${gh(summary.operatingIn - summary.operatingOut)}`}
-                      note="Excludes capital"
+                      note="Trading only"
                       tone={summary.operatingIn - summary.operatingOut >= 0 ? "text-emerald-700" : "text-rose-700"}
-                      tip="Operating income minus operating spending. This is whether the hotel funded itself from its own trading." />
-                <Tile label="Movements"
-                      value={String(summary.movementCount)}
-                      note="For selected period"
-                      tip="Total number of cash movements recorded in the selected period." />
+                      tip="What the hotel's trading brought in less what it cost — loans and owner money left out. Negative means the hotel was kept going by borrowing or the owner." />
+                <Tile label="Loans & Owner Money"
+                      value={`${summary.financingIn - summary.financingOut > 0 ? "+" : ""}${gh(summary.financingIn - summary.financingOut)}`}
+                      note="Net for period"
+                      tone={summary.financingIn - summary.financingOut >= 0 ? "text-emerald-700" : "text-rose-700"}
+                      tip="Loans received and owner contributions, less loan repayments and owner drawings." />
                 <Tile label="Closing Cash"
                       value={gh(summary.closingCash)}
                       note="End of period"
@@ -505,6 +528,40 @@ export default function HotelCashFlowPage() {
         </main>
       </div>
 
+      <CashAdjustmentDialog
+        open={adjustOpen}
+        onOpenChange={setAdjustOpen}
+        accounts={adjustAccounts}
+        fmtMoney={gh}
+        onSubmit={async ({ accountId, adjustmentType, adjustmentDate, amount, description, lenderName, ownerName }) => {
+          if (accountId == null) throw new Error("Choose the cash account.")
+          if (adjustmentType === "LoanReceived") {
+            if (amount <= 0) throw new Error("A loan received is a positive amount. Correct an existing loan on Loans (Financing).")
+            await createHotelLoan({
+              lenderName: (lenderName ?? "").trim(), lenderType: "Other", accountNumber: null,
+              originalPrincipal: amount, amountReceived: amount, hotelCashAccountId: accountId, startDate: adjustmentDate,
+              interestRate: null, interestType: null, termMonths: null, paymentFrequency: null, nextPaymentDate: null,
+              notes: description || null,
+            })
+            return
+          }
+          if (adjustmentType === "OwnerInjection" || adjustmentType === "Withdrawal") {
+            await recordHotelOwnerMoney({
+              transactionType: adjustmentType === "OwnerInjection" ? "Contribution" : "Draw",
+              amount: Math.abs(amount), hotelCashAccountId: accountId, transactionDate: adjustmentDate,
+              paymentMethod: null, ownerName: ownerName ?? null, referenceNumber: null, notes: description || null,
+            })
+            return
+          }
+          // Opening Balance / Correction: a cash adjustment on the account (it is
+          // dated when it is recorded; the reason is what Cash Flow shows).
+          await adjustHotelCashAccount(accountId, {
+            amount,
+            reason: adjustmentType === "OpeningBalance" ? "Opening balance correction" : (description?.trim() || "Other"),
+          })
+        }}
+        onDone={() => { setAdjustOpen(false); setLoading(true); void load() }}
+      />
       <CashFlowInsightsDialog
         open={insightsOpen}
         onOpenChange={setInsightsOpen}

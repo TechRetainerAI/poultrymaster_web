@@ -13,6 +13,7 @@ namespace PoultryFarmAPIWeb.Business
         Task UpdateAsync(int id, HotelCapitalAssetUpdateRequest req);
         Task ActivateAsync(int id, string farmId);
         Task<int> AddCostAsync(int assetId, string farmId, decimal amount, string? description, DateTime? costDate, string? createdBy);
+        Task<int> AddCostPaidAsync(int assetId, HotelAssetCostRequest req, DateTime? costDate, string? createdBy);
         Task ReverseCostAsync(int costId, int assetId, string farmId, string? reason, string? by);
         Task DisposeAsync(int id, string farmId, DateTime? disposalDate, string? reason, string? by);
         Task ReverseAsync(int id, string farmId, string? reason, string? by);

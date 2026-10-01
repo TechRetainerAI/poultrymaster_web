@@ -33,10 +33,16 @@ export interface CostDetailDialogProps {
   /** Offered only where the server would accept it; see AssetDetailsPanel. */
   onReverse?: (row: AssetCostRow) => void
   reverseDisabledReason?: string | null
+  /**
+   * Optional (Restaurant, migration 328): a register whose purchases are not
+   * expense rows supplies its own "record behind it" row here. When omitted --
+   * as Poultry and Water do -- the Expense row below renders exactly as before.
+   */
+  recordRow?: (cost: AssetCostRow) => React.ReactNode
 }
 
 export function CostDetailDialog({
-  cost, assetName, onClose, fmt, term, expensesHref, onReverse, reverseDisabledReason,
+  cost, assetName, onClose, fmt, term, expensesHref, onReverse, reverseDisabledReason, recordRow,
 }: CostDetailDialogProps) {
   if (!cost) return null
 
@@ -115,7 +121,7 @@ export function CostDetailDialog({
           <section>
             <SectionLabel>The record behind it</SectionLabel>
             <div className="space-y-1">
-              {cost.expenseId ? (
+              {recordRow ? recordRow(cost) : cost.expenseId ? (
                 <Row label="Expense">
                   <Link href={expensesHref}
                         className="inline-flex items-center gap-1 underline underline-offset-2">

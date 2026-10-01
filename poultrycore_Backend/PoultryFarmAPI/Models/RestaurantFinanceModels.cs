@@ -401,6 +401,20 @@ namespace PoultryFarmAPIWeb.Models
         public string? Notes { get; set; }
     }
 
+    /// <summary>Edit fields for a Draft cash count (migration 338). The account cannot change.</summary>
+    public class RestaurantCashCountUpdateRequest
+    {
+        public decimal Counted { get; set; }
+        public string? Notes { get; set; }
+    }
+
+    /// <summary>Result of posting a draft (migration 338): the count, and the adjustment it posted, if any.</summary>
+    public class RestaurantCashCountPostResult
+    {
+        public int CountId { get; set; }
+        public int? AdjustmentTransactionId { get; set; }
+    }
+
     public class RestaurantDayCloseRequest
     {
         public DateTime ClosingDate { get; set; }

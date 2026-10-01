@@ -9,10 +9,12 @@ namespace PoultryFarmAPIWeb.Controllers
     public class ProductionBatchRecordController : ControllerBase
     {
         private readonly IProductionBatchRecordService _service;
+        private readonly ICompanyTimeService _time;
 
-        public ProductionBatchRecordController(IProductionBatchRecordService service)
+        public ProductionBatchRecordController(IProductionBatchRecordService service, ICompanyTimeService time)
         {
             _service = service;
+            _time = time;
         }
 
         [HttpGet]
@@ -33,17 +35,20 @@ namespace PoultryFarmAPIWeb.Controllers
             return Ok(record);
         }
 
-        // Production records capture what already happened (eggs collected, feed
-        // consumed, birds died), so the production date can never be in the future.
-        // UTC-day comparison — the product's farms run on GMT+0.
-        private static bool IsFutureDate(DateTime d) => d.Date > DateTime.UtcNow.Date;
+        // Production records capture what already happened, so the production date
+        // can never be in the future -- the COMPANY's future (CompanyTimeService,
+        // migration 298). This used to compare against the UTC day, which refused
+        // a company east of GMT its own business date for the first hours after
+        // its midnight, and let a company west of GMT record tomorrow late at night.
+        private async Task<bool> IsFutureDateAsync(string farmId, DateTime d)
+            => d.Date > (await _time.GetBusinessDateAsync(farmId)).Date;
 
         [HttpPost]
         public async Task<ActionResult<ProductionBatchRecordModel>> Create([FromBody] ProductionBatchRecordModel model)
         {
             if (string.IsNullOrEmpty(model.FarmId))
                 return BadRequest("FarmId is required in the model.");
-            if (IsFutureDate(model.ProductionDate))
+            if (await IsFutureDateAsync(model.FarmId, model.ProductionDate))
                 return BadRequest("Production date cannot be in the future.");
             if (string.IsNullOrEmpty(model.CreatedBy)) model.CreatedBy = model.UserId;
 
@@ -58,7 +63,7 @@ namespace PoultryFarmAPIWeb.Controllers
         {
             if (id != model.Id) return BadRequest("Record ID mismatch.");
             if (string.IsNullOrEmpty(model.FarmId)) return BadRequest("FarmId is required in the model.");
-            if (IsFutureDate(model.ProductionDate))
+            if (await IsFutureDateAsync(model.FarmId, model.ProductionDate))
                 return BadRequest("Production date cannot be in the future.");
             if (string.IsNullOrEmpty(model.UpdatedBy)) model.UpdatedBy = model.UserId;
             await _service.Update(model);

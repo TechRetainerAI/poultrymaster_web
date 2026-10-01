@@ -95,6 +95,29 @@ export function generateRows(options: GenerateOptions): BulkHouseRow[] {
   return rows
 }
 
+/**
+ * The first number after the highest existing `<prefix> <n>`, so generating more
+ * pens carries on the farm's series instead of colliding with "Pen 1".
+ *
+ * Compared the way duplicates are (case-insensitive, whitespace collapsed), and
+ * only names that are exactly the prefix plus a number count: "Pen 3A" or
+ * "Brooder 9" say nothing about the "Pen" series. A blank prefix follows the
+ * plain-number names. With no match the series starts at 1.
+ */
+export function nextStartNumber(prefix: string, existingNames: (string | null | undefined)[]): number {
+  const key = duplicateKey(prefix)
+  let highest = 0
+  for (const name of existingNames) {
+    const k = duplicateKey(name)
+    const rest = key ? (k.startsWith(key) ? k.slice(key.length) : null) : k
+    const match = rest == null ? null : /^\s*(\d+)$/.exec(rest)
+    // A prefix must be followed by a space or the number itself — "pens 4" is
+    // not in the "Pen" series, but "pen4" is.
+    if (match && Number.isSafeInteger(Number(match[1]))) highest = Math.max(highest, Number(match[1]))
+  }
+  return highest + 1
+}
+
 /** "Apply capacity to all" / "Apply location to all". Returns new rows. */
 export function applyToAll(rows: BulkHouseRow[], patch: Partial<Pick<BulkHouseRow, "capacity" | "location">>): BulkHouseRow[] {
   return rows.map((r) => ({ ...r, ...patch }))

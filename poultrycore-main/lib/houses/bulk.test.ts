@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
   MAX_NAME_LENGTH, MAX_ROWS,
   applyToAll, duplicateKey, emptyRow, errorsByRow, generateRows,
-  parseCapacity, summarize, toPayloadItems, validateRows,
+  nextStartNumber, parseCapacity, summarize, toPayloadItems, validateRows,
   type BulkHouseRow,
 } from "./bulk"
 
@@ -219,5 +219,25 @@ describe("toPayloadItems", () => {
 describe("duplicateKey", () => {
   it("ignores case, surrounding space and repeated inner space", () => {
     expect(duplicateKey("  Pen   1 ")).toBe(duplicateKey("pen 1"))
+  })
+})
+
+describe("nextStartNumber", () => {
+  it("starts at 1 when nothing matches the prefix", () => {
+    expect(nextStartNumber("Pen", [])).toBe(1)
+    expect(nextStartNumber("Pen", ["Brooder 9", "Pen 3A", "Pens 4"])).toBe(1)
+  })
+
+  it("continues after the highest number in the series, not the count", () => {
+    expect(nextStartNumber("Pen", ["Pen 1", "Pen 12", "Pen 3"])).toBe(13)
+  })
+
+  it("matches case-insensitively and ignores extra whitespace", () => {
+    expect(nextStartNumber("pen", ["PEN   7", " Pen 2 "])).toBe(8)
+    expect(nextStartNumber("Layer House", ["layer  house 4"])).toBe(5)
+  })
+
+  it("follows plain-number names when the prefix is blank", () => {
+    expect(nextStartNumber("  ", ["5", "Pen 20", "2"])).toBe(6)
   })
 })

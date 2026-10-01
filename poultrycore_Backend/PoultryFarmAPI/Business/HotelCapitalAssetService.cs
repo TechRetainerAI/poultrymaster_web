@@ -75,7 +75,18 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<int> CreateAsync(HotelCapitalAssetCreateRequest req, string? createdBy)
         {
             using var conn = new NpgsqlConnection(_cs); await conn.OpenAsync();
-            using var cmd = new NpgsqlCommand("SELECT sphotelcapitalasset_create(@f,@n,@cat,@acqd,@ind,@res,@life,@amt,@sup,@loc,@sn,@notes,@by)", conn);
+            // 332: with a paid-from account / supplier the cost moves cash and records what is owed.
+            var paid = req.HotelCashAccountId != null || req.HotelSupplierId != null || req.AmountPaid != null;
+            using var cmd = new NpgsqlCommand(paid
+                ? "SELECT sphotelcapitalasset_createpaid(@f,@n,@cat,@acqd::date,@ind::date,@res,@life,@amt,@sup,@loc,@sn,@notes,@by,@sid::int,@ca::int,@ap::numeric,@due::date)"
+                : "SELECT sphotelcapitalasset_create(@f,@n,@cat,@acqd,@ind,@res,@life,@amt,@sup,@loc,@sn,@notes,@by)", conn);
+            if (paid)
+            {
+                cmd.Parameters.AddWithValue("@sid", (object?)req.HotelSupplierId ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@ca", (object?)req.HotelCashAccountId ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@ap", (object?)req.AmountPaid ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@due", string.IsNullOrEmpty(req.DueDate) ? DBNull.Value : (object)DateTime.Parse(req.DueDate));
+            }
             cmd.Parameters.AddWithValue("@f", req.FarmId); cmd.Parameters.AddWithValue("@n", req.AssetName);
             cmd.Parameters.AddWithValue("@cat", (object?)req.HotelAssetCategoryId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@acqd", string.IsNullOrEmpty(req.AcquisitionDate) ? DBNull.Value : (object)DateTime.Parse(req.AcquisitionDate));
@@ -124,6 +135,22 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@desc", (object?)description ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@date", (object?)costDate ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@by", (object?)createdBy ?? DBNull.Value);
+            return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        }
+
+        public async Task<int> AddCostPaidAsync(int assetId, HotelAssetCostRequest req, DateTime? costDate, string? createdBy)
+        {
+            using var conn = new NpgsqlConnection(_cs); await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand("SELECT sphotelcapitalasset_addcostpaid(@aid,@f,@amt,@desc,@date::date,@by,@sid::int,@ca::int,@ap::numeric,@due::date)", conn);
+            cmd.Parameters.AddWithValue("@aid", assetId); cmd.Parameters.AddWithValue("@f", req.FarmId);
+            cmd.Parameters.AddWithValue("@amt", req.Amount);
+            cmd.Parameters.AddWithValue("@desc", (object?)req.Description ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@date", (object?)costDate ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@by", (object?)createdBy ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@sid", (object?)req.HotelSupplierId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ca", (object?)req.HotelCashAccountId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ap", (object?)req.AmountPaid ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@due", string.IsNullOrEmpty(req.DueDate) ? DBNull.Value : (object)DateTime.Parse(req.DueDate));
             return Convert.ToInt32(await cmd.ExecuteScalarAsync());
         }
 

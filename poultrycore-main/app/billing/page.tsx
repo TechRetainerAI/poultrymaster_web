@@ -17,6 +17,7 @@ import {
   tierForBirdCount,
   type SubscriptionTiersResponse,
 } from "@/lib/api/payments"
+import { getPlanUsage, type PlanUsage } from "@/lib/api/platform-billing"
 import { getFlocks } from "@/lib/api/flock"
 import { getProductionRecords } from "@/lib/api/production-record"
 import { sumActiveFlocksBirdsLeft } from "@/lib/utils/production-records"
@@ -63,6 +64,7 @@ function PaymentsPageInner() {
   const [totalBirds, setTotalBirds] = useState<number | null>(null)
   const [farmCheckoutLoading, setFarmCheckoutLoading] = useState(false)
   const [checkoutError, setCheckoutError] = useState("")
+  const [planUsage, setPlanUsage] = useState<PlanUsage | null>(null)
 
   const appliedTier = useMemo(() => {
     if (totalBirds === null || !tiersInfo?.tiers?.length) return null
@@ -126,6 +128,12 @@ function PaymentsPageInner() {
       cancelled = true
     }
   }, [canAccessPayments, permissions.isLoading])
+
+  useEffect(() => {
+    const farmId = typeof window !== "undefined" ? localStorage.getItem("farmId") : null
+    if (!farmId) return
+    getPlanUsage(farmId).then(setPlanUsage).catch(() => setPlanUsage(null))
+  }, [])
 
   useEffect(() => {
     const status = searchParams.get("checkout")
@@ -227,6 +235,54 @@ function PaymentsPageInner() {
                   Subscription required. Contact admin or renew plan.
                 </AlertDescription>
               </Alert>
+            )}
+            {/* Part 55: billing now lives with the Business Office. This page
+                stays working for existing bookmarks; the banner is the path
+                to the consolidated multi-company bill. */}
+            <Alert>
+              <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+                <span>
+                  Billing has a new home: manage all your companies&apos; subscriptions in one place.
+                </span>
+                <Button size="sm" variant="outline" onClick={() => router.push("/business-office/billing")}>
+                  Open Business Office billing
+                </Button>
+              </AlertDescription>
+            </Alert>
+
+            {/* Company-level Plan & Usage (spec Part 23): what THIS company is
+                on, read-only — payment itself belongs to the Business Office. */}
+            {planUsage && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Your VisibilityCore plan</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-x-6 gap-y-1 sm:grid-cols-2 text-sm">
+                  <div className="flex justify-between sm:block">
+                    <span className="text-slate-500">Plan</span>
+                    <p className="font-semibold text-slate-900 capitalize">{planUsage.tierCode ?? "—"}</p>
+                  </div>
+                  <div className="flex justify-between sm:block">
+                    <span className="text-slate-500">Current usage</span>
+                    <p className="font-semibold text-slate-900">
+                      {planUsage.metricValue.toLocaleString()}
+                      {planUsage.metricType === "ActiveBirdCount" ? " birds" : ""}
+                    </p>
+                  </div>
+                  <div className="flex justify-between sm:block">
+                    <span className="text-slate-500">Price</span>
+                    <p className="font-semibold text-slate-900">
+                      {planUsage.monthlyAmount != null
+                        ? `${planUsage.currencyCode} ${planUsage.monthlyAmount.toLocaleString()}/month`
+                        : "—"}
+                    </p>
+                  </div>
+                  <div className="flex justify-between sm:block">
+                    <span className="text-slate-500">Managed by</span>
+                    <p className="font-semibold text-slate-900">{planUsage.managedBy}</p>
+                  </div>
+                </CardContent>
+              </Card>
             )}
             {checkoutError && (
               <Alert variant="destructive">

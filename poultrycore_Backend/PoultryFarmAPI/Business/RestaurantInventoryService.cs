@@ -230,10 +230,15 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<int> LogWasteAsync(RestaurantWasteLogModel m)
         {
             using var conn = new NpgsqlConnection(_cs);
+            // Migration 329: through sprestaurant_wastelog_insert, which also takes
+            // the quantity out of stock and draws it FIFO from the purchase lots
+            // (an "expense when consumed" lot moves its cost into the P&L). The old
+            // inline INSERT logged the waste but never lowered the stock.
             using var cmd = new NpgsqlCommand(
-                "INSERT INTO RestaurantWasteLog (FarmId, IngredientId, MenuItemId, IngredientName, Quantity, Unit, CostAmount, Reason, Notes, LoggedBy) " +
-                "VALUES (@FarmId, @IngredientId, @MenuItemId, @IngredientName, @Quantity, @Unit, @CostAmount, @Reason, @Notes, @LoggedBy) " +
-                "RETURNING WasteLogId", conn);
+                "SELECT sprestaurant_wastelog_insert(p_farmid=>@FarmId::text, p_ingredientid=>@IngredientId::int, " +
+                "p_menuitemid=>@MenuItemId::int, p_ingredientname=>@IngredientName::text, p_quantity=>@Quantity::numeric, " +
+                "p_unit=>@Unit::text, p_costamount=>@CostAmount::numeric, p_reason=>@Reason::text, p_notes=>@Notes::text, " +
+                "p_loggedby=>@LoggedBy::text)", conn);
             AddTextParam(cmd, "@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@IngredientId", (object?)m.IngredientId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@MenuItemId", (object?)m.MenuItemId ?? DBNull.Value);

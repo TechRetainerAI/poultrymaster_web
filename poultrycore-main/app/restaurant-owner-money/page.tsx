@@ -23,7 +23,8 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useFmt } from "@/lib/currency"
-import { StatCard } from "@/components/restaurant/stat-card"
+import { MoneyStat } from "@/components/restaurant/money-stat"
+import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { EmptyState } from "@/components/restaurant/empty-state"
 import { PageHeader } from "@/components/restaurant/page-header"
 import { PageSkeleton } from "@/components/restaurant/skeleton-loaders"
@@ -106,7 +107,9 @@ export default function RestaurantOwnerMoneyPage() {
     const posted = entries.filter((e) => e.status === "Posted")
     const putIn = posted.filter((e) => e.entryType === "Contribution").reduce((s, e) => s + (e.amount ?? 0), 0)
     const takenOut = posted.filter((e) => e.entryType === "Draw").reduce((s, e) => s + (e.amount ?? 0), 0)
-    return { putIn, takenOut, net: putIn - takenOut }
+    return { putIn, takenOut, net: putIn - takenOut,
+             nIn: posted.filter((e) => e.entryType === "Contribution").length,
+             nOut: posted.filter((e) => e.entryType === "Draw").length }
   }, [entries])
 
   /* ---------- record ---------- */
@@ -199,8 +202,8 @@ export default function RestaurantOwnerMoneyPage() {
               <Button className="bg-rose-600 hover:bg-rose-700" onClick={() => openRecord("Contribution")}>
                 <ArrowDownToLine className="h-4 w-4 mr-2" /> Record contribution
               </Button>
-              <Button className="bg-rose-600 hover:bg-rose-700" onClick={() => openRecord("Draw")}>
-                <ArrowUpFromLine className="h-4 w-4 mr-2" /> Record drawing
+              <Button variant="outline" onClick={() => openRecord("Draw")}>
+                <ArrowUpFromLine className="h-4 w-4 mr-2" /> Record draw
               </Button>
             </PageHeader>
 
@@ -224,10 +227,10 @@ export default function RestaurantOwnerMoneyPage() {
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <StatCard label="Put in" value={fmt(stats.putIn)} icon={ArrowDownToLine} color="green" />
-              <StatCard label="Taken out" value={fmt(stats.takenOut)} icon={ArrowUpFromLine} color="amber" />
-              <StatCard label="Net (in − out)" value={fmt(stats.net)} icon={Scale} color={stats.net >= 0 ? "green" : "red"} />
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+              <MoneyStat label="Contributions in range" value={fmt(stats.putIn)} hint={`${stats.nIn} record(s)`} accent="emerald" />
+              <MoneyStat label="Draws in range" value={fmt(stats.takenOut)} hint={`${stats.nOut} record(s)`} accent="orange" />
+              <MoneyStat label="Net owner funding" value={fmt(stats.net)} hint="Contributions less draws" accent={stats.net >= 0 ? "emerald" : "rose"} />
             </div>
 
             {entries.length === 0 ? (
@@ -244,7 +247,30 @@ export default function RestaurantOwnerMoneyPage() {
               </Card>
             ) : (
               <Card>
-                <CardContent className="p-0">
+                <CardContent className="p-0 lg:p-2">
+                  {/* Poultry's phone cards (app/poultry-owner-money) with "View table format"; the table on desktop. */}
+                  <MobileCardList
+                    striped
+                    items={entries}
+                    getKey={(e) => e.ownerMoneyId}
+                    primary={(e) => <>{e.entryNumber || `#${e.ownerMoneyId}`} · {e.entryType === "Contribution" ? "Contribution" : "Draw"}</>}
+                    secondary={(e) => <span>{e.entryDate?.split("T")[0]}{e.ownerName ? ` · ${e.ownerName}` : ""}</span>}
+                    trailing={(e) => <Badge variant="outline" className={`text-xs ${e.status !== "Posted" ? "text-gray-500" : ""}`}>{e.status}</Badge>}
+                    highlights={(e) => [
+                      { label: "Amount", value: <span className={e.status !== "Posted" ? "line-through" : ""}>{fmt(e.amount)}</span>,
+                        accent: e.entryType === "Contribution" ? "emerald" : "amber", wide: true },
+                    ]}
+                    details={(e) => [
+                      { label: "Account", value: e.accountName ?? "—" },
+                      { label: "Owner", value: e.ownerName || "—" },
+                      ...(e.reversalReason ? [{ label: "Reversal reason", value: e.reversalReason }] : []),
+                    ]}
+                    actions={(e) => e.status === "Posted" ? (
+                      <Button variant="outline" size="sm" className="flex-1 h-10 bg-white" onClick={() => { setReverseTarget(e); setReverseReason("") }}>
+                        <Undo2 className="h-4 w-4 mr-1" /> Reverse
+                      </Button>
+                    ) : null}
+                    desktopTable={
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm min-w-[640px]">
                       <thead className="bg-gray-50 border-b">
@@ -299,6 +325,8 @@ export default function RestaurantOwnerMoneyPage() {
                       </tbody>
                     </table>
                   </div>
+                    }
+                  />
                 </CardContent>
               </Card>
             )}

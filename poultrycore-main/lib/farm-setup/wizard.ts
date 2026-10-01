@@ -51,6 +51,13 @@ export interface BatchRow {
   costPerChick: string
   supplierId?: number | null
   notes?: string
+  /**
+   * The poultry cash account the purchase was paid from. For a purchase made
+   * now, the amount paid comes out of it; for a historical one it is recorded
+   * only -- that money left before tracking began and is already reflected in
+   * the account's opening balance.
+   */
+  poultryCashAccountId?: number | null
 
   /**
    * Whether this purchase happened BEFORE the application started tracking the
@@ -961,7 +968,8 @@ export function houseRowViews(draft: SetupDraft, context: SetupContext): HouseRo
  *
  * A farm coming back six months later has twenty pens and eighteen of them hold
  * birds. Listing all twenty as editable rows buries the two it came to work with
- * and makes it look as though its whole farm is being recreated. So by default
+ * and makes it look as though its whole farm is being recreated. So with `showAll`
+ * off (the Houses step's "Empty" filter; the page defaults to "All")
  * an EXISTING pen is shown only when it is EMPTY; pens being created in this
  * session are always shown, because they are the session's work.
  *
@@ -1337,6 +1345,7 @@ export function toRequest(draft: SetupDraft, context: SetupContext, userId: stri
       AmountPaid: normalize(b.amountPaid) ? Number(b.amountPaid) : null,
       SupplierId: b.supplierId ?? null,
       SupplierType: normalize(b.supplierType) || null,
+      PoultryCashAccountId: b.poultryCashAccountId ?? null,
       DollarConversionRate: normalize(b.dollarConversionRate) ? Number(b.dollarConversionRate) : null,
       OrderPlacementDate: normalize(b.orderPlacementDate) || null,
       EstimatedArrivalDate: normalize(b.estimatedArrivalDate) || null,

@@ -422,11 +422,15 @@ function HotelTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
         />
 
         <NavMegaMenu
-          label="Sales & Money" icon={Wallet}
-          title="Sales & Money"
-          blurb="Billing, payments, expenses, customers, suppliers and assets."
+          /* The Poultry menu, copied word for word: same name, same blurb, same
+             three columns and the same width (see the width note on the Poultry
+             call below -- 41rem fits "Capital Investments/Assets" and the
+             columns still to come). Only the accent is Hotel's own. */
+          label="Sales, Expenses & Money" icon={Wallet}
+          title="Sales, Expenses & Money"
+          blurb="Orders, collections, expenses, cash flow and payroll."
           groups={nav.salesMoney}
-          columns={3} widthRem={28} layout="grid" accent="violet"
+          columns={3} widthRem={41} layout="grid" fitColumns accent="violet"
         />
 
         <NavMegaMenu
@@ -477,15 +481,15 @@ function HotelTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
   )
 }
 
-function RestaurantTopNav() {
+function RestaurantTopNav({ permissions }: { permissions: ReturnType<typeof usePermissions> }) {
   // This component only ever renders for a Restaurant company, so the hook is
   // told so unconditionally. Nothing outside this function is touched.
   const activeFarmId = useAuthStore((s) => s.activeFarmId)
   const { unseen: unseenOnlineOrders, pending: pendingGuestOrders } =
     useOnlineOrderCounts(activeFarmId, true)
   const nav = useMemo(
-    () => buildRestaurantNavConfig({ unseenOnlineOrders, pendingGuestOrders }),
-    [unseenOnlineOrders, pendingGuestOrders],
+    () => buildRestaurantNavConfig({ unseenOnlineOrders, pendingGuestOrders }, permissions),
+    [unseenOnlineOrders, pendingGuestOrders, permissions],
   )
 
   return (
@@ -495,6 +499,11 @@ function RestaurantTopNav() {
         <div className="h-5 w-px bg-white/30 mx-1" />
         <NavLink item={{ href: "/restaurant-pos", label: "POS", icon: ShoppingCart }} accent="rose" />
         <div className="h-5 w-px bg-white/30 mx-1" />
+
+        {/* Where Tills & Shifts and Daily Closing live now: Poultry keeps Daily
+            Closing in Quick Links, and neither has a row in the reference
+            Sales, Expenses & Money menu. */}
+        <NavDropdown group={nav.quickLinks} accent="rose" />
 
         <NavMegaMenu
           label="Orders & Kitchen" icon={Activity}
@@ -529,19 +538,15 @@ function RestaurantTopNav() {
         />
 
         <NavMegaMenu
-          label="Money" icon={Wallet}
-          title="Money"
-          blurb="Tills, cash accounts, transfers, reconciliation, owner money, loans, payroll, staff advances, daily closing and the cash statements."
-          groups={nav.money}
-          columns={4} widthRem={52} layout="grid" accent="rose"
-        />
-
-        <NavMegaMenu
-          label="Expenses" icon={Receipt}
-          title="Expenses"
-          blurb="Record what the restaurant spends, by category."
-          groups={nav.expenses}
-          columns={1} widthRem={18} layout="grid" accent="rose"
+          /* The Poultry menu, copied word for word: same name, same blurb, same
+             three columns and the same width (see the width note on the Poultry
+             call below). Replaces the separate Money and Expenses menus. Only
+             the accent is the Restaurant's own. */
+          label="Sales, Expenses & Money" icon={Wallet}
+          title="Sales, Expenses & Money"
+          blurb="Orders, collections, expenses, cash flow and payroll."
+          groups={nav.salesMoney}
+          columns={3} widthRem={41} layout="grid" fitColumns accent="rose"
         />
 
         <NavMegaMenu
@@ -634,7 +639,7 @@ export function TopNavigation() {
     return <HotelTopNav permissions={permissions} />
   }
   if (activeFarmType === "Restaurant") {
-    return <RestaurantTopNav />
+    return <RestaurantTopNav permissions={permissions} />
   }
 
   // 2026-08-07: same treatment as the water rail — nine near-identical narrow
@@ -735,12 +740,11 @@ export function TopNavigation() {
           <NavMegaMenu
             label="Tools" icon={Wrench}
             title="Tools"
-            /* Says what the menu is FOR, not what is in it -- with a single row
-               the contents are already on screen, so listing them (the pattern
-               the other blurbs follow) would just repeat the row underneath.
-               What a reader actually needs here is why this is not simply part
-               of Setup: Setup is configuration you revisit, Tools is run once. */
-            blurb="One-time jobs, like onboarding a farm that already has birds."
+            /* Says what the menu is FOR: why these are not simply part of
+               Setup. Setup is configuration you revisit; Tools are jobs run at
+               a point in a farm's or a flock's life -- onboarding once, closing
+               a flock once at its end. */
+            blurb="Jobs run once: onboarding a farm, closing out a finished flock."
             groups={nav.tools}
             /* Same single-column panel as Trackers, and the same 19rem: its
                longest row, "Ingredients only tracker" at 24 chars, is wider
@@ -748,12 +752,10 @@ export function TopNavigation() {
                Setup" with room to spare. Matching it keeps the two narrow
                dropdowns the same object rather than two near-misses.
 
-               highlightActiveRow={false} because this panel has ONE row: the
-               accent fill that marks "you are here" in a seven-row panel would
-               here colour the whole interior, every time you open it from the
-               page it links to. The trigger above still lights up. */
+               The active row is highlighted again now that the panel has two
+               rows (it was switched off while one row made the fill colour the
+               whole interior). */
             columns={1} widthRem={19} layout="grid" accent="orange"
-            highlightActiveRow={false}
           />
 
           <NavMegaMenu

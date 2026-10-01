@@ -73,7 +73,10 @@ namespace PoultryFarmAPIWeb.Controllers
             return Ok(new { restaurantSupplierId = id });
         }
 
+        // Migration 329: a supplier on the books is deactivated, one still owed
+        // money is refused (P0001 -> 400 through the filter).
         [HttpDelete("suppliers/{id}")]
+        [PoultryFarmAPIWeb.Filters.RestaurantBusinessRuleFilter]
         public async Task<IActionResult> DeleteSupplier(int id, [FromQuery] string farmId)
         {
             var auth = HotelAuthHelper.VerifyFarmOwnership(User, farmId); if (auth != null) return auth;
