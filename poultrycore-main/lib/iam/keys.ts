@@ -15,17 +15,18 @@ import type { StaffFeaturePermissionKey } from "@/lib/employees/permissions"
 export type PermissionKey = string
 
 /** The company-type modules. `office` is company-neutral and handled separately. */
-export const COMMERCIAL_MODULES = ["poultry", "water", "generic", "restaurant"] as const
+export const COMMERCIAL_MODULES = ["poultry", "water", "generic", "restaurant", "hotel"] as const
 export type CommercialModule = (typeof COMMERCIAL_MODULES)[number]
 
 /** Company type as stored on the auth store / `localStorage.farmType`. */
-export type IamCompanyType = "Poultry" | "Water" | "Generic" | "Restaurant"
+export type IamCompanyType = "Poultry" | "Water" | "Generic" | "Restaurant" | "Hotel"
 
 const MODULE_BY_COMPANY_TYPE: Record<IamCompanyType, CommercialModule> = {
   Poultry: "poultry",
   Water: "water",
   Generic: "generic",
   Restaurant: "restaurant",
+  Hotel: "hotel",
 }
 
 export function moduleForCompanyType(type: string | null | undefined): CommercialModule | null {

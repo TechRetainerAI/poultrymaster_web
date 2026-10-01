@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
 using Npgsql;
-using PoultryFarmAPIWeb.Business;
+using NpgsqlTypes;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Helpers;
 
 namespace PoultryFarmAPIWeb.Controllers
@@ -10,14 +12,18 @@ namespace PoultryFarmAPIWeb.Controllers
     public class UpdateMenuItemRequest { public string FarmId { get; set; } = ""; public string Name { get; set; } = ""; public string Category { get; set; } = ""; public string? Description { get; set; } public decimal Price { get; set; } public bool IsAvailable { get; set; } = true; }
     public class CreateTableRequest { public string FarmId { get; set; } = ""; public string TableNumber { get; set; } = ""; public int Capacity { get; set; } = 4; public string? Location { get; set; } }
     public class OrderItemInput { public int MenuItemId { get; set; } public int Quantity { get; set; } = 1; public decimal UnitPrice { get; set; } public string? Notes { get; set; } }
-    public class CreateOrderRequest { public string FarmId { get; set; } = ""; public string? TableNumber { get; set; } public string? ServerName { get; set; } public int? HotelBookingId { get; set; } public int? HotelRoomId { get; set; } public List<OrderItemInput>? Items { get; set; } }
+    public class CreateOrderRequest { public string FarmId { get; set; } = ""; public string? TableNumber { get; set; } public string? ServerName { get; set; } public int? HotelBookingId { get; set; } public int? HotelRoomId { get; set; } public List<OrderItemInput>? Items { get; set; }
+        /// <summary>327: true = the lines go on the booking's folio and no cash moves; false = paid at the till.</summary>
+        public bool ChargeToRoom { get; set; } public string? PaymentMethod { get; set; } public int? HotelCashAccountId { get; set; } }
 
-    [ApiController][Authorize][Route("api/Hotel/restaurant")]
+    // Orders and their money are written by sphotelrestaurantorder_create / _setstatus
+    // (migration 327) in one transaction: a paid order posts POS cash, a room-charged
+    // order becomes folio charges, a cancellation reverses either. Refusals are 400s.
+    [ApiController][Authorize][Route("api/Hotel/restaurant")][HotelBusinessRuleFilter]
     public class HotelRestaurantController : ControllerBase
     {
         private readonly string _cs;
-        private readonly IHotelCashLedgerService _cashLedger;
-        public HotelRestaurantController(IConfiguration config, IHotelCashLedgerService cashLedger) { _cs = config.GetConnectionString("PoultryConn") ?? ""; _cashLedger = cashLedger; }
+        public HotelRestaurantController(IConfiguration config) { _cs = config.GetConnectionString("PoultryConn") ?? ""; }
 
         [HttpGet("menu")]
         public async Task<IActionResult> ListMenu([FromQuery] string farmId)
@@ -105,50 +111,29 @@ namespace PoultryFarmAPIWeb.Controllers
             var auth = HotelAuthHelper.VerifyFarmOwnership(User, req.FarmId); if (auth != null) return auth;
             using var conn = new NpgsqlConnection(_cs); await conn.OpenAsync();
 
-            // Calculate totals from items
-            decimal subtotal = 0;
-            if (req.Items != null) subtotal = req.Items.Sum(i => i.UnitPrice * i.Quantity);
-
-            // Insert order header
+            var items = (req.Items ?? new List<OrderItemInput>())
+                .Select(i => new { menuItemId = i.MenuItemId, quantity = i.Quantity, unitPrice = i.UnitPrice, notes = i.Notes });
             int orderId;
-            using (var cmd = new NpgsqlCommand("INSERT INTO hotelrestaurantorders(farmid,tablenumber,servername,hotelbookingid,hotelroomid,status,subtotal,totalamount) VALUES(@f,@t,@s,@b,@r,'Placed',@sub,@sub) RETURNING hotelrestaurantorderid", conn))
+            using (var cmd = new NpgsqlCommand(
+                "SELECT sphotelrestaurantorder_create(p_farmid => @f::text, p_tablenumber => @t::text, p_servername => @s::text, " +
+                "p_bookingid => @b::int, p_roomid => @r::int, p_items => @items, p_chargetoroom => @room::boolean, " +
+                "p_paymentmethod => @pm::text, p_cashaccountid => @ca::int, p_by => @by::text)", conn))
             {
                 cmd.Parameters.AddWithValue("@f", req.FarmId);
                 cmd.Parameters.AddWithValue("@t", (object?)req.TableNumber ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@s", (object?)req.ServerName ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@b", (object?)req.HotelBookingId ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@r", (object?)req.HotelRoomId ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@sub", subtotal);
+                cmd.Parameters.Add(new NpgsqlParameter("@items", NpgsqlDbType.Jsonb) { Value = JsonSerializer.Serialize(items) });
+                cmd.Parameters.AddWithValue("@room", req.ChargeToRoom);
+                cmd.Parameters.AddWithValue("@pm", (object?)req.PaymentMethod ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@ca", (object?)req.HotelCashAccountId ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@by", (object?)HotelAuthHelper.GetUserName(User) ?? DBNull.Value);
                 orderId = Convert.ToInt32(await cmd.ExecuteScalarAsync());
             }
 
-            // Insert line items
-            if (req.Items != null)
-            {
-                foreach (var item in req.Items)
-                {
-                    // Get item name
-                    string itemName = "";
-                    using (var nc = new NpgsqlCommand("SELECT name FROM hotelmenuitems WHERE hotelmenuitemid=@id", conn))
-                    { nc.Parameters.AddWithValue("@id", item.MenuItemId); itemName = (await nc.ExecuteScalarAsync())?.ToString() ?? "Unknown"; }
-
-                    using var ic = new NpgsqlCommand("INSERT INTO hotelrestaurantorderitems(farmid,hotelrestaurantorderid,hotelmenuitemid,itemname,quantity,unitprice,linetotal,notes) VALUES(@f,@o,@m,@n,@q,@u,@lt,@nt)", conn);
-                    ic.Parameters.AddWithValue("@f", req.FarmId); ic.Parameters.AddWithValue("@o", orderId);
-                    ic.Parameters.AddWithValue("@m", item.MenuItemId); ic.Parameters.AddWithValue("@n", itemName);
-                    ic.Parameters.AddWithValue("@q", item.Quantity); ic.Parameters.AddWithValue("@u", item.UnitPrice);
-                    ic.Parameters.AddWithValue("@lt", item.UnitPrice * item.Quantity);
-                    ic.Parameters.AddWithValue("@nt", (object?)item.Notes ?? DBNull.Value);
-                    await ic.ExecuteNonQueryAsync();
-                }
-            }
-
-            // Post to POS cash account
-            if (subtotal > 0)
-                _ = Task.Run(async () => { try { await _cashLedger.PostAsync(req.FarmId, "POS", "Credit", subtotal, $"Restaurant order #{orderId}" + (req.TableNumber != null ? $" (Table {req.TableNumber})" : ""), $"ORD-{orderId}", "Order", orderId, HotelAuthHelper.GetUserName(User)); } catch { } });
-
-            // Return the created order
-            using var getCmd = new NpgsqlCommand("SELECT * FROM hotelrestaurantorders WHERE hotelrestaurantorderid=@id", conn);
-            getCmd.Parameters.AddWithValue("@id", orderId);
+            using var getCmd = new NpgsqlCommand("SELECT * FROM hotelrestaurantorders WHERE hotelrestaurantorderid=@id AND farmid=@f", conn);
+            getCmd.Parameters.AddWithValue("@id", orderId); getCmd.Parameters.AddWithValue("@f", req.FarmId);
             using var rd = await getCmd.ExecuteReaderAsync();
             return await rd.ReadAsync() ? Ok(ReadRow(rd)) : Ok(new { hotelRestaurantOrderId = orderId });
         }
@@ -168,8 +153,9 @@ namespace PoultryFarmAPIWeb.Controllers
         {
             var auth = HotelAuthHelper.VerifyFarmOwnership(User, farmId); if (auth != null) return auth;
             using var conn = new NpgsqlConnection(_cs); await conn.OpenAsync();
-            using var cmd = new NpgsqlCommand("UPDATE hotelrestaurantorders SET status=@s,updatedat=NOW(),deliveredtime=CASE WHEN @s='Served' THEN NOW() ELSE deliveredtime END WHERE hotelrestaurantorderid=@id AND farmid=@f", conn);
-            cmd.Parameters.AddWithValue("@s", req.Status); cmd.Parameters.AddWithValue("@id", id); cmd.Parameters.AddWithValue("@f", farmId);
+            using var cmd = new NpgsqlCommand("SELECT sphotelrestaurantorder_setstatus(p_farmid => @f::text, p_orderid => @id::int, p_status => @s::text, p_by => @by::text)", conn);
+            cmd.Parameters.AddWithValue("@s", req.Status ?? ""); cmd.Parameters.AddWithValue("@id", id); cmd.Parameters.AddWithValue("@f", farmId);
+            cmd.Parameters.AddWithValue("@by", (object?)HotelAuthHelper.GetUserName(User) ?? DBNull.Value);
             await cmd.ExecuteNonQueryAsync();
             return NoContent();
         }

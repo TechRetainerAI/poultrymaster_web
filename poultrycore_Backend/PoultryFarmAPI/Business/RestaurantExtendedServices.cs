@@ -103,7 +103,8 @@ namespace PoultryFarmAPIWeb.Business
                 "SELECT sprestaurant_expense_record(p_farmid=>@FarmId::text, p_expensedate=>@ExpenseDate::date, " +
                 "p_categoryid=>@CategoryId::int, p_categoryname=>@CategoryName::text, p_description=>@Description::text, " +
                 "p_amount=>@Amount::numeric, p_paymentmethod=>@PaymentMethod::text, p_suppliername=>@SupplierName::text, " +
-                "p_receiptref=>@ReceiptRef::text, p_createdby=>@CreatedBy::text, p_cashaccountid=>@CashAccountId::int)", c);
+                "p_receiptref=>@ReceiptRef::text, p_createdby=>@CreatedBy::text, p_cashaccountid=>@CashAccountId::int, " +
+                "p_supplierid=>@SupplierId::int, p_amountpaid=>@AmountPaid::numeric, p_duedate=>@DueDate::date)", c);
             cmd.Parameters.Add(TP("@FarmId",m.FarmId));
             cmd.Parameters.AddWithValue("@ExpenseDate",m.ExpenseDate.Date);
             cmd.Parameters.AddWithValue("@CategoryId",(object?)m.CategoryId??DBNull.Value);
@@ -115,7 +116,37 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@ReceiptRef",(object?)m.ReceiptRef??DBNull.Value);
             cmd.Parameters.AddWithValue("@CreatedBy",(object?)m.CreatedBy??DBNull.Value);
             cmd.Parameters.AddWithValue("@CashAccountId",(object?)m.CashAccountId??DBNull.Value);
+            cmd.Parameters.AddWithValue("@SupplierId",(object?)m.SupplierId??DBNull.Value);
+            cmd.Parameters.AddWithValue("@AmountPaid",(object?)m.AmountPaid??DBNull.Value);
+            cmd.Parameters.AddWithValue("@DueDate",(object?)m.DueDate?.Date??DBNull.Value);
             await c.OpenAsync(); return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        }
+
+        // Migration 337. Same parameters as the insert, plus the id; the acting user comes from the token.
+        public async Task UpdateExpenseAsync(int id, RestaurantExpenseModel m, string updatedBy) {
+            using var c=new NpgsqlConnection(_cs);
+            using var cmd=new NpgsqlCommand(
+                "SELECT sprestaurant_expense_update(p_id=>@Id::int, p_farmid=>@FarmId::text, p_expensedate=>@ExpenseDate::date, " +
+                "p_categoryid=>@CategoryId::int, p_categoryname=>@CategoryName::text, p_description=>@Description::text, " +
+                "p_amount=>@Amount::numeric, p_paymentmethod=>@PaymentMethod::text, p_suppliername=>@SupplierName::text, " +
+                "p_receiptref=>@ReceiptRef::text, p_updatedby=>@UpdatedBy::text, p_cashaccountid=>@CashAccountId::int, " +
+                "p_supplierid=>@SupplierId::int, p_amountpaid=>@AmountPaid::numeric, p_duedate=>@DueDate::date)", c);
+            cmd.Parameters.AddWithValue("@Id",id);
+            cmd.Parameters.Add(TP("@FarmId",m.FarmId));
+            cmd.Parameters.AddWithValue("@ExpenseDate",m.ExpenseDate.Date);
+            cmd.Parameters.AddWithValue("@CategoryId",(object?)m.CategoryId??DBNull.Value);
+            cmd.Parameters.AddWithValue("@CategoryName",(object?)m.CategoryName??DBNull.Value);
+            cmd.Parameters.AddWithValue("@Description",m.Description);
+            cmd.Parameters.AddWithValue("@Amount",m.Amount);
+            cmd.Parameters.AddWithValue("@PaymentMethod",(object?)m.PaymentMethod??DBNull.Value);
+            cmd.Parameters.AddWithValue("@SupplierName",(object?)m.SupplierName??DBNull.Value);
+            cmd.Parameters.AddWithValue("@ReceiptRef",(object?)m.ReceiptRef??DBNull.Value);
+            cmd.Parameters.AddWithValue("@UpdatedBy",updatedBy);
+            cmd.Parameters.AddWithValue("@CashAccountId",(object?)m.CashAccountId??DBNull.Value);
+            cmd.Parameters.AddWithValue("@SupplierId",(object?)m.SupplierId??DBNull.Value);
+            cmd.Parameters.AddWithValue("@AmountPaid",(object?)m.AmountPaid??DBNull.Value);
+            cmd.Parameters.AddWithValue("@DueDate",(object?)m.DueDate?.Date??DBNull.Value);
+            await c.OpenAsync(); await cmd.ExecuteNonQueryAsync();
         }
 
         public async Task DeleteExpenseAsync(int id, string farmId) { using var c=new NpgsqlConnection(_cs); using var cmd=new NpgsqlCommand("SELECT sprestaurant_expense_delete(p_id=>@I::int,p_farmid=>@F::text)",c); cmd.Parameters.AddWithValue("@I",id); cmd.Parameters.Add(TP("@F",farmId)); await c.OpenAsync(); await cmd.ExecuteNonQueryAsync(); }

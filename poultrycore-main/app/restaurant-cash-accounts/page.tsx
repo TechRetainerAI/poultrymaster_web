@@ -18,12 +18,13 @@ import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Wallet, Plus, Coins, AlertTriangle, Clock, BookOpen, Calculator, Pencil, Undo2 } from "lucide-react"
+import { Wallet, Plus, Coins, AlertTriangle, Clock, BookOpen, Calculator, Pencil, Undo2, Scale, FileText, ArrowLeftRight } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useFmt } from "@/lib/currency"
-import { StatCard } from "@/components/restaurant/stat-card"
+import { MobileCardList } from "@/components/ui/mobile-card-list"
+import Link from "next/link"
 import { EmptyState } from "@/components/restaurant/empty-state"
 import { PageHeader } from "@/components/restaurant/page-header"
 import { PageSkeleton } from "@/components/restaurant/skeleton-loaders"
@@ -125,6 +126,7 @@ export default function RestaurantCashAccountsPage() {
       tills: accounts.filter((a) => a.accountType === "Till").length,
       belowZero: accounts.filter((a) => (a.currentBalance ?? 0) < 0).length,
       openShifts: accounts.filter((a) => !!a.openShiftId).length,
+      active: active.length,
     }
   }, [accounts])
 
@@ -279,21 +281,38 @@ export default function RestaurantCashAccountsPage() {
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
           <div className="max-w-7xl mx-auto space-y-6">
             <div className="space-y-2">
-              <PageHeader icon={Wallet} title="Cash Accounts" subtitle="Tills, cash box, petty cash, mobile money and bank — with their balances">
-                <Button className="bg-rose-600 hover:bg-rose-700" onClick={openNew}>
-                  <Plus className="h-4 w-4 mr-2" /> New account
+              <PageHeader icon={Wallet} title="Cash Account" subtitle="Tills, cash box, petty cash, mobile money and bank — with their balances" />
+              {/* Poultry's header buttons (app/poultry-cash-accounts), where the
+                  Restaurant has the page behind them. Record Cash Adjustment and
+                  Recalculate are left out: the Restaurant has no adjustment record
+                  and no rebuild endpoint (its balances change only through the
+                  ledger, and a count's difference posts via Count). Create default
+                  account is left out: the defaults are created automatically. */}
+              <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                <Button asChild variant="outline" className="flex-1 sm:flex-none whitespace-nowrap">
+                  <Link href="/restaurant-cash-reconciliation"><Scale className="h-4 w-4 mr-1" /> Reconcile</Link>
                 </Button>
-              </PageHeader>
+                <Button asChild variant="outline" className="flex-1 sm:flex-none whitespace-nowrap">
+                  <Link href="/restaurant-reports/cash-accounts"><FileText className="h-4 w-4 mr-1" /> Cash Account Report</Link>
+                </Button>
+                <Button asChild variant="outline" className="flex-1 sm:flex-none whitespace-nowrap">
+                  <Link href="/restaurant-cash-transfers"><ArrowLeftRight className="h-4 w-4 mr-1" /> Transfer</Link>
+                </Button>
+                <Button className="flex-1 sm:flex-none whitespace-nowrap bg-rose-600 hover:bg-rose-700" onClick={openNew}>
+                  <Plus className="h-4 w-4 mr-1" /> New account
+                </Button>
+              </div>
               <p className="text-sm text-muted-foreground">
                 Every payment, expense, transfer and till shift posts here automatically. The three default accounts are created for you.
               </p>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <StatCard label="Total cash held" value={gh(stats.total)} icon={Wallet} color="rose" />
-              <StatCard label="Tills" value={stats.tills} icon={Coins} color="blue" />
-              <StatCard label="Accounts below zero" value={stats.belowZero} icon={AlertTriangle} color={stats.belowZero > 0 ? "red" : "green"} />
-              <StatCard label="Open till shifts" value={stats.openShifts} icon={Clock} color="amber" />
+            {/* Poultry's coloured tiles (app/poultry-cash-accounts). */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Tile label="Total cash at hand" value={gh(stats.total)} accent="violet" />
+              <Tile label="Active accounts" value={String(stats.active)} accent="emerald" />
+              <Tile label="Open till shifts" value={String(stats.openShifts)} accent="amber" />
+              <Tile label="Accounts below zero" value={String(stats.belowZero)} accent={stats.belowZero > 0 ? "rose" : "blue"} />
             </div>
 
             {/* Tabs */}
@@ -319,7 +338,35 @@ export default function RestaurantCashAccountsPage() {
                   </CardContent>
                 </Card>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                <>
+                {/* Phone: Poultry's card list with "View table format"; desktop keeps the account cards. */}
+                <Card className="lg:hidden"><CardContent className="p-0">
+                  <MobileCardList
+                    striped
+                    items={accounts}
+                    getKey={(a) => a.cashAccountId}
+                    primary={(a) => a.name}
+                    secondary={(a) => <span>{ACCOUNT_TYPE_LABELS[a.accountType] ?? a.accountType}{a.defaultFor ? ` · default for ${DEFAULT_FOR_LABELS[a.defaultFor] ?? a.defaultFor}` : ""}</span>}
+                    trailing={(a) => !a.isActive ? <Badge variant="outline" className="text-xs text-gray-500">Inactive</Badge> : null}
+                    highlights={(a) => [
+                      { label: "Balance", value: gh(a.currentBalance), accent: (a.currentBalance ?? 0) < 0 ? "rose" : "violet", wide: true },
+                    ]}
+                    details={(a) => [
+                      { label: "Last counted", value: a.lastCountedAt ? `${a.lastCountedAt.slice(0, 10)}${a.lastCountedBalance != null ? ` at ${gh(a.lastCountedBalance)}` : ""}` : "Never counted" },
+                      { label: "Open shift", value: a.openShiftId ? (a.openShiftNumber ?? `SH-${a.openShiftId}`) : "—" },
+                      ...(Math.abs((a.ledgerBalance ?? 0) - (a.currentBalance ?? 0)) > 0.005 ? [{ label: "Out of sync", value: `Ledger says ${gh(a.ledgerBalance)}` }] : []),
+                    ]}
+                    actions={(a) => (
+                      <>
+                        <Button variant="outline" size="sm" className="flex-1 h-10 bg-white" onClick={() => openLedger(a)}><BookOpen className="h-4 w-4 mr-1" /> View details</Button>
+                        <Button variant="outline" size="sm" className="flex-1 h-10 bg-white" onClick={() => openCount(a)} disabled={a.accountType === "Till" && !!a.openShiftId}><Calculator className="h-4 w-4 mr-1" /> Count</Button>
+                        <Button variant="outline" size="sm" className="flex-1 h-10 bg-white" onClick={() => openEdit(a)}><Pencil className="h-4 w-4 mr-1" /> Edit</Button>
+                      </>
+                    )}
+                    desktopTable={null}
+                  />
+                </CardContent></Card>
+                <div className="hidden lg:grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                   {accounts.map((a) => {
                     const outOfSync = Math.abs((a.ledgerBalance ?? 0) - (a.currentBalance ?? 0)) > 0.005
                     const tillLocked = a.accountType === "Till" && !!a.openShiftId
@@ -378,6 +425,7 @@ export default function RestaurantCashAccountsPage() {
                     )
                   })}
                 </div>
+                </>
               )
             )}
 
@@ -390,7 +438,30 @@ export default function RestaurantCashAccountsPage() {
                 </Card>
               ) : (
                 <Card>
-                  <CardContent className="p-0">
+                  <CardContent className="p-0 lg:p-2">
+                    <MobileCardList
+                      striped
+                      items={counts}
+                      getKey={(c) => c.countId}
+                      primary={(c) => c.accountName}
+                      secondary={(c) => <span>{(c.countDate ?? "").slice(0, 10)}</span>}
+                      trailing={(c) => <Badge variant="outline" className={`text-xs ${c.status === "Posted" ? "bg-green-100 text-green-800 border-green-200" : "bg-gray-100 text-gray-600"}`}>{c.status}</Badge>}
+                      highlights={(c) => [
+                        { label: "Difference", value: `${c.difference > 0 ? "+" : ""}${gh(c.difference)}${c.difference > 0 ? " over" : c.difference < 0 ? " short" : ""}`,
+                          accent: c.difference > 0 ? "emerald" : c.difference < 0 ? "rose" : "slate", wide: true },
+                        { label: "System", value: gh(c.systemBalance), accent: "slate" },
+                        { label: "Counted", value: gh(c.countedBalance), accent: "blue" },
+                      ]}
+                      details={(c) => [
+                        { label: "Notes", value: c.notes || "—" },
+                        ...(c.reversalReason ? [{ label: "Reversed", value: c.reversalReason }] : []),
+                      ]}
+                      actions={(c) => c.status === "Posted" ? (
+                        <Button variant="outline" size="sm" className="flex-1 h-10 bg-white" onClick={() => { setReverseTarget(c); setReverseReason("") }}>
+                          <Undo2 className="h-4 w-4 mr-1" /> Reverse
+                        </Button>
+                      ) : null}
+                      desktopTable={
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm min-w-[640px]">
                         <thead className="bg-gray-50 border-b">
@@ -440,6 +511,8 @@ export default function RestaurantCashAccountsPage() {
                         </tbody>
                       </table>
                     </div>
+                      }
+                    />
                   </CardContent>
                 </Card>
               )
@@ -633,6 +706,23 @@ export default function RestaurantCashAccountsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+/** Poultry's coloured cash-account tile (the local StatCard in app/poultry-cash-accounts). */
+function Tile({ label, value, accent }: { label: string; value: string; accent: "violet" | "emerald" | "amber" | "blue" | "rose" }) {
+  const c = {
+    violet: ["bg-violet-100 border-violet-300", "text-violet-900", "text-violet-900"],
+    emerald: ["bg-emerald-100 border-emerald-300", "text-emerald-900", "text-emerald-800"],
+    amber: ["bg-amber-100 border-amber-300", "text-amber-900", "text-amber-800"],
+    blue: ["bg-blue-100 border-blue-300", "text-blue-900", "text-blue-800"],
+    rose: ["bg-rose-100 border-rose-300", "text-rose-900", "text-rose-800"],
+  }[accent]
+  return (
+    <div className={`rounded-lg border px-3 py-2 shadow-sm ${c[0]}`}>
+      <p className={`text-[11px] font-semibold uppercase tracking-wide ${c[1]}`}>{label}</p>
+      <p className={`text-xl font-extrabold leading-tight tabular-nums ${c[2]}`}>{value}</p>
     </div>
   )
 }

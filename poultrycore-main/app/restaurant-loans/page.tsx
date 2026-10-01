@@ -23,7 +23,8 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useFmt } from "@/lib/currency"
-import { StatCard } from "@/components/restaurant/stat-card"
+import { MoneyStat } from "@/components/restaurant/money-stat"
+import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { EmptyState } from "@/components/restaurant/empty-state"
 import { PageHeader } from "@/components/restaurant/page-header"
 import { PageSkeleton } from "@/components/restaurant/skeleton-loaders"
@@ -158,6 +159,10 @@ export default function RestaurantLoansPage() {
       activeCount: active.length,
       costsPaid: live.reduce((s, l) => s + (l.interestPaid ?? 0) + (l.feesPaid ?? 0), 0),
       overdue: loans.filter((l) => l.isOverdue).length,
+      borrowed: live.reduce((s, l) => s + (l.principal ?? 0), 0),
+      received: live.reduce((s, l) => s + (l.amountReceived ?? 0), 0),
+      repaid: live.reduce((s, l) => s + (l.principalRepaid ?? 0), 0),
+      nextDue: active.map((l) => l.dueDate).filter(Boolean).sort()[0] as string | undefined,
     }
   }, [loans])
 
@@ -350,17 +355,20 @@ export default function RestaurantLoansPage() {
         <DashboardHeader />
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
           <div className="max-w-7xl mx-auto space-y-6">
-            <PageHeader icon={Landmark} title="Loans" subtitle="Money the restaurant borrowed and its repayments">
+            <PageHeader icon={Landmark} title="Loans (Financing)" subtitle="Money the restaurant borrowed and its repayments">
               <Button className="bg-rose-600 hover:bg-rose-700" onClick={openNewLoan}>
-                <Plus className="h-4 w-4 mr-2" /> New loan
+                <Plus className="h-4 w-4 mr-2" /> Record loan
               </Button>
             </PageHeader>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <StatCard label="Outstanding principal" value={fmt(stats.outstanding)} icon={Wallet} color="rose" />
-              <StatCard label="Active loans" value={stats.activeCount} icon={Landmark} color="blue" />
-              <StatCard label="Interest & fees paid" value={fmt(stats.costsPaid)} icon={Percent} color="amber" />
-              <StatCard label="Overdue" value={stats.overdue} icon={AlertTriangle} color={stats.overdue > 0 ? "red" : "green"} />
+            {/* Poultry's five cards (app/poultry-loans). */}
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+              <MoneyStat label="Still owed" value={fmt(stats.outstanding)} hint={`${stats.activeCount} active loan(s)`} accent="rose" />
+              <MoneyStat label="Borrowed" value={fmt(stats.borrowed)} hint={`${fmt(stats.received)} received`} />
+              <MoneyStat label="Principal repaid" value={fmt(stats.repaid)} accent="emerald" />
+              <MoneyStat label="Cost of borrowing" value={fmt(stats.costsPaid)} hint="Interest and fees — the only part that is an expense" accent="amber" />
+              <MoneyStat label="Next payment" value={stats.nextDue ? dateOnly(stats.nextDue) : "—"}
+                         hint={stats.overdue > 0 ? `${stats.overdue} overdue` : undefined} accent={stats.overdue > 0 ? "rose" : "slate"} />
             </div>
 
             {loans.length === 0 ? (
@@ -370,14 +378,52 @@ export default function RestaurantLoansPage() {
                     icon={Landmark}
                     title="No loans recorded"
                     description="Record money the restaurant has borrowed so repayments are tracked"
-                    actionLabel="New loan"
+                    actionLabel="Record loan"
                     onAction={openNewLoan}
                   />
                 </CardContent>
               </Card>
             ) : (
               <Card>
-                <CardContent className="p-0">
+                <CardContent className="p-0 lg:p-2">
+                  {/* Poultry's phone cards (app/poultry-loans) with "View table format"; the table on desktop. */}
+                  <MobileCardList
+                    striped
+                    items={loans}
+                    getKey={(l) => l.loanId}
+                    primary={(l) => <>{l.lenderName}</>}
+                    secondary={(l) => <span>{l.loanNumber || `#${l.loanId}`} · {dateOnly(l.loanDate)}</span>}
+                    trailing={(l) => <StatusBadge status={l.status} />}
+                    highlights={(l) => [
+                      { label: "Still owed", value: fmt(l.outstandingPrincipal), accent: "rose", wide: true },
+                      { label: "Borrowed", value: fmt(l.principal), accent: "slate" },
+                      { label: "Repaid", value: fmt(l.principalRepaid), accent: "emerald" },
+                    ]}
+                    details={(l) => [
+                      { label: "Interest + fees", value: fmt((l.interestPaid ?? 0) + (l.feesPaid ?? 0)) },
+                      { label: "Due", value: <>{dateOnly(l.dueDate)}{l.isOverdue && <span className="ml-1 text-red-600 font-semibold">Overdue</span>}</> },
+                      { label: "Received into", value: l.receivedAccountName ?? "—" },
+                      { label: "Interest rate", value: l.interestRate != null ? `${l.interestRate}%` : "—" },
+                      ...(l.status === "Cancelled" && l.cancelReason ? [{ label: "Cancelled", value: l.cancelReason }] : []),
+                    ]}
+                    actions={(l) => (
+                      <>
+                        {l.status === "Active" && (
+                          <Button size="sm" className="flex-1 h-10 bg-rose-600 hover:bg-rose-700" onClick={() => openRepay(l)}>
+                            <HandCoins className="h-4 w-4 mr-1" /> Repay
+                          </Button>
+                        )}
+                        <Button size="sm" variant="outline" className="flex-1 h-10 bg-white" onClick={() => openPayments(l)}>
+                          <ListOrdered className="h-4 w-4 mr-1" /> Payments
+                        </Button>
+                        {l.status === "Active" && l.principalRepaid + l.interestPaid + l.feesPaid === 0 && (
+                          <Button size="sm" variant="outline" className="h-10 bg-white text-red-600" onClick={() => { setCancelTarget(l); setCancelReason("") }}>
+                            <Ban className="h-4 w-4 mr-1" /> Cancel
+                          </Button>
+                        )}
+                      </>
+                    )}
+                    desktopTable={
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm min-w-[640px]">
                       <thead className="bg-gray-50 border-b">
@@ -439,6 +485,8 @@ export default function RestaurantLoansPage() {
                       </tbody>
                     </table>
                   </div>
+                    }
+                  />
                 </CardContent>
               </Card>
             )}
@@ -450,7 +498,7 @@ export default function RestaurantLoansPage() {
       <Dialog open={loanOpen} onOpenChange={(o) => { if (!savingLoan) setLoanOpen(o) }}>
         <DialogContent className="sm:max-w-md max-h-[92vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>New loan</DialogTitle>
+            <DialogTitle>Record Loan</DialogTitle>
             <DialogDescription>Money the restaurant borrowed. It is not income.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">

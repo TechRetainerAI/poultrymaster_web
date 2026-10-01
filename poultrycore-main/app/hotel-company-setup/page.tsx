@@ -13,10 +13,15 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { getHotelProfile, upsertHotelProfile, type HotelProfileInput } from "@/lib/api/hotel"
+import { CurrencySelect } from "@/components/ui/currency-select"
+import { CompanyTimeZoneField } from "@/components/settings/company-timezone-field"
+import { fetchFarmSettings, updateFarmCurrency, useFarmSettingsStore } from "@/lib/currency"
+import { currencySymbolFor } from "@/lib/constants/currencies"
 
 export default function HotelCompanySetupPage() {
   const router = useRouter()
   const { toast } = useToast()
+  const applyFarmSettings = useFarmSettingsStore((st) => st.apply)
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const logout = useLogout()
 
@@ -49,6 +54,24 @@ export default function HotelCompanySetupPage() {
     try {
       await upsertHotelProfile(profile)
       setIsSetUp(true)
+      // Currency is a COMPANY setting: it has to reach the company (Farms) row,
+      // which is what useFmt()/fmtMoney() read, not only this profile — the same
+      // sync the Poultry Company Setup does. The symbol is only replaced when
+      // the code actually changes, so a preferred "GHC" is not undone on re-save.
+      try {
+        const current = await fetchFarmSettings()
+        const picked = (profile.defaultCurrency ?? "").toUpperCase()
+        if (picked && picked !== (current?.currencyCode ?? "").toUpperCase()) {
+          const updated = await updateFarmCurrency({
+            currencyCode: picked,
+            currencySymbol: currencySymbolFor(picked),
+            showCurrencySymbol: current?.showCurrencySymbol ?? true,
+          })
+          if (updated) applyFarmSettings(updated)
+        }
+      } catch {
+        toast({ title: "Currency not applied app-wide", description: "The profile saved, but the display currency could not be updated. Set it in Setup > Company.", variant: "destructive" })
+      }
       toast({ title: "Profile saved" })
     } catch (e: any) {
       toast({ title: "Save failed", description: e?.message, variant: "destructive" })
@@ -169,9 +192,16 @@ export default function HotelCompanySetupPage() {
                 </div>
               </CardHeader>
               <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div><Label>Currency</Label><Input value={profile.defaultCurrency ?? "GHS"} onChange={(e) => setProfile({ ...profile, defaultCurrency: e.target.value })} /></div>
+                {/* The same world-currency picker as Poultry (was free text), and
+                    saved to the company row (see saveProfile) — one currency for
+                    the whole company, not one per module. */}
+                <div><Label>Currency</Label><CurrencySelect value={profile.defaultCurrency ?? "GHS"}
+                  onChange={(o) => setProfile({ ...profile, defaultCurrency: o.code })} /></div>
                 <div><Label>Tax Rate (%)</Label><Input type="number" step="0.01" value={profile.taxRate ?? 0} onChange={(e) => setProfile({ ...profile, taxRate: Number(e.target.value) })} /></div>
                 <div><Label>Service Charge (%)</Label><Input type="number" step="0.01" value={profile.serviceChargeRate ?? 0} onChange={(e) => setProfile({ ...profile, serviceChargeRate: Number(e.target.value) })} /></div>
+                {/* Company time zone lives on the company row and saves itself,
+                    exactly as on the Poultry / Water / Generic setup pages. */}
+                <CompanyTimeZoneField />
               </CardContent>
             </Card>
           </div>

@@ -18,11 +18,15 @@ export interface HotelProfitLossReport {
   endDate: string
   roomRevenue: number
   restaurantRevenue: number
+  /** 327: deposits held for guests (refundable) — informational, NOT in totalRevenue. */
   depositsNet: number
   totalRevenue: number
   staffWages: number
   totalExpenseCategory: number
   totalExpenses: number
+  /** 327: Depreciation & Financing band — non-cash, after operating expenses. */
+  depreciation: number
+  totalOtherCosts: number
   netProfit: number
   netMarginPercent: number | null
   status: string

@@ -602,7 +602,7 @@ export const payrollReport: ReportDefinition<PayrollReportRow> = {
 }
 
 // ===========================================================================
-// Staff Loans & Advances — what each staff member owes (migration 326)
+// Employee Loans & Advances — what each staff member owes (migration 326)
 // ===========================================================================
 
 export const staffLoansReport: ReportDefinition<StaffLoanStaffRow> = {

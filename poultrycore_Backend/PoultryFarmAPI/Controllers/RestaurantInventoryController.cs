@@ -6,7 +6,9 @@ using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Controllers
 {
-    [ApiController][Authorize][Route("api/Restaurant/inventory")]
+    // Migration 329: the stock functions now refuse (a delivery through Adjust,
+    // deleting an item with purchases) -- P0001 comes back as 400, not 500.
+    [ApiController][Authorize][PoultryFarmAPIWeb.Filters.RestaurantBusinessRuleFilter][Route("api/Restaurant/inventory")]
     public class RestaurantInventoryController : ControllerBase
     {
         private readonly IRestaurantInventoryService _svc;

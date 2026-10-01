@@ -45,6 +45,8 @@ namespace PoultryFarmAPIWeb.Business
         Task DeleteCategoryAsync(int id, string farmId);
         Task<List<RestaurantExpenseModel>> ListExpensesAsync(string farmId, DateTime? from = null, DateTime? to = null);
         Task<int> InsertExpenseAsync(RestaurantExpenseModel m);
+        /// <summary>Migration 337: edit an expense; a changed payment is reversed and re-posted.</summary>
+        Task UpdateExpenseAsync(int id, RestaurantExpenseModel m, string updatedBy);
         Task DeleteExpenseAsync(int id, string farmId);
         Task<ReceiptTemplateModel?> GetReceiptTemplateAsync(string farmId);
         Task UpsertReceiptTemplateAsync(ReceiptTemplateModel m);

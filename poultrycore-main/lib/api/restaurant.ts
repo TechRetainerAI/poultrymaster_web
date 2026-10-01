@@ -2055,6 +2055,12 @@ export interface RestaurantExpenseInput {
   amount: number; paymentMethod?: string; supplierName?: string | null; receiptRef?: string | null
   /** The cash account it was paid from. Null = the default account for the payment method. */
   cashAccountId?: number | null
+  /** Migration 329: the supplier it is owed / paid to (Supplier Balances follows it). */
+  supplierId?: number | null
+  /** Cash paid now. Null = paid in full; 0 = unpaid. */
+  amountPaid?: number | null
+  /** When an unpaid balance is due. */
+  dueDate?: string | null
 }
 export interface ReceiptTemplate {
   receiptTemplateId: number; farmId: string; headerText?: string | null; footerText?: string | null
@@ -2076,6 +2082,11 @@ export async function listExpenses(from?: string, to?: string): Promise<Restaura
 export async function createExpense(input: RestaurantExpenseInput): Promise<{ expenseId: number }> {
   const farmId = activeFarmId()
   return jsend<{ expenseId: number }>("/Restaurant/expenses", "POST", { ...input, farmId })
+}
+/** Migration 337: edit an expense. A changed payment is reversed and re-posted; closed days are refused. */
+export async function updateExpense(id: number, input: RestaurantExpenseInput): Promise<void> {
+  const farmId = activeFarmId()
+  await jsend<void>(`/Restaurant/expenses/${id}`, "PUT", { ...input, farmId })
 }
 export async function deleteExpense(id: number): Promise<void> { await jdelete(`/Restaurant/expenses/${id}`) }
 export async function getReceiptTemplate(): Promise<ReceiptTemplate> { return jget<ReceiptTemplate>("/Restaurant/expenses/receipt-template") }

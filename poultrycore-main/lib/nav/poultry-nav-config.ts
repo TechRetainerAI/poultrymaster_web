@@ -453,7 +453,7 @@ export function buildPoultryNavConfig(
           { id: "alerts",      title: "Alerts",              icon: Bell,       onClick: onOpenAlerts, badge: alertCount },
           // Subscription billing is the account's own, not the company's
           // trading money. Same gate it had in the Money column.
-          { id: "billing",     title: "Billing",             icon: CreditCard, href: "/billing", visible: money("/billing") },
+          { id: "billing",     title: "Billing",             icon: CreditCard, href: "/business-office/billing", visible: money("/billing") },
           { id: "audit-logs",  title: "Activity Log",        icon: Activity,   href: "/audit-logs", visible: featureAccess.canViewActivityLog },
           { id: "resources",   title: "Resources",           icon: BookOpen,   href: "/resources" },
           { id: "help",        title: "Help Center",         icon: HelpCircle, href: "/help" },

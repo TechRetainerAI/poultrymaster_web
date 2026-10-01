@@ -338,7 +338,7 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount, qui
           // The account's own subscription. It was never in the water nav at
           // all -- only the poultry Money column carried it -- so a water owner
           // had no way to reach their billing from here.
-          { id: "billing",    title: "Billing",            icon: CreditCard, href: "/billing" },
+          { id: "billing",    title: "Billing",            icon: CreditCard, href: "/business-office/billing" },
           { id: "audit-logs", title: "Activity Log",       icon: Activity, href: "/audit-logs", visible: canSeeActivityLog },
           { id: "terms",      title: "Terms & Conditions", icon: ListTodo, href: "/terms" },
         ],
