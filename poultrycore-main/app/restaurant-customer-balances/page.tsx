@@ -16,6 +16,7 @@ export default function RestaurantCustomerBalancesPage() {
   return (
     <BalancesPage
       module="restaurant"
+      pagerVariant="records"
       side="customer"
       companyType="Restaurant"
       iconClassName={RESTAURANT_ICON_CLASS}

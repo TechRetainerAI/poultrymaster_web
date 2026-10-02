@@ -47,6 +47,8 @@ import { RecordPaymentDialog, type CashAccountOption } from "./record-payment-di
 import { StatementDialog } from "./statement-dialog"
 import { PaymentHistoryDialog } from "./payment-history-dialog"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 
 export interface BalancesPageProps {
   module: BalanceModule
@@ -81,10 +83,15 @@ export interface BalancesPageProps {
     /** "sale" / "membership bill" / "fee bill". Lower case. */
     document?: string
   }
+  /**
+   * "records" gives Restaurant and Hotel Poultry's Expenses pagination footer.
+   * Omitted (Poultry, Water, Generic) = unchanged.
+   */
+  pagerVariant?: "compact" | "records"
 }
 
 export function BalancesPage({
-  module, side, companyType, loadCashAccounts, partyHref, documentHref, permissions, wording, iconClassName,
+  module, side, companyType, loadCashAccounts, partyHref, documentHref, permissions, wording, iconClassName, pagerVariant,
 }: BalancesPageProps) {
   const fmt = useFmt()
   const router = useRouter()
@@ -237,6 +244,9 @@ export function BalancesPage({
       : rows.filter((r) => (methodsByParty[r.partyId] ?? []).includes(methodFilter))),
     [rows, methodFilter, methodsByParty],
   )
+  // Paged only when a caller asks for the pager (Restaurant, Hotel); Poultry keeps the full list.
+  const pg = usePagination(visibleRows)
+  const pagedRows = pagerVariant ? pg.pageItems : visibleRows
 
   useEffect(() => {
     let cancelled = false
@@ -469,7 +479,7 @@ export function BalancesPage({
                     fetched lazily per party, so expanding every card on load
                     would fire a request per row. */}
                 <div className="space-y-3 p-3 lg:hidden">
-                  {visibleRows.map((party, idx) => {
+                  {pagedRows.map((party, idx) => {
                     const isOpen = expanded === party.partyId
                     const lines = docs[party.partyId]
                     return (
@@ -602,7 +612,7 @@ export function BalancesPage({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {visibleRows.map((party) => {
+                      {pagedRows.map((party) => {
                         const isOpen = expanded === party.partyId
                         const lines = docs[party.partyId]
                         return (
@@ -745,6 +755,7 @@ export function BalancesPage({
                     </TableBody>
                   </Table>
                 </div>
+                {pagerVariant && <DataPagination {...pg.paginationProps} variant={pagerVariant} />}
                 </>
               )}
             </CardContent>

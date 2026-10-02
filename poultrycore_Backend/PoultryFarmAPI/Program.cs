@@ -37,6 +37,9 @@ if (string.IsNullOrWhiteSpace(connectionString))
     throw new InvalidOperationException(
         "Connection string 'PoultryConn' is empty. Set ConnectionStrings__PoultryConn on Cloud Run (or User Secrets locally).");
 }
+// Main address first; if it doesn't answer, the fallback (a local Cloud SQL
+// proxy on 127.0.0.1:5433 in Development). See Helpers/DbConnectionFallback.cs.
+connectionString = PoultryCore.Db.DbConnectionFallback.Resolve(builder.Configuration, "PoultryConn", builder.Environment.IsDevelopment());
 
 // Cloud Run: set JWT__Secret (same value as Login API). Empty → IDX10703 / "key length is zero" at runtime.
 var jwtSecret = builder.Configuration["JWT:Secret"]?.Trim();

@@ -440,7 +440,7 @@ export default function HotelCashFlowPage() {
                       striped
                       stripeAccent="amber"
                       items={pg.pageItems}
-                      pagination={pg.paginationProps}
+                      pagination={{ ...pg.paginationProps, variant: "records" }}
                       getKey={(r: any) => `${r.rowSource}-${r.id}`}
                       primary={(r: any) => categoryLabel(r.category)}
                       secondary={(r: any) => `${fmtDateTime(r.transactionDate, r)} · ${flowGroupLabel(r.flowGroup)}`}

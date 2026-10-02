@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { DataPagination } from "@/components/ui/data-pagination"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -24,6 +25,7 @@ import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useFmt } from "@/lib/currency"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import Link from "next/link"
 import { EmptyState } from "@/components/restaurant/empty-state"
 import { PageHeader } from "@/components/restaurant/page-header"
@@ -68,7 +70,9 @@ export default function RestaurantCashAccountsPage() {
 
   const [loading, setLoading] = useState(true)
   const [accounts, setAccounts] = useState<CashAccount[]>([])
+  const pgAccounts = usePagination(accounts)
   const [counts, setCounts] = useState<CashCount[]>([])
+  const pgCounts = usePagination(counts)
   const [activeTab, setActiveTab] = useState<"accounts" | "counts">("accounts")
 
   // New / edit account
@@ -82,6 +86,7 @@ export default function RestaurantCashAccountsPage() {
   const [ledgerFrom, setLedgerFrom] = useState(firstOfMonthIso())
   const [ledgerTo, setLedgerTo] = useState(todayIso())
   const [ledgerRows, setLedgerRows] = useState<LedgerRow[]>([])
+  const pgLedger = usePagination(ledgerRows, 25)
   const [ledgerLoading, setLedgerLoading] = useState(false)
 
   // Count
@@ -343,7 +348,7 @@ export default function RestaurantCashAccountsPage() {
                 <Card className="lg:hidden"><CardContent className="p-0">
                   <MobileCardList
                     striped
-                    items={accounts}
+                    items={pgAccounts.pageItems} pagination={{ ...pgAccounts.paginationProps, variant: "records" }}
                     getKey={(a) => a.cashAccountId}
                     primary={(a) => a.name}
                     secondary={(a) => <span>{ACCOUNT_TYPE_LABELS[a.accountType] ?? a.accountType}{a.defaultFor ? ` · default for ${DEFAULT_FOR_LABELS[a.defaultFor] ?? a.defaultFor}` : ""}</span>}
@@ -367,7 +372,7 @@ export default function RestaurantCashAccountsPage() {
                   />
                 </CardContent></Card>
                 <div className="hidden lg:grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                  {accounts.map((a) => {
+                  {pgAccounts.pageItems.map((a) => {
                     const outOfSync = Math.abs((a.ledgerBalance ?? 0) - (a.currentBalance ?? 0)) > 0.005
                     const tillLocked = a.accountType === "Till" && !!a.openShiftId
                     return (
@@ -441,7 +446,7 @@ export default function RestaurantCashAccountsPage() {
                   <CardContent className="p-0 lg:p-2">
                     <MobileCardList
                       striped
-                      items={counts}
+                      items={pgCounts.pageItems} pagination={{ ...pgCounts.paginationProps, variant: "records" }}
                       getKey={(c) => c.countId}
                       primary={(c) => c.accountName}
                       secondary={(c) => <span>{(c.countDate ?? "").slice(0, 10)}</span>}
@@ -476,7 +481,7 @@ export default function RestaurantCashAccountsPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {counts.map((c) => (
+                          {pgCounts.pageItems.map((c) => (
                             <tr key={c.countId} className="border-b">
                               <td className="p-3 text-xs text-muted-foreground whitespace-nowrap">{(c.countDate ?? "").slice(0, 10)}</td>
                               <td className="p-3 font-medium text-gray-900">
@@ -629,7 +634,7 @@ export default function RestaurantCashAccountsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {ledgerRows.map((r) => (
+                  {pgLedger.pageItems.map((r) => (
                     <tr key={r.cashTxnId} className="border-b">
                       <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{(r.txnDate ?? "").slice(0, 10)}</td>
                       <td className="p-2 whitespace-nowrap">{ledgerSourceLabel(r.sourceType)}</td>
@@ -642,6 +647,7 @@ export default function RestaurantCashAccountsPage() {
                   ))}
                 </tbody>
               </table>
+              <DataPagination {...pgLedger.paginationProps} variant="records" />
             </div>
           )}
           <DialogFooter>

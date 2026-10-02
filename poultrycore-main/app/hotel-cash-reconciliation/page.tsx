@@ -328,7 +328,7 @@ function HotelCashReconciliationPageInner() {
                             striped
                             stripeAccent="blue"
                             items={pg.pageItems}
-                            pagination={pg.paginationProps}
+                            pagination={{ ...pg.paginationProps, variant: "records" }}
                             getKey={(c) => c.hotelCashReconciliationId}
                             primary={(c) => c.referenceNo ?? `#${c.hotelCashReconciliationId}`}
                             secondary={(c) => <span className="text-xs">{fmtDateTime(c.reconciliationDate, c)}</span>}

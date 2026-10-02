@@ -15,6 +15,7 @@ export default function RestaurantPaymentsPage() {
   return (
     <PaymentsReceivedPage
       module="restaurant"
+      pagerVariant="records"
       companyType="Restaurant"
       iconClassName={RESTAURANT_ICON_CLASS}
       saleHref={restaurantOrderHref}

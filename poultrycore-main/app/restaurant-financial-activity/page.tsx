@@ -464,7 +464,7 @@ function FinancialActivityPageInner() {
                   { label: "Running cash", value: gh(r.runningCash) },
                 ]}
                 extra={(r) => positionsFor(r)}
-                pagination={pg.paginationProps}
+                pagination={{ ...pg.paginationProps, variant: "records" }}
                 desktopTable={
                   <div className="overflow-x-auto table-scroll-wrapper pb-2" style={{ WebkitOverflowScrolling: "touch" }}>
                     <Table className="w-full min-w-[1080px]">
@@ -560,7 +560,7 @@ function FinancialActivityPageInner() {
 
           {!loading && filtered.length > 0 && (
             <div className="hidden lg:block">
-              <DataPagination {...pg.paginationProps} />
+              <DataPagination {...pg.paginationProps} variant="records" />
             </div>
           )}
 

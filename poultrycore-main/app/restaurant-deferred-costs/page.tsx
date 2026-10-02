@@ -525,7 +525,7 @@ function DeferredCostsInner() {
                         <Receipt className="w-4 h-4 mr-1" /> Purchase detail
                       </Button>
                     )}
-                    pagination={pg.paginationProps}
+                    pagination={{ ...pg.paginationProps, variant: "records" }}
                     desktopTable={
                     <div className="overflow-x-auto">
                       <Table>

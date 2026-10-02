@@ -7,6 +7,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { usePagination } from "@/hooks/use-pagination"
+import { DataPagination } from "@/components/ui/data-pagination"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
@@ -61,6 +63,7 @@ export default function HotelSuppliersPage() {
   async function doDelete() { if (!delTarget) return; try { await deleteHotelSupplier(delTarget.hotelSupplierId); toast({ title: "Deleted" }); setDelTarget(null); await load() } catch (e: any) { toast({ title: "Error", description: e?.message, variant: "destructive" }) } }
 
   const filtered = useMemo(() => { if (!search) return suppliers; const s = search.toLowerCase(); return suppliers.filter(sp => sp.supplierName.toLowerCase().includes(s) || (sp.phone || "").includes(s)) }, [suppliers, search])
+  const pg = usePagination(filtered)
   const fmt = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
   if (loading) return (<div className="flex h-screen"><DashboardSidebar /><div className="flex-1 flex flex-col"><DashboardHeader /><div className="flex-1 flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div></div></div>)
@@ -85,7 +88,7 @@ export default function HotelSuppliersPage() {
           </tr></thead>
           <tbody>
             {filtered.length === 0 && <tr><td colSpan={6} className="text-center p-8 text-muted-foreground">No suppliers found</td></tr>}
-            {filtered.map(s => (
+            {pg.pageItems.map(s => (
               <tr key={s.hotelSupplierId} className="border-b hover:bg-muted/30">
                 <td className="p-3 font-medium">{s.supplierName}</td>
                 <td className="p-3"><Badge variant="outline">{s.supplierType}</Badge></td>
@@ -100,7 +103,7 @@ export default function HotelSuppliersPage() {
               </tr>
             ))}
           </tbody>
-        </table></div></CardContent></Card>
+        </table></div><DataPagination {...pg.paginationProps} variant="records" /></CardContent></Card>
 
         <Dialog open={open} onOpenChange={setOpen}><DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing ? "Edit Supplier" : "New Supplier"}</DialogTitle></DialogHeader>

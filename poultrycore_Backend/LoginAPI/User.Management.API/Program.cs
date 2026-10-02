@@ -39,6 +39,9 @@ if (string.IsNullOrWhiteSpace(connectionString))
     throw new InvalidOperationException(
         "Connection string 'ConnStr' is missing or empty. Set ConnectionStrings__ConnStr on Cloud Run to your Cloud SQL SQL Server connection string (or use User Secrets locally).");
 }
+// Main address first; if it doesn't answer, the fallback (a local Cloud SQL
+// proxy on 127.0.0.1:5433 in Development). See Helpers/DbConnectionFallback.cs.
+connectionString = PoultryCore.Db.DbConnectionFallback.Resolve(configuration, "ConnStr", builder.Environment.IsDevelopment());
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString, sql =>

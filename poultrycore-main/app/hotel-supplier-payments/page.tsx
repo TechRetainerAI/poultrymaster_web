@@ -17,6 +17,7 @@ export default function HotelSupplierPaymentsPage() {
   return (
     <PaymentsLedgerPage
       module="hotel"
+      pagerVariant="records"
       companyType="Hotel"
       iconClassName={HOTEL_ICON_CLASS}
       loadCashAccounts={async () => (await loadHotelCashAccounts(false)).map((a) => ({ id: a.id, name: a.name }))}

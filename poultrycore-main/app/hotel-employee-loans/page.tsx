@@ -36,6 +36,7 @@ import {
 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import { PageHeader } from "@/components/hotel/page-header"
 import { useFmt } from "@/lib/currency"
 import { useLogout } from "@/hooks/use-logout"
@@ -316,6 +317,7 @@ function HotelEmployeeLoansInner() {
     }
     return list
   }, [loans, statusTab, staffFilter, typeFilter, search])
+  const pg = usePagination(filtered)
 
   const staffWithLoans = useMemo(() => {
     const ids = new Set(loans.map((l) => l.hotelStaffId))
@@ -424,7 +426,7 @@ function HotelEmployeeLoansInner() {
               <MobileCardList
                 striped
                 defaultOpen
-                items={filtered}
+                items={pg.pageItems} pagination={{ ...pg.paginationProps, variant: "records" }}
                 getKey={(l: HotelEmployeeLoan) => l.hotelEmployeeLoanId}
                 primary={(l: HotelEmployeeLoan) => <>{l.loanNumber ?? `#${l.hotelEmployeeLoanId}`} · {l.staffName || "—"}</>}
                 secondary={(l: HotelEmployeeLoan) => (
@@ -490,7 +492,7 @@ function HotelEmployeeLoansInner() {
                         <th className="text-right p-3">Actions</th>
                       </tr></thead>
                       <tbody>
-                        {filtered.map((l) => (
+                        {pg.pageItems.map((l) => (
                           <tr key={l.hotelEmployeeLoanId} className="border-b hover:bg-slate-50 cursor-pointer" onClick={() => openDetail(l)}>
                             <td className="p-3">
                               <div className="font-mono text-xs font-semibold">{l.loanNumber ?? `#${l.hotelEmployeeLoanId}`}</div>

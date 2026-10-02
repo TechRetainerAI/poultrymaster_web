@@ -15,6 +15,7 @@ export default function HotelPaymentsPage() {
   return (
     <PaymentsReceivedPage
       module="hotel"
+      pagerVariant="records"
       companyType="Hotel"
       iconClassName={HOTEL_ICON_CLASS}
       saleHref={(bookingId) => `/hotel-sales?bookingId=${bookingId}`}

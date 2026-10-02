@@ -47,6 +47,15 @@ namespace PoultryFarmAPIWeb.Controllers
             return Ok(new { hotelInvoiceId = await _svc.BillToAccountAsync(r.FarmId, bookingId, r.HotelCustomerId, By) });
         }
 
+        /// <summary>Sales → Delete on a stay (refused once anything was paid).</summary>
+        [HttpDelete("sales/{bookingId:int}")]
+        public async Task<IActionResult> DeleteStay(int bookingId, [FromQuery] string farmId)
+        {
+            var d = Deny(farmId); if (d != null) return d;
+            var refusal = await _svc.DeleteStayAsync(farmId, bookingId);
+            return refusal == null ? NoContent() : BadRequest(new { message = refusal });
+        }
+
         // ---- Balances (both sides) -------------------------------------------
         [HttpGet("balances/customer-balances")]
         public Task<IActionResult> CustomerBalances([FromQuery] string farmId, [FromQuery] DateTime? from, [FromQuery] DateTime? to,
