@@ -8,16 +8,24 @@
 // modal does, so the two cannot drift apart.
 //
 // This file used to hold its own ~860-line copy of the form.
+//
+// ?date=yyyy-MM-dd&flockIds=1,2,3 pre-selects flocks — written by the
+// dashboard's "Complete Missing Production" (migration 332). See
+// lib/activity/completeness.ts for both ends of that link.
 
-import { useRouter } from "next/navigation"
+import { Suspense } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
 import { Boxes, X } from "lucide-react"
 import { BatchProductionRecordForm } from "@/components/production/batch-production-record-form"
+import { farmCompletenessHref, parseMissingProductionPrefill } from "@/lib/activity/completeness"
 
-export default function NewBatchProductionRecordPage() {
+function NewBatchProductionRecordPageInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const prefill = parseMissingProductionPrefill(searchParams)
 
   const handleLogout = () => {
     localStorage.clear()
@@ -53,11 +61,35 @@ export default function NewBatchProductionRecordPage() {
           <BatchProductionRecordForm
             mode="create"
             displayMode="page"
-            onSaved={() => router.push("/batch-production-records")}
+            prefill={prefill}
+            onSaved={(status, id) => {
+              // Opened from Farm Completeness: the job is not done until the
+              // batch is POSTED, so go straight to allocation (where posting
+              // happens). A draft goes back to where the user came from.
+              if (prefill) {
+                const back = farmCompletenessHref(prefill.date)
+                if (status === "PendingAllocation" && id != null) {
+                  router.push(`/batch-production-records/${id}/allocate?returnTo=${encodeURIComponent(back)}`)
+                } else {
+                  router.push(back)
+                }
+                return
+              }
+              router.push("/batch-production-records")
+            }}
             onCancel={() => router.push("/batch-production-records")}
           />
         </main>
       </div>
     </div>
+  )
+}
+
+export default function NewBatchProductionRecordPage() {
+  // useSearchParams needs a Suspense boundary during prerender.
+  return (
+    <Suspense fallback={null}>
+      <NewBatchProductionRecordPageInner />
+    </Suspense>
   )
 }

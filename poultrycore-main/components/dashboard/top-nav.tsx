@@ -47,6 +47,7 @@ import {
   CalendarClock,
   Receipt,
   Scale,
+  Wrench,
 } from "lucide-react"
 
 /**
@@ -735,6 +736,27 @@ export function TopNavigation() {
               columns={4} widthRem={58} accent="orange"
             />
           )}
+
+          <NavMegaMenu
+            label="Tools" icon={Wrench}
+            title="Tools"
+            /* Says what the menu is FOR: why these are not simply part of
+               Setup. Setup is configuration you revisit; Tools are jobs run at
+               a point in a farm's or a flock's life -- onboarding once, closing
+               a flock once at its end. */
+            blurb="Jobs run once: onboarding a farm, closing out a finished flock."
+            groups={nav.tools}
+            /* Same single-column panel as Trackers, and the same 19rem: its
+               longest row, "Ingredients only tracker" at 24 chars, is wider
+               than anything here, so this width already clears "Initial Farm
+               Setup" with room to spare. Matching it keeps the two narrow
+               dropdowns the same object rather than two near-misses.
+
+               The active row is highlighted again now that the panel has two
+               rows (it was switched off while one row made the fill colour the
+               whole interior). */
+            columns={1} widthRem={19} layout="grid" accent="orange"
+          />
 
           <NavMegaMenu
             label="Setup" icon={Settings}

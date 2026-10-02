@@ -10,7 +10,7 @@
 // The sidebar's Organization Profile / Users & Permissions entries link here
 // with ?tab=org|users, so the tab is deep-linkable and the sidebar highlights
 // the section you're actually looking at.
-import { Suspense } from "react"
+import { Suspense, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { BusinessOfficeShell } from "@/components/dashboard/business-office-shell"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
@@ -31,6 +31,8 @@ const SECTIONS = [
   { key: "users", icon: Users, title: "Employees & Users", short: "Employees", Panel: UsersPermissionsPanel },
   { key: "iam", icon: KeyRound, title: "Access Management", short: "Access", Panel: IamPanel },
   { key: "companies", icon: Building2, title: "Companies", short: "Companies", Panel: CompaniesPanel },
+  // Billing is NOT a tab here — it is its own sidebar page at
+  // /business-office/billing (James, 2026-10-01). ?tab=billing redirects there.
 ] as const
 
 function BusinessSetupContent() {
@@ -39,6 +41,18 @@ function BusinessSetupContent() {
 
   const param = searchParams.get("tab")
   const tab = SECTIONS.some((s) => s.key === param) ? (param as string) : SECTIONS[0].key
+
+  // Billing moved to its own page. Old links — including provider checkout
+  // return URLs minted while it was a tab — carry ?tab=billing plus the
+  // verification params, so forward everything except `tab` across.
+  useEffect(() => {
+    if (param !== "billing") return
+    const qs = new URLSearchParams(searchParams.toString())
+    qs.delete("tab")
+    const rest = qs.toString()
+    router.replace(`/business-office/billing${rest ? `?${rest}` : ""}`)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [param])
 
   // Keep the URL (and therefore the sidebar highlight) in step with the tab,
   // without pushing a history entry for every click.

@@ -97,11 +97,25 @@ export function toDateOnly(isoish: string): string {
  * timezone answers UTC with timeZoneConfirmed = false rather than failing,
  * because "not set" is a state to render, not an error.
  */
-export const getCompanyTimeContext = () =>
+/*
+ * `async` is load-bearing, not decoration. activeFarmId() throws, and it is
+ * evaluated while the template literal is BUILT -- before jget() is called and
+ * before any promise exists. Without `async` that throw is synchronous at the
+ * call site, so a caller's `.catch()` is never attached and the error escapes
+ * into React's render, blanking the whole app with "Application error: a
+ * client-side exception".
+ *
+ * That is reachable in normal use because the callers guard on the auth STORE's
+ * activeFarmId while activeFarmId() here reads localStorage's farmId. The two
+ * can disagree -- store set, localStorage cleared -- and then the guard passes
+ * and this throws anyway. `async` turns it into a rejected promise, which the
+ * existing .catch() handles by keeping the UTC fallback this module documents.
+ */
+export const getCompanyTimeContext = async () =>
   jget<CompanyTimeContext>(`/CompanyTime/context?farmId=${encodeURIComponent(activeFarmId())}`)
 
 /** Just today's date, for callers that need nothing else. */
-export const getCompanyBusinessDate = () =>
+export const getCompanyBusinessDate = async () =>
   jget<{ farmId: string; businessDate: string }>(
     `/CompanyTime/business-date?farmId=${encodeURIComponent(activeFarmId())}`,
   ).then((r) => r.businessDate)

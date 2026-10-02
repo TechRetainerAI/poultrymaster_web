@@ -56,10 +56,29 @@ namespace PoultryFarmAPIWeb.Models
         // Optional FK to dbo.Supplier.
         public int? SupplierId { get; set; }
 
+        // Poultry cash account the down payment came from (migration 330). The
+        // purchase expense is paid from it; NULL moves no cash, as before.
+        public int? PoultryCashAccountId { get; set; }
+
+        // Display only, filled from the JOIN on GET (migration 331).
+        public string? PoultryCashAccountName { get; set; }
+
         // Denormalized supplier name for display (filled from JOIN on GET).
         public string SupplierName { get; set; } = string.Empty;
 
         public string? Notes { get; set; }
+
+        /// <summary>
+        /// True when this purchase happened BEFORE the application started tracking
+        /// the farm (migration 326). Suppresses the expense posting and dates the
+        /// bird-stock movement to the placement; what the farm still owes is still
+        /// recorded, because that liability is current whatever the purchase was.
+        ///
+        /// <para>Nullable on the way IN so the ordinary Flock Purchases form, which
+        /// does not send it, cannot silently turn a historical purchase into a
+        /// current one — the stored function reads NULL as "leave it alone".</para>
+        /// </summary>
+        public bool? IsHistorical { get; set; }
 
         // Optional USD→local rate for foreign-supplier batch purchases.
         public decimal? DollarConversionRate { get; set; }

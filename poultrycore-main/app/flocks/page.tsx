@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useMemo } from "react"
 import { useRouter } from "next/navigation"
+import { BreedSelect } from "@/components/poultry/breed-select"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
@@ -43,9 +44,11 @@ import { getBirdsLeftForFlockFromRecords } from "@/lib/utils/production-records"
 import {
   flockCountsTowardBirdTotals,
   getFlockLifecycleStatus,
+  isFlockClosed,
   shouldAutoActivateFlock,
 } from "@/lib/utils/flock-eligibility"
 import { clearFlocksCache } from "@/lib/utils/flock-utils"
+import { BatchAllocationDialog } from "@/components/poultry/batch-allocation-dialog"
 import { getUserContext } from "@/lib/utils/user-context"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useToast } from "@/hooks/use-toast"
@@ -106,6 +109,13 @@ export default function FlocksPage() {
   // Data for filter dropdowns
   const [houses, setHouses] = useState<House[]>([])
   const [flockBatches, setFlockBatches] = useState<FlockBatch[]>([])
+  // Breeds this farm already uses, offered first in the breed picker. Taken from
+  // the batches AND the flocks, because a flock may carry a breed its batch does
+  // not -- that is what the per-flock override is for.
+  const knownBreeds = useMemo(() => {
+    const all = [...flockBatches.map((b) => b.breed), ...flocks.map((f) => f.breed)]
+    return Array.from(new Set(all.map((b) => (b ?? "").trim()).filter(Boolean)))
+  }, [flockBatches, flocks])
 
   // Map of flockId -> noOfBirdsLeft from the most recent production record
   const [flockBirdsLeftMap, setFlockBirdsLeftMap] = useState<Record<number, number>>({})
@@ -116,11 +126,17 @@ export default function FlocksPage() {
 
   // Create dialog state
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  // "Add Multiple Flocks" -- the same allocation workflow the Flock Purchases
+  // page opens, entered here with no batch chosen yet.
+  const [isAllocateDialogOpen, setIsAllocateDialogOpen] = useState(false)
   const [createLoading, setCreateLoading] = useState(false)
   const [createError, setCreateError] = useState("")
   const emptyFlockForm = { name: "", startDate: "", breed: "", quantity: 0, active: true, hasArrived: false, houseId: null as number | null, batchId: 0, inactivationReason: "", otherReason: "", notes: "" }
   const [createForm, setCreateForm] = useState({ ...emptyFlockForm })
   const [createSelectedBatch, setCreateSelectedBatch] = useState<FlockBatch | null>(null)
+
+  // Closing and reopening flocks live on their own page, Tools > Flock
+  // Closeout (/flock-closeout). This page only shows the Closed state.
 
   // Edit dialog state
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
@@ -463,7 +479,7 @@ export default function FlocksPage() {
     e.preventDefault()
     const { farmId, userId } = getUserContext()
     if (!farmId || !userId) { toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" }); return }
-    if (!createForm.name.trim() || !createForm.breed.trim() || !createForm.startDate) { toastFormGuide(toast, "Add a flock name, breed, and the date the flock started."); return }
+    if (!createForm.name.trim() || !createForm.startDate) { toastFormGuide(toast, "Add a flock name and the date the flock started."); return }
     if (createForm.quantity <= 0) { toastFormGuide(toast, "Enter how many birds are in this flock — use a number greater than zero."); return }
     if (!createForm.batchId || createForm.batchId === 0) { toastFormGuide(toast, "Link this flock to a batch so bird counts stay accurate."); return }
     if (createSelectedBatch && createForm.quantity > createSelectedBatch.numberOfBirds) { toastFormGuide(toast, `That batch only has ${createSelectedBatch.numberOfBirds} birds available — lower the flock size or pick another batch.`); return }
@@ -546,7 +562,7 @@ export default function FlocksPage() {
     if (!editingFlockId) return
     const { farmId, userId } = getUserContext()
     if (!farmId || !userId) { toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" }); return }
-    if (!editForm.name.trim() || !editForm.breed.trim() || !editForm.startDate) { toastFormGuide(toast, "Add a flock name, breed, and the date the flock started."); return }
+    if (!editForm.name.trim() || !editForm.startDate) { toastFormGuide(toast, "Add a flock name and the date the flock started."); return }
     if (editForm.quantity <= 0) { toastFormGuide(toast, "Enter how many birds are in this flock — use a number greater than zero."); return }
     if (editSelectedBatch && editForm.quantity > editSelectedBatch.numberOfBirds) { toastFormGuide(toast, `That batch only has ${editSelectedBatch.numberOfBirds} birds available — lower the flock size or pick another batch.`); return }
     // Room/house capacity — exclude the flock being edited from current occupancy.
@@ -700,10 +716,12 @@ export default function FlocksPage() {
     }
 
     if (selectedStatus !== "ALL") {
-      const wantActive = selectedStatus === "active"
       currentList = currentList.filter((flock) => {
         const life = getFlockLifecycleStatus(flock)
-        return wantActive ? life === "active" : life !== "active"
+        if (selectedStatus === "active") return life === "active"
+        if (selectedStatus === "closed") return life === "closed"
+        // "Inactive" is everything not running that has not been closed out.
+        return life !== "active" && life !== "closed"
       })
     }
 
@@ -895,6 +913,13 @@ export default function FlocksPage() {
         </Badge>
       )
     }
+    if (life === "closed") {
+      return (
+        <Badge variant="secondary" className="bg-slate-800 text-white">
+          Closed
+        </Badge>
+      )
+    }
     return (
       <Badge variant="secondary" className="bg-gray-100 text-gray-800">
         Inactive
@@ -920,10 +945,16 @@ export default function FlocksPage() {
                   <p className="text-sm text-slate-600">Manage your bird flocks</p>
                 </div>
               </div>
-              <Button className="gap-2 w-full sm:w-auto h-11 sm:h-10 bg-blue-600 hover:bg-blue-700 shrink-0" onClick={openCreateDialog}>
-                <Plus className="w-4 h-4" />
-                Add Flock
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto shrink-0">
+                <Button variant="outline" className="gap-2 w-full sm:w-auto h-11 sm:h-10" onClick={() => setIsAllocateDialogOpen(true)}>
+                  <Plus className="w-4 h-4" />
+                  Add Multiple Flocks
+                </Button>
+                <Button className="gap-2 w-full sm:w-auto h-11 sm:h-10 bg-blue-600 hover:bg-blue-700" onClick={openCreateDialog}>
+                  <Plus className="w-4 h-4" />
+                  Add Flock
+                </Button>
+              </div>
             </div>
 
             {/* Filters: inline on desktop, sheet on mobile */}
@@ -965,6 +996,7 @@ export default function FlocksPage() {
                               <SelectItem value="ALL">All Statuses</SelectItem>
                               <SelectItem value="active">Active</SelectItem>
                               <SelectItem value="inactive">Inactive</SelectItem>
+                              <SelectItem value="closed">Closed</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -1097,6 +1129,7 @@ export default function FlocksPage() {
                     <SelectItem value="ALL">All Statuses</SelectItem>
                     <SelectItem value="active">Active</SelectItem>
                     <SelectItem value="inactive">Inactive</SelectItem>
+                    <SelectItem value="closed">Closed</SelectItem>
                   </SelectContent>
                 </Select>
 
@@ -1287,10 +1320,16 @@ export default function FlocksPage() {
                   </div>
                   <h3 className="text-lg font-semibold text-slate-900 mb-2">No flocks found</h3>
                   <p className="text-slate-600 mb-6">Get started by creating your first flock.</p>
-                  <Button className="gap-2 bg-blue-600 hover:bg-blue-700" onClick={openCreateDialog}>
-                    <Plus className="w-4 h-4" />
-                    Add Flock
-                  </Button>
+                  <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                    <Button variant="outline" className="gap-2" onClick={() => setIsAllocateDialogOpen(true)}>
+                      <Plus className="w-4 h-4" />
+                      Add Multiple Flocks
+                    </Button>
+                    <Button className="gap-2 bg-blue-600 hover:bg-blue-700" onClick={openCreateDialog}>
+                      <Plus className="w-4 h-4" />
+                      Add Flock
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ) : (
@@ -1329,7 +1368,7 @@ export default function FlocksPage() {
                                   <Button variant="outline" size="sm" className="flex-1 h-10" onClick={() => openEditDialog(flock.flockId)}>
                                     <Pencil className="h-4 w-4 mr-2" /> Edit
                                   </Button>
-                                  {permissions.canDelete && (
+                                  {permissions.canDelete && !isFlockClosed(flock) && (
                                     <Button variant="outline" size="sm" className="flex-1 h-10 text-red-600 border-red-200 hover:bg-red-50" onClick={() => openDeleteDialog(flock.flockId)}>
                                       <Trash2 className="h-4 w-4 mr-2" /> Delete
                                     </Button>
@@ -1446,6 +1485,14 @@ export default function FlocksPage() {
                                       <p>Start date not reached — not counted in farm bird totals yet.</p>
                                     </TooltipContent>
                                   )}
+                                  {getFlockLifecycleStatus(flock) === "closed" && (
+                                    <TooltipContent>
+                                      <p>
+                                        Closed {(flock.closedDate ?? "").slice(0, 10)}
+                                        {flock.closeReason ? ` — ${flock.closeReason}` : ""}
+                                      </p>
+                                    </TooltipContent>
+                                  )}
                                   {getFlockLifecycleStatus(flock) === "inactive" && flock.inactivationReason && (
                                     <TooltipContent>
                                       <p>
@@ -1498,8 +1545,14 @@ export default function FlocksPage() {
                             {hasInactiveFlocks && (
                               <TableCell className="text-slate-600 hidden xl:table-cell">
                                 <div className="flex items-center gap-2">
-                                  <span>{flock.inactivationReason || '-'}</span>
-                                  {flock.inactivationReason === 'other' && flock.otherReason && <span>({flock.otherReason})</span>}
+                                  {isFlockClosed(flock) ? (
+                                    <span>Closed: {flock.closeReason || '-'}</span>
+                                  ) : (
+                                    <>
+                                      <span>{flock.inactivationReason || '-'}</span>
+                                      {flock.inactivationReason === 'other' && flock.otherReason && <span>({flock.otherReason})</span>}
+                                    </>
+                                  )}
                                 </div>
                               </TableCell>
                             )}
@@ -1511,7 +1564,8 @@ export default function FlocksPage() {
                                 <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-blue-50 hover:text-blue-600" onClick={() => openEditDialog(flock.flockId)}>
                                   <Pencil className="w-4 h-4" />
                                 </Button>
-                                {permissions.canDelete && (
+                                {/* A closed flock is history: it is reopened, never deleted. */}
+                                {permissions.canDelete && !isFlockClosed(flock) && (
                                   <Button
                                     variant="ghost"
                                     size="icon"
@@ -1601,6 +1655,28 @@ export default function FlocksPage() {
       </div>
 
       {/* Create Flock Dialog */}
+      <BatchAllocationDialog
+        open={isAllocateDialogOpen}
+        onOpenChange={setIsAllocateDialogOpen}
+        // Only batches that still have birds to place. Allocated totals are
+        // derived from the flocks this page already holds -- the same rows
+        // spflock_gettotalquantityforbatch sums server-side, so the list cannot
+        // offer a batch the server would then refuse.
+        batches={flockBatches.map((b) => ({
+          batchId: b.batchId,
+          batchCode: b.batchCode,
+          batchName: b.batchName,
+          numberOfBirds: Number(b.numberOfBirds) || 0,
+          unallocatedBirds: Math.max(
+            0,
+            (Number(b.numberOfBirds) || 0) -
+              flocks.filter((f) => f.batchId === b.batchId).reduce((sum, f) => sum + (Number(f.quantity) || 0), 0),
+          ),
+        }))}
+        source="Flock Groups page"
+        onCreated={async () => { await loadFlocks() }}
+      />
+
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
         <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -1633,8 +1709,9 @@ export default function FlocksPage() {
                   <Input placeholder="e.g., Flock A - Rhode Island Reds" value={createForm.name} onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })} required disabled={createLoading} />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Breed *</Label>
-                  <Input placeholder="e.g., Rhode Island Red" value={createForm.breed} onChange={(e) => setCreateForm({ ...createForm, breed: e.target.value })} required disabled={createLoading} />
+                  <Label className="text-sm font-medium text-slate-700">Breed</Label>
+                  <BreedSelect value={createForm.breed} known={knownBreeds} disabled={createLoading}
+                    onChange={(breed) => setCreateForm({ ...createForm, breed })} />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-slate-700">Start Date *</Label>
@@ -1724,6 +1801,15 @@ export default function FlocksPage() {
           {editError && (
             <Alert variant="destructive"><AlertDescription>{editError}</AlertDescription></Alert>
           )}
+          {editingFlockId != null && isFlockClosed(flocks.find((f) => f.flockId === editingFlockId)) && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                This flock is closed. Its name, breed and notes can still be corrected; to change its birds,
+                house, dates or status, reopen it first from Tools &gt; Flock Closeout.
+              </AlertDescription>
+            </Alert>
+          )}
           {editFetching ? (
             <div className="py-8 text-center">
               <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-blue-600" />
@@ -1751,8 +1837,9 @@ export default function FlocksPage() {
                     <Input placeholder="e.g., Flock A - Rhode Island Reds" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} required disabled={editLoading} />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium text-slate-700">Breed *</Label>
-                    <Input placeholder="e.g., Rhode Island Red" value={editForm.breed} onChange={(e) => setEditForm({ ...editForm, breed: e.target.value })} required disabled={editLoading} />
+                    <Label className="text-sm font-medium text-slate-700">Breed</Label>
+                    <BreedSelect value={editForm.breed} known={knownBreeds} disabled={editLoading}
+                      onChange={(breed) => setEditForm({ ...editForm, breed })} />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-slate-700">Start Date *</Label>

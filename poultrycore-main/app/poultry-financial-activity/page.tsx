@@ -30,6 +30,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
@@ -190,9 +191,38 @@ function FinancialActivityPageInner() {
     return { moneyIn, moneyOut, revenue, expense, net: moneyIn - moneyOut, profit: revenue - expense }
   }, [filtered])
 
+  // Default order is what the server sent: chronological, which is the order
+  // Running Cash is computed in. Sorting is therefore a VIEW of the same rows --
+  // clearing the sort puts the ledger back.
+  const [sortKey, setSortKey] = useState<string | null>(null)
+  const [sortDir, setSortDir] = useState<SortDirection>(null)
+
+  const sorted = useMemo(
+    () => sortData(filtered, sortKey, sortDir, (r, key) => {
+      switch (key) {
+        // The business date is what the column shows; createdAt only breaks ties
+        // for rows entered on the same day.
+        case "date": return `${r.occurredAt ?? ""}|${r.createdAt ?? ""}`
+        case "description": return r.description ?? ""
+        default: return (r as unknown as Record<string, unknown>)[key]
+      }
+    }),
+    [filtered, sortKey, sortDir],
+  )
+
   // usePagination snaps back to page 1 on its own whenever the filtered length
   // changes, so the filters need no effect of their own here.
-  const pg = usePagination(filtered, 25)
+  const pg = usePagination(sorted, 25)
+
+  const handleSort = (key: string) => {
+    const next = toggleSort(key, sortKey, sortDir)
+    setSortKey(next.key)
+    setSortDir(next.direction)
+    // Sorting does not change how many rows there are, so usePagination will not
+    // reset on its own -- and being left on page 7 of a freshly reordered table
+    // shows rows that have nothing to do with what was just clicked.
+    pg.setPage(1)
+  }
 
   const filtersActive =
     search.trim() !== "" || typeFilter !== "ALL" || categoryFilter !== "ALL" ||
@@ -464,16 +494,23 @@ function FinancialActivityPageInner() {
                       <TableHeader>
                         <TableRow>
                           <TableHead className="w-8" />
-                          <TableHead>Date</TableHead>
-                          <TableHead>Type</TableHead>
-                          <TableHead>Category</TableHead>
-                          <TableHead>Description</TableHead>
-                          <TableHead className="text-right" title={TIP.moneyIn}>Money In</TableHead>
-                          <TableHead className="text-right" title={TIP.moneyOut}>Money Out</TableHead>
-                          <TableHead className="text-right" title={TIP.revenue}>Revenue</TableHead>
-                          <TableHead className="text-right" title={TIP.expense}>Expense</TableHead>
-                          <TableHead className="text-right" title={TIP.profit}>Profit Impact</TableHead>
-                          <TableHead className="text-right" title={TIP.runningCash}>Running Cash</TableHead>
+                          <SortableHeader label="Date" sortKey="date" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
+                          <SortableHeader label="Type" sortKey="type" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
+                          <SortableHeader label="Category" sortKey="category" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
+                          <SortableHeader label="Description" sortKey="description" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
+                          <SortableHeader label="Money In" sortKey="moneyIn" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="text-right" title={TIP.moneyIn} />
+                          <SortableHeader label="Money Out" sortKey="moneyOut" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="text-right" title={TIP.moneyOut} />
+                          <SortableHeader label="Revenue" sortKey="revenue" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="text-right" title={TIP.revenue} />
+                          <SortableHeader label="Expense" sortKey="expense" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="text-right" title={TIP.expense} />
+                          <SortableHeader label="Profit Impact" sortKey="profitImpact" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="text-right" title={TIP.profit} />
+                          {/* Sortable like the rest, but worth knowing what you
+                              get: runningCash is the cash position AFTER that
+                              event, computed server-side in date order. Sorting
+                              by anything else reorders the rows without
+                              recomputing it -- each figure stays true of its own
+                              event, it just stops reading as a running balance.
+                              Clearing the sort restores the ledger. */}
+                          <SortableHeader label="Running Cash" sortKey="runningCash" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="text-right" title={TIP.runningCash} />
                         </TableRow>
                       </TableHeader>
                       <TableBody>

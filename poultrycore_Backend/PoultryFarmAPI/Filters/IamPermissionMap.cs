@@ -43,6 +43,13 @@ namespace PoultryFarmAPIWeb.Filters
             // Iam:Enforced is switched on. Access is bounded instead by the QR
             // token, the per-table throttle, and the staff confirmation gate.
             "restaurant/public",
+            // Missing Activity Detector (332). One report spans checks from
+            // several resources (production today; driver returns, cash and
+            // approvals later), and this table can name only one. The route
+            // still requires authentication ([Authorize]); each check is gated
+            // on its OWN permission inside ActivityCheckService, following
+            // Iam:Enforced exactly as this filter does.
+            "activitychecks",
         };
 
         /// <summary>
@@ -64,10 +71,27 @@ namespace PoultryFarmAPIWeb.Filters
             ["inventoryitem"] = "*.inventory",
             ["inventorytransaction"] = "*.stock",
             ["dashboard"] = "*.reports",
+            // 333. "Is this company's day closed?" -- module-neutral so Business
+            // Office can ask it of every company; the module's own daily-closing
+            // view right answers it.
+            ["dailyclosingstatus"] = "*.daily-closing",
 
             // ---- Poultry, via the shared/legacy controller names -------------
             ["flock"] = "poultry.flocks",
+            // 332. Its own resource so closing a flock is not simply "can edit
+            // flocks". POST = create (close); the /reverse route resolves to
+            // approve (reopen) via ApproveSegments with no extra wiring.
+            ["flock-closeout"] = "poultry.flock-closeout",
             ["mainflockbatch"] = "poultry.flock-batches",
+            // Migration 319. Initial Farm Setup creates batches, houses AND
+            // flocks, and this table can only name one resource. It names
+            // flocks because that is what the wizard ultimately produces and
+            // because poultry.flocks.* certainly exists in the catalog -- a
+            // brand-new "poultry.farm-setup" key would be held by no role and
+            // would lock the page out the day enforcement is switched on. The
+            // batch and house rights are checked explicitly inside
+            // PoultryFarmSetupController, gated on Iam:Enforced.
+            ["poultryfarmsetup"] = "poultry.flocks",
             ["house"] = "poultry.houses",
             ["health"] = "poultry.health",
             ["feedusage"] = "poultry.feed-usage",
@@ -123,9 +147,15 @@ namespace PoultryFarmAPIWeb.Filters
             ["poultry/driver-delivery-expenses"] = "poultry.driver-returns",
             ["poultry/feed-formulas"] = "poultry.feed-formulas",
             ["poultry/feed-production"] = "poultry.feed-production",
+            // 335. Distributing feed records feed usage on flocks' production
+            // records, so it rides the existing feed-usage keys. Reversal is
+            // checked explicitly against .delete in the controller.
+            ["poultry/feed-distributions"] = "poultry.feed-usage",
             ["poultry/raw-material-items"] = "poultry.raw-materials",
             ["poultry/raw-material-adjustments"] = "poultry.raw-materials",
             ["poultry/raw-material-purchases"] = "poultry.raw-materials",
+            // 337. How long the stock lasts is part of seeing the stock.
+            ["poultry/stock-supply"] = "poultry.raw-materials",
             // 268. A read-only view of the same stock, valued two ways. It is
             // the raw materials it values, so it rides their resource rather
             // than inventing a permission nobody has been granted.

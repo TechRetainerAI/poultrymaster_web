@@ -16,6 +16,8 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
 import { FileText, X } from "lucide-react"
 import { ProductionRecordForm } from "@/components/production/production-record-form"
+import { ProductionCatchUpFlow } from "@/components/production/production-catch-up-flow"
+import { toBusinessDate } from "@/lib/activity/completeness"
 
 function NewProductionRecordPageInner() {
   const router = useRouter()
@@ -24,6 +26,13 @@ function NewProductionRecordPageInner() {
   // switch doesn't lose it.
   const flockIdParam = Number(searchParams.get("flockId"))
   const flockId = Number.isFinite(flockIdParam) && flockIdParam > 0 ? flockIdParam : null
+  // The dashboard's missing-production list links here with the day that is
+  // missing, which is not necessarily today.
+  const date = toBusinessDate(searchParams.get("date"))
+  // ?catchUp=1&asOf= — Farm Completeness's "Record N days": the same form,
+  // stepping through every missed day of this flock oldest first.
+  const catchUp = searchParams.get("catchUp") === "1" && flockId != null
+  const asOf = toBusinessDate(searchParams.get("asOf")) ?? undefined
 
   const handleLogout = () => {
     localStorage.clear()
@@ -42,8 +51,10 @@ function NewProductionRecordPageInner() {
                 <FileText className="h-5 w-5 text-emerald-600" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-slate-900">Add Production Record</h1>
-                <p className="text-sm text-slate-600">Record daily egg production data for a flock</p>
+                <h1 className="text-2xl font-bold text-slate-900">{catchUp ? "Catch up production" : "Add Production Record"}</h1>
+                <p className="text-sm text-slate-600">
+                  {catchUp ? "Each missed day in turn, oldest first, saved as its own daily record" : "Record daily egg production data for a flock"}
+                </p>
               </div>
             </div>
             <Button
@@ -56,13 +67,18 @@ function NewProductionRecordPageInner() {
             </Button>
           </div>
 
-          <ProductionRecordForm
-            mode="create"
-            displayMode="page"
-            flockId={flockId}
-            onSaved={() => router.push("/production-records")}
-            onCancel={() => router.push("/production-records")}
-          />
+          {catchUp ? (
+            <ProductionCatchUpFlow flockId={flockId!} asOf={asOf} />
+          ) : (
+            <ProductionRecordForm
+              mode="create"
+              displayMode="page"
+              flockId={flockId}
+              date={date}
+              onSaved={() => router.push("/production-records")}
+              onCancel={() => router.push("/production-records")}
+            />
+          )}
         </main>
       </div>
     </div>

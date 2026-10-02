@@ -85,6 +85,23 @@ namespace PoultryFarmAPIWeb.Business
                 int o = reader.GetOrdinal("Notes");
                 model.Notes = reader.IsDBNull(o) ? null : reader.GetString(o);
             }
+            // Historical-purchase marker added in migration 326 — tolerate older sp shapes.
+            if (HasColumn(reader, "IsHistorical"))
+            {
+                int o = reader.GetOrdinal("IsHistorical");
+                model.IsHistorical = reader.IsDBNull(o) ? false : reader.GetBoolean(o);
+            }
+            // Cash account added in migrations 330/331 — tolerate older sp shapes.
+            if (HasColumn(reader, "PoultryCashAccountId"))
+            {
+                int o = reader.GetOrdinal("PoultryCashAccountId");
+                model.PoultryCashAccountId = reader.IsDBNull(o) ? (int?)null : reader.GetInt32(o);
+            }
+            if (HasColumn(reader, "PoultryCashAccountName"))
+            {
+                int o = reader.GetOrdinal("PoultryCashAccountName");
+                model.PoultryCashAccountName = reader.IsDBNull(o) ? null : reader.GetString(o);
+            }
             // Procurement dates added in migration 150 — tolerate older sp shapes.
             if (HasColumn(reader, "OrderPlacementDate"))
             {
@@ -100,31 +117,48 @@ namespace PoultryFarmAPIWeb.Business
             return model;
         }
 
+        /// <summary>
+        /// The one place the batch insert is written. Both the ordinary Flock
+        /// Purchases form and the Farm Setup wizard go through here, so there is
+        /// exactly one definition of what creating a batch means -- the only
+        /// difference between them is whether a transaction is passed in.
+        /// </summary>
+        internal static NpgsqlCommand BuildInsertCommand(NpgsqlConnection conn, NpgsqlTransaction? transaction, MainFlockBatchModel model)
+        {
+            var cmd = new NpgsqlCommand("SELECT * FROM spmainflockbatch_insert(p_userid => @UserId::text, p_farmid => @FarmId::text, p_batchcode => @BatchCode::text, p_batchname => @BatchName::text, p_breed => @Breed::text, p_numberofbirds => @NumberOfBirds::int, p_startdate => @StartDate::timestamp, p_status => @Status::text, p_costperchick => @CostPerChick::numeric, p_totalcost => @TotalCost::numeric, p_amountpaid => @AmountPaid::numeric, p_suppliertype => @SupplierType::text, p_supplierid => @SupplierId::int, p_notes => @Notes::text, p_dollarconversionrate => @DollarConversionRate::numeric, p_orderplacementdate => @OrderPlacementDate::date, p_estimatedarrivaldate => @EstimatedArrivalDate::date, p_ishistorical => @IsHistorical::boolean, p_poultrycashaccountid => @PoultryCashAccountId::int)", conn, transaction);
+            cmd.Parameters.AddWithValue("@UserId", model.UserId);
+            cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
+            cmd.Parameters.AddWithValue("@BatchCode", model.BatchCode);
+            cmd.Parameters.AddWithValue("@BatchName", model.BatchName);
+            cmd.Parameters.AddWithValue("@Breed", model.Breed);
+            cmd.Parameters.AddWithValue("@NumberOfBirds", model.NumberOfBirds);
+            cmd.Parameters.AddWithValue("@StartDate", model.StartDate);
+            cmd.Parameters.AddWithValue("@Status", (object?)model.Status ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@CostPerChick", model.CostPerChick);
+            cmd.Parameters.AddWithValue("@TotalCost", model.TotalCost);
+            cmd.Parameters.AddWithValue("@AmountPaid", model.AmountPaid);
+            cmd.Parameters.AddWithValue("@SupplierType", (object?)model.SupplierType ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@SupplierId", (object?)model.SupplierId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Notes", (object?)model.Notes ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@DollarConversionRate", (object?)model.DollarConversionRate ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@OrderPlacementDate", (object?)model.OrderPlacementDate ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@EstimatedArrivalDate", (object?)model.EstimatedArrivalDate ?? DBNull.Value);
+            // NULL is meaningful, and differs between the two calls: the insert
+            // coalesces it to false (an ordinary purchase is a new one), the
+            // update coalesces it to the batch's current value so the everyday
+            // edit form cannot silently un-flag a historical batch.
+            cmd.Parameters.AddWithValue("@IsHistorical", (object?)model.IsHistorical ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@PoultryCashAccountId", (object?)model.PoultryCashAccountId ?? DBNull.Value);
+            return cmd;
+        }
+
         public async Task<int> Insert(MainFlockBatchModel model)
         {
             try
             {
                 using var conn = new NpgsqlConnection(_connectionString);
-                using var cmd = new NpgsqlCommand("SELECT * FROM spmainflockbatch_insert(p_userid => @UserId::text, p_farmid => @FarmId::text, p_batchcode => @BatchCode::text, p_batchname => @BatchName::text, p_breed => @Breed::text, p_numberofbirds => @NumberOfBirds::int, p_startdate => @StartDate::timestamp, p_status => @Status::text, p_costperchick => @CostPerChick::numeric, p_totalcost => @TotalCost::numeric, p_amountpaid => @AmountPaid::numeric, p_suppliertype => @SupplierType::text, p_supplierid => @SupplierId::int, p_notes => @Notes::text, p_dollarconversionrate => @DollarConversionRate::numeric, p_orderplacementdate => @OrderPlacementDate::date, p_estimatedarrivaldate => @EstimatedArrivalDate::date)", conn);
-                cmd.Parameters.AddWithValue("@UserId", model.UserId);
-                cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
-                cmd.Parameters.AddWithValue("@BatchCode", model.BatchCode);
-                cmd.Parameters.AddWithValue("@BatchName", model.BatchName);
-                cmd.Parameters.AddWithValue("@Breed", model.Breed);
-                cmd.Parameters.AddWithValue("@NumberOfBirds", model.NumberOfBirds);
-                cmd.Parameters.AddWithValue("@StartDate", model.StartDate);
-                cmd.Parameters.AddWithValue("@Status", (object?)model.Status ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@CostPerChick", model.CostPerChick);
-                cmd.Parameters.AddWithValue("@TotalCost", model.TotalCost);
-                cmd.Parameters.AddWithValue("@AmountPaid", model.AmountPaid);
-                cmd.Parameters.AddWithValue("@SupplierType", (object?)model.SupplierType ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@SupplierId", (object?)model.SupplierId ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@Notes", (object?)model.Notes ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@DollarConversionRate", (object?)model.DollarConversionRate ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@OrderPlacementDate", (object?)model.OrderPlacementDate ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@EstimatedArrivalDate", (object?)model.EstimatedArrivalDate ?? DBNull.Value);
-
                 await conn.OpenAsync();
+                using var cmd = BuildInsertCommand(conn, null, model);
                 var result = await cmd.ExecuteScalarAsync();
                 // ExecuteScalarAsync returns the identity value (BatchId) from the stored procedure.
                 return Convert.ToInt32(result);
@@ -147,7 +181,7 @@ namespace PoultryFarmAPIWeb.Business
             try
             {
                 using var conn = new NpgsqlConnection(_connectionString);
-                using var cmd = new NpgsqlCommand("SELECT * FROM spmainflockbatch_update(p_batchid => @BatchId::int, p_userid => @UserId::text, p_farmid => @FarmId::text, p_batchcode => @BatchCode::text, p_batchname => @BatchName::text, p_breed => @Breed::text, p_numberofbirds => @NumberOfBirds::int, p_startdate => @StartDate::timestamp, p_status => @Status::text, p_costperchick => @CostPerChick::numeric, p_totalcost => @TotalCost::numeric, p_amountpaid => @AmountPaid::numeric, p_suppliertype => @SupplierType::text, p_supplierid => @SupplierId::int, p_notes => @Notes::text, p_dollarconversionrate => @DollarConversionRate::numeric, p_orderplacementdate => @OrderPlacementDate::date, p_estimatedarrivaldate => @EstimatedArrivalDate::date)", conn);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spmainflockbatch_update(p_batchid => @BatchId::int, p_userid => @UserId::text, p_farmid => @FarmId::text, p_batchcode => @BatchCode::text, p_batchname => @BatchName::text, p_breed => @Breed::text, p_numberofbirds => @NumberOfBirds::int, p_startdate => @StartDate::timestamp, p_status => @Status::text, p_costperchick => @CostPerChick::numeric, p_totalcost => @TotalCost::numeric, p_amountpaid => @AmountPaid::numeric, p_suppliertype => @SupplierType::text, p_supplierid => @SupplierId::int, p_notes => @Notes::text, p_dollarconversionrate => @DollarConversionRate::numeric, p_orderplacementdate => @OrderPlacementDate::date, p_estimatedarrivaldate => @EstimatedArrivalDate::date, p_ishistorical => @IsHistorical::boolean, p_poultrycashaccountid => @PoultryCashAccountId::int)", conn);
                 cmd.Parameters.AddWithValue("@BatchId", model.BatchId);
                 cmd.Parameters.AddWithValue("@UserId", model.UserId);
                 cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
@@ -166,6 +200,10 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.Parameters.AddWithValue("@DollarConversionRate", (object?)model.DollarConversionRate ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@OrderPlacementDate", (object?)model.OrderPlacementDate ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@EstimatedArrivalDate", (object?)model.EstimatedArrivalDate ?? DBNull.Value);
+                // NULL here means "leave the flag as it is" -- see the insert above.
+                cmd.Parameters.AddWithValue("@IsHistorical", (object?)model.IsHistorical ?? DBNull.Value);
+                // NULL leaves the stored account, 0 clears it, anything else sets it (331).
+                cmd.Parameters.AddWithValue("@PoultryCashAccountId", (object?)model.PoultryCashAccountId ?? DBNull.Value);
 
                 await conn.OpenAsync();
                 await cmd.ExecuteNonQueryAsync();
