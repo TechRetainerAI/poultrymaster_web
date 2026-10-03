@@ -1,5 +1,5 @@
 // Flock closeout — REST client for PoultryFarmAPI/FlockCloseoutController
-// (migration 332).
+// (migration 338).
 //
 // farmId goes in the QUERY STRING on every call, writes included: that is where
 // the API's IAM filter reads the company from, so a body-only farmId would be
@@ -120,7 +120,7 @@ export interface FlockCloseoutDisposition {
   destination?: string | null
   notes?: string | null
   reversedAt?: string | null
-  /** 333: when a reopen reversed this sale. The sale row is then gone; amount and customer are a snapshot. */
+  /** 339: when a reopen reversed this sale. The sale row is then gone; amount and customer are a snapshot. */
   saleReversedAt?: string | null
   totalAmount?: number | null
   customerName?: string | null
@@ -273,7 +273,7 @@ export function closeFlock(flockId: number, request: FlockCloseoutRequest) {
 }
 
 /**
- * Reopen a closed flock. reverseSales (default true, migration 333) also undoes
+ * Reopen a closed flock. reverseSales (default true, migration 339) also undoes
  * the closeout's sales: their payments are reversed (kept, marked Reversed),
  * the money leaves the cash account, the sales are removed and the birds come
  * back. false keeps the sales and only unlocks them.

@@ -1,6 +1,6 @@
 "use client"
 
-// Flock lifetime performance + closeout history + Reopen (migrations 332/333).
+// Flock lifetime performance + closeout history + Reopen (migrations 338/339).
 //
 // ONE component, two layouts, so the quick-look dialog and the full page can
 // never show different figures:
@@ -108,7 +108,7 @@ export function FlockLifetimeView({
   const [reopening, setReopening] = useState(false)
   const [reopenReason, setReopenReason] = useState("")
   const [reopenOpen, setReopenOpen] = useState(false)
-  // 333: reversing the closeout's sales is the default -- a reopen almost always
+  // 339: reversing the closeout's sales is the default -- a reopen almost always
   // means the close was wrong. Untick it only when the birds really were sold.
   const [reverseSales, setReverseSales] = useState(true)
   const [reopenMessage, setReopenMessage] = useState<{ ok: boolean; text: string; warnings?: string[] } | null>(null)

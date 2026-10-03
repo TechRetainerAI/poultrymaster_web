@@ -77,9 +77,9 @@ import { buildHotelNavConfig } from "@/lib/nav/hotel-nav-config"
 import { buildRestaurantNavConfig } from "@/lib/nav/restaurant-nav-config"
 import { useQuickLinkHrefs } from "@/lib/store/quick-links-store"
 import { QuickLinksDialog } from "@/components/dashboard/quick-links-dialog"
-import { navPathActive, type MegaMenuGroup, type NavGroup } from "@/lib/nav/nav-model"
+import { navPathActive, type MegaMenuGroup } from "@/lib/nav/nav-model"
 import { SidebarFlyoutMenu } from "@/components/dashboard/nav/sidebar-flyout-menu"
-import { POULTRY_REPORT_NAV_GROUPS } from "@/lib/nav/report-nav-adapters"
+import { POULTRY_REPORT_NAV_GROUPS, WATER_REPORT_NAV_GROUPS } from "@/lib/nav/report-nav-adapters"
 
 /** A titled, collapsible block of sidebar rows. */
 type SidebarGroup = { key: string; title: string; items: SidebarItem[] }
@@ -128,9 +128,6 @@ const fromMegaMenu = (
     }))
     .filter((g) => g.items.length > 0)
 
-/** The rail's Quick Links is a plain NavGroup, not a mega-menu. */
-const fromNavGroup = (group: NavGroup): SidebarItem[] =>
-  group.items.map((i) => ({ href: i.href, label: i.label, icon: i.icon }))
 
 interface SidebarProps {
   onLogout?: () => void
@@ -535,28 +532,6 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const hotelNav = isHotel ? buildHotelNavConfig({ permissions }) : null
   const restaurantNav = isRestaurant ? buildRestaurantNavConfig({}, permissions) : null
 
-  /**
-   * Quick Links, plus the row that opens the picker (318).
-   *
-   * An action row rather than a control bolted onto the group heading: the
-   * heading is the collapse toggle, and the rail already renders action rows
-   * (Alerts), so this needs nothing renderGroup does not already do -- it works
-   * collapsed, in the mobile drawer and with a keyboard for free.
-   *
-   * The pseudo-href is a key, never a destination; isButton is what decides
-   * this renders as a <button>.
-   */
-  const quickLinkItems = (nav: { quickLinks: NavGroup }): SidebarItem[] => [
-    ...fromNavGroup(nav.quickLinks),
-    {
-      href: "#customise-quick-links",
-      label: "Customise…",
-      icon: Settings,
-      isButton: true,
-      onClick: () => setCustomiseOpen(true),
-    },
-  ]
-
   // Reports is a menu on the rail, not a config section: its contents come from
   // lib/reports/*-reports-config.ts and run to dozens of rows, which would bury
   // everything else in a vertical rail. Both surfaces get the same two ways in
@@ -621,16 +596,17 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     const content = (
       <div
         className={cn(
-          "flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-md transition-colors relative",
+          // 12px, matching the menu rows (see sidebar-flyout-menu.tsx).
+          "flex items-center gap-2 px-4 pr-1 py-2.5 text-xs leading-5 font-medium rounded-md transition-colors relative",
           isActive
-            ? "bg-slate-700 text-white border-l-[3px] border-blue-400 pl-[13px]"
+            ? "bg-slate-700 text-white border-l-[3px] border-blue-400 pl-[10px]"
             : alerting
-              ? "bg-rose-950/50 text-rose-50 hover:bg-rose-900/50 border-l-[3px] border-rose-400 pl-[13px]"
-              : "text-slate-300 hover:bg-slate-800 hover:text-white border-l-[3px] border-transparent pl-[13px]",
+              ? "bg-rose-950/50 text-rose-50 hover:bg-rose-900/50 border-l-[3px] border-rose-400 pl-[10px]"
+              : "text-slate-300 hover:bg-slate-800 hover:text-white border-l-[3px] border-transparent pl-[10px]",
           isCollapsed && !isMobile ? "justify-center px-2 pl-2" : ""
         )}
       >
-        <Icon className={cn("h-5 w-5 shrink-0",
+        <Icon className={cn("shrink-0", isCollapsed && !isMobile ? "h-5 w-5" : "h-[18px] w-[18px]",
           isActive ? "text-blue-400" : alerting ? "text-rose-300" : "text-slate-400")} />
         {(!isCollapsed || isMobile) && (
           <span className="truncate">{item.label}</span>
@@ -801,11 +777,11 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
           onClick={() => setOpenGroups((prev) => ({ ...prev, [menuKey]: !isOpen }))}
           aria-expanded={isOpen}
           className={cn(
-            "w-full flex items-center gap-3 rounded-md border-l-[3px] border-transparent py-2.5 pl-[13px] pr-3 text-sm font-semibold transition-colors",
+            "w-full flex items-center gap-2 rounded-md border-l-[3px] border-transparent py-2.5 pl-[10px] pr-3 text-xs leading-5 font-semibold transition-colors",
             containsActive ? "text-white" : "text-slate-200 hover:bg-slate-800 hover:text-white",
           )}
         >
-          <Icon className={cn("h-5 w-5 shrink-0", containsActive ? "text-orange-400" : "text-slate-400")} />
+          <Icon className={cn("h-[18px] w-[18px] shrink-0", containsActive ? "text-orange-400" : "text-slate-400")} />
           <span className="truncate text-left">{label}</span>
           <ChevronDown className={cn("ml-auto h-4 w-4 shrink-0 text-slate-500 transition-transform", isOpen ? "" : "-rotate-90")} />
         </button>
@@ -903,35 +879,46 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
 
         {isWater ? (
           <>
-            {/* Generated from buildWaterNavConfig, in the rail's own order:
-                Quick Links | Operations | Sales, Expenses & Money | Trackers |
-                Reports | Setup. Dividers fall where the rail has a separate
-                menu, so a cluster here is a menu up there. */}
-            {renderGroup("Quick Links", quickLinkItems(waterNav!), "waterQuickLinks")}
+            {/* Same as poultry below: one row per top-nav menu, each opening its
+                panel beside the rail (SidebarFlyoutMenu), generated from
+                buildWaterNavConfig. Quick Links | Operations | Sales, Expenses &
+                Money | Trackers | Reports | Setup, then System at the foot. */}
+            {renderMenu("Quick Links", Star, [{
+              key: "quick",
+              label: "Quick Links",
+              items: [
+                ...waterNav!.quickLinks.items.map((i) => ({ id: i.href, title: i.label, icon: i.icon, href: i.href })),
+                { id: "customise", title: "Customise…", icon: Settings, onClick: () => setCustomiseOpen(true) },
+              ],
+            }], "menu:waterQuickLinks", {
+              blurb: "The pages you open most days.", columns: 1,
+            })}
 
-            <div className="border-t border-slate-800 mx-2" />
-
-            {renderGroups(fromMegaMenu(waterNav!.operations, "waterOps"))}
-
-            <div className="border-t border-slate-800 mx-2" />
-
-            {/* Three adjacent groups with no divider between them, so they
-                still read as the one "Sales, Expenses & Money" menu. */}
-            {renderGroups(fromMegaMenu(waterNav!.salesMoney, "waterMoney"))}
-
-            <div className="border-t border-slate-800 mx-2" />
-
-            {/* The rail's Trackers menu holds a single column labelled
-                "Stock", which says nothing on its own in a flat list — so the
-                MENU name is used here instead. Same for System at the foot. */}
-            {renderGroups(fromMegaMenu(waterNav!.analytics, "waterAnalytics").map(
-              (g) => ({ ...g, title: "Trackers" })
-            ))}
-            {renderGroup("Reports", waterReportsItems, "waterReports")}
-
-            <div className="border-t border-slate-800 mx-2" />
-
-            {renderGroups(fromMegaMenu(waterNav!.setup, "waterSetup", "Setup · "))}
+            <div className="space-y-1">
+              {renderMenu("Operations", Factory, waterNav!.operations, "menu:waterOps", {
+                blurb: "Delivery runs, production and stock — everything that moves water.",
+                columns: 3,
+              })}
+              {renderMenu("Sales, Expenses & Money", Wallet, waterNav!.salesMoney, "menu:waterMoney", {
+                blurb: "Orders, collections, expenses and cash.",
+                columns: 3,
+              })}
+              {renderMenu("Trackers", BarChart3, waterNav!.analytics, "menu:waterAnalytics", {
+                blurb: "Explore where your stock actually moved.", columns: 1,
+              })}
+              {/* Same gate the old Reports row had (Staff Page Access on
+                  /water-reports). */}
+              {waterReportsItems.length > 0 && renderMenu("Reports", BarChart3, WATER_REPORT_NAV_GROUPS, "menu:waterReports", {
+                blurb: "Business, sales, inventory, production and delivery reports.",
+                columns: 3,
+                viewAll: { href: "/water-reports", label: "View all reports →" },
+                activeHrefs: ["/water-reports"],
+              }, [{ key: "waterReports:all", title: "All reports", items: waterReportsItems }])}
+              {renderMenu("Setup", Settings, waterNav!.setup, "menu:waterSetup", {
+                blurb: "Company configuration, products, delivery, customers and your team.",
+                columns: 3,
+              })}
+            </div>
           </>
         ) : isHotel ? (
           <>
@@ -1079,7 +1066,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
               })}
               {permissions.featureAccess.canViewReports && renderMenu("Reports", BarChart3, POULTRY_REPORT_NAV_GROUPS, "menu:poultryReports", {
                 blurb: "Money, production, feed, birds, health and dashboards.",
-                columns: 2,
+                columns: 3,
                 viewAll: { href: "/poultry/reports", label: "View all reports →" },
                 activeHrefs: ["/reports", "/poultry/reports"],
               }, [{ key: "poultryReports:all", title: "All reports", items: poultryReportsItems }])}
@@ -1111,31 +1098,23 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
           // Poultry: the top nav's System menu, as a section like the others.
           ? renderMenu("System", User, poultryNav.system.map((g, i) => ({
               ...g,
-              // Account comes back here for the reason given below.
+              // Account is `visible: false` in the config because the top nav
+              // reaches /profile through the header avatar beside it. The
+              // sidebar is the far side of the screen from that avatar, so it
+              // gets the row back -- added here, not by unhiding it in the
+              // config, which would put it in the top nav too.
               items: i === 0 ? [{ id: "account", title: "Account", icon: User, href: "/profile" }, ...g.items] : g.items,
             })), "menu:poultrySystem", {
               blurb: "Alerts, activity, help, terms.", columns: 1,
             })
           : waterNav
-          ? renderGroups(fromMegaMenu(waterNav.system, "system").map(
-              (g, i) => ({
-                ...g,
-                title: "System",
-                // Account is `visible: false` in both configs, because the RAIL
-                // reaches /profile through the header avatar a few pixels away
-                // and a menu row there would have said the same thing twice.
-                // The sidebar is the opposite side of the screen from that
-                // avatar, so it gets the row back — added HERE rather than by
-                // unhiding it in the config, which would put it on the rail
-                // too. First row, which is where it sat in systemItems and
-                // where the config lists it. Only the first group: these two
-                // configs each have exactly one System column, and if a second
-                // is ever added, Account should not repeat in it.
-                items: i === 0
-                  ? [{ href: "/profile", label: "Account", icon: User }, ...g.items]
-                  : g.items,
-              })
-            ))
+          // Water: the same System menu, with Account added the same way.
+          ? renderMenu("System", User, waterNav.system.map((g, i) => ({
+              ...g,
+              items: i === 0 ? [{ id: "account", title: "Account", icon: User, href: "/profile" }, ...g.items] : g.items,
+            })), "menu:waterSystem", {
+              blurb: "Alerts, activity, help, terms.", columns: 1,
+            })
           : renderGroup("System", systemItems, "system")}
       </nav>
 

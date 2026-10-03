@@ -1,11 +1,11 @@
 # =============================================================================
-# Apply migration 333 (reopening a flock reverses its closeout sales) to Postgres.
+# Apply migration 339 (reopening a flock reverses its closeout sales) to Postgres.
 #
 # Same four phases as apply-flock-closeout.ps1, which it is copied from:
 # measure, dry run (migration + BOTH closeout check files, rolled back), apply,
 # measure and diff.
 #
-# 333 only rebuilds spflock_reopen and the history reader and adds three
+# 339 only rebuilds spflock_reopen and the history reader and adds three
 # snapshot columns. It moves no money until someone reopens a flock, so phase 4
 # must show no change to flocks, the bird ledger, cash-account balances or
 # payment statuses.
@@ -35,7 +35,7 @@ if (-not (Test-Path $Psql)) { throw "psql not found at $Psql" }
 if (-not (Test-Path $MigrationsDir)) { throw "Migrations dir not found: $MigrationsDir" }
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
-$files  = @('333_FlockReopenReversesSales.postgres.sql')
+$files  = @('339_FlockReopenReversesSales.postgres.sql')
 $checks = @('poultry-flock-closeout.test.sql', 'poultry-flock-reopen-reverses-sales.test.sql')
 foreach ($f in $files)  { if (-not (Test-Path (Join-Path $MigrationsDir $f))) { throw "Missing migration: $f" } }
 foreach ($c in $checks) { if (-not (Test-Path (Join-Path $ChecksDir $c)))     { throw "Missing check: $c" } }
@@ -55,7 +55,7 @@ function Invoke-Psql {
 
 # --- the measurement, before and after ----------------------------------------
 # Ordered by key so a diff is a diff, not a re-sort. The flock columns are the
-# ones that existed before 332, so the "before" query runs on either schema.
+# ones that existed before 338, so the "before" query runs on either schema.
 $measureSql = @'
 \pset footer off
 \pset pager off
@@ -119,7 +119,7 @@ Set-Content -Path $dryFile -Value $sb.ToString() -Encoding utf8
 
 $dryLog = Join-Path $OutDir 'dryrun.log'
 $dryCode = Invoke-Psql -File $dryFile -LogPath $dryLog
-Get-Content $dryLog | Where-Object { $_ -match 'FAIL|ERROR|all checks passed|332:' } | Write-Host
+Get-Content $dryLog | Where-Object { $_ -match 'FAIL|ERROR|all checks passed|338:' } | Write-Host
 if ($dryCode -ne 0) {
     throw "DRY RUN FAILED (see $dryLog). Nothing has been changed."
 }
@@ -159,11 +159,11 @@ $after = Join-Path $OutDir 'after.txt'
 [void](Invoke-Psql -File $measureFile -LogPath $after)
 
 Write-Host ''
-Write-Host '=== DIFF (expected: identical -- 333 reopens nothing) ===' -ForegroundColor Cyan
+Write-Host '=== DIFF (expected: identical -- 339 reopens nothing) ===' -ForegroundColor Cyan
 $diff = Compare-Object (Get-Content $before) (Get-Content $after)
 if (-not $diff) {
     Write-Host "No change to any flock, bird-ledger total or missing-records total. ($((Get-Content $after).Count) lines compared)" -ForegroundColor Green
 } else {
     $diff | Select-Object -First 40 | Format-Table -AutoSize | Out-String | Write-Host
-    Write-Host 'Any line here is a bug -- 333 must not move a number until a flock is reopened.' -ForegroundColor Red
+    Write-Host 'Any line here is a bug -- 339 must not move a number until a flock is reopened.' -ForegroundColor Red
 }

@@ -1,8 +1,8 @@
 -- =============================================================================
--- 333  Reopening a flock reverses its closeout sales and their money
+-- 339  Reopening a flock reverses its closeout sales and their money
 -- =============================================================================
 --
--- 332 left a closeout's sales standing when the flock was reopened ("they are
+-- 338 left a closeout's sales standing when the flock was reopened ("they are
 -- real sales"), and only unlocked them. In practice a reopen almost always
 -- means the close was wrong, and leaving the sale behind left its revenue, its
 -- cash and its receivable on the books for birds that are now back in the
@@ -29,7 +29,7 @@
 -- would un-pay the other sale as well. The reopen stops and says so; the user
 -- reverses that payment on Payments Received, or reopens keeping the sales.
 --
--- p_reversesales = false keeps 332's behaviour (sales stand, just unlocked),
+-- p_reversesales = false keeps 338's behaviour (sales stand, just unlocked),
 -- for the case where the birds really were sold and the flock is reopened only
 -- to correct something else.
 --

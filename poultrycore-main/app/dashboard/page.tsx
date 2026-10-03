@@ -7,6 +7,7 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { MetricsCards } from "@/components/dashboard/metrics-cards"
 import { FarmCompletenessCard } from "@/components/dashboard/farm-completeness-card"
 import { StockSupplyCard } from "@/components/dashboard/stock-supply-card"
+import { FlockAlertsCard } from "@/components/dashboard/flock-alerts-card"
 import { DashboardCharts } from "@/components/dashboard/charts"
 import { Setup2FADialog } from "@/components/auth/setup-2fa-dialog"
 import { DEFAULT_LOGIN_API_HOST } from "@/lib/api/default-api-hosts"
@@ -120,6 +121,9 @@ export default function DashboardPage() {
                   First, because it is the one thing on this page that asks the
                   farmer to DO something. */}
               <FarmCompletenessCard compact />
+
+              {/* Flocks out of line with their own recent figures (338). */}
+              <FlockAlertsCard />
 
               {/* Stock that will run out soonest, at its actual usage (337). */}
               <StockSupplyCard />

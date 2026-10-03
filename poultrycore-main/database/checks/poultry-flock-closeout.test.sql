@@ -1,4 +1,4 @@
--- Behavioural checks for migration 332: end-of-flock closeout.
+-- Behavioural checks for migration 338: end-of-flock closeout.
 --
 -- Run inside a transaction you ROLL BACK; it writes nothing that survives.
 --
@@ -84,7 +84,7 @@ BEGIN
     VALUES ('closeout-test', v_farm, 'Closeout Test House 2', 2000) RETURNING houseid INTO v_house2;
 
     INSERT INTO mainflockbatch (userid, farmid, batchcode, batchname, breed, numberofbirds, startdate, costperchick, totalcost)
-    VALUES ('closeout-test', v_farm, 'CO-332', 'Closeout batch', 'Isa Brown', 1000, v_start, 2, 2000)
+    VALUES ('closeout-test', v_farm, 'CO-338', 'Closeout batch', 'Isa Brown', 1000, v_start, 2, 2000)
     RETURNING batchid INTO v_batch;
 
     INSERT INTO flock (userid, farmid, name, breed, startdate, quantity, active, batchid, houseid, hasarrived)
@@ -411,7 +411,7 @@ BEGIN
     f := f + pg_temp.chk('F15. feed kg per dozen eggs', '1.886', s.feedkgperdozeneggs::text);
     f := f + pg_temp.chk('F16. tracked mortality rate', '0.0300', s.trackedmortalityrate::text);
     f := f + pg_temp.chk('F17. lifetime rate = tracked when there was no opening', '0.0300', s.lifetimemortalityrate::text);
-    f := f + pg_temp.chk('F18. comparison dimensions on the row', 'CO-332|Isa Brown|Closeout Test House',
+    f := f + pg_temp.chk('F18. comparison dimensions on the row', 'CO-338|Isa Brown|Closeout Test House',
                          s.batchcode || '|' || s.breed || '|' || s.housename);
     SELECT COUNT(*) INTO v_n FROM fnflock_lifetimesummary(v_farm, NULL, TRUE);
     f := f + pg_temp.chk('F19. closed-only filter', '1', v_n::text);
@@ -500,7 +500,7 @@ BEGIN
     END;
     f := f + pg_temp.chk_like('I2. only a closed flock can be reopened', '%is not closed%', v_msg);
 
-    -- Keeping the sales (333's p_reversesales = FALSE): this section proves the
+    -- Keeping the sales (339's p_reversesales = FALSE): this section proves the
     -- lock is released. Reversing them is poultry-flock-reopen-reverses-sales.test.sql.
     PERFORM spflock_reopen(v_farm, v_a, 'Closed by mistake', 'owner-test', FALSE);
     SELECT COUNT(*) INTO v_n FROM flock

@@ -78,7 +78,7 @@ namespace PoultryFarmAPIWeb.Filters
 
             // ---- Poultry, via the shared/legacy controller names -------------
             ["flock"] = "poultry.flocks",
-            // 332. Its own resource so closing a flock is not simply "can edit
+            // 338. Its own resource so closing a flock is not simply "can edit
             // flocks". POST = create (close); the /reverse route resolves to
             // approve (reopen) via ApproveSegments with no extra wiring.
             ["flock-closeout"] = "poultry.flock-closeout",
@@ -156,6 +156,16 @@ namespace PoultryFarmAPIWeb.Filters
             ["poultry/raw-material-purchases"] = "poultry.raw-materials",
             // 337. How long the stock lasts is part of seeing the stock.
             ["poultry/stock-supply"] = "poultry.raw-materials",
+            // 338. Flock anomaly alerts: a flock dying, laying less or eating
+            // differently is flock health. view = see alerts and why; create =
+            // acknowledge / note / resolve / rescan; edit = thresholds.
+            ["poultry/flock-alerts"] = "poultry.health",
+            // 339. Treatment campaigns record medication given to flocks:
+            // flock health. view = see campaigns and history; create = new
+            // campaign / record a day; edit = product dose settings, complete,
+            // cancel. Reversal is checked explicitly against .delete in the
+            // controller.
+            ["poultry/treatment-campaigns"] = "poultry.health",
             // 268. A read-only view of the same stock, valued two ways. It is
             // the raw materials it values, so it rides their resource rather
             // than inventing a permission nobody has been granted.

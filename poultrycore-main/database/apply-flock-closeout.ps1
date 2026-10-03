@@ -1,5 +1,5 @@
 # =============================================================================
-# Apply migration 332 (end-of-flock closeout) to Postgres.
+# Apply migration 338 (end-of-flock closeout) to Postgres.
 #
 # Same four phases as the other apply scripts:
 #
@@ -12,7 +12,7 @@
 #
 # WHAT THE MEASUREMENT IS FOR
 # ---------------------------
-# 332 closes no flock. It adds columns (all NULL), tables (empty), guards that
+# 338 closes no flock. It adds columns (all NULL), tables (empty), guards that
 # only fire on a closed flock, and rebuilds two readers and the Missing Daily
 # Records report. So phase 4 must print "No change" for the flocks, the bird
 # ledger AND the missing-records totals. The last one matters: the report now
@@ -54,7 +54,7 @@ if (-not (Test-Path $Psql)) { throw "psql not found at $Psql" }
 if (-not (Test-Path $MigrationsDir)) { throw "Migrations dir not found: $MigrationsDir" }
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
-$files  = @('332_PoultryFlockCloseout.postgres.sql')
+$files  = @('338_PoultryFlockCloseout.postgres.sql')
 $checks = @('poultry-flock-closeout.test.sql')
 foreach ($f in $files)  { if (-not (Test-Path (Join-Path $MigrationsDir $f))) { throw "Missing migration: $f" } }
 foreach ($c in $checks) { if (-not (Test-Path (Join-Path $ChecksDir $c)))     { throw "Missing check: $c" } }
@@ -74,7 +74,7 @@ function Invoke-Psql {
 
 # --- the measurement, before and after ----------------------------------------
 # Ordered by key so a diff is a diff, not a re-sort. The flock columns are the
-# ones that existed before 332, so the "before" query runs on either schema.
+# ones that existed before 338, so the "before" query runs on either schema.
 $measureSql = @'
 \pset footer off
 \pset pager off
@@ -134,7 +134,7 @@ Set-Content -Path $dryFile -Value $sb.ToString() -Encoding utf8
 
 $dryLog = Join-Path $OutDir 'dryrun.log'
 $dryCode = Invoke-Psql -File $dryFile -LogPath $dryLog
-Get-Content $dryLog | Where-Object { $_ -match 'FAIL|ERROR|all checks passed|332:' } | Write-Host
+Get-Content $dryLog | Where-Object { $_ -match 'FAIL|ERROR|all checks passed|338:' } | Write-Host
 if ($dryCode -ne 0) {
     throw "DRY RUN FAILED (see $dryLog). Nothing has been changed."
 }
@@ -174,11 +174,11 @@ $after = Join-Path $OutDir 'after.txt'
 [void](Invoke-Psql -File $measureFile -LogPath $after)
 
 Write-Host ''
-Write-Host '=== DIFF (expected: identical -- 332 closes nothing) ===' -ForegroundColor Cyan
+Write-Host '=== DIFF (expected: identical -- 338 closes nothing) ===' -ForegroundColor Cyan
 $diff = Compare-Object (Get-Content $before) (Get-Content $after)
 if (-not $diff) {
     Write-Host "No change to any flock, bird-ledger total or missing-records total. ($((Get-Content $after).Count) lines compared)" -ForegroundColor Green
 } else {
     $diff | Select-Object -First 40 | Format-Table -AutoSize | Out-String | Write-Host
-    Write-Host 'Any line here is a bug -- 332 must not move a number until a flock is closed.' -ForegroundColor Red
+    Write-Host 'Any line here is a bug -- 338 must not move a number until a flock is closed.' -ForegroundColor Red
 }

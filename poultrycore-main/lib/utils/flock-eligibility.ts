@@ -21,7 +21,7 @@ export function flockCountsTowardBirdTotals(flock: Pick<Flock, "active" | "hasAr
 export type FlockLifecycleStatus = "pending" | "active" | "inactive" | "closed"
 
 /**
- * Closed through Close Flock (migration 332). Distinct from merely inactive:
+ * Closed through Close Flock (migration 338). Distinct from merely inactive:
  * a closed flock's birds are reconciled to zero and its house released, and
  * only Reopen Flock brings it back.
  */

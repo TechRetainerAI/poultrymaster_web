@@ -248,7 +248,7 @@ namespace PoultryFarmAPIWeb.Business
                             Notes = reader.IsDBNull(reader.GetOrdinal("Notes")) ? null : reader.GetString(reader.GetOrdinal("Notes")),
                             BatchName = reader.IsDBNull(reader.GetOrdinal("BatchName")) ? null : reader.GetString(reader.GetOrdinal("BatchName")),
                             HasArrived = ReadHasArrived(reader),
-                            // 332: tolerant reads -- absent until the migration runs.
+                            // 338: tolerant reads -- absent until the migration runs.
                             ClosedDate = reader.OptionalDateTime("ClosedDate"),
                             ClosedAt = reader.OptionalDateTime("ClosedAt"),
                             ClosedBy = reader.OptionalString("ClosedBy"),
@@ -305,7 +305,7 @@ namespace PoultryFarmAPIWeb.Business
                             Notes = reader.IsDBNull(reader.GetOrdinal("Notes")) ? null : reader.GetString(reader.GetOrdinal("Notes")),
                             BatchName = reader.IsDBNull(reader.GetOrdinal("BatchName")) ? null : reader.GetString(reader.GetOrdinal("BatchName")),
                             HasArrived = ReadHasArrived(reader),
-                            // 332: tolerant reads -- absent until the migration runs.
+                            // 338: tolerant reads -- absent until the migration runs.
                             ClosedDate = reader.OptionalDateTime("ClosedDate"),
                             ClosedAt = reader.OptionalDateTime("ClosedAt"),
                             ClosedBy = reader.OptionalString("ClosedBy"),
