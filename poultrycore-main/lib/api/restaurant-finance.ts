@@ -92,6 +92,15 @@ export const LEDGER_SOURCE_LABELS: Record<string, string> = {
   EmployeeLoanReversal: "Staff advance reversed",
   EmployeeLoanRepayment: "Staff advance repaid",
   EmployeeLoanRepaymentReversal: "Staff repayment reversed",
+  // Capital Investments/Assets (migration 328)
+  AssetPurchase: "Capital investment",
+  AssetPurchaseReversal: "Capital investment corrected",
+  AssetDisposal: "Asset sold",
+  // Purchases and supplier payments (migration 329)
+  StockPurchase: "Stock purchase",
+  StockPurchaseReversal: "Stock purchase reversed",
+  SupplierPayment: "Supplier payment",
+  SupplierPaymentReversal: "Supplier payment reversed",
 }
 
 export function ledgerSourceLabel(s: string | null | undefined): string {
@@ -220,9 +229,20 @@ export interface CashCount {
   createdAt: string; reversalReason?: string | null
 }
 export const listCounts = (accountId?: number) => get<CashCount[]>("/counts", { accountId })
+/** Posts immediately -- kept for restaurant-cash-accounts' quick count. Reconciliation uses the draft flow below. */
 export const postCount = (input: { cashAccountId: number; counted: number; notes?: string | null }) =>
   send<{ countId: number }>("POST", "/counts", input)
 export const reverseCount = (id: number, reason: string) => send<void>("POST", `/counts/${id}/reverse`, { reason })
+
+// A count is saved as a Draft first; posting it (the only step that moves
+// money) is separate, same as Poultry's / Hotel's reconciliation (migration 338).
+export const saveCountDraft = (input: { cashAccountId: number; counted: number; notes?: string | null }) =>
+  send<{ countId: number }>("POST", "/counts/draft", input)
+export const updateCountDraft = (id: number, input: { counted: number; notes?: string | null }) =>
+  send<void>("PUT", `/counts/${id}/draft`, input)
+export const discardCountDraft = (id: number) => send<void>("DELETE", `/counts/${id}/draft`)
+export const postCountDraft = (id: number) =>
+  send<{ countId: number; adjustmentTransactionId: number | null }>("POST", `/counts/${id}/post`)
 
 // ----- Daily closing --------------------------------------------------------
 

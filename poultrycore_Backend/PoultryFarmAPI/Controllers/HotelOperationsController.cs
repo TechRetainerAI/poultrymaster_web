@@ -374,7 +374,7 @@ namespace PoultryFarmAPIWeb.Controllers
             int totalRooms = 0, occupied = 0; decimal revenue = 0, expenses = 0;
             using (var c = new NpgsqlCommand("SELECT COUNT(*) FROM hotelrooms WHERE farmid=@f AND isactive=TRUE", conn)) { c.Parameters.AddWithValue("@f", req.FarmId); totalRooms = Convert.ToInt32(await c.ExecuteScalarAsync()); }
             using (var c = new NpgsqlCommand("SELECT COUNT(*) FROM hotelrooms WHERE farmid=@f AND isactive=TRUE AND status='Occupied'", conn)) { c.Parameters.AddWithValue("@f", req.FarmId); occupied = Convert.ToInt32(await c.ExecuteScalarAsync()); }
-            using (var c = new NpgsqlCommand("SELECT COALESCE(SUM(amount),0) FROM hotelpayments WHERE farmid=@f AND paymentdate::date=@d::date", conn)) { c.Parameters.AddWithValue("@f", req.FarmId); c.Parameters.AddWithValue("@d", date); revenue = Convert.ToDecimal(await c.ExecuteScalarAsync()); }
+            using (var c = new NpgsqlCommand("SELECT COALESCE(SUM(amount),0) FROM hotelpayments WHERE farmid=@f AND paymentdate::date=@d::date AND status<>'Void'", conn)) { c.Parameters.AddWithValue("@f", req.FarmId); c.Parameters.AddWithValue("@d", date); revenue = Convert.ToDecimal(await c.ExecuteScalarAsync()); }
             using (var c = new NpgsqlCommand("SELECT COALESCE(SUM(amount),0) FROM hotelexpenses WHERE farmid=@f AND expensedate=@d::date", conn)) { c.Parameters.AddWithValue("@f", req.FarmId); c.Parameters.AddWithValue("@d", date); expenses = Convert.ToDecimal(await c.ExecuteScalarAsync()); }
             decimal occRate = totalRooms > 0 ? Math.Round((decimal)occupied / totalRooms * 100, 2) : 0;
             decimal adr = occupied > 0 ? Math.Round(revenue / occupied, 2) : 0;
@@ -421,9 +421,9 @@ namespace PoultryFarmAPIWeb.Controllers
             int totalRooms = await Count("SELECT COUNT(*) FROM hotelrooms WHERE farmid=@f AND isactive=TRUE");
             int occupied = await Count("SELECT COUNT(*) FROM hotelrooms WHERE farmid=@f AND isactive=TRUE AND status='Occupied'");
             int available = await Count("SELECT COUNT(*) FROM hotelrooms WHERE farmid=@f AND isactive=TRUE AND status='Available'");
-            decimal revenue = await Sum("SELECT COALESCE(SUM(amount),0) FROM hotelpayments WHERE farmid=@f AND paymentdate::date=@d::date");
+            decimal revenue = await Sum("SELECT COALESCE(SUM(amount),0) FROM hotelpayments WHERE farmid=@f AND paymentdate::date=@d::date AND status<>'Void'");
             decimal expenses = await Sum("SELECT COALESCE(SUM(amount),0) FROM hotelexpenses WHERE farmid=@f AND expensedate=@d::date");
-            decimal outstanding = await Sum("SELECT COALESCE(SUM(b.totalamount - COALESCE((SELECT SUM(p.amount) FROM hotelpayments p WHERE p.hotelbookingid=b.hotelbookingid AND p.farmid=@f),0)),0) FROM hotelbookings b WHERE b.farmid=@f AND b.status='CheckedIn'");
+            decimal outstanding = await Sum("SELECT COALESCE(SUM(fnhotelbooking_billtotal(b.farmid, b.hotelbookingid) - COALESCE((SELECT SUM(p.amount) FROM hotelpayments p WHERE p.hotelbookingid=b.hotelbookingid AND p.farmid=@f AND p.status<>'Void'),0)),0) FROM hotelbookings b WHERE b.farmid=@f AND b.status='CheckedIn'");
             int checkins = await Count("SELECT COUNT(*) FROM hotelcheckins WHERE farmid=@f AND checkintime::date=@d::date");
             int checkouts = await Count("SELECT COUNT(*) FROM hotelcheckouts WHERE farmid=@f AND checkouttime::date=@d::date");
             int noshows = await Count("SELECT COUNT(*) FROM hotelbookings WHERE farmid=@f AND checkindate=@d::date AND status='NoShow'");
@@ -432,14 +432,19 @@ namespace PoultryFarmAPIWeb.Controllers
 
             decimal occRate = totalRooms > 0 ? Math.Round((decimal)occupied / totalRooms * 100, 2) : 0;
 
-            // Auto-post nightly room charges for all checked-in bookings (idempotent)
+            // Post a nightly Room charge only for a night the booking total does NOT
+            // already include -- an overstay, i.e. the audit night is outside
+            // [check-in, check-out). The booking total (rate x booked nights) is the one
+            // source of truth for booked nights; charging those again double-counted room
+            // revenue on the folio (migration 327). Idempotent per booking and night.
             int roomChargesPosted = 0;
             using var txn = await conn.BeginTransactionAsync();
             try
             {
-                using (var bCmd = new NpgsqlCommand("SELECT hotelbookingid, nightlyrate FROM hotelbookings WHERE farmid=@f AND status='CheckedIn'", conn, txn))
+                using (var bCmd = new NpgsqlCommand("SELECT hotelbookingid, nightlyrate FROM hotelbookings WHERE farmid=@f AND status='CheckedIn' AND (@d::date < checkindate OR @d::date >= checkoutdate)", conn, txn))
                 {
                     bCmd.Parameters.AddWithValue("@f", req.FarmId);
+                    bCmd.Parameters.AddWithValue("@d", date);
                     var checkedInBookings = new List<(int bookingId, decimal rate)>();
                     using (var br = await bCmd.ExecuteReaderAsync()) { while (await br.ReadAsync()) checkedInBookings.Add((br.GetInt32(0), br.GetDecimal(1))); }
 
@@ -447,7 +452,7 @@ namespace PoultryFarmAPIWeb.Controllers
                     {
                         if (rate <= 0) continue;
                         using var chg = new NpgsqlCommand(@"INSERT INTO hotelstaycharges(farmid, hotelbookingid, chargetype, description, quantity, unitprice, totalamount, postedby, chargedate)
-                            SELECT @f, @b, 'Room', 'Nightly room charge - ' || @d, 1, @rate, @rate, 'Night Audit', @d::date
+                            SELECT @f, @b, 'Room', 'Overstay night - ' || @d, 1, @rate, @rate, 'Night Audit', @d::date
                             WHERE NOT EXISTS (SELECT 1 FROM hotelstaycharges WHERE farmid=@f AND hotelbookingid=@b AND chargetype='Room' AND chargedate::date=@d::date)", conn, txn);
                         chg.Parameters.AddWithValue("@f", req.FarmId); chg.Parameters.AddWithValue("@b", bookingId);
                         chg.Parameters.AddWithValue("@rate", rate); chg.Parameters.AddWithValue("@d", date);

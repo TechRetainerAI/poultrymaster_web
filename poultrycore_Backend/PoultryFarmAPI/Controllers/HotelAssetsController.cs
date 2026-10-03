@@ -55,7 +55,9 @@ namespace PoultryFarmAPIWeb.Controllers
         public async Task<IActionResult> AddCost(int id, [FromBody] HotelAssetCostRequest req)
         { var auth = HotelAuthHelper.VerifyFarmOwnership(User, req.FarmId); if (auth != null) return auth;
           try { DateTime? cd = string.IsNullOrEmpty(req.CostDate) ? null : DateTime.Parse(req.CostDate);
-            return Ok(new { costId = await _svc.AddCostAsync(id, req.FarmId, req.Amount, req.Description, cd, UserId) }); } catch (Exception ex) { return BadRequest(ex.Message); } }
+            var paid = req.HotelCashAccountId != null || req.HotelSupplierId != null || req.AmountPaid != null;
+            return Ok(new { costId = paid ? await _svc.AddCostPaidAsync(id, req, cd, UserId)
+                                          : await _svc.AddCostAsync(id, req.FarmId, req.Amount, req.Description, cd, UserId) }); } catch (Exception ex) { return BadRequest(ex.Message); } }
 
         [HttpDelete("assets/{assetId}/costs/{costId}")]
         public async Task<IActionResult> ReverseCost(int assetId, int costId, [FromQuery] string farmId, [FromQuery] string? reason)

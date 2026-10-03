@@ -78,6 +78,10 @@ namespace PoultryFarmAPIWeb.Filters
 
             // ---- Poultry, via the shared/legacy controller names -------------
             ["flock"] = "poultry.flocks",
+            // 338. Its own resource so closing a flock is not simply "can edit
+            // flocks". POST = create (close); the /reverse route resolves to
+            // approve (reopen) via ApproveSegments with no extra wiring.
+            ["flock-closeout"] = "poultry.flock-closeout",
             ["mainflockbatch"] = "poultry.flock-batches",
             // Migration 319. Initial Farm Setup creates batches, houses AND
             // flocks, and this table can only name one resource. It names

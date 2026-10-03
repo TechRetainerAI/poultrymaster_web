@@ -52,7 +52,9 @@ export interface BalancesPageProps {
   module: BalanceModule
   side: BalanceSide
   /** Company type this page belongs to; other types are redirected away. */
-  companyType: "Poultry" | "Water" | "Generic"
+  companyType: "Poultry" | "Water" | "Generic" | "Restaurant" | "Hotel"
+  /** Header icon colour. Optional; defaults to the colours this page has always used. */
+  iconClassName?: string
   /** Loads the cash accounts offered in the payment dialog. */
   loadCashAccounts: () => Promise<CashAccountOption[]>
   /** Route to a party's profile, e.g. (id) => `/customers/${id}`. */
@@ -82,7 +84,7 @@ export interface BalancesPageProps {
 }
 
 export function BalancesPage({
-  module, side, companyType, loadCashAccounts, partyHref, documentHref, permissions, wording,
+  module, side, companyType, loadCashAccounts, partyHref, documentHref, permissions, wording, iconClassName,
 }: BalancesPageProps) {
   const fmt = useFmt()
   const router = useRouter()
@@ -304,7 +306,9 @@ export function BalancesPage({
         <DashboardHeader />
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <h1 className="mb-1 flex items-center gap-2 text-2xl font-semibold text-slate-900">
-            {isCustomer ? <Users className="h-6 w-6 text-sky-600" /> : <Wallet className="h-6 w-6 text-amber-600" />}
+            {isCustomer
+              ? <Users className={cn("h-6 w-6", iconClassName ?? "text-sky-600")} />
+              : <Wallet className={cn("h-6 w-6", iconClassName ?? "text-amber-600")} />}
             {pageTitle}
           </h1>
           <p className="mb-4 text-sm text-slate-500">

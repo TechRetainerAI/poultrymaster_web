@@ -177,6 +177,12 @@ namespace PoultryFarmAPIWeb.Controllers
         public async Task<IActionResult> Create([FromBody] RestaurantExpenseModel m)
         { if(!ModelState.IsValid) return BadRequest(ModelState); var a=HotelAuthHelper.VerifyFarmOwnership(User,m.FarmId); if(a!=null) return a; m.CreatedBy??=HotelAuthHelper.GetUserName(User); return Ok(new{expenseId=await _svc.InsertExpenseAsync(m)}); }
 
+        /// <summary>Migration 337: edit an expense (Poultry's PUT Expense/{id}). A changed payment is reversed and
+        /// re-posted on the ledger; closed days, future dates and supplier payments already applied are refused (400).</summary>
+        [HttpPut("{id:int}")]
+        public async Task<IActionResult> Update(int id, [FromBody] RestaurantExpenseModel m)
+        { if(!ModelState.IsValid) return BadRequest(ModelState); var a=HotelAuthHelper.VerifyFarmOwnership(User,m.FarmId); if(a!=null) return a; await _svc.UpdateExpenseAsync(id,m,HotelAuthHelper.GetUserName(User)); return NoContent(); }
+
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id, [FromQuery] string farmId)
         { var a=HotelAuthHelper.VerifyFarmOwnership(User,farmId); if(a!=null) return a; await _svc.DeleteExpenseAsync(id,farmId); return NoContent(); }

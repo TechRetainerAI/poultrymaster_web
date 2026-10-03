@@ -20,6 +20,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Plus, Edit, Trash2, ShoppingCart, DollarSign, TrendingUp, Package, FileText, Printer, Loader2, Info, Search, Filter, ChevronDown, ChevronUp, Mail, Wallet, History } from "lucide-react"
 import { getSales, createSale, updateSale, deleteSale, getFlocks, getCustomers, createCustomer, type Sale, type SaleInput } from "@/lib/api"
+import { isFlockClosed } from "@/lib/utils/flock-eligibility"
 import { listPoultryCashAccounts, recordPoultryPayment, type PoultryCashAccount } from "@/lib/api/poultry-finance"
 import { listPoultryProducts, type PoultryProduct } from "@/lib/api/poultry-inventory"
 import { useToast } from "@/hooks/use-toast"
@@ -319,6 +320,19 @@ export default function SalesPage() {
     () => saleStockProduct(poultryProducts, formData.product),
     [poultryProducts, formData.product],
   )
+
+  /**
+   * A closed flock (338) has no birds left, and the database refuses a bird sale
+   * against one -- so it is disabled in the picker while the product is birds.
+   * Its remaining eggs can still be sold. The flock a sale being edited already
+   * belongs to stays pickable so the form can show it.
+   */
+  const closedFlockBlocksSale = (flock: { flockId: number; closedDate?: string | null }) => {
+    if (!isFlockClosed(flock)) return false
+    if (editingSale?.flockId === flock.flockId) return false
+    const name = (formData.product ?? "").toString().trim().toLowerCase()
+    return /bird|chick|cockerel/.test(name) && !name.includes("egg")
+  }
 
   /**
    * Stock available to THIS sale.
@@ -1283,8 +1297,12 @@ export default function SalesPage() {
                       <SelectContent>
                         <SelectItem value="0">All flocks</SelectItem>
                         {flocks.map((flock) => (
-                          <SelectItem key={flock.flockId} value={flock.flockId.toString()}>
-                            {flock.name} ({flock.quantity} birds)
+                          <SelectItem
+                            key={flock.flockId}
+                            value={flock.flockId.toString()}
+                            disabled={closedFlockBlocksSale(flock)}
+                          >
+                            {flock.name} ({flock.quantity} birds){isFlockClosed(flock) ? " · Closed" : ""}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -2165,8 +2183,12 @@ export default function SalesPage() {
                           <SelectContent>
                             <SelectItem value="0">All flocks</SelectItem>
                             {flocks.map((flock) => (
-                              <SelectItem key={flock.flockId} value={flock.flockId.toString()}>
-                                {flock.name} ({flock.quantity} birds)
+                              <SelectItem
+                                key={flock.flockId}
+                                value={flock.flockId.toString()}
+                                disabled={closedFlockBlocksSale(flock)}
+                              >
+                                {flock.name} ({flock.quantity} birds){isFlockClosed(flock) ? " · Closed" : ""}
                               </SelectItem>
                             ))}
                           </SelectContent>

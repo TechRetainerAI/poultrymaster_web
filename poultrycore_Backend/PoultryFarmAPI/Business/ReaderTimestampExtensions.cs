@@ -32,5 +32,29 @@ namespace PoultryFarmAPIWeb.Business
             }
             return null;
         }
+
+        /// <summary>Same tolerance, for a text column (e.g. 338's closedby).</summary>
+        public static string? OptionalString(this NpgsqlDataReader r, string column)
+        {
+            for (int i = 0; i < r.FieldCount; i++)
+            {
+                if (!string.Equals(r.GetName(i), column, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                return r.IsDBNull(i) ? null : Convert.ToString(r.GetValue(i));
+            }
+            return null;
+        }
+
+        /// <summary>Same tolerance, for an integer column (e.g. 338's closeoutid).</summary>
+        public static int? OptionalInt32(this NpgsqlDataReader r, string column)
+        {
+            for (int i = 0; i < r.FieldCount; i++)
+            {
+                if (!string.Equals(r.GetName(i), column, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                return r.IsDBNull(i) ? null : Convert.ToInt32(r.GetValue(i));
+            }
+            return null;
+        }
     }
 }

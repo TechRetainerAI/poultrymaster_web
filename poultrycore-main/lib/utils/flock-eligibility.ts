@@ -18,14 +18,38 @@ export function flockCountsTowardBirdTotals(flock: Pick<Flock, "active" | "hasAr
   return Boolean(flock.active) && Boolean(flock.hasArrived)
 }
 
-export type FlockLifecycleStatus = "pending" | "active" | "inactive"
+export type FlockLifecycleStatus = "pending" | "active" | "inactive" | "closed"
+
+/**
+ * Closed through Close Flock (migration 338). Distinct from merely inactive:
+ * a closed flock's birds are reconciled to zero and its house released, and
+ * only Reopen Flock brings it back.
+ */
+export function isFlockClosed(flock: Pick<Flock, "closedDate"> | null | undefined): boolean {
+  return Boolean(flock?.closedDate)
+}
 
 export function getFlockLifecycleStatus(
-  flock: Pick<Flock, "active" | "hasArrived">,
+  flock: Pick<Flock, "active" | "hasArrived"> & Partial<Pick<Flock, "closedDate">>,
   _now?: Date
 ): FlockLifecycleStatus {
+  if (isFlockClosed(flock)) return "closed"
   if (!flock.hasArrived) return "pending"
   return flock.active ? "active" : "inactive"
+}
+
+/**
+ * May this flock be offered in a data-entry picker (production, feed,
+ * medication, bird sales)? Closed flocks never are -- the database refuses the
+ * write anyway -- unless it is the flock the record being edited already
+ * belongs to, which must stay visible so the form can show it.
+ */
+export function isFlockOpenForEntry(
+  flock: Pick<Flock, "flockId"> & Partial<Pick<Flock, "closedDate">>,
+  keepFlockId?: number | null,
+): boolean {
+  if (keepFlockId != null && flock.flockId === keepFlockId) return true
+  return !isFlockClosed(flock)
 }
 
 /**
@@ -33,6 +57,10 @@ export function getFlockLifecycleStatus(
  * only waiting for placement (not culled). Skip if birds haven't arrived yet.
  */
 export function shouldAutoActivateFlock(flock: Flock, _now?: Date): boolean {
+  // A closed flock is finished, not waiting. Its reason is 'closed', which the
+  // heuristics below would not match either -- this makes it explicit, and the
+  // database refuses the update regardless.
+  if (isFlockClosed(flock)) return false
   if (!flock.hasArrived || flock.active) return false
   const r = (flock.inactivationReason ?? "").trim().toLowerCase()
   if (!r) return true
@@ -57,5 +85,6 @@ export function flockRowCountsTowardBirdTotals(row: Record<string, unknown>, now
 export function flockRowLifecycleStatus(row: Record<string, unknown>, now?: Date): FlockLifecycleStatus {
   const active = Boolean(row.active ?? row.Active)
   const hasArrived = Boolean(row.hasArrived ?? row.HasArrived)
-  return getFlockLifecycleStatus({ active, hasArrived } as Flock, now)
+  const closedDate = (row.closedDate ?? row.ClosedDate ?? null) as string | null
+  return getFlockLifecycleStatus({ active, hasArrived, closedDate } as Flock, now)
 }

@@ -22,7 +22,8 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useFmt } from "@/lib/currency"
-import { StatCard } from "@/components/restaurant/stat-card"
+import { MoneyStat } from "@/components/restaurant/money-stat"
+import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { EmptyState } from "@/components/restaurant/empty-state"
 import { PageHeader } from "@/components/restaurant/page-header"
 import { PageSkeleton } from "@/components/restaurant/skeleton-loaders"
@@ -106,6 +107,12 @@ export default function RestaurantCashTransfersPage() {
       count: posted.length,
       moved: posted.reduce((s, t) => s + (t.amount ?? 0), 0),
       reversed: transfers.filter((t) => t.status === "Reversed").length,
+      // Poultry's cards (app/poultry-cash-transfers): today, this month, and the
+      // accounts money most often leaves from and goes to.
+      today: posted.filter((t) => (t.transferDate ?? "").slice(0, 10) === new Date().toISOString().slice(0, 10)).reduce((s, t) => s + (t.amount ?? 0), 0),
+      month: posted.filter((t) => (t.transferDate ?? "").slice(0, 7) === new Date().toISOString().slice(0, 7)).reduce((s, t) => s + (t.amount ?? 0), 0),
+      topFrom: mostUsed(posted.map((t) => t.fromAccountName)),
+      topTo: mostUsed(posted.map((t) => t.toAccountName)),
     }
   }, [transfers])
 
@@ -199,7 +206,7 @@ export default function RestaurantCashTransfersPage() {
             <div className="space-y-2">
               <PageHeader icon={ArrowLeftRight} title="Cash Transfers" subtitle="Move money between your cash accounts">
                 <Button className="bg-rose-600 hover:bg-rose-700" onClick={openNew}>
-                  <Plus className="h-4 w-4 mr-2" /> New transfer
+                  <Plus className="h-4 w-4 mr-2" /> Record transfer
                 </Button>
               </PageHeader>
               <p className="text-sm text-muted-foreground">
@@ -207,10 +214,13 @@ export default function RestaurantCashTransfersPage() {
               </p>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <StatCard label="Transfers this period" value={stats.count} icon={ArrowLeftRight} color="rose" />
-              <StatCard label="Total moved" value={gh(stats.moved)} icon={DollarSign} color="blue" />
-              <StatCard label="Reversed" value={stats.reversed} icon={Undo2} color="amber" />
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+              <MoneyStat label="Moved today" value={gh(stats.today)} accent="rose" />
+              <MoneyStat label="Moved this month" value={gh(stats.month)} accent="indigo" />
+              <MoneyStat label="Transfers on record" value={String(stats.count)}
+                         hint={stats.reversed ? `${stats.reversed} reversed · ${gh(stats.moved)} moved` : `${gh(stats.moved)} moved`} />
+              <MoneyStat label="Most used source" value={stats.topFrom ?? "—"} />
+              <MoneyStat label="Most used destination" value={stats.topTo ?? "—"} />
             </div>
 
             <div className="flex flex-wrap items-end gap-3">
@@ -230,12 +240,37 @@ export default function RestaurantCashTransfersPage() {
             {transfers.length === 0 ? (
               <Card>
                 <CardContent className="pt-6">
-                  <EmptyState icon={ArrowLeftRight} title="No transfers in this period" description="Move money between accounts, e.g. a bank deposit from the cash box." actionLabel="New transfer" onAction={openNew} />
+                  <EmptyState icon={ArrowLeftRight} title="No transfers in this period" description="Move money between accounts, e.g. a bank deposit from the cash box." actionLabel="Record transfer" onAction={openNew} />
                 </CardContent>
               </Card>
             ) : (
               <Card>
-                <CardContent className="p-0">
+                <CardContent className="p-0 lg:p-2">
+                  {/* Poultry's phone cards (app/poultry-cash-transfers) with "View table format". */}
+                  <MobileCardList
+                    striped
+                    items={transfers}
+                    getKey={(t) => t.transferId}
+                    primary={(t) => <span className="inline-flex items-center gap-1 flex-wrap">{t.fromAccountName} <ArrowRight className="h-3 w-3 text-gray-400" /> {t.toAccountName}</span>}
+                    secondary={(t) => <span>{t.transferNumber ?? `#${t.transferId}`} · {(t.transferDate ?? "").slice(0, 10)}</span>}
+                    trailing={(t) => <Badge variant="outline" className={`text-xs ${t.status === "Posted" ? "bg-green-100 text-green-800 border-green-200" : "bg-gray-100 text-gray-600"}`}>{t.status}</Badge>}
+                    highlights={(t) => [
+                      { label: "Amount", value: <span className={t.status !== "Posted" ? "line-through" : ""}>{gh(t.amount)}</span>, accent: "rose", wide: true },
+                    ]}
+                    details={(t) => [
+                      { label: "Source", value: t.fromAccountName ?? "—" },
+                      { label: "Destination", value: t.toAccountName ?? "—" },
+                      { label: "Reference", value: t.reference || "—" },
+                      { label: "Created by", value: t.createdBy || "—" },
+                      ...(t.notes ? [{ label: "Notes", value: t.notes }] : []),
+                      ...(t.status !== "Posted" && t.reversalReason ? [{ label: "Reversed", value: t.reversalReason }] : []),
+                    ]}
+                    actions={(t) => t.status === "Posted" ? (
+                      <Button variant="outline" size="sm" className="flex-1 h-10 bg-white" onClick={() => { setReverseTarget(t); setReverseReason("") }}>
+                        <Undo2 className="h-4 w-4 mr-1" /> Reverse
+                      </Button>
+                    ) : null}
+                    desktopTable={
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm min-w-[640px]">
                       <thead className="bg-gray-50 border-b">
@@ -286,6 +321,8 @@ export default function RestaurantCashTransfersPage() {
                       </tbody>
                     </table>
                   </div>
+                    }
+                  />
                 </CardContent>
               </Card>
             )}
@@ -379,4 +416,11 @@ export default function RestaurantCashTransfersPage() {
       </Dialog>
     </div>
   )
+}
+
+/** The value that appears most often, or undefined. */
+function mostUsed(values: (string | null | undefined)[]): string | undefined {
+  const counts = new Map<string, number>()
+  for (const v of values) if (v) counts.set(v, (counts.get(v) ?? 0) + 1)
+  return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]
 }

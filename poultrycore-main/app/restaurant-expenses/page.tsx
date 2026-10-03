@@ -3,26 +3,35 @@ import { Suspense, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
+import { useFmt } from "@/lib/currency"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Receipt, DollarSign, TrendingDown, Tag, Trash2, CalendarDays } from "lucide-react"
+import { Plus, Receipt, DollarSign, Tag, Trash2, CalendarDays, Search, Pencil } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
-import { StatCard } from "@/components/restaurant/stat-card"
 import { EmptyState } from "@/components/restaurant/empty-state"
 import { PageHeader } from "@/components/restaurant/page-header"
 import { PageSkeleton } from "@/components/restaurant/skeleton-loaders"
 import {
-  listExpenses, createExpense, deleteExpense,
+  listExpenses, createExpense, updateExpense, deleteExpense,
   listExpenseCategories, createExpenseCategory, deleteExpenseCategory,
   type RestaurantExpense, type RestaurantExpenseInput, type ExpenseCategory,
 } from "@/lib/api/restaurant"
 import { listCashAccounts, type CashAccount } from "@/lib/api/restaurant-finance"
+import {
+  listExpensePayments, listSuppliers, type RestaurantExpensePayment, type RestaurantSupplierRow,
+} from "@/lib/api/restaurant-suppliers"
+import {
+  SELECTABLE_PAYMENT_STATUSES, PAYMENT_STATUS_LABELS, amountPaidForStatus, requiresCashAccount,
+  type SelectablePaymentStatus,
+} from "@/lib/expenses/payment-status"
 
 const PAYMENT_METHODS = ["Cash", "Card", "Bank Transfer", "MobileMoney", "Cheque"]
 
@@ -35,6 +44,16 @@ const emptyForm: RestaurantExpenseInput = {
   supplierName: "",
   receiptRef: "",
   cashAccountId: null,
+  supplierId: null,
+  amountPaid: null,
+  dueDate: null,
+}
+
+// Poultry's payment-status colours (Paid emerald, part-paid amber, unpaid red).
+const STATUS_BADGE: Record<string, string> = {
+  Paid: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  PartiallyPaid: "bg-amber-50 text-amber-700 border-amber-200",
+  Unpaid: "bg-red-50 text-red-700 border-red-200",
 }
 
 // useSearchParams needs a Suspense boundary for the static build.
@@ -60,11 +79,21 @@ function RestaurantExpensesInner() {
     setActiveTab(searchParams.get("tab") === "categories" ? "categories" : "expenses")
   }, [searchParams])
   const [dialogOpen, setDialogOpen] = useState(false)
+  // Migration 337: the expense being edited, or null when recording a new one.
+  const [editingId, setEditingId] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
   const [expenseForm, setExpenseForm] = useState<RestaurantExpenseInput>({ ...emptyForm })
   const [newCategoryName, setNewCategoryName] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  // Migration 329: who each expense is owed to and what is still unpaid, read
+  // next to the list (the list's own shape cannot change), plus the suppliers.
+  const [payments, setPayments] = useState<Record<number, RestaurantExpensePayment>>({})
+  const [supplierRows, setSupplierRows] = useState<RestaurantSupplierRow[]>([])
+  const [paymentStatus, setPaymentStatus] = useState<SelectablePaymentStatus>("Paid")
+  const [partPaid, setPartPaid] = useState("")
+  // ?expenseId= (from Supplier Balances / Payments) narrows the list to one bill.
+  const focusId = searchParams.get("expenseId") ? Number(searchParams.get("expenseId")) : null
 
   useEffect(() => {
     if (activeFarmType === null || activeFarmType === undefined) return
@@ -74,12 +103,16 @@ function RestaurantExpensesInner() {
   const fetchData = async () => {
     try {
       setLoading(true)
-      const [exp, cats, accts] = await Promise.all([
+      const [exp, cats, accts, pays, sups] = await Promise.all([
         listExpenses(dateFrom || undefined, dateTo || undefined),
         listExpenseCategories(),
         listCashAccounts().catch(() => [] as CashAccount[]),
+        listExpensePayments(dateFrom || undefined, dateTo || undefined).catch(() => [] as RestaurantExpensePayment[]),
+        listSuppliers().catch(() => [] as RestaurantSupplierRow[]),
       ])
       setExpenses(exp ?? [])
+      setPayments(Object.fromEntries((pays ?? []).map((p) => [p.expenseId, p])))
+      setSupplierRows((sups ?? []).filter((s) => s.isactive !== false))
       setCategories(cats ?? [])
       setAccounts((accts ?? []).filter((a) => a.isActive))
     } catch (e: any) {
@@ -92,6 +125,20 @@ function RestaurantExpensesInner() {
   useEffect(() => { fetchData() }, [])// eslint-disable-line react-hooks/exhaustive-deps
 
   const handleFilter = () => { fetchData() }
+
+  // Poultry's list filters (app/expenses): a search box and a category, applied
+  // in the browser on top of the date range the server already narrowed.
+  const gh = useFmt()
+  const [search, setSearch] = useState("")
+  const [categoryFilter, setCategoryFilter] = useState("all")
+  const q = search.trim().toLowerCase()
+  const filteredExpenses = expenses.filter((e) =>
+    (focusId == null || e.expenseId === focusId)
+    && (categoryFilter === "all" || (e.categoryName ?? "Uncategorized") === categoryFilter)
+    && (!q || [e.description, e.categoryName, e.supplierName, payments[e.expenseId]?.supplierName, e.receiptRef]
+      .join(" ").toLowerCase().includes(q)))
+  const filteredTotal = filteredExpenses.reduce((s, e) => s + (e.amount ?? 0), 0)
+  const pg = usePagination(filteredExpenses, 25)
 
   /* ---------- stats ---------- */
   const today = new Date().toISOString().split("T")[0]
@@ -112,18 +159,62 @@ function RestaurantExpensesInner() {
       toast({ title: "Validation", description: "Description and amount are required.", variant: "destructive" })
       return
     }
+    const paid = amountPaidForStatus(paymentStatus, expenseForm.amount, Number(partPaid || 0))
+    if (paymentStatus === "PartiallyPaid" && (!paid || paid <= 0 || paid >= expenseForm.amount)) {
+      toast({ title: "Validation", description: "A partially paid expense must have something paid against it, and less than the total.", variant: "destructive" })
+      return
+    }
     try {
       setSaving(true)
-      await createExpense(expenseForm)
-      toast({ title: "Success", description: "Expense recorded." })
+      const input = {
+        ...expenseForm,
+        amountPaid: paid,
+        dueDate: paymentStatus === "Paid" ? null : (expenseForm.dueDate || null),
+        cashAccountId: requiresCashAccount(paymentStatus) ? expenseForm.cashAccountId : null,
+      }
+      if (editingId != null) {
+        await updateExpense(editingId, input)
+        toast({ title: "Success", description: "Expense updated." })
+      } else {
+        await createExpense(input)
+        toast({ title: "Success", description: "Expense recorded." })
+      }
+      setEditingId(null)
       setExpenseForm({ ...emptyForm })
+      setPaymentStatus("Paid"); setPartPaid("")
       setDialogOpen(false)
       await fetchData()
     } catch (e: any) {
-      toast({ title: "Error", description: e?.message ?? "Failed to create expense.", variant: "destructive" })
+      toast({ title: "Error", description: e?.message ?? (editingId != null ? "Failed to update expense." : "Failed to create expense."), variant: "destructive" })
     } finally {
       setSaving(false)
     }
+  }
+
+  /* ---------- edit expense (migration 337) ---------- */
+  // Opens the same dialog pre-filled. "Amount paid" is what was paid when the
+  // expense was recorded -- supplier payments applied since are separate and
+  // are not re-entered here.
+  const openEditExpense = (exp: RestaurantExpense) => {
+    const p = payments[exp.expenseId]
+    const paidAtEntry = p?.paidAtEntry ?? exp.amount
+    setExpenseForm({
+      expenseDate: (exp.expenseDate ?? "").split("T")[0],
+      categoryId: exp.categoryId ?? null,
+      description: exp.description ?? "",
+      amount: exp.amount ?? 0,
+      paymentMethod: exp.paymentMethod || "Cash",
+      supplierName: exp.supplierName ?? "",
+      receiptRef: exp.receiptRef ?? "",
+      cashAccountId: p?.cashAccountId ?? null,
+      supplierId: p?.supplierId ?? null,
+      amountPaid: paidAtEntry,
+      dueDate: p?.dueDate ? String(p.dueDate).split("T")[0] : null,
+    })
+    const status: SelectablePaymentStatus = paidAtEntry >= (exp.amount ?? 0) ? "Paid" : paidAtEntry > 0 ? "PartiallyPaid" : "Unpaid"
+    setPaymentStatus(status); setPartPaid(status === "PartiallyPaid" ? String(paidAtEntry) : "")
+    setEditingId(exp.expenseId)
+    setDialogOpen(true)
   }
 
   /* ---------- delete expense ---------- */
@@ -173,18 +264,29 @@ function RestaurantExpensesInner() {
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
           <div className="max-w-7xl mx-auto space-y-6">
             {/* Header */}
-            <PageHeader icon={Receipt} title="Expenses & Accounting" subtitle="Track expenses, categories, and financial overview">
-              <Button className="bg-rose-600 hover:bg-rose-700" onClick={() => { setExpenseForm({ ...emptyForm }); setDialogOpen(true) }}>
+            <PageHeader icon={Receipt} title="Expenses" subtitle="Track expenses, categories, and financial overview">
+              <Button className="bg-rose-600 hover:bg-rose-700" onClick={() => { setEditingId(null); setExpenseForm({ ...emptyForm }); setPaymentStatus("Paid"); setPartPaid(""); setDialogOpen(true) }}>
                 <Plus className="h-4 w-4 mr-2" /> Record Expense
               </Button>
             </PageHeader>
 
-            {/* Stats Row */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <StatCard label="Today's Total" value={`${todayTotal.toFixed(2)}`} icon={TrendingDown} color="red" />
-              <StatCard label="This Month" value={`${monthTotal.toFixed(2)}`} icon={DollarSign} color="amber" />
-              <StatCard label="Total Records" value={expenses.length} icon={Receipt} color="blue" />
-              <StatCard label="Top Category" value={topCategory} icon={Tag} color="purple" />
+            {/* Summary Cards -- Poultry's (app/expenses): This Month and the
+                total of whatever the filters leave. */}
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
+              <Card className="bg-white">
+                <CardHeader className="pb-2"><CardDescription>This Month</CardDescription></CardHeader>
+                <CardContent className="min-w-0">
+                  <div className="font-bold text-slate-900 leading-tight whitespace-nowrap text-3xl md:text-2xl">{gh(monthTotal)}</div>
+                  <p className="mt-1 text-xs text-slate-500">Today {gh(todayTotal)} · Top category {topCategory}</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-white">
+                <CardHeader className="pb-2"><CardDescription>Total (Filtered)</CardDescription></CardHeader>
+                <CardContent className="min-w-0">
+                  <div className="font-bold text-slate-900 leading-tight whitespace-nowrap text-3xl md:text-2xl">{gh(filteredTotal)}</div>
+                  <p className="mt-1 text-xs text-slate-500">{filteredExpenses.length} {filteredExpenses.length === 1 ? "expense" : "expenses"}</p>
+                </CardContent>
+              </Card>
             </div>
 
             {/* Tabs */}
@@ -218,6 +320,22 @@ function RestaurantExpensesInner() {
                   <Button variant="outline" size="sm" className="h-9" onClick={handleFilter}>
                     <CalendarDays className="h-4 w-4 mr-1" /> Filter
                   </Button>
+                  <div className="relative w-full sm:w-64">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                    <Input className="h-9 pl-8" placeholder="Search expenses..." value={search} onChange={(e) => setSearch(e.target.value)} />
+                  </div>
+                  <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                    <SelectTrigger className="h-9 w-full sm:w-[180px]"><SelectValue placeholder="Category" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All categories</SelectItem>
+                      {Array.from(new Set(expenses.map((e) => e.categoryName ?? "Uncategorized"))).sort().map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {(search || categoryFilter !== "all") && (
+                    <Button variant="ghost" size="sm" className="h-9" onClick={() => { setSearch(""); setCategoryFilter("all") }}>Clear</Button>
+                  )}
                 </div>
 
                 {expenses.length === 0 ? (
@@ -232,9 +350,62 @@ function RestaurantExpensesInner() {
                       />
                     </CardContent>
                   </Card>
+                ) : filteredExpenses.length === 0 ? (
+                  <Card className="bg-white">
+                    <CardContent className="py-12 text-center">
+                      <DollarSign className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold text-slate-900 mb-2">No expenses found</h3>
+                      <p className="text-slate-600">No expenses match your search criteria.</p>
+                    </CardContent>
+                  </Card>
                 ) : (
-                  <Card>
+                  <Card className="bg-white overflow-hidden">
+                    <CardHeader><CardTitle>Expenses</CardTitle><CardDescription>Manage your restaurant expenses</CardDescription></CardHeader>
                     <CardContent className="p-0">
+                      {/* Poultry's phone layout (app/expenses): one expandable card
+                          per expense -- date, category chip, amount in red,
+                          description; then Payment / Paid to and the actions --
+                          with "View table format" for the columns. Desktop keeps
+                          the table. */}
+                      <MobileCardList
+                        items={pg.pageItems}
+                        pagination={pg.paginationProps}
+                        striped
+                        getKey={(e) => e.expenseId}
+                        primary={(exp) => (
+                          <span className="flex items-center gap-2">
+                            <span className="shrink-0">{fmtShortDate(exp.expenseDate)}</span>
+                            {exp.categoryName && <Badge className="bg-rose-100 text-rose-700 border-rose-200 hover:bg-rose-100">{exp.categoryName}</Badge>}
+                          </span>
+                        )}
+                        secondary={(exp) => (
+                          <span className="flex items-baseline gap-3 min-w-0">
+                            <span className="text-lg font-bold text-red-600 shrink-0">{gh(exp.amount ?? 0)}</span>
+                            <span className="truncate">{exp.description}</span>
+                          </span>
+                        )}
+                        details={(exp) => {
+                          const p = payments[exp.expenseId]
+                          return [
+                            { label: "Payment", value: exp.paymentMethod || "N/A" },
+                            { label: "Paid to", value: p?.supplierName || exp.supplierName || "N/A" },
+                            { label: "Status", value: p ? (PAYMENT_STATUS_LABELS[p.paymentStatus as SelectablePaymentStatus] ?? p.paymentStatus) : "—" },
+                            { label: "Still owed", value: p && p.balance > 0 ? gh(p.balance) : "—" },
+                            ...(exp.receiptRef ? [{ label: "Reference", value: exp.receiptRef }] : []),
+                          ]
+                        }}
+                        actions={(exp) => (
+                          <>
+                            <Button variant="outline" size="sm" className="flex-1 h-10 bg-white" onClick={() => openEditExpense(exp)}>
+                              <Pencil className="h-4 w-4 mr-2" /> Edit
+                            </Button>
+                            <Button variant="outline" size="sm" className="flex-1 h-10 bg-white text-red-600 border-red-200 hover:bg-red-50"
+                                    onClick={() => handleDeleteExpense(exp.expenseId)}>
+                              <Trash2 className="h-4 w-4 mr-2" /> Delete
+                            </Button>
+                          </>
+                        )}
+                        desktopTable={(
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm min-w-[640px]">
                         <thead className="bg-gray-50 border-b">
@@ -242,24 +413,40 @@ function RestaurantExpensesInner() {
                             <th className="text-left p-3">Date</th>
                             <th className="text-left p-3">Description</th>
                             <th className="text-left p-3">Category</th>
-                            <th className="text-left p-3">Supplier</th>
-                            <th className="text-left p-3">Payment</th>
-                            <th className="text-right p-3">Amount</th>
+                            <th className="text-left p-3">Supplier / Paid To</th>
+                            <th className="text-left p-3">Method</th>
+                            <th className="text-left p-3">Status</th>
+                            <th className="text-right p-3">Total</th>
                             <th className="text-right p-3">Actions</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {expenses.map((exp) => (
+                          {pg.pageItems.map((exp) => (
                             <tr key={exp.expenseId} className="border-b hover:bg-rose-50 transition-colors">
                               <td className="p-3 text-xs text-muted-foreground">{exp.expenseDate?.split("T")[0]}</td>
                               <td className="p-3 font-medium text-gray-900">{exp.description}
                                 {exp.receiptRef && <div className="text-xs font-normal text-muted-foreground">Ref: {exp.receiptRef}</div>}</td>
                               <td className="p-3">{exp.categoryName ? <Badge variant="secondary" className="text-xs bg-rose-50 text-rose-700 border-rose-200">{exp.categoryName}</Badge> : "—"}</td>
-                              <td className="p-3 text-xs">{exp.supplierName || "—"}</td>
+                              <td className="p-3 text-xs">{payments[exp.expenseId]?.supplierName || exp.supplierName || "—"}</td>
                               <td className="p-3">{exp.paymentMethod ? <Badge variant="outline" className="text-xs">{exp.paymentMethod}</Badge> : "—"}</td>
-                              <td className="p-3 text-right font-bold text-red-600">{(exp.amount ?? 0).toFixed(2)}</td>
+                              <td className="p-3">
+                                {payments[exp.expenseId] ? (
+                                  <>
+                                    <Badge variant="outline" className={`text-xs ${STATUS_BADGE[payments[exp.expenseId].paymentStatus] ?? ""}`}>
+                                      {PAYMENT_STATUS_LABELS[payments[exp.expenseId].paymentStatus as SelectablePaymentStatus] ?? payments[exp.expenseId].paymentStatus}
+                                    </Badge>
+                                    {payments[exp.expenseId].balance > 0 && (
+                                      <div className="text-[11px] text-muted-foreground mt-0.5">owed {payments[exp.expenseId].balance.toFixed(2)}</div>
+                                    )}
+                                  </>
+                                ) : "—"}
+                              </td>
+                              <td className="p-3 text-right font-bold text-red-600">{gh(exp.amount ?? 0)}</td>
                               <td className="p-3 text-right">
-                                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-red-600" onClick={() => handleDeleteExpense(exp.expenseId)}>
+                                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-blue-600" title="Edit" onClick={() => openEditExpense(exp)}>
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-red-600" title="Delete" onClick={() => handleDeleteExpense(exp.expenseId)}>
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
                               </td>
@@ -268,6 +455,8 @@ function RestaurantExpensesInner() {
                         </tbody>
                         </table>
                       </div>
+                        )}
+                      />
                     </CardContent>
                   </Card>
                 )}
@@ -329,11 +518,11 @@ function RestaurantExpensesInner() {
       </div>
 
       {/* Create Expense Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+      <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) setEditingId(null) }}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Record Expense</DialogTitle>
-            <DialogDescription>Log a business expense</DialogDescription>
+            <DialogTitle>{editingId != null ? "Edit Expense" : "Record Expense"}</DialogTitle>
+            <DialogDescription>{editingId != null ? "Update expense information" : "Log a business expense"}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -396,6 +585,7 @@ function RestaurantExpensesInner() {
                 </Select>
               </div>
             </div>
+            {requiresCashAccount(paymentStatus) && (
             <div className="space-y-1.5">
               <Label>Paid from</Label>
               <Select
@@ -413,13 +603,75 @@ function RestaurantExpensesInner() {
                 </SelectContent>
               </Select>
             </div>
+            )}
+            {/* Supplier & Payment Status -- Poultry's band (app/expenses): who
+                this is owed to, and how much of it has actually been paid. It
+                decides whether the expense shows up on Supplier Balances. */}
+            <div className="rounded-xl border border-slate-200 overflow-hidden">
+              <div className="bg-sky-600 px-4 py-2 text-sm font-semibold text-white">Supplier &amp; Payment Status</div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-white">
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label>Supplier / Paid To</Label>
+                  <Select
+                    value={expenseForm.supplierId ? String(expenseForm.supplierId) : "none"}
+                    onValueChange={(v) => {
+                      const s = supplierRows.find((x) => String(x.restaurantsupplierid) === v)
+                      setExpenseForm((f) => ({ ...f, supplierId: s ? s.restaurantsupplierid : null, supplierName: s ? s.name : f.supplierName }))
+                    }}
+                  >
+                    <SelectTrigger className="h-10"><SelectValue placeholder="Not linked to a supplier" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Not linked to a supplier</SelectItem>
+                      {supplierRows.map((s) => (
+                        <SelectItem key={s.restaurantsupplierid} value={String(s.restaurantsupplierid)}>{s.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Payment Status *</Label>
+                  <Select value={paymentStatus} onValueChange={(v) => setPaymentStatus(v as SelectablePaymentStatus)}>
+                    <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {SELECTABLE_PAYMENT_STATUSES.map((st) => (
+                        <SelectItem key={st} value={st}>{PAYMENT_STATUS_LABELS[st]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Amount Paid {paymentStatus === "PartiallyPaid" ? "*" : ""}</Label>
+                  <Input
+                    type="number" step="0.01" min="0" className="h-10"
+                    value={paymentStatus === "PartiallyPaid" ? partPaid : (paymentStatus === "Paid" ? String(expenseForm.amount || "") : "0")}
+                    onChange={(e) => setPartPaid(e.target.value)}
+                    disabled={paymentStatus !== "PartiallyPaid"}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Due Date</Label>
+                  <Input
+                    type="date" className="h-10"
+                    value={expenseForm.dueDate ?? ""}
+                    onChange={(e) => setExpenseForm((f) => ({ ...f, dueDate: e.target.value || null }))}
+                    disabled={paymentStatus === "Paid"}
+                  />
+                </div>
+                {paymentStatus !== "Paid" && !expenseForm.supplierId && (
+                  <p className="sm:col-span-2 text-xs text-amber-700">
+                    Select a supplier if you want this unpaid expense to appear in Supplier Balances.
+                  </p>
+                )}
+              </div>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Supplier</Label>
+                <Label>Supplier (name only)</Label>
                 <Input
                   className="h-10"
-                  placeholder="Supplier name (optional)"
+                  placeholder="If not in the supplier list (optional)"
                   value={expenseForm.supplierName ?? ""}
+                  disabled={!!expenseForm.supplierId}
                   onChange={(e) => setExpenseForm((f) => ({ ...f, supplierName: e.target.value }))}
                 />
               </div>
@@ -437,11 +689,19 @@ function RestaurantExpensesInner() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
             <Button className="bg-rose-600 hover:bg-rose-700" onClick={handleCreateExpense} disabled={saving}>
-              {saving ? "Saving..." : "Record Expense"}
+              {saving ? "Saving..." : editingId != null ? "Save Changes" : "Record Expense"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
   )
+}
+
+/** "Sep 28, 26" -- Poultry's short card date, read off the yyyy-mm-dd string so no time zone can move it. */
+function fmtShortDate(d?: string | null): string {
+  const [y, m, day] = (d ?? "").split("T")[0].split("-")
+  if (!y || !m || !day) return d ?? "—"
+  const mon = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][Number(m) - 1] ?? m
+  return `${mon} ${Number(day)}, ${y.slice(2)}`
 }

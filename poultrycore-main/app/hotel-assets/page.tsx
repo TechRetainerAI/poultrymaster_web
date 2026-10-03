@@ -11,6 +11,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
+import { listHotelSuppliers, type HotelSupplier } from "@/lib/api/hotel-suppliers"
+import { loadHotelCashAccounts } from "@/lib/hotel/balances"
+import type { CashAccountOption } from "@/components/balances/record-payment-dialog"
 import { Loader2, Plus, Play, RotateCcw, Eye, XCircle, Calendar } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
@@ -44,7 +47,12 @@ export default function HotelAssetsPage() {
     assetName: "", hotelAssetCategoryId: null as number | null,
     acquisitionDate: todayLocal(), inServiceDate: "", residualValue: 0,
     usefulLifeMonths: 60, amount: 0, supplier: "", location: "", serialNumber: "", notes: "",
+    // 332: Poultry's "Amount paid now" (blank = paid in full) and "Paid from";
+    // what is not paid now is owed to the supplier (Supplier Balances).
+    hotelSupplierId: null as number | null, hotelCashAccountId: null as number | null, amountPaid: "", dueDate: "",
   })
+  const [cashAccounts, setCashAccounts] = useState<CashAccountOption[]>([])
+  const [suppliers, setSuppliers] = useState<HotelSupplier[]>([])
 
   const [reasonOpen, setReasonOpen] = useState(false)
   const [reasonAction, setReasonAction] = useState<"dispose" | "reverse">("dispose")
@@ -58,7 +66,11 @@ export default function HotelAssetsPage() {
 
   async function load() {
     setLoading(true)
-    try { const [a, c, s] = await Promise.all([listHotelAssets(), listHotelAssetCategories(), getHotelAssetSummary()]); setAssets(a); setCategories(c); setSummary(s) }
+    try {
+      const [a, c, s] = await Promise.all([listHotelAssets(), listHotelAssetCategories(), getHotelAssetSummary()]); setAssets(a); setCategories(c); setSummary(s)
+      loadHotelCashAccounts().then(setCashAccounts).catch(() => setCashAccounts([]))
+      listHotelSuppliers().then((x) => setSuppliers(x.filter((y) => y.isActive !== false))).catch(() => setSuppliers([]))
+    }
     catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
     finally { setLoading(false) }
   }
@@ -66,7 +78,14 @@ export default function HotelAssetsPage() {
   async function saveCreate() {
     if (!form.assetName.trim()) { toast({ title: "Asset name required", variant: "destructive" }); return }
     setSaving(true)
-    try { await createHotelAsset({ ...form, farmId: "" }); toast({ title: "Asset created as Draft" }); setCreateOpen(false); await load() }
+    const paidNow = form.amountPaid.trim() === "" ? form.amount : Number(form.amountPaid)
+    if (form.amount > 0 && paidNow > 0 && !form.hotelCashAccountId) { toast({ title: "Choose the cash account this was paid from", variant: "destructive" }); setSaving(false); return }
+    if (form.amount > 0 && paidNow < form.amount && !form.hotelSupplierId) { toast({ title: "Choose the supplier the unpaid balance is owed to", variant: "destructive" }); setSaving(false); return }
+    const { amountPaid, hotelSupplierId, hotelCashAccountId, dueDate, ...base } = form
+    const payment = form.amount > 0
+      ? { hotelSupplierId, hotelCashAccountId, amountPaid: amountPaid.trim() === "" ? null : Number(amountPaid), dueDate: dueDate || null }
+      : {}
+    try { await createHotelAsset({ ...base, ...payment, farmId: "" }); toast({ title: "Asset created as Draft" }); setCreateOpen(false); await load() }
     catch (e: any) { toast({ title: "Error", description: e?.message, variant: "destructive" }) }
     finally { setSaving(false) }
   }
@@ -116,12 +135,12 @@ export default function HotelAssetsPage() {
     <div className="flex h-screen"><DashboardSidebar /><div className="flex-1 flex flex-col overflow-hidden"><DashboardHeader />
       <main className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-2">
-          <h1 className="text-2xl font-bold">Capital Assets</h1>
+          <h1 className="text-2xl font-bold">Capital Investments/Assets</h1>
           <div className="flex gap-2">
             <Button variant="outline" onClick={runDepreciation} disabled={depRunning}>
               {depRunning ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Calendar className="h-4 w-4 mr-2" />}Run Depreciation
             </Button>
-            <Button onClick={() => { setForm({ assetName: "", hotelAssetCategoryId: null, acquisitionDate: todayLocal(), inServiceDate: "", residualValue: 0, usefulLifeMonths: 60, amount: 0, supplier: "", location: "", serialNumber: "", notes: "" }); setCreateOpen(true) }}>
+            <Button onClick={() => { setForm({ assetName: "", hotelAssetCategoryId: null, acquisitionDate: todayLocal(), inServiceDate: "", residualValue: 0, usefulLifeMonths: 60, amount: 0, supplier: "", location: "", serialNumber: "", notes: "", hotelSupplierId: null, hotelCashAccountId: null, amountPaid: "", dueDate: "" }); setCreateOpen(true) }}>
               <Plus className="h-4 w-4 mr-2" />New Asset
             </Button>
           </div>
@@ -190,7 +209,26 @@ export default function HotelAssetsPage() {
             <FormField label="Acquisition Cost"><Input type="number" step="0.01" value={form.amount || ""} onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })} /></FormField>
             <FormField label="Residual Value"><Input type="number" step="0.01" value={form.residualValue || ""} onChange={(e) => setForm({ ...form, residualValue: Number(e.target.value) })} /></FormField>
             <FormField label="Useful Life (Months)"><Input type="number" value={form.usefulLifeMonths} onChange={(e) => setForm({ ...form, usefulLifeMonths: Number(e.target.value) })} /></FormField>
-            <FormField label="Supplier"><Input value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} /></FormField>
+            <FormField label="Supplier">
+              <Select value={form.hotelSupplierId ? String(form.hotelSupplierId) : "none"} onValueChange={(v) => {
+                const s = suppliers.find((x) => String(x.hotelSupplierId) === v)
+                setForm({ ...form, hotelSupplierId: s ? s.hotelSupplierId : null, supplier: s ? s.supplierName : form.supplier })
+              }}>
+                <SelectTrigger><SelectValue placeholder="Select a supplier" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {suppliers.map((s) => <SelectItem key={s.hotelSupplierId} value={String(s.hotelSupplierId)}>{s.supplierName}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </FormField>
+            <FormField label="Amount paid now"><Input type="number" step="0.01" placeholder="Leave blank if paid in full." value={form.amountPaid} onChange={(e) => setForm({ ...form, amountPaid: e.target.value })} /></FormField>
+            <FormField label="Paid from">
+              <Select value={form.hotelCashAccountId ? String(form.hotelCashAccountId) : ""} onValueChange={(v) => setForm({ ...form, hotelCashAccountId: Number(v) })}>
+                <SelectTrigger><SelectValue placeholder="Select a cash account" /></SelectTrigger>
+                <SelectContent>{cashAccounts.map((a) => <SelectItem key={a.id} value={String(a.id)}>{a.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </FormField>
+            <FormField label="Balance due date"><Input type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} /></FormField>
             <FormField label="Location"><Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} /></FormField>
             <FormField label="Serial Number"><Input value={form.serialNumber} onChange={(e) => setForm({ ...form, serialNumber: e.target.value })} /></FormField>
             <FormField label="Notes"><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></FormField>

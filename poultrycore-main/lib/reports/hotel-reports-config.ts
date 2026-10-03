@@ -52,7 +52,7 @@ export const HOTEL_REPORT_GROUPS: HotelReportGroup[] = [
       { slug: "cash-flow-report",  title: "Cash Flow Report",    description: "Money in/out across all cash accounts with running balances",              icon: Landmark,        status: "ready" },
       { slug: "guest-ledger",      title: "Guest Ledger",        description: "Unpaid invoices aged by due date — who owes what, and for how long",      icon: Receipt,         status: "ready", dateMode: "none",  isNew: true },
       { slug: "ancillary-revenue", title: "Ancillary Revenue",   description: "Spend beyond the room — by charge type, per stay",                        icon: ShoppingCart,    status: "ready", dateMode: "range", isNew: true },
-      { slug: "staff-loans",       title: "Staff Loans & Advances", description: "What each staff member owes, and what was advanced and repaid in the period", icon: HandCoins,    status: "ready", dateMode: "range", isNew: true },
+      { slug: "staff-loans",       title: "Employee Loans & Advances", description: "What each staff member owes, and what was advanced and repaid in the period", icon: HandCoins,    status: "ready", dateMode: "range", isNew: true },
     ],
   },
   {

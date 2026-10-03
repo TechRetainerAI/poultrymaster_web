@@ -60,6 +60,8 @@ namespace PoultryFarmAPIWeb.Business
                 rep.StaffWages = Dec(r, "staffwages");
                 rep.TotalExpenseCategory = Dec(r, "totalexpensecategory");
                 rep.TotalExpenses = Dec(r, "totalexpenses");
+                rep.Depreciation = Dec(r, "depreciation");
+                rep.TotalOtherCosts = Dec(r, "totalothercosts");
 
                 rep.NetProfit = Dec(r, "netprofit");
                 rep.NetMarginPercent = DecN(r, "netmarginpercent");

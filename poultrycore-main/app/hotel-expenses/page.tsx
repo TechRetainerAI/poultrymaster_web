@@ -3,7 +3,11 @@ import { useEffect, useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
+import { useFmt } from "@/lib/currency"
+import { PageHeader } from "@/components/hotel/page-header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,8 +16,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
-import { Loader2, Wallet, Plus, Tag, CheckCircle2, XCircle, Send } from "lucide-react"
-import { PaginationControls } from "@/components/ui/pagination-controls"
+import { listHotelSuppliers, type HotelSupplier } from "@/lib/api/hotel-suppliers"
+import { Loader2, Wallet, Plus, Tag, CheckCircle2, XCircle, Send, Receipt, DollarSign, Search } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -44,16 +48,16 @@ export default function HotelExpensesPage() {
   const [expenses, setExpenses] = useState<HotelExpense[]>([])
   const [categories, setCategories] = useState<HotelExpenseCategory[]>([])
   const [accounts, setAccounts] = useState<HotelCashAccount[]>([])
+  const [suppliers, setSuppliers] = useState<HotelSupplier[]>([])
   const [loading, setLoading] = useState(true)
 
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [statusFilter, setStatusFilter] = useState("ALL")
-  const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(10)
 
   const [open, setOpen] = useState(false); const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState({ category: "", description: "", amount: 0, expenseDate: "", vendor: "", notes: "", paymentMethod: "Cash", hotelCashAccountId: null as number | null, paidTo: "", hotelExpenseCategoryId: null as number | null })
+  const [form, setForm] = useState({ category: "", description: "", amount: 0, expenseDate: "", vendor: "", notes: "", paymentMethod: "Cash", hotelCashAccountId: null as number | null, paidTo: "", hotelExpenseCategoryId: null as number | null, hotelSupplierId: null as number | null })
 
   const [catDlg, setCatDlg] = useState(false); const [newCatName, setNewCatName] = useState("")
   const [cancelTarget, setCancelTarget] = useState<any>(null)
@@ -70,6 +74,7 @@ export default function HotelExpensesPage() {
     try {
       const [es, cs, accs] = await Promise.all([listHotelExpenses(), listHotelExpenseCategories(), listHotelCashAccounts()])
       setExpenses(es); setCategories(cs); setAccounts(accs)
+      listHotelSuppliers().then((s) => setSuppliers(s.filter((x: any) => x.isActive !== false))).catch(() => setSuppliers([]))
     } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
     finally { setLoading(false) }
   }
@@ -80,6 +85,7 @@ export default function HotelExpensesPage() {
       category: firstCat?.name ?? "", description: "", amount: 0, expenseDate: todayLocal(),
       vendor: "", notes: "", paymentMethod: "Cash", hotelCashAccountId: null, paidTo: "",
       hotelExpenseCategoryId: firstCat?.hotelExpenseCategoryId ?? firstCat?.hotelexpensecategoryid ?? null,
+      hotelSupplierId: null,
     })
     setOpen(true)
   }
@@ -88,6 +94,9 @@ export default function HotelExpensesPage() {
     if (!form.description.trim()) { toast({ title: "Description required", variant: "destructive" }); return }
     if (form.amount <= 0) { toast({ title: "Amount must be > 0", variant: "destructive" }); return }
     if (form.paymentMethod !== "Credit" && !form.hotelCashAccountId) { toast({ title: "Select a cash account", variant: "destructive" }); return }
+    // Poultry: an expense not paid now is owed to someone -- it needs a supplier
+    // to appear on Supplier Balances (migration 332).
+    if (form.paymentMethod === "Credit" && !form.hotelSupplierId) { toast({ title: "Choose the supplier this expense is owed to", variant: "destructive" }); return }
     setSaving(true)
     try {
       await createHotelExpense(form)
@@ -126,11 +135,24 @@ export default function HotelExpensesPage() {
     } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
   }
 
-  // Filter
+  // ?expenseId= (from Supplier Balances / Payments) narrows the list to one bill.
+  const [focusId, setFocusId] = useState<number | null>(null)
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const v = new URLSearchParams(window.location.search).get("expenseId")
+    if (v) setFocusId(Number(v) || null)
+  }, [])
+
+  // Poultry's list filters (app/expenses): search and category, plus the Hotel's
+  // approval status and dates, applied in the browser.
+  const [categoryFilter, setCategoryFilter] = useState("all")
   const filtered = useMemo(() => {
     return expenses.filter((e: any) => {
+      const id = e.hotelExpenseId ?? e.hotelexpenseid
+      if (focusId != null && id !== focusId) return false
       const status = e.status ?? e.Status ?? "Draft"
       if (statusFilter !== "ALL" && status !== statusFilter) return false
+      if (categoryFilter !== "all" && (e.category || "Uncategorized") !== categoryFilter) return false
       const d = (e.expenseDate ?? e.expensedate ?? "").slice(0, 10)
       if (dateFrom && d < dateFrom) return false
       if (dateTo && d > dateTo) return false
@@ -141,101 +163,213 @@ export default function HotelExpensesPage() {
       }
       return true
     })
-  }, [expenses, statusFilter, dateFrom, dateTo, search])
+  }, [expenses, statusFilter, categoryFilter, dateFrom, dateTo, search, focusId])
 
-  const paginatedItems = filtered.slice((page - 1) * pageSize, page * pageSize)
-
-  const approvedTotal = filtered.filter((e: any) => (e.status ?? "Draft") === "Approved").reduce((s: number, e: any) => s + Number(e.amount ?? 0), 0)
+  const fmt = useFmt()
+  const pg = usePagination(filtered, 25)
   const statusCounts = { Draft: 0, Submitted: 0, Approved: 0, Cancelled: 0 }
   expenses.forEach((e: any) => { const s = e.status ?? "Draft"; if (s in statusCounts) (statusCounts as any)[s]++ })
+  // Poultry's two cards (app/expenses): This Month and the total of whatever the
+  // filters leave. A cancelled expense is not spending, so it is left out.
+  const live = (e: any) => (e.status ?? "Draft") !== "Cancelled"
+  const todayStr = todayLocal()
+  const monthStr = todayStr.slice(0, 7)
+  const dateOf = (e: any) => String(e.expenseDate ?? e.expensedate ?? "").slice(0, 10)
+  const monthTotal = expenses.filter((e: any) => live(e) && dateOf(e).startsWith(monthStr)).reduce((s: number, e: any) => s + Number(e.amount ?? 0), 0)
+  const todayTotal = expenses.filter((e: any) => live(e) && dateOf(e) === todayStr).reduce((s: number, e: any) => s + Number(e.amount ?? 0), 0)
+  const catTotals: Record<string, number> = {}
+  expenses.filter(live).forEach((e: any) => { const c = e.category || "Uncategorized"; catTotals[c] = (catTotals[c] ?? 0) + Number(e.amount ?? 0) })
+  const topCategory = Object.entries(catTotals).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "-"
+  const filteredTotal = filtered.filter(live).reduce((s: number, e: any) => s + Number(e.amount ?? 0), 0)
+  const categoryOptions = Array.from(new Set(expenses.map((e: any) => e.category || "Uncategorized"))).sort() as string[]
+
+  // The Hotel's approval workflow, as buttons (phone cards and desktop rows alike).
+  const workflowButtons = (e: any, compact: boolean) => {
+    const status = e.status ?? "Draft"
+    const cls = compact ? "" : "flex-1 h-10"
+    return (
+      <>
+        {status === "Draft" && (
+          <Button size="sm" variant={compact ? "ghost" : "outline"} className={cls} onClick={() => doAction(e, "submit")} title="Submit">
+            <Send className={`h-4 w-4 text-blue-600 ${compact ? "" : "mr-2"}`} />{!compact && "Submit"}
+          </Button>
+        )}
+        {(status === "Draft" || status === "Submitted") && (
+          <Button size="sm" variant={compact ? "ghost" : "outline"} className={cls} onClick={() => doAction(e, "approve")} title="Approve">
+            <CheckCircle2 className={`h-4 w-4 text-emerald-600 ${compact ? "" : "mr-2"}`} />{!compact && "Approve"}
+          </Button>
+        )}
+        {status !== "Cancelled" && status !== "Approved" && (
+          <Button size="sm" variant={compact ? "ghost" : "outline"} className={`${cls} ${compact ? "" : "text-red-600 border-red-200 hover:bg-red-50"}`} onClick={() => setCancelTarget(e)} title="Cancel">
+            <XCircle className={`h-4 w-4 text-red-500 ${compact ? "" : "mr-2"}`} />{!compact && "Cancel"}
+          </Button>
+        )}
+      </>
+    )
+  }
 
   return (
     <div className="flex h-screen bg-slate-50"><DashboardSidebar onLogout={logout} /><div className="flex-1 flex flex-col min-w-0 overflow-hidden"><DashboardHeader />
-      <main className="flex-1 overflow-auto p-4 md:p-6">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-3">
-            <Wallet className="h-6 w-6 text-violet-600" />
-            <h1 className="text-2xl font-bold">Expenses</h1>
+      <main className="flex-1 overflow-y-auto p-4 md:p-6">
+        <div className="max-w-7xl mx-auto space-y-6">
+          <PageHeader icon={Receipt} title="Expenses" subtitle="Track expenses, categories, and financial overview">
+            <Button variant="outline" onClick={() => setCatDlg(true)}><Tag className="h-4 w-4 mr-2" /> Categories</Button>
+            <Button onClick={openNew} className="bg-violet-600 hover:bg-violet-700"><Plus className="h-4 w-4 mr-2" /> Record Expense</Button>
+          </PageHeader>
+
+          {/* Summary Cards -- Poultry's (app/expenses). */}
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
+            <Card className="bg-white">
+              <CardHeader className="pb-2"><CardDescription>This Month</CardDescription></CardHeader>
+              <CardContent className="min-w-0">
+                <div className="font-bold text-slate-900 leading-tight whitespace-nowrap text-3xl md:text-2xl">{fmt(monthTotal)}</div>
+                <p className="mt-1 text-xs text-slate-500">Today {fmt(todayTotal)} · Top category {topCategory}</p>
+              </CardContent>
+            </Card>
+            <Card className="bg-white">
+              <CardHeader className="pb-2"><CardDescription>Total (Filtered)</CardDescription></CardHeader>
+              <CardContent className="min-w-0">
+                <div className="font-bold text-slate-900 leading-tight whitespace-nowrap text-3xl md:text-2xl">{fmt(filteredTotal)}</div>
+                <p className="mt-1 text-xs text-slate-500">
+                  {filtered.length} {filtered.length === 1 ? "expense" : "expenses"} · {statusCounts.Draft + statusCounts.Submitted} awaiting approval
+                </p>
+              </CardContent>
+            </Card>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setCatDlg(true)}><Tag className="h-4 w-4 mr-1" /> Categories</Button>
-            <Button onClick={openNew} className="bg-violet-600 hover:bg-violet-700"><Plus className="h-4 w-4 mr-1" /> Record Expense</Button>
+
+          {/* Approval status */}
+          <div className="flex gap-2 flex-wrap">
+            {[{ s: "ALL", l: "All", c: expenses.length }, { s: "Draft", l: "Draft", c: statusCounts.Draft }, { s: "Submitted", l: "Submitted", c: statusCounts.Submitted }, { s: "Approved", l: "Approved", c: statusCounts.Approved }, { s: "Cancelled", l: "Cancelled", c: statusCounts.Cancelled }].map(f => (
+              <Button key={f.s} variant={statusFilter === f.s ? "default" : "outline"} size="sm" onClick={() => setStatusFilter(f.s)} className={statusFilter === f.s ? "bg-violet-600 hover:bg-violet-700" : ""}>
+                {f.l} ({f.c})
+              </Button>
+            ))}
           </div>
-        </div>
 
-        {/* Status filter badges */}
-        <div className="flex gap-2 flex-wrap mb-3">
-          {[{ s: "ALL", l: "All", c: expenses.length }, { s: "Draft", l: "Draft", c: statusCounts.Draft }, { s: "Submitted", l: "Submitted", c: statusCounts.Submitted }, { s: "Approved", l: "Approved", c: statusCounts.Approved }, { s: "Cancelled", l: "Cancelled", c: statusCounts.Cancelled }].map(f => (
-            <Button key={f.s} variant={statusFilter === f.s ? "default" : "outline"} size="sm" onClick={() => { setStatusFilter(f.s); setPage(1) }} className={statusFilter === f.s ? "bg-violet-600" : ""}>
-              {f.l} ({f.c})
-            </Button>
-          ))}
-        </div>
-
-        {/* Search and date filters */}
-        <div className="flex gap-3 flex-wrap mb-3">
-          <Input placeholder="Search category, description, vendor..." className="max-w-xs" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} />
-          <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1) }} className="w-40" />
-          <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1) }} className="w-40" />
-        </div>
-
-        {/* Summary cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-          <Card><CardContent className="p-3"><div className="text-xs text-slate-500">Approved Total</div><div className="text-xl font-bold text-emerald-700">{approvedTotal.toFixed(2)}</div></CardContent></Card>
-          <Card><CardContent className="p-3"><div className="text-xs text-slate-500">Showing</div><div className="text-xl font-bold">{filtered.length}</div></CardContent></Card>
-          <Card><CardContent className="p-3"><div className="text-xs text-slate-500">Pending Review</div><div className="text-xl font-bold text-blue-700">{statusCounts.Draft + statusCounts.Submitted}</div></CardContent></Card>
-          <Card><CardContent className="p-3"><div className="text-xs text-slate-500">Categories</div><div className="text-xl font-bold">{categories.length}</div></CardContent></Card>
-        </div>
-
-        {loading ? <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-violet-600" /></div> : (
-          <Card><CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[520px]">
-              <thead className="bg-slate-50 border-b"><tr>
-                <th className="text-left p-3">Date</th>
-                <th className="text-left p-3">Category</th>
-                <th className="text-left p-3">Description</th>
-                <th className="text-right p-3">Amount</th>
-                <th className="text-left p-3">Paid To</th>
-                <th className="text-left p-3">Method</th>
-                <th className="text-left p-3">Account</th>
-                <th className="text-left p-3">Status</th>
-                <th className="text-right p-3">Actions</th>
-              </tr></thead>
-              <tbody>
-                {paginatedItems.map((e: any) => {
-                  const id = e.hotelExpenseId ?? e.hotelexpenseid
-                  const status = e.status ?? "Draft"
-                  const acct = accounts.find((a: any) => (a.hotelCashAccountId ?? a.hotelcashaccountid) === (e.hotelCashAccountId ?? e.hotelcashaccountid))
-                  return (
-                    <tr key={id} className="border-b hover:bg-slate-50">
-                      <td className="p-3 whitespace-nowrap">{(e.expenseDate ?? e.expensedate)?.slice?.(0, 10)}</td>
-                      <td className="p-3">{e.category}</td>
-                      <td className="p-3 max-w-[200px] truncate">{e.description}</td>
-                      <td className="p-3 text-right font-semibold">{Number(e.amount).toFixed(2)}</td>
-                      <td className="p-3">{e.paidTo ?? e.paidto ?? e.vendor ?? "—"}</td>
-                      <td className="p-3">{e.paymentMethod ?? e.paymentmethod ?? "Cash"}</td>
-                      <td className="p-3 text-xs">{(acct as any)?.accountName ?? (acct as any)?.accountname ?? "—"}</td>
-                      <td className="p-3"><Badge className={STATUS_COLORS[status] ?? ""}>{status}</Badge></td>
-                      <td className="p-3 text-right whitespace-nowrap">
-                        {status === "Draft" && <Button size="sm" variant="ghost" onClick={() => doAction(e, "submit")} title="Submit"><Send className="h-4 w-4 text-blue-600" /></Button>}
-                        {(status === "Draft" || status === "Submitted") && <Button size="sm" variant="ghost" onClick={() => doAction(e, "approve")} title="Approve"><CheckCircle2 className="h-4 w-4 text-emerald-600" /></Button>}
-                        {status !== "Cancelled" && status !== "Approved" && <Button size="sm" variant="ghost" onClick={() => setCancelTarget(e)} title="Cancel"><XCircle className="h-4 w-4 text-red-500" /></Button>}
-                      </td>
-                    </tr>
-                  )
-                })}
-                {filtered.length === 0 && <tr><td colSpan={9} className="p-8 text-center text-slate-400">No expenses found.</td></tr>}
-              </tbody>
-              </table>
+          {/* Filters */}
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">From</Label>
+              <Input type="date" className="h-9 w-40" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
             </div>
-            <PaginationControls page={page} pageSize={pageSize} total={filtered.length} onPageChange={setPage} onPageSizeChange={(ps) => { setPageSize(ps); setPage(1) }} />
-          </CardContent></Card>
-        )}
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">To</Label>
+              <Input type="date" className="h-9 w-40" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+            </div>
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+              <Input className="h-9 pl-8" placeholder="Search expenses..." value={search} onChange={(e) => setSearch(e.target.value)} />
+            </div>
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="h-9 w-full sm:w-[180px]"><SelectValue placeholder="Category" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All categories</SelectItem>
+                {categoryOptions.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {(search || categoryFilter !== "all" || dateFrom || dateTo || focusId != null) && (
+              <Button variant="ghost" size="sm" className="h-9" onClick={() => { setSearch(""); setCategoryFilter("all"); setDateFrom(""); setDateTo(""); setFocusId(null) }}>Clear</Button>
+            )}
+          </div>
+
+          {loading ? <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-violet-600" /></div>
+          : expenses.length === 0 ? (
+            <Card className="bg-white">
+              <CardContent className="py-12 text-center">
+                <Receipt className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-slate-900 mb-2">No expenses recorded yet</h3>
+                <p className="text-slate-600 mb-4">Track your hotel's daily expenses and costs</p>
+                <Button onClick={openNew} className="bg-violet-600 hover:bg-violet-700"><Plus className="h-4 w-4 mr-2" /> Record First Expense</Button>
+              </CardContent>
+            </Card>
+          ) : filtered.length === 0 ? (
+            <Card className="bg-white">
+              <CardContent className="py-12 text-center">
+                <DollarSign className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-slate-900 mb-2">No expenses found</h3>
+                <p className="text-slate-600">No expenses match your search criteria.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="bg-white overflow-hidden">
+              <CardHeader><CardTitle>Expenses</CardTitle><CardDescription>Manage your hotel expenses</CardDescription></CardHeader>
+              <CardContent className="p-0">
+                {/* Poultry's phone layout (app/expenses): one expandable card per
+                    expense, with "View table format" for the columns. */}
+                <MobileCardList
+                  items={pg.pageItems}
+                  pagination={pg.paginationProps}
+                  striped
+                  getKey={(e: any) => e.hotelExpenseId ?? e.hotelexpenseid}
+                  primary={(e: any) => (
+                    <span className="flex items-center gap-2">
+                      <span className="shrink-0">{fmtShortDate(dateOf(e))}</span>
+                      {e.category && <Badge className="bg-violet-100 text-violet-700 border-violet-200 hover:bg-violet-100">{e.category}</Badge>}
+                    </span>
+                  )}
+                  secondary={(e: any) => (
+                    <span className="flex items-baseline gap-3 min-w-0">
+                      <span className="text-lg font-bold text-red-600 shrink-0">{fmt(Number(e.amount ?? 0))}</span>
+                      <span className="truncate">{e.description}</span>
+                    </span>
+                  )}
+                  details={(e: any) => {
+                    const acct = accounts.find((a: any) => (a.hotelCashAccountId ?? a.hotelcashaccountid) === (e.hotelCashAccountId ?? e.hotelcashaccountid))
+                    return [
+                      { label: "Payment", value: e.paymentMethod ?? e.paymentmethod ?? "Cash" },
+                      { label: "Paid to", value: e.paidTo ?? e.paidto ?? e.vendor ?? "N/A" },
+                      { label: "Status", value: e.status ?? "Draft" },
+                      { label: "Account", value: (acct as any)?.accountName ?? (acct as any)?.accountname ?? "—" },
+                      ...(e.notes ? [{ label: "Notes", value: e.notes }] : []),
+                    ]
+                  }}
+                  actions={(e: any) => workflowButtons(e, false)}
+                  desktopTable={(
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm min-w-[760px]">
+                        <thead className="bg-slate-50 border-b"><tr>
+                          <th className="text-left p-3">Date</th>
+                          <th className="text-left p-3">Description</th>
+                          <th className="text-left p-3">Category</th>
+                          <th className="text-left p-3">Supplier / Paid To</th>
+                          <th className="text-left p-3">Method</th>
+                          <th className="text-left p-3">Account</th>
+                          <th className="text-left p-3">Status</th>
+                          <th className="text-right p-3">Total</th>
+                          <th className="text-right p-3">Actions</th>
+                        </tr></thead>
+                        <tbody>
+                          {pg.pageItems.map((e: any) => {
+                            const id = e.hotelExpenseId ?? e.hotelexpenseid
+                            const status = e.status ?? "Draft"
+                            const acct = accounts.find((a: any) => (a.hotelCashAccountId ?? a.hotelcashaccountid) === (e.hotelCashAccountId ?? e.hotelcashaccountid))
+                            return (
+                              <tr key={id} className="border-b hover:bg-violet-50 transition-colors">
+                                <td className="p-3 text-xs text-muted-foreground whitespace-nowrap">{dateOf(e)}</td>
+                                <td className="p-3 font-medium text-gray-900 max-w-[220px] truncate">{e.description}</td>
+                                <td className="p-3">{e.category ? <Badge variant="secondary" className="text-xs bg-violet-50 text-violet-700 border-violet-200">{e.category}</Badge> : "—"}</td>
+                                <td className="p-3 text-xs">{e.paidTo ?? e.paidto ?? e.vendor ?? "—"}</td>
+                                <td className="p-3"><Badge variant="outline" className="text-xs">{e.paymentMethod ?? e.paymentmethod ?? "Cash"}</Badge></td>
+                                <td className="p-3 text-xs">{(acct as any)?.accountName ?? (acct as any)?.accountname ?? "—"}</td>
+                                <td className="p-3"><Badge className={STATUS_COLORS[status] ?? ""}>{status}</Badge></td>
+                                <td className="p-3 text-right font-bold text-red-600">{fmt(Number(e.amount ?? 0))}</td>
+                                <td className="p-3 text-right whitespace-nowrap">{workflowButtons(e, true)}</td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                />
+              </CardContent>
+            </Card>
+          )}
+        </div>
 
         {/* Create Expense Dialog */}
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2"><Wallet className="h-5 w-5 text-violet-600" /> Record Expense</DialogTitle>
               <DialogDescription>Log a new expense for review and approval</DialogDescription>
@@ -298,6 +432,22 @@ export default function HotelExpensesPage() {
               </FormSection>
 
               <FormSection title="Details" color="slate" columns={1}>
+                <FormField label={form.paymentMethod === "Credit" ? "Supplier *" : "Supplier"}>
+                  <Select
+                    value={form.hotelSupplierId ? String(form.hotelSupplierId) : "none"}
+                    onValueChange={(v) => {
+                      const s = suppliers.find((x) => String(x.hotelSupplierId) === v)
+                      setForm({ ...form, hotelSupplierId: s ? s.hotelSupplierId : null, paidTo: s ? s.supplierName : form.paidTo })
+                    }}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select a supplier" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {suppliers.map((s) => <SelectItem key={s.hotelSupplierId} value={String(s.hotelSupplierId)}>{s.supplierName}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  {form.paymentMethod === "Credit" && <p className="mt-1 text-xs text-slate-500">Once approved, this bill appears on Supplier Balances.</p>}
+                </FormField>
                 <FormField label="Paid to / Vendor">
                   <Input value={form.paidTo} onChange={(e) => setForm({ ...form, paidTo: e.target.value })} placeholder="Supplier name" />
                 </FormField>
@@ -318,7 +468,7 @@ export default function HotelExpensesPage() {
 
         {/* Categories Dialog */}
         <Dialog open={catDlg} onOpenChange={setCatDlg}>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2"><Tag className="h-5 w-5 text-violet-600" /> Expense Categories</DialogTitle>
               <DialogDescription>Manage categories for hotel expenses</DialogDescription>
@@ -357,4 +507,12 @@ export default function HotelExpensesPage() {
         </Dialog>
       </main></div></div>
   )
+}
+
+/** "Sep 28, 26" -- Poultry's short card date, read off the yyyy-mm-dd string so no time zone can move it. */
+function fmtShortDate(d?: string | null): string {
+  const [y, m, day] = (d ?? "").split("T")[0].split("-")
+  if (!y || !m || !day) return d ?? "—"
+  const mon = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][Number(m) - 1] ?? m
+  return `${mon} ${Number(day)}, ${y.slice(2)}`
 }

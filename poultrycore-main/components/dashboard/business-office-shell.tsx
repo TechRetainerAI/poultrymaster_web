@@ -13,7 +13,7 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useToast } from "@/hooks/use-toast"
-import { Briefcase, Building2, Bird, Droplets, ShoppingBag, Bell, HelpCircle, LogOut, Menu, Settings, Plus, Loader2 } from "lucide-react"
+import { Briefcase, Building2, Bird, Droplets, ShoppingBag, Bell, HelpCircle, LogOut, Menu, Settings, CreditCard, Plus, Loader2 } from "lucide-react"
 import { BoCompanySelector } from "@/components/dashboard/bo-company-selector"
 import { getMyCompanies, switchCompany, dashboardHomeForType, type Company } from "@/lib/api/companies"
 import { companyColorMap, companyInitial, FALLBACK_COMPANY_COLOR } from "@/lib/utils/company-color"
@@ -27,7 +27,7 @@ function typeIcon(type?: string | null) {
   return Building2
 }
 
-type ActiveKey = "home" | "companies" | "employees" | "users" | "settings" | "org" | "help"
+type ActiveKey = "home" | "companies" | "employees" | "users" | "settings" | "billing" | "org" | "help"
 
 export function BusinessOfficeShell({ active, children }: { active: ActiveKey; children: ReactNode }) {
   const logout = useLogout()
@@ -114,12 +114,13 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
     // { key: "tasks", href: "/business-office#tasks", label: "My Tasks", icon: ListTodo },
     // { key: "notices", href: "/business-office#notices", label: "Notifications", icon: Bell },
   ]
-  // Administration group — one entry, and it sits at the BOTTOM of the nav
-  // (below the companies list) since day-to-day work is picking a company, not
-  // setup. Organization Profile, Users & Permissions and Companies are tabs
-  // inside it.
+  // Administration group — sits at the BOTTOM of the nav (below the companies
+  // list) since day-to-day work is picking a company, not setup. Organization
+  // Profile, Users & Permissions and Companies are tabs inside Administration;
+  // Billing is its own page right below it (James, 2026-10-01).
   const business = isAdmin ? [
     { key: "settings", href: "/business-office/setup", label: "Administration", icon: Settings },
+    { key: "billing", href: "/business-office/billing", label: "Billing", icon: CreditCard },
   ] : []
 
   function Group({ title, items }: { title?: string; items: { key: string; href: string; label: string; icon: any }[] }) {

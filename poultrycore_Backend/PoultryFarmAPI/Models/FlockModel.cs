@@ -22,6 +22,19 @@
         /// beside the business date (migration 301). Null on a database that
         /// predates it.</summary>
         public DateTime? CreatedAt { get; set; }
+
+        /// <summary>
+        /// The closed state (migration 338). Set only by Close Flock, cleared only
+        /// by Reopen Flock -- a trigger refuses any other writer. A closed flock is
+        /// also inactive, but an inactive flock is not necessarily closed: the old
+        /// active toggle still exists for flocks that are paused, not finished.
+        /// </summary>
+        public DateTime? ClosedDate { get; set; }
+        public DateTime? ClosedAt { get; set; }
+        public string? ClosedBy { get; set; }
+        public string? CloseReason { get; set; }
+        public int? CloseoutId { get; set; }
+        public bool IsClosed => ClosedDate.HasValue;
 }
 
 }

@@ -370,7 +370,7 @@ export default function HotelPayrollPage() {
             </div>
             <div className="flex gap-2">
               <Button variant="outline" asChild>
-                <Link href="/hotel-employee-loans"><Coins className="h-4 w-4 mr-1" /> Staff loans</Link>
+                <Link href="/hotel-employee-loans"><Coins className="h-4 w-4 mr-1" /> Employee Loans &amp; Advances</Link>
               </Button>
               <Button onClick={openNewDialog} className="bg-violet-600 hover:bg-violet-700">
                 <Plus className="h-4 w-4 mr-1" /> New payroll run

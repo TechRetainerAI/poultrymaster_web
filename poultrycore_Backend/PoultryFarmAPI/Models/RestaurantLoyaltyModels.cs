@@ -95,6 +95,12 @@ namespace PoultryFarmAPIWeb.Models
         /// <summary>Write-only: the cash account the expense is paid from. Null = the
         /// default account for PaymentMethod (migration 323). Not read back.</summary>
         public int? CashAccountId { get; set; }
+        /// <summary>Write-only (migration 329): the supplier this is owed to / paid to.</summary>
+        public int? SupplierId { get; set; }
+        /// <summary>Write-only (329): cash paid now. Null = paid in full (every expense before 329).</summary>
+        public decimal? AmountPaid { get; set; }
+        /// <summary>Write-only (329): when an unpaid balance is due.</summary>
+        public DateTime? DueDate { get; set; }
     }
     public class ReceiptTemplateModel
     {
