@@ -23,8 +23,8 @@ class DashboardScreen extends StatefulWidget {
   final Session session;
   final VoidCallback onSignedOut;
 
-  /// Opens the "All pages" sheet — the hamburger does the same thing here as
-  /// the More tab does in the bottom bar.
+  /// The hamburger: the sidebar drawer for Poultry, the "All pages" sheet for
+  /// the other company types (see AppShell._openMenu).
   final VoidCallback? onMenu;
 
   @override

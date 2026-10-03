@@ -99,7 +99,7 @@ const Map<String, List<NavGroup>> webNavGroups = {
         NavLink('Egg tracker', '/egg-tracker', 'egginventoryadjustment'),
         NavLink('Feed tracker', '/feed-tracker', null),
         NavLink('Feed inventory tracker', '/feed-inventory-tracker', 'poultry-raw-material-purchases'),
-        NavLink('Birds tracker', '/birds-left-tracker', 'flock'),
+        NavLink('Birds tracker', '/birds-left-tracker', 'flocks'),
         NavLink('Medication tracker', '/medication-tracker', 'poultry-raw-material-items'),
         NavLink('Analytical Report', '/weekly-report', 'production-records'),
         NavLink('Ingredients only tracker', '/feed-ingredient-tracker', null),
@@ -154,6 +154,17 @@ const Map<String, List<NavGroup>> webNavGroups = {
         NavLink('Changes Report', '/poultry/reports/changes', 'auditlogs'),
       ]),
     ]),
+    // Hand-added: the web's Tools menu (poultry-nav-config.ts `tools`) was
+    // missing from the generated copy.
+    NavGroup('Tools', [
+      NavSubGroup('Tools', [
+        NavLink('Initial Farm Setup', '/poultry-farm-setup', null),
+        NavLink('Farm Completeness', '/poultry-farm-completeness', null),
+        NavLink('Daily Closing', '/poultry-daily-closing', 'poultry-daily-closings'),
+        NavLink('Distribute Feed', '/poultry-feed-distribution', null),
+        NavLink('Days of Supply', '/poultry-days-of-supply', null),
+      ]),
+    ]),
     NavGroup('Setup', [
       NavSubGroup('Company', [
         NavLink('Farm Setup', '/poultry-setup', 'poultry-farm-setup-status'),
@@ -195,63 +206,58 @@ const Map<String, List<NavGroup>> webNavGroups = {
       ]),
     ]),
   ],
+  // Hand-rebuilt 2026-10-02 from lib/nav/water-nav-config.ts, in the web
+  // sidebar's order. The generated copy predated that config and was a flat
+  // list of old groups.
   'water': [
     NavGroup('Quick Links', [
       NavSubGroup('', [
-        NavLink('Daily Closing', '/water-daily-closing', 'water-daily-closings'),
-        NavLink('Deliveries', '/water-driver-returns', 'water-driver-returns'),
-      ]),
-    ]),
-    NavGroup('Delivery', [
-      NavSubGroup('', [
-        NavLink('Drivers', '/water-drivers', 'water-drivers-list-for-farm'),
-        NavLink('Vehicles', '/water-vehicles', 'water-vehicles'),
-        NavLink('Routes', '/water-routes', 'water-routes'),
-        NavLink('Driver report', '/water-driver-report', 'water-reports-driver-collection'),
-      ]),
-    ]),
-    NavGroup('Production', [
-      NavSubGroup('', [
-        NavLink('Production Batches', '/water-production-batches', 'water-production-batches'),
+        NavLink('Water Production', '/water-production-batches', 'water-production-batches'),
         NavLink('Batch Production', '/water-daily-production', 'water-daily-productions'),
-        NavLink('Products', '/water-products', 'water-products'),
-        NavLink('Machines', '/water-machines', 'water-machines'),
-        NavLink('Boreholes', '/water-boreholes', 'water-boreholes'),
+        NavLink('Deliveries', '/water-driver-returns', 'water-driver-returns'),
+        NavLink('Sales', '/water-sales', 'water-sales'),
+        NavLink('Payments', '/water-payments', 'water-payments'),
+        NavLink('Expenses', '/water-expenses', 'water-expenses'),
+        NavLink('Daily Closing', '/water-daily-closing', 'water-daily-closings'),
+      ]),
+    ]),
+    NavGroup('Operations', [
+      NavSubGroup('Production', [
+        NavLink('Water Production', '/water-production-batches', 'water-production-batches'),
+        NavLink('Batch Production', '/water-daily-production', 'water-daily-productions'),
         NavLink('Maintenance', '/water-maintenance', 'water-maintenance'),
       ]),
-    ]),
-    NavGroup('Inventory', [
-      NavSubGroup('', [
+      NavSubGroup('Inventory', [
         NavLink('Stock movement', '/water-stock', 'water-stock-transactions'),
         NavLink('Inventory', '/water-inventory', 'water-products'),
         NavLink('Raw materials & supplies', '/water-raw-materials', 'water-raw-material-purchases'),
-        NavLink('Internal Use', '/water-internal-use', 'water-internal-usage'),
         NavLink('Damages & loss', '/water-loss-records', 'water-loss-records'),
         NavLink('Production losses', '/water-production-losses', 'water-production-losses'),
       ]),
+      NavSubGroup('Delivery', [
+        NavLink('Deliveries', '/water-driver-returns', 'water-driver-returns'),
+        NavLink('Driver collection report', '/water-driver-report', 'water-reports-driver-collection'),
+      ]),
     ]),
-    NavGroup('Sales', [
-      NavSubGroup('', [
+    NavGroup('Sales, Expenses & Money', [
+      NavSubGroup('Sales', [
         NavLink('Sales', '/water-sales', 'water-sales'),
         NavLink('Payments', '/water-payments', 'water-payments'),
         NavLink('Customer Balances', '/water-customer-balances', 'water-customer-balances'),
       ]),
-    ]),
-    NavGroup('Expenses', [
-      NavSubGroup('', [
+      NavSubGroup('Expenses', [
         NavLink('Expenses', '/water-expenses', 'water-expenses'),
+        NavLink('Internal Use', '/water-internal-use', 'water-internal-usage'),
         NavLink('Payroll', '/water-payroll', 'water-payroll-runs'),
+        NavLink('Employee Loans & Advances', '/water-employee-loans', 'water-employee-loans'),
         NavLink('Supplier Payments', '/water-supplier-payments', 'water-supplier-payments'),
         NavLink('Supplier Balances', '/water-supplier-balances', 'water-supplier-balances'),
         NavLink('Deferred inventory cost', '/water-deferred-costs', 'water-deferred-inventory-costs'),
         NavLink('Capital Investments/Assets', '/water-assets', 'water-assets'),
       ]),
-    ]),
-    NavGroup('Money', [
-      NavSubGroup('', [
-        NavLink('Financial Settings', '/water-financial-settings', 'water-financial-settings-items'),
+      NavSubGroup('Money', [
         NavLink('Cash Flow', '/water-cash-flow', 'water-cash-flow'),
-        NavLink('Profit & Loss', '/water-reports/profit-loss', 'water-reports-period-pnl'),
+        NavLink('Profit & Loss', '/water-profit-loss', null),
         NavLink('Owner Money', '/water-owner-money', 'water-owner-money'),
         NavLink('Loans', '/water-loans', 'water-loans'),
         NavLink('Cash accounts', '/water-cash-accounts', 'water-cash-accounts'),
@@ -259,36 +265,68 @@ const Map<String, List<NavGroup>> webNavGroups = {
         NavLink('Reconciliation', '/water-cash-reconciliation', 'water-cash-reconciliations'),
       ]),
     ]),
-    NavGroup('Finance', [
-      NavSubGroup('', [
-        NavLink('Customers', '/water-customers', 'water-customers'),
-        NavLink('Suppliers', '/water-suppliers', 'water-suppliers'),
-      ]),
-    ]),
-    NavGroup('People', [
-      NavSubGroup('', [
-        NavLink('Staff', '/water-staff', 'water-staff'),
-      ]),
-    ]),
-    NavGroup('Analytics & Reports', [
-      NavSubGroup('', [
+    NavGroup('Trackers', [
+      NavSubGroup('Trackers', [
         NavLink('Inventory tracker', '/water-inventory-tracker', 'water-reports-inventory-tracker'),
-        NavLink('Reports', '/water-reports', null),
       ]),
     ]),
     NavGroup('Reports', [
+      NavSubGroup('Reports', [
+        NavLink('Reports', '/water-reports', null),
+      ]),
+    ]),
+    NavGroup('Setup', [
+      NavSubGroup('Company', [
+        NavLink('Setup', '/water-setup', null),
+        NavLink('Company Setup', '/water-company-setup', 'water-company'),
+        NavLink('Financial Settings', '/water-financial-settings', 'water-financial-settings-items'),
+        NavLink('Companies', '/companies', 'companies-mine'),
+      ]),
+      NavSubGroup('Delivery', [
+        NavLink('Drivers', '/water-drivers', 'water-drivers-list-for-farm'),
+        NavLink('Vehicles', '/water-vehicles', 'water-vehicles'),
+        NavLink('Routes', '/water-routes', 'water-routes'),
+      ]),
+      NavSubGroup('Production', [
+        NavLink('Products', '/water-products', 'water-products'),
+      ]),
+      NavSubGroup('Finance', [
+        NavLink('Customers', '/water-customers', 'water-customers'),
+        NavLink('Suppliers', '/water-suppliers', 'water-suppliers'),
+      ]),
+      NavSubGroup('Plant', [
+        NavLink('Machines', '/water-machines', 'water-machines'),
+        NavLink('Boreholes', '/water-boreholes', 'water-boreholes'),
+      ]),
+      NavSubGroup('People', [
+        NavLink('Staff', '/water-staff', 'water-staff'),
+        NavLink('Users & Permissions', '/employees', 'admin-company-employees'),
+      ]),
+    ]),
+    NavGroup('System', [
+      NavSubGroup('Your account', [
+        NavLink('Account', '/profile', 'authentication-get-current-user'),
+        NavLink('Billing', '/billing', 'payments-subscription-tiers'),
+        NavLink('Activity Log', '/audit-logs', 'auditlogs'),
+        NavLink('Terms & Conditions', '/terms', null),
+      ]),
+    ]),
+    // Not on the web sidebar, whose Reports group is one link to the
+    // catalogue. Kept so the All pages sheet still opens each report directly.
+    NavGroup('Report pages', [
       NavSubGroup('', [
-        NavLink('Water Reports/Vehicle Usage', '/water-reports/vehicle-usage', 'water-vehicle-loadings'),
-        NavLink('Water Reports/Route Performance', '/water-reports/route-performance', 'water-reports-route-profitability'),
-        NavLink('Water Reports/Product Performance', '/water-reports/product-performance', 'water-production-batches'),
-        NavLink('Water Reports/Operational', '/water-reports/operational', 'water-reports-driver-reconciliation'),
-        NavLink('Water Reports/Money Movement', '/water-reports/money-movement', 'water-owner-money'),
-        NavLink('Water Reports/Loss Report', '/water-reports/loss-report', 'water-loss-records'),
-        NavLink('Water Reports/Inventory Report', '/water-reports/inventory-report', 'water-products'),
-        NavLink('Water Reports/Driver Accountability', '/water-reports/driver-accountability', 'water-reports-driver-reconciliation'),
-        NavLink('Water Reports/Delivery Run Report', '/water-reports/delivery-run-report', 'water-driver-returns'),
-        NavLink('Water Reports/Daily Summary', '/water-reports/daily-summary', 'water-daily-closings'),
-        NavLink('Water Reports/Cash Accounts', '/water-reports/cash-accounts', 'water-cash-accounts'),
+        NavLink('Profit & Loss', '/water-reports/profit-loss', 'water-reports-period-pnl'),
+        NavLink('Vehicle Usage', '/water-reports/vehicle-usage', 'water-vehicle-loadings'),
+        NavLink('Route Performance', '/water-reports/route-performance', 'water-reports-route-profitability'),
+        NavLink('Product Performance', '/water-reports/product-performance', 'water-production-batches'),
+        NavLink('Operational', '/water-reports/operational', 'water-reports-driver-reconciliation'),
+        NavLink('Money Movement', '/water-reports/money-movement', 'water-owner-money'),
+        NavLink('Loss Report', '/water-reports/loss-report', 'water-loss-records'),
+        NavLink('Inventory Report', '/water-reports/inventory-report', 'water-products'),
+        NavLink('Driver Accountability', '/water-reports/driver-accountability', 'water-reports-driver-reconciliation'),
+        NavLink('Delivery Run Report', '/water-reports/delivery-run-report', 'water-driver-returns'),
+        NavLink('Daily Summary', '/water-reports/daily-summary', 'water-daily-closings'),
+        NavLink('Cash Accounts', '/water-reports/cash-accounts', 'water-cash-accounts'),
         NavLink('Raw Material Usage', '/water-reports/raw-material-usage', 'water-raw-material-usage-history'),
         NavLink('Raw Material Purchases', '/water-reports/raw-material-purchase', 'water-raw-material-purchases'),
         NavLink('Production Report', '/water-reports/production-report', 'water-production-batches'),
@@ -297,13 +335,6 @@ const Map<String, List<NavGroup>> webNavGroups = {
         NavLink('Driver Collection', '/water-reports/driver-collection', 'water-reports-driver-collection'),
         NavLink('Supplier Activity', '/water-reports/supplier-activity', 'water-reports-supplier-activity'),
         NavLink('Top Customers', '/water-reports/top-customers', 'water-reports-top-customers'),
-      ]),
-    ]),
-    NavGroup('System', [
-      NavSubGroup('', [
-        NavLink('Water Dashboard', '/water-dashboard', 'water-dashboard-summary'),
-        NavLink('Setup', '/water-setup', null),
-        NavLink('Company Setup', '/water-company-setup', 'water-company'),
       ]),
     ]),
   ],
@@ -443,64 +474,119 @@ const Map<String, List<NavGroup>> webNavGroups = {
   // Restaurant had no entry here at all, so a restaurant company opened the
   // app to an empty menu. Mirrors lib/nav/restaurant-nav-config.ts: same
   // sections, same order, same labels as the site.
+  // Hand-rebuilt 2026-10-02 from the web sidebar's Restaurant branch
+  // (components/dashboard/sidebar.tsx) and lib/nav/restaurant-nav-config.ts,
+  // in the sidebar's order. The generated copy had no Sales / Expenses /
+  // Money at all, and sent Dashboard to Menu Items and POS to the order list.
+  //
+  // specKey null = the page has no list endpoint of its own (POS, the money
+  // reports, Restaurant Setup's tabs); it opens the real web page in-app.
   'restaurant': [
+    NavGroup('Quick Links', [
+      NavSubGroup('', [
+        NavLink('Sales', '/restaurant-sales', null),
+        NavLink('Tills & Shifts', '/restaurant-tills', 'restaurant-finance-shifts'),
+        NavLink('Expenses', '/restaurant-expenses', 'restaurant-expenses'),
+        NavLink('Cash Flow', '/restaurant-cash-flow', 'restaurant-cash-flow'),
+        NavLink('Profit & Loss', '/restaurant-profit-loss', null),
+        NavLink('Daily Closing', '/restaurant-daily-closing', 'restaurant-finance-daily-closing'),
+      ]),
+    ]),
     NavGroup('Orders', [
-      NavSubGroup('Orders', [
-        NavLink('POS / New Order', '/restaurant-pos', 'restaurant-orders'),
+      NavSubGroup('', [
+        NavLink('POS / New Order', '/restaurant-pos', null),
         NavLink('New Guest Orders', '/restaurant-pending-orders', 'restaurant-online-pending-orders'),
         NavLink('All Orders', '/restaurant-orders', 'restaurant-orders'),
       ]),
-      NavSubGroup('Kitchen', [
-        NavLink('Kitchen Display', '/restaurant-kds', 'restaurant-kds-stations'),
+    ]),
+    NavGroup('Kitchen', [
+      NavSubGroup('', [
+        NavLink('Kitchen Display', '/restaurant-kds', null),
       ]),
     ]),
-    NavGroup('Floor & Tables', [
-      NavSubGroup('Floor & Tables', [
+    NavGroup('Dining', [
+      NavSubGroup('', [
         NavLink('Restaurant Areas', '/restaurant-floor-plan', 'restaurant-floor-floors'),
         NavLink('Reservations & Waitlist', '/restaurant-reservations', 'restaurant-reservations'),
       ]),
     ]),
-    NavGroup('Online Ordering', [
-      NavSubGroup('Online Ordering', [
-        NavLink('QR Codes', '/restaurant-qr-print', 'restaurant-online-qr-codes'),
+    NavGroup('Delivery & Online', [
+      NavSubGroup('', [
         NavLink('Online Settings', '/restaurant-online-orders', 'restaurant-online-settings'),
-        NavLink('QR / Customer Order', '/restaurant-order-online', 'restaurant-public-menu'),
-      ]),
-      NavSubGroup('Delivery', [
         NavLink('Drivers & Dispatch', '/restaurant-delivery', 'restaurant-delivery-drivers'),
       ]),
     ]),
     NavGroup('Inventory', [
-      NavSubGroup('Inventory', [
+      NavSubGroup('', [
         NavLink('Ingredients & Stock', '/restaurant-inventory', 'restaurant-inventory-ingredients'),
-        NavLink('Expenses', '/restaurant-expenses', 'restaurant-expenses'),
       ]),
     ]),
-    NavGroup('Customers', [
-      NavSubGroup('Customers', [
+    NavGroup('Sales, Expenses & Money', [
+      NavSubGroup('Sales', [
+        NavLink('Sales', '/restaurant-sales', null),
+        NavLink('Payments', '/restaurant-payments', null),
+        NavLink('Customer Balances', '/restaurant-customer-balances', null),
+      ]),
+      NavSubGroup('Expenses', [
+        NavLink('Expenses', '/restaurant-expenses', 'restaurant-expenses'),
+        NavLink('Internal Use', '/restaurant-internal-use', null),
+        NavLink('Payroll', '/restaurant-payroll', 'restaurant-payroll-runs'),
+        NavLink('Employee Loans & Advances', '/restaurant-staff-loans', 'restaurant-staff-loans'),
+        NavLink('Supplier Payments', '/restaurant-supplier-payments', null),
+        NavLink('Supplier Balances', '/restaurant-supplier-balances', null),
+        NavLink('Deferred inventory cost', '/restaurant-deferred-costs', null),
+        NavLink('Capital Investments/Assets', '/restaurant-assets', null),
+      ]),
+      NavSubGroup('Money', [
+        NavLink('Cash Flow', '/restaurant-cash-flow', 'restaurant-cash-flow'),
+        NavLink('Financial Activity', '/restaurant-financial-activity', null),
+        NavLink('Profit & Loss', '/restaurant-profit-loss', null),
+        NavLink('Owner Money', '/restaurant-owner-money', 'restaurant-finance-owner-money'),
+        NavLink('Loans (Financing)', '/restaurant-loans', 'restaurant-finance-loans'),
+        NavLink('Cash Account', '/restaurant-cash-accounts', 'restaurant-finance-accounts'),
+        NavLink('Cash Transfers', '/restaurant-cash-transfers', 'restaurant-finance-transfers'),
+        NavLink('Reconciliation', '/restaurant-cash-reconciliation', null),
+      ]),
+    ]),
+    NavGroup('Growth', [
+      NavSubGroup('', [
         NavLink('Customers & CRM', '/restaurant-crm', 'restaurant-crm-customers'),
         NavLink('Loyalty & Rewards', '/restaurant-loyalty', 'restaurant-loyalty-accounts'),
-      ]),
-      NavSubGroup('More', [
         NavLink('Events & Catering', '/restaurant-events', 'restaurant-events'),
         NavLink('Gift Cards', '/restaurant-gift-cards', 'restaurant-gift-cards'),
         NavLink('Notifications', '/restaurant-notifications', 'restaurant-notifications'),
       ]),
     ]),
-    NavGroup('Setup', [
-      NavSubGroup('Menu & Staff', [
+    NavGroup('Reports', [
+      NavSubGroup('', [
+        NavLink('Reports', '/restaurant-reports', null),
+      ]),
+    ]),
+    NavGroup('Menu & Setup', [
+      NavSubGroup('', [
         NavLink('Menu Items', '/restaurant-menu', 'restaurant-menu-items'),
-        NavLink('Staff & Roles', '/restaurant-staff', 'restaurant-staff'),
-        NavLink('Restaurant Setup', '/restaurant-setup', 'restaurant-setup-profile'),
+        NavLink('Staff', '/restaurant-staff', 'restaurant-staff'),
+        NavLink('Restaurant Setup', '/restaurant-setup', null),
       ]),
     ]),
     NavGroup('System', [
-      NavSubGroup('Account', [
-        NavLink('Income & Expenses', '/restaurant-payments', 'restaurant-expenses'),
-        NavLink('Restaurant Dashboard', '/restaurant-dashboard', 'restaurant-menu-items'),
-        NavLink('My Account', '/profile', 'authentication-get-current-user'),
+      NavSubGroup('', [
+        NavLink('Users & Permissions', '/employees', 'admin-company-employees'),
+        NavLink('Account', '/profile', 'authentication-get-current-user'),
         NavLink('Companies', '/companies', 'companies-mine'),
-        NavLink('Billing', '/billing', 'payments-subscription-tiers'),
+        NavLink('Billing', '/business-office/billing', 'payments-subscription-tiers'),
+        NavLink('Activity Log', '/audit-logs', 'auditlogs'),
+        NavLink('Terms & Conditions', '/terms', null),
+      ]),
+    ]),
+    // Not on the web sidebar, but in the top nav (Setup > Finance, Online
+    // Ordering, Inventory). Kept so the All pages sheet still reaches them.
+    NavGroup('More pages', [
+      NavSubGroup('', [
+        NavLink('Suppliers', '/restaurant-suppliers', 'restaurant-setup-suppliers'),
+        NavLink('QR / Customer Order', '/restaurant-order-online', 'restaurant-public-menu'),
+        NavLink('QR Codes', '/restaurant-qr-print', 'restaurant-online-qr-codes'),
+        NavLink('Record Purchase', '/restaurant-inventory?purchase=1', null),
       ]),
     ]),
   ],

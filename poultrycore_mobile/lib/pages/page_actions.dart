@@ -10,6 +10,9 @@ class PageActions {
 
 const Map<String, PageActions> pageActions = {
   "admin-company-employees": PageActions(action: "Add Employee", canEdit: true, canDelete: true),
+  // Hand-added 2026-10-02: the web offers these on Restaurant CRM / Suppliers.
+  "restaurant-crm-customers": PageActions(action: "Add Customer", canEdit: true, canDelete: true),
+  "restaurant-setup-suppliers": PageActions(action: "Add supplier", canEdit: true, canDelete: true),
   "announcements": PageActions(canDelete: true),
   "assets": PageActions(canEdit: true),
   "authentication-get-current-user": PageActions(canEdit: true),
@@ -58,7 +61,7 @@ const Map<String, PageActions> pageActions = {
   "poultry-daily-closings": PageActions(action: "New closing", canEdit: true, canDelete: true),
   "poultry-deliveries": PageActions(action: "New load"),
   "poultry-driver-returns": PageActions(action: "Add product", canEdit: true, canDelete: true),
-  "poultry-drivers": PageActions(action: "New employee", canEdit: true, canDelete: true),
+  "poultry-drivers": PageActions(action: "New employee & driver", canEdit: true, canDelete: true),
   "poultry-feed-formulas": PageActions(action: "New Formula", canEdit: true, canDelete: true),
   "poultry-feed-production": PageActions(action: "New Batch", canEdit: true, canDelete: true),
   "poultry-internal-usage-suggested-cost": PageActions(canEdit: true, canDelete: true),
@@ -66,6 +69,8 @@ const Map<String, PageActions> pageActions = {
   "poultry-payroll-deductions": PageActions(action: "New payroll run", canEdit: true, canDelete: true),
   "poultry-products": PageActions(action: "New product", canEdit: true, canDelete: true),
   "poultry-staff": PageActions(action: "New staff", canEdit: true, canDelete: true),
+  // Hand-added: the web Routes page has New route, Edit and Delete.
+  "poultry-routes": PageActions(action: "New route", canEdit: true, canDelete: true),
   "poultry-vehicles": PageActions(action: "New vehicle", canEdit: true, canDelete: true),
   "production-records": PageActions(action: "Log Production", canEdit: true, canDelete: true),
   "productionbatchrecord": PageActions(action: "Log Batch Production"),

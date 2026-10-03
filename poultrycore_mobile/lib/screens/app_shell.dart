@@ -4,6 +4,7 @@ import '../models/company.dart';
 import '../models/module.dart';
 import '../state/session.dart';
 import '../widgets/all_pages_sheet.dart';
+import '../widgets/module_sidebar.dart';
 import 'dashboard_screen.dart';
 import 'module_placeholder_screen.dart';
 
@@ -41,7 +42,7 @@ class _AppShellState extends State<AppShell> {
       DashboardScreen(
         session: session,
         onSignedOut: widget.onSignedOut,
-        onMenu: () => _openMore(context, company.type),
+        onMenu: () => _openMenu(context, company),
       ),
       for (final m in tabs.skip(1))
         pageFor(module: m, company: company, session: session),
@@ -56,6 +57,21 @@ class _AppShellState extends State<AppShell> {
         onSelect: (i) => setState(() => _index = i),
         onMore: () => _openMore(context, company.type),
       ),
+    );
+  }
+
+  /// The hamburger. Poultry, Water and Restaurant get the web's sidebar; the other
+  /// company types keep the "All pages" sheet until they are ported.
+  void _openMenu(BuildContext context, Company company) {
+    if (!hasSidebar(company.type)) {
+      _openMore(context, company.type);
+      return;
+    }
+    showModuleSidebar(
+      context,
+      session: widget.session,
+      company: company,
+      onSignedOut: widget.onSignedOut,
     );
   }
 

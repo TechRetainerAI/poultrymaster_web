@@ -1,3 +1,4 @@
+import '../api/api_client.dart';
 import '../design/ui/inputs.dart';
 import '../models/company.dart';
 import '../state/session.dart';
@@ -26,7 +27,14 @@ class LookupLoader {
   }
 
   /// Options for `specKey.fieldName`, or null when the site has no list for it.
-  Future<List<AppSelectItem<String>>>? optionsFor(String slot) {
+  ///
+  /// [label], when given, words each option the way the web page does
+  /// ("Truck 1 (Truck) — Inactive") instead of the source's label field.
+  Future<List<AppSelectItem<String>>>? optionsFor(
+    String slot, {
+    String Function(Map row)? label,
+  }) {
+    ApiClient.addWriteListener(clear);
     final fixed = staticOptions[slot];
     if (fixed != null) {
       return Future.value([
@@ -39,12 +47,13 @@ class LookupLoader {
     if (src == null) return _discover(slot);
 
     final path = _api(src.path.replaceAll('{farmId}', company.farmId));
-    final cacheKey = '${company.farmId}|$path|${src.value}|${src.label}';
+    final cacheKey =
+        '${company.farmId}|$path|${src.value}|${src.label}|${label == null ? '' : identityHashCode(label)}';
     final done = _cache[cacheKey];
     if (done != null) return Future.value(done);
     return _inFlight.putIfAbsent(cacheKey, () async {
       try {
-        final items = await _fetch(path, src);
+        final items = await _fetch(path, src, label);
         _cache[cacheKey] = items;
         return items;
       } finally {
@@ -203,7 +212,8 @@ class LookupLoader {
       .replaceAllMapped(RegExp(r'([a-z0-9])([A-Z])'), (m) => '${m[1]}-${m[2]}')
       .toLowerCase();
 
-  Future<List<AppSelectItem<String>>> _fetch(String path, LookupSource src) async {
+  Future<List<AppSelectItem<String>>> _fetch(
+      String path, LookupSource src, String Function(Map row)? format) async {
     final res = await session.farmClient.get(path, query: {
       'farmId': company.farmId,
       'userId': session.tokens.userId ?? '',
@@ -217,7 +227,7 @@ class LookupLoader {
       final value = row[src.value] ?? row[_lower(src.value)];
       if (value == null || '$value'.isEmpty) continue;
       if (!seen.add('$value')) continue;
-      final label = row[src.label] ?? row[_lower(src.label)];
+      final label = format != null ? format(row) : (row[src.label] ?? row[_lower(src.label)]);
       out.add(AppSelectItem(
         value: '$value',
         // Falling back to the id is better than a blank row: the record is
@@ -233,6 +243,9 @@ class LookupLoader {
       k.isEmpty ? k : k[0].toLowerCase() + k.substring(1);
 
   /// These endpoints return either a bare list or a list under `data`/`items`.
+  /// The row list inside a response, for screens that fetch their own lists.
+  static List<dynamic> rowsIn(dynamic res) => _rowsIn(res);
+
   static List<dynamic> _rowsIn(dynamic res) {
     if (res is List) return res;
     if (res is Map) {

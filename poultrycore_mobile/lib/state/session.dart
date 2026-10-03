@@ -25,6 +25,11 @@ class Session extends ChangeNotifier {
   final CompaniesApi companies;
   final DashboardApi dashboard;
 
+  /// A session over given clients, for widget tests with a fake API.
+  @visibleForTesting
+  factory Session.forTesting(TokenStore tokens, ApiClient login, ApiClient farm) =>
+      Session._(tokens, login, farm);
+
   static Future<Session> create() async {
     final tokens = await TokenStore.open();
     final loginClient = ApiClient(baseUrl: Env.loginApi, tokens: tokens);
@@ -150,6 +155,14 @@ class Session extends ChangeNotifier {
       _busy = false;
       notifyListeners();
     }
+  }
+
+  /// Back to the company-neutral Business Office, as the web's sidebar row
+  /// does with clearActiveCompany. Client-side only, like the web: the token
+  /// keeps its farm claim until the next switch.
+  void clearActive() {
+    _active = null;
+    notifyListeners();
   }
 
   Future<void> signOut() async {

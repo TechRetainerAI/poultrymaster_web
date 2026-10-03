@@ -71,7 +71,10 @@ class _FormScreenState extends State<FormScreen> {
     super.initState();
     _loadOptions();
     final row = widget.existing;
-    if (row == null) return;
+    if (row == null) {
+      _applyInitials();
+      return;
+    }
     // Prefill from the record being edited, matching on the field name the
     // web binds to.
     for (final s in widget.def.sections) {
@@ -87,9 +90,32 @@ class _FormScreenState extends State<FormScreen> {
           case FormFieldKind.date:
             _dates[id] = DateTime.tryParse('$v');
           case FormFieldKind.select:
-            _selects[id] = '$v';
+            _selects[id] = f.yesNo
+                ? (v == true || '$v'.toLowerCase() == 'true' ? 'yes' : 'no')
+                : '$v';
           default:
             _c(id).text = '$v';
+        }
+      }
+    }
+  }
+
+  /// A new record starts from the web's empty form, not a blank one.
+  void _applyInitials() {
+    for (final s in widget.def.sections) {
+      for (final f in s.fields) {
+        final v = f.initial;
+        if (v == null) continue;
+        final id = _id(s, f);
+        switch (f.kind) {
+          case FormFieldKind.bool:
+            _bools[id] = v == 'true';
+          case FormFieldKind.select:
+            _selects[id] = v;
+          case FormFieldKind.date:
+            _dates[id] = DateTime.tryParse(v);
+          default:
+            _c(id).text = v;
         }
       }
     }
@@ -106,7 +132,7 @@ class _FormScreenState extends State<FormScreen> {
       for (final f in s.fields) {
         if (f.kind != FormFieldKind.select || f.name == null) continue;
         final id = _id(s, f);
-        final future = loader.optionsFor('${spec.key}.${f.name}');
+        final future = loader.optionsFor('${spec.key}.${f.name}', label: f.optionLabel);
         if (future == null) continue;      // no list on the web either
         future.then((items) {
           if (!mounted) return;
@@ -137,7 +163,13 @@ class _FormScreenState extends State<FormScreen> {
             if (d != null) out[name] = d.toIso8601String();
           case FormFieldKind.select:
             final v = _selects[id];
-            if (v != null && v.isNotEmpty) out[name] = v;
+            if (v != null && v.isNotEmpty) {
+              // A numeric id goes as a number, as the web sends it
+              // (`defaultVehicleId: Number(v)`).
+              out[name] = f.yesNo
+                  ? v == 'yes'
+                  : (name.endsWith('Id') && RegExp(r'^\d+$').hasMatch(v) ? int.parse(v) : v);
+            }
           case FormFieldKind.money:
           case FormFieldKind.number:
             final t = _controllers[id]?.text.trim() ?? '';
@@ -197,6 +229,15 @@ class _FormScreenState extends State<FormScreen> {
     try {
       final id =
           widget.existing == null ? null : api.idIn(widget.existing!);
+      final idKey = widget.def.idKey;
+      if (idKey != null) body[idKey] = id ?? 0;
+      final me = session.tokens.userId ?? '';
+      final stamp = id == null ? widget.def.createdByKey : widget.def.updatedByKey;
+      if (stamp != null) body[stamp] = me;
+      for (final k in widget.def.carry) {
+        final v = widget.existing?[k];
+        if (v != null) body[k] = v;
+      }
       if (id == null) {
         await api.create(body);
       } else {
@@ -258,6 +299,7 @@ class _FormScreenState extends State<FormScreen> {
         return AppNumberInput(
           controller: _c(id),
           validator: req,
+          allowDecimal: f.decimal,
           hintText: f.placeholder ?? '0',
         );
       case FormFieldKind.textarea:
@@ -267,9 +309,14 @@ class _FormScreenState extends State<FormScreen> {
           validator: req,
         );
       case FormFieldKind.date:
+        final today = DateTime.now();
         return AppDateField(
           value: _dates[id],
           hintText: f.placeholder ?? 'Pick a date',
+          firstDate: f.dateBound == DateBound.future
+              ? DateTime(today.year, today.month, today.day)
+              : null,
+          lastDate: f.dateBound == DateBound.past ? today : null,
           onChanged: (d) => setState(() => _dates[id] = d),
         );
       case FormFieldKind.bool:
@@ -287,14 +334,16 @@ class _FormScreenState extends State<FormScreen> {
         // actually has rows, and proves it before using it. Declaring it
         // unknown up front is what left 142 dropdowns reading "Type it on
         // the web" when many of them are perfectly resolvable.
-        final resolvable = slot != null &&
-            (lookupSources.containsKey(slot) ||
-                staticOptions.containsKey(slot) ||
-                (f.name?.endsWith('Id') ?? false));
-        // Once a lookup has run and come back empty, the field really has no
-        // list and says so instead of showing an empty dropdown for ever.
+        final declared = slot != null &&
+            (lookupSources.containsKey(slot) || staticOptions.containsKey(slot));
+        final resolvable = declared || (f.name?.endsWith('Id') ?? false);
+        // A list GUESSED at run time that came back empty is no list at all.
+        // A declared list that is empty is real and just has nothing in it
+        // yet ("No vehicles. Add one on the Vehicles page first.") — saying
+        // "type it on the web" there was wrong, and read as a broken field.
         final searched = _options.containsKey(id);
-        final known = resolvable && !(searched && (_options[id]?.isEmpty ?? false));
+        final known = declared ||
+            (resolvable && !(searched && (_options[id]?.isEmpty ?? false)));
         final items = _options[id];
         final loading = known && items == null && !_optionsFailed.contains(id);
 
@@ -318,7 +367,7 @@ class _FormScreenState extends State<FormScreen> {
                       // somewhere this build could not trace.
                       ? 'Type it on the web'
                       : (items?.isEmpty ?? true)
-                          ? 'Nothing to choose yet'
+                          ? f.emptyHint ?? 'Nothing to choose yet'
                           : f.placeholder ?? 'Select…',
           items: items ?? const [],
           validator: req,

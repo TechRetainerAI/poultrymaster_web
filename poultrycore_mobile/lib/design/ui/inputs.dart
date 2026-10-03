@@ -220,6 +220,11 @@ class AppSelect<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = context.tokens;
     return DropdownButtonFormField<T>(
+      // initialValue is read once, when the field is first built. Keying on
+      // the value (and on how many options there are) rebuilds the field
+      // whenever either changes, so a value set in code — a prefill, an
+      // option list that arrives late, one choice switching another — shows.
+      key: ValueKey('$value|${items.length}'),
       initialValue: value,
       isExpanded: true,
       validator: validator,

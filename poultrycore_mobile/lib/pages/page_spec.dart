@@ -32,10 +32,15 @@ class SummaryDef {
     this.tone = SummaryTone.neutral,
     this.sub,
     this.crates,
+    this.where = const {},
   });
 
   final String label;
   final SummaryOp op;
+
+  /// Only rows whose fields equal these values count, e.g. the web's
+  /// "Total Active Birds" sums arrived AND active flocks only.
+  final Map<String, Object?> where;
   final String? field;
   final bool money;
   final SummaryTone tone;
@@ -78,6 +83,8 @@ class PageSpec {
     this.source = 'farm',
     this.summaries = const [],
     this.readOnly = false,
+    this.writePath,
+    this.resolve = const {},
   });
 
   /// True when the endpoint serves GET but no POST — a report or a view.
@@ -87,6 +94,15 @@ class PageSpec {
   /// one, including every report. The web shows no such button there, and a
   /// button that can only fail is worse than no button.
   final bool readOnly;
+
+  /// Where creates, updates and deletes go when that is not [path] — Poultry
+  /// Drivers lists `/drivers/list-for-farm` but writes to `/drivers/{id}`.
+  final String? writePath;
+
+  /// Display fields worked out from an id after the list loads, as the web's
+  /// tables do (`vehicles.find(v => v.id === r.defaultVehicleId)?.vehicleName`).
+  /// Maps the new field to (id field, lookup slot, optional label wording).
+  final Map<String, (String, String, String Function(Map row)?)> resolve;
 
   /// Per-page summary cards. When empty the list screen derives
   /// generic ones from whatever numeric fields the rows carry.
