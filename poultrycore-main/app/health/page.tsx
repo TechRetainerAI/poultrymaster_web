@@ -576,7 +576,7 @@ export default function HealthPage() {
                                 <SelectValue placeholder="Select flock" />
                               </SelectTrigger>
                               <SelectContent>
-                                {/* Closed flocks are not offered for new records (332); the list filters above still show them. */}
+                                {/* Closed flocks are not offered for new records (338); the list filters above still show them. */}
                                 {flocks.filter(flock => isFlockOpenForEntry(flock)).map(flock => (
                                   <SelectItem key={flock.flockId} value={flock.flockId.toString()}>
                                     {flock.name}

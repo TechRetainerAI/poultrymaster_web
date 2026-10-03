@@ -85,7 +85,7 @@ export function getFlocksForExpenseSelect(): { value: string; label: string }[] 
 
 /**
  * Flocks that have physically arrived — for production logging. Closed flocks
- * are left out (332): the database refuses production for them, so offering one
+ * are left out (338): the database refuses production for them, so offering one
  * would only lead to an error. keepFlockId keeps the flock an edited record
  * already belongs to.
  */

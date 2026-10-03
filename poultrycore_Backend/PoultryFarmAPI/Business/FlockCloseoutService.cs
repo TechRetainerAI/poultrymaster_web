@@ -27,7 +27,7 @@ namespace PoultryFarmAPIWeb.Business
     }
 
     /// <summary>
-    /// End-of-flock closeout (migration 332).
+    /// End-of-flock closeout (migration 338).
     ///
     /// <para><b>Sales are the ordinary sales.</b> A spent-layer sale is created
     /// with <see cref="ISaleService.Insert"/> -- the method the Sales page calls --

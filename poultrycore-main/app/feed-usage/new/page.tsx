@@ -30,7 +30,7 @@ export default function NewFeedUsagePage() {
     flockOptions: flocks,
     loading: flocksLoading,
     error: batchFlockError,
-  } = useBatchFlockSelect({ excludeClosed: true }) // 332: a closed flock eats nothing
+  } = useBatchFlockSelect({ excludeClosed: true }) // 338: a closed flock eats nothing
   
   const [formData, setFormData] = useState({
     flockId: "",

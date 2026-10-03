@@ -1,7 +1,7 @@
 "use client"
 
 // Flock Closeout (Tools menu) -- the home of the end-of-flock workflow
-// (migrations 332/333). Three views over ONE read, fnflock_lifetimesummary:
+// (migrations 338/339). Three views over ONE read, fnflock_lifetimesummary:
 //
 //   Ready to close  flocks whose birds have arrived and that are still open,
 //                   with what is standing -- Close opens the wizard
