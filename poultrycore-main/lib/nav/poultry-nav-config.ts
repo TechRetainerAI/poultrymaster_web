@@ -432,8 +432,16 @@ export function buildPoultryNavConfig(
           // lines on each flock's production record. Ungated like the
           // Production rows; the API gates on poultry.feed-usage.
           { id: "feed-distribution", title: "Distribute Feed", icon: Wheat, href: "/poultry-feed-distribution" },
+          // Treatment Campaigns (339): one medication to many flocks over one
+          // or more days, posted as medication lines on production records.
+          // Ungated like the rows above; the API gates on poultry.health.
+          { id: "treatment-campaigns", title: "Treatment Campaigns", icon: Pill, href: "/poultry-treatment-campaigns" },
           // Days of Supply (337): how long each raw material lasts at its actual usage.
           { id: "days-of-supply", title: "Days of Supply", icon: Package, href: "/poultry-days-of-supply" },
+          // Flock Alerts (338): deterministic mortality / egg / feed anomaly
+          // alerts with the numbers behind each one. Ungated like the rows
+          // above; the API gates on poultry.health.
+          { id: "flock-alerts", title: "Flock Alerts", icon: Activity, href: "/poultry-flock-alerts" },
         ],
       },
     ],

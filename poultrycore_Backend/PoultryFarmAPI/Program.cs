@@ -263,6 +263,12 @@ builder.Services.AddScoped<IDailyClosingStatusProvider, PoultryDailyClosingStatu
 builder.Services.AddScoped<IPoultryFeedDistributionService>(sp => new PoultryFeedDistributionService(connectionString));
 // Days of supply (337): how long each raw material lasts at its actual usage.
 builder.Services.AddScoped<IPoultryStockSupplyService>(sp => new PoultryStockSupplyService(connectionString));
+// Flock anomaly detection (338): deterministic signals, one alert per flock per
+// day, append-only history. Rules live in SQL; this only maps rows.
+builder.Services.AddScoped<IPoultryFlockAnomalyService>(sp => new PoultryFlockAnomalyService(connectionString));
+// Treatment campaigns (339): medication for many flocks over one or more days,
+// posted as medication lines through spproductionrecord_update.
+builder.Services.AddScoped<IPoultryTreatmentCampaignService>(sp => new PoultryTreatmentCampaignService(connectionString));
 builder.Services.AddScoped<IPoultryInventoryValuationService>(sp => new PoultryInventoryValuationService(connectionString));
 builder.Services.AddScoped<IPoultryDeferredInventoryCostService>(sp => new PoultryDeferredInventoryCostService(connectionString));
 builder.Services.AddScoped<IPoultryCapitalAssetService>(sp => new PoultryCapitalAssetService(connectionString));

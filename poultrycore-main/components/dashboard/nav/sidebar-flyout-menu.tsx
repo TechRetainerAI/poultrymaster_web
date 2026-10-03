@@ -326,9 +326,12 @@ export function SidebarFlyoutMenu({
         aria-label={collapsed ? label : undefined}
         title={collapsed ? label : undefined}
         className={cn(
-          "relative w-full flex items-center gap-3 rounded-md border-l-[3px] py-2.5 text-sm font-medium transition-colors",
+          // 12px with tighter padding, not text-sm: in Geist Medium "Sales,
+          // Expenses & Money" is 168px at 14px but 144px at 12px, and the 240px
+          // rail -- less Windows' ~11px scrollbar -- leaves it about 150px.
+          "relative w-full flex items-center gap-2 rounded-md border-l-[3px] py-2.5 text-xs leading-5 font-medium transition-colors",
           "outline-none focus-visible:ring-2 focus-visible:ring-orange-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900",
-          collapsed ? "justify-center px-2" : "pl-[13px] pr-2.5",
+          collapsed ? "justify-center px-2" : "pl-[10px] pr-1",
           // Open: the orange edge says "this is the section on screen beside you".
           open
             ? "bg-slate-800 text-white border-orange-400"
@@ -337,13 +340,13 @@ export function SidebarFlyoutMenu({
               : "text-slate-300 border-transparent hover:bg-slate-800 hover:text-white",
         )}
       >
-        <Icon className={cn("h-5 w-5 shrink-0", open || sectionActive ? "text-orange-400" : "text-slate-400")} />
+        <Icon className={cn("shrink-0", collapsed ? "h-5 w-5" : "h-[18px] w-[18px]", open || sectionActive ? "text-orange-400" : "text-slate-400")} />
         {!collapsed && (
           <>
-            {/* title=: the rail is 240px and "Sales, Expenses & Money" truncates. */}
+            {/* title=: a safety net if a longer label is ever added. */}
             <span className="truncate text-left" title={label}>{label}</span>
             <svg aria-hidden="true" viewBox="0 0 16 16"
-              className={cn("ml-auto h-3.5 w-3.5 shrink-0 transition-transform duration-150",
+              className={cn("ml-auto h-3 w-3 shrink-0 transition-transform duration-150",
                 open ? "translate-x-0.5 text-orange-400" : "text-slate-500")}>
               <path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
