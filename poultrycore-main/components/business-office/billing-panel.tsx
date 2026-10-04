@@ -48,6 +48,7 @@ import {
   type MarketChangePreview,
 } from "@/lib/api/platform-billing"
 import { PUBLIC_PLANS } from "@/lib/billing/public-pricing"
+import { PlanCard } from "@/components/billing/plan-card"
 
 const RETURN_PATH = "/business-office/billing"
 
@@ -484,69 +485,56 @@ export function BillingPanel() {
         </div>
       </Card>
 
-      {/* Plan ladder — informational: tiers are assigned automatically from
-          each company's scale, so these cards explain the ladder rather than
-          sell an upgrade. Enterprise is the only card with a CTA. */}
-      <Card className={`overflow-hidden ${inter.className}`}>
-        <CardHeader className="border-b border-slate-100 py-4">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-[15px] font-semibold tracking-[-0.01em] text-slate-900">Plans</CardTitle>
-            <span className="text-xs text-slate-500">Assigned automatically from each company's scale</span>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-5">
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {PUBLIC_PLANS.map((p) => {
-              const onPlan = companies.filter((c) => (c.tierName || "").toLowerCase() === p.name.toLowerCase()).length
-              return (
-                <div
-                  key={p.code}
-                  className={`relative flex flex-col rounded-xl p-4 ring-1 ring-inset ${
-                    p.highlight ? "bg-indigo-50/60 ring-indigo-600/20" : "bg-white ring-slate-200"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold text-slate-900">{p.name}</p>
-                    {onPlan > 0 && (
-                      <span className="rounded-full bg-indigo-600 px-2 py-0.5 text-[11px] font-medium tabular-nums text-white">
-                        {onPlan} {onPlan === 1 ? "company" : "companies"}
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-0.5 text-xs text-slate-500">{p.scaleLine}</p>
-                  <p className="mt-3">
-                    {p.monthlyGhs !== null ? (
-                      <>
-                        <span className="tabular-nums text-xl font-semibold tracking-[-0.01em] text-slate-900">
-                          GHS {p.monthlyGhs.toLocaleString()}
-                        </span>
-                        <span className="text-xs text-slate-400"> /mo per company</span>
-                      </>
-                    ) : (
-                      <span className="text-sm font-medium text-slate-700">Pricing on request</span>
-                    )}
-                  </p>
-                  {p.code === "enterprise" && (
+      {/* Plan ladder — the same full cards as /pricing (shared PlanCard).
+          Tiers are assigned automatically from each company's scale, so the
+          CTA area shows how many of the org's companies sit on each plan;
+          only Enterprise carries a real button. */}
+      <div className={inter.className}>
+        <div className="mb-4 flex items-baseline justify-between px-1">
+          <h3 className="text-[15px] font-semibold tracking-[-0.01em] text-slate-900">Plans</h3>
+          <span className="text-xs text-slate-500">Assigned automatically from each company's scale</span>
+        </div>
+        <div className="grid gap-6 pt-3 sm:grid-cols-2 xl:grid-cols-4 xl:gap-5">
+          {PUBLIC_PLANS.map((p) => {
+            const onPlan = companies.filter((c) => (c.tierName || "").toLowerCase() === p.name.toLowerCase()).length
+            return (
+              <PlanCard
+                key={p.code}
+                plan={p}
+                cta={
+                  p.code === "enterprise" ? (
                     <a
                       href="https://techretainer.com/contact/"
                       target="_blank"
                       rel="noreferrer"
-                      className="mt-3 text-xs font-medium text-indigo-600 hover:text-indigo-700"
+                      className="inline-flex h-11 w-full items-center justify-center rounded-lg bg-slate-900 text-sm font-medium text-white transition-colors hover:bg-slate-800"
                     >
-                      Talk to us →
+                      Request a price
                     </a>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-          <p className="mt-4 text-xs leading-relaxed text-slate-500">
-            Every plan includes the complete platform — pricing scales with each company's size. Poultry companies
-            are priced by active birds today; other business types are listed on your bill but not charged until
-            their pricing is enabled.
-          </p>
-        </CardContent>
-      </Card>
+                  ) : (
+                    <div
+                      className={`inline-flex h-11 w-full items-center justify-center rounded-lg text-sm font-medium ${
+                        p.highlight
+                          ? "bg-white/15 text-white ring-1 ring-inset ring-white/30"
+                          : "bg-slate-50 text-slate-600 ring-1 ring-inset ring-slate-200"
+                      }`}
+                    >
+                      {onPlan > 0
+                        ? `${onPlan} of your ${onPlan === 1 ? "company is" : "companies are"} on this plan`
+                        : "No companies at this scale yet"}
+                    </div>
+                  )
+                }
+              />
+            )
+          })}
+        </div>
+        <p className="mt-4 px-1 text-xs leading-relaxed text-slate-500">
+          Every plan includes the complete platform — pricing scales with each company's size. Poultry companies
+          are priced by active birds today; other business types are listed on your bill but not charged until
+          their pricing is enabled.
+        </p>
+      </div>
 
       {/* History: invoices and payments share one card */}
       <Card>
