@@ -77,7 +77,7 @@ import { buildHotelNavConfig } from "@/lib/nav/hotel-nav-config"
 import { buildRestaurantNavConfig } from "@/lib/nav/restaurant-nav-config"
 import { useQuickLinkHrefs } from "@/lib/store/quick-links-store"
 import { QuickLinksDialog } from "@/components/dashboard/quick-links-dialog"
-import { navPathActive, type MegaMenuGroup } from "@/lib/nav/nav-model"
+import { navPathActive, type MegaMenuGroup, type NavGroup } from "@/lib/nav/nav-model"
 import { SidebarFlyoutMenu } from "@/components/dashboard/nav/sidebar-flyout-menu"
 import { POULTRY_REPORT_NAV_GROUPS, WATER_REPORT_NAV_GROUPS } from "@/lib/nav/report-nav-adapters"
 
@@ -128,6 +128,10 @@ const fromMegaMenu = (
     }))
     .filter((g) => g.items.length > 0)
 
+/** The rail's Quick Links is a plain NavGroup, not a mega-menu. Restaurant's
+ *  sidebar still uses it (Quick Links group) -- do not remove while it does. */
+const fromNavGroup = (group: NavGroup): SidebarItem[] =>
+  group.items.map((i) => ({ href: i.href, label: i.label, icon: i.icon }))
 
 interface SidebarProps {
   onLogout?: () => void
