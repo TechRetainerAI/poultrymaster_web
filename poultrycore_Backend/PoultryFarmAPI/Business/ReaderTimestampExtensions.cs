@@ -33,7 +33,7 @@ namespace PoultryFarmAPIWeb.Business
             return null;
         }
 
-        /// <summary>Same tolerance, for a text column (e.g. 332's closedby).</summary>
+        /// <summary>Same tolerance, for a text column (e.g. 338's closedby).</summary>
         public static string? OptionalString(this NpgsqlDataReader r, string column)
         {
             for (int i = 0; i < r.FieldCount; i++)
@@ -45,7 +45,7 @@ namespace PoultryFarmAPIWeb.Business
             return null;
         }
 
-        /// <summary>Same tolerance, for an integer column (e.g. 332's closeoutid).</summary>
+        /// <summary>Same tolerance, for an integer column (e.g. 338's closeoutid).</summary>
         public static int? OptionalInt32(this NpgsqlDataReader r, string column)
         {
             for (int i = 0; i < r.FieldCount; i++)

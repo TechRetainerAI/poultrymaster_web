@@ -24,6 +24,7 @@ import { usePermissions } from "@/hooks/use-permissions"
 import { useFmt } from "@/lib/currency"
 import { MoneyStat } from "@/components/restaurant/money-stat"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import { EmptyState } from "@/components/restaurant/empty-state"
 import { PageHeader } from "@/components/restaurant/page-header"
 import { PageSkeleton } from "@/components/restaurant/skeleton-loaders"
@@ -61,6 +62,7 @@ export default function RestaurantCashTransfersPage() {
   const [loading, setLoading] = useState(true)
   const [accounts, setAccounts] = useState<CashAccount[]>([])
   const [transfers, setTransfers] = useState<CashTransfer[]>([])
+  const pg = usePagination(transfers)
   const [dateFrom, setDateFrom] = useState(firstOfMonthIso())
   const [dateTo, setDateTo] = useState(todayIso())
 
@@ -249,7 +251,7 @@ export default function RestaurantCashTransfersPage() {
                   {/* Poultry's phone cards (app/poultry-cash-transfers) with "View table format". */}
                   <MobileCardList
                     striped
-                    items={transfers}
+                    items={pg.pageItems} pagination={{ ...pg.paginationProps, variant: "records" }}
                     getKey={(t) => t.transferId}
                     primary={(t) => <span className="inline-flex items-center gap-1 flex-wrap">{t.fromAccountName} <ArrowRight className="h-3 w-3 text-gray-400" /> {t.toAccountName}</span>}
                     secondary={(t) => <span>{t.transferNumber ?? `#${t.transferId}`} · {(t.transferDate ?? "").slice(0, 10)}</span>}
@@ -286,7 +288,7 @@ export default function RestaurantCashTransfersPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {transfers.map((t) => (
+                        {pg.pageItems.map((t) => (
                           <tr key={t.transferId} className="border-b">
                             <td className="p-3 font-medium text-gray-900 whitespace-nowrap">{t.transferNumber ?? `#${t.transferId}`}</td>
                             <td className="p-3 text-xs text-muted-foreground whitespace-nowrap">{(t.transferDate ?? "").slice(0, 10)}</td>

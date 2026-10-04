@@ -194,6 +194,10 @@ export async function readApiError(res: Response, fallback = "Request failed"): 
     if (!t.startsWith("<")) {
       try {
         const d: any = JSON.parse(t)
+        // `return BadRequest(ex.Message)` reaches the browser as a bare JSON string
+        // ("P0001: Choose the cash account…"). It has no .message, so it used to
+        // fall through to "Request failed (400)". Show it, minus the SQLSTATE prefix.
+        if (typeof d === "string" && d.trim()) return d.trim().replace(/^[0-9A-Z]{5}: /, "")
         // Order matters. An [ApiController] model-validation failure is a
         // ValidationProblemDetails whose `title` is always the useless constant
         // "One or more validation errors occurred." — the field that actually

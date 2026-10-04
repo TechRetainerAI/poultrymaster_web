@@ -53,6 +53,13 @@ export interface DataPaginationProps {
   onPageSizeChange: (size: number) => void
   pageSizeOptions?: number[]
   className?: string
+  /**
+   * "records" = Poultry's Expenses footer (app/expenses): shown whenever there
+   * is at least one row, with "Showing 1 to 5 of 12 records", the page-size
+   * select and page links even on a single page. Restaurant and Hotel use it;
+   * the default ("compact") is unchanged for everyone else.
+   */
+  variant?: "compact" | "records"
 }
 
 /** 1 … 4 [ellipsis] N — never more than seven slots wide. */
@@ -72,10 +79,51 @@ function getPageNumbers(page: number, totalPages: number): (number | "ellipsis")
 
 export function DataPagination({
   page, pageSize, total, onPageChange, onPageSizeChange,
-  pageSizeOptions = PAGE_SIZE_OPTIONS,
+  pageSizeOptions,
   className,
+  variant = "compact",
 }: DataPaginationProps) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
+
+  if (variant === "records") {
+    if (total <= 0) return null
+    const options = pageSizeOptions ?? TRACKER_PAGE_SIZE_OPTIONS
+    const first = (page - 1) * pageSize + 1
+    return (
+      <div className={cn("flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-3 border-t bg-slate-50", className)}>
+        <div className="flex flex-wrap items-center justify-center gap-4">
+          <span className="text-sm text-slate-600">
+            Showing {first} to {Math.min(page * pageSize, total)} of {total} records
+          </span>
+          <Select value={String(pageSize)} onValueChange={(v) => { onPageSizeChange(Number(v)); onPageChange(1) }}>
+            <SelectTrigger className="w-[100px] h-8"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {options.map((n) => <SelectItem key={n} value={String(n)}>{n} / page</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <Pagination className="mx-0 w-auto">
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious onClick={() => onPageChange(Math.max(1, page - 1))} className={page === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"} />
+            </PaginationItem>
+            {getPageNumbers(page, totalPages).map((p, i) => (
+              <PaginationItem key={i}>
+                {p === "ellipsis" ? <PaginationEllipsis /> : (
+                  <PaginationLink onClick={() => onPageChange(p)} isActive={page === p} className="cursor-pointer">{p}</PaginationLink>
+                )}
+              </PaginationItem>
+            ))}
+            <PaginationItem>
+              <PaginationNext onClick={() => onPageChange(Math.min(totalPages, page + 1))} className={page === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"} />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+      </div>
+    )
+  }
+
+  pageSizeOptions = pageSizeOptions ?? PAGE_SIZE_OPTIONS
 
   // A list shorter than the smallest page size can't be paged and doesn't need
   // a size control either — render nothing rather than a stub footer.

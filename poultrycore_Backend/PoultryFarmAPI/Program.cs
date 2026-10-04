@@ -37,6 +37,9 @@ if (string.IsNullOrWhiteSpace(connectionString))
     throw new InvalidOperationException(
         "Connection string 'PoultryConn' is empty. Set ConnectionStrings__PoultryConn on Cloud Run (or User Secrets locally).");
 }
+// Main address first; if it doesn't answer, the fallback (a local Cloud SQL
+// proxy on 127.0.0.1:5433 in Development). See Helpers/DbConnectionFallback.cs.
+connectionString = PoultryCore.Db.DbConnectionFallback.Resolve(builder.Configuration, "PoultryConn", builder.Environment.IsDevelopment());
 
 // Cloud Run: set JWT__Secret (same value as Login API). Empty → IDX10703 / "key length is zero" at runtime.
 var jwtSecret = builder.Configuration["JWT:Secret"]?.Trim();
@@ -107,7 +110,7 @@ builder.Services.AddScoped<IFarmSetupService>(sp => new FarmSetupService(
     sp.GetRequiredService<IHouseService>(),
     sp.GetRequiredService<IBirdFlockService>()));
 builder.Services.AddScoped<IHealthRecordService>(sp => new HealthRecordService(connectionString));
-// End-of-flock closeout (migration 332). Sales and payments go through the
+// End-of-flock closeout (migration 338). Sales and payments go through the
 // ordinary services -- it owns no sale SQL of its own.
 builder.Services.AddScoped<IFlockCloseoutService>(sp => new FlockCloseoutService(
     connectionString,
@@ -284,6 +287,12 @@ builder.Services.AddScoped<IDailyClosingStatusProvider, PoultryDailyClosingStatu
 builder.Services.AddScoped<IPoultryFeedDistributionService>(sp => new PoultryFeedDistributionService(connectionString));
 // Days of supply (337): how long each raw material lasts at its actual usage.
 builder.Services.AddScoped<IPoultryStockSupplyService>(sp => new PoultryStockSupplyService(connectionString));
+// Flock anomaly detection (338): deterministic signals, one alert per flock per
+// day, append-only history. Rules live in SQL; this only maps rows.
+builder.Services.AddScoped<IPoultryFlockAnomalyService>(sp => new PoultryFlockAnomalyService(connectionString));
+// Treatment campaigns (339): medication for many flocks over one or more days,
+// posted as medication lines through spproductionrecord_update.
+builder.Services.AddScoped<IPoultryTreatmentCampaignService>(sp => new PoultryTreatmentCampaignService(connectionString));
 builder.Services.AddScoped<IPoultryInventoryValuationService>(sp => new PoultryInventoryValuationService(connectionString));
 builder.Services.AddScoped<IPoultryDeferredInventoryCostService>(sp => new PoultryDeferredInventoryCostService(connectionString));
 builder.Services.AddScoped<IPoultryCapitalAssetService>(sp => new PoultryCapitalAssetService(connectionString));

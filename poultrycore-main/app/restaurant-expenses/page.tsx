@@ -13,11 +13,16 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Receipt, DollarSign, Tag, Trash2, CalendarDays, Search, Pencil } from "lucide-react"
+import { Plus, Receipt, DollarSign, Tag, Trash2, Search, Pencil, Filter, Calendar } from "lucide-react"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import {
+  MOBILE_FILTER_SHEET_CONTENT_CLASS, MOBILE_FILTER_SELECT_CONTENT_CLASS, MOBILE_FILTERS_TOOLBAR_ROW_CLASS,
+  MOBILE_FILTERS_TRIGGER_BUTTON_CLASS, MobileFilterSheetBody, MobileFilterSheetFooter, MobileFilterSheetHeader,
+} from "@/components/dashboard/mobile-filters"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import { EmptyState } from "@/components/restaurant/empty-state"
-import { PageHeader } from "@/components/restaurant/page-header"
 import { PageSkeleton } from "@/components/restaurant/skeleton-loaders"
 import {
   listExpenses, createExpense, updateExpense, deleteExpense,
@@ -86,6 +91,9 @@ function RestaurantExpensesInner() {
   const [newCategoryName, setNewCategoryName] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  const isMobile = useIsMobile()
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [draft, setDraft] = useState({ from: "", to: "", category: "all" })
   // Migration 329: who each expense is owed to and what is still unpaid, read
   // next to the list (the list's own shape cannot change), plus the suppliers.
   const [payments, setPayments] = useState<Record<number, RestaurantExpensePayment>>({})
@@ -124,7 +132,6 @@ function RestaurantExpensesInner() {
 
   useEffect(() => { fetchData() }, [])// eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleFilter = () => { fetchData() }
 
   // Poultry's list filters (app/expenses): a search box and a category, applied
   // in the browser on top of the date range the server already narrowed.
@@ -135,23 +142,21 @@ function RestaurantExpensesInner() {
   const filteredExpenses = expenses.filter((e) =>
     (focusId == null || e.expenseId === focusId)
     && (categoryFilter === "all" || (e.categoryName ?? "Uncategorized") === categoryFilter)
+    && (!dateFrom || (e.expenseDate ?? "").slice(0, 10) >= dateFrom)
+    && (!dateTo || (e.expenseDate ?? "").slice(0, 10) <= dateTo)
     && (!q || [e.description, e.categoryName, e.supplierName, payments[e.expenseId]?.supplierName, e.receiptRef]
       .join(" ").toLowerCase().includes(q)))
   const filteredTotal = filteredExpenses.reduce((s, e) => s + (e.amount ?? 0), 0)
   const pg = usePagination(filteredExpenses, 25)
+  const categoryOptions = Array.from(new Set(expenses.map((e) => e.categoryName ?? "Uncategorized"))).sort()
+  const activeFilterCount = [dateFrom, dateTo, categoryFilter !== "all" ? "x" : ""].filter(Boolean).length
+  const clearFilters = () => { setSearch(""); setCategoryFilter("all"); setDateFrom(""); setDateTo("") }
 
   /* ---------- stats ---------- */
   const today = new Date().toISOString().split("T")[0]
-  const todayTotal = expenses.filter((e) => e.expenseDate?.startsWith(today)).reduce((s, e) => s + (e.amount ?? 0), 0)
   const monthStr = today.slice(0, 7)
   const monthTotal = expenses.filter((e) => e.expenseDate?.startsWith(monthStr)).reduce((s, e) => s + (e.amount ?? 0), 0)
 
-  const categoryTotals: Record<string, number> = {}
-  expenses.forEach((e) => {
-    const cat = e.categoryName ?? "Uncategorized"
-    categoryTotals[cat] = (categoryTotals[cat] ?? 0) + (e.amount ?? 0)
-  })
-  const topCategory = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "-"
 
   /* ---------- create expense ---------- */
   const handleCreateExpense = async () => {
@@ -263,81 +268,136 @@ function RestaurantExpensesInner() {
         <DashboardHeader />
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
           <div className="max-w-7xl mx-auto space-y-6">
-            {/* Header */}
-            <PageHeader icon={Receipt} title="Expenses" subtitle="Track expenses, categories, and financial overview">
-              <Button className="bg-rose-600 hover:bg-rose-700" onClick={() => { setEditingId(null); setExpenseForm({ ...emptyForm }); setPaymentStatus("Paid"); setPartPaid(""); setDialogOpen(true) }}>
-                <Plus className="h-4 w-4 mr-2" /> Record Expense
+          {/* Header -- Poultry's (app/expenses): title left, Add Expense right. */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-start gap-3 min-w-0">
+              <div className="w-10 h-10 shrink-0 bg-rose-100 rounded-lg flex items-center justify-center">
+                <DollarSign className="w-5 h-5 text-rose-600" />
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-xl sm:text-2xl font-bold text-slate-900 truncate">Expenses</h1>
+                <p className="text-sm text-slate-600">Track operational costs and financial records</p>
+              </div>
+            </div>
+            <div className="flex gap-2 w-full sm:w-auto shrink-0">
+              <Button variant="outline" className="h-11 sm:h-10 flex-1 sm:flex-none" onClick={() => setActiveTab(activeTab === "categories" ? "expenses" : "categories")}><Tag className="h-4 w-4 mr-2" /> {activeTab === "categories" ? "Expenses" : "Categories"}</Button>
+              <Button className="gap-2 h-11 sm:h-10 flex-1 sm:flex-none bg-rose-600 hover:bg-rose-700" onClick={() => { setEditingId(null); setExpenseForm({ ...emptyForm }); setPaymentStatus("Paid"); setPartPaid(""); setDialogOpen(true) }}>
+                <Plus className="w-4 h-4" /> Add Expense
               </Button>
-            </PageHeader>
-
-            {/* Summary Cards -- Poultry's (app/expenses): This Month and the
-                total of whatever the filters leave. */}
-            <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
-              <Card className="bg-white">
-                <CardHeader className="pb-2"><CardDescription>This Month</CardDescription></CardHeader>
-                <CardContent className="min-w-0">
-                  <div className="font-bold text-slate-900 leading-tight whitespace-nowrap text-3xl md:text-2xl">{gh(monthTotal)}</div>
-                  <p className="mt-1 text-xs text-slate-500">Today {gh(todayTotal)} · Top category {topCategory}</p>
-                </CardContent>
-              </Card>
-              <Card className="bg-white">
-                <CardHeader className="pb-2"><CardDescription>Total (Filtered)</CardDescription></CardHeader>
-                <CardContent className="min-w-0">
-                  <div className="font-bold text-slate-900 leading-tight whitespace-nowrap text-3xl md:text-2xl">{gh(filteredTotal)}</div>
-                  <p className="mt-1 text-xs text-slate-500">{filteredExpenses.length} {filteredExpenses.length === 1 ? "expense" : "expenses"}</p>
-                </CardContent>
-              </Card>
             </div>
+          </div>
 
-            {/* Tabs */}
-            <div className="flex gap-2 border-b pb-1">
-              {(["expenses", "categories"] as const).map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
-                    activeTab === tab ? "bg-white border border-b-white -mb-px text-rose-600" : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  {tab === "expenses" ? "Expenses" : "Categories"}
-                </button>
-              ))}
+          {activeTab === "expenses" && (<>
+          {focusId != null && (
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-900">
+              <span>Showing expense #{focusId} only.</span>
+              <Button variant="outline" size="sm" className="h-8" onClick={() => router.push("/restaurant-expenses")}>Show all expenses</Button>
             </div>
+          )}
+
+          {/* Filters -- Poultry's: search, then a Filters sheet on phones; one bar on desktop.
+              The Hotel's approval status lives here too. */}
+          {isMobile ? (
+            <div className="space-y-3 w-full min-w-0">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Input placeholder="Search expenses..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 h-11" />
+              </div>
+              <div className={MOBILE_FILTERS_TOOLBAR_ROW_CLASS}>
+                <Sheet open={filtersOpen} onOpenChange={(o) => { setFiltersOpen(o); setDraft({ from: dateFrom, to: dateTo, category: categoryFilter }) }}>
+                  <SheetTrigger asChild>
+                    <Button variant="outline" className={MOBILE_FILTERS_TRIGGER_BUTTON_CLASS}>
+                      <Filter className="h-4 w-4" />
+                      <span className="truncate">Filters</span>
+                      {activeFilterCount > 0 && (
+                        <span className="ml-1 h-5 min-w-[20px] px-1.5 rounded-full bg-orange-500 text-white text-xs flex items-center justify-center">{activeFilterCount}</span>
+                      )}
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent side="bottom" className={MOBILE_FILTER_SHEET_CONTENT_CLASS}>
+                    <MobileFilterSheetHeader />
+                    <MobileFilterSheetBody>
+                      <div className="space-y-3">
+                        <p className="text-sm font-medium text-slate-700">Date range</p>
+                        <div className="flex flex-col gap-4">
+                          <div className="min-w-0 space-y-2">
+                            <label htmlFor="rexp-from" className="text-xs font-medium text-slate-500">Start date</label>
+                            <Input id="rexp-from" type="date" value={draft.from} onChange={(e) => setDraft({ ...draft, from: e.target.value })} className="h-12 w-full min-w-0 text-base" />
+                          </div>
+                          <div className="min-w-0 space-y-2">
+                            <label htmlFor="rexp-to" className="text-xs font-medium text-slate-500">End date</label>
+                            <Input id="rexp-to" type="date" value={draft.to} onChange={(e) => setDraft({ ...draft, to: e.target.value })} className="h-12 w-full min-w-0 text-base" />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-700">Category</label>
+                        <Select value={draft.category} onValueChange={(v) => setDraft({ ...draft, category: v })}>
+                          <SelectTrigger className="h-12 text-base"><SelectValue /></SelectTrigger>
+                          <SelectContent className={MOBILE_FILTER_SELECT_CONTENT_CLASS}>
+                            <SelectItem value="all">All categories</SelectItem>
+                            {categoryOptions.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </MobileFilterSheetBody>
+                    <MobileFilterSheetFooter>
+                      <div className="flex gap-3">
+                        <Button type="button" variant="outline" className="h-12 flex-1" onClick={() => { clearFilters(); setFiltersOpen(false); toast({ title: "Filters cleared" }) }}>Clear all</Button>
+                        <Button type="button" className="h-12 flex-1" onClick={() => { setDateFrom(draft.from); setDateTo(draft.to); setCategoryFilter(draft.category); setFiltersOpen(false) }}>Apply</Button>
+                      </div>
+                    </MobileFilterSheetFooter>
+                  </SheetContent>
+                </Sheet>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2 p-2 bg-white rounded border">
+              <div className="relative w-full sm:w-[240px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Input placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+              </div>
+              <div className="relative w-full sm:w-[140px]">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Input type="date" aria-label="From" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="pl-9" />
+              </div>
+              <div className="relative w-full sm:w-[140px]">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Input type="date" aria-label="To" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="pl-9" />
+              </div>
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger className="w-[180px]"><SelectValue placeholder="Category" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Category</SelectItem>
+                  {categoryOptions.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              {activeFilterCount > 0 && (
+                <Button variant="ghost" size="sm" onClick={clearFilters}>Clear ({activeFilterCount})</Button>
+              )}
+            </div>
+          )}
+
+          {/* Summary Cards -- Poultry's (app/expenses). */}
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
+            <Card className="bg-white">
+              <CardHeader className="pb-2"><CardDescription>This Month</CardDescription></CardHeader>
+              <CardContent className="min-w-0">
+                <div className="font-bold text-slate-900 leading-tight whitespace-nowrap text-3xl md:text-2xl">{gh(monthTotal)}</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-white">
+              <CardHeader className="pb-2"><CardDescription>Total (Filtered)</CardDescription></CardHeader>
+              <CardContent className="min-w-0">
+                <div className="font-bold text-slate-900 leading-tight whitespace-nowrap text-3xl md:text-2xl">{gh(filteredTotal)}</div>
+              </CardContent>
+            </Card>
+          </div>
+          </>)}
 
             {/* Expenses Tab */}
             {activeTab === "expenses" && (
               <>
-                {/* Date range filter */}
-                <div className="flex flex-wrap items-end gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">From</Label>
-                    <Input type="date" className="h-9 w-40" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">To</Label>
-                    <Input type="date" className="h-9 w-40" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-                  </div>
-                  <Button variant="outline" size="sm" className="h-9" onClick={handleFilter}>
-                    <CalendarDays className="h-4 w-4 mr-1" /> Filter
-                  </Button>
-                  <div className="relative w-full sm:w-64">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
-                    <Input className="h-9 pl-8" placeholder="Search expenses..." value={search} onChange={(e) => setSearch(e.target.value)} />
-                  </div>
-                  <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                    <SelectTrigger className="h-9 w-full sm:w-[180px]"><SelectValue placeholder="Category" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All categories</SelectItem>
-                      {Array.from(new Set(expenses.map((e) => e.categoryName ?? "Uncategorized"))).sort().map((c) => (
-                        <SelectItem key={c} value={c}>{c}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {(search || categoryFilter !== "all") && (
-                    <Button variant="ghost" size="sm" className="h-9" onClick={() => { setSearch(""); setCategoryFilter("all") }}>Clear</Button>
-                  )}
-                </div>
-
                 {expenses.length === 0 ? (
                   <Card>
                     <CardContent className="pt-6">
@@ -369,7 +429,7 @@ function RestaurantExpensesInner() {
                           the table. */}
                       <MobileCardList
                         items={pg.pageItems}
-                        pagination={pg.paginationProps}
+                        pagination={{ ...pg.paginationProps, variant: "records" }}
                         striped
                         getKey={(e) => e.expenseId}
                         primary={(exp) => (

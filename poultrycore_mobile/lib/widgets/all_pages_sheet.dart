@@ -3,11 +3,10 @@ import 'package:flutter/material.dart';
 import '../api/quick_links_api.dart';
 import '../design/web_mobile.dart';
 import '../models/company.dart';
-import '../pages/list_screen.dart';
 import '../pages/registry.dart';
 import '../pages/web_nav.dart';
-import '../pages/web_page_screen.dart';
 import '../state/session.dart';
+import 'module_sidebar.dart';
 
 /// The web's "All pages" panel: a dark sheet with a search box and orange
 /// uppercase section headers, each showing how many pages it holds and
@@ -92,19 +91,12 @@ class _AllPagesSheetState extends State<_AllPagesSheet> {
     setState(() => _quickLinks = resolved);
   }
 
+  /// Same routing as the sidebar (openNavLink): a screen of its own, then
+  /// the page's list, then the real web page.
   void _open_(NavLink link) {
-    final spec = link.specKey == null ? null : PageRegistry.of(link.specKey!);
-    Navigator.of(context).pop();
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => spec == null
-          ? WebPageScreen(
-              label: link.label,
-              href: link.href,
-              company: widget.company,
-              session: widget.session)
-          : ListScreen(
-              spec: spec, session: widget.session, company: widget.company),
-    ));
+    final nav = Navigator.of(context);
+    nav.pop();
+    openNavLink(nav, link, widget.session, widget.company);
   }
 
   @override

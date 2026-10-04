@@ -16,6 +16,7 @@ import { getFlock, updateFlock, type FlockInput } from "@/lib/api/flock"
 import { getHouses, type House } from "@/lib/api/house"
 import { getFlockBatches, type FlockBatch } from "@/lib/api/flock-batch"
 import { getUserContext } from "@/lib/utils/user-context"
+import { FlockTreatmentHistory } from "@/components/production/flock-treatment-history"
 
 export default function EditFlockPage() {
   const router = useRouter()
@@ -460,6 +461,11 @@ export default function EditFlockPage() {
                 </Button>
               </div>
             </form>
+
+            {/* Treatments from campaigns (339), kept with the flock. */}
+            <div className="mt-6">
+              <FlockTreatmentHistory flockId={parseInt(flockId)} />
+            </div>
           </div>
         </main>
       </div>

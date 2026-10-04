@@ -170,7 +170,7 @@ export default function HotelDailyClosingPage() {
               <MobileCardList
                 striped
                 items={pg.pageItems}
-                pagination={pg.paginationProps}
+                pagination={{ ...pg.paginationProps, variant: "records" }}
                 getKey={(h) => h.id ?? h.date}
                 primary={(h) => (
                   <span className="flex flex-wrap items-center gap-2">

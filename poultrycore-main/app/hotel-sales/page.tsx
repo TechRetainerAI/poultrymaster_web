@@ -9,48 +9,33 @@
 // Total, Paid, Balance, Method, Status), the same row actions (Record payment,
 // Payment history) and one hotel action: bill a checked-out stay to a corporate
 // account. Folio work (adding charges, invoices) stays on Billing. Migration 332.
+// Layout (search, Filters, PDF, Email, scorecards, phone cards, table,
+// pagination, Invoice) is the shared ModuleSalesView, same as Restaurant Sales.
 
-import { Suspense, useEffect, useMemo, useState } from "react"
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Building2, DollarSign, History, Loader2, Moon, Receipt, Search, ShoppingCart, TrendingUp, Wallet } from "lucide-react"
+import { Building2, History, Pencil, Trash2, Wallet } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useFmt } from "@/lib/currency"
-import { cn } from "@/lib/utils"
-import { fmtDateTime } from "@/lib/utils/company-datetime"
-import { billStayToAccount, listHotelSales, type HotelSaleRow } from "@/lib/api/hotel-sales"
+import { billStayToAccount, deleteHotelStaySale, listHotelSales, type HotelSaleRow } from "@/lib/api/hotel-sales"
 import { listHotelCustomers, type HotelCustomer } from "@/lib/api/hotel-customers"
 import type { OpenDocumentRow, PartyBalanceRow } from "@/lib/api/balances"
 import { RecordPaymentDialog, type CashAccountOption } from "@/components/balances/record-payment-dialog"
 import { PaymentHistoryDialog } from "@/components/balances/payment-history-dialog"
 import { HOTEL_CUSTOMER_PERMISSIONS, loadHotelCashAccounts } from "@/lib/hotel/balances"
-
-const STATUS_CLS: Record<string, string> = {
-  Paid: "bg-emerald-100 text-emerald-700",
-  Partial: "bg-amber-100 text-amber-700",
-  Pending: "bg-slate-100 text-slate-700",
-}
-
-function PaymentStatusBadge({ status }: { status: string }) {
-  return (
-    <span className={cn("inline-flex w-fit rounded-full px-2 py-0.5 text-xs font-medium", STATUS_CLS[status] ?? STATUS_CLS.Pending)}>
-      {status}
-    </span>
-  )
-}
+import {
+  ModuleSalesView, saleStatusOf, type ModuleSaleRow, type SaleStatus, type SalesExtraFilter,
+} from "@/components/sales/module-sales-view"
 
 /** The sale as the shared payment dialog needs it: its party and one open line. */
 function asParty(s: HotelSaleRow): PartyBalanceRow {
@@ -67,6 +52,31 @@ function asDocument(s: HotelSaleRow): OpenDocumentRow {
   }
 }
 
+const toRow = (s: HotelSaleRow): ModuleSaleRow => ({
+  key: `${s.documentType}-${s.documentId}`,
+  reference: s.reference ?? `#${s.documentId}`,
+  date: s.docDate,
+  customer: s.partyName ?? "",
+  product: s.label ?? (s.documentType === "Stay" ? "Stay" : "Restaurant order"),
+  quantity: s.nights ?? null,
+  total: Number(s.totalAmount),
+  paid: Number(s.amountPaid),
+  balance: Number(s.balance),
+  method: s.paymentMethod ?? null,
+  status: (["Paid", "Partial", "Pending"].includes(s.paymentStatus) ? s.paymentStatus : saleStatusOf(s.totalAmount, s.amountPaid)) as SaleStatus,
+  details: [
+    { label: "Type", value: s.documentType === "Stay" ? "Stay" : "Restaurant" },
+    ...(s.roomNumber ? [{ label: "Room", value: s.roomNumber }] : []),
+    ...(s.bookingStatus ? [{ label: "Booking", value: s.bookingStatus }] : []),
+    ...(s.billedToAccount ? [{ label: "Billed to", value: "Account" }] : []),
+  ],
+})
+
+const EXTRA_FILTERS: SalesExtraFilter<HotelSaleRow>[] = [
+  { key: "type", label: "Sale type", allLabel: "All sales", options: [{ value: "Stay", label: "Stays" }, { value: "Order", label: "Restaurant orders" }], test: (s, v) => s.documentType === v },
+  { key: "status", label: "Status", allLabel: "All statuses", options: [{ value: "Paid", label: "Paid" }, { value: "Partial", label: "Partial" }, { value: "Pending", label: "Pending" }], test: (s, v) => s.paymentStatus === v },
+]
+
 function HotelSalesContent() {
   const fmt = useFmt()
   const router = useRouter()
@@ -80,12 +90,7 @@ function HotelSalesContent() {
   const [loading, setLoading] = useState(true)
   const [cashAccounts, setCashAccounts] = useState<CashAccountOption[]>([])
   const [customers, setCustomers] = useState<HotelCustomer[]>([])
-
-  const [search, setSearch] = useState("")
-  const [status, setStatus] = useState("all")
-  const [type, setType] = useState("all")
-  const [from, setFrom] = useState("")
-  const [to, setTo] = useState("")
+  const [range, setRange] = useState<{ from: string; to: string } | null>(null)
   const focusBooking = Number(params.get("bookingId") ?? 0) || null
 
   const [paySale, setPaySale] = useState<HotelSaleRow | null>(null)
@@ -98,9 +103,10 @@ function HotelSalesContent() {
   const canReverse = can(HOTEL_CUSTOMER_PERMISSIONS.reverse)
 
   const load = async () => {
+    if (!range) return
     setLoading(true)
     try {
-      setRows(await listHotelSales({ from: from || null, to: to || null }))
+      setRows(await listHotelSales({ from: range.from || null, to: range.to || null }))
     } catch (e: any) {
       toast({ title: "Error", description: e?.message ?? String(e), variant: "destructive" })
     } finally {
@@ -112,23 +118,20 @@ function HotelSalesContent() {
     if (!activeFarmType) return
     if (activeFarmType !== "Hotel") { router.replace("/dashboard"); return }
     load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeFarmType, range])
+
+  useEffect(() => {
+    if (activeFarmType !== "Hotel") return
     loadHotelCashAccounts().then(setCashAccounts).catch(() => setCashAccounts([]))
     listHotelCustomers().then((c) => setCustomers(c.filter((x) => x.isActive !== false))).catch(() => setCustomers([]))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeFarmType, from, to])
+  }, [activeFarmType])
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    return rows.filter((r) =>
-      (!focusBooking || (r.documentType === "Stay" && r.documentId === focusBooking)) &&
-      (type === "all" || r.documentType === type) &&
-      (status === "all" || r.paymentStatus === status) &&
-      (!q || [r.partyName, r.reference, r.label, r.roomNumber].some((v) => (v ?? "").toLowerCase().includes(q))))
-  }, [rows, search, status, type, focusBooking])
-
-  const totalSales = filtered.reduce((s, r) => s + Number(r.totalAmount), 0)
-  const totalNights = filtered.reduce((s, r) => s + Number(r.nights ?? 0), 0)
-  const totalOwed = filtered.reduce((s, r) => s + Number(r.balance), 0)
+  const onRangeChange = useCallback((from: string, to: string) => setRange({ from, to }), [])
+  const visible = useMemo(
+    () => (focusBooking ? rows.filter((r) => r.documentType === "Stay" && r.documentId === focusBooking) : rows),
+    [rows, focusBooking],
+  )
 
   const billToAccount = async () => {
     if (!billSale || !billCustomer) return
@@ -145,188 +148,123 @@ function HotelSalesContent() {
     }
   }
 
+  const [deleteSale, setDeleteSale] = useState<HotelSaleRow | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const confirmDelete = async () => {
+    if (!deleteSale) return
+    setDeleting(true)
+    try {
+      await deleteHotelStaySale(deleteSale.documentId)
+      toast({ title: "Sale deleted", description: `${deleteSale.reference} was cancelled.` })
+      setDeleteSale(null)
+      await load()
+    } catch (e: any) {
+      toast({ title: "Could not delete", description: e?.message ?? String(e), variant: "destructive" })
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const canBill = (s: HotelSaleRow) => s.documentType === "Stay" && s.bookingStatus === "CheckedOut" && !s.billedToAccount && s.balance > 0 && canPay
+
   return (
     <div className="flex h-screen bg-slate-50">
       <DashboardSidebar onLogout={logout} />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <DashboardHeader />
         <main className="flex-1 overflow-auto p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
-          <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div className="flex items-start gap-3 min-w-0">
-                <div className="w-10 h-10 shrink-0 bg-violet-100 rounded-lg flex items-center justify-center">
-                  <ShoppingCart className="w-5 h-5 text-violet-600" />
-                </div>
-                <div className="min-w-0">
-                  <h1 className="text-xl sm:text-2xl font-bold text-slate-900 truncate">Sales</h1>
-                  <p className="text-sm text-slate-600">Stays and restaurant sales, what was paid and what is still owed</p>
-                </div>
+          <ModuleSalesView
+            subtitle="Stays and restaurant sales, what was paid and what is still owed"
+            accent={{ iconBg: "bg-violet-100", iconText: "text-violet-600", button: "bg-violet-600 hover:bg-violet-700", spinner: "text-violet-600" }}
+            addAction={{ label: "New Booking", href: "/hotel-bookings?new=1" }}
+            items={visible}
+            loading={loading}
+            toRow={toRow}
+            quantityLabel="Room Nights"
+            quantityHint="nights sold"
+            searchPlaceholder="Search customer, reference or room"
+            extraFilters={EXTRA_FILTERS}
+            onRangeChange={onRangeChange}
+            pdf={{ title: "Hotel Sales", filename: "hotel-sales", headFillColor: [124, 58, 237] }}
+            emptyTitle="No sales found"
+            emptyText="Bookings and restaurant orders appear here."
+            banner={focusBooking ? (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-900">
+                <span>Showing one stay.</span>
+                <Link href="/hotel-sales" className="font-medium text-violet-700 hover:underline">Show all sales</Link>
               </div>
-              <Button asChild className="gap-2 w-full sm:w-auto h-11 sm:h-10 bg-violet-600 hover:bg-violet-700 shrink-0">
-                <Link href="/hotel-billing"><Receipt className="w-4 h-4" /> Billing</Link>
-              </Button>
-            </div>
-
-            <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
-              <Card className="bg-white">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Sales</CardTitle>
-                  <DollarSign className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-xl sm:text-2xl font-bold leading-tight break-words">{fmt(totalSales)}</div>
-                  <p className="text-xs text-muted-foreground">{filtered.length} transactions</p>
-                </CardContent>
-              </Card>
-              <Card className="bg-white">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Room Nights</CardTitle>
-                  <Moon className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-xl sm:text-2xl font-bold leading-tight">{totalNights.toLocaleString()}</div>
-                  <p className="text-xs text-muted-foreground">nights sold</p>
-                </CardContent>
-              </Card>
-              <Card className="bg-white">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Average Sale</CardTitle>
-                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-xl sm:text-2xl font-bold leading-tight break-words">{fmt(filtered.length ? totalSales / filtered.length : 0)}</div>
-                  <p className="text-xs text-muted-foreground">per transaction</p>
-                </CardContent>
-              </Card>
-              <Card className="bg-white">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Balance</CardTitle>
-                  <Wallet className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className={cn("text-xl sm:text-2xl font-bold leading-tight break-words", totalOwed > 0 ? "text-amber-700" : "")}>{fmt(totalOwed)}</div>
-                  <p className="text-xs text-muted-foreground">still owed</p>
-                </CardContent>
-              </Card>
-            </div>
-
-            <Card className="bg-white">
-              <CardContent className="p-4 grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
-                <div className="relative lg:col-span-2">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                  <Input placeholder="Search customer, reference or room" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
-                </div>
-                <Select value={type} onValueChange={setType}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All sales</SelectItem>
-                    <SelectItem value="Stay">Stays</SelectItem>
-                    <SelectItem value="Order">Restaurant orders</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={status} onValueChange={setStatus}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All statuses</SelectItem>
-                    <SelectItem value="Paid">Paid</SelectItem>
-                    <SelectItem value="Partial">Partial</SelectItem>
-                    <SelectItem value="Pending">Pending</SelectItem>
-                  </SelectContent>
-                </Select>
-                <div className="grid grid-cols-2 gap-2">
-                  <Input type="date" aria-label="From" value={from} onChange={(e) => setFrom(e.target.value)} />
-                  <Input type="date" aria-label="To" value={to} onChange={(e) => setTo(e.target.value)} />
-                </div>
-                {focusBooking && (
-                  <div className="sm:col-span-2 lg:col-span-5 text-sm text-slate-600">
-                    Showing one stay. <Link href="/hotel-sales" className="text-violet-700 hover:underline">Show all sales</Link>
-                  </div>
+            ) : null}
+            // Poultry's order (app/sales): Pay, Edit, Invoice, Payments, Delete. Edit and
+            // Delete are for stays; a walk-in restaurant order is settled at the till.
+            renderCardActions={(s) => (
+              <>
+                {s.documentType === "Stay" && s.balance > 0 && canPay && (
+                  <Button variant="outline" size="sm" className="h-10 w-full text-emerald-700 border-emerald-200 hover:bg-emerald-50" onClick={() => setPaySale(s)}>
+                    <Wallet className="h-4 w-4 mr-2" /> Pay
+                  </Button>
                 )}
-              </CardContent>
-            </Card>
-
-            {loading ? (
-              <Card className="bg-white"><CardContent className="py-12 text-center"><Loader2 className="h-6 w-6 animate-spin text-violet-600 mx-auto" /></CardContent></Card>
-            ) : rows.length === 0 ? (
-              <Card className="bg-white">
-                <CardContent className="py-12 text-center">
-                  <h3 className="text-lg font-semibold text-slate-900 mb-2">No sales found</h3>
-                  <p className="text-slate-600">Bookings and restaurant orders appear here.</p>
-                </CardContent>
-              </Card>
-            ) : filtered.length === 0 ? (
-              <Card className="bg-white"><CardContent className="py-12 text-center"><p className="text-slate-600">No sales match the current filters.</p></CardContent></Card>
-            ) : (
-              <Card className="bg-white overflow-hidden">
-                <CardHeader>
-                  <CardTitle>Recent Sales</CardTitle>
-                  <CardDescription>View and manage your sales transactions</CardDescription>
-                </CardHeader>
-                <CardContent className="p-0 overflow-x-auto">
-                  <Table className="w-full min-w-[1100px]">
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Sale ID</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Sale</TableHead>
-                        <TableHead>Customer</TableHead>
-                        <TableHead>Nights</TableHead>
-                        <TableHead>Total</TableHead>
-                        <TableHead>Paid</TableHead>
-                        <TableHead>Balance</TableHead>
-                        <TableHead>Method</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="min-w-[140px]">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filtered.map((s) => (
-                        <TableRow key={`${s.documentType}-${s.documentId}`}>
-                          <TableCell className="whitespace-nowrap tabular-nums text-slate-500">{s.reference}</TableCell>
-                          <TableCell className="whitespace-nowrap">{fmtDateTime(s.docDate)}</TableCell>
-                          <TableCell>
-                            <div>{s.label}</div>
-                            {s.documentType === "Stay" && s.bookingStatus && <div className="text-xs text-slate-500">{s.bookingStatus}</div>}
-                          </TableCell>
-                          <TableCell>
-                            {s.partyName}
-                            {s.billedToAccount && <Badge variant="outline" className="ml-2 text-violet-700 border-violet-300">Account</Badge>}
-                          </TableCell>
-                          <TableCell className="tabular-nums">{s.nights ?? "—"}</TableCell>
-                          <TableCell className="font-medium tabular-nums">{fmt(s.totalAmount)}</TableCell>
-                          <TableCell className="tabular-nums text-emerald-700">{fmt(s.amountPaid)}</TableCell>
-                          <TableCell className={cn("tabular-nums", s.balance > 0 ? "font-semibold text-amber-700" : "text-slate-400")}>{fmt(s.balance)}</TableCell>
-                          <TableCell>{s.paymentMethod ? <Badge variant="outline" className="w-fit">{s.paymentMethod}</Badge> : "—"}</TableCell>
-                          <TableCell><PaymentStatusBadge status={s.paymentStatus} /></TableCell>
-                          <TableCell className="whitespace-nowrap">
-                            <div className="flex items-center gap-1">
-                              {s.documentType === "Stay" && s.balance > 0 && canPay && (
-                                <Button variant="ghost" size="sm" className="text-emerald-700 hover:bg-emerald-50"
-                                  onClick={() => setPaySale(s)} aria-label="Record payment" title={`Record payment · ${fmt(s.balance)} owed`}>
-                                  <Wallet className="h-4 w-4" />
-                                </Button>
-                              )}
-                              {s.documentType === "Stay" && (
-                                <Button variant="ghost" size="sm" onClick={() => setHistorySale(s)} aria-label="Payment history" title="Payment history">
-                                  <History className="h-4 w-4" />
-                                </Button>
-                              )}
-                              {s.documentType === "Stay" && s.bookingStatus === "CheckedOut" && !s.billedToAccount && s.balance > 0 && canPay && (
-                                <Button variant="ghost" size="sm" className="text-violet-700 hover:bg-violet-50"
-                                  onClick={() => setBillSale(s)} aria-label="Bill to account" title="Bill to account">
-                                  <Building2 className="h-4 w-4" />
-                                </Button>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
+                {s.documentType === "Stay" && (
+                  <Button variant="outline" size="sm" className="h-10 w-full" onClick={() => router.push(`/hotel-bookings?edit=${s.documentId}`)}>
+                    <Pencil className="h-4 w-4 mr-2" /> Edit
+                  </Button>
+                )}
+              </>
             )}
-          </div>
+            renderCardActionsEnd={(s) => (
+              <>
+                {s.documentType === "Stay" && (
+                  <Button variant="outline" size="sm" className="h-10 w-full" onClick={() => setHistorySale(s)}>
+                    <History className="h-4 w-4 mr-2" /> Payments
+                  </Button>
+                )}
+                {canBill(s) && (
+                  <Button variant="outline" size="sm" className="h-10 w-full text-violet-700 border-violet-200 hover:bg-violet-50" onClick={() => setBillSale(s)}>
+                    <Building2 className="h-4 w-4 mr-2" /> Bill to account
+                  </Button>
+                )}
+                {s.documentType === "Stay" && (
+                  <Button variant="outline" size="sm" className="h-10 w-full text-red-600 border-red-200 hover:bg-red-50" onClick={() => setDeleteSale(s)}>
+                    <Trash2 className="h-4 w-4 mr-2" /> Delete
+                  </Button>
+                )}
+              </>
+            )}
+            renderTableActions={(s) => (
+              <>
+                {s.documentType === "Stay" && s.balance > 0 && canPay && (
+                  <Button variant="ghost" size="sm" className="text-emerald-700 hover:bg-emerald-50"
+                    onClick={() => setPaySale(s)} aria-label="Record payment" title={`Record payment · ${fmt(s.balance)} owed`}>
+                    <Wallet className="h-4 w-4" />
+                  </Button>
+                )}
+                {s.documentType === "Stay" && (
+                  <Button variant="ghost" size="sm" onClick={() => router.push(`/hotel-bookings?edit=${s.documentId}`)} aria-label="Edit" title="Edit">
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                )}
+              </>
+            )}
+            renderTableActionsEnd={(s) => (
+              <>
+                {s.documentType === "Stay" && (
+                  <Button variant="ghost" size="sm" onClick={() => setHistorySale(s)} aria-label="Payment history" title="Payment history">
+                    <History className="h-4 w-4" />
+                  </Button>
+                )}
+                {canBill(s) && (
+                  <Button variant="ghost" size="sm" className="text-violet-700 hover:bg-violet-50"
+                    onClick={() => setBillSale(s)} aria-label="Bill to account" title="Bill to account">
+                    <Building2 className="h-4 w-4" />
+                  </Button>
+                )}
+                {s.documentType === "Stay" && (
+                  <Button variant="ghost" size="sm" className="text-red-600 hover:bg-red-50" onClick={() => setDeleteSale(s)} aria-label="Delete" title="Delete">
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
+              </>
+            )}
+          />
         </main>
       </div>
 
@@ -353,6 +291,22 @@ function HotelSalesContent() {
         canReverse={canReverse}
         onReversed={() => { load() }}
       />
+
+      <Dialog open={!!deleteSale} onOpenChange={(o) => { if (!o) setDeleteSale(null) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete sale?</DialogTitle>
+            <DialogDescription>
+              {deleteSale ? `${deleteSale.reference} · ${deleteSale.partyName ?? ""}` : ""}. The booking is cancelled and its room freed.
+              A sale with money paid on it can't be deleted: reverse the payments first (Payments button).
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteSale(null)} disabled={deleting}>Cancel</Button>
+            <Button variant="destructive" onClick={confirmDelete} disabled={deleting}>{deleting ? "Deleting…" : "Delete"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!billSale} onOpenChange={(o) => { if (!o) { setBillSale(null); setBillCustomer("") } }}>
         <DialogContent className="sm:max-w-md">

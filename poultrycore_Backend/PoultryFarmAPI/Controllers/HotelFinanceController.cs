@@ -11,7 +11,7 @@ namespace PoultryFarmAPIWeb.Controllers
     public class AddChargeRequest { public string FarmId { get; set; } = ""; public int HotelBookingId { get; set; } public string ChargeType { get; set; } = "Room"; public string Description { get; set; } = ""; public int Quantity { get; set; } = 1; public decimal UnitPrice { get; set; } public decimal? TotalAmount { get; set; } }
     public class GenerateInvoiceRequest { public string FarmId { get; set; } = ""; public int HotelBookingId { get; set; } }
     public class HotelRecordPaymentRequest { public string FarmId { get; set; } = ""; public int HotelBookingId { get; set; } public int? HotelInvoiceId { get; set; } public decimal Amount { get; set; } public string PaymentMethod { get; set; } = "Cash"; public string? Reference { get; set; } public string? Notes { get; set; } public int? HotelCashAccountId { get; set; } }
-    public class CreateExpenseRequest { public string FarmId { get; set; } = ""; public string Category { get; set; } = ""; public string Description { get; set; } = ""; public decimal Amount { get; set; } public string? ExpenseDate { get; set; } public string? Vendor { get; set; } public string? Notes { get; set; } public string PaymentMethod { get; set; } = "Cash"; public int? HotelCashAccountId { get; set; } public string? PaidTo { get; set; } public int? HotelExpenseCategoryId { get; set; } public int? HotelSupplierId { get; set; } public string? DueDate { get; set; } }
+    public class CreateExpenseRequest { public string FarmId { get; set; } = ""; public string Category { get; set; } = ""; public string Description { get; set; } = ""; public decimal Amount { get; set; } public string? ExpenseDate { get; set; } public string? Vendor { get; set; } public string? Notes { get; set; } public string PaymentMethod { get; set; } = "Cash"; public int? HotelCashAccountId { get; set; } public string? PaidTo { get; set; } public int? HotelExpenseCategoryId { get; set; } public int? HotelSupplierId { get; set; } public string? DueDate { get; set; } public bool PostNow { get; set; } }
     public class CreateCashAccountRequest { public string FarmId { get; set; } = ""; public string AccountName { get; set; } = ""; public string AccountType { get; set; } = "Cash"; public decimal OpeningBalance { get; set; } public string? Purpose { get; set; } public bool AllowNegativeBalance { get; set; } public string? Notes { get; set; } }
     public class CreateExpenseCategoryRequest { public string FarmId { get; set; } = ""; public string Name { get; set; } = ""; }
     public class UpdatePurposeRequest { public string FarmId { get; set; } = ""; public string? Purpose { get; set; } }
@@ -206,10 +206,75 @@ namespace PoultryFarmAPIWeb.Controllers
                 c.Parameters.AddWithValue("@s", req.HotelSupplierId.Value); c.Parameters.AddWithValue("@f", req.FarmId);
                 if (await c.ExecuteScalarAsync() == null) return BadRequest(new { message = "Supplier does not belong to this company." });
             }
+            // PostNow (the Expenses page, like Poultry): the money moves when the
+            // expense is saved -- insert and approve in one transaction.
             using var conn = new NpgsqlConnection(_cs); await conn.OpenAsync();
-            using var cmd = new NpgsqlCommand(
-                "INSERT INTO hotelexpenses(farmid,category,description,amount,expensedate,vendor,notes,paymentmethod,hotelcashaccountid,paidto,hotelexpensecategoryid,status,hotelsupplierid,duedate) " +
-                "VALUES(@f,@c,@d,@a,@e::date,@v,@n,@pm,@ca,@pt,@eci,'Draft',@sid,@due::date) RETURNING *", conn);
+            using var tx = await conn.BeginTransactionAsync();
+            int id = await InsertExpense(conn, tx, req, date);
+            if (req.PostNow) await ApproveExpenseRow(conn, tx, id, req.FarmId);
+            await tx.CommitAsync();
+            return await ExpenseRow(conn, id, req.FarmId);
+        }
+
+        // Poultry's Edit Expense. A Draft/Submitted expense is updated in place and
+        // posted. A posted one is cancelled (its money comes back as a reversal row)
+        // and replaced by a new posted expense, so the cash flow, P&L and supplier
+        // ledger -- which already understand cancelled expenses -- stay right.
+        // sphotelexpense_cancel refuses once a supplier payment is applied to it.
+        [HttpPut("finance/expenses/{id}")]
+        public async Task<IActionResult> UpdateExpense(int id, [FromBody] CreateExpenseRequest req)
+        {
+            var auth = HotelAuthHelper.VerifyFarmOwnership(User, req.FarmId); if (auth != null) return auth;
+            var v1 = HotelValidation.ValidatePositiveAmount(req.Amount, "Expense amount"); if (v1 != null) return v1;
+            var v2 = HotelValidation.ValidateRequiredString(req.Category, "Category"); if (v2 != null) return v2;
+            var v3 = HotelValidation.ValidateRequiredString(req.Description, "Description"); if (v3 != null) return v3;
+            string date = string.IsNullOrEmpty(req.ExpenseDate) ? DateTime.UtcNow.ToString("yyyy-MM-dd") : req.ExpenseDate;
+
+            using var conn = new NpgsqlConnection(_cs); await conn.OpenAsync();
+            if (req.HotelSupplierId != null)
+            {
+                using var c = new NpgsqlCommand("SELECT 1 FROM hotelsuppliers WHERE hotelsupplierid=@s AND farmid=@f AND NOT isdeleted", conn);
+                c.Parameters.AddWithValue("@s", req.HotelSupplierId.Value); c.Parameters.AddWithValue("@f", req.FarmId);
+                if (await c.ExecuteScalarAsync() == null) return BadRequest(new { message = "Supplier does not belong to this company." });
+            }
+            using var tx = await conn.BeginTransactionAsync();
+            string? status;
+            using (var get = new NpgsqlCommand("SELECT status FROM hotelexpenses WHERE hotelexpenseid=@id AND farmid=@f FOR UPDATE", conn, tx))
+            {
+                get.Parameters.AddWithValue("@id", id); get.Parameters.AddWithValue("@f", req.FarmId);
+                status = (string?)await get.ExecuteScalarAsync();
+            }
+            if (status == null) return NotFound(new { message = "Expense not found." });
+            if (status == "Cancelled") return BadRequest(new { message = "This expense was deleted and cannot be edited." });
+
+            int newId = id;
+            if (status == "Draft" || status == "Submitted")
+            {
+                using var up = new NpgsqlCommand(
+                    "UPDATE hotelexpenses SET category=@c,description=@d,amount=@a,expensedate=@e::date,vendor=@v,notes=@n,paymentmethod=@pm," +
+                    "hotelcashaccountid=@ca,paidto=@pt,hotelexpensecategoryid=@eci,hotelsupplierid=@sid,duedate=@due::date,updatedat=NOW() " +
+                    "WHERE hotelexpenseid=@id AND farmid=@f", conn, tx);
+                AddExpenseParams(up, req, date); up.Parameters.AddWithValue("@id", id);
+                await up.ExecuteNonQueryAsync();
+            }
+            else
+            {
+                using (var cancel = new NpgsqlCommand("SELECT sphotelexpense_cancel(p_farmid => @f::text, p_expenseid => @id::int, p_reason => @r::text, p_by => @u::text)", conn, tx))
+                {
+                    cancel.Parameters.AddWithValue("@f", req.FarmId); cancel.Parameters.AddWithValue("@id", id);
+                    cancel.Parameters.AddWithValue("@r", "Edited");
+                    cancel.Parameters.AddWithValue("@u", (object?)HotelAuthHelper.GetUserName(User) ?? DBNull.Value);
+                    await cancel.ExecuteNonQueryAsync();
+                }
+                newId = await InsertExpense(conn, tx, req, date);
+            }
+            await ApproveExpenseRow(conn, tx, newId, req.FarmId);
+            await tx.CommitAsync();
+            return await ExpenseRow(conn, newId, req.FarmId);
+        }
+
+        private static void AddExpenseParams(NpgsqlCommand cmd, CreateExpenseRequest req, string date)
+        {
             cmd.Parameters.AddWithValue("@sid", (object?)req.HotelSupplierId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@due", string.IsNullOrEmpty(req.DueDate) ? DBNull.Value : req.DueDate);
             cmd.Parameters.AddWithValue("@f", req.FarmId); cmd.Parameters.AddWithValue("@c", req.Category);
@@ -221,10 +286,23 @@ namespace PoultryFarmAPIWeb.Controllers
             cmd.Parameters.AddWithValue("@ca", (object?)req.HotelCashAccountId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@pt", (object?)req.PaidTo ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@eci", (object?)req.HotelExpenseCategoryId ?? DBNull.Value);
-            using var r = await cmd.ExecuteReaderAsync();
-            if (!await r.ReadAsync()) return StatusCode(500);
-            var row = ReadRow(r);
-            return Ok(row);
+        }
+
+        private static async Task<int> InsertExpense(NpgsqlConnection conn, NpgsqlTransaction tx, CreateExpenseRequest req, string date)
+        {
+            using var cmd = new NpgsqlCommand(
+                "INSERT INTO hotelexpenses(farmid,category,description,amount,expensedate,vendor,notes,paymentmethod,hotelcashaccountid,paidto,hotelexpensecategoryid,status,hotelsupplierid,duedate) " +
+                "VALUES(@f,@c,@d,@a,@e::date,@v,@n,@pm,@ca,@pt,@eci,'Draft',@sid,@due::date) RETURNING hotelexpenseid", conn, tx);
+            AddExpenseParams(cmd, req, date);
+            return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        }
+
+        private async Task ApproveExpenseRow(NpgsqlConnection conn, NpgsqlTransaction tx, int id, string farmId)
+        {
+            using var cmd = new NpgsqlCommand("SELECT sphotelexpense_approve(p_farmid => @f::text, p_expenseid => @id::int, p_by => @u::text)", conn, tx);
+            cmd.Parameters.AddWithValue("@id", id); cmd.Parameters.AddWithValue("@f", farmId);
+            cmd.Parameters.AddWithValue("@u", (object?)HotelAuthHelper.GetUserName(User) ?? DBNull.Value);
+            await cmd.ExecuteNonQueryAsync();
         }
 
         // ======================= EXPENSE CATEGORIES =======================

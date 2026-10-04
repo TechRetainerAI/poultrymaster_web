@@ -1,6 +1,7 @@
 import '../api/api_client.dart';
 import '../models/company.dart';
 import '../state/session.dart';
+import 'lookup_loader.dart';
 import 'page_spec.dart';
 
 /// Create, update and delete for a list page.
@@ -19,7 +20,7 @@ class RecordApi {
   ApiClient get _client =>
       spec.source == 'login' ? session.loginClient : session.farmClient;
 
-  String get _path => spec.path.replaceAll('{farmId}', company.farmId);
+  String get _path => (spec.writePath ?? spec.path).replaceAll('{farmId}', company.farmId);
 
   /// Scope keys that are never the record's own id.
   static const _foreign = {
@@ -72,12 +73,31 @@ class RecordApi {
         if (spec.needsUserId) 'userId': session.tokens.userId ?? '',
       };
 
+  /// The page's rows, fetched as its list screen fetches them (same farm,
+  /// user and company-type parameters).
+  Future<List<Map<String, dynamic>>> list() async {
+    final query = <String, dynamic>{...spec.query};
+    if (spec.needsFarmId && !spec.path.contains('{farmId}')) {
+      query[spec.farmIdParam] = company.farmId;
+    }
+    if (spec.needsUserId) query['userId'] = session.tokens.userId ?? '';
+    if (spec.needsCompanyType) query['type'] = company.type.wire;
+    final res = await _client.get(spec.path.replaceAll('{farmId}', company.farmId), query: query);
+    dynamic node = res;
+    if (node is Map && spec.itemsAt != null && node[spec.itemsAt] is List) node = node[spec.itemsAt];
+    final rows = node is List ? node : LookupLoader.rowsIn(node);
+    return [for (final r in rows) if (r is Map) Map<String, dynamic>.from(r)];
+  }
+
   Future<void> create(Map<String, dynamic> body) =>
       _client.post(_path, body: _withFarm(body));
 
   Future<void> update(Object id, Map<String, dynamic> body) =>
       _client.put('$_path/$id', body: _withFarm(body));
 
-  Future<void> remove(Object id) =>
-      _client.delete('$_path/$id?farmId=${Uri.encodeComponent(company.farmId)}');
+  /// Endpoints that need userId on writes check it on DELETE too (the web
+  /// sends it for flocks and houses), so it goes in the query here.
+  Future<void> remove(Object id) => _client.delete(
+      '$_path/$id?farmId=${Uri.encodeComponent(company.farmId)}'
+      '${spec.needsUserId ? '&userId=${Uri.encodeComponent(session.tokens.userId ?? '')}' : ''}');
 }

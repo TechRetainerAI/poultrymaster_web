@@ -7,6 +7,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
@@ -352,6 +354,7 @@ export default function HotelPayrollPage() {
 
   // ----- Computed -----
   const filtered = runs.filter((r) => statusFilter === "all" || r.status === statusFilter)
+  const pg = usePagination(filtered)
   const draftCount = runs.filter((r) => r.status === "Draft").length
   const approvedCount = runs.filter((r) => r.status === "Approved").length
   const totalNetPaid = runs.filter((r) => r.status === "Paid").reduce((s, r) => s + (r.totalnetpay ?? 0), 0)
@@ -440,7 +443,7 @@ export default function HotelPayrollPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map((r, idx) => (
+                    {pg.pageItems.map((r, idx) => (
                       <tr key={r.hotelpayrollrunid ?? `run-${idx}`} className="border-b hover:bg-slate-50">
                         <td className="p-3 font-medium">
                           {r.periodstart?.slice(0, 10)} — {r.periodend?.slice(0, 10)}
@@ -504,6 +507,7 @@ export default function HotelPayrollPage() {
                   </tbody>
                   </table>
                 </div>
+                <DataPagination {...pg.paginationProps} variant="records" />
               </CardContent>
             </Card>
           )}

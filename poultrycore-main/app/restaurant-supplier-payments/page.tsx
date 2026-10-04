@@ -15,6 +15,7 @@ export default function RestaurantSupplierPaymentsPage() {
   return (
     <PaymentsLedgerPage
       module="restaurant"
+      pagerVariant="records"
       companyType="Restaurant"
       loadCashAccounts={async () => {
         const accounts = await listCashAccounts()

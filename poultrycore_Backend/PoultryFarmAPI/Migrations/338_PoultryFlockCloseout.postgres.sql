@@ -1,5 +1,5 @@
 -- =============================================================================
--- 332  End-of-flock closeout (spent-layer disposal)
+-- 338  End-of-flock closeout (spent-layer disposal)
 -- =============================================================================
 --
 -- WHAT THIS IS
@@ -1084,7 +1084,7 @@ BEGIN
         COALESCE(f.hasarrived, FALSE) AS hasarrived,
         b.batchname::text,
         f.createdat,                          -- 301
-        f.closeddate,                         -- 332
+        f.closeddate,                         -- 338
         f.closedat,
         f.closedby,
         f.closereason,
@@ -1124,7 +1124,7 @@ BEGIN
         f.notes::text,
         COALESCE(f.hasarrived, FALSE) AS hasarrived,
         b.batchname::text,
-        f.closeddate,                         -- 332
+        f.closeddate,                         -- 338
         f.closedat,
         f.closedby,
         f.closereason,
@@ -1160,10 +1160,10 @@ BEGIN
                f.closeddate AS c_closeddate
         FROM   flock f
         WHERE  f.farmid = p_farmid
-          AND  (f.closeddate IS NOT NULL OR COALESCE(f.active, TRUE))       -- 332
+          AND  (f.closeddate IS NOT NULL OR COALESCE(f.active, TRUE))       -- 338
           AND  (p_flockid IS NULL OR f.flockid = p_flockid)
           AND  f.startdate <= p_enddate
-          AND  (f.closeddate IS NULL OR f.closeddate >= p_startdate)        -- 332
+          AND  (f.closeddate IS NULL OR f.closeddate >= p_startdate)        -- 338
     ),
     grid AS (
         SELECT d.c_dt                       AS c_date,
@@ -1185,7 +1185,7 @@ BEGIN
                                             AS c_hashealthnote
         FROM   d CROSS JOIN fl
         WHERE  d.c_dt >= fl.c_startdate
-          AND  (fl.c_closeddate IS NULL OR d.c_dt <= fl.c_closeddate)       -- 332
+          AND  (fl.c_closeddate IS NULL OR d.c_dt <= fl.c_closeddate)       -- 338
     )
     SELECT g.c_date, g.c_flockid, g.c_flockname::text,
            g.c_hasproductionrecord, g.c_hasfeedusage, g.c_hasmortalityupdate, g.c_hashealthnote
@@ -1209,10 +1209,10 @@ BEGIN
         SELECT f.flockid AS c_flockid, f.startdate AS c_startdate, f.closeddate AS c_closeddate
         FROM   flock f
         WHERE  f.farmid = p_farmid
-          AND  (f.closeddate IS NOT NULL OR COALESCE(f.active, TRUE))       -- 332
+          AND  (f.closeddate IS NOT NULL OR COALESCE(f.active, TRUE))       -- 338
           AND  (p_flockid IS NULL OR f.flockid = p_flockid)
           AND  f.startdate <= p_enddate
-          AND  (f.closeddate IS NULL OR f.closeddate >= p_startdate)        -- 332
+          AND  (f.closeddate IS NULL OR f.closeddate >= p_startdate)        -- 338
     ),
     grid AS (
         SELECT EXISTS(SELECT 1 FROM productionrecords pr
@@ -1228,7 +1228,7 @@ BEGIN
                                             AS c_hashealth
         FROM   d CROSS JOIN fl
         WHERE  d.c_dt >= fl.c_startdate
-          AND  (fl.c_closeddate IS NULL OR d.c_dt <= fl.c_closeddate)       -- 332
+          AND  (fl.c_closeddate IS NULL OR d.c_dt <= fl.c_closeddate)       -- 338
     )
     SELECT
         (SELECT COUNT(*)::int FROM fl)                                                   AS activeflocks,
@@ -1257,7 +1257,7 @@ DECLARE
     v_n           integer;
 BEGIN
     IF to_regclass('public.iampermissions') IS NULL THEN
-        RAISE NOTICE '332: iampermissions not present, skipping catalog seed.';
+        RAISE NOTICE '338: iampermissions not present, skipping catalog seed.';
         RETURN;
     END IF;
 
@@ -1295,7 +1295,7 @@ BEGIN
     IF to_regclass('public.iamuserpermissions') IS NOT NULL THEN
         INSERT INTO iamuserpermissions (userid, farmid, permissionkey, effect, reason, grantedby, grantedat)
         SELECT up.userid, up.farmid, m.new_key, up.effect,
-               'Carried over from ' || up.permissionkey || ' by migration 332',
+               'Carried over from ' || up.permissionkey || ' by migration 338',
                up.grantedby, (now() at time zone 'utc')
         FROM   iamuserpermissions up
         JOIN   (VALUES
@@ -1309,7 +1309,7 @@ BEGIN
         GET DIAGNOSTICS v_added_users = ROW_COUNT;
     END IF;
 
-    RAISE NOTICE '332: % catalog key(s), % role grant(s), % user grant(s) added.',
+    RAISE NOTICE '338: % catalog key(s), % role grant(s), % user grant(s) added.',
         v_added_keys, v_added_roles, v_added_users;
 END;
 $iam$;

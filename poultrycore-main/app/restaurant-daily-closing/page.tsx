@@ -197,7 +197,7 @@ export default function RestaurantDailyClosingPage() {
               <MobileCardList
                 striped
                 items={pg.pageItems}
-                pagination={pg.paginationProps}
+                pagination={{ ...pg.paginationProps, variant: "records" }}
                 getKey={(h) => h.closingId}
                 primary={(h) => (
                   <span className="flex flex-wrap items-center gap-2">

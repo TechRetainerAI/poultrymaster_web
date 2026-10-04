@@ -68,7 +68,7 @@ export function buildRestaurantNavConfig(
       // days, in the order the day happens -- take orders, open the till, record
       // what was spent, see where the money stands, then close the day.
       items: ([
-        { href: "/restaurant-orders",        label: "Sales",          icon: ShoppingCart },
+        { href: "/restaurant-sales",         label: "Sales",          icon: ShoppingCart },
         { href: "/restaurant-tills",         label: "Tills & Shifts", icon: Calculator },
         { href: "/restaurant-expenses",      label: "Expenses",       icon: DollarSign },
         { href: "/restaurant-cash-flow",     label: "Cash Flow",      icon: Wallet },
@@ -152,7 +152,7 @@ export function buildRestaurantNavConfig(
         items: [
           // An order IS the restaurant's sale -- All Orders is where every one of
           // them is listed with what was paid.
-          { id: "sales",    title: "Sales",             icon: ShoppingCart, href: "/restaurant-orders", visible: vis("/restaurant-orders") },
+          { id: "sales",    title: "Sales",             icon: ShoppingCart, href: "/restaurant-sales",  visible: vis("/restaurant-sales") },
           // Migration 333: Poultry's rows, titles, icons and gates.
           { id: "payments", title: "Payments",          icon: Wallet,       href: "/restaurant-payments", visible: vis("/restaurant-payments") },
           { id: "customer-balances", title: "Customer Balances", icon: Users, href: "/restaurant-customer-balances", visible: vis("/restaurant-customer-balances") },

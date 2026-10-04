@@ -1,0 +1,6 @@
+{
+  "_comment": "Gitignored local-dev overlay. Program.cs loads this after appsettings.Development.json when ASPNETCORE_ENVIRONMENT=Development, so values here win. Never commit real credentials. Points at the same PostgreSQL database (VisibilityCoreDB) the Farm API uses. NOTE: 'SSL Mode=Disable' is rejected by the server's pg_hba.conf ('no encryption'); 'SSL Mode=Require;Trust Server Certificate=true' is required (the Cloud SQL cert is self-signed, so VerifyFull fails).",
+  "ConnectionStrings": {
+    "ConnStr": "Host=34.175.134.7;Port=5432;Database=VisibilityCoreDB;Username=poultryapp;Password=Pc9!eSwyqNjq3zOfWTw5cong;SSL Mode=Require;Trust Server Certificate=true"
+  }
+}

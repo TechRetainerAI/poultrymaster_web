@@ -311,7 +311,7 @@ export default function HotelOwnerMoneyPage() {
                   )}
                 </>
               )}
-              pagination={pg.paginationProps}
+              pagination={{ ...pg.paginationProps, variant: "records" }}
               desktopTable={
                 <div className="overflow-x-auto">
                   <Table>

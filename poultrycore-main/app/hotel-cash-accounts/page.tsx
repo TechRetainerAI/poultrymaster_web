@@ -28,7 +28,7 @@ import { PromptDialog } from "@/components/ui/prompt-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
-import { Plus, Pencil, Loader2, Wallet, RefreshCw, ArrowLeftRight, Eye, Trash2, Scale, Undo2 } from "lucide-react"
+import { Plus, Pencil, Loader2, Wallet, RefreshCw, ArrowLeftRight, Eye, Trash2, Scale, Undo2, FileText } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -261,6 +261,11 @@ export default function HotelCashAccountsPage() {
               <Button asChild variant="outline" className="flex-1 sm:flex-none whitespace-nowrap">
                 <Link href="/hotel-cash-reconciliation"><Scale className="h-4 w-4 mr-1" /> Reconcile</Link>
               </Button>
+              {/* Poultry's Cash Account Report button. The Hotel's nearest report is
+                  its Cash Flow Report (money in/out of every account, running balances). */}
+              <Button asChild variant="outline" className="flex-1 sm:flex-none whitespace-nowrap">
+                <Link href="/hotel-reports/cash-flow-report"><FileText className="h-4 w-4 mr-1" /> Cash Account Report</Link>
+              </Button>
               <Button variant="outline" className="flex-1 sm:flex-none whitespace-nowrap" onClick={() => setXferDlg(true)}><ArrowLeftRight className="h-4 w-4 mr-1" /> Transfer</Button>
               <Button variant="outline" className="flex-1 sm:flex-none whitespace-nowrap" onClick={createDefault} disabled={saving}><Wallet className="h-4 w-4 mr-1" /> Create default account</Button>
               <Button className="flex-1 sm:flex-none whitespace-nowrap bg-violet-600 hover:bg-violet-700" onClick={openNew}><Plus className="h-4 w-4 mr-1" /> New account</Button>
@@ -298,7 +303,7 @@ export default function HotelCashAccountsPage() {
                   defaultOpen
                   striped
                   items={pg.pageItems}
-                  pagination={pg.paginationProps}
+                  pagination={{ ...pg.paginationProps, variant: "records" }}
                   getKey={(a) => a.hotelCashAccountId}
                   primary={(a) => a.accountName}
                   secondary={(a) => (

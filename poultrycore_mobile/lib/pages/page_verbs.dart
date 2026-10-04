@@ -9,6 +9,9 @@ class PageVerbs {
 }
 
 const Map<String, PageVerbs> pageVerbs = {
+  // Hand-added: the curated spec points at /Admin/employees, not the
+  // read-only /Admin/company-employees the generator saw.
+  "admin-company-employees": PageVerbs(post: true, put: true, delete: true),
   "announcements": PageVerbs(post: true, delete: true),
   "assets": PageVerbs(post: true, put: true),
   "auditlogs": PageVerbs(post: true),
@@ -187,7 +190,8 @@ const Map<String, PageVerbs> pageVerbs = {
   "restaurant-reservations-settings": PageVerbs(post: true),
   "restaurant-reservations-waitlist": PageVerbs(post: true, delete: true),
   "restaurant-setup-profile": PageVerbs(post: true),
-  "restaurant-setup-suppliers": PageVerbs(post: true, delete: true),
+  // PUT added by hand: the web edits suppliers (updateSupplier).
+  "restaurant-setup-suppliers": PageVerbs(post: true, put: true, delete: true),
   "restaurant-staff": PageVerbs(post: true, put: true, delete: true),
   "sale": PageVerbs(post: true, put: true, delete: true),
   "sales": PageVerbs(post: true, put: true, delete: true),

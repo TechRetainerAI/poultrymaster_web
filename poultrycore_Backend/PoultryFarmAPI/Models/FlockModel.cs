@@ -24,7 +24,7 @@
         public DateTime? CreatedAt { get; set; }
 
         /// <summary>
-        /// The closed state (migration 332). Set only by Close Flock, cleared only
+        /// The closed state (migration 338). Set only by Close Flock, cleared only
         /// by Reopen Flock -- a trigger refuses any other writer. A closed flock is
         /// also inactive, but an inactive flock is not necessarily closed: the old
         /// active toggle still exists for flocks that are paused, not finished.

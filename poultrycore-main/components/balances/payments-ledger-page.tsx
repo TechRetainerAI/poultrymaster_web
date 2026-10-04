@@ -112,10 +112,15 @@ export interface PaymentsLedgerPageProps {
   /** Names for the cash accounts payments were made from. */
   loadCashAccounts: () => Promise<{ id: number; name: string }[]>
   permissions: { view: string; reverse: string }
+  /**
+   * "records" gives Restaurant and Hotel Poultry's Expenses pagination footer.
+   * Omitted (Poultry, Water, Generic) = unchanged.
+   */
+  pagerVariant?: "compact" | "records"
 }
 
 export function PaymentsLedgerPage({
-  module, companyType, partyHref, documentHref, loadCashAccounts, permissions, iconClassName,
+  module, companyType, partyHref, documentHref, loadCashAccounts, permissions, iconClassName, pagerVariant,
 }: PaymentsLedgerPageProps) {
   const fmt = useFmt()
   const router = useRouter()
@@ -837,7 +842,7 @@ export function PaymentsLedgerPage({
               ) : (
                 <MobileCardList
                   items={pg.pageItems}
-                  pagination={pg.paginationProps}
+                  pagination={{ ...pg.paginationProps, variant: pagerVariant }}
                   defaultOpen
                   striped
                   stripeAccent="blue"

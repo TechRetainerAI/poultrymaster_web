@@ -83,10 +83,15 @@ export interface PaymentsReceivedPageProps {
   permissions: { view: string; reverse: string }
   /** Header icon colour. Optional; defaults to sky as before. */
   iconClassName?: string
+  /**
+   * "records" gives Restaurant and Hotel Poultry's Expenses pagination footer.
+   * Omitted (Poultry, Water, Generic) = unchanged.
+   */
+  pagerVariant?: "compact" | "records"
 }
 
 export function PaymentsReceivedPage({
-  module, companyType, saleHref, permissions, iconClassName,
+  module, companyType, saleHref, permissions, iconClassName, pagerVariant,
 }: PaymentsReceivedPageProps) {
   const fmt = useFmt()
   const router = useRouter()
@@ -785,7 +790,7 @@ export function PaymentsReceivedPage({
                       )
                     })}
                     <div className="px-3 py-3">
-                      <DataPagination {...pg.paginationProps} />
+                      <DataPagination {...pg.paginationProps} variant={pagerVariant} />
                     </div>
                   </div>
 
@@ -949,7 +954,7 @@ export function PaymentsReceivedPage({
                       </TableBody>
                     </Table>
                     <div className="px-4 pb-4 pt-2">
-                      <DataPagination {...pg.paginationProps} />
+                      <DataPagination {...pg.paginationProps} variant={pagerVariant} />
                     </div>
                   </div>
                 </>

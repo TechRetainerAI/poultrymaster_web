@@ -41,6 +41,13 @@ export async function listHotelSales(range: { from?: string | null; to?: string 
   return (await res.json()) as HotelSaleRow[]
 }
 
+/** Sales → Delete on a stay. The API refuses once anything was paid (reverse the payments first). */
+export async function deleteHotelStaySale(bookingId: number): Promise<void> {
+  const q = new URLSearchParams({ farmId: activeFarmId() })
+  const res = await fetch(farmApiUrl(`/Hotel/sales/${bookingId}?${q}`), { method: "DELETE", headers: getAuthHeaders() })
+  if (!res.ok) throw new Error(await readApiError(res))
+}
+
 export async function billStayToAccount(bookingId: number, hotelCustomerId: number): Promise<void> {
   const res = await fetch(farmApiUrl(`/Hotel/sales/${bookingId}/bill-to`), {
     method: "POST",

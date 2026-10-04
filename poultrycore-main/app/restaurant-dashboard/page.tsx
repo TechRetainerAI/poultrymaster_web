@@ -43,15 +43,24 @@ export default function RestaurantDashboardPage() {
     setLoading(true)
     try {
       const today = new Date().toISOString().split("T")[0]
+      // Each section still falls back to empty so one failure doesn't blank the
+      // page -- but it is reported, instead of quietly showing 0 (the Waitlist
+      // panel was invisible for weeks because its SQL failed; fixed in 339).
+      const failed: string[] = []
+      const safe = <T,>(label: string, p: Promise<T>, empty: T) =>
+        p.catch((e) => { failed.push(label); console.error(`[Restaurant dashboard] ${label} failed`, e); return empty })
       const [ord, mi, tbl, kds, del, wl, res] = await Promise.all([
-        listOrders().catch(() => []),
-        listMenuItems().catch(() => []),
-        listTables().catch(() => []),
-        getKdsStats().catch(() => null),
-        getDeliveryStats().catch(() => null),
-        getWaitlistStats().catch(() => null),
-        listReservations(today).catch(() => []),
+        safe("Orders", listOrders(), [] as Order[]),
+        safe("Menu", listMenuItems(), [] as MenuItem[]),
+        safe("Tables", listTables(), [] as RestaurantTable[]),
+        safe("Kitchen", getKdsStats(), null as KdsStats | null),
+        safe("Delivery", getDeliveryStats(), null as DeliveryStats | null),
+        safe("Waitlist", getWaitlistStats(), null as WaitlistStats | null),
+        safe("Reservations", listReservations(today), [] as Awaited<ReturnType<typeof listReservations>>),
       ])
+      if (failed.length) {
+        toast({ title: "Some figures could not load", description: `${failed.join(", ")} -- these show as empty. Refresh to try again.`, variant: "destructive" })
+      }
       setOrders(ord)
       setMenuItems(mi)
       setTables(tbl)

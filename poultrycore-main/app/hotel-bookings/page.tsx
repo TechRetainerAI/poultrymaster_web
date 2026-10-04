@@ -61,7 +61,32 @@ export default function HotelBookingsPage() {
     if (activeFarmType === null || activeFarmType === undefined) return
     if (activeFarmType !== "Hotel") { router.replace("/dashboard"); return }
     loadData()
+    // Sales → "New Booking" lands here with ?new=1: open the form straight away.
+    // Opened once loading finishes, so the form gets the first guest and room type.
+    if (new URLSearchParams(window.location.search).get("new") === "1") {
+      setOpenNewWhenLoaded(true)
+      window.history.replaceState(null, "", window.location.pathname)
+    }
+    // Sales → Edit on a stay lands here with ?edit=<bookingId>.
+    const editParam = Number(new URLSearchParams(window.location.search).get("edit"))
+    if (editParam > 0) {
+      setOpenEditWhenLoaded(editParam)
+      window.history.replaceState(null, "", window.location.pathname)
+    }
   }, [activeFarmType, router])
+
+  const [openNewWhenLoaded, setOpenNewWhenLoaded] = useState(false)
+  const [openEditWhenLoaded, setOpenEditWhenLoaded] = useState<number | null>(null)
+  useEffect(() => {
+    if (openNewWhenLoaded && !loading) { setOpenNewWhenLoaded(false); openCreate() }
+    if (openEditWhenLoaded != null && !loading) {
+      const b = bookings.find((x) => x.hotelBookingId === openEditWhenLoaded)
+      setOpenEditWhenLoaded(null)
+      if (b) openEdit(b)
+      else toast({ title: "Booking not found", variant: "destructive" })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openNewWhenLoaded, openEditWhenLoaded, loading])
 
   async function loadData() {
     setLoading(true)

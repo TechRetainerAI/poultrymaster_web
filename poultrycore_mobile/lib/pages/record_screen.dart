@@ -5,8 +5,11 @@ import '../design/tokens.dart';
 import '../design/ui/form_section.dart';
 import '../models/company.dart';
 import '../state/session.dart';
+import '../widgets/module_sidebar.dart';
+import '../design/ui/buttons.dart';
 import 'form_screen.dart';
-import 'generated_forms.dart';
+import 'module_registry.dart';
+import 'page_extras.dart';
 import 'list_screen.dart' show formatValue;
 import 'form_spec.dart';
 import 'page_actions.dart';
@@ -42,12 +45,7 @@ class RecordScreen extends StatelessWidget {
   String get _name => headerFor(spec.key, spec.title).title;
 
   /// The web form for this record's page, when one was extracted.
-  FormDef? get _form {
-    for (final def in generatedForms.values) {
-      if (def.specKey != null && def.specKey == spec.key) return def;
-    }
-    return null;
-  }
+  FormDef? get _form => formForSpec(spec.key);
 
   /// What the API itself accepts on this endpoint.
   PageVerbs get _verbs => pageVerbs[spec.key] ?? const PageVerbs();
@@ -57,13 +55,15 @@ class RecordScreen extends StatelessWidget {
   /// PUT, and a form was extracted to edit with.
   bool get _canEdit =>
       (pageActions[spec.key] ?? const PageActions()).canEdit &&
-      _verbs.put &&
-      _form != null &&
+      // A custom screen saves through its own endpoint (Feed Formulas
+      // upserts with POST), so the PUT verb only matters for FormScreen.
+      ((_verbs.put && _form != null) || customForms.containsKey(spec.key)) &&
       session != null;
 
   bool get _canDelete =>
       (pageActions[spec.key] ?? const PageActions()).canDelete &&
       _verbs.delete &&
+      (deleteGuards[spec.key]?.call(row) ?? true) &&
       session != null &&
       RecordApi.idOf(row, hint: '${spec.key} ${spec.title}') != null;
 
@@ -129,8 +129,11 @@ class RecordScreen extends StatelessWidget {
         .where((k) => !isPlumbingField(k, row[k]))
         .toList();
 
+    final lead = sidebarLeading(context, session, company, specKey: spec.key);
     return Scaffold(
       appBar: AppBar(
+        leading: lead.leading,
+        leadingWidth: lead.width,
         title: Text(_name),
         actions: [
           if (_canDelete)
@@ -148,7 +151,9 @@ class RecordScreen extends StatelessWidget {
                 label: const Text('Edit'),
                 onPressed: () => Navigator.of(context)
                     .push<bool>(MaterialPageRoute(
-                      builder: (_) => FormScreen(
+                      builder: (_) => customForms[spec.key]
+                              ?.call(session!, company, row) ??
+                          FormScreen(
                         def: _form!,
                         title: 'Edit ${_name.toLowerCase()}',
                         company: company,
@@ -171,6 +176,20 @@ class RecordScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 32),
         children: [
+          if (session != null)
+            for (final x in recordExtras[spec.key] ?? const <RecordExtra>[])
+              if (x.when?.call(row) ?? true) ...[
+              AppButton(
+                label: x.label,
+                icon: x.icon,
+                variant: AppButtonVariant.outline,
+                fullWidth: true,
+                onPressed: () => Navigator.of(context).push<bool>(MaterialPageRoute(
+                  builder: (_) => x.builder(session!, company, row),
+                )),
+              ),
+              const SizedBox(height: 12),
+            ],
           Row(
             children: [
               Expanded(
