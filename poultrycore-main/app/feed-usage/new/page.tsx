@@ -15,8 +15,9 @@ import { Package, ArrowLeft, Loader2 } from "lucide-react"
 import { createFeedUsage, type FeedUsageInput } from "@/lib/api/feed-usage"
 import { getUserContext } from "@/lib/utils/user-context"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { getProductionRecords, createProductionRecord, updateProductionRecord, type ProductionRecordInput } from "@/lib/api/production-record"
+import { getProductionRecords, createProductionRecord, patchProductionRecord, type ProductionRecordInput } from "@/lib/api/production-record"
 import { useBatchFlockSelect, BATCH_ALL } from "@/hooks/use-batch-flock-select"
+import { getValidFlocks } from "@/lib/utils/flock-utils"
 
 export default function NewFeedUsagePage() {
   const router = useRouter()
@@ -151,11 +152,10 @@ export default function NewFeedUsagePage() {
           )
 
           if (matchingRecord) {
-            // Update existing production record with feed data
-            const updateData: Partial<ProductionRecordInput> = {
+            // Update only the feed quantity; the helper keeps the rest of the record.
+            await patchProductionRecord(matchingRecord, userId, farmId, {
               feedKg: Number(formData.quantityKg),
-            }
-            await updateProductionRecord(matchingRecord.id, updateData)
+            })
           } else {
             // Create a minimal production record with feed data
             // Get flock info for age calculation
@@ -189,6 +189,7 @@ export default function NewFeedUsagePage() {
                 production9AM: 0,
                 production12PM: 0,
                 production4PM: 0,
+                brokenEggs: 0,
                 totalProduction: 0,
                 flockId: Number(formData.flockId),
               }

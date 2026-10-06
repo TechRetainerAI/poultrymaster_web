@@ -166,6 +166,12 @@ namespace PoultryFarmAPIWeb.Filters
             // cancel. Reversal is checked explicitly against .delete in the
             // controller.
             ["poultry/treatment-campaigns"] = "poultry.health",
+            // 341-343. Egg Sorting Workspace: its own resource. view = workspace,
+            // ledger, reports; create = save / commit a sorting; edit = sizes
+            // and settings; delete = discard a draft. Reversal is a POST to
+            // {id}/reversal (not "reverse", which would resolve to .approve)
+            // and is checked explicitly against .delete in the controller.
+            ["poultry/egg-sorting"] = "poultry.egg-sorting",
             // 268. A read-only view of the same stock, valued two ways. It is
             // the raw materials it values, so it rides their resource rather
             // than inventing a permission nobody has been granted.

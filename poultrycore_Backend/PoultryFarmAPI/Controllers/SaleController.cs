@@ -53,6 +53,26 @@ namespace PoultryFarmAPIWeb.Controllers
             return CreatedAtAction(nameof(GetById), new { id = newId, userId = model.UserId, farmId = model.FarmId }, createdRecord);
         }
 
+        // POST: api/Sale/group -- one sale of several egg classes (migration 343).
+        // Every line is a sale row sharing one sale number; a paid sale to a
+        // known customer becomes ONE payment across them. All or nothing.
+        [HttpPost("group")]
+        public async Task<ActionResult<SaleGroupResult>> CreateGroup([FromBody] SaleGroupRequest request)
+        {
+            if (string.IsNullOrEmpty(request.UserId) || string.IsNullOrEmpty(request.FarmId))
+                return BadRequest("UserId and FarmId are required.");
+            if (request.Lines is null || request.Lines.Count == 0)
+                return BadRequest(new { message = "Add at least one line to the sale." });
+            try
+            {
+                return Ok(await _saleService.CreateGroup(request));
+            }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001")
+            {
+                return BadRequest(new { message = ex.MessageText });
+            }
+        }
+
         // PUT: api/Sale/5
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] SaleModel model)

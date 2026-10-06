@@ -25,7 +25,7 @@ import { useToast } from "@/hooks/use-toast"
 import { toastFormGuide } from "@/lib/utils/validation-toast"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { useMemo } from "react"
-import { getProductionRecords, createProductionRecord, updateProductionRecord, type ProductionRecordInput } from "@/lib/api/production-record"
+import { getProductionRecords, createProductionRecord, patchProductionRecord, type ProductionRecordInput } from "@/lib/api/production-record"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import {
@@ -176,7 +176,7 @@ export default function FeedUsagePage() {
             (pr: any) => pr.flockId === Number(createForm.flockId) && new Date(pr.date).toISOString().split('T')[0] === createForm.usageDate
           )
           if (matchingRecord) {
-            await updateProductionRecord(matchingRecord.id, { feedKg: Number(createForm.quantityKg) })
+            await patchProductionRecord(matchingRecord, userId, farmId, { feedKg: Number(createForm.quantityKg) })
           } else {
             const flocksRes = await getValidFlocks()
             const flock = flocksRes.find((f: any) => f.flockId === Number(createForm.flockId))
@@ -195,7 +195,7 @@ export default function FeedUsagePage() {
                 date: createForm.usageDate + 'T00:00:00Z',
                 noOfBirds: flock.quantity || 0, mortality: 0, noOfBirdsLeft: flock.quantity || 0,
                 feedKg: Number(createForm.quantityKg), medication: "None",
-                production9AM: 0, production12PM: 0, production4PM: 0, totalProduction: 0,
+                production9AM: 0, production12PM: 0, production4PM: 0, brokenEggs: 0, totalProduction: 0,
                 flockId: Number(createForm.flockId),
               }
               await createProductionRecord(prodInput)
@@ -266,7 +266,7 @@ export default function FeedUsagePage() {
             (pr: any) => pr.flockId === Number(editForm.flockId) && new Date(pr.date).toISOString().split('T')[0] === editForm.usageDate
           )
           if (matchingRecord) {
-            await updateProductionRecord(matchingRecord.id, { feedKg: Number(editForm.quantityKg) })
+            await patchProductionRecord(matchingRecord, userId, farmId, { feedKg: Number(editForm.quantityKg) })
           }
         }
       } catch (syncError) {
@@ -298,7 +298,7 @@ export default function FeedUsagePage() {
     setIsDeleting(false); setDeleteDialogOpen(false); setDeletingId(null)
   }
 
-  const formatDate = (dateString: string, row?: unknown) => fmtDateTime(dateString, row)
+  const formatDate = (dateString: string, row?: object) => fmtDateTime(dateString, row)
 
   const handleLogout = () => {
     localStorage.removeItem("auth_token"); localStorage.removeItem("refresh_token")

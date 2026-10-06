@@ -16,7 +16,7 @@ import { createEggProduction, type EggProductionInput } from "@/lib/api/egg-prod
 import { EGG_GRADE_OPTIONS, EGG_GRADE_SELECT_VALUE_NONE, eggGradeToApi } from "@/lib/constants/egg-grade"
 import { getFlockBatches, type FlockBatch } from "@/lib/api/flock-batch"
 import { getUserContext } from "@/lib/utils/user-context"
-import { getProductionRecords, createProductionRecord, updateProductionRecord, type ProductionRecordInput } from "@/lib/api/production-record"
+import { getProductionRecords, createProductionRecord, patchProductionRecord, type ProductionRecordInput } from "@/lib/api/production-record"
 import { isFinishedFeedCategory } from "@/lib/utils/feed-item-ledger"
 import { getFlocks } from "@/lib/api/flock"
 import { isFlockOpenForEntry } from "@/lib/utils/flock-eligibility"
@@ -209,8 +209,8 @@ export default function NewEggProductionPage() {
           )
 
           if (matchingRecord) {
-            // Update existing production record with egg production data
-            const updateData: Partial<ProductionRecordInput> = {
+            // Update only the egg fields; the helper keeps the rest of the record.
+            await patchProductionRecord(matchingRecord, userId, farmId, {
               production9AM: formData.production9AM,
               production12PM: formData.production12PM,
               production4PM: formData.production4PM,
@@ -219,8 +219,7 @@ export default function NewEggProductionPage() {
               production6thPick: formData.production6thPick,
               totalProduction: totalProduction,
               eggGrade: eggGradeToApi(formData.eggGrade ?? EGG_GRADE_SELECT_VALUE_NONE),
-            }
-            await updateProductionRecord(matchingRecord.id, updateData)
+            })
           } else {
             // Create a production record with egg production data
             if (flock) {
@@ -247,6 +246,7 @@ export default function NewEggProductionPage() {
                 noOfBirdsLeft: flock.quantity || 0,
                 feedKg: 0,
                 medication: "None",
+                brokenEggs: 0,
                 production9AM: formData.production9AM,
                 production12PM: formData.production12PM,
                 production4PM: formData.production4PM,
@@ -425,8 +425,11 @@ export default function NewEggProductionPage() {
                   </div>
                 </div>
 
+                {/* Two picks per line from lg up (1st + 2nd, 3rd + 4th, ...); one per
+                    line below that — same layout as the production record form. */}
+                <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
                 {/* Morning (9 AM) - Crates + Loose */}
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-2 mt-4">
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-2">
                   <Label className="text-blue-800 font-semibold">{pickLabelText.first} — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
                   <div className="grid grid-cols-3 gap-3">
                     <div className="space-y-1">
@@ -552,6 +555,8 @@ export default function NewEggProductionPage() {
                   <p className="text-xs text-teal-600">{sixthCrates} crates × {EGGS_PER_CRATE} + {sixthLoose} loose = {sixthTotal.toLocaleString()} eggs</p>
                 </div>
                 )}
+
+                </div>
 
                 {/* Total Eggs Summary */}
                 <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">

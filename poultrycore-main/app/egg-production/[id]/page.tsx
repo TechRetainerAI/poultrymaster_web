@@ -17,7 +17,7 @@ import { usePickSettings } from "@/hooks/use-pick-settings"
 import { EGG_GRADE_OPTIONS, EGG_GRADE_SELECT_VALUE_NONE, eggGradeFromApi, eggGradeToApi } from "@/lib/constants/egg-grade"
 import { getFlockBatches, type FlockBatch } from "@/lib/api/flock-batch"
 import { getUserContext } from "@/lib/utils/user-context"
-import { getProductionRecords, createProductionRecord, updateProductionRecord, type ProductionRecordInput } from "@/lib/api/production-record"
+import { getProductionRecords, createProductionRecord, patchProductionRecord, type ProductionRecordInput } from "@/lib/api/production-record"
 import { getFlocks } from "@/lib/api/flock"
 import { isFlockOpenForEntry } from "@/lib/utils/flock-eligibility"
 
@@ -239,8 +239,8 @@ export default function EditEggProductionPage() {
           )
 
           if (matchingRecord) {
-            // Update existing production record with egg production data
-            const updateData: Partial<ProductionRecordInput> = {
+            // Update only the egg fields; the helper keeps the rest of the record.
+            await patchProductionRecord(matchingRecord, userId, farmId, {
               production9AM: formData.production9AM || 0,
               production12PM: formData.production12PM || 0,
               production4PM: formData.production4PM || 0,
@@ -249,8 +249,7 @@ export default function EditEggProductionPage() {
               production6thPick: formData.production6thPick || 0,
               totalProduction: totalProduction,
               eggGrade: eggGradeToApi((formData.eggGrade as string) ?? EGG_GRADE_SELECT_VALUE_NONE),
-            }
-            await updateProductionRecord(matchingRecord.id, updateData)
+            })
           }
         }
       } catch (syncError) {
@@ -416,8 +415,11 @@ export default function EditEggProductionPage() {
                   </div>
                 </div>
 
+                {/* Two picks per line from lg up (1st + 2nd, 3rd + 4th, ...); one per
+                    line below that — same layout as the production record form. */}
+                <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
                 {/* Morning (9 AM) - Crates + Loose */}
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-2 mt-4">
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-2">
                   <Label className="text-blue-800 font-semibold">{pickLabelText.first} — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
                   <div className="grid grid-cols-3 gap-3">
                     <div className="space-y-1">
@@ -543,6 +545,8 @@ export default function EditEggProductionPage() {
                   <p className="text-xs text-teal-600">{sixthCrates} crates × {EGGS_PER_CRATE} + {sixthLoose} loose = {sixthTotal.toLocaleString()} eggs</p>
                 </div>
                 )}
+
+                </div>
 
                 {/* Total Eggs Summary */}
                 <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">

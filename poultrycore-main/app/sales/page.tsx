@@ -23,6 +23,19 @@ import { getSales, createSale, updateSale, deleteSale, getFlocks, getCustomers, 
 import { isFlockClosed } from "@/lib/utils/flock-eligibility"
 import { listPoultryCashAccounts, recordPoultryPayment, type PoultryCashAccount } from "@/lib/api/poultry-finance"
 import { listPoultryProducts, type PoultryProduct } from "@/lib/api/poultry-inventory"
+import { createSaleGroup } from "@/lib/api/sale"
+import { EGGS_PER_CRATE } from "@/lib/production/production-record-calc"
+import { useEggsPerCrate } from "@/hooks/use-eggs-per-crate"
+import { getEggClasses, type EggClass } from "@/lib/api/egg-sorting"
+import {
+  EggClassSelect,
+  ExtraEggLines,
+  classFor,
+  extraLineEggs,
+  extraLineTotal,
+  extraLinesShort,
+  type ExtraEggLine,
+} from "@/components/sales/egg-class-fields"
 import { useToast } from "@/hooks/use-toast"
 import { getUserContext } from "@/lib/utils/user-context"
 import Link from "next/link"
@@ -65,7 +78,7 @@ import { fmtDateTime } from "@/lib/utils/company-datetime"
  */
 function eggCrateBreakdown(
   quantity: number,
-  { long = false, eggsPerCrate = 30 }: { long?: boolean; eggsPerCrate?: number } = {},
+  { long = false, eggsPerCrate = EGGS_PER_CRATE }: { long?: boolean; eggsPerCrate?: number } = {},
 ): string | null {
   if (!Number.isFinite(quantity) || quantity <= 0 || eggsPerCrate <= 0) return null
   const crates = Math.floor(quantity / eggsPerCrate)
@@ -91,7 +104,7 @@ function saleLineTotal(
   quantity: number,
   unitPrice: number,
   isEggs: boolean,
-  eggsPerCrate = 30,
+  eggsPerCrate = EGGS_PER_CRATE,
 ): number {
   const qty = Number(quantity) || 0
   const price = Number(unitPrice) || 0
@@ -106,7 +119,7 @@ function saleLineTotal(
  * reads as the arithmetic it is: crates x price per crate = amount. The sale
  * still stores `quantity` in eggs, which is what stock and the reports count.
  */
-function eggCratesEquivalent(quantity: number | undefined, eggsPerCrate = 30): string {
+function eggCratesEquivalent(quantity: number | undefined, eggsPerCrate = EGGS_PER_CRATE): string {
   const qty = Number(quantity) || 0
   return eggsPerCrate > 0 ? (qty / eggsPerCrate).toFixed(2) : "0.00"
 }
@@ -207,7 +220,7 @@ function EggPriceNote({ show, crates, loose }: { show: boolean; crates: number; 
   return (
     <p className="text-xs text-slate-500">
       {crates} crate{crates === 1 ? "" : "s"}{loose > 0 && ` + ${loose} loose`} priced as{" "}
-      {((crates * 30 + loose) / 30).toFixed(2)} crates
+      {((crates * EGGS_PER_CRATE + loose) / EGGS_PER_CRATE).toFixed(2)} crates
       {loose > 0 && " — loose eggs charged pro rata"}.
     </p>
   )
@@ -311,14 +324,37 @@ export default function SalesPage() {
   // deliberate answer to the shortfall on screen and never a leftover from the
   // last sale.
   const [overrideStock, setOverrideStock] = useState(false)
+  // Egg classes (341): Unsorted / General plus the farm's sizes. A farm with no
+  // sizes sees none of this; its egg sales stay Unsorted as before.
+  useEggsPerCrate()
+  const [eggClasses, setEggClasses] = useState<EggClass[]>([])
+  const hasEggSizes = eggClasses.some((c) => c.classKind === "Size")
+  // More egg classes on the same sale (343): saved as one sale number.
+  const [extraEggLines, setExtraEggLines] = useState<ExtraEggLine[]>([])
 
   // Check if current product is eggs (for crates input)
   const isEggsProduct = (formData.product ?? "").toLowerCase().includes("egg")
 
+  // The class's default price per crate (344), offered when a class is chosen.
+  const classPrice = (eggProductId: number | null | undefined): number | undefined => {
+    const c = classFor(eggClasses, eggProductId)
+    return c?.pricePerCrate != null && c.pricePerCrate > 0 ? Number(c.pricePerCrate) : undefined
+  }
+  // A new egg sale with no price yet starts at its class's price.
+  useEffect(() => {
+    if (!isEggsProduct || editingSale) return
+    const p = classPrice(formData.eggProductId)
+    if (p !== undefined && !(Number(formData.unitPrice) > 0)) setFormData((prev) => ({ ...prev, unitPrice: p }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEggsProduct, eggClasses])
+
   // ------------------------------------------------------------ stock check
+  // An egg sale draws on its own class: a sized product, or Unsorted.
   const stockProduct = useMemo(
-    () => saleStockProduct(poultryProducts, formData.product),
-    [poultryProducts, formData.product],
+    () => (isEggsProduct && formData.eggProductId
+      ? poultryProducts.find((p) => p.poultryProductId === formData.eggProductId) ?? null
+      : saleStockProduct(poultryProducts, formData.product)),
+    [poultryProducts, formData.product, formData.eggProductId, isEggsProduct],
   )
 
   /**
@@ -344,13 +380,15 @@ export default function SalesPage() {
    */
   const availableStock = useMemo(() => {
     if (!stockProduct) return null
+    // Only when the edit keeps the sale in the class it already came out of.
     const editedIsSameEggStock =
       editingSale != null &&
-      stockProduct.isRawEggProduct &&
-      (editingSale.product ?? "").toLowerCase().includes("egg")
+      isEggsProduct &&
+      (editingSale.product ?? "").toLowerCase().includes("egg") &&
+      (editingSale.eggProductId ?? null) === (formData.eggProductId ?? null)
     const addBack = editedIsSameEggStock ? Number(editingSale?.quantity) || 0 : 0
     return (Number(stockProduct.stockOnHand) || 0) + addBack
-  }, [stockProduct, editingSale])
+  }, [stockProduct, editingSale, isEggsProduct, formData.eggProductId])
 
   const stockShortfall = useMemo(() => {
     if (availableStock == null) return 0
@@ -431,6 +469,11 @@ export default function SalesPage() {
     } catch {
       setPoultryProducts([])
     }
+    try {
+      setEggClasses(await getEggClasses())
+    } catch {
+      setEggClasses([])        // before migration 341: no classes, sales stay Unsorted
+    }
   }
 
   const loadCustomers = async () => {
@@ -506,6 +549,47 @@ export default function SalesPage() {
       const unitPrice = Number(formData.unitPrice ?? 0)
       const calculatedAmount = saleLineTotal(quantity, unitPrice, isEggsProduct)
       const totalAmount = (overrideAmount !== undefined && overrideAmount > 0) ? overrideAmount : calculatedAmount
+
+      // Several egg classes: one sale number, one payment, all or nothing.
+      if (isEggsProduct && extraEggLines.length > 0) {
+        if (extraEggLines.some((l) => extraLineEggs(l) <= 0 || l.unitPrice <= 0)) {
+          toastFormGuide(toast, "Every extra egg line needs eggs and a price per crate, or remove it.")
+          return
+        }
+        if (extraLinesShort(eggClasses, extraEggLines, quantity, formData.eggProductId ?? null) && !overrideStock) {
+          toastFormGuide(toast, 'One of the extra egg lines asks for more eggs than its class holds. Lower it, or tick "Sell it anyway".')
+          return
+        }
+        const product = (formData.product ?? "").toString().trim()
+        const res = await createSaleGroup({
+          farmId,
+          userId,
+          saleDate: formData.saleDate!,
+          customerName: (formData.customerName ?? "").toString() || null,
+          paymentMethod: (formData.paymentMethod ?? "").toString() || null,
+          poultryCashAccountId: formData.poultryCashAccountId ?? null,
+          paid: formData.paid ?? true,
+          saleDescription: formData.saleDescription || null,
+          flockId: formData.flockId || null,
+          lines: [
+            { product, eggProductId: formData.eggProductId ?? null, quantity, unitPrice, totalAmount },
+            ...extraEggLines.map((l) => ({
+              product, eggProductId: l.eggProductId, quantity: extraLineEggs(l), unitPrice: l.unitPrice, totalAmount: extraLineTotal(l),
+            })),
+          ],
+        })
+        if (!res.success) {
+          toast({ title: "Sale not saved", description: res.message || "Failed to create sale", variant: "destructive" })
+          return
+        }
+        toast({ title: `Sale ${res.data?.saleGroupNo ?? ""} created`, description: `${extraEggLines.length + 1} egg lines, one sale.` })
+        setIsCreateDialogOpen(false)
+        resetForm()
+        loadSales()
+        loadPoultryProducts()
+        return
+      }
+
       const saleData: SaleInput = {
         farmId,
         userId,
@@ -522,6 +606,8 @@ export default function SalesPage() {
         paid: formData.paid ?? true,
         size: formData.size?.trim() ? formData.size.trim() : null,
         poultryCashAccountId: formData.poultryCashAccountId ?? null,
+        // 0 = Unsorted / General
+        eggProductId: isEggsProduct ? (formData.eggProductId ?? 0) : 0,
       }
 
       const response = await createSale(saleData)
@@ -533,7 +619,11 @@ export default function SalesPage() {
         // AmountPaid catch up; spPoultrySaleCash_Sync reverses+reposts, so the
         // cash is never double-counted.
         const newSaleId = response.data?.saleId
-        if (saleData.paid && totalAmount > 0 && newSaleId) {
+        // The API already records "paid at point of sale" as a payment; only
+        // record one here if that did not happen (an older API), or the second
+        // attempt fails with "already fully paid" and shows a false error.
+        const alreadyPaid = Number(response.data?.amountPaid ?? 0) >= totalAmount
+        if (saleData.paid && totalAmount > 0 && newSaleId && !alreadyPaid) {
           try {
             await recordPoultryPayment({
               saleId: newSaleId,
@@ -609,6 +699,7 @@ export default function SalesPage() {
         paid: formData.paid ?? true,
         size: formData.size?.trim() ? formData.size.trim() : null,
         poultryCashAccountId: formData.poultryCashAccountId ?? null,
+        eggProductId: isEggsProduct ? (formData.eggProductId ?? 0) : 0,
       }
 
       const response = await updateSale(editingSale.saleId, payload)
@@ -705,7 +796,9 @@ export default function SalesPage() {
       paid: true,
       size: null,
       poultryCashAccountId: defaultCashAccountId,
+      eggProductId: null,
     })
+    setExtraEggLines([])
     setProductSelection(undefined)
     setProductOther("")
     setShowNewCustomerInput(false)
@@ -876,7 +969,9 @@ export default function SalesPage() {
       paid: sale.paid ?? true,
       size: sale.size ?? null,
       poultryCashAccountId: sale.poultryCashAccountId ?? null,
+      eggProductId: sale.eggProductId ?? null,
     })
+    setExtraEggLines([])
     const selection = productOptions.includes(sale.product) ? sale.product : "Other"
     setProductSelection(selection)
     setProductOther(selection === "Other" ? sale.product : "")
@@ -885,8 +980,8 @@ export default function SalesPage() {
     // Reverse-calculate crates and loose eggs from quantity for egg products
     const isEgg = (sale.product ?? "").toLowerCase().includes("egg")
     if (isEgg && sale.quantity > 0) {
-      setCrates(Math.floor(sale.quantity / 30))
-      setLooseEggs(sale.quantity % 30)
+      setCrates(Math.floor(sale.quantity / EGGS_PER_CRATE))
+      setLooseEggs(sale.quantity % EGGS_PER_CRATE)
     } else {
       setCrates(0)
       setLooseEggs(0)
@@ -1314,10 +1409,16 @@ export default function SalesPage() {
               {/* Section: Egg Quantity (conditional) */}
               {isEggsProduct && (
                 <div className="rounded-xl border border-amber-200 overflow-hidden">
-                  <div className="bg-amber-500 px-4 py-2 text-sm font-semibold text-white">Egg Quantity (Crates × 30 + Loose Eggs)</div>
+                  <div className="bg-amber-500 px-4 py-2 text-sm font-semibold text-white">Egg Quantity (Crates × {EGGS_PER_CRATE} + Loose Eggs)</div>
+                  {hasEggSizes && (
+                    <div className="px-4 pt-4 bg-amber-50 sm:max-w-md">
+                      <EggClassSelect id="create-egg-class" classes={eggClasses} value={formData.eggProductId}
+                        onChange={(v) => setFormData(prev => ({ ...prev, eggProductId: v, unitPrice: classPrice(v) ?? prev.unitPrice }))} />
+                    </div>
+                  )}
                   <div className="grid grid-cols-1 gap-4 p-4 bg-amber-50 sm:grid-cols-2 lg:grid-cols-3">
                     <div className="space-y-2">
-                      <Label htmlFor="crates" className="text-sm">Crates (30 eggs)</Label>
+                      <Label htmlFor="crates" className="text-sm">Crates ({EGGS_PER_CRATE} eggs)</Label>
                       <NumberInput
                         id="crates"
                         
@@ -1326,7 +1427,7 @@ export default function SalesPage() {
                         onChange={(e) => {
                           const c = parseInt(e.target.value) || 0
                           setCrates(c)
-                          const total = (c * 30) + looseEggs
+                          const total = (c * EGGS_PER_CRATE) + looseEggs
                           setFormData(prev => ({ ...prev, quantity: total }))
                         }}
                       />
@@ -1342,7 +1443,7 @@ export default function SalesPage() {
                         onChange={(e) => {
                           const l = parseInt(e.target.value) || 0
                           setLooseEggs(l)
-                          const total = (crates * 30) + l
+                          const total = (crates * EGGS_PER_CRATE) + l
                           setFormData(prev => ({ ...prev, quantity: total }))
                         }}
                       />
@@ -1350,7 +1451,7 @@ export default function SalesPage() {
                     <div className="space-y-2">
                       <Label className="text-sm">Total Eggs</Label>
                       <div className="h-10 px-3 py-2 bg-white border rounded-md flex items-center font-bold text-amber-700">
-                        {((crates * 30) + looseEggs).toLocaleString()}
+                        {((crates * EGGS_PER_CRATE) + looseEggs).toLocaleString()}
                       </div>
                     </div>
                   </div>
@@ -1361,7 +1462,7 @@ export default function SalesPage() {
                       being typed. */}
                   <div className="space-y-2 px-4 pb-3 bg-amber-50">
                     <p className="text-xs text-amber-600">
-                      Calculation: {crates} crates × 30 + {looseEggs} loose = {((crates * 30) + looseEggs).toLocaleString()} eggs
+                      Calculation: {crates} crates × {EGGS_PER_CRATE} + {looseEggs} loose = {((crates * EGGS_PER_CRATE) + looseEggs).toLocaleString()} eggs
                     </p>
                     <StockCheckNotice
                       available={availableStock}
@@ -1372,6 +1473,21 @@ export default function SalesPage() {
                       idPrefix="create-eggs"
                     />
                   </div>
+                  {hasEggSizes && (
+                    <>
+                      <ExtraEggLines classes={eggClasses} lines={extraEggLines} onChange={setExtraEggLines}
+                        mainEggs={Number(formData.quantity) || 0} mainClass={formData.eggProductId ?? null} />
+                      {extraEggLines.length > 0 && (
+                        <div className="border-t border-amber-200 bg-amber-100/70 px-4 py-2 text-sm">
+                          <b>Sale total, all egg lines:</b>{" "}
+                          {((Number(formData.totalAmount) || 0) + extraEggLines.reduce((s, l) => s + extraLineTotal(l), 0)).toFixed(2)}
+                          <span className="ml-2 text-xs text-slate-600">
+                            Saved as one sale number with {extraEggLines.length + 1} lines and one payment. The override amount applies to the first line only.
+                          </span>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               )}
 
@@ -1493,7 +1609,7 @@ export default function SalesPage() {
                           : "Records the sale as fully paid and posts a cash-in."}
                       </p>
                     </div>
-                    <div className="rounded-md border bg-white px-3 py-2 space-y-1">
+                    <div className={cn("rounded-md border bg-white px-3 py-2 space-y-1", isEggsProduct && hasEggSizes && "hidden")}>
                       <Label htmlFor="saleSize">Egg Size (optional)</Label>
                       <Input
                         id="saleSize"
@@ -2200,10 +2316,17 @@ export default function SalesPage() {
                   {/* Section: Egg Quantity (conditional) */}
                   {isEggsProduct && (
                     <div className="rounded-xl border border-amber-200 overflow-hidden">
-                      <div className="bg-amber-500 px-4 py-2 text-sm font-semibold text-white">Egg Quantity (Crates × 30 + Loose Eggs)</div>
+                      <div className="bg-amber-500 px-4 py-2 text-sm font-semibold text-white">Egg Quantity (Crates × {EGGS_PER_CRATE} + Loose Eggs)</div>
+                      {hasEggSizes && (
+                        <div className="px-4 pt-4 bg-amber-50 sm:max-w-md">
+                          <EggClassSelect id="edit-egg-class" classes={eggClasses} value={formData.eggProductId}
+                            addBack={Number(editingSale?.quantity) || 0} addBackClass={editingSale?.eggProductId ?? null}
+                            onChange={(v) => setFormData(prev => ({ ...prev, eggProductId: v, unitPrice: classPrice(v) ?? prev.unitPrice }))} />
+                        </div>
+                      )}
                       <div className="grid grid-cols-1 gap-4 p-4 bg-amber-50 sm:grid-cols-2 lg:grid-cols-3">
                         <div className="space-y-2">
-                          <Label htmlFor="edit-crates" className="text-sm">Crates (30 eggs)</Label>
+                          <Label htmlFor="edit-crates" className="text-sm">Crates ({EGGS_PER_CRATE} eggs)</Label>
                           <NumberInput
                             id="edit-crates"
                             
@@ -2212,7 +2335,7 @@ export default function SalesPage() {
                             onChange={(e) => {
                               const c = parseInt(e.target.value) || 0
                               setCrates(c)
-                              const total = (c * 30) + looseEggs
+                              const total = (c * EGGS_PER_CRATE) + looseEggs
                               setFormData(prev => ({ ...prev, quantity: total }))
                             }}
                           />
@@ -2228,7 +2351,7 @@ export default function SalesPage() {
                             onChange={(e) => {
                               const l = parseInt(e.target.value) || 0
                               setLooseEggs(l)
-                              const total = (crates * 30) + l
+                              const total = (crates * EGGS_PER_CRATE) + l
                               setFormData(prev => ({ ...prev, quantity: total }))
                             }}
                           />
@@ -2236,13 +2359,13 @@ export default function SalesPage() {
                         <div className="space-y-2">
                           <Label className="text-sm">Total Eggs</Label>
                           <div className="h-10 px-3 py-2 bg-white border rounded-md flex items-center font-bold text-amber-700">
-                            {((crates * 30) + looseEggs).toLocaleString()}
+                            {((crates * EGGS_PER_CRATE) + looseEggs).toLocaleString()}
                           </div>
                         </div>
                       </div>
                       <div className="space-y-2 px-4 pb-3 bg-amber-50">
                         <p className="text-xs text-amber-600">
-                          Calculation: {crates} crates × 30 + {looseEggs} loose = {((crates * 30) + looseEggs).toLocaleString()} eggs
+                          Calculation: {crates} crates × {EGGS_PER_CRATE} + {looseEggs} loose = {((crates * EGGS_PER_CRATE) + looseEggs).toLocaleString()} eggs
                         </p>
                         <StockCheckNotice
                           available={availableStock}
