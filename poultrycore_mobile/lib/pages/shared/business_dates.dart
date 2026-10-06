@@ -107,3 +107,34 @@ String fmtInstant(Object? value, Duration offset) {
   String two(int n) => n.toString().padLeft(2, '0');
   return '${l.day} ${_short[l.month - 1]} ${l.year}, ${two(l.hour)}:${two(l.minute)}';
 }
+
+/// The web's fmtDateTime: "17 Sep 2026, 11:56" — the row's business date with
+/// the time it was entered (createdDate / createdAt / dateCreated / createdOn)
+/// on the company clock; failing that the business date's own time unless it
+/// is midnight; failing that the date alone.
+String fmtDateTime(Object? businessDate, Map? row, Duration offset) {
+  final s = '${businessDate ?? ''}'.trim();
+  final m = RegExp(r'^(\d{4})-(\d{2})-(\d{2})').firstMatch(s);
+  if (m == null) return '';
+  final date = '${int.parse(m[3]!)} ${_short[int.parse(m[2]!) - 1]} ${m[1]}';
+  String? time(Object? v) {
+    final full = fmtInstant(v, offset);
+    final at = full.lastIndexOf(', ');
+    return at > 0 ? full.substring(at + 2) : null;
+  }
+
+  if (row != null) {
+    for (final k in const ['createdDate', 'createdAt', 'dateCreated', 'createdOn']) {
+      final v = row[k];
+      if (v is String && v.trim().isNotEmpty) {
+        final t = time(v);
+        return t == null ? date : '$date, $t';
+      }
+    }
+  }
+  if (s.length > 10 && !RegExp(r'T?00:00:00(\.0+)?$').hasMatch(s)) {
+    final t = time(s);
+    if (t != null && t != '00:00') return '$date, $t';
+  }
+  return date;
+}

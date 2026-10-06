@@ -4,9 +4,16 @@ import '../design/tokens.dart';
 import '../models/company.dart';
 import '../models/module.dart';
 import '../pages/list_screen.dart';
+import '../pages/module_registry.dart';
 import '../pages/registry.dart';
 import '../state/session.dart';
 import '../widgets/company_type_badge.dart';
+
+/// Dashboard module keys whose web page has a different href.
+const _moduleHrefs = {'feed-tracker': '/feed-tracker'};
+
+/// Poultry tabs that are native pages (the bottom bar's Sales).
+const _poultryModuleHrefs = {'sales': '/sales'};
 
 /// Opens the real page for [module] when a spec exists, otherwise the
 /// "not built yet" screen. One place decides, so navigation never has to know
@@ -16,6 +23,11 @@ Widget pageFor({
   required Company company,
   required Session session,
 }) {
+  // A module that is a native page of its own (More → Feed tracker).
+  final href = _moduleHrefs[module.key] ??
+      (company.type == CompanyType.poultry ? _poultryModuleHrefs[module.key] : null);
+  final native = href == null ? null : pageScreens[href];
+  if (native != null) return native(session, company);
   final spec = PageRegistry.of(module.key);
   if (spec != null) {
     return ListScreen(spec: spec, session: session, company: company);

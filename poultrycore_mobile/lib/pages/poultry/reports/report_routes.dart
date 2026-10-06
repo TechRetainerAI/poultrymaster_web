@@ -1,3 +1,4 @@
+import '../money/money_routes.dart';
 import 'package:flutter/material.dart';
 
 import '../../../models/company.dart';
@@ -5,6 +6,8 @@ import '../../../state/session.dart';
 import '../../custom_form.dart';
 import '../../module_registry.dart';
 import '../../web_page_screen.dart';
+import '../sales/sales_screen.dart';
+import '../trackers/tracker_routes.dart';
 import 'closing_reports.dart';
 import 'dashboard_screen.dart';
 import 'money_reports.dart';
@@ -54,6 +57,9 @@ void openAppHref(BuildContext context, Session session, Company company, String 
   Navigator.of(context).push(MaterialPageRoute(
     builder: (_) => screen != null
         ? screen(session, company)
-        : WebPageScreen(label: label, href: href, company: company, session: session),
+        : salesScreenForHref(href, session, company) ??
+            moneyScreenForHref(href, session, company) ??
+            trackerScreenForHref(href, session, company) ??
+            WebPageScreen(label: label, href: href, company: company, session: session),
   ));
 }

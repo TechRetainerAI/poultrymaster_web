@@ -239,6 +239,7 @@ class AppSelect<T> extends StatelessWidget {
         for (final item in items)
           DropdownMenuItem<T>(
             value: item.value,
+            enabled: item.enabled,
             child: Text(item.label,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontSize: 14)),
@@ -249,9 +250,12 @@ class AppSelect<T> extends StatelessWidget {
 }
 
 class AppSelectItem<T> {
-  const AppSelectItem({required this.value, required this.label});
+  const AppSelectItem({required this.value, required this.label, this.enabled = true});
   final T value;
   final String label;
+
+  /// Listed but not pickable, as a web `<SelectItem disabled>`.
+  final bool enabled;
 }
 
 /// Date field — opens the platform picker and renders as a normal input.

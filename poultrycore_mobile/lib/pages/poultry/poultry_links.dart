@@ -7,6 +7,9 @@ import '../web_page_screen.dart';
 import 'daily_closing_screen.dart';
 import 'farm_completeness_screen.dart';
 import 'feed_distribution_screen.dart';
+import '../module_registry.dart';
+import 'money/money_routes.dart';
+import 'sales/sales_screen.dart';
 
 /// Pages that read `?date=` on the web, opened natively on that day.
 final Map<String, Widget Function(Session, Company, String?)> _dated = {
@@ -26,8 +29,19 @@ void openPoultryHref(
   Map<String, PageScreenBuilder> screens = const {},
 }) {
   final uri = Uri.parse(href);
+  final sales = salesScreenForHref(href, session, company);
+  if (sales != null) {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => sales));
+    return;
+  }
+  final money = moneyScreenForHref(href, session, company);
+  if (money != null) {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => money));
+    return;
+  }
   final dated = _dated[uri.path];
-  final native = screens[uri.path];
+  // A native page with no query to keep (Daily Closing's /customer-balances).
+  final native = screens[uri.path] ?? pageScreens[uri.path];
   Navigator.of(context).push(MaterialPageRoute(
     builder: (_) => dated != null
         ? dated(session, company, uri.queryParameters['date'])

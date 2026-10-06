@@ -47,9 +47,7 @@ class _WebPageScreenState extends State<WebPageScreen> {
   bool _loading = true;
   String? _error;
 
-  static String get _base => Env.isProd
-      ? 'https://www.visibilitycore.com'
-      : 'https://poultrymaster-web-dev-t6tn7geswq-ew.a.run.app';
+  static String get _base => Env.webBase;
 
   String get _url => '$_base${widget.href}';
 
