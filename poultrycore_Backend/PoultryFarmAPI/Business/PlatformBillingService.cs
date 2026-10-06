@@ -40,7 +40,7 @@ namespace PoultryFarmAPIWeb.Business
         Task<bool> IsPlatformAdminAsync(string userId);
     }
 
-    public class PlatformBillingService : IPlatformBillingService
+    public partial class PlatformBillingService : IPlatformBillingService
     {
         private readonly string _cs;
         private readonly IPlatformPaymentProvider _provider;
@@ -96,7 +96,8 @@ namespace PoultryFarmAPIWeb.Business
                  WHERE b.marketcode = @Market AND b.active AND e.active
                    AND CURRENT_DATE >= b.effectivefrom AND (b.effectiveto IS NULL OR CURRENT_DATE <= b.effectiveto)
                    AND CURRENT_DATE >= e.effectivefrom AND (e.effectiveto IS NULL OR CURRENT_DATE <= e.effectiveto);
-                SELECT mincompanies, percent FROM multicompanydiscountrules
+                SELECT mincompanies, percent, maxcompanies, name, stackable, priority
+                  FROM multicompanydiscountrules
                  WHERE active AND CURRENT_DATE >= effectivefrom AND (effectiveto IS NULL OR CURRENT_DATE <= effectiveto);
                 SELECT key, value FROM platformbillingsettings;", conn))
             {
@@ -118,7 +119,9 @@ namespace PoultryFarmAPIWeb.Business
                         r.IsDBNull(2) ? null : r.GetString(2), r.GetString(3), r.GetDecimal(4),
                         r.IsDBNull(5) ? null : r.GetDecimal(5), r.GetBoolean(6)));
                 await r.NextResultAsync();
-                while (await r.ReadAsync()) discounts.Add(new DiscountRule(r.GetInt32(0), r.GetDecimal(1)));
+                while (await r.ReadAsync()) discounts.Add(new DiscountRule(r.GetInt32(0), r.GetDecimal(1),
+                    r.IsDBNull(2) ? null : r.GetInt32(2), r.IsDBNull(3) ? null : r.GetString(3),
+                    !r.IsDBNull(4) && r.GetBoolean(4), r.IsDBNull(5) ? 0 : r.GetInt32(5)));
                 await r.NextResultAsync();
                 while (await r.ReadAsync()) settings[r.GetString(0)] = r.GetString(1);
             }
@@ -312,6 +315,18 @@ namespace PoultryFarmAPIWeb.Business
                 var v = await cmd.ExecuteScalarAsync();
                 return v is decimal d ? d : Convert.ToDecimal(v ?? 0);
             }
+            // Water bills by production lines the COMPANY records (admin-app
+            // spec 5/7) - operational data, read-only to billing. Until a
+            // company records lines, the configured manual scale still applies
+            // so nothing regresses.
+            if (string.Equals(metricType, "ActiveProductionLines", StringComparison.OrdinalIgnoreCase))
+            {
+                using var cmd = new NpgsqlCommand("SELECT spplatformbilling_activewaterlines(@F)", conn);
+                cmd.Parameters.AddWithValue("@F", farmId);
+                var v = await cmd.ExecuteScalarAsync();
+                var lines = v is decimal d ? d : Convert.ToDecimal(v ?? 0);
+                return lines > 0 ? lines : state.ManualScale ?? 0m;
+            }
             return state.ManualScale ?? 0m;
         }
 
@@ -416,6 +431,10 @@ namespace PoultryFarmAPIWeb.Business
             ins.Parameters.AddWithValue("@S", periodStart.Date);
             ins.Parameters.AddWithValue("@En", periodEnd.Date);
             row.EvaluationId = (long)(await ins.ExecuteScalarAsync())!;
+            _log.LogInformation(
+                "Billing evaluation {EvaluationId} for {FarmId}: {MetricValue} {MetricType} -> {TierCode} {Amount} {Currency} ({PricingStatus}, {Reason})",
+                row.EvaluationId, company.FarmId, row.MetricValue, metricType,
+                row.TierCode ?? "-", row.MonthlyAmount ?? 0m, acct.CurrencyCode, row.PricingStatus, reason);
             return row;
         }
 
@@ -450,34 +469,139 @@ namespace PoultryFarmAPIWeb.Business
                 Account = acct,
                 Companies = companies,
                 EnforcementEnabled = cfg.BoolSetting("enforcementenabled"),
-                Preview = BuildPreview(cfg, acct, companies, ps, pe),
+                Preview = await BuildPreviewAsync(conn, cfg, acct, companies, ps, pe),
                 PendingTierChanges = await PendingTierChangesAsync(conn, cfg, acct, companies, ps),
             };
             return summary;
         }
 
-        private static BillPreviewModel BuildPreview(Config cfg, BillingAccountModel acct,
+        private async Task<BillPreviewModel> BuildPreviewAsync(NpgsqlConnection conn, Config cfg, BillingAccountModel acct,
             List<CompanyBillingRowModel> companies, DateTime ps, DateTime pe)
         {
             var billable = companies.Where(x => x.PricingStatus is "Resolved" or "CustomPrice" or "Grandfathered").ToList();
-            var discount = PlatformBillingRules.PickDiscount(cfg.Discounts, billable.Count);
-            var taxRate = cfg.DecSetting("taxratepercent", 0m);
-            var (sub, disc, tax, total) = PlatformBillingRules.Totals(
-                billable.Select(x => x.MonthlyAmount ?? 0m), discount?.Percent ?? 0m, taxRate);
+            var charges = await ComputeChargesAsync(conn, acct, cfg, billable, null);
+            var creditsAvailable = await CreditsAvailableAsync(conn, acct.Id, null);
+            var estCredit = Math.Min(creditsAvailable, charges.Total);
             return new BillPreviewModel
             {
-                Subtotal = sub,
+                Subtotal = charges.Subtotal,
                 EligibleCompanyCount = billable.Count,
-                DiscountPercent = discount?.Percent ?? 0m,
-                DiscountAmount = disc,
-                TaxRate = taxRate,
-                TaxAmount = tax,
-                Total = total,
+                DiscountPercent = charges.AutoPercent,
+                DiscountAmount = charges.DiscountTotal,
+                TaxRate = charges.TaxRate,
+                TaxAmount = charges.TaxAmount,
+                Total = charges.Total,
                 CurrencyCode = acct.CurrencyCode,
                 HasUnpricedCompanies = companies.Any(x => x.PricingStatus == "PricingNotConfigured"),
                 PeriodStart = ps,
                 PeriodEnd = pe,
+                DiscountBreakdown = charges.Breakdown.Select(b => new DiscountLineModel { Id = b.Id, Name = b.Name, Amount = b.Amount }).ToList(),
+                CreditsAvailable = creditsAvailable,
+                EstimatedCreditApplied = estCredit,
+                EstimatedAmountDue = charges.Total - estCredit,
             };
+        }
+
+        private sealed record ChargeResult(decimal Subtotal, decimal DiscountTotal, decimal TaxRate, decimal TaxAmount,
+            decimal Total, decimal AutoPercent, string? AutoRuleText, List<AppliedDiscount> Breakdown);
+
+        /// <summary>
+        /// ONE discount pipeline for preview and invoice (admin-app spec 23/24):
+        /// company/profile-scoped special discounts shape their own lines first,
+        /// then the automatic multi-company rule and organization-scoped
+        /// specials stack deterministically (PlatformBillingRules.ApplyDiscountStack),
+        /// then tax. Every applied discount lands in the breakdown by name.
+        /// </summary>
+        private async Task<ChargeResult> ComputeChargesAsync(NpgsqlConnection conn, BillingAccountModel acct, Config cfg,
+            List<CompanyBillingRowModel> billable, NpgsqlTransaction? tx,
+            (string Name, string Type, decimal Value, string Scope, string? FarmId, string? ProfileCode, bool Stackable, int Priority)? proposed = null)
+        {
+            var sub = PlatformBillingRules.Money(billable.Sum(x => x.MonthlyAmount ?? 0m));
+            var breakdown = new List<AppliedDiscount>();
+
+            // Applicable special discounts: active, unrevoked, inside their
+            // date window, with billing periods still remaining (spec 25).
+            var specials = new List<(long Id, string Name, string Type, decimal Value, string Scope, string? FarmId, string? ProfileCode, bool Stackable, int Priority)>();
+            using (var q = new NpgsqlCommand(@"
+                SELECT d.id, d.name, d.discounttype, d.value, d.scope, d.farmid, d.profilecode, d.stackable, d.priority
+                  FROM platformdiscounts d
+                 WHERE d.accountid = @A AND d.active AND d.revokedatutc IS NULL
+                   AND d.startdate <= CURRENT_DATE
+                   AND (d.enddate IS NULL OR d.enddate >= CURRENT_DATE)
+                   AND (d.durationperiods IS NULL OR
+                        (SELECT COUNT(*) FROM platformdiscountapplications a WHERE a.discountid = d.id) < d.durationperiods)
+                 ORDER BY d.priority, d.id", conn, tx))
+            {
+                q.Parameters.AddWithValue("@A", acct.Id);
+                using var r = await q.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                    specials.Add((r.GetInt64(0), r.GetString(1), r.GetString(2), r.GetDecimal(3), r.GetString(4),
+                        r.IsDBNull(5) ? null : r.GetString(5), r.IsDBNull(6) ? null : r.GetString(6),
+                        r.GetBoolean(7), r.GetInt32(8)));
+            }
+
+            // A PROPOSED discount (admin preview, spec 23) rides the same
+            // pipeline under id -1 and is never persisted.
+            if (proposed is { } pr)
+                specials.Add((-1, pr.Name, pr.Type, pr.Value, pr.Scope, pr.FarmId, pr.ProfileCode, pr.Stackable, pr.Priority));
+
+            // Company/profile-scoped: only the matching line is reduced (spec 22).
+            var lineDiscount = 0m;
+            foreach (var d in specials.Where(x => !string.Equals(x.Scope, "Organization", StringComparison.OrdinalIgnoreCase)))
+            {
+                var lines = billable.Where(b =>
+                    (string.Equals(d.Scope, "Company", StringComparison.OrdinalIgnoreCase) && b.FarmId == d.FarmId) ||
+                    (string.Equals(d.Scope, "Profile", StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(b.BillingProfileCode, d.ProfileCode, StringComparison.OrdinalIgnoreCase)))
+                    .Sum(b => b.MonthlyAmount ?? 0m);
+                if (lines <= 0) continue;
+                var amt = d.Type.Equals("Fixed", StringComparison.OrdinalIgnoreCase)
+                    ? Math.Min(PlatformBillingRules.Money(d.Value), lines)
+                    : PlatformBillingRules.Money(lines * d.Value / 100m);
+                if (amt <= 0) continue;
+                breakdown.Add(new AppliedDiscount(d.Id, d.Name, amt));
+                lineDiscount += amt;
+            }
+
+            // Organization level: automatic multi-company rule + org-scoped specials.
+            var auto = PlatformBillingRules.PickDiscount(cfg.Discounts, billable.Count);
+            var orgList = new List<SpecialDiscount>();
+            if (auto is not null && auto.Percent > 0)
+                orgList.Add(new SpecialDiscount(0, auto.Name ?? $"Multi-company discount ({auto.MinCompanies}+ companies)",
+                    "Percentage", auto.Percent, auto.Stackable, auto.Priority));
+            foreach (var d in specials.Where(x => string.Equals(x.Scope, "Organization", StringComparison.OrdinalIgnoreCase)))
+                orgList.Add(new SpecialDiscount(d.Id, d.Name, d.Type, d.Value, d.Stackable, d.Priority));
+
+            var adjusted = sub - lineDiscount;
+            var orgApplied = PlatformBillingRules.ApplyDiscountStack(adjusted, orgList);
+            breakdown.AddRange(orgApplied);
+
+            var discountTotal = PlatformBillingRules.Money(lineDiscount + orgApplied.Sum(x => x.Amount));
+            if (discountTotal > sub) discountTotal = sub;
+            var taxRate = cfg.DecSetting("taxratepercent", 0m);
+            var taxable = sub - discountTotal;
+            var tax = PlatformBillingRules.Money(taxable * taxRate / 100m);
+            var autoApplied = orgApplied.FirstOrDefault(x => x.Id == 0);
+            return new ChargeResult(sub, discountTotal, taxRate, tax, PlatformBillingRules.Money(taxable + tax),
+                autoApplied is not null ? auto!.Percent : 0m,
+                auto is null ? null : $"min {auto.MinCompanies} companies -> {auto.Percent}%",
+                breakdown);
+        }
+
+        /// <summary>Unused, unexpired account credit (admin-app spec 26/27).</summary>
+        private static async Task<decimal> CreditsAvailableAsync(NpgsqlConnection conn, long accountId, NpgsqlTransaction? tx)
+        {
+            using var q = new NpgsqlCommand(@"
+                SELECT COALESCE(SUM(c.amount - COALESCE(u.used, 0)), 0)
+                  FROM platformaccountcredits c
+                  LEFT JOIN (SELECT creditid, SUM(amount) AS used FROM platformcreditapplications GROUP BY creditid) u
+                    ON u.creditid = c.id
+                 WHERE c.accountid = @A AND c.revokedatutc IS NULL
+                   AND (c.expiresatutc IS NULL OR c.expiresatutc > now() AT TIME ZONE 'utc')
+                   AND c.amount > COALESCE(u.used, 0)", conn, tx);
+            q.Parameters.AddWithValue("@A", accountId);
+            var v = await q.ExecuteScalarAsync();
+            return v is decimal d ? d : 0m;
         }
 
         /// <summary>
@@ -590,7 +714,8 @@ namespace PoultryFarmAPIWeb.Business
             var list = new List<PlatformInvoiceModel>();
             using (var cmd = new NpgsqlCommand(@"
                 SELECT id, invoicenumber, currencycode, periodstart, periodend, issuedate, duedate,
-                       subtotal, discountamount, taxamount, totalamount, amountpaid, balance, status
+                       subtotal, discountamount, taxamount, totalamount, amountpaid, balance, status,
+                       creditapplied, discountbreakdown
                   FROM platforminvoices WHERE accountid = @A ORDER BY periodstart DESC", conn))
             {
                 cmd.Parameters.AddWithValue("@A", acct.Id);
@@ -612,6 +737,8 @@ namespace PoultryFarmAPIWeb.Business
                         AmountPaid = r.GetDecimal(11),
                         Balance = r.GetDecimal(12),
                         Status = r.GetString(13),
+                        CreditApplied = r.GetDecimal(14),
+                        DiscountBreakdown = r.IsDBNull(15) ? null : r.GetString(15),
                     });
             }
             foreach (var inv in list)
@@ -670,10 +797,11 @@ namespace PoultryFarmAPIWeb.Business
             if (billable.Count == 0)
                 throw new InvalidOperationException("There are no billable companies on this account yet.");
 
-            var discount = PlatformBillingRules.PickDiscount(cfg.Discounts, billable.Count);
-            var taxRate = cfg.DecSetting("taxratepercent", 0m);
-            var (sub, disc, tax, total) = PlatformBillingRules.Totals(
-                billable.Select(x => x.MonthlyAmount ?? 0m), discount?.Percent ?? 0m, taxRate);
+            var charges = await ComputeChargesAsync(conn, acct, cfg, billable, (NpgsqlTransaction)tx);
+            var (sub, disc, tax, total) = (charges.Subtotal, charges.DiscountTotal, charges.TaxAmount, charges.Total);
+            var taxRate = charges.TaxRate;
+            var breakdownText = charges.Breakdown.Count == 0 ? null
+                : string.Join("; ", charges.Breakdown.Select(b => $"{b.Name}: -{b.Amount:0.00}"));
             var number = PlatformBillingRules.InvoiceNumber(acct.Id, ps);
 
             long invoiceId;
@@ -681,9 +809,10 @@ namespace PoultryFarmAPIWeb.Business
                 INSERT INTO platforminvoices
                        (invoicenumber, accountid, marketcode, currencycode, periodstart, periodend,
                         issuedate, duedate, subtotal, discountrulesnapshot, eligiblecompanycount,
-                        discountpercent, discountamount, taxrate, taxamount, totalamount, amountpaid, balance, status)
+                        discountpercent, discountamount, taxrate, taxamount, totalamount, amountpaid, balance, status,
+                        discountbreakdown)
                 VALUES (@N, @A, @MK, @C, @S, @E, CURRENT_DATE, CURRENT_DATE + 7, @Sub, @DR, @EC,
-                        @DP, @DA, @TR, @TA, @Tot, 0, @Tot, 'Open')
+                        @DP, @DA, @TR, @TA, @Tot, 0, @Tot, 'Open', @DB)
                 ON CONFLICT (accountid, periodstart) DO NOTHING
                 RETURNING id", conn, (NpgsqlTransaction)tx))
             {
@@ -694,10 +823,10 @@ namespace PoultryFarmAPIWeb.Business
                 ins.Parameters.AddWithValue("@S", ps);
                 ins.Parameters.AddWithValue("@E", pe);
                 ins.Parameters.AddWithValue("@Sub", sub);
-                ins.Parameters.AddWithValue("@DR", discount is null ? DBNull.Value
-                    : $"min {discount.MinCompanies} companies -> {discount.Percent}%");
+                ins.Parameters.AddWithValue("@DR", (object?)charges.AutoRuleText ?? DBNull.Value);
                 ins.Parameters.AddWithValue("@EC", billable.Count);
-                ins.Parameters.AddWithValue("@DP", discount?.Percent ?? 0m);
+                ins.Parameters.AddWithValue("@DP", charges.AutoPercent);
+                ins.Parameters.AddWithValue("@DB", (object?)breakdownText ?? DBNull.Value);
                 ins.Parameters.AddWithValue("@DA", disc);
                 ins.Parameters.AddWithValue("@TR", taxRate);
                 ins.Parameters.AddWithValue("@TA", tax);
@@ -731,11 +860,76 @@ namespace PoultryFarmAPIWeb.Business
                 await line.ExecuteNonQueryAsync();
             }
 
+            // Which special discounts shaped THIS invoice — the audit trail
+            // behind "invoices remaining" and spec 28's "invoices affected".
+            foreach (var b in charges.Breakdown.Where(x => x.Id > 0))
+            {
+                using var app = new NpgsqlCommand(@"
+                    INSERT INTO platformdiscountapplications (discountid, invoiceid, amount)
+                    VALUES (@D, @I, @Amt) ON CONFLICT (discountid, invoiceid) DO NOTHING", conn, (NpgsqlTransaction)tx);
+                app.Parameters.AddWithValue("@D", b.Id);
+                app.Parameters.AddWithValue("@I", invoiceId);
+                app.Parameters.AddWithValue("@Amt", b.Amount);
+                await app.ExecuteNonQueryAsync();
+            }
+
+            // Account credits offset what the customer owes, oldest first
+            // (admin-app spec 27). Consumed credits are never deleted — the
+            // application rows are the ledger. A fully covered invoice is Paid
+            // without a provider charge.
+            var creditApplied = 0m;
+            using (var cq = new NpgsqlCommand(@"
+                SELECT c.id, c.amount - COALESCE(u.used, 0)
+                  FROM platformaccountcredits c
+                  LEFT JOIN (SELECT creditid, SUM(amount) AS used FROM platformcreditapplications GROUP BY creditid) u
+                    ON u.creditid = c.id
+                 WHERE c.accountid = @A AND c.revokedatutc IS NULL
+                   AND (c.expiresatutc IS NULL OR c.expiresatutc > now() AT TIME ZONE 'utc')
+                   AND c.amount > COALESCE(u.used, 0)
+                 ORDER BY c.issuedatutc", conn, (NpgsqlTransaction)tx))
+            {
+                cq.Parameters.AddWithValue("@A", acct.Id);
+                var available = new List<(long Id, decimal Remaining)>();
+                using (var cr = await cq.ExecuteReaderAsync())
+                    while (await cr.ReadAsync()) available.Add((cr.GetInt64(0), cr.GetDecimal(1)));
+
+                foreach (var (cid, remaining) in available)
+                {
+                    if (creditApplied >= total) break;
+                    var take = Math.Min(remaining, total - creditApplied);
+                    if (take <= 0) continue;
+                    using var capp = new NpgsqlCommand(@"
+                        INSERT INTO platformcreditapplications (creditid, invoiceid, amount)
+                        VALUES (@C, @I, @Amt)", conn, (NpgsqlTransaction)tx);
+                    capp.Parameters.AddWithValue("@C", cid);
+                    capp.Parameters.AddWithValue("@I", invoiceId);
+                    capp.Parameters.AddWithValue("@Amt", take);
+                    await capp.ExecuteNonQueryAsync();
+                    creditApplied += take;
+                }
+            }
+            var balanceAfterCredit = total - creditApplied;
+            var statusAfterCredit = balanceAfterCredit <= 0m ? "Paid" : "Open";
+            if (creditApplied > 0m)
+            {
+                using var up = new NpgsqlCommand(@"
+                    UPDATE platforminvoices
+                       SET creditapplied = @CA, balance = @B, status = @St
+                     WHERE id = @I", conn, (NpgsqlTransaction)tx);
+                up.Parameters.AddWithValue("@CA", creditApplied);
+                up.Parameters.AddWithValue("@B", balanceAfterCredit);
+                up.Parameters.AddWithValue("@St", statusAfterCredit);
+                up.Parameters.AddWithValue("@I", invoiceId);
+                await up.ExecuteNonQueryAsync();
+                await LogEventAsync(conn, acct.Id, null, "CreditApplied", null,
+                    $"{creditApplied:0.00} {acct.CurrencyCode} -> {number}", acct.OwnerUserId, null, (NpgsqlTransaction)tx);
+            }
+
             await LogEventAsync(conn, acct.Id, null, "InvoiceGenerated", null, number, acct.OwnerUserId, null, (NpgsqlTransaction)tx);
             await tx.CommitAsync();
-            _log.LogInformation("Invoice {Number} generated for account {AccountId}: {Total} {Currency}",
-                number, acct.Id, total, acct.CurrencyCode);
-            return (invoiceId, number, total, "Open");
+            _log.LogInformation("Invoice {Number} generated for account {AccountId}: {Total} {Currency} (credit {Credit})",
+                number, acct.Id, total, acct.CurrencyCode, creditApplied);
+            return (invoiceId, number, balanceAfterCredit, statusAfterCredit);
         }
 
         // ------------------------------------------------------------------
@@ -1089,7 +1283,7 @@ namespace PoultryFarmAPIWeb.Business
                 CurrencyCode = market.Currency,
                 MarketActive = market.Active,
                 Companies = companies,
-                Preview = BuildPreview(cfg, previewAcct, companies, ps, pe),
+                Preview = await BuildPreviewAsync(conn, cfg, previewAcct, companies, ps, pe),
             };
         }
 
@@ -1223,18 +1417,36 @@ namespace PoultryFarmAPIWeb.Business
             }
             if (tierCode is null) return list;   // no tier yet: nothing restricted, nothing listed
 
-            using var cmd = new NpgsqlCommand(@"
-                SELECT capability, enabled, limitvalue FROM planentitlements WHERE tiercode = @T", conn);
-            cmd.Parameters.AddWithValue("@T", tierCode);
-            using var r = await cmd.ExecuteReaderAsync();
-            while (await r.ReadAsync())
-                list.Add(new EntitlementModel
+            using (var cmd = new NpgsqlCommand(@"
+                SELECT capability, enabled, limitvalue FROM planentitlements WHERE tiercode = @T", conn))
+            {
+                cmd.Parameters.AddWithValue("@T", tierCode);
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                    list.Add(new EntitlementModel
+                    {
+                        TierCode = tierCode,
+                        Capability = r.GetString(0),
+                        Enabled = r.GetBoolean(1),
+                        Limit = r.IsDBNull(2) ? null : r.GetDecimal(2),
+                    });
+            }
+
+            // Spec 24: where a limit is configured AND the platform can measure
+            // usage, say so — a clear upgrade notice, never a lockout, and
+            // existing users are never corrupted. MAX_USERS is measurable today
+            // (userfarms members of this company); others stay unmeasured.
+            foreach (var e in list)
+            {
+                if (string.Equals(e.Capability, "MAX_USERS", StringComparison.OrdinalIgnoreCase))
                 {
-                    TierCode = tierCode,
-                    Capability = r.GetString(0),
-                    Enabled = r.GetBoolean(1),
-                    Limit = r.IsDBNull(2) ? null : r.GetDecimal(2),
-                });
+                    using var uc = new NpgsqlCommand(
+                        "SELECT COUNT(*) FROM userfarms WHERE farmid = @F", conn);
+                    uc.Parameters.AddWithValue("@F", farmId);
+                    e.Usage = Convert.ToDecimal(await uc.ExecuteScalarAsync() ?? 0);
+                }
+                e.LimitReached = e.Enabled && e.Limit.HasValue && e.Usage.HasValue && e.Usage.Value >= e.Limit.Value;
+            }
             return list;   // a capability with NO row is unlimited by convention (17)
         }
 
@@ -1322,6 +1534,7 @@ namespace PoultryFarmAPIWeb.Business
                         upd.Parameters.AddWithValue("@A", id);
                         await upd.ExecuteNonQueryAsync();
                         await LogEventAsync(conn, id, null, $"Account{target}", current, target, actor, "dunning");
+                        _log.LogInformation("Subscription transition: account {AccountId} {From} -> {To} (dunning)", id, current, target);
                         report.Add($"account {id}: {current} -> {target}");
                     }
                 }

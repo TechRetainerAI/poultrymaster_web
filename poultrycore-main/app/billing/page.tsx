@@ -17,7 +17,7 @@ import {
   tierForBirdCount,
   type SubscriptionTiersResponse,
 } from "@/lib/api/payments"
-import { getPlanUsage, type PlanUsage } from "@/lib/api/platform-billing"
+import { getPlanUsage, getEntitlements, type PlanUsage, type Entitlement } from "@/lib/api/platform-billing"
 import { getFlocks } from "@/lib/api/flock"
 import { getProductionRecords } from "@/lib/api/production-record"
 import { sumActiveFlocksBirdsLeft } from "@/lib/utils/production-records"
@@ -65,6 +65,7 @@ function PaymentsPageInner() {
   const [farmCheckoutLoading, setFarmCheckoutLoading] = useState(false)
   const [checkoutError, setCheckoutError] = useState("")
   const [planUsage, setPlanUsage] = useState<PlanUsage | null>(null)
+  const [entitlements, setEntitlements] = useState<Entitlement[]>([])
 
   const appliedTier = useMemo(() => {
     if (totalBirds === null || !tiersInfo?.tiers?.length) return null
@@ -133,6 +134,7 @@ function PaymentsPageInner() {
     const farmId = typeof window !== "undefined" ? localStorage.getItem("farmId") : null
     if (!farmId) return
     getPlanUsage(farmId).then(setPlanUsage).catch(() => setPlanUsage(null))
+    getEntitlements(farmId).then(setEntitlements).catch(() => setEntitlements([]))
   }, [])
 
   useEffect(() => {
@@ -281,6 +283,29 @@ function PaymentsPageInner() {
                     <span className="text-slate-500">Managed by</span>
                     <p className="font-semibold text-slate-900">{planUsage.managedBy}</p>
                   </div>
+                  {/* Spec 24: configured limits show usage; a reached limit is a
+                      clear upgrade notice, never a lockout. No rows = unlimited. */}
+                  {entitlements.length > 0 && (
+                    <div className="sm:col-span-2 mt-2 space-y-1.5 border-t border-slate-100 pt-3">
+                      {entitlements.map((e) => (
+                        <div key={e.capability} className="flex items-center justify-between text-sm">
+                          <span className="text-slate-500">{e.capability.replaceAll("_", " ").toLowerCase()}</span>
+                          <span className={e.limitReached ? "font-semibold text-amber-700" : "text-slate-700"}>
+                            {e.usage != null ? `${e.usage.toLocaleString()} / ` : ""}
+                            {e.limit != null ? e.limit.toLocaleString() : "unlimited"}
+                          </span>
+                        </div>
+                      ))}
+                      {entitlements.some((e) => e.limitReached) && (
+                        <Alert className="mt-2 border-amber-200 bg-amber-50 text-amber-800">
+                          <AlertDescription>
+                            You've reached a limit on your current plan. Nothing has been removed or blocked —
+                            to add more, upgrade your plan from the Business Office billing page.
+                          </AlertDescription>
+                        </Alert>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )}

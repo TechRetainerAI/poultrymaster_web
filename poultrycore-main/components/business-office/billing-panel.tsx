@@ -46,8 +46,9 @@ import {
   type PricingExplain,
   type CompanyBillingRow,
   type MarketChangePreview,
+  getPublicPricing,
 } from "@/lib/api/platform-billing"
-import { PUBLIC_PLANS } from "@/lib/billing/public-pricing"
+import { PUBLIC_PLANS, plansFromApi, type PublicPlan } from "@/lib/billing/public-pricing"
 import { PlanCard } from "@/components/billing/plan-card"
 
 const RETURN_PATH = "/business-office/billing"
@@ -202,6 +203,10 @@ export function BillingPanel() {
   const [marketReason, setMarketReason] = useState("")
   const [marketPreviewData, setMarketPreviewData] = useState<MarketChangePreview | null>(null)
   const [marketBusy, setMarketBusy] = useState(false)
+  // Plan cards come from the backend presentation + price book (admin-app
+  // spec 11-16) so admins edit copy/prices without deploys; the static ladder
+  // is only the offline fallback. Vertical follows the org's first company.
+  const [planCards, setPlanCards] = useState<PublicPlan[]>(PUBLIC_PLANS)
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -225,6 +230,25 @@ export function BillingPanel() {
   useEffect(() => {
     void reload()
   }, [reload])
+
+  useEffect(() => {
+    if (!summary) return
+    const family = (summary.companies[0]?.companyFamily || "Poultry").toLowerCase()
+    const profile =
+      family === "water" ? "WATER_PRODUCTION_LINES"
+      : family === "hotel" ? "HOTEL_ROOMS"
+      : family === "restaurant" ? "RESTAURANT_LOCATIONS"
+      : family === "generic" ? "GENERIC_STANDARD"
+      : "POULTRY_BIRDS"
+    const template = family === "generic" ? summary.companies[0]?.businessType : undefined
+    getPublicPricing(summary.account.marketCode, profile, template)
+      .then((api) => {
+        const mapped = plansFromApi(api)
+        if (mapped.length > 0) setPlanCards(mapped)
+      })
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [summary?.account?.marketCode, summary?.companies?.length])
 
   useEffect(() => {
     const status = searchParams.get("billing")
@@ -454,12 +478,19 @@ export function BillingPanel() {
               <span>Subtotal</span>
               <span className="tabular-nums font-medium text-slate-700">{money(preview.subtotal, preview.currencyCode)}</span>
             </div>
-            {preview.discountAmount > 0 && (
+            {(preview.discountBreakdown?.length ?? 0) > 0 ? (
+              preview.discountBreakdown!.map((d) => (
+                <div key={`${d.id}-${d.name}`} className="flex items-baseline justify-between text-emerald-700">
+                  <span>{d.name}</span>
+                  <span className="tabular-nums font-medium">-{money(d.amount, preview.currencyCode)}</span>
+                </div>
+              ))
+            ) : preview.discountAmount > 0 ? (
               <div className="flex items-baseline justify-between text-emerald-700">
                 <span>Multi-company discount ({preview.discountPercent}%)</span>
                 <span className="tabular-nums font-medium">-{money(preview.discountAmount, preview.currencyCode)}</span>
               </div>
-            )}
+            ) : null}
             {preview.taxAmount > 0 && (
               <div className="flex items-baseline justify-between text-slate-500">
                 <span>Tax</span>
@@ -472,6 +503,20 @@ export function BillingPanel() {
                 {money(preview.total, preview.currencyCode)}
               </span>
             </div>
+            {(preview.estimatedCreditApplied ?? 0) > 0 && (
+              <>
+                <div className="flex items-baseline justify-between text-emerald-700">
+                  <span>Account credit applied</span>
+                  <span className="tabular-nums font-medium">-{money(preview.estimatedCreditApplied!, preview.currencyCode)}</span>
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className="font-medium text-slate-900">Amount due</span>
+                  <span className="tabular-nums text-lg font-semibold tracking-[-0.02em] text-slate-900">
+                    {money(preview.estimatedAmountDue ?? preview.total, preview.currencyCode)}
+                  </span>
+                </div>
+              </>
+            )}
           </div>
           {preview.hasUnpricedCompanies && (
             <div className="mt-4 flex items-start gap-2 rounded-lg bg-amber-50/70 px-3 py-2.5 ring-1 ring-inset ring-amber-600/10">
@@ -495,7 +540,7 @@ export function BillingPanel() {
           <span className="text-xs text-slate-500">Assigned automatically from each company's scale</span>
         </div>
         <div className="grid gap-6 pt-3 sm:grid-cols-2 xl:grid-cols-4 xl:gap-5">
-          {PUBLIC_PLANS.map((p) => {
+          {planCards.map((p) => {
             const onPlan = companies.filter((c) => (c.tierName || "").toLowerCase() === p.name.toLowerCase()).length
             return (
               <PlanCard

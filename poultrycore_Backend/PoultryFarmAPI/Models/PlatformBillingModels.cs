@@ -103,6 +103,10 @@ namespace PoultryFarmAPIWeb.Models
         public string Capability { get; set; } = string.Empty;
         public bool Enabled { get; set; }
         public decimal? Limit { get; set; }
+        /// <summary>Current usage where the platform can measure it (MAX_USERS today); null = not measured.</summary>
+        public decimal? Usage { get; set; }
+        /// <summary>True when a configured limit is reached — the UI shows an upgrade notice, never a lockout (spec 24).</summary>
+        public bool LimitReached { get; set; }
     }
 
     /// <summary>The consolidated bill preview (spec Part 29) — same engine, no charge.</summary>
@@ -120,6 +124,19 @@ namespace PoultryFarmAPIWeb.Models
         public bool HasUnpricedCompanies { get; set; }
         public DateTime PeriodStart { get; set; }
         public DateTime PeriodEnd { get; set; }
+        /// <summary>Every discount that shaped this preview, auto + special (admin-app spec 23).</summary>
+        public List<DiscountLineModel> DiscountBreakdown { get; set; } = new();
+        /// <summary>Unused account credit that will offset the next invoice (admin-app spec 26/27).</summary>
+        public decimal CreditsAvailable { get; set; }
+        public decimal EstimatedCreditApplied { get; set; }
+        public decimal EstimatedAmountDue { get; set; }
+    }
+
+    public class DiscountLineModel
+    {
+        public long Id { get; set; }               // 0 = the automatic multi-company rule
+        public string Name { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
     }
 
     public class BillingSummaryModel
@@ -146,8 +163,10 @@ namespace PoultryFarmAPIWeb.Models
         public decimal TaxAmount { get; set; }
         public decimal TotalAmount { get; set; }
         public decimal AmountPaid { get; set; }
+        public decimal CreditApplied { get; set; }
         public decimal Balance { get; set; }
         public string Status { get; set; } = string.Empty;
+        public string? DiscountBreakdown { get; set; }
         public List<PlatformInvoiceLineModel> Lines { get; set; } = new();
     }
 

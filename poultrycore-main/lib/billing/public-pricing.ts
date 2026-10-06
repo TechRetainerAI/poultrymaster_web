@@ -80,3 +80,31 @@ export const PUBLIC_PLANS: PublicPlan[] = [
     ],
   },
 ]
+
+
+// ---------- presentation-driven cards (admin-app spec 11-16) ----------
+// When the backend serves presentation + prices, build the cards from DATA so
+// admins change copy and prices without a deploy; the constants above remain
+// the offline fallback only.
+
+import type { PublicPricing } from "@/lib/api/platform-billing"
+
+function scaleLine(min?: number | null, max?: number | null, plural?: string | null): string {
+  const unit = plural || "units"
+  if (min == null && max == null) return "Custom contract"
+  if (max == null) return `Above ${((min ?? 1) - 1).toLocaleString()} ${unit}`
+  if ((min ?? 0) <= 0) return `Up to ${max.toLocaleString()} ${unit}`
+  return `${min!.toLocaleString()} – ${max.toLocaleString()} ${unit}`
+}
+
+export function plansFromApi(api: PublicPricing): PublicPlan[] {
+  return api.plans.map((c) => ({
+    code: c.tierCode as PublicPlan["code"],
+    name: c.tierName,
+    blurb: c.headline || "",
+    monthlyGhs: c.monthlyPrice ?? null,
+    scaleLine: c.tierCode === "enterprise" ? "Custom contract" : scaleLine(c.minValue, c.maxValue, api.metricPlural),
+    features: c.featureBullets,
+    highlight: c.isMostPopular,
+  }))
+}
