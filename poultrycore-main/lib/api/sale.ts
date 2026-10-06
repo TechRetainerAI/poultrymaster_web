@@ -22,6 +22,10 @@ export interface Sale {
   size?: string | null
   /** Optional cash account this sale is received into (posts a cash-in when paid). */
   poultryCashAccountId?: number | null
+  /** Egg class sold (migration 341): a sized egg product, null = Unsorted / General. */
+  eggProductId?: number | null
+  /** Sale number shared by the lines of one multi-size sale (SG-00001). */
+  saleGroupNo?: string | null
   createdDate: string
 }
 
@@ -42,6 +46,11 @@ export interface SaleInput {
   size?: string | null
   /** Optional cash account to receive this sale into (posts a cash-in when paid). */
   poultryCashAccountId?: number | null
+  /**
+   * Egg class (migration 341): a sized egg product id, or 0 for Unsorted /
+   * General. Leave it out on an edit to keep the sale's current class.
+   */
+  eggProductId?: number | null
   createdDate?: string
 }
 
@@ -462,6 +471,7 @@ export async function createSale(sale: SaleInput): Promise<ApiResponse<Sale>> {
       paid: sale.paid ?? true,
       size: sale.size ?? null,
       poultryCashAccountId: sale.poultryCashAccountId ?? null,
+      eggProductId: sale.eggProductId ?? 0,
       createdDate: new Date().toISOString(),
     }
 
@@ -565,6 +575,7 @@ export async function updateSale(id: number, sale: Partial<SaleInput>): Promise<
     if (sale.paid !== undefined) requestBody.paid = sale.paid
     if (Object.prototype.hasOwnProperty.call(sale, "size")) requestBody.size = sale.size ?? null
     if (Object.prototype.hasOwnProperty.call(sale, "poultryCashAccountId")) requestBody.poultryCashAccountId = sale.poultryCashAccountId ?? null
+    if (Object.prototype.hasOwnProperty.call(sale, "eggProductId")) requestBody.eggProductId = sale.eggProductId ?? 0
     if (sale.createdDate) requestBody.createdDate = sale.createdDate
 
     console.log("[v0] Sale update request body:", requestBody)
@@ -688,3 +699,50 @@ export async function deleteSale(id: number, userId?: string, farmId?: string): 
   }
 }
 
+
+/** One line of a multi-size sale. quantity is in eggs for egg lines. */
+export interface SaleGroupLineInput {
+  product: string
+  /** Egg class product; null = Unsorted / General. */
+  eggProductId: number | null
+  quantity: number
+  unitPrice: number
+  totalAmount: number
+}
+
+export interface SaleGroupInput {
+  farmId: string
+  userId: string
+  saleDate: string
+  customerName: string | null
+  paymentMethod: string | null
+  poultryCashAccountId: number | null
+  paid: boolean
+  saleDescription: string | null
+  flockId: number | null
+  lines: SaleGroupLineInput[]
+}
+
+/**
+ * One sale of several egg classes (migration 343): every line becomes a sale
+ * row sharing one sale number, and a paid sale to a known customer is ONE
+ * payment across them. All or nothing.
+ */
+export async function createSaleGroup(input: SaleGroupInput): Promise<ApiResponse<{ saleGroupNo: string; saleIds: number[]; totalAmount: number }>> {
+  try {
+    const response = await fetch(farmApiUrl("Sale/group"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(input),
+    })
+    const text = await response.text()
+    let data: any = null
+    try { data = text ? JSON.parse(text) : null } catch { /* not JSON */ }
+    if (!response.ok) {
+      return { success: false, message: data?.message || text || "Failed to create sale" }
+    }
+    return { success: true, data }
+  } catch (error) {
+    return { success: false, message: error instanceof Error ? error.message : "Network error" }
+  }
+}

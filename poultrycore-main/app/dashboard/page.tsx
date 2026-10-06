@@ -5,9 +5,6 @@ import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { MetricsCards } from "@/components/dashboard/metrics-cards"
-import { FarmCompletenessCard } from "@/components/dashboard/farm-completeness-card"
-import { StockSupplyCard } from "@/components/dashboard/stock-supply-card"
-import { FlockAlertsCard } from "@/components/dashboard/flock-alerts-card"
 import { DashboardCharts } from "@/components/dashboard/charts"
 import { Setup2FADialog } from "@/components/auth/setup-2fa-dialog"
 import { DEFAULT_LOGIN_API_HOST } from "@/lib/api/default-api-hosts"
@@ -117,16 +114,8 @@ export default function DashboardPage() {
           {/* Main Content Area */}
           <main className="overflow-y-visible overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
             <div className="space-y-6">
-              {/* What expected farm activity is still missing today (332).
-                  First, because it is the one thing on this page that asks the
-                  farmer to DO something. */}
-              <FarmCompletenessCard compact />
-
-              {/* Flocks out of line with their own recent figures (338). */}
-              <FlockAlertsCard />
-
-              {/* Stock that will run out soonest, at its actual usage (337). */}
-              <StockSupplyCard />
+              {/* Farm Completeness, Flock Alerts and Stock Days of Supply
+                  moved to their own page, /poultry-alerts (Farm Alerts). */}
 
               {/* Metrics Cards */}
               <MetricsCards />

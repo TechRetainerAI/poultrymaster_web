@@ -1,8 +1,11 @@
 "use client"
 
+import { EggsPerCrateLoader } from "@/hooks/use-eggs-per-crate"
+import { useFarmAlertCount } from "@/hooks/use-farm-alert-count"
+
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, MessageCircle, User, Menu, Briefcase } from "lucide-react"
+import { Search, MessageCircle, User, Menu, Briefcase, Bell } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useChatStore } from "@/lib/store/chat-store"
@@ -19,6 +22,7 @@ export function DashboardHeader() {
   const openChat = useChatStore((s) => s.openChat)
   const { isCollapsed, isMobileOpen, toggleMobile } = useSidebarStore()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
+  const alertCount = useFarmAlertCount()
   const clearActiveCompany = useAuthStore((s) => s.clearActiveCompany)
   const [username, setUsername] = useState("")
   const [roleLabel, setRoleLabel] = useState("")
@@ -165,6 +169,8 @@ export function DashboardHeader() {
 
   return (
     <div className="flex flex-col min-w-0 overflow-x-hidden">
+      {/* Loads the farm's eggs per crate (344) once, for every egg screen. */}
+      <EggsPerCrateLoader />
       <header className="bg-slate-900 border-b border-slate-800 px-2 sm:px-6 py-3 min-w-0">
         <div className="hidden lg:flex items-center justify-between gap-4">
           {/* VisibilityCore branding - visible when sidebar doesn't show its own */}
@@ -210,6 +216,25 @@ export function DashboardHeader() {
                 the active company on the way in (same behaviour as the sidebar),
                 because it is the one destination above all companies. */}
             <div className="flex items-center gap-1">
+              {/* Farm Alerts: completeness, unsorted eggs, flock alerts, stock
+                  running low. Poultry only -- the page is poultry's. */}
+              {activeFarmType === "Poultry" && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => router.push("/poultry-alerts")}
+                  title={alertCount ? `Farm Alerts — ${alertCount} need attention` : "Farm Alerts"}
+                  aria-label={alertCount ? `Farm Alerts, ${alertCount} need attention` : "Farm Alerts"}
+                  className="relative shrink-0 text-slate-300 hover:text-white hover:bg-slate-800"
+                >
+                  <Bell className="h-5 w-5" />
+                  {alertCount != null && alertCount > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-600 text-white text-[10px] rounded-full flex items-center justify-center">
+                      {alertCount > 99 ? '99+' : alertCount}
+                    </span>
+                  )}
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="icon"
@@ -276,6 +301,22 @@ export function DashboardHeader() {
             )}
 
             <div className="flex items-center gap-0.5 shrink-0">
+              {activeFarmType === "Poultry" && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => router.push("/poultry-alerts")}
+                  aria-label={alertCount ? `Farm Alerts, ${alertCount} need attention` : "Farm Alerts"}
+                  className="relative text-slate-300 hover:text-white hover:bg-slate-800 h-10 w-10"
+                >
+                  <Bell className="h-5 w-5" />
+                  {alertCount != null && alertCount > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-600 text-white text-[10px] rounded-full flex items-center justify-center">
+                      {alertCount > 99 ? '99+' : alertCount}
+                    </span>
+                  )}
+                </Button>
+              )}
               <div className="relative">
                 <Button
                   onClick={() => openChat()}

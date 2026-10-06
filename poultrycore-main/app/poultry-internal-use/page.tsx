@@ -43,6 +43,8 @@ import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { fmtMoney } from "@/lib/currency"
 import { listPoultryProducts, type PoultryProduct } from "@/lib/api/poultry-inventory"
+import { getEggClasses } from "@/lib/api/egg-sorting"
+import { useEggsPerCrate } from "@/hooks/use-eggs-per-crate"
 import {
   listPoultryInternalUsage, createPoultryInternalUsage, updatePoultryInternalUsage,
   deletePoultryInternalUsage, postPoultryInternalUsage, reversePoultryInternalUsage,
@@ -151,12 +153,18 @@ export default function PoultryInternalUsePage() {
       description: prodsRes.reason?.message,
       variant: "destructive",
     })
+    // Sorted egg sizes (341) are eggs too: counted in eggs, entered in crates.
+    // Before 341 this fails and only the raw-egg product is an egg, as before.
+    getEggClasses().then((c) => setEggClassIds(new Set(c.map((x) => x.poultryProductId)))).catch(() => setEggClassIds(new Set()))
 
     setLoading(false)
   }
   useEffect(() => { void load() }, [])
 
   // ---------------------------------------------------------------- quantity
+  const [eggClassIds, setEggClassIds] = useState<Set<number>>(new Set())
+  const isEggProduct = (p: PoultryProduct | undefined) => !!p && (p.isRawEggProduct || eggClassIds.has(p.poultryProductId))
+
   const selectedProduct = useMemo(
     () => products.find((p) => p.poultryProductId === form.poultryProductId),
     [products, form.poultryProductId],
@@ -168,13 +176,15 @@ export default function PoultryInternalUsePage() {
    * convention fnpoultrycrateunits also defaults to, and it travels with the
    * line so a record always explains its own arithmetic.
    */
-  const EGGS_PER_CRATE = 30
+  // The farm's own crate (344 setting; 30 until it is set).
+  const EGGS_PER_CRATE = useEggsPerCrate()
   const eggsPerCrate = EGGS_PER_CRATE
 
   // Crates only mean something for eggs. Birds, feed and supplies are counted in
   // their own unit, so the crate/egg choice is hidden and the entry stays 1:1 —
   // exactly what fnpoultrycrateunits enforces server-side.
-  const isRawEggProduct = selectedProduct?.isRawEggProduct ?? false
+  // "Raw" is historical: since 341 it means any egg class -- Unsorted or a size.
+  const isRawEggProduct = isEggProduct(selectedProduct)
 
   useEffect(() => {
     if (selectedProduct && !isRawEggProduct && form.entryUnit === "Crate") {
@@ -279,7 +289,7 @@ export default function PoultryInternalUsePage() {
     setForm({
       ...emptyForm(),
       poultryProductId: only?.poultryProductId ?? 0,
-      entryUnit: only && !only.isRawEggProduct ? (only.unit || "Unit") : "Crate",
+      entryUnit: only && !isEggProduct(only) ? (only.unit || "Unit") : "Crate",
     })
     setOpen(true)
   }

@@ -12,6 +12,10 @@
 // The maths lives in lib/balances/allocate.ts, in integer pesewas. The server
 // enforces every rule again; this is here so the user sees the problem while
 // they can still fix it.
+//
+// In single-document mode the grid is hidden: there is nothing to choose, so
+// the one line simply follows the payment amount and a summary line stands in
+// for the table. It still posts as a one-line allocation.
 
 import { useEffect, useMemo, useState } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -151,6 +155,16 @@ export function RecordPaymentDialog({
     setAllocation({})
   }
 
+  // Single-document mode has no grid to edit, so the one line tracks the amount.
+  const changeAmount = (raw: string) => {
+    setAmount(raw)
+    if (singleDocument) {
+      setTouched(true)
+      const value = Number(raw)
+      setAllocation(!raw || Number.isNaN(value) || value === 0 ? {} : { [docKey(singleDocument)]: value })
+    }
+  }
+
   const setLine = (doc: OpenDocumentRow, raw: string) => {
     setTouched(true)
     const value = Number(raw)
@@ -214,7 +228,11 @@ export function RecordPaymentDialog({
     }
   }
 
-  const blockingProblems = validation.problems.filter((p) => p.key === null)
+  // With the grid hidden, a line problem (e.g. paying more than the balance)
+  // has nowhere else to show, so every problem goes in the alert.
+  const blockingProblems = singleDocument
+    ? validation.problems
+    : validation.problems.filter((p) => p.key === null)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -225,7 +243,7 @@ export function RecordPaymentDialog({
           squeezing seven columns into it. The paired `w-[95vw] max-w-[95vw]`
           puts the mobile gutter back, which the unprefixed value had also
           taken. Same shape as the statement and history dialogs beside it. */}
-      <DialogContent className="w-[95vw] max-w-[95vw] max-h-[92vh] overflow-y-auto p-4 sm:max-w-4xl sm:p-6">
+      <DialogContent className={`w-[95vw] max-w-[95vw] max-h-[92vh] overflow-y-auto p-4 sm:p-6 ${singleDocument ? "sm:max-w-3xl" : "sm:max-w-4xl"}`}>
         <DialogHeader>
           <DialogTitle>
             {isCustomer
@@ -247,7 +265,7 @@ export function RecordPaymentDialog({
             <Input
               id="pay-amount" type="number" min="0" step="0.01" inputMode="decimal"
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onChange={(e) => changeAmount(e.target.value)}
               placeholder="0.00"
             />
           </div>
@@ -291,6 +309,22 @@ export function RecordPaymentDialog({
           </div>
         </div>
 
+        {singleDocument ? (
+          <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 rounded-md border bg-slate-50 px-3 py-2 text-sm">
+            <span className="text-slate-500">
+              Applies to <span className="font-medium text-slate-900">{singleDocument.reference ?? singleDocument.documentId}</span>
+              {singleDocument.label ? <span className="text-slate-500"> · {singleDocument.label}</span> : null}
+            </span>
+            <span className="text-slate-500">
+              Balance {fmt(singleDocument.balance)} →{" "}
+              <span className={`font-medium ${balanceAfter(singleDocument, allocation) < 0 ? "text-red-600" : "text-slate-900"}`}>
+                {fmt(balanceAfter(singleDocument, allocation))}
+              </span>{" "}
+              after this payment
+            </span>
+          </div>
+        ) : (
+        <>
         <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
           <div className="flex items-center gap-2">
             <Button type="button" variant="outline" size="sm" onClick={autoAllocate} disabled={!amount || loading}>
@@ -377,6 +411,8 @@ export function RecordPaymentDialog({
             </Table>
           )}
         </div>
+        </>
+        )}
 
         {touched && (blockingProblems.length > 0 || overdraws) && (
           <Alert variant="destructive">
