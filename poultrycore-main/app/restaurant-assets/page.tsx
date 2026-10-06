@@ -458,7 +458,7 @@ export default function RestaurantAssetsPage() {
               rather than on the Expenses page.
             </div>
           }
-          pagination={pg.paginationProps}
+          pagination={{ ...pg.paginationProps, variant: "records" }}
           desktopTable={
             <div className="overflow-x-auto"><Table className="min-w-[940px]">
               <TableHeader><TableRow>

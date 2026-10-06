@@ -25,6 +25,7 @@ import { usePermissions } from "@/hooks/use-permissions"
 import { useFmt } from "@/lib/currency"
 import { MoneyStat } from "@/components/restaurant/money-stat"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import { EmptyState } from "@/components/restaurant/empty-state"
 import { PageHeader } from "@/components/restaurant/page-header"
 import { PageSkeleton } from "@/components/restaurant/skeleton-loaders"
@@ -64,6 +65,7 @@ export default function RestaurantOwnerMoneyPage() {
 
   const [loading, setLoading] = useState(true)
   const [entries, setEntries] = useState<OwnerMoneyEntry[]>([])
+  const pg = usePagination(entries)
   const [accounts, setAccounts] = useState<CashAccount[]>([])
   const [dateFrom, setDateFrom] = useState(startOfYear())
   const [dateTo, setDateTo] = useState(todayIso())
@@ -251,7 +253,7 @@ export default function RestaurantOwnerMoneyPage() {
                   {/* Poultry's phone cards (app/poultry-owner-money) with "View table format"; the table on desktop. */}
                   <MobileCardList
                     striped
-                    items={entries}
+                    items={pg.pageItems} pagination={{ ...pg.paginationProps, variant: "records" }}
                     getKey={(e) => e.ownerMoneyId}
                     primary={(e) => <>{e.entryNumber || `#${e.ownerMoneyId}`} · {e.entryType === "Contribution" ? "Contribution" : "Draw"}</>}
                     secondary={(e) => <span>{e.entryDate?.split("T")[0]}{e.ownerName ? ` · ${e.ownerName}` : ""}</span>}
@@ -286,7 +288,7 @@ export default function RestaurantOwnerMoneyPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {entries.map((e) => {
+                        {pg.pageItems.map((e) => {
                           const reversed = e.status !== "Posted"
                           return (
                             <tr key={e.ownerMoneyId} className={`border-b align-top ${reversed ? "text-gray-400" : ""}`}>

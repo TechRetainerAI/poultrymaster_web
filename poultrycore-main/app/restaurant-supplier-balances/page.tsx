@@ -15,6 +15,7 @@ export default function RestaurantSupplierBalancesPage() {
   return (
     <BalancesPage
       module="restaurant"
+      pagerVariant="records"
       side="supplier"
       companyType="Restaurant"
       loadCashAccounts={async () => {

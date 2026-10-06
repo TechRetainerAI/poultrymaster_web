@@ -374,7 +374,7 @@ export default function RestaurantInternalUsePage() {
               ) : (
                 <MobileCardList
                   items={pg.pageItems}
-                  pagination={pg.paginationProps}
+                  pagination={{ ...pg.paginationProps, variant: "records" }}
                   defaultOpen
                   striped
                   getKey={(r) => r.internalUsageId}

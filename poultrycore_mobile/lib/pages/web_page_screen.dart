@@ -9,6 +9,7 @@ import '../design/tokens.dart';
 import '../design/ui/buttons.dart';
 import '../models/company.dart';
 import '../state/session.dart';
+import '../widgets/module_sidebar.dart';
 
 /// For the web routes that have no API of their own to list — the report
 /// dashboards, the setup wizards, and written pages like Terms.
@@ -145,8 +146,12 @@ class _WebPageScreenState extends State<WebPageScreen> {
   Widget build(BuildContext context) {
     final tokens = context.tokens;
 
+    final lead = sidebarLeading(context, widget.session, widget.company,
+        href: widget.href);
     return Scaffold(
       appBar: AppBar(
+        leading: lead.leading,
+        leadingWidth: lead.width,
         title: Text(widget.label),
         actions: [
           IconButton(

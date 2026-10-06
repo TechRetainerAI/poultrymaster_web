@@ -68,6 +68,8 @@ const RESTAURANT_ROUTE_ACCESS: Record<string, (f: FeatureAccessPermissions, isAd
   // Poultry's gates (financial-nav-access.ts). The old Income & Expenses view
   // moved to /restaurant-income-expenses and keeps the cash-ledger gate.
   "/restaurant-payments":         (f, isAdmin) => isAdmin || f.canViewFinancial || f.canEnterSales,
+  // Sales (money view of orders), same audience as Payments.
+  "/restaurant-sales":            (f, isAdmin) => isAdmin || f.canViewFinancial || f.canEnterSales,
   "/restaurant-customer-balances": (f, isAdmin) => isAdmin || f.canViewFinancial || f.canEnterSales || f.canViewCustomers,
   "/restaurant-income-expenses":  (f) => f.canViewCashLedger,
   // Migration 326: payroll and money lent to staff ride on the "Staff & payroll"

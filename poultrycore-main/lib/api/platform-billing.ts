@@ -49,6 +49,10 @@ export interface BillPreview {
   hasUnpricedCompanies: boolean
   periodStart: string
   periodEnd: string
+  discountBreakdown?: { id: number; name: string; amount: number }[]
+  creditsAvailable?: number
+  estimatedCreditApplied?: number
+  estimatedAmountDue?: number
 }
 
 export interface BillingSummary {
@@ -81,8 +85,10 @@ export interface PlatformInvoice {
   taxAmount: number
   totalAmount: number
   amountPaid: number
+  creditApplied?: number
   balance: number
   status: string
+  discountBreakdown?: string | null
   lines: PlatformInvoiceLine[]
 }
 
@@ -252,6 +258,23 @@ export async function reactivateSubscription() {
   return jpost(`/PlatformBilling/reactivate`, { userId })
 }
 
+export interface Entitlement {
+  tierCode: string
+  capability: string
+  enabled: boolean
+  limit?: number | null
+  usage?: number | null
+  limitReached: boolean
+}
+
+/** Configured tier capabilities for this company; an absent capability is unlimited (spec 17/24). */
+export async function getEntitlements(farmId: string): Promise<Entitlement[]> {
+  const { userId } = getUserContext()
+  return jget<Entitlement[]>(
+    `/PlatformBilling/entitlements?userId=${encodeURIComponent(userId)}&farmId=${encodeURIComponent(farmId)}`
+  )
+}
+
 /** The company-level "Plan & Usage" view — read-only, managed by the Business Office. */
 export async function getPlanUsage(farmId: string): Promise<PlanUsage> {
   const { userId } = getUserContext()
@@ -319,4 +342,43 @@ export async function adminRunMaintenance(): Promise<{ report?: string }> {
     method: "POST", headers: getAuthHeaders(), body: JSON.stringify({ userId, key: "run" }),
   })
   return res.ok ? res.json() : { report: `Failed (${res.status})` }
+}
+
+// ---------- Presentation-driven plan cards (admin-app spec 11-16) ----------
+
+export interface PublicPlanCard {
+  tierCode: string
+  tierName: string
+  headline?: string | null
+  featureBullets: string[]
+  badgeText?: string | null
+  isMostPopular: boolean
+  ctaText?: string | null
+  monthlyPrice?: number | null
+  annualPrice?: number | null
+  minValue?: number | null
+  maxValue?: number | null
+}
+
+export interface PublicPricing {
+  marketCode: string
+  currencyCode: string
+  billingProfileCode: string
+  usedFallback: boolean
+  displayName: string
+  shortDescription?: string | null
+  metricDisplayName?: string | null
+  metricSingular?: string | null
+  metricPlural?: string | null
+  plans: PublicPlanCard[]
+}
+
+/** Anonymous — the public pricing page uses it before any login exists. */
+export async function getPublicPricing(
+  market = "GH", profile = "POULTRY_BIRDS", template?: string
+): Promise<PublicPricing> {
+  const qs = `market=${encodeURIComponent(market)}&profile=${encodeURIComponent(profile)}${template ? `&template=${encodeURIComponent(template)}` : ""}`
+  const res = await fetch(farmApiUrl(`/PlatformBilling/public-pricing?${qs}`))
+  if (!res.ok) throw new Error(`Pricing not available (${res.status})`)
+  return (await res.json()) as PublicPricing
 }

@@ -37,6 +37,9 @@ if (string.IsNullOrWhiteSpace(connectionString))
     throw new InvalidOperationException(
         "Connection string 'PoultryConn' is empty. Set ConnectionStrings__PoultryConn on Cloud Run (or User Secrets locally).");
 }
+// Main address first; if it doesn't answer, the fallback (a local Cloud SQL
+// proxy on 127.0.0.1:5433 in Development). See Helpers/DbConnectionFallback.cs.
+connectionString = PoultryCore.Db.DbConnectionFallback.Resolve(builder.Configuration, "PoultryConn", builder.Environment.IsDevelopment());
 
 // Cloud Run: set JWT__Secret (same value as Login API). Empty → IDX10703 / "key length is zero" at runtime.
 var jwtSecret = builder.Configuration["JWT:Secret"]?.Trim();
@@ -259,10 +262,14 @@ builder.Services.AddHttpClient();
 builder.Services.AddSingleton<IPlatformPaymentProvider>(sp => new PaystackPlatformProvider(
     builder.Configuration["PAYSTACK_SECRET_KEY"] ?? builder.Configuration["PaystackSettings:SecretKey"] ?? "",
     sp.GetRequiredService<IHttpClientFactory>()));
-builder.Services.AddScoped<IPlatformBillingService>(sp => new PlatformBillingService(
+builder.Services.AddScoped<PlatformBillingService>(sp => new PlatformBillingService(
     connectionString,
     sp.GetRequiredService<IPlatformPaymentProvider>(),
     sp.GetRequiredService<ILogger<PlatformBillingService>>()));
+builder.Services.AddScoped<IPlatformBillingService>(sp => sp.GetRequiredService<PlatformBillingService>());
+// The ADMIN APP surface shares the same instance: one config loader, one
+// evaluation path, one discount/credit pipeline (admin-app spec).
+builder.Services.AddScoped<IPlatformBillingAdminService>(sp => sp.GetRequiredService<PlatformBillingService>());
 builder.Services.AddHostedService<PlatformBillingWorker>();
 // Financial settings (261): when inventory costs reach the P&L. Two independent
 // choices, feed and medication, resolved against item overrides by the SPs.

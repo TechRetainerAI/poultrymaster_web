@@ -32,6 +32,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { HandCoins, Plus, Wallet, Info, Pencil, Undo2, Ban, Search, Banknote, Eye } from "lucide-react"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/use-permissions"
@@ -273,6 +274,7 @@ function StaffLoansInner() {
     if (q) list = list.filter((l) => (l.staffName ?? "").toLowerCase().includes(q) || l.loanNumber.toLowerCase().includes(q) || (l.reference ?? "").toLowerCase().includes(q))
     return list
   }, [loans, tab, staffFilter, search])
+  const pg = usePagination(filtered)
 
   const accountSelect = (value: string, onChange: (v: string) => void, placeholder: string) => (
     <Select value={value || "DEFAULT"} onValueChange={(v) => onChange(v === "DEFAULT" ? "" : v)}>
@@ -367,7 +369,7 @@ function StaffLoansInner() {
         <MobileCardList
           striped
           defaultOpen
-          items={filtered}
+          items={pg.pageItems} pagination={{ ...pg.paginationProps, variant: "records" }}
           getKey={(l: StaffLoan) => l.staffLoanId}
           primary={(l: StaffLoan) => <>{l.loanNumber} · {l.staffName ?? "—"}</>}
           secondary={(l: StaffLoan) => (
@@ -431,7 +433,7 @@ function StaffLoansInner() {
             <th className="text-center p-3">Status</th><th className="text-right p-3"></th>
           </tr></thead>
           <tbody>
-            {filtered.map((l) => (
+            {pg.pageItems.map((l) => (
               <tr key={l.staffLoanId} className="border-b hover:bg-gray-50 cursor-pointer" onClick={() => openDetail(l)}>
                 <td className="p-3"><div className="font-mono text-xs font-semibold">{l.loanNumber}</div><div className="text-xs text-gray-500">{dateOnly(l.disbursementDate ?? l.createdAt)}</div></td>
                 <td className="p-3"><div className="font-medium">{l.staffName ?? "—"}</div>{!l.staffIsActive && <div className="text-xs text-amber-600">inactive / removed</div>}</td>

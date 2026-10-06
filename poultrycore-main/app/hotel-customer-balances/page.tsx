@@ -15,6 +15,7 @@ export default function HotelCustomerBalancesPage() {
   return (
     <BalancesPage
       module="hotel"
+      pagerVariant="records"
       side="customer"
       companyType="Hotel"
       iconClassName={HOTEL_ICON_CLASS}

@@ -15,6 +15,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { Inter } from "next/font/google"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -25,7 +26,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { Loader2, CreditCard, Info, Building2 } from "lucide-react"
+import { Loader2, CreditCard, Info, Building2, Bird, Droplets, ShoppingBag, BedDouble, UtensilsCrossed } from "lucide-react"
 import {
   getBillingSummary,
   getPlatformInvoices,
@@ -45,9 +46,16 @@ import {
   type PricingExplain,
   type CompanyBillingRow,
   type MarketChangePreview,
+  getPublicPricing,
 } from "@/lib/api/platform-billing"
+import { PUBLIC_PLANS, plansFromApi, type PublicPlan } from "@/lib/billing/public-pricing"
+import { PlanCard } from "@/components/billing/plan-card"
 
 const RETURN_PATH = "/business-office/billing"
+
+// The statement card is set in Inter — the numbers-heavy part of the page
+// reads best with Inter's tabular figures; the rest of the app stays Geist.
+const inter = Inter({ subsets: ["latin"], display: "swap" })
 
 function money(v: number | null | undefined, currency: string) {
   if (v === null || v === undefined) return "—"
@@ -90,6 +98,28 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
+/** Soft-tinted icon tile per business type — the row's visual anchor. */
+function TypeTile({ type }: { type: string }) {
+  const t = type.toLowerCase()
+  const [Icon, cls] =
+    t === "poultry"
+      ? ([Bird, "bg-amber-50 text-amber-600 ring-amber-600/10"] as const)
+      : t === "water"
+        ? ([Droplets, "bg-sky-50 text-sky-600 ring-sky-600/10"] as const)
+        : t === "hotel"
+          ? ([BedDouble, "bg-rose-50 text-rose-600 ring-rose-600/10"] as const)
+          : t === "restaurant"
+            ? ([UtensilsCrossed, "bg-orange-50 text-orange-600 ring-orange-600/10"] as const)
+            : t === "generic"
+              ? ([ShoppingBag, "bg-violet-50 text-violet-600 ring-violet-600/10"] as const)
+              : ([Building2, "bg-slate-100 text-slate-500 ring-slate-500/10"] as const)
+  return (
+    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ring-1 ring-inset ${cls}`}>
+      <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
+    </div>
+  )
+}
+
 /** One statement row per company. */
 function CompanyRow({ c, onExplain }: { c: CompanyBillingRow; onExplain: (farmId: string) => void }) {
   const unpriced = c.pricingStatus === "PricingNotConfigured"
@@ -97,20 +127,23 @@ function CompanyRow({ c, onExplain }: { c: CompanyBillingRow; onExplain: (farmId
   const inactive = c.participationStatus !== "Active" && c.participationStatus !== "EnterpriseContract"
 
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 sm:px-6">
-      <div className="min-w-0 flex-1 basis-48">
-        <p className="truncate font-medium text-slate-900">{c.companyName}</p>
-        <p className="text-xs text-slate-500">{c.businessType}</p>
+    <div className="group flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3.5 transition-colors hover:bg-slate-50/60 sm:px-6">
+      <div className="flex min-w-0 flex-1 basis-56 items-center gap-3">
+        <TypeTile type={c.businessType} />
+        <div className="min-w-0">
+          <p className="truncate text-[15px] font-medium leading-5 tracking-[-0.01em] text-slate-900">{c.companyName}</p>
+          <p className="text-xs leading-4 text-slate-500">{c.businessType}</p>
+        </div>
       </div>
 
-      <div className="hidden w-32 text-sm text-slate-600 sm:block">
+      <div className="hidden w-32 text-sm sm:block">
         {c.metricType === "ManualScale" && c.metricValue === 0 ? (
-          <span className="text-slate-400">No scale set</span>
+          <span className="text-[13px] italic text-slate-400">No scale set</span>
         ) : (
-          <>
+          <span className="tabular-nums font-medium text-slate-700">
             {c.metricValue.toLocaleString()}
-            <span className="text-slate-400"> {c.metricType === "ActiveBirdCount" ? "birds" : "units"}</span>
-          </>
+            <span className="font-normal text-slate-400"> {c.metricType === "ActiveBirdCount" ? "birds" : "units"}</span>
+          </span>
         )}
       </div>
 
@@ -120,7 +153,8 @@ function CompanyRow({ c, onExplain }: { c: CompanyBillingRow; onExplain: (farmId
 
       <div className="w-36 text-right">
         {unpriced ? (
-          <span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-600/20">
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden />
             Pricing pending
           </span>
         ) : evaluation ? (
@@ -128,11 +162,11 @@ function CompanyRow({ c, onExplain }: { c: CompanyBillingRow; onExplain: (farmId
             Free until {c.evaluationUntilUtc ? new Date(c.evaluationUntilUtc).toLocaleDateString() : "review"}
           </span>
         ) : inactive ? (
-          <span className="text-slate-400">—</span>
+          <span className="text-slate-300">—</span>
         ) : (
-          <span className="tabular-nums font-semibold text-slate-900">
+          <span className="tabular-nums text-[15px] font-semibold tracking-[-0.01em] text-slate-900">
             {money(c.monthlyAmount, c.currencyCode)}
-            <span className="text-xs font-normal text-slate-400">/mo</span>
+            <span className="ml-0.5 text-xs font-normal text-slate-400">/mo</span>
           </span>
         )}
       </div>
@@ -140,7 +174,7 @@ function CompanyRow({ c, onExplain }: { c: CompanyBillingRow; onExplain: (farmId
       <Button
         variant="ghost"
         size="sm"
-        className="h-8 w-8 p-0 text-slate-400 hover:text-indigo-600"
+        className="h-8 w-8 p-0 text-slate-300 transition-colors hover:text-indigo-600 group-hover:text-slate-400"
         title="Why this price?"
         onClick={() => onExplain(c.farmId)}
       >
@@ -169,6 +203,10 @@ export function BillingPanel() {
   const [marketReason, setMarketReason] = useState("")
   const [marketPreviewData, setMarketPreviewData] = useState<MarketChangePreview | null>(null)
   const [marketBusy, setMarketBusy] = useState(false)
+  // Plan cards come from the backend presentation + price book (admin-app
+  // spec 11-16) so admins edit copy/prices without deploys; the static ladder
+  // is only the offline fallback. Vertical follows the org's first company.
+  const [planCards, setPlanCards] = useState<PublicPlan[]>(PUBLIC_PLANS)
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -192,6 +230,25 @@ export function BillingPanel() {
   useEffect(() => {
     void reload()
   }, [reload])
+
+  useEffect(() => {
+    if (!summary) return
+    const family = (summary.companies[0]?.companyFamily || "Poultry").toLowerCase()
+    const profile =
+      family === "water" ? "WATER_PRODUCTION_LINES"
+      : family === "hotel" ? "HOTEL_ROOMS"
+      : family === "restaurant" ? "RESTAURANT_LOCATIONS"
+      : family === "generic" ? "GENERIC_STANDARD"
+      : "POULTRY_BIRDS"
+    const template = family === "generic" ? summary.companies[0]?.businessType : undefined
+    getPublicPricing(summary.account.marketCode, profile, template)
+      .then((api) => {
+        const mapped = plansFromApi(api)
+        if (mapped.length > 0) setPlanCards(mapped)
+      })
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [summary?.account?.marketCode, summary?.companies?.length])
 
   useEffect(() => {
     const status = searchParams.get("billing")
@@ -395,14 +452,17 @@ export function BillingPanel() {
         </div>
       </Card>
 
-      {/* Companies — a statement, not a card grid */}
-      <Card className="overflow-hidden">
-        <CardHeader className="border-b border-slate-100 py-4">
+      {/* Companies — a statement, not a card grid. Set in Inter. */}
+      <Card className={`overflow-hidden ${inter.className}`}>
+        <CardHeader className="border-b border-slate-100 bg-white py-4">
           <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Building2 className="h-4 w-4 text-slate-400" /> Companies on this bill
+            <CardTitle className="flex items-center gap-2.5 text-[15px] font-semibold tracking-[-0.01em] text-slate-900">
+              <span className="flex h-7 w-7 items-center justify-center rounded-md bg-indigo-50 ring-1 ring-inset ring-indigo-600/10">
+                <Building2 className="h-4 w-4 text-indigo-600" strokeWidth={1.75} />
+              </span>
+              Companies on this bill
             </CardTitle>
-            <span className="text-sm text-slate-500">
+            <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium tabular-nums text-slate-600">
               {preview.eligibleCompanyCount} of {companies.length} billed
             </span>
           </div>
@@ -412,37 +472,114 @@ export function BillingPanel() {
             <CompanyRow key={c.farmId} c={c} onExplain={(id) => void openExplain(id)} />
           ))}
         </div>
-        <div className="border-t border-slate-100 bg-slate-50/70 px-4 py-4 sm:px-6">
-          <div className="ml-auto max-w-xs space-y-1 text-sm">
-            <div className="flex justify-between text-slate-600">
+        <div className="border-t border-slate-200/70 bg-slate-50/80 px-4 py-5 sm:px-6">
+          <div className="ml-auto w-full max-w-sm space-y-2 text-sm">
+            <div className="flex items-baseline justify-between text-slate-500">
               <span>Subtotal</span>
-              <span className="tabular-nums">{money(preview.subtotal, preview.currencyCode)}</span>
+              <span className="tabular-nums font-medium text-slate-700">{money(preview.subtotal, preview.currencyCode)}</span>
             </div>
-            {preview.discountAmount > 0 && (
-              <div className="flex justify-between text-green-700">
+            {(preview.discountBreakdown?.length ?? 0) > 0 ? (
+              preview.discountBreakdown!.map((d) => (
+                <div key={`${d.id}-${d.name}`} className="flex items-baseline justify-between text-emerald-700">
+                  <span>{d.name}</span>
+                  <span className="tabular-nums font-medium">-{money(d.amount, preview.currencyCode)}</span>
+                </div>
+              ))
+            ) : preview.discountAmount > 0 ? (
+              <div className="flex items-baseline justify-between text-emerald-700">
                 <span>Multi-company discount ({preview.discountPercent}%)</span>
-                <span className="tabular-nums">-{money(preview.discountAmount, preview.currencyCode)}</span>
+                <span className="tabular-nums font-medium">-{money(preview.discountAmount, preview.currencyCode)}</span>
               </div>
-            )}
+            ) : null}
             {preview.taxAmount > 0 && (
-              <div className="flex justify-between text-slate-600">
+              <div className="flex items-baseline justify-between text-slate-500">
                 <span>Tax</span>
-                <span className="tabular-nums">{money(preview.taxAmount, preview.currencyCode)}</span>
+                <span className="tabular-nums font-medium text-slate-700">{money(preview.taxAmount, preview.currencyCode)}</span>
               </div>
             )}
-            <div className="flex justify-between border-t border-slate-200 pt-1.5 text-base font-semibold text-slate-900">
-              <span>Total / month</span>
-              <span className="tabular-nums">{money(preview.total, preview.currencyCode)}</span>
+            <div className="flex items-baseline justify-between border-t border-slate-200 pt-3">
+              <span className="font-medium text-slate-900">Total / month</span>
+              <span className="tabular-nums text-lg font-semibold tracking-[-0.02em] text-slate-900">
+                {money(preview.total, preview.currencyCode)}
+              </span>
             </div>
+            {(preview.estimatedCreditApplied ?? 0) > 0 && (
+              <>
+                <div className="flex items-baseline justify-between text-emerald-700">
+                  <span>Account credit applied</span>
+                  <span className="tabular-nums font-medium">-{money(preview.estimatedCreditApplied!, preview.currencyCode)}</span>
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className="font-medium text-slate-900">Amount due</span>
+                  <span className="tabular-nums text-lg font-semibold tracking-[-0.02em] text-slate-900">
+                    {money(preview.estimatedAmountDue ?? preview.total, preview.currencyCode)}
+                  </span>
+                </div>
+              </>
+            )}
           </div>
           {preview.hasUnpricedCompanies && (
-            <p className="mt-3 text-xs leading-relaxed text-slate-500">
-              Pricing for some business types is being finalized. Those companies are listed but not charged;
-              contact VisibilityCore support to enable them.
-            </p>
+            <div className="mt-4 flex items-start gap-2 rounded-lg bg-amber-50/70 px-3 py-2.5 ring-1 ring-inset ring-amber-600/10">
+              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+              <p className="text-xs leading-relaxed text-amber-800">
+                Pricing for some business types is being finalized. Those companies are listed but not charged;
+                contact VisibilityCore support to enable them.
+              </p>
+            </div>
           )}
         </div>
       </Card>
+
+      {/* Plan ladder — the same full cards as /pricing (shared PlanCard).
+          Tiers are assigned automatically from each company's scale, so the
+          CTA area shows how many of the org's companies sit on each plan;
+          only Enterprise carries a real button. */}
+      <div className={inter.className}>
+        <div className="mb-4 flex items-baseline justify-between px-1">
+          <h3 className="text-[15px] font-semibold tracking-[-0.01em] text-slate-900">Plans</h3>
+          <span className="text-xs text-slate-500">Assigned automatically from each company's scale</span>
+        </div>
+        <div className="grid gap-6 pt-3 sm:grid-cols-2 xl:grid-cols-4 xl:gap-5">
+          {planCards.map((p) => {
+            const onPlan = companies.filter((c) => (c.tierName || "").toLowerCase() === p.name.toLowerCase()).length
+            return (
+              <PlanCard
+                key={p.code}
+                plan={p}
+                cta={
+                  p.code === "enterprise" ? (
+                    <a
+                      href="https://techretainer.com/contact/"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex h-11 w-full items-center justify-center rounded-lg bg-slate-900 text-sm font-medium text-white transition-colors hover:bg-slate-800"
+                    >
+                      Request a price
+                    </a>
+                  ) : (
+                    <div
+                      className={`inline-flex h-11 w-full items-center justify-center rounded-lg text-sm font-medium ${
+                        p.highlight
+                          ? "bg-white/15 text-white ring-1 ring-inset ring-white/30"
+                          : "bg-slate-50 text-slate-600 ring-1 ring-inset ring-slate-200"
+                      }`}
+                    >
+                      {onPlan > 0
+                        ? `${onPlan} of your ${onPlan === 1 ? "company is" : "companies are"} on this plan`
+                        : "No companies at this scale yet"}
+                    </div>
+                  )
+                }
+              />
+            )
+          })}
+        </div>
+        <p className="mt-4 px-1 text-xs leading-relaxed text-slate-500">
+          Every plan includes the complete platform — pricing scales with each company's size. Poultry companies
+          are priced by active birds today; other business types are listed on your bill but not charged until
+          their pricing is enabled.
+        </p>
+      </div>
 
       {/* History: invoices and payments share one card */}
       <Card>

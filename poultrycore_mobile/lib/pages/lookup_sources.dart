@@ -203,11 +203,16 @@ const Map<String, List<List<String>>> staticOptions = {
   "poultry-products.requiresRecipeSetup": [["yes", "Yes"], ["no", "No"]],
   "poultry-products.unit": [["Egg", "Egg"], ["Tray", "Tray"], ["Crate", "Crate"], ["Dozen", "Dozen"], ["Piece", "Piece"], ["Unit", "Unit"]],
   "poultry-raw-material-usage-history.category": [["Electronics", "Electronics"], ["Clothing", "Clothing"], ["Documents", "Documents"], ["Jewelry", "Jewelry"], ["Personal", "Personal"], ["Other", "Other"]],
-  "poultry-staff.role": [["Owner", "Owner"], ["Manager", "Manager"], ["Accountant", "Accountant"], ["Cashier", "Cashier"], ["Salesperson", "Salesperson"], ["InventoryOfficer", "InventoryOfficer"], ["Cleaner", "Cleaner"], ["Security", "Security"], ["Driver", "Driver"], ["ServiceProvider", "ServiceProvider"], ["Other", "Other"]],
+  // POULTRY_STAFF_ROLES (lib/api/poultry-finance.ts). The generated list was
+  // the Generic company's roles.
+  "poultry-staff.role": [["FarmManager", "FarmManager"], ["Supervisor", "Supervisor"], ["FarmHand", "FarmHand"], ["VaccinatorHealth", "VaccinatorHealth"], ["FeedMillOperator", "FeedMillOperator"], ["EggCollector", "EggCollector"], ["Salesperson", "Salesperson"], ["Accountant", "Accountant"], ["Cleaner", "Cleaner"], ["Security", "Security"], ["Driver", "Driver"], ["Other", "Other"]],
   "poultry-staff.salaryType": [["Daily", "Daily"], ["Weekly", "Weekly"], ["Monthly", "Monthly"], ["Commission", "Commission"], ["Mixed", "Mixed"]],
   "poultry-stock-transactions.movementType": [["Increase", "Increase"], ["Adjustment", "Adjustment"], ["Decrease", "Decrease"], ["Damage/Loss", "Damage/Loss"]],
-  "poultry-vehicles.status": [["Present", "Present"], ["Absent", "Absent"], ["Late", "Late"], ["HalfDay", "HalfDay"], ["OffDay", "OffDay"]],
+  // STATUSES in app/poultry-vehicles/page.tsx (was attendance statuses).
+  "poultry-vehicles.status": [["Active", "Active"], ["Inactive", "Inactive"], ["UnderMaintenance", "UnderMaintenance"]],
   "poultry-vehicles.vehicleType": [["Truck", "Truck"], ["Van", "Van"], ["Tricycle", "Tricycle"], ["Motorbike", "Motorbike"], ["Pickup", "Pickup"], ["Other", "Other"]],
+  // SEGMENTS in app/restaurant-crm/page.tsx.
+  "restaurant-crm-customers.segment": [["New", "New"], ["Regular", "Regular"], ["VIP", "VIP"], ["Lapsed", "Lapsed"]],
   "restaurant-delivery.vehicleType": [["Motorcycle", "Motorcycle"], ["Car", "Car"], ["Bicycle", "Bicycle"], ["Van", "Van"]],
   "restaurant-events.eventType": [["Corporate", "Corporate"], ["Wedding", "Wedding"], ["Birthday", "Birthday"], ["HolidayParty", "HolidayParty"], ["Buffet", "Buffet"], ["Cocktail", "Cocktail"], ["Other", "Other"]],
   "restaurant-events.venue": [["InHouse", "In-House"], ["Offsite", "Offsite"]],
@@ -221,7 +226,8 @@ const Map<String, List<List<String>>> staticOptions = {
   "restaurant-staff.salaryType": [["Daily", "Daily"], ["Weekly", "Weekly"], ["Monthly", "Monthly"], ["Commission", "Commission"], ["Mixed", "Mixed"]],
   "settings.farmType": [["Layers", "Layers (Egg Production)"], ["Broilers", "Broilers (Meat Production)"], ["Mixed", "Mixed (Layers & Broilers)"], ["Hatchery", "Hatchery"], ["Breeders", "Breeders"], ["Other", "Other"]],
   "settings.timezone": [["Africa/Accra", "Africa/Accra (GMT+0)"], ["Africa/Lagos", "Africa/Lagos (WAT, GMT+1)"], ["Africa/Nairobi", "Africa/Nairobi (EAT, GMT+3)"], ["Africa/Johannesburg", "Africa/Johannesburg (SAST, GMT+2)"], ["America/New_York", "America/New_York (EST, GMT-5)"], ["Europe/London", "Europe/London (GMT+0)"], ["Asia/Dubai", "Asia/Dubai (GST, GMT+4)"]],
-  "water-boreholes.status": [["Present", "Present"], ["Absent", "Absent"], ["Late", "Late"], ["HalfDay", "HalfDay"], ["OffDay", "OffDay"]],
+  // STATUSES in app/water-boreholes/page.tsx (was attendance statuses).
+  "water-boreholes.status": [["Active", "Active"], ["Inactive", "Inactive"], ["UnderMaintenance", "UnderMaintenance"]],
   "water-cash-accounts.accountType": [["FactoryCashBox", "FactoryCashBox"], ["OwnerCash", "OwnerCash"], ["MoMoWallet", "MoMoWallet"], ["BankAccount", "BankAccount"], ["DriverCash", "DriverCash"], ["PettyCash", "PettyCash"], ["Other", "Other"]],
   "water-cash-accounts.notes": [["Bank deposit", "Bank deposit"], ["Bank withdrawal", "Bank withdrawal"], ["MoMo cash-out", "MoMo cash-out"], ["MoMo top-up", "MoMo top-up"], ["Driver float issued", "Driver float issued"], ["Driver float returned", "Driver float returned"], ["Petty cash top-up", "Petty cash top-up"], ["Funding payroll", "Funding payroll"], ["Funding supplier payment", "Funding supplier payment"], ["Consolidating balances", "Consolidating balances"], ["Safe keeping", "Safe keeping"], ["Other", "Other"]],
   "water-drivers.role": [["Driver", "Driver"], ["MotorKingRider", "Motor King Rider"]],
@@ -231,7 +237,8 @@ const Map<String, List<List<String>>> staticOptions = {
   "water-loans.lenderType": [["Bank", "Bank"], ["FinancialInstitution", "FinancialInstitution"], ["Individual", "Individual"], ["Owner", "Owner"], ["FamilyFriend", "FamilyFriend"], ["Supplier", "Supplier"], ["Other", "Other"]],
   "water-loans.paymentFrequency": [["Weekly", "Weekly"], ["BiWeekly", "BiWeekly"], ["Monthly", "Monthly"], ["Quarterly", "Quarterly"], ["Custom", "Custom"]],
   "water-loss-records.lossType": [["Damage", "Damage"], ["Mortality", "Mortality"], ["Theft", "Theft"], ["Spoilage", "Spoilage"], ["MissingStock", "MissingStock"], ["Other", "Other"]],
-  "water-machines.status": [["Present", "Present"], ["Absent", "Absent"], ["Late", "Late"], ["HalfDay", "HalfDay"], ["OffDay", "OffDay"]],
+  // STATUSES in app/water-machines/page.tsx (was attendance statuses).
+  "water-machines.status": [["Active", "Active"], ["Down", "Down"], ["UnderMaintenance", "UnderMaintenance"]],
   "water-maintenance.assetType": [["Machine", "Machine"], ["Vehicle", "Vehicle"], ["Borehole", "Borehole"], ["Generator", "Generator"], ["Other", "Other"]],
   "water-owner-money.paymentMethod": [["Cash", "Cash"], ["MoMo", "MoMo"], ["Bank Transfer", "Bank Transfer"], ["Cheque", "Cheque"], ["Card", "Card"], ["Other", "Other"]],
   "water-production-batches.shift": [["Morning", "Morning"], ["Afternoon", "Afternoon"], ["Night", "Night"], ["FullDay", "FullDay"]],
@@ -243,7 +250,8 @@ const Map<String, List<List<String>>> staticOptions = {
   "water-products.unit": [["Sachet", "Sachet"], ["Bottle", "Bottle"], ["Dispenser Bottle", "Dispenser Bottle"], ["Cup", "Cup"], ["Container", "Container"], ["Piece", "Piece"], ["Litre", "Litre"], ["Other", "Other"]],
   "water-raw-material-usage-history.category": [["Electronics", "Electronics"], ["Clothing", "Clothing"], ["Documents", "Documents"], ["Jewelry", "Jewelry"], ["Personal", "Personal"], ["Other", "Other"]],
   "water-raw-material-usage-history.paymentMethod": [["Cash", "Cash"], ["MoMo", "MoMo"], ["Bank Transfer", "Bank Transfer"], ["Cheque", "Cheque"], ["Card", "Card"], ["Other", "Other"]],
-  "water-staff.role": [["Owner", "Owner"], ["Manager", "Manager"], ["Accountant", "Accountant"], ["Cashier", "Cashier"], ["Salesperson", "Salesperson"], ["InventoryOfficer", "InventoryOfficer"], ["Cleaner", "Cleaner"], ["Security", "Security"], ["Driver", "Driver"], ["ServiceProvider", "ServiceProvider"], ["Other", "Other"]],
+  // ROLES in app/water-staff/page.tsx (was the Generic company's roles).
+  "water-staff.role": [["MachineOperator", "MachineOperator"], ["PackagingWorker", "PackagingWorker"], ["Loader", "Loader"], ["Driver", "Driver"], ["MotorKingRider", "MotorKingRider"], ["Salesperson", "Salesperson"], ["FactoryManager", "FactoryManager"], ["Accountant", "Accountant"], ["Cleaner", "Cleaner"], ["Security", "Security"], ["Other", "Other"]],
   "water-staff.salaryType": [["Daily", "Daily"], ["Weekly", "Weekly"], ["Monthly", "Monthly"], ["Commission", "Commission"], ["Mixed", "Mixed"]],
   "water-stock-transactions.txnType": [["Restock", "Restock (add stock)"], ["Adjust", "Adjust (signed)"], ["Return", "Return (add back)"]],
   "water-suppliers.isActive": [["yes", "Active"], ["no", "Inactive"]],

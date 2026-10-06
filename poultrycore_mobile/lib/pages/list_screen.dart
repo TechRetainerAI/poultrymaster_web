@@ -4,18 +4,22 @@ import 'package:intl/intl.dart';
 import '../api/api_client.dart';
 import '../design/tokens.dart';
 import '../design/web_mobile.dart';
+import '../design/ui/buttons.dart';
 import '../design/ui/form_section.dart';
 import '../design/ui/inputs.dart';
 import '../models/company.dart';
 import '../models/module.dart';
 import '../state/session.dart';
+import '../widgets/module_sidebar.dart';
 import 'export.dart';
 import 'form_spec.dart';
 import 'registry.dart';
 import 'web_page_design.dart';
 import 'list_header.dart';
+import 'lookup_loader.dart';
 import 'form_screen.dart';
-import 'generated_forms.dart';
+import 'module_registry.dart';
+import 'page_extras.dart';
 import 'page_actions.dart';
 import 'page_spec.dart';
 import 'plumbing_fields.dart';
@@ -49,6 +53,54 @@ class _ListScreenState extends State<ListScreen> {
   String? _error;
   String _query = '';
 
+  bool _extraBusy = false;
+
+  /// A header extra: open its screen and reload if it changed data, or run
+  /// its action and report what it did.
+  Future<void> _runExtra(ListExtra x) async {
+    final run = x.run;
+    if (run != null) {
+      if (_extraBusy) return;
+      setState(() => _extraBusy = true);
+      final messenger = ScaffoldMessenger.of(context);
+      try {
+        messenger.showSnackBar(SnackBar(content: Text(await run(widget.session, widget.company))));
+        await _load();
+      } on ApiException catch (e) {
+        messenger.showSnackBar(SnackBar(content: Text(e.message)));
+      } finally {
+        if (mounted) setState(() => _extraBusy = false);
+      }
+      return;
+    }
+    final changed = await Navigator.of(context).push<bool>(MaterialPageRoute(
+      builder: (_) => x.builder!(widget.session, widget.company, _rows),
+    ));
+    if (changed == true) _load();
+  }
+
+  /// Fills [PageSpec.resolve] fields: the name for an id, from the same
+  /// lookup the form's dropdown uses. "—" when it cannot be found, as the
+  /// web shows.
+  Future<void> _resolve(List<Map<String, dynamic>> rows) async {
+    final spec = widget.spec;
+    if (spec.resolve.isEmpty || rows.isEmpty) return;
+    final loader = LookupLoader(widget.session, widget.company);
+    for (final MapEntry(key: field, value: (idKey, slot, label)) in spec.resolve.entries) {
+      List<AppSelectItem<String>> items = const [];
+      try {
+        items = await (loader.optionsFor(slot, label: label) ?? Future.value(const []));
+      } catch (_) {}
+      final names = {for (final i in items) i.value: i.label};
+      for (final r in rows) {
+        r[field] = names['${r[idKey]}'] ?? '—';
+      }
+    }
+  }
+
+  /// The Filters panel's choices, by ListFilter key.
+  Map<String, String> _filters = const {};
+
   @override
   void initState() {
     super.initState();
@@ -62,6 +114,7 @@ class _ListScreenState extends State<ListScreen> {
     });
     final spec = widget.spec;
     try {
+      await beforeLoad[spec.key]?.call(widget.session, widget.company).catchError((_) {});
       final path = spec.path.replaceAll('{farmId}', widget.company.farmId);
       final query = <String, dynamic>{...spec.query};
       if (spec.needsFarmId && !spec.path.contains('{farmId}')) {
@@ -79,6 +132,7 @@ class _ListScreenState extends State<ListScreen> {
           : widget.session.farmClient;
       final res = await client.get(path, query: query);
       final rows = _rowsFrom(res, spec.itemsAt);
+      await _resolve(rows);
       if (!mounted) return;
       setState(() {
         _rows = rows;
@@ -280,8 +334,22 @@ class _ListScreenState extends State<ListScreen> {
 
   /// Rows after the search box is applied.
   List<Map<String, dynamic>> get _visible {
+    final defs = listFilters[widget.spec.key] ?? const <ListFilter>[];
+    final filtered = _filters.isEmpty
+        ? _rows
+        : _rows.where((r) {
+            for (final f in defs) {
+              final v = _filters[f.key];
+              if (v != null && v.isNotEmpty && !f.matches(r, v)) return false;
+            }
+            return true;
+          }).toList();
+    return _searched(filtered);
+  }
+
+  List<Map<String, dynamic>> _searched(List<Map<String, dynamic>> source) {
     final q = _query.trim().toLowerCase();
-    if (q.isEmpty) return _rows;
+    if (q.isEmpty) return source;
     // A generated spec names no search fields; search every short string
     // instead, which is what a person scanning the page would do.
     final keys = widget.spec.searchFields.isNotEmpty
@@ -311,12 +379,7 @@ class _ListScreenState extends State<ListScreen> {
     return acts.action == null;
   }
 
-  FormDef? get _extractedForm {
-    for (final def in generatedForms.values) {
-      if (def.specKey != null && def.specKey == widget.spec.key) return def;
-    }
-    return null;
-  }
+  FormDef? get _extractedForm => formForSpec(widget.spec.key);
 
   /// The form to open from the primary button.
   ///
@@ -413,7 +476,10 @@ class _ListScreenState extends State<ListScreen> {
     return _generic(rows);
   }
 
-  _Card _fromDef(SummaryDef d, List<Map<String, dynamic>> rows) {
+  _Card _fromDef(SummaryDef d, List<Map<String, dynamic>> all) {
+    final rows = d.where.isEmpty
+        ? all
+        : all.where((r) => d.where.entries.every((e) => r[e.key] == e.value)).toList();
     double sum(String f) {
       var t = 0.0;
       for (final r in rows) {
@@ -532,9 +598,13 @@ class _ListScreenState extends State<ListScreen> {
     final head = headerFor(spec.key, spec.title).withWeb(design);
     // What the web offers on this page.
     final acts = pageActions[spec.key] ?? const PageActions();
+    final lead = sidebarLeading(context, widget.session, widget.company,
+        specKey: spec.key);
 
     return Scaffold(
       appBar: AppBar(
+        leading: lead.leading,
+        leadingWidth: lead.width,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -586,6 +656,18 @@ class _ListScreenState extends State<ListScreen> {
                         head.action ??
                         'Add ${head.title.toLowerCase()}',
                     onPressed: () {
+                      final custom = customForms[spec.key];
+                      if (custom != null) {
+                        Navigator.of(context)
+                            .push<bool>(MaterialPageRoute(
+                              builder: (_) => custom(
+                                  widget.session, widget.company, null),
+                            ))
+                            .then((saved) {
+                              if (saved == true) _load();
+                            });
+                        return;
+                      }
                       final def = _formDef;
                       if (def == null) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -617,6 +699,17 @@ class _ListScreenState extends State<ListScreen> {
                     },
                   ),
                 ],
+                for (final x in listExtras[spec.key] ?? const <ListExtra>[]) ...[
+                  const SizedBox(height: 8),
+                  AppButton(
+                    label: x.label,
+                    icon: x.icon,
+                    variant: AppButtonVariant.outline,
+                    fullWidth: true,
+                    busy: x.run != null && _extraBusy,
+                    onPressed: () => _runExtra(x),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 AppSearchField(
                   hintText: 'Search ${head.title.toLowerCase()}…',
@@ -624,10 +717,23 @@ class _ListScreenState extends State<ListScreen> {
                 ),
                 const SizedBox(height: 10),
                 ListActionRow(
-                  onFilters: () => ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Filters are not built yet.')),
-                  ),
+                  onFilters: () async {
+                    final defs = listFilters[spec.key];
+                    if (defs == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                          content: Text('This page has no filters on the web either.')));
+                      return;
+                    }
+                    final chosen = await showListFilters(
+                      context,
+                      session: widget.session,
+                      company: widget.company,
+                      filters: defs,
+                      rows: _rows,
+                      current: _filters,
+                    );
+                    if (chosen != null && mounted) setState(() => _filters = chosen);
+                  },
                   onExport: () => ListExport.share(
                     context: context,
                     spec: spec,
@@ -660,13 +766,15 @@ class _ListScreenState extends State<ListScreen> {
                       : rows.isEmpty
                           ? _Message(
                               icon: Icons.inbox_outlined,
-                              title: _query.isEmpty
+                              title: _query.isEmpty && _filters.isEmpty
                                   ? 'Nothing here yet'
                                   : 'No matches',
-                              detail: _query.isEmpty
+                              detail: _query.isEmpty && _filters.isEmpty
                                   ? (spec.emptyMessage ??
                                       'No ${head.title.toLowerCase()} recorded for ${widget.company.name}.')
-                                  : 'Nothing matches “$_query”.',
+                                  : _query.isEmpty
+                                      ? 'Nothing matches the filters. Reset them to see everything.'
+                                      : 'Nothing matches “$_query”.',
                             )
                           : _isSingleReport(rows)
                           // A report that answers with one record — a P&L, a
@@ -741,9 +849,11 @@ class _RecordCard extends StatelessWidget {
     final title = formatValue(
         raw, asDate != null ? FieldKind.date : FieldKind.text);
 
-    final status = spec.statusField == null
+    final rawStatus = spec.statusField == null
         ? _autoStatus(row)
         : row[spec.statusField];
+    // An isActive-style flag reads as the web's Active / Inactive badge.
+    final status = rawStatus is bool ? (rawStatus ? 'Active' : 'Inactive') : rawStatus;
     // Order of preference: a curated field list, then the columns the WEB
     // page shows for this route, then a guess from the row's shape. The
     // middle one is what makes a row read like the web's table instead of

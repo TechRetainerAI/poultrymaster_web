@@ -12,6 +12,9 @@
 //
 //   Add --dry-run to connect, report the server/database and exit without executing.
 //
+// CONNECTION: PoultryConn (main address) first; if it doesn't answer, the local
+// Cloud SQL proxy on 127.0.0.1:5433 (see PoultryFarmAPI/Helpers/DbConnectionFallback.cs).
+//
 // The whole file runs inside ONE transaction: if any statement fails, nothing is
 // committed, so a partially-applied migration cannot be left behind.
 
@@ -48,6 +51,25 @@ if (string.IsNullOrWhiteSpace(cs))
     return 2;
 }
 
+// Same rule as the APIs (PoultryFarmAPI/Helpers/DbConnectionFallback.cs):
+// PoultryConn (the database's main address) first, then the fallback --
+// PoultryConnFallback if set, otherwise the local Cloud SQL proxy 127.0.0.1:5433.
+// This tool always runs on a developer PC, so the proxy fallback is always on.
+cs = PoultryCore.Db.DbConnectionFallback.Resolve(config, "PoultryConn", isDevelopment: true);
+var (opened, err) = await TryOpen(cs);
+if (opened is null)
+{
+    Console.Error.WriteLine($"ERROR: could not connect — {err}");
+    return 1;
+}
+
+static async Task<(NpgsqlConnection? Conn, string? Error)> TryOpen(string cs)
+{
+    var c = new NpgsqlConnection(cs);
+    try { await c.OpenAsync(); return (c, null); }
+    catch (Exception ex) { await c.DisposeAsync(); return (null, ex.Message); }
+}
+
 // Report where we are pointed WITHOUT ever printing the password.
 var b = new NpgsqlConnectionStringBuilder(cs);
 Console.WriteLine($"Server   : {b.Host}:{b.Port}");
@@ -58,16 +80,7 @@ Console.WriteLine();
 
 var sql = File.ReadAllText(path);
 
-await using var conn = new NpgsqlConnection(cs);
-try
-{
-    await conn.OpenAsync();
-}
-catch (Exception ex)
-{
-    Console.Error.WriteLine($"ERROR: could not connect — {ex.Message}");
-    return 1;
-}
+await using var conn = opened;
 
 if (dryRun)
 {

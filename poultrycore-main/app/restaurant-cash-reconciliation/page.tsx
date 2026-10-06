@@ -31,6 +31,7 @@ import { AlertTriangle, Check, Loader2, Pencil, Scale, Trash2 } from "lucide-rea
 import { PageHeader } from "@/components/restaurant/page-header"
 import { MoneyStat } from "@/components/restaurant/money-stat"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import { PageSkeleton } from "@/components/restaurant/skeleton-loaders"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { useAuthStore } from "@/lib/store/auth-store"
@@ -128,6 +129,7 @@ export default function RestaurantCashReconciliationPage() {
       by: s.closedBy ?? "", note: s.closeNotes ?? "", status: "Posted",
     })),
   ].sort((a, b) => b.date.localeCompare(a.date)), [counts, shifts, from, to])
+  const pg = usePagination(history)
 
   const live = history.filter((h) => h.status === "Posted")
   const short = -live.filter((h) => h.difference < 0).reduce((t, h) => t + h.difference, 0)
@@ -311,7 +313,7 @@ export default function RestaurantCashReconciliationPage() {
                 {history.length === 0 ? <p className="p-6 text-center text-sm text-muted-foreground">No counts or cash-ups in this period.</p> : (
                   <MobileCardList
                     striped
-                    items={history}
+                    items={pg.pageItems} pagination={{ ...pg.paginationProps, variant: "records" }}
                     getKey={(h) => h.key}
                     primary={(h) => h.account}
                     secondary={(h) => <span>{h.date} · {h.kind}{h.reference ? ` · ${h.reference}` : ""}</span>}
@@ -357,7 +359,7 @@ export default function RestaurantCashReconciliationPage() {
                         {["Date", "Type", "Account", "Reference", "System", "Counted", "Over / short", "By", "Note", ""].map((h, i) =>
                           <th key={i} className={`p-3 ${i >= 4 && i <= 6 ? "text-right" : "text-left"}`}>{h}</th>)}
                       </tr></thead>
-                      <tbody>{history.map((h) => (
+                      <tbody>{pg.pageItems.map((h) => (
                         <tr key={h.key} className={`border-b ${h.status === "Reversed" ? "text-slate-400" : ""}`}>
                           <td className="p-3">{h.date}</td>
                           <td className="p-3">

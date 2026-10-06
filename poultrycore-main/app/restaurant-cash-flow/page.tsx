@@ -371,7 +371,7 @@ export default function RestaurantCashFlowPage() {
                   {visible.length === 0 ? (
                     <p className="px-4 py-8 text-center text-sm text-slate-500">No cash movement in this period.</p>
                   ) : (
-                    <MobileCardList defaultOpen striped items={pg.pageItems} pagination={pg.paginationProps}
+                    <MobileCardList defaultOpen striped items={pg.pageItems} pagination={{ ...pg.paginationProps, variant: "records" }}
                       getKey={(r: any) => `${r.rowSource}-${r.id}`}
                       primary={(r: any) => categoryLabel(r.category)}
                       secondary={(r: any) => `${fmtDateTime(r.transactionDate, r)} · ${flowGroupLabel(r.flowGroup)}`}

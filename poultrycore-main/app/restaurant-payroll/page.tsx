@@ -22,6 +22,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -244,6 +246,7 @@ export default function RestaurantPayrollPage() {
 
   // ----- derived -----
   const filtered = useMemo(() => runs.filter((r) => statusFilter === "ALL" || r.status === statusFilter), [runs, statusFilter])
+  const pg = usePagination(filtered)
   const draftCount = runs.filter((r) => r.status === "Draft").length
   const approved = runs.filter((r) => r.status === "Approved")
   const lastPaid = runs.find((r) => r.status === "Paid")
@@ -317,7 +320,7 @@ export default function RestaurantPayrollPage() {
             <th className="text-center p-3">Status</th><th className="text-right p-3">Actions</th>
           </tr></thead>
           <tbody>
-            {filtered.map((r) => (
+            {pg.pageItems.map((r) => (
               <tr key={r.payrollRunId} className="border-b hover:bg-gray-50">
                 <td className="p-3 font-mono text-xs font-semibold">{r.runNumber}<div className="font-sans font-normal text-gray-500">pay {dateOnly(r.payDate)}</div></td>
                 <td className="p-3">{dateOnly(r.periodStart)} – {dateOnly(r.periodEnd)}</td>
@@ -344,7 +347,9 @@ export default function RestaurantPayrollPage() {
             ))}
           </tbody>
         </table>
-      </div></CardContent></Card>
+      </div>
+      <DataPagination {...pg.paginationProps} variant="records" />
+      </CardContent></Card>
     )}
 
     {/* ===== new run ===== */}

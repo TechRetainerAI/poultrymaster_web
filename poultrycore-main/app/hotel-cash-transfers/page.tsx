@@ -298,7 +298,7 @@ export default function HotelCashTransfersPage() {
                   )}
                 </>
               )}
-              pagination={pg.paginationProps}
+              pagination={{ ...pg.paginationProps, variant: "records" }}
               desktopTable={
                 <div className="overflow-x-auto">
                   <Table>

@@ -396,7 +396,7 @@ export default function RestaurantSuppliersPage() {
                     </Table>
                   </div>
                   <div className="p-3 border-t">
-                    <DataPagination {...pg.paginationProps} />
+                    <DataPagination {...pg.paginationProps} variant="records" />
                   </div>
                 </CardContent>
               </Card>

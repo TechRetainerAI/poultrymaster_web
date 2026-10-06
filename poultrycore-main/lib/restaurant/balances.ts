@@ -24,7 +24,7 @@ export async function loadRestaurantCashAccounts(): Promise<CashAccountOption[]>
 }
 
 /** The orders list; a single order has no page of its own. */
-export const restaurantOrderHref = (_orderId: number) => "/restaurant-orders"
+export const restaurantOrderHref = (orderId: number) => `/restaurant-sales?orderId=${orderId}`
 
 /**
  * Close an order as Pay later: marks it for its saved customer (optional due

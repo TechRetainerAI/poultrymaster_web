@@ -13,6 +13,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The APIs' connection fallback, compiled from the Farm API's copy. -->
+    <Compile Include="..\..\PoultryFarmAPI\Helpers\DbConnectionFallback.cs" Link="DbConnectionFallback.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Npgsql" Version="8.0.7" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="8.0.0" />

@@ -47,6 +47,8 @@ namespace PoultryFarmAPIWeb.Business
     {
         Task<List<HotelSaleRow>> SalesAsync(string farmId, DateTime? from, DateTime? to);
         Task<int> BillToAccountAsync(string farmId, int bookingId, int customerId, string by);
+        /// <summary>Sales → Delete on a stay. Returns the refusal, or null when deleted.</summary>
+        Task<string?> DeleteStayAsync(string farmId, int bookingId);
 
         Task<List<PartyBalanceRow>> BalancesAsync(string side, string farmId, DateTime? from, DateTime? to, int? partyId,
                                                   string? status, decimal? minBalance, string? search);
@@ -112,6 +114,59 @@ namespace PoultryFarmAPIWeb.Business
         public Task<List<HotelSaleRow>> SalesAsync(string farmId, DateTime? from, DateTime? to) =>
             RowsAsync<HotelSaleRow>("SELECT * FROM sphotelsale_list(p_farmid => @f::text, p_from => @a::date, p_to => @b::date)",
                 ("f", farmId), ("a", from?.Date), ("b", to?.Date));
+
+        // Poultry's Delete on a sale, for a stay: refused once money is involved
+        // (a payment that isn't void, or the stay billed to an account) -- the user
+        // reverses the payments first. Otherwise the booking is cancelled and its
+        // room freed: Reserved always, Occupied only when this guest is the one in it.
+        public async Task<string?> DeleteStayAsync(string farmId, int bookingId)
+        {
+            await using var conn = new NpgsqlConnection(_cs);
+            await conn.OpenAsync();
+            await using var tx = await conn.BeginTransactionAsync();
+            string? status; int? roomId;
+            await using (var get = new NpgsqlCommand(
+                "SELECT status, hotelroomid FROM hotelbookings WHERE hotelbookingid=@b AND farmid=@f FOR UPDATE", conn, tx))
+            {
+                get.Parameters.AddWithValue("@b", bookingId); get.Parameters.AddWithValue("@f", farmId);
+                await using var r = await get.ExecuteReaderAsync();
+                if (!await r.ReadAsync()) return "Sale not found.";
+                status = r.IsDBNull(0) ? null : r.GetString(0);
+                roomId = r.IsDBNull(1) ? null : r.GetInt32(1);
+            }
+            if (status is "Cancelled" or "NoShow") return "This sale was already cancelled.";
+            await using (var paid = new NpgsqlCommand(
+                "SELECT COALESCE(SUM(amount),0) FROM hotelpayments WHERE farmid=@f AND hotelbookingid=@b AND status <> 'Void'", conn, tx))
+            {
+                paid.Parameters.AddWithValue("@b", bookingId); paid.Parameters.AddWithValue("@f", farmId);
+                var amount = Convert.ToDecimal(await paid.ExecuteScalarAsync());
+                if (amount > 0)
+                    return $"{amount:N2} has been paid on this stay. Reverse the payments first (Payments button), then delete it.";
+            }
+            await using (var billed = new NpgsqlCommand("SELECT 1 FROM hotelbookingbillto WHERE hotelbookingid=@b", conn, tx))
+            {
+                billed.Parameters.AddWithValue("@b", bookingId);
+                if (await billed.ExecuteScalarAsync() != null)
+                    return "This stay was billed to a company account, so it can't be deleted from Sales.";
+            }
+            await using (var cancel = new NpgsqlCommand(
+                "UPDATE hotelbookings SET status='Cancelled', updatedat=NOW() WHERE hotelbookingid=@b AND farmid=@f", conn, tx))
+            {
+                cancel.Parameters.AddWithValue("@b", bookingId); cancel.Parameters.AddWithValue("@f", farmId);
+                await cancel.ExecuteNonQueryAsync();
+            }
+            if (roomId != null)
+            {
+                await using var room = new NpgsqlCommand(
+                    "UPDATE hotelrooms SET status='Available', updatedat=NOW() WHERE hotelroomid=@r AND farmid=@f " +
+                    "AND (status='Reserved' OR (status='Occupied' AND @checkedin))", conn, tx);
+                room.Parameters.AddWithValue("@r", roomId.Value); room.Parameters.AddWithValue("@f", farmId);
+                room.Parameters.AddWithValue("@checkedin", status == "CheckedIn");
+                await room.ExecuteNonQueryAsync();
+            }
+            await tx.CommitAsync();
+            return null;
+        }
 
         public async Task<int> BillToAccountAsync(string farmId, int bookingId, int customerId, string by) =>
             Convert.ToInt32(await ScalarAsync(

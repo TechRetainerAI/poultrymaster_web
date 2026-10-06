@@ -25,6 +25,7 @@ import { usePermissions } from "@/hooks/use-permissions"
 import { useFmt } from "@/lib/currency"
 import { MoneyStat } from "@/components/restaurant/money-stat"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import { EmptyState } from "@/components/restaurant/empty-state"
 import { PageHeader } from "@/components/restaurant/page-header"
 import { PageSkeleton } from "@/components/restaurant/skeleton-loaders"
@@ -90,6 +91,7 @@ export default function RestaurantLoansPage() {
 
   const [loading, setLoading] = useState(true)
   const [loans, setLoans] = useState<RestaurantLoan[]>([])
+  const pg = usePagination(loans)
   const [accounts, setAccounts] = useState<CashAccount[]>([])
 
   // New loan
@@ -389,7 +391,7 @@ export default function RestaurantLoansPage() {
                   {/* Poultry's phone cards (app/poultry-loans) with "View table format"; the table on desktop. */}
                   <MobileCardList
                     striped
-                    items={loans}
+                    items={pg.pageItems} pagination={{ ...pg.paginationProps, variant: "records" }}
                     getKey={(l) => l.loanId}
                     primary={(l) => <>{l.lenderName}</>}
                     secondary={(l) => <span>{l.loanNumber || `#${l.loanId}`} · {dateOnly(l.loanDate)}</span>}
@@ -440,7 +442,7 @@ export default function RestaurantLoansPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {loans.map((l) => {
+                        {pg.pageItems.map((l) => {
                           const cancelled = l.status === "Cancelled"
                           return (
                             <tr key={l.loanId} className={`border-b align-top ${cancelled ? "text-gray-400" : ""}`}>

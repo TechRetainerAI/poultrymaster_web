@@ -1,6 +1,7 @@
 import '../models/company.dart';
 import 'generated_pages.dart';
 import 'page_spec.dart';
+import 'poultry/poultry_labels.dart';
 import 'web_nav.dart';
 import 'web_page_design.dart';
 
@@ -80,9 +81,252 @@ class PageRegistry {
 
   static final List<PageSpec> _all = [
     // ---------------- Poultry ----------------
+    // Flock Groups (/flocks) lists FLOCKS, from /api/Flock — as the web page
+    // does. This key used to point at the batch list, while the Flock
+    // Purchases (Batches) link pointed at the flocks: the two were swapped.
     const PageSpec(
       key: 'flocks', module: 'poultry',
-      title: 'Flocks',
+      title: 'Flock Groups',
+      path: '/api/Flock',
+      needsUserId: true,
+      titleField: 'name',
+      searchFields: ['name', 'breed', 'batchName'],
+      subtitleFields: [
+        FieldSpec('quantity', 'Birds', kind: FieldKind.number),
+        FieldSpec('breed', 'Breed'),
+        FieldSpec('startDate', 'Started', kind: FieldKind.date),
+      ],
+      fields: [
+        FieldSpec('batchName', 'Flock batch'),
+        FieldSpec('breed', 'Breed'),
+        FieldSpec('quantity', 'Number of birds', kind: FieldKind.number),
+        FieldSpec('startDate', 'Start date', kind: FieldKind.date),
+        FieldSpec('hasArrived', 'Has arrived', kind: FieldKind.boolean),
+        FieldSpec('active', 'Active', kind: FieldKind.boolean),
+        FieldSpec('inactivationReason', 'Inactivation reason'),
+        FieldSpec('notes', 'Notes'),
+      ],
+      // The web's bird totals (app/flocks/page.tsx): arrived flocks only.
+      // Its fourth tile, Total Birds Sold, is hard-coded to 0 there, so it is
+      // left out rather than shown as a figure.
+      summaries: [
+        SummaryDef(label: 'Total Birds', op: SummaryOp.sum, field: 'quantity',
+            where: {'hasArrived': true}),
+        SummaryDef(label: 'Total Active Birds', op: SummaryOp.sum, field: 'quantity',
+            tone: SummaryTone.positive, where: {'hasArrived': true, 'active': true}),
+        SummaryDef(label: 'Total Inactive Birds', op: SummaryOp.sum, field: 'quantity',
+            where: {'hasArrived': true, 'active': false}),
+      ],
+      emptyMessage: 'No flocks have been created for this farm.',
+    ),
+    // Users & Permissions (/employees): the web lists /Admin/employees on the
+    // Login API, and creates/edits/deletes there too (EmployeeFormScreen).
+    const PageSpec(
+      key: 'admin-company-employees', module: 'poultry',
+      title: 'Users & Permissions',
+      path: '/api/Admin/employees',
+      source: 'login',
+      titleField: 'userName',
+      searchFields: ['userName', 'firstName', 'lastName', 'email', 'phoneNumber'],
+      subtitleFields: [
+        FieldSpec('firstName', 'First name'),
+        FieldSpec('lastName', 'Last name'),
+        FieldSpec('email', 'Email'),
+      ],
+      fields: [
+        FieldSpec('firstName', 'First name'),
+        FieldSpec('lastName', 'Last name'),
+        FieldSpec('email', 'Email'),
+        FieldSpec('phoneNumber', 'Phone'),
+        FieldSpec('isAdmin', 'Administrator', kind: FieldKind.boolean),
+        FieldSpec('createdDate', 'Created', kind: FieldKind.date),
+      ],
+      emptyMessage: 'No employees yet.',
+    ),
+    // Drivers (/poultry-drivers): the web lists employees-with-driver-role
+    // plus legacy standalone drivers from /list-for-farm, and edits/deletes
+    // through /drivers/{id}.
+    const PageSpec(
+      key: 'poultry-drivers', module: 'poultry',
+      title: 'Drivers',
+      path: '/api/Poultry/drivers/list-for-farm',
+      writePath: '/api/Poultry/drivers',
+      resolve: {
+        'defaultVehicleName': ('defaultVehicleId', 'poultry-drivers.defaultVehicleId', vehicleOptionLabel),
+      },
+      titleField: 'driverName',
+      statusField: 'isActive',
+      searchFields: ['driverName', 'phoneNumber', 'licenseNumber'],
+      subtitleFields: [
+        FieldSpec('phoneNumber', 'Phone'),
+        FieldSpec('licenseNumber', 'License'),
+      ],
+      fields: [
+        FieldSpec('phoneNumber', 'Phone'),
+        FieldSpec('licenseNumber', 'License'),
+        FieldSpec('defaultVehicleName', 'Default vehicle'),
+        FieldSpec('basePay', 'Base pay', kind: FieldKind.money),
+        FieldSpec('commissionPerCrate', 'Commission per crate', kind: FieldKind.money),
+        FieldSpec('isActive', 'Active', kind: FieldKind.boolean),
+        FieldSpec('notes', 'Notes'),
+      ],
+      emptyMessage: 'No drivers yet. Add one to assign a vehicle.',
+    ),
+    // Vehicles (/poultry-vehicles): the web table's columns.
+    const PageSpec(
+      key: 'poultry-vehicles', module: 'poultry',
+      title: 'Vehicles',
+      path: '/api/Poultry/vehicles',
+      titleField: 'vehicleName',
+      statusField: 'status',
+      searchFields: ['vehicleName', 'vehicleType', 'registrationNumber'],
+      subtitleFields: [
+        FieldSpec('vehicleType', 'Type'),
+        FieldSpec('registrationNumber', 'Reg #'),
+      ],
+      fields: [
+        FieldSpec('vehicleType', 'Type'),
+        FieldSpec('registrationNumber', 'Reg #'),
+        FieldSpec('capacityCrates', 'Capacity (crates)', kind: FieldKind.number),
+        FieldSpec('fuelType', 'Fuel'),
+        FieldSpec('status', 'Status'),
+        FieldSpec('notes', 'Notes'),
+      ],
+      emptyMessage: 'No vehicles yet.',
+    ),
+    // Routes (/poultry-routes): the web table's columns, with the default
+    // vehicle shown by name.
+    PageSpec(
+      key: 'poultry-routes', module: 'poultry',
+      title: 'Routes',
+      path: '/api/Poultry/routes',
+      titleField: 'routeName',
+      searchFields: ['routeName', 'areaCovered'],
+      resolve: const {
+        'defaultVehicleName': ('defaultVehicleId', 'poultry-routes.defaultVehicleId', null),
+      },
+      subtitleFields: const [
+        FieldSpec('areaCovered', 'Area'),
+        FieldSpec('defaultVehicleName', 'Default vehicle'),
+      ],
+      fields: const [
+        FieldSpec('areaCovered', 'Area'),
+        FieldSpec('defaultVehicleName', 'Default vehicle'),
+        FieldSpec('expectedCustomers', 'Expected customers', kind: FieldKind.number),
+        FieldSpec('expectedCratesSold', 'Expected crates', kind: FieldKind.number),
+        FieldSpec('notes', 'Notes'),
+      ],
+      emptyMessage: 'No routes yet.',
+    ),
+    // Feed Formulas (/poultry-feed-formulas): the web's card shows the
+    // finished feed and how many ingredients the formula has.
+    const PageSpec(
+      key: 'poultry-feed-formulas', module: 'poultry',
+      title: 'Feed Formulas',
+      path: '/api/Poultry/feed-formulas',
+      titleField: 'formulaName',
+      statusField: 'isActive',
+      searchFields: ['formulaName', 'finishedFeedItemName'],
+      subtitleFields: [
+        FieldSpec('finishedFeedItemName', 'Finished feed'),
+        FieldSpec('lineCount', 'Ingredients', kind: FieldKind.number),
+      ],
+      fields: [
+        FieldSpec('finishedFeedItemName', 'Finished feed'),
+        FieldSpec('defaultOutputUnit', 'Default output unit'),
+        FieldSpec('lineCount', 'Ingredients', kind: FieldKind.number),
+        FieldSpec('isActive', 'Active', kind: FieldKind.boolean),
+        FieldSpec('notes', 'Notes'),
+      ],
+      emptyMessage: 'No feed formulas yet.',
+    ),
+    // Products (/poultry-products): the web's columns.
+    const PageSpec(
+      key: 'poultry-products', module: 'poultry',
+      title: 'Products',
+      path: '/api/Poultry/products',
+      titleField: 'name',
+      statusField: 'isActive',
+      searchFields: ['name', 'sku', 'productType'],
+      subtitleFields: [
+        FieldSpec('productType', 'Type'),
+        FieldSpec('unitPrice', 'Price', kind: FieldKind.money),
+        FieldSpec('stockOnHand', 'In stock', kind: FieldKind.number),
+      ],
+      fields: [
+        FieldSpec('productType', 'Type'),
+        FieldSpec('unit', 'Unit'),
+        FieldSpec('unitPrice', 'Price', kind: FieldKind.money),
+        FieldSpec('stockOnHand', 'In stock', kind: FieldKind.number),
+        FieldSpec('size', 'Size'),
+        FieldSpec('sku', 'SKU'),
+        FieldSpec('isActive', 'Active', kind: FieldKind.boolean),
+      ],
+      emptyMessage: 'No products yet.',
+    ),
+    // ---------------- Restaurant ----------------
+    // Customers & CRM (/restaurant-crm), Customers tab, with the web's stat
+    // cards worked out from the rows (the web reads /crm/customers/stats).
+    const PageSpec(
+      key: 'restaurant-crm-customers', module: 'restaurant',
+      title: 'Customers & CRM',
+      path: '/api/Restaurant/crm/customers',
+      titleField: 'name',
+      statusField: 'segment',
+      searchFields: ['name', 'phone', 'email'],
+      subtitleFields: [
+        FieldSpec('phone', 'Phone'),
+        FieldSpec('totalVisits', 'Visits', kind: FieldKind.number),
+        FieldSpec('totalSpent', 'Spent', kind: FieldKind.money),
+      ],
+      fields: [
+        FieldSpec('segment', 'Segment'),
+        FieldSpec('phone', 'Phone'),
+        FieldSpec('email', 'Email'),
+        FieldSpec('dateOfBirth', 'Birthday', kind: FieldKind.date),
+        FieldSpec('anniversary', 'Anniversary', kind: FieldKind.date),
+        FieldSpec('dietaryPreferences', 'Dietary preferences'),
+        FieldSpec('allergies', 'Allergies'),
+        FieldSpec('totalVisits', 'Total visits', kind: FieldKind.number),
+        FieldSpec('totalSpent', 'Total spent', kind: FieldKind.money),
+        FieldSpec('avgTicket', 'Average ticket', kind: FieldKind.money),
+        FieldSpec('lastVisit', 'Last visit', kind: FieldKind.date),
+        FieldSpec('notes', 'Notes'),
+      ],
+      summaries: [
+        SummaryDef(label: 'Total', op: SummaryOp.count),
+        SummaryDef(label: 'New', op: SummaryOp.count, where: {'segment': 'New'}),
+        SummaryDef(label: 'Regular', op: SummaryOp.count, where: {'segment': 'Regular'}),
+        SummaryDef(label: 'VIP', op: SummaryOp.count, where: {'segment': 'VIP'}),
+        SummaryDef(label: 'Lifetime Value', op: SummaryOp.sum, field: 'totalSpent', money: true),
+      ],
+      emptyMessage: 'No customers yet.',
+    ),
+    // Suppliers (/restaurant-suppliers). Rows come back with raw lowercase
+    // column names, hence `contactname` / `isactive`.
+    const PageSpec(
+      key: 'restaurant-setup-suppliers', module: 'restaurant',
+      title: 'Suppliers',
+      path: '/api/Restaurant/setup/suppliers',
+      titleField: 'name',
+      searchFields: ['name', 'email', 'phone', 'category', 'address'],
+      subtitleFields: [
+        FieldSpec('category', 'Category'),
+        FieldSpec('phone', 'Phone'),
+      ],
+      fields: [
+        FieldSpec('category', 'Category'),
+        FieldSpec('contactname', 'Contact person'),
+        FieldSpec('phone', 'Phone'),
+        FieldSpec('email', 'Email'),
+        FieldSpec('address', 'Address'),
+        FieldSpec('isactive', 'Active', kind: FieldKind.boolean),
+      ],
+      emptyMessage: 'No suppliers yet.',
+    ),
+    const PageSpec(
+      key: 'flock', module: 'poultry',
+      title: 'Flock Purchases (Batches)',
       path: '/api/MainFlockBatch',
       needsUserId: true, // 400s without it
       titleField: 'batchName',

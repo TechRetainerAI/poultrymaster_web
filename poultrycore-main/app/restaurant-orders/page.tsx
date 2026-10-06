@@ -63,6 +63,13 @@ export default function RestaurantOrdersPage() {
     if (activeFarmType === null || activeFarmType === undefined) return
     if (activeFarmType !== "Restaurant") { router.replace("/dashboard"); return }
     loadOrders()
+    // Sales → Edit lands here with ?orderId=<id>: open that order.
+    const orderParam = Number(new URLSearchParams(window.location.search).get("orderId"))
+    if (orderParam > 0) {
+      window.history.replaceState(null, "", window.location.pathname)
+      openDetail({ orderId: orderParam } as Order)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFarmType, router])
 
   /**

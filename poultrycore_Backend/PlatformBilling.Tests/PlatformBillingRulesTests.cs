@@ -155,7 +155,7 @@ namespace PlatformBilling.Tests
     {
         [Theory]
         [InlineData("Poultry", "POULTRY_BIRDS")]
-        [InlineData("Water", "WATER_STANDARD")]
+        [InlineData("Water", "WATER_PRODUCTION_LINES")]
         [InlineData("Hotel", "HOTEL_ROOMS")]
         [InlineData("Restaurant", "RESTAURANT_LOCATIONS")]
         [InlineData("Generic", "GENERIC_STANDARD")]
