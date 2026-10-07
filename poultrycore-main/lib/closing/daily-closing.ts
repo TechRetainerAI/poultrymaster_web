@@ -93,6 +93,9 @@ export function closingActionHref(action: string | null | undefined, businessDat
       return date ? `/sales?date=${date}` : "/customer-balances"
     case "driver-returns":
       return date ? `/poultry-driver-returns?date=${date}` : "/poultry-driver-returns"
+    // 343: the day's eggs not yet sorted (only when the farm sorts).
+    case "egg-sorting":
+      return "/poultry-egg-sorting"
     case "previous-day": {
       const prev = date ? shiftBusinessDate(date, -1) : null
       return prev ? `/poultry-daily-closing?date=${prev}` : null

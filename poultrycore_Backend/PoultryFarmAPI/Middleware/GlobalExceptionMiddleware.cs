@@ -89,8 +89,12 @@ namespace PoultryFarmAPIWeb.Middleware
             // "uq_poultryproducts_farm_name"" is not something to put in front
             // of a farm manager.
             var duplicate = ex.SqlState == PostgresErrorCodes.UniqueViolation;
+            // P0010 (migration 341): a second production record for a flock's
+            // day. Also a conflict, but its message is already the sentence to
+            // show, so it is not reworded below.
+            var secondRecordForDay = ex.SqlState == "P0010";
 
-            context.Response.StatusCode = (int)(duplicate
+            context.Response.StatusCode = (int)(duplicate || secondRecordForDay
                 ? HttpStatusCode.Conflict
                 : HttpStatusCode.InternalServerError);
             context.Response.ContentType = "application/json; charset=utf-8";

@@ -280,6 +280,8 @@ builder.Services.AddScoped<ICompanyTimeService>(sp => new CompanyTimeService(con
 // "expected but not done" question; ActivityCheckService runs the ones that
 // apply to the company's type. A new check is one class + one line here.
 builder.Services.AddScoped<IActivityCheck>(sp => new PoultryProductionCompletenessCheck(connectionString));
+// Egg sorting (344): earlier days' eggs still unsorted. Silent unless the farm sorts.
+builder.Services.AddScoped<IActivityCheck>(sp => new PoultryUnsortedEggsCheck(connectionString));
 builder.Services.AddScoped<IActivityCheckService, ActivityCheckService>();
 builder.Services.AddScoped<IPoultryProductionGapService>(sp => new PoultryProductionGapService(connectionString));
 // Daily Farm Closing / management control (333): the workspace, close, reopen
@@ -297,6 +299,9 @@ builder.Services.AddScoped<IPoultryFlockAnomalyService>(sp => new PoultryFlockAn
 // Treatment campaigns (339): medication for many flocks over one or more days,
 // posted as medication lines through spproductionrecord_update.
 builder.Services.AddScoped<IPoultryTreatmentCampaignService>(sp => new PoultryTreatmentCampaignService(connectionString));
+// Egg Sorting Workspace (341-343): egg classes in the one stock ledger and the
+// Unsorted -> size transformation. Rules live in SQL; this only maps rows.
+builder.Services.AddScoped<IPoultryEggSortingService>(sp => new PoultryEggSortingService(connectionString));
 builder.Services.AddScoped<IPoultryInventoryValuationService>(sp => new PoultryInventoryValuationService(connectionString));
 builder.Services.AddScoped<IPoultryDeferredInventoryCostService>(sp => new PoultryDeferredInventoryCostService(connectionString));
 builder.Services.AddScoped<IPoultryCapitalAssetService>(sp => new PoultryCapitalAssetService(connectionString));

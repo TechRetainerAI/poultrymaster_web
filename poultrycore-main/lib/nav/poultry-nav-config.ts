@@ -146,7 +146,12 @@ export function buildPoultryNavConfig(
           { id: "production-records", title: "Production Records", icon: FileText, href: "/production-records" },
           { id: "batch-production",   title: "Batch Production",   icon: Boxes,    href: "/batch-production-records" },
           { id: "egg-sorting",        title: "Egg sorting",        icon: Egg,      href: "/egg-production" },
-          { id: "feed-usage",         title: "Feed Usage",         icon: Package,  href: "/feed-usage" },
+          // Egg Sorting Workspace (341-343): sorts Unsorted egg stock into
+          // sizes, by pick or all at once. Beside the legacy page above, which
+          // is unchanged. Ungated like the rows around it; the API gates on
+          // poultry.egg-sorting.
+          { id: "egg-sorting-workspace", title: "Egg Sorting Workspace", icon: Egg, href: "/poultry-egg-sorting" },
+          { id: "feed-usage",        title: "Feed Usage",         icon: Package,  href: "/feed-usage" },
           // Producing finished feed from ingredients is a production activity.
           // The formula behind it is a recipe you maintain, so it lives in
           // Setup > Production with Products.
@@ -446,6 +451,10 @@ export function buildPoultryNavConfig(
           // alerts with the numbers behind each one. Ungated like the rows
           // above; the API gates on poultry.health.
           { id: "flock-alerts", title: "Flock Alerts", icon: Activity, href: "/poultry-flock-alerts" },
+          // Farm Alerts: the completeness, flock-alert and days-of-supply cards
+          // that used to head the dashboard, on one page. Ungated like the rows
+          // above; each card gates itself.
+          { id: "farm-alerts", title: "Farm Alerts", icon: Bell, href: "/poultry-alerts" },
         ],
       },
     ],

@@ -28,6 +28,15 @@ namespace PoultryFarmAPIWeb.Models
         public string? Size { get; set; }
         /// <summary>Optional cash account this sale is received into (posts a cash-in when the sale is paid).</summary>
         public int? PoultryCashAccountId { get; set; }
+        /// <summary>
+        /// Egg class sold (migration 341): a sized egg product id, or 0 for
+        /// Unsorted / General. On an edit, null means "leave the class as it
+        /// is". Read back as null for Unsorted. Stock is deducted from this
+        /// class only, and a delete restores the same class.
+        /// </summary>
+        public int? EggProductId { get; set; }
+        /// <summary>Sale number shared by the lines of one multi-size sale (SG-00001).</summary>
+        public string? SaleGroupNo { get; set; }
         public DateTime CreatedDate { get; set; }
 
     }

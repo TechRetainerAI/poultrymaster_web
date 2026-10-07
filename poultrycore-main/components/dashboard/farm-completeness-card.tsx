@@ -163,6 +163,8 @@ export function FarmCompletenessCard({
 
   const { report } = state
   const production = findCheck(report, PRODUCTION_CHECK_KEY)
+  // 344: shown only when the farm sorts and earlier days' eggs are waiting.
+  const unsorted = findCheck(report, "poultry.eggs.unsorted")
   // Not a poultry company, or no check it may see: nothing to say.
   if (!production) return null
 
@@ -258,6 +260,13 @@ export function FarmCompletenessCard({
                     <p className="mt-1 text-xs text-amber-700">
                       {duplicateFlocks} flock{duplicateFlocks === 1 ? " has" : "s have"} more than one production
                       record for this day.
+                    </p>
+                  )}
+                  {unsorted && unsorted.outstandingCount > 0 && (
+                    // Egg sorting (344): earlier days' eggs still unsorted.
+                    <p className="mt-1 text-xs text-amber-700">
+                      {unsorted.severityReason ?? `${(unsorted.counters?.eggs ?? 0).toLocaleString()} eggs from earlier days are still unsorted.`}{" "}
+                      <Link href="/poultry-egg-sorting" className="font-medium underline">Sort eggs</Link>
                     </p>
                   )}
                 </>

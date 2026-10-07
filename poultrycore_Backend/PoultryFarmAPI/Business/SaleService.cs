@@ -246,6 +246,78 @@ namespace PoultryFarmAPIWeb.Business
             }
         }
 
+        /// <summary>
+        /// Stamp the egg class (and sale number) on a sale and re-post its egg
+        /// movement against that class (migration 341). Skipped -- the sale
+        /// stays Unsorted, as every sale was before -- on a database that does
+        /// not have the function yet, so the API can deploy ahead of 341.
+        /// </summary>
+        private static async Task SetEggClassAsync(NpgsqlConnection conn, SaleModel model, int saleId)
+        {
+            if (!await FunctionExistsAsync(conn, "sppoultrysale_setegg")) return;
+            using var cmd = new NpgsqlCommand(
+                "SELECT sppoultrysale_setegg(p_farmid => @FarmId::text, p_saleid => @SaleId::int, " +
+                "p_poultryproductid => @Product::int, p_salegroupno => @Group::text, p_by => @By::text)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
+            cmd.Parameters.AddWithValue("@SaleId", saleId);
+            // 0 is "Unsorted / General", sent explicitly so an edit can move a
+            // sale back to Unsorted; stored as NULL like every older sale.
+            cmd.Parameters.AddWithValue("@Product", model.EggProductId is > 0 ? model.EggProductId.Value : DBNull.Value);
+            cmd.Parameters.AddWithValue("@Group", (object?)model.SaleGroupNo ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@By", (object?)model.UserId ?? DBNull.Value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        private static readonly ConcurrentDictionary<string, bool> FunctionExistsCache = new();
+
+        private static async Task<bool> FunctionExistsAsync(NpgsqlConnection conn, string name)
+        {
+            if (FunctionExistsCache.TryGetValue(name, out var cached) && cached) return true;
+            await using var probe = new NpgsqlCommand(
+                "SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace " +
+                "WHERE n.nspname = 'public' AND p.proname = @Name LIMIT 1", conn);
+            probe.Parameters.AddWithValue("@Name", name);
+            var has = await probe.ExecuteScalarAsync() is not null;
+            // Only a positive answer is cached, so applying the migration does
+            // not need an API restart to be picked up.
+            if (has) FunctionExistsCache[name] = true;
+            return has;
+        }
+
+        public async Task<SaleGroupResult> CreateGroup(SaleGroupRequest request)
+        {
+            var lines = System.Text.Json.JsonSerializer.Serialize(request.Lines.Select(l => new
+            {
+                product = l.Product,
+                eggProductId = l.EggProductId,
+                quantity = l.Quantity,
+                unitPrice = l.UnitPrice,
+                totalAmount = l.TotalAmount,
+            }));
+            using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand(
+                "SELECT sppoultrysale_creategroup(p_farmid => @FarmId::text, p_userid => @UserId::text, " +
+                "p_saledate => @Date::timestamp, p_customername => @Customer::text, p_customerid => @CustomerId::int, " +
+                "p_paymentmethod => @Method::text, p_cashaccountid => @Account::int, p_paid => @Paid::boolean, " +
+                "p_description => @Description::text, p_flockid => @Flock::int, p_linesjson => @Lines::text)::text", conn);
+            cmd.Parameters.AddWithValue("@FarmId", request.FarmId);
+            cmd.Parameters.AddWithValue("@UserId", request.UserId);
+            cmd.Parameters.AddWithValue("@Date", request.SaleDate);
+            cmd.Parameters.AddWithValue("@Customer", (object?)request.CustomerName ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@CustomerId", (object?)request.CustomerId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Method", (object?)request.PaymentMethod ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Account", (object?)request.PoultryCashAccountId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Paid", request.Paid);
+            cmd.Parameters.AddWithValue("@Description", (object?)request.SaleDescription ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Flock", (object?)request.FlockId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Lines", lines);
+            var json = (string?)await cmd.ExecuteScalarAsync() ?? "{}";
+            return System.Text.Json.JsonSerializer.Deserialize<SaleGroupResult>(json,
+                       new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+                   ?? new SaleGroupResult();
+        }
+
         public async Task<int> Insert(SaleModel model)
         {
             try
@@ -276,6 +348,7 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.CommandText = await PgCallText.ForAsync("spSale_Insert", cmd);
                 var result = await cmd.ExecuteScalarAsync();
                 var newId = Convert.ToInt32(result);
+                await SetEggClassAsync(conn, model, newId);
                 // Cash first: this is what writes the chosen account onto the
                 // sale row, and the payment below reads the account from there.
                 await SyncSaleCashAsync(model.FarmId, newId, model.PoultryCashAccountId, model.TotalAmount, model.Paid, model.SaleDescription, model.UserId, model.SaleDate);
@@ -317,6 +390,9 @@ namespace PoultryFarmAPIWeb.Business
                     cmd.Parameters.AddWithValue("@CustomerId", (object?)model.CustomerId ?? DBNull.Value);
                 cmd.CommandText = await PgCallText.ForAsync("spSale_Update", cmd);
                 await cmd.ExecuteNonQueryAsync();
+                // An edit that does not mention the class keeps it (null = no change).
+                if (model.EggProductId.HasValue || !string.IsNullOrWhiteSpace(model.SaleGroupNo))
+                    await SetEggClassAsync(conn, model, model.SaleId);
                 conn.Close();
                 await SyncSaleCashAsync(model.FarmId, model.SaleId, model.PoultryCashAccountId, model.TotalAmount, model.Paid, model.SaleDescription, model.UserId, model.SaleDate);
             }
@@ -357,6 +433,8 @@ namespace PoultryFarmAPIWeb.Business
                         PoultryCashAccountId = GetNullableInt32IfPresent(reader, "PoultryCashAccountId"),
                         AmountPaid = GetDecimalIfPresent(reader, "AmountPaid", 0m),
                         CustomerId = GetNullableInt32IfPresent(reader, "CustomerId"),
+                        EggProductId = GetNullableInt32IfPresent(reader, "PoultryProductId"),
+                        SaleGroupNo = GetNullableStringIfPresent(reader, "SaleGroupNo"),
                         CreatedDate = reader.GetDateTime(reader.GetOrdinal("CreatedDate")),
                         FarmId = reader.GetString(reader.GetOrdinal("FarmId"))
                     };
@@ -400,6 +478,8 @@ namespace PoultryFarmAPIWeb.Business
                         PoultryCashAccountId = GetNullableInt32IfPresent(reader, "PoultryCashAccountId"),
                         AmountPaid = GetDecimalIfPresent(reader, "AmountPaid", 0m),
                         CustomerId = GetNullableInt32IfPresent(reader, "CustomerId"),
+                        EggProductId = GetNullableInt32IfPresent(reader, "PoultryProductId"),
+                        SaleGroupNo = GetNullableStringIfPresent(reader, "SaleGroupNo"),
                         CreatedDate = reader.GetDateTime(reader.GetOrdinal("CreatedDate")),
                         FarmId = reader.GetString(reader.GetOrdinal("FarmId"))
                     };
@@ -467,6 +547,8 @@ namespace PoultryFarmAPIWeb.Business
                         PoultryCashAccountId = GetNullableInt32IfPresent(reader, "PoultryCashAccountId"),
                         AmountPaid = GetDecimalIfPresent(reader, "AmountPaid", 0m),
                         CustomerId = GetNullableInt32IfPresent(reader, "CustomerId"),
+                        EggProductId = GetNullableInt32IfPresent(reader, "PoultryProductId"),
+                        SaleGroupNo = GetNullableStringIfPresent(reader, "SaleGroupNo"),
                         CreatedDate = reader.GetDateTime(reader.GetOrdinal("CreatedDate")),
                         FarmId = reader.GetString(reader.GetOrdinal("FarmId"))
                     };
