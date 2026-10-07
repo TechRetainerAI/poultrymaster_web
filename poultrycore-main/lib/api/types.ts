@@ -69,6 +69,10 @@ export interface Sale {
   size?: string | null
   /** Optional cash account this sale is received into (posts a cash-in when paid). */
   poultryCashAccountId?: number | null
+  /** Egg class sold (migration 341): a sized egg product, null = Unsorted / General. */
+  eggProductId?: number | null
+  /** Sale number shared by the lines of one multi-size sale (SG-00001). */
+  saleGroupNo?: string | null
   createdDate: string
 }
 
@@ -92,6 +96,8 @@ export interface SaleInput {
   size?: string | null
   /** Optional cash account to receive this sale into (posts a cash-in when paid). */
   poultryCashAccountId?: number | null
+  /** Egg class (341): a sized egg product id, or 0 / null for Unsorted / General. */
+  eggProductId?: number | null
   createdDate?: string
 }
 

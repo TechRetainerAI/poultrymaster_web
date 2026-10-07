@@ -6,9 +6,33 @@
 // There is exactly one caller today — components/production/production-record-form
 // — which both display modes render.
 
-export const EGGS_PER_CRATE = 30
+/**
+ * Eggs in one crate for the active farm. 30 until the farm's setting loads
+ * (migration 344, Egg Sorting Workspace > Sizes & settings); then whatever the
+ * farm uses. A live binding: every importer reads the current value, so
+ * `crates * EGGS_PER_CRATE` follows the setting. Components that must
+ * re-render when it changes call useEggsPerCrate().
+ */
+export let EGGS_PER_CRATE = 30
 
-/** Eggs in one pick. Total = crates × 30 + loose. */
+type Listener = () => void
+const listeners = new Set<Listener>()
+
+/** Set the active farm's crate size (1..100). Ignored when out of range. */
+export function setEggsPerCrate(n: number): void {
+  if (!Number.isInteger(n) || n < 1 || n > 100 || n === EGGS_PER_CRATE) return
+  EGGS_PER_CRATE = n
+  for (const l of listeners) l()
+}
+
+export function subscribeEggsPerCrate(l: Listener): () => void {
+  listeners.add(l)
+  return () => { listeners.delete(l) }
+}
+
+export const getEggsPerCrate = () => EGGS_PER_CRATE
+
+/** Eggs in one pick. Total = crates × eggs-per-crate + loose. */
 export function pickTotal(crates: number, loose: number, eggsPerCrate = EGGS_PER_CRATE): number {
   const c = Number.isFinite(crates) ? Math.max(0, Math.trunc(crates)) : 0
   const l = Number.isFinite(loose) ? Math.max(0, Math.trunc(loose)) : 0

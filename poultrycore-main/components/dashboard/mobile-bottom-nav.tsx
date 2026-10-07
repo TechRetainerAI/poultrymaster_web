@@ -664,7 +664,8 @@ export function MobileBottomNav() {
     pathname === "/production-records" ||
     pathname.startsWith("/production-records/") ||
     pathname === "/egg-production" ||
-    pathname.startsWith("/egg-production/")
+    pathname.startsWith("/egg-production/") ||
+    pathname === "/poultry-egg-sorting"
 
   return (
     <>

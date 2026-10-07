@@ -8,7 +8,10 @@ namespace PoultryFarmAPIWeb.Business
     public sealed record TierRule(string ProfileCode, string TierCode, decimal MinValue, decimal? MaxValue);
     public sealed record PriceEntry(long Id, string TierCode, string? ProfileCode, string CurrencyCode,
         decimal MonthlyPrice, decimal? AnnualPrice, bool TaxInclusive);
-    public sealed record DiscountRule(int MinCompanies, decimal Percent);
+    public sealed record DiscountRule(int MinCompanies, decimal Percent, int? MaxCompanies = null, string? Name = null, bool Stackable = true, int Priority = 0);
+    /// <summary>One applicable discount, auto or special (admin-app spec 21/24).</summary>
+    public sealed record SpecialDiscount(long Id, string Name, string DiscountType, decimal Value, bool Stackable, int Priority);
+    public sealed record AppliedDiscount(long Id, string Name, decimal Amount);
 
     public static class PlatformBillingRules
     {
@@ -60,6 +63,7 @@ namespace PoultryFarmAPIWeb.Business
             foreach (var r in rules)
             {
                 if (eligibleCompanies < r.MinCompanies) continue;
+                if (r.MaxCompanies.HasValue && eligibleCompanies > r.MaxCompanies.Value) continue;
                 if (best is null || r.MinCompanies > best.MinCompanies) best = r;
             }
             return best;
@@ -76,7 +80,7 @@ namespace PoultryFarmAPIWeb.Business
             stateOverride ?? family.Trim().ToLowerInvariant() switch
             {
                 "poultry" => "POULTRY_BIRDS",
-                "water" => "WATER_STANDARD",
+                "water" => "WATER_PRODUCTION_LINES",
                 "hotel" => "HOTEL_ROOMS",
                 "restaurant" => "RESTAURANT_LOCATIONS",
                 _ => "GENERIC_STANDARD",
@@ -151,6 +155,73 @@ namespace PoultryFarmAPIWeb.Business
             return zeroDecimal
                 ? (long)Math.Round(major, MidpointRounding.AwayFromZero)
                 : (long)Math.Round(major * 100m, MidpointRounding.AwayFromZero);
+        }
+    
+        /// <summary>
+        /// Deterministic discount stacking (admin-app spec 24). Stackable
+        /// discounts apply in priority order (lower first), each on the
+        /// RUNNING amount. A non-stackable discount competes alone against
+        /// the whole stacked chain; the customer gets whichever saves more.
+        /// Fixed amounts never take a line below zero. Pure math — which
+        /// discounts are applicable (dates, scope, periods) is decided by
+        /// the caller from data.
+        /// </summary>
+        public static List<AppliedDiscount> ApplyDiscountStack(decimal subtotal, IEnumerable<SpecialDiscount> discounts)
+        {
+            var all = discounts.ToList();
+            var stacked = new List<AppliedDiscount>();
+            var running = subtotal;
+            foreach (var d in all.Where(x => x.Stackable).OrderBy(x => x.Priority).ThenBy(x => x.Id))
+            {
+                var amt = d.DiscountType.Equals("Fixed", StringComparison.OrdinalIgnoreCase)
+                    ? Math.Min(Money(d.Value), running)
+                    : Money(running * d.Value / 100m);
+                if (amt <= 0) continue;
+                stacked.Add(new AppliedDiscount(d.Id, d.Name, amt));
+                running -= amt;
+            }
+            var stackedTotal = stacked.Sum(x => x.Amount);
+
+            AppliedDiscount? bestSolo = null;
+            foreach (var d in all.Where(x => !x.Stackable))
+            {
+                var amt = d.DiscountType.Equals("Fixed", StringComparison.OrdinalIgnoreCase)
+                    ? Math.Min(Money(d.Value), subtotal)
+                    : Money(subtotal * d.Value / 100m);
+                if (amt <= 0) continue;
+                if (bestSolo is null || amt > bestSolo.Amount) bestSolo = new AppliedDiscount(d.Id, d.Name, amt);
+            }
+
+            if (bestSolo is not null && bestSolo.Amount > stackedTotal)
+                return new List<AppliedDiscount> { bestSolo };
+            return stacked;
+        }
+
+        /// <summary>
+        /// Tier-rule validation before save (admin-app spec 6): max &lt; min,
+        /// duplicate tiers, overlapping ranges and gaps between consecutive
+        /// bands. Returns problem descriptions; empty = valid.
+        /// </summary>
+        public static List<string> ValidateTierRules(IEnumerable<(string Tier, decimal Min, decimal? Max)> rules)
+        {
+            var problems = new List<string>();
+            var list = rules.OrderBy(r => r.Min).ToList();
+            var dup = list.GroupBy(r => r.Tier, StringComparer.OrdinalIgnoreCase).FirstOrDefault(g => g.Count() > 1);
+            if (dup != null) problems.Add($"Tier '{dup.Key}' has more than one active rule.");
+            foreach (var r in list)
+                if (r.Max.HasValue && r.Max.Value < r.Min)
+                    problems.Add($"Tier '{r.Tier}': max ({r.Max}) is below min ({r.Min}).");
+            for (var i = 0; i < list.Count - 1; i++)
+            {
+                var a = list[i]; var b = list[i + 1];
+                if (!a.Max.HasValue)
+                    problems.Add($"Tier '{a.Tier}' has no upper bound but '{b.Tier}' starts above it — unreachable band.");
+                else if (b.Min <= a.Max.Value)
+                    problems.Add($"Tiers '{a.Tier}' and '{b.Tier}' overlap between {b.Min} and {a.Max}.");
+                else if (b.Min > a.Max.Value + 1)
+                    problems.Add($"Gap between '{a.Tier}' (ends {a.Max}) and '{b.Tier}' (starts {b.Min}).");
+            }
+            return problems;
         }
     }
 }

@@ -21,6 +21,7 @@
 // The ONLY difference between modal and page is layout.
 // =============================================================================
 
+import { EGGS_PER_CRATE } from "@/lib/production/production-record-calc"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -49,7 +50,7 @@ import {
 } from "@/lib/api/poultry-inventory"
 import { MedicationLines, computeMedLines, emptyMedLine, type MedLineDraft } from "@/components/production/medication-lines"
 import { FeedLines, computeFeedLines, emptyFeedLine, type FeedLineDraft } from "@/components/production/feed-lines"
-import { EGG_GRADE_OPTIONS, EGG_GRADE_SELECT_VALUE_NONE, eggGradeFromApi, eggGradeToApi } from "@/lib/constants/egg-grade"
+import { PRODUCTION_EGG_GRADE, eggGradeToApi, formatEggGradeLabel, productionEggGrade } from "@/lib/constants/egg-grade"
 import { FormSectionCard, CalcField, NumField } from "./production-record-fields"
 import {
   cratesEquivalent, effectiveFeedKg as calcEffectiveFeedKg, eggsExceedBirdsLeft,
@@ -243,7 +244,7 @@ export function BatchProductionRecordForm({
     brokenEggs: "", meatyEggs: "", softEggs: "", lostEggs: "",
     feedType: "", feedKg: "",
     medication: "", deaths: "", birdsLeft: "", notes: "",
-    eggGrade: EGG_GRADE_SELECT_VALUE_NONE,
+    eggGrade: PRODUCTION_EGG_GRADE,
   })
   const patch = useCallback((p: Partial<typeof form>) => {
     setDirty(true)
@@ -361,7 +362,7 @@ export function BatchProductionRecordForm({
               feedType: r.feedType ?? "", feedKg: numStr(r.feedKg),
               medication: r.medication ?? "", deaths: numStr(r.deaths),
               birdsLeft: numStr(r.birdsLeft), notes: r.notes ?? "",
-              eggGrade: eggGradeFromApi(r.eggGrade),
+              eggGrade: productionEggGrade(r.eggGrade),
             })
             setFeedLines((r.feeds ?? []).length > 0
               ? r.feeds.map((f) => ({ specificFeedUsedId: String(f.itemId), totalFeedConsumed: String(f.qty) }))
@@ -613,12 +614,17 @@ export function BatchProductionRecordForm({
           </div>
           <div className="space-y-1.5">
             <Label>Egg grade</Label>
-            <Select value={form.eggGrade} onValueChange={(v) => patch({ eggGrade: v })}>
-              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {EGG_GRADE_OPTIONS.map((g) => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            {/* Automatic since egg sorting: the day's collection is mixed
+                sizes; sizes are recorded in the Egg Sorting Workspace. An
+                older record keeps the grade it was saved with. */}
+            <div className="flex h-9 items-center rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700">
+              {formatEggGradeLabel(eggGradeToApi(form.eggGrade))}
+            </div>
+            <p className="text-xs text-slate-500">
+              {form.eggGrade === PRODUCTION_EGG_GRADE
+                ? "Set automatically. Sizes are recorded when the eggs are sorted."
+                : "Recorded before egg sorting; kept as it was."}
+            </p>
           </div>
         </div>
 
@@ -662,7 +668,7 @@ export function BatchProductionRecordForm({
       {/* --------------------------------------------- Egg Production */}
       <FormSectionCard
         title="Egg Production"
-        description="Total = crates × 30 + loose eggs. These are BATCH totals, split across flocks at allocation."
+        description={`Total = crates × ${EGGS_PER_CRATE} + loose eggs. These are BATCH totals, split across flocks at allocation.`}
         badge={`${totalEggs.toLocaleString()} eggs`}
         accent="amber"
         icon={Egg}

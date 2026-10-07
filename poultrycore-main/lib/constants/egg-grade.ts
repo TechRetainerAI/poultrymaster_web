@@ -13,6 +13,23 @@ export const EGG_GRADE_OPTIONS: { value: string; label: string }[] = [
   { value: "Mixed", label: "Mixed grades" },
 ]
 
+/**
+ * The grade every production record carries since the Egg Sorting Workspace
+ * (migrations 341-344): one record holds a flock's whole day, which is a mix
+ * of sizes. Sizes are recorded when the eggs are sorted, not here.
+ */
+export const PRODUCTION_EGG_GRADE = "Mixed"
+
+/**
+ * The grade a production record is saved with: a specific grade an older
+ * record already carries is kept (history is not rewritten); anything else --
+ * a new record, or an old one with no grade -- is Mixed.
+ */
+export function productionEggGrade(existing: string | null | undefined): string {
+  const g = eggGradeFromApi(existing)
+  return g === EGG_GRADE_SELECT_VALUE_NONE ? PRODUCTION_EGG_GRADE : g
+}
+
 /** Maps old layer-farm codes saved in SQL to the new size select values. */
 const LEGACY_API_TO_SELECT: Record<string, string> = {
   p1: "Small",

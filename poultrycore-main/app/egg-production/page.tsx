@@ -43,7 +43,7 @@ import {
 } from "@/lib/constants/egg-grade"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { createProductionRecord, getProductionRecords, updateProductionRecord, type ProductionRecordInput } from "@/lib/api/production-record"
+import { createProductionRecord, getProductionRecords, patchProductionRecord, type ProductionRecordInput } from "@/lib/api/production-record"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 export default function EggProductionsPage() {
@@ -302,15 +302,17 @@ export default function EggProductionsPage() {
 
     setSyncingToday(true)
     try {
-      const grouped = new Map<number, { p9: number; p12: number; p4: number; p4th: number; broken: number }>()
+      const grouped = new Map<number, { p9: number; p12: number; p4: number; p4th: number; p5th: number; p6th: number; broken: number }>()
       for (const row of scopedEntries) {
         const fid = Number(row.flockId)
         if (!fid) continue
-        const curr = grouped.get(fid) ?? { p9: 0, p12: 0, p4: 0, p4th: 0, broken: 0 }
+        const curr = grouped.get(fid) ?? { p9: 0, p12: 0, p4: 0, p4th: 0, p5th: 0, p6th: 0, broken: 0 }
         curr.p9 += Number(row.production9AM) || 0
         curr.p12 += Number(row.production12PM) || 0
         curr.p4 += Number(row.production4PM) || 0
         curr.p4th += Number((row as any).production4thPick) || 0
+        curr.p5th += Number((row as any).production5thPick) || 0
+        curr.p6th += Number((row as any).production6thPick) || 0
         curr.broken += Number(row.brokenEggs) || 0
         grouped.set(fid, curr)
       }
@@ -329,35 +331,26 @@ export default function EggProductionsPage() {
         const flock = flocks.find((f) => Number((f as any).flockId) === flockId)
         if (!flock) continue
 
-        const total = sums.p9 + sums.p12 + sums.p4 + sums.p4th
+        const total = sums.p9 + sums.p12 + sums.p4 + sums.p4th + sums.p5th + sums.p6th
         const todayIso = `${todayKey}T00:00:00Z`
         const matched = existing.find(
           (r) => Number((r as any).flockId) === flockId && toLocalDateKey((r as any).date) === todayKey
         )
 
         if (matched) {
-          const updatePayload: ProductionRecordInput = {
-            farmId: (matched as any).farmId ?? farmId,
-            userId: (matched as any).userId ?? userId,
-            createdBy: (matched as any).createdBy ?? userId,
-            updatedBy: userId,
-            ageInDays: Number((matched as any).ageInDays) || 0,
-            ageInWeeks: Number((matched as any).ageInWeeks) || 0,
-            date: (matched as any).date ?? todayIso,
+          // Update only the egg fields; the helper keeps the rest of the
+          // record (birds, mortality, feed and medication lines, costing).
+          await patchProductionRecord(matched, userId, farmId, {
             flockId,
-            noOfBirds: Number((matched as any).noOfBirds) || 0,
-            mortality: Number((matched as any).mortality) || 0,
-            noOfBirdsLeft: Number((matched as any).noOfBirdsLeft) || 0,
-            feedKg: Number((matched as any).feedKg) || 0,
-            medication: (matched as any).medication || "None",
             production9AM: sums.p9,
             production12PM: sums.p12,
             production4PM: sums.p4,
             production4thPick: sums.p4th,
+            production5thPick: sums.p5th,
+            production6thPick: sums.p6th,
             brokenEggs: sums.broken,
             totalProduction: total,
-          }
-          await updateProductionRecord((matched as any).id, updatePayload)
+          })
           updated += 1
         } else {
           const startKey = toLocalDateKey((flock as any).startDate || todayIso)
@@ -384,6 +377,8 @@ export default function EggProductionsPage() {
             production12PM: sums.p12,
             production4PM: sums.p4,
             production4thPick: sums.p4th,
+            production5thPick: sums.p5th,
+            production6thPick: sums.p6th,
             brokenEggs: sums.broken,
             totalProduction: total,
           }

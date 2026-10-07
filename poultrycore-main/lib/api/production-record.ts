@@ -147,6 +147,75 @@ export interface ProductionRecordInput {
   feeds?: ProductionFeedLine[] | null
 }
 
+/**
+ * An existing record as a complete update payload.
+ *
+ * The update is a full PUT, so a caller that only means to change a few fields
+ * (the egg picks, say) must still send everything else, or the API receives the
+ * rest as blanks. Start from this and override just the fields being changed.
+ */
+export function productionRecordToInput(record: ProductionRecord, updatedBy: string): ProductionRecordInput {
+  return {
+    farmId: record.farmId,
+    userId: record.userId,
+    createdBy: record.createdBy,
+    updatedBy,
+    ageInWeeks: record.ageInWeeks,
+    ageInDays: record.ageInDays,
+    date: record.date,
+    noOfBirds: record.noOfBirds,
+    mortality: record.mortality,
+    noOfBirdsLeft: record.noOfBirdsLeft,
+    feedKg: record.feedKg,
+    medication: record.medication,
+    production9AM: record.production9AM,
+    production12PM: record.production12PM,
+    production4PM: record.production4PM,
+    production4thPick: record.production4thPick,
+    production5thPick: record.production5thPick,
+    production6thPick: record.production6thPick,
+    brokenEggs: record.brokenEggs,
+    totalProduction: record.totalProduction,
+    notes: record.notes ?? null,
+    flockId: record.flockId ?? null,
+    eggGrade: record.eggGrade ?? null,
+    meatyEggs: record.meatyEggs ?? null,
+    softEggs: record.softEggs ?? null,
+    lostEggs: record.lostEggs ?? null,
+    specificFeedUsedId: record.specificFeedUsedId ?? null,
+    specificFeedUsedName: record.specificFeedUsedName ?? null,
+    feedUnitCost: record.feedUnitCost ?? null,
+    totalFeedConsumed: record.totalFeedConsumed ?? null,
+    totalFeedCost: record.totalFeedCost ?? null,
+    specificMedicationUsedId: record.specificMedicationUsedId ?? null,
+    specificMedicationUsedName: record.specificMedicationUsedName ?? null,
+    medicationUnitCost: record.medicationUnitCost ?? null,
+    totalMedicationConsumed: record.totalMedicationConsumed ?? null,
+    totalMedicationCost: record.totalMedicationCost ?? null,
+    totalCostOfProduction: record.totalCostOfProduction ?? null,
+    medications: record.medications ?? null,
+    feeds: record.feeds ?? null,
+  }
+}
+
+/**
+ * Change a few fields on an existing record without blanking the rest.
+ *
+ * Re-reads the record singly (the list rows may not carry the feed and
+ * medication lines), copies it whole, applies `changes` and saves. If the
+ * single read fails, `existing` is used as the base instead.
+ */
+export async function patchProductionRecord(
+  existing: ProductionRecord,
+  userId: string,
+  farmId: string,
+  changes: Partial<ProductionRecordInput>,
+) {
+  const full = await getProductionRecord(existing.id, userId, farmId)
+  const base = productionRecordToInput(full.success && full.data ? full.data : existing, userId)
+  return updateProductionRecord(existing.id, { ...base, ...changes, updatedBy: userId })
+}
+
 // Mock data for development
 const mockProductionRecords: ProductionRecord[] = [
   {

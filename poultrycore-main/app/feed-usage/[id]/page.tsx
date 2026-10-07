@@ -16,7 +16,7 @@ import { getFeedUsage, updateFeedUsage, type FeedUsageInput } from "@/lib/api/fe
 import { getUserContext } from "@/lib/utils/user-context"
 import { getValidFlocks, getFlocksForSelect } from "@/lib/utils/flock-utils"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { getProductionRecords, createProductionRecord, updateProductionRecord, type ProductionRecordInput } from "@/lib/api/production-record"
+import { getProductionRecords, createProductionRecord, patchProductionRecord, type ProductionRecordInput } from "@/lib/api/production-record"
 
 export default function EditFeedUsagePage() {
   const router = useRouter()
@@ -154,11 +154,10 @@ export default function EditFeedUsagePage() {
           )
 
           if (matchingRecord) {
-            // Update existing production record with feed data
-            const updateData: Partial<ProductionRecordInput> = {
+            // Update only the feed quantity; the helper keeps the rest of the record.
+            await patchProductionRecord(matchingRecord, userId, farmId, {
               feedKg: Number(formData.quantityKg),
-            }
-            await updateProductionRecord(matchingRecord.id, updateData)
+            })
           }
         }
       } catch (syncError) {

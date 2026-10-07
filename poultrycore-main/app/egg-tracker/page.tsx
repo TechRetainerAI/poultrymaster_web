@@ -44,6 +44,8 @@ import { toLocalDateKey } from "@/lib/utils/date-key"
 import { buildEggStockLedger, type EggLedgerRow } from "@/lib/utils/egg-ledger"
 import { groupLedgerByType, EGG_MOVE_LABELS } from "@/lib/utils/ledger-breakdown"
 import { FlowBreakdownCard } from "@/components/cash/flow-breakdown-card"
+import { EggClassLedger } from "@/components/egg-sorting/egg-class-ledger"
+import { getEggClasses } from "@/lib/api/egg-sorting"
 
 
 const ADJ_TYPES = [
@@ -117,7 +119,7 @@ export default function EggTrackerPage() {
       setRefreshing(false)
       return
     }
-    const [eggRes, flocksRes, salesRes, adjRes, productsRes, stockRes] = await Promise.all([
+    const [eggRes, flocksRes, salesRes, adjRes, productsRes, stockRes, eggClassesRes] = await Promise.all([
       getEggProductions(userId, farmId),
       getFlocks(userId, farmId),
       getSales(userId, farmId),
@@ -132,6 +134,8 @@ export default function EggTrackerPage() {
         console.warn("[egg-tracker] Stock moves:", e)
         return [] as Awaited<ReturnType<typeof listPoultryStockTransactions>>
       }),
+      // Egg classes (341): Unsorted + sorted sizes. Empty before the migration.
+      getEggClasses({ includeInactive: true }).catch(() => [] as Awaited<ReturnType<typeof getEggClasses>>),
     ])
     if (eggRes.success && eggRes.data) {
       setEggProductions(eggRes.data)
@@ -154,8 +158,12 @@ export default function EggTrackerPage() {
     // Stock-ledger moves for the egg product (driver load-outs, deliveries, Set
     // stock / Reconcile corrections). Without these the balance below drifts from
     // /poultry-inventory's "In stock", which is the same ledger.
+    // Since 341 eggs live in several classes (Unsorted + each size). This page
+    // is about ALL eggs, so it sums every class; sorting rows move eggs between
+    // classes and net to the sorting loss. Per-class detail is the card above.
+    const eggClassIds = new Set(eggClassesRes.map((c) => c.poultryProductId))
     const eggProducts = productsRes.filter(
-      (p) => p.isRawEggProduct || p.name === "Eggs" || p.name === "Chicken Eggs"
+      (p) => p.isRawEggProduct || p.name === "Eggs" || p.name === "Chicken Eggs" || eggClassIds.has(p.poultryProductId)
     )
     const eggProductIds = new Set(eggProducts.map((p) => p.poultryProductId))
     setEggStockMoves(stockRes.filter((t) => eggProductIds.has(t.poultryProductId)))
@@ -724,6 +732,9 @@ export default function EggTrackerPage() {
                     </div>
                   </div>
                 )}
+
+                {/* 341-343: stock and movements per egg class (Unsorted + sizes). Renders nothing for a farm without sizes. */}
+                <EggClassLedger />
 
                 <Card className="bg-white">
                   <CardHeader>
