@@ -12,23 +12,29 @@ import Link from "next/link"
 import { Inter } from "next/font/google"
 import { PlanCard } from "@/components/billing/plan-card"
 import { PUBLIC_PLANS, TRIAL_DAYS, plansFromApi, type PublicPlan } from "@/lib/billing/public-pricing"
-import { getPublicPricing } from "@/lib/api/platform-billing"
+import { getPublicPricing, getPricingContexts, type PricingContext } from "@/lib/api/platform-billing"
 
 const inter = Inter({ subsets: ["latin"], display: "swap" })
 
-const VERTICALS = [
-  { profile: "POULTRY_BIRDS", label: "Poultry" },
-  { profile: "WATER_PRODUCTION_LINES", label: "Water" },
-] as const
+const FALLBACK_CONTEXTS: PricingContext[] = [
+  { billingProfileCode: "POULTRY_BIRDS", businessTemplateCode: null, displayName: "Poultry Farm", sortOrder: 10 },
+  { billingProfileCode: "WATER_PRODUCTION_LINES", businessTemplateCode: null, displayName: "Water Production", sortOrder: 20 },
+]
 
 export default function PricingPage() {
-  const [profile, setProfile] = useState<string>(VERTICALS[0].profile)
+  const [contexts, setContexts] = useState<PricingContext[]>(FALLBACK_CONTEXTS)
+  const [ctx, setCtx] = useState<PricingContext>(FALLBACK_CONTEXTS[0])
+  const [cycle, setCycle] = useState<"monthly" | "annual">("monthly")
   const [plans, setPlans] = useState<PublicPlan[]>(PUBLIC_PLANS)
   const [subtitle, setSubtitle] = useState<string | null>(null)
 
   useEffect(() => {
+    getPricingContexts().then((list) => { if (list.length > 0) setContexts(list) }).catch(() => {})
+  }, [])
+
+  useEffect(() => {
     let cancelled = false
-    getPublicPricing("GH", profile)
+    getPublicPricing("GH", ctx.billingProfileCode, ctx.businessTemplateCode ?? undefined)
       .then((api) => {
         if (cancelled) return
         const mapped = plansFromApi(api)
@@ -37,10 +43,10 @@ export default function PricingPage() {
       })
       .catch(() => {
         // Offline/preview fallback: the baked-in poultry ladder.
-        if (!cancelled && profile === "POULTRY_BIRDS") setPlans(PUBLIC_PLANS)
+        if (!cancelled && ctx.billingProfileCode === "POULTRY_BIRDS") setPlans(PUBLIC_PLANS)
       })
     return () => { cancelled = true }
-  }, [profile])
+  }, [ctx])
 
   return (
     <div className={`min-h-screen bg-slate-50 ${inter.className}`}>
@@ -56,18 +62,37 @@ export default function PricingPage() {
           </p>
         </div>
 
-        {/* Vertical switch: each business type has its own presentation. */}
-        <div className="mt-8 flex justify-center">
+        {/* Pricing-context selector + monthly/annual explorer: every business
+            type has its own presentation; the toggle is display-only. */}
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+          <label className="flex items-center gap-2 text-sm text-slate-600">
+            View pricing for
+            <select
+              className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-900 shadow-sm"
+              value={`${ctx.billingProfileCode}|${ctx.businessTemplateCode ?? ""}`}
+              onChange={(e) => {
+                const [pc, tc] = e.target.value.split("|")
+                const next = contexts.find((x) => x.billingProfileCode === pc && (x.businessTemplateCode ?? "") === tc)
+                if (next) setCtx(next)
+              }}
+            >
+              {contexts.map((x) => (
+                <option key={`${x.billingProfileCode}|${x.businessTemplateCode ?? ""}`} value={`${x.billingProfileCode}|${x.businessTemplateCode ?? ""}`}>
+                  {x.displayName}
+                </option>
+              ))}
+            </select>
+          </label>
           <div className="inline-flex rounded-full bg-white p-1 shadow-sm ring-1 ring-slate-200">
-            {VERTICALS.map((v) => (
+            {(["monthly", "annual"] as const).map((cy) => (
               <button
-                key={v.profile}
-                onClick={() => setProfile(v.profile)}
-                className={`rounded-full px-5 py-1.5 text-sm font-medium transition-colors ${
-                  profile === v.profile ? "bg-indigo-600 text-white" : "text-slate-600 hover:text-slate-900"
+                key={cy}
+                onClick={() => setCycle(cy)}
+                className={`rounded-full px-5 py-1.5 text-sm font-medium capitalize transition-colors ${
+                  cycle === cy ? "bg-indigo-600 text-white" : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                {v.label}
+                {cy}
               </button>
             ))}
           </div>
@@ -76,8 +101,9 @@ export default function PricingPage() {
         <div className="mt-12 grid gap-6 sm:grid-cols-2 xl:grid-cols-4 xl:gap-5">
           {plans.map((p) => (
             <PlanCard
-              key={`${profile}-${p.code}`}
+              key={`${ctx.billingProfileCode}-${ctx.businessTemplateCode ?? ""}-${p.code}`}
               plan={p}
+              cycle={cycle}
               cta={
                 p.monthlyGhs !== null ? (
                   <Link

@@ -27,9 +27,11 @@ export interface CompanyBillingRow {
   companyName: string
   companyFamily: string
   businessType: string
+  billingProfileCode: string
   billingProfileName: string
   metricType: string
   metricValue: number
+  tierCode?: string | null
   tierName?: string | null
   monthlyAmount?: number | null
   currencyCode: string
@@ -55,12 +57,24 @@ export interface BillPreview {
   estimatedAmountDue?: number
 }
 
+export interface SavingsDetail {
+  kind: "MultiCompany" | "Discount" | "Promotion" | "Credit"
+  name: string
+  discountType?: string | null
+  value?: number | null
+  amountThisPeriod: number
+  endDate?: string | null
+  remainingPeriods?: number | null
+  explanation?: string | null
+}
+
 export interface BillingSummary {
   pendingTierChanges: PendingTierChange[]
   account: BillingAccount
   companies: CompanyBillingRow[]
   preview: BillPreview
   enforcementEnabled: boolean
+  savings?: SavingsDetail[]
 }
 
 export interface PlatformInvoiceLine {
@@ -371,6 +385,37 @@ export interface PublicPricing {
   metricSingular?: string | null
   metricPlural?: string | null
   plans: PublicPlanCard[]
+}
+
+export interface PricingContext {
+  billingProfileCode: string
+  businessTemplateCode?: string | null
+  displayName: string
+  sortOrder: number
+}
+
+/** The pricing-context selector's options, from presentation config (anonymous). */
+export async function getPricingContexts(): Promise<PricingContext[]> {
+  const res = await fetch(farmApiUrl(`/PlatformBilling/pricing-contexts`))
+  if (!res.ok) throw new Error(`Contexts not available (${res.status})`)
+  return (await res.json()) as PricingContext[]
+}
+
+export interface CyclePreview {
+  currentCycle: string
+  targetCycle: string
+  current: BillPreview
+  target: BillPreview
+  missingPrices: string[]
+  effectiveDate: string
+}
+
+/** Backend-computed monthly/annual comparison for the switch confirmation. */
+export async function getCyclePreview(cycle: "monthly" | "annual"): Promise<CyclePreview> {
+  const { userId } = getUserContext()
+  return jget<CyclePreview>(
+    `/PlatformBilling/cycle-preview?userId=${encodeURIComponent(userId)}&cycle=${cycle}`
+  )
 }
 
 /** Anonymous — the public pricing page uses it before any login exists. */

@@ -46,6 +46,8 @@ namespace PoultryFarmAPIWeb.Business
 
         /// <summary>Customer-facing plan cards: presentation + current prices, template fallback included.</summary>
         Task<PublicPricingModel?> GetPublicPricingAsync(string marketCode, string profileCode, string? templateCode);
+        /// <summary>The pricing-context selector's options (customer-app spec 3), from presentation config.</summary>
+        Task<List<PricingContextModel>> GetPricingContextsAsync();
     }
 
     public partial class PlatformBillingService : IPlatformBillingAdminService
@@ -961,6 +963,26 @@ namespace PoultryFarmAPIWeb.Business
                 $"{b.Name} ({b.Companies.Count} companies)", actorId, b.ContractReference, (NpgsqlTransaction)tx);
             await tx.CommitAsync();
             return (true, "Enterprise contract recorded and company prices fixed.", id);
+        }
+
+        public async Task<List<PricingContextModel>> GetPricingContextsAsync()
+        {
+            var list = new List<PricingContextModel>();
+            using var conn = new NpgsqlConnection(_cs);
+            await conn.OpenAsync();
+            using var q = new NpgsqlCommand(@"
+                SELECT billingprofilecode, businesstemplatecode, displayname, sortorder
+                  FROM pricingpresentationprofiles WHERE active ORDER BY sortorder, id", conn);
+            using var r = await q.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+                list.Add(new PricingContextModel
+                {
+                    BillingProfileCode = r.GetString(0),
+                    BusinessTemplateCode = r.IsDBNull(1) ? null : r.GetString(1),
+                    DisplayName = r.GetString(2),
+                    SortOrder = r.GetInt32(3),
+                });
+            return list;
         }
 
         // ------------------------------------------------------------------

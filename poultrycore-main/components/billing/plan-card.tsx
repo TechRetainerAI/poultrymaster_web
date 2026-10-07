@@ -9,8 +9,14 @@ import type { ReactNode } from "react"
 import { Check } from "lucide-react"
 import type { PublicPlan } from "@/lib/billing/public-pricing"
 
-export function PlanCard({ plan, cta }: { plan: PublicPlan; cta: ReactNode }) {
+export function PlanCard({ plan, cta, cycle = "monthly" }: { plan: PublicPlan; cta: ReactNode; cycle?: "monthly" | "annual" }) {
   const hl = plan.highlight
+  // Annual is pure display here (customer-app spec 5/7): configured AnnualPrice
+  // only, savings derived for DISPLAY from monthly x 12, never claimed when
+  // there are none, and never guessed when no annual price exists.
+  const annual = cycle === "annual"
+  const annualSavings =
+    plan.annualGhs != null && plan.monthlyGhs != null ? plan.monthlyGhs * 12 - plan.annualGhs : null
   return (
     <div className="relative flex">
       {hl && (
@@ -29,16 +35,37 @@ export function PlanCard({ plan, cta }: { plan: PublicPlan; cta: ReactNode }) {
         <p className={`mt-1 min-h-10 text-sm leading-5 ${hl ? "text-indigo-100" : "text-slate-500"}`}>{plan.blurb}</p>
 
         <div className="mt-5">
-          {plan.monthlyGhs !== null ? (
+          {plan.monthlyGhs === null ? (
+            <p className={`text-2xl font-semibold tracking-[-0.01em] ${hl ? "text-white" : "text-slate-900"}`}>
+              Pricing on request
+            </p>
+          ) : annual && plan.annualGhs == null ? (
+            <p className={`text-xl font-semibold tracking-[-0.01em] ${hl ? "text-indigo-100" : "text-slate-500"}`}>
+              Annual pricing not available
+            </p>
+          ) : annual ? (
+            <>
+              <p className="flex items-baseline gap-1">
+                <span className={`text-4xl font-semibold tabular-nums tracking-[-0.02em] ${hl ? "text-white" : "text-slate-900"}`}>
+                  GHS {plan.annualGhs!.toLocaleString()}
+                </span>
+                <span className={`text-sm ${hl ? "text-indigo-200" : "text-slate-400"}`}>/year per company</span>
+              </p>
+              <p className={`mt-1 text-xs ${hl ? "text-indigo-200" : "text-slate-500"}`}>
+                Equivalent to GHS {(plan.annualGhs! / 12).toLocaleString(undefined, { maximumFractionDigits: 2 })}/month
+              </p>
+              {annualSavings != null && annualSavings > 0 && (
+                <p className={`mt-0.5 text-xs font-medium ${hl ? "text-emerald-200" : "text-emerald-700"}`}>
+                  Save GHS {annualSavings.toLocaleString()}/year
+                </p>
+              )}
+            </>
+          ) : (
             <p className="flex items-baseline gap-1">
               <span className={`text-4xl font-semibold tabular-nums tracking-[-0.02em] ${hl ? "text-white" : "text-slate-900"}`}>
                 GHS {plan.monthlyGhs.toLocaleString()}
               </span>
               <span className={`text-sm ${hl ? "text-indigo-200" : "text-slate-400"}`}>/mo per company</span>
-            </p>
-          ) : (
-            <p className={`text-2xl font-semibold tracking-[-0.01em] ${hl ? "text-white" : "text-slate-900"}`}>
-              Pricing on request
             </p>
           )}
           <p className={`mt-1 text-xs font-medium uppercase tracking-wide ${hl ? "text-indigo-200" : "text-slate-500"}`}>

@@ -117,6 +117,8 @@ namespace PlatformBilling.Tests
                 const string farmPoultry = "itest-farm-poultry";
                 const string farmSchool = "itest-farm-school";
                 const string farmRest = "itest-farm-restaurant";
+                const string farmWater = "itest-farm-water";        // 3 lines -> Growth
+                const string farmWaterNew = "itest-farm-water-new"; // 0 lines -> ScaleSetupRequired
 
                 using (var c = new NpgsqlConnection(cs))
                 {
@@ -169,6 +171,8 @@ namespace PlatformBilling.Tests
                         SELECT pb.id, 'starter', 'GENERIC_STANDARD', 'GHS', 200, true FROM pricebooks pb WHERE pb.code = 'GH-2026';
                         INSERT INTO pricebookentries (pricebookid, tiercode, profilecode, currencycode, monthlyprice, active)
                         SELECT pb.id, 'starter', 'RESTAURANT_LOCATIONS', 'GHS', 300, true FROM pricebooks pb WHERE pb.code = 'GH-2026';
+                        INSERT INTO pricebookentries (pricebookid, tiercode, profilecode, currencycode, monthlyprice, active)
+                        SELECT pb.id, 'growth', 'WATER_PRODUCTION_LINES', 'GHS', 1000, true FROM pricebooks pb WHERE pb.code = 'GH-2026';
                         INSERT INTO businesstemplatebillingprofiles (templatecode, defaultbillingprofile)
                         VALUES ('School', 'GENERIC_STANDARD')
                         ON CONFLICT (templatecode) DO UPDATE SET defaultbillingprofile = EXCLUDED.defaultbillingprofile;
@@ -181,11 +185,18 @@ namespace PlatformBilling.Tests
                         INSERT INTO farms (farmid, name, email, type, createdat) VALUES
                         ('{farmPoultry}', 'Prof Owusu Poultry', 'p@example.test', 'Poultry',    now() - interval '200 days'),
                         ('{farmSchool}',  'Evans Academy',      's@example.test', 'Generic',    now() - interval '150 days'),
-                        ('{farmRest}',    'Evans Restaurant',   'r@example.test', 'Restaurant', now() - interval '100 days');
+                        ('{farmRest}',    'Evans Restaurant',   'r@example.test', 'Restaurant', now() - interval '100 days'),
+                        ('{farmWater}',   'Great Favor Water',  'w@example.test', 'Water',      now() - interval '120 days'),
+                        ('{farmWaterNew}','Evans Pure Water',   'n@example.test', 'Water',      now() - interval '10 days');
                         INSERT INTO userfarms (userid, farmid, role) VALUES
-                        ('{owner}', '{farmPoultry}', 'Admin'), ('{owner}', '{farmSchool}', 'Admin'), ('{owner}', '{farmRest}', 'Admin');
+                        ('{owner}', '{farmPoultry}', 'Admin'), ('{owner}', '{farmSchool}', 'Admin'), ('{owner}', '{farmRest}', 'Admin'),
+                        ('{owner}', '{farmWater}', 'Admin'), ('{owner}', '{farmWaterNew}', 'Admin');
                         INSERT INTO genericcompanyprofiles (farmid, genericbusinesstemplate) VALUES ('{farmSchool}', 'School');
-                        INSERT INTO flock (farmid, flockid, quantity) VALUES ('{farmPoultry}', 1, 6365);");
+                        INSERT INTO flock (farmid, flockid, quantity) VALUES ('{farmPoultry}', 1, 6365);
+                        -- Water bills by OPERATIONAL production lines (admin-app spec 5/7):
+                        -- Great Favor records three; the new company records none yet.
+                        INSERT INTO waterproductionlines (farmid, name) VALUES
+                        ('{farmWater}', 'Line A'), ('{farmWater}', 'Line B'), ('{farmWater}', 'Line C');");
                 }
 
                 var provider = new FakeProvider();
@@ -203,17 +214,28 @@ namespace PlatformBilling.Tests
                 }
 
                 summary = await svc.GetSummaryAsync(owner);
-                Assert.Equal(3, summary.Companies.Count);
+                Assert.Equal(5, summary.Companies.Count);
                 Assert.False(summary.Preview.HasUnpricedCompanies);
                 var poultryRow = summary.Companies.Single(x => x.FarmId == farmPoultry);
                 Assert.Equal(6365m, poultryRow.MetricValue);          // Part 64 metric
                 Assert.Equal(1500m, poultryRow.MonthlyAmount);        // >5,000 birds → GHS 1,500
 
-                // Subtotal 1500 + 200 + 300 = 2000; 3 companies → seeded 10% discount.
-                Assert.Equal(2000m, summary.Preview.Subtotal);
-                Assert.Equal(3, summary.Preview.EligibleCompanyCount);
+                // Water (customer-app spec 14/18): 3 recorded lines → Growth at
+                // the configured price; zero lines is a SETUP state, never a
+                // Starter bill, and never blocks the rest of the invoice.
+                var waterRow = summary.Companies.Single(x => x.FarmId == farmWater);
+                Assert.Equal(3m, waterRow.MetricValue);
+                Assert.Equal("growth", waterRow.TierCode);
+                Assert.Equal(1000m, waterRow.MonthlyAmount);
+                var waterNewRow = summary.Companies.Single(x => x.FarmId == farmWaterNew);
+                Assert.Equal("ScaleSetupRequired", waterNewRow.PricingStatus);
+                Assert.Null(waterNewRow.MonthlyAmount);
+
+                // Subtotal 1500 + 200 + 300 + 1000 = 3000; 4 billable → 10%.
+                Assert.Equal(3000m, summary.Preview.Subtotal);
+                Assert.Equal(4, summary.Preview.EligibleCompanyCount);
                 Assert.Equal(10m, summary.Preview.DiscountPercent);
-                Assert.Equal(1800m, summary.Preview.Total);
+                Assert.Equal(2700m, summary.Preview.Total);
 
                 // ONE consolidated checkout → ONE provider payment settles it.
                 var checkout = await svc.StartCheckoutAsync(new StartCheckoutRequest
@@ -223,16 +245,16 @@ namespace PlatformBilling.Tests
                     FailureUrl = "https://test/cancel",
                 });
                 Assert.True(checkout.Success, checkout.Message);
-                Assert.Equal(1800m, checkout.Amount);
-                Assert.Equal(180000, provider.LastAmountMinor);       // GHS → pesewas
+                Assert.Equal(2700m, checkout.Amount);
+                Assert.Equal(270000, provider.LastAmountMinor);       // GHS → pesewas
 
                 var settle = await svc.VerifyAndSettleAsync(owner, checkout.Reference!);
                 Assert.True(settle.Ok, settle.Message);
 
                 var invoices = await svc.GetInvoicesAsync(owner);
                 var inv = Assert.Single(invoices);                    // ONE organization invoice
-                Assert.Equal(3, inv.Lines.Count);                     // one line per company
-                Assert.Equal(1800m, inv.TotalAmount);
+                Assert.Equal(4, inv.Lines.Count);                     // one line per BILLED company
+                Assert.Equal(2700m, inv.TotalAmount);
                 Assert.Equal(0m, inv.Balance);
                 Assert.Equal("Paid", inv.Status, ignoreCase: true);
 
@@ -245,7 +267,7 @@ namespace PlatformBilling.Tests
                     // Evaluation snapshots persisted for all three companies.
                     var snaps = Convert.ToInt32(await Scalar(c,
                         "SELECT COUNT(DISTINCT farmid) FROM companybillingevaluations WHERE evaluationreason = 'InvoiceGeneration'"));
-                    Assert.Equal(3, snaps);
+                    Assert.Equal(4, snaps);   // every BILLED company snapshots; setup-required companies have nothing priced to freeze
 
                     // ---- Part 65: months later the flock shrinks to 4,200 ----
                     await Exec(c, $"INSERT INTO productionrecords (farmid, flockid, noofbirdsleft, date) VALUES ('{farmPoultry}', 1, 4200, now())");
@@ -259,7 +281,16 @@ namespace PlatformBilling.Tests
                 var poultryLine = invAgain.Lines.Single(l => l.FarmId == farmPoultry);
                 Assert.Equal(6365m, poultryLine.MetricValue);
                 Assert.Equal(1500m, poultryLine.LineAmount);
-                Assert.Equal(1800m, invAgain.TotalAmount);
+                Assert.Equal(2700m, invAgain.TotalAmount);
+
+                // Customer-app spec 8: the annual preview is a comparison only
+                // — no annual prices are configured in this fixture, so every
+                // currently-billed company is reported missing, nothing throws
+                // and nothing changes.
+                var cyclePrev = await svc.PreviewBillingCycleAsync(owner, "annual");
+                Assert.NotNull(cyclePrev);
+                Assert.Equal("monthly", cyclePrev!.CurrentCycle);
+                Assert.Equal(4, cyclePrev.MissingPrices.Count);
                 _out.WriteLine($"Part 64/65 passed against throwaway db {dbName}.");
             }
             finally

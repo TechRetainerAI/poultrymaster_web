@@ -47,6 +47,11 @@ import {
   type CompanyBillingRow,
   type MarketChangePreview,
   getPublicPricing,
+  getPricingContexts,
+  getCyclePreview,
+  type PricingContext,
+  type CyclePreview,
+  type SavingsDetail,
 } from "@/lib/api/platform-billing"
 import { PUBLIC_PLANS, plansFromApi, type PublicPlan } from "@/lib/billing/public-pricing"
 import { PlanCard } from "@/components/billing/plan-card"
@@ -121,8 +126,15 @@ function TypeTile({ type }: { type: string }) {
 }
 
 /** One statement row per company. */
+function metricLabel(metricType: string, n: number) {
+  if (metricType === "ActiveBirdCount") return n === 1 ? "active bird" : "active birds"
+  if (metricType === "ActiveProductionLines") return n === 1 ? "active production line" : "active production lines"
+  return n === 1 ? "unit" : "units"
+}
+
 function CompanyRow({ c, onExplain }: { c: CompanyBillingRow; onExplain: (farmId: string) => void }) {
   const unpriced = c.pricingStatus === "PricingNotConfigured"
+  const setupRequired = c.pricingStatus === "ScaleSetupRequired"
   const evaluation = c.pricingStatus === "Evaluation"
   const inactive = c.participationStatus !== "Active" && c.participationStatus !== "EnterpriseContract"
 
@@ -136,13 +148,18 @@ function CompanyRow({ c, onExplain }: { c: CompanyBillingRow; onExplain: (farmId
         </div>
       </div>
 
-      <div className="hidden w-32 text-sm sm:block">
-        {c.metricType === "ManualScale" && c.metricValue === 0 ? (
+      <div className="hidden w-36 text-sm sm:block">
+        {setupRequired ? (
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden />
+            Setup required
+          </span>
+        ) : c.metricType === "ManualScale" && c.metricValue === 0 ? (
           <span className="text-[13px] italic text-slate-400">No scale set</span>
         ) : (
           <span className="tabular-nums font-medium text-slate-700">
             {c.metricValue.toLocaleString()}
-            <span className="font-normal text-slate-400"> {c.metricType === "ActiveBirdCount" ? "birds" : "units"}</span>
+            <span className="font-normal text-slate-400"> {metricLabel(c.metricType, c.metricValue)}</span>
           </span>
         )}
       </div>
@@ -152,7 +169,13 @@ function CompanyRow({ c, onExplain }: { c: CompanyBillingRow; onExplain: (farmId
       </div>
 
       <div className="w-36 text-right">
-        {unpriced ? (
+        {setupRequired ? (
+          // Spec 18: zero production lines is a SETUP state, never a Starter
+          // bill and never "pricing pending" — pricing may be fully configured.
+          <a href="/water-production-lines" className="text-xs font-medium text-indigo-600 hover:underline">
+            Configure production lines
+          </a>
+        ) : unpriced ? (
           <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700">
             <span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden />
             Pricing pending
@@ -207,6 +230,15 @@ export function BillingPanel() {
   // spec 11-16) so admins edit copy/prices without deploys; the static ladder
   // is only the offline fallback. Vertical follows the org's first company.
   const [planCards, setPlanCards] = useState<PublicPlan[]>(PUBLIC_PLANS)
+  const [contexts, setContexts] = useState<PricingContext[]>([])
+  const [context, setContext] = useState<PricingContext | null>(null)
+  // The explorer toggle is DISPLAY ONLY (spec 5): it never touches the
+  // subscription's real billing frequency.
+  const [explorerCycle, setExplorerCycle] = useState<"monthly" | "annual">("monthly")
+  const [cyclePrev, setCyclePrev] = useState<CyclePreview | null>(null)
+  const [cycleOpen, setCycleOpen] = useState(false)
+  const [cycleBusy, setCycleBusy] = useState(false)
+  const [savingsOpen, setSavingsOpen] = useState(false)
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -232,23 +264,41 @@ export function BillingPanel() {
   }, [reload])
 
   useEffect(() => {
-    if (!summary) return
-    const family = (summary.companies[0]?.companyFamily || "Poultry").toLowerCase()
-    const profile =
-      family === "water" ? "WATER_PRODUCTION_LINES"
-      : family === "hotel" ? "HOTEL_ROOMS"
-      : family === "restaurant" ? "RESTAURANT_LOCATIONS"
-      : family === "generic" ? "GENERIC_STANDARD"
-      : "POULTRY_BIRDS"
-    const template = family === "generic" ? summary.companies[0]?.businessType : undefined
-    getPublicPricing(summary.account.marketCode, profile, template)
+    getPricingContexts().then(setContexts).catch(() => {})
+  }, [])
+
+  // Default pricing context = a business type already in the organization
+  // (spec 4); remembered for the page session only.
+  useEffect(() => {
+    if (!summary || context || contexts.length === 0) return
+    const first = summary.companies[0]
+    const match = first
+      ? contexts.find((x) =>
+          first.companyFamily.toLowerCase() === "generic"
+            ? x.businessTemplateCode === first.businessType
+            : x.billingProfileCode === first.billingProfileCode && !x.businessTemplateCode)
+      : null
+    setContext(match ?? contexts.find((x) => !x.businessTemplateCode) ?? contexts[0])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [summary, contexts])
+
+  useEffect(() => {
+    if (!context) return
+    getPublicPricing(summary?.account.marketCode ?? "GH", context.billingProfileCode, context.businessTemplateCode ?? undefined)
       .then((api) => {
         const mapped = plansFromApi(api)
         if (mapped.length > 0) setPlanCards(mapped)
       })
       .catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [summary?.account?.marketCode, summary?.companies?.length])
+  }, [context, summary?.account?.marketCode])
+
+  const openCycleDialog = async () => {
+    const target = summary?.account.billingCycle === "annual" ? "monthly" : "annual"
+    setCycleOpen(true)
+    setCyclePrev(null)
+    try { setCyclePrev(await getCyclePreview(target as "monthly" | "annual")) } catch { setCycleOpen(false) }
+  }
 
   useEffect(() => {
     const status = searchParams.get("billing")
@@ -393,10 +443,7 @@ export function BillingPanel() {
               <p className="mt-1 text-sm text-slate-500">{acct.trialDaysLeft} trial days remaining</p>
             )}
             <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-              <button
-                className="text-indigo-600 hover:underline"
-                onClick={() => void act(() => setBillingCycle(acct.billingCycle === "annual" ? "monthly" : "annual"))}
-              >
+              <button className="text-indigo-600 hover:underline" onClick={() => void openCycleDialog()}>
                 Switch to {acct.billingCycle === "annual" ? "monthly" : "annual"} billing
               </button>
               <button
@@ -518,6 +565,23 @@ export function BillingPanel() {
               </>
             )}
           </div>
+          {(summary.savings?.length ?? 0) > 0 && (
+            <div className="mt-3 flex items-center justify-between px-1">
+              <button className="text-xs font-medium text-indigo-600 hover:underline" onClick={() => setSavingsOpen(true)}>
+                View savings details
+              </button>
+              {(() => {
+                const ending = (summary.savings ?? [])
+                  .filter((x) => x.endDate)
+                  .sort((a, b) => String(a.endDate).localeCompare(String(b.endDate)))[0]
+                return ending ? (
+                  <span className="text-xs text-slate-500">
+                    Your {ending.name} ends {new Date(ending.endDate!).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}.
+                  </span>
+                ) : null
+              })()}
+            </div>
+          )}
           {preview.hasUnpricedCompanies && (
             <div className="mt-4 flex items-start gap-2 rounded-lg bg-amber-50/70 px-3 py-2.5 ring-1 ring-inset ring-amber-600/10">
               <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
@@ -535,17 +599,58 @@ export function BillingPanel() {
           CTA area shows how many of the org's companies sit on each plan;
           only Enterprise carries a real button. */}
       <div className={inter.className}>
-        <div className="mb-4 flex items-baseline justify-between px-1">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 px-1">
           <h3 className="text-[15px] font-semibold tracking-[-0.01em] text-slate-900">Plans</h3>
-          <span className="text-xs text-slate-500">Assigned automatically from each company's scale</span>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 text-sm text-slate-600">
+              <span className="hidden sm:inline">View pricing for</span>
+              <select
+                className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm"
+                value={context ? `${context.billingProfileCode}|${context.businessTemplateCode ?? ""}` : ""}
+                onChange={(e) => {
+                  const [pc, tc] = e.target.value.split("|")
+                  setContext(contexts.find((x) => x.billingProfileCode === pc && (x.businessTemplateCode ?? "") === tc) ?? null)
+                }}
+              >
+                {contexts.map((x) => (
+                  <option key={`${x.billingProfileCode}|${x.businessTemplateCode ?? ""}`} value={`${x.billingProfileCode}|${x.businessTemplateCode ?? ""}`}>
+                    {x.displayName}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="inline-flex rounded-full bg-slate-100 p-0.5">
+              {(["monthly", "annual"] as const).map((cy) => (
+                <button
+                  key={cy}
+                  onClick={() => setExplorerCycle(cy)}
+                  className={`rounded-full px-3.5 py-1 text-xs font-medium capitalize transition-colors ${
+                    explorerCycle === cy ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
+                  }`}
+                >
+                  {cy}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
         <div className="grid gap-6 pt-3 sm:grid-cols-2 xl:grid-cols-4 xl:gap-5">
           {planCards.map((p) => {
-            const onPlan = companies.filter((c) => (c.tierName || "").toLowerCase() === p.name.toLowerCase()).length
+            // Context-aware counts (spec 20/21): only companies of the SELECTED
+            // business type, resolved and billed into this tier — pending or
+            // setup-required companies never count as Starter.
+            const billedHere = companies.filter((c) =>
+              (c.pricingStatus === "Resolved" || c.pricingStatus === "CustomPrice" || c.pricingStatus === "Grandfathered")
+              && (c.tierCode || "").toLowerCase() === p.code.toLowerCase()
+              && c.billingProfileCode === context?.billingProfileCode
+              && (!context?.businessTemplateCode || c.businessType === context.businessTemplateCode))
+            const onPlan = billedHere.length
+            const ctxName = context?.displayName ?? "your"
             return (
               <PlanCard
-                key={p.code}
+                key={`${context?.billingProfileCode}-${p.code}`}
                 plan={p}
+                cycle={explorerCycle}
                 cta={
                   p.code === "enterprise" ? (
                     <a
@@ -565,8 +670,8 @@ export function BillingPanel() {
                       }`}
                     >
                       {onPlan > 0
-                        ? `${onPlan} of your ${onPlan === 1 ? "company is" : "companies are"} on this plan`
-                        : "No companies at this scale yet"}
+                        ? `${onPlan} of your ${ctxName} ${onPlan === 1 ? "company is" : "companies are"} on this plan`
+                        : `No ${ctxName} companies at this scale`}
                     </div>
                   )
                 }
@@ -575,11 +680,121 @@ export function BillingPanel() {
           })}
         </div>
         <p className="mt-4 px-1 text-xs leading-relaxed text-slate-500">
-          Every plan includes the complete platform — pricing scales with each company's size. Poultry companies
-          are priced by active birds today; other business types are listed on your bill but not charged until
-          their pricing is enabled.
+          Every plan includes the complete platform — pricing scales with each company's measured size. Exploring
+          monthly or annual here never changes your actual billing; use "Switch billing" above when you decide.
+          Business types without configured pricing are listed on your bill but not charged until enabled.
         </p>
       </div>
+
+      {/* Savings details (spec 24/26): customer-safe, backend values only. */}
+      <Dialog open={savingsOpen} onOpenChange={setSavingsOpen}>
+        <DialogContent className={inter.className}>
+          <DialogHeader>
+            <DialogTitle>Your savings</DialogTitle>
+            <DialogDescription>Everything currently reducing your VisibilityCore bill.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {(summary.savings ?? []).map((sv, i) => (
+              <div key={i} className="rounded-lg bg-slate-50 p-3">
+                <div className="flex items-baseline justify-between">
+                  <p className="text-sm font-semibold text-slate-900">
+                    {sv.name}
+                    {sv.kind !== "Credit" && sv.value != null && (
+                      <span className="ml-1.5 font-normal text-slate-500">
+                        {sv.discountType === "Fixed" ? money(sv.value, preview.currencyCode) : `${sv.value}%`}
+                      </span>
+                    )}
+                  </p>
+                  <span className="tabular-nums text-sm font-semibold text-emerald-700">
+                    -{money(sv.amountThisPeriod, preview.currencyCode)}
+                  </span>
+                </div>
+                {sv.explanation && <p className="mt-1 text-xs leading-relaxed text-slate-500">{sv.explanation}</p>}
+                {(sv.endDate || sv.remainingPeriods != null) && (
+                  <p className="mt-1 text-xs text-slate-500">
+                    {sv.endDate && <>Valid through {new Date(sv.endDate).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}. </>}
+                    {sv.remainingPeriods != null && <>{sv.remainingPeriods} billing {sv.remainingPeriods === 1 ? "period" : "periods"} remaining.</>}
+                  </p>
+                )}
+              </div>
+            ))}
+            <p className="text-right text-sm font-medium text-slate-900">
+              You save {money((summary.savings ?? []).reduce((a, x) => a + x.amountThisPeriod, 0), preview.currencyCode)} this billing period.
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Billing-frequency switch (spec 8/9): backend-computed comparison,
+          explicit confirmation, effective next billing period. */}
+      <Dialog open={cycleOpen} onOpenChange={setCycleOpen}>
+        <DialogContent className={inter.className}>
+          <DialogHeader>
+            <DialogTitle>Switch to {cyclePrev?.targetCycle ?? "…"} billing</DialogTitle>
+            <DialogDescription>Amounts are computed by the billing engine, not this page.</DialogDescription>
+          </DialogHeader>
+          {!cyclePrev ? (
+            <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-slate-400" /></div>
+          ) : (
+            <div className="space-y-3 text-sm">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg bg-slate-50 p-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Current — {cyclePrev.currentCycle}</p>
+                  <p className="mt-1 tabular-nums text-lg font-semibold text-slate-900">
+                    {money(cyclePrev.current.total, cyclePrev.current.currencyCode)}
+                    <span className="text-xs font-normal text-slate-400">/{cyclePrev.currentCycle === "annual" ? "yr" : "mo"}</span>
+                  </p>
+                </div>
+                <div className="rounded-lg bg-indigo-50 p-3 ring-1 ring-inset ring-indigo-600/10">
+                  <p className="text-xs font-medium uppercase tracking-wide text-indigo-600">New — {cyclePrev.targetCycle}</p>
+                  <p className="mt-1 tabular-nums text-lg font-semibold text-slate-900">
+                    {money(cyclePrev.target.total, cyclePrev.target.currencyCode)}
+                    <span className="text-xs font-normal text-slate-400">/{cyclePrev.targetCycle === "annual" ? "yr" : "mo"}</span>
+                  </p>
+                  {cyclePrev.targetCycle === "annual" && (
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      Equivalent to {money(cyclePrev.target.total / 12, cyclePrev.target.currencyCode)}/month
+                    </p>
+                  )}
+                  {cyclePrev.targetCycle === "annual" && cyclePrev.current.total * 12 - cyclePrev.target.total > 0 && (
+                    <p className="mt-0.5 text-xs font-medium text-emerald-700">
+                      Estimated savings {money(cyclePrev.current.total * 12 - cyclePrev.target.total, cyclePrev.target.currencyCode)}/year
+                    </p>
+                  )}
+                </div>
+              </div>
+              {cyclePrev.missingPrices.length > 0 && (
+                <Alert className="border-amber-200 bg-amber-50 text-amber-800">
+                  <AlertDescription className="text-xs">
+                    {cyclePrev.targetCycle === "annual" ? "Annual" : "Monthly"} pricing is not configured yet for:{" "}
+                    {cyclePrev.missingPrices.join(", ")}. The switch is unavailable until it is.
+                  </AlertDescription>
+                </Alert>
+              )}
+              <p className="text-xs text-slate-500">
+                Effective: next billing period ({new Date(cyclePrev.effectiveDate).toLocaleDateString()}).
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={() => setCycleOpen(false)}>Cancel</Button>
+                <Button
+                  size="sm"
+                  disabled={cycleBusy || cyclePrev.missingPrices.length > 0}
+                  onClick={async () => {
+                    setCycleBusy(true)
+                    try {
+                      await act(() => setBillingCycle(cyclePrev.targetCycle as "monthly" | "annual"))
+                      setCycleOpen(false)
+                    } finally { setCycleBusy(false) }
+                  }}
+                >
+                  {cycleBusy && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                  Confirm switch to {cyclePrev.targetCycle}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* History: invoices and payments share one card */}
       <Card>
