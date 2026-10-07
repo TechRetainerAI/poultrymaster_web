@@ -367,6 +367,7 @@ CREATE TRIGGER trg_sale_eggclass_audit AFTER UPDATE OF poultryproductid, salegro
 -- Discard now records who discarded. New signature: drop the 342 one first so
 -- a two-argument call is not ambiguous.
 DROP FUNCTION IF EXISTS public.sppoultryeggsorting_discard(text, integer);
+DROP FUNCTION IF EXISTS public.sppoultryeggsorting_discard(text, integer, text);
 CREATE FUNCTION public.sppoultryeggsorting_discard(p_farmid text, p_sessionid integer, p_by text DEFAULT NULL)
 RETURNS void
 LANGUAGE plpgsql
