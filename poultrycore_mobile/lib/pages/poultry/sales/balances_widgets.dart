@@ -130,7 +130,12 @@ class ListFiltersCard extends StatelessWidget {
           FilterLabel('To', FilterDate(value: to, hint: 'To', onChanged: (v) => onDates(from, v))),
         ]),
         ],
-        for (final e in extras) ...[const SizedBox(height: 10), e],
+        // The page's own filters two to a row, so the card doesn't run the
+        // length of the screen.
+        for (var i = 0; i < extras.length; i += 2) ...[
+          const SizedBox(height: 10),
+          i + 1 < extras.length ? filterRow([extras[i], extras[i + 1]]) : extras[i],
+        ],
         if (active > 0)
           Align(
             alignment: Alignment.centerLeft,

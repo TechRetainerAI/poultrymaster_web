@@ -31,9 +31,9 @@ const Map<String, List<NavGroup>> webNavGroups = {
   'poultry': [
     NavGroup('Quick Links', [
       NavSubGroup('', [
-        NavLink('Production Records', '/production-records', 'production-records'),
-        NavLink('Egg sorting', '/egg-production', 'eggproduction'),
-        NavLink('Raw Materials', '/poultry-raw-materials', 'raw-materials'),
+        NavLink('Production Records', '/production-records', null),
+        NavLink('Egg sorting', '/egg-production', null),
+        NavLink('Raw Materials', '/poultry-raw-materials', null),
         NavLink('Sales', '/sales', 'sales'),
         NavLink('Payments received', '/poultry-payments', 'poultry-payments'),
         NavLink('Customer Balances', '/customer-balances', 'poultry-customer-balances'),
@@ -45,26 +45,26 @@ const Map<String, List<NavGroup>> webNavGroups = {
     ]),
     NavGroup('Operations', [
       NavSubGroup('Production', [
-        NavLink('Production Records', '/production-records', 'production-records'),
-        NavLink('Batch Production', '/batch-production-records', 'productionbatchrecord'),
-        NavLink('Egg sorting', '/egg-production', 'eggproduction'),
-        NavLink('Feed Usage', '/feed-usage', 'feedusage'),
-        NavLink('Feed Production', '/poultry-feed-production', 'poultry-feed-production'),
+        NavLink('Production Records', '/production-records', null),
+        NavLink('Batch Production', '/batch-production-records', null),
+        NavLink('Egg sorting', '/egg-production', null),
+        NavLink('Feed Usage', '/feed-usage', null),
+        NavLink('Feed Production', '/poultry-feed-production', null),
       ]),
       NavSubGroup('Inventory & Health', [
-        NavLink('Inventory', '/poultry-inventory', 'poultry-products'),
-        NavLink('Stock movements', '/poultry-stock', 'poultry-stock-transactions'),
-        NavLink('Raw Materials & Supplies', '/poultry-raw-materials', 'raw-materials'),
-        NavLink('Health Records', '/health', 'health'),
-        NavLink('Loss & Damage', '/poultry-loss-records', 'poultry-loss-records'),
+        NavLink('Inventory', '/poultry-inventory', null),
+        NavLink('Stock movements', '/poultry-stock', null),
+        NavLink('Raw Materials & Supplies', '/poultry-raw-materials', null),
+        NavLink('Health Records', '/health', null),
+        NavLink('Loss & Damage', '/poultry-loss-records', null),
       ]),
       NavSubGroup('Delivery', [
-        NavLink('Deliveries', '/poultry-driver-returns', 'poultry-driver-returns'),
-        NavLink('Driver report', '/poultry-driver-report', 'poultry-reports-driver-collection'),
+        NavLink('Deliveries', '/poultry-driver-returns', null),
+        NavLink('Driver report', '/poultry-driver-report', null),
       ]),
       NavSubGroup('Purchase', [
-        NavLink('Flock Purchases (Batches)', '/flock-batch', 'flock'),
-        NavLink('Record Purchase', '/poultry-raw-materials?purchase=1', 'raw-materials'),
+        NavLink('Flock Purchases (Batches)', '/flock-batch', null),
+        NavLink('Record Purchase', '/poultry-raw-materials?purchase=1', null),
       ]),
     ]),
     NavGroup('Sales, Expenses & Money', [
@@ -197,9 +197,11 @@ const Map<String, List<NavGroup>> webNavGroups = {
     ]),
     NavGroup('System', [
       NavSubGroup('Your account', [
-        NavLink('Account', '/profile', 'authentication-get-current-user'),
-        NavLink('Billing', '/billing', 'payments-subscription-tiers'),
-        NavLink('Activity Log', '/audit-logs', 'auditlogs'),
+        NavLink('Account', '/profile', null),
+        // An action, not a page: opens "System Alerts and Notifications".
+        NavLink('Alerts', '#alerts', null),
+        NavLink('Billing', '/business-office/billing', null),
+        NavLink('Activity Log', '/audit-logs', null),
         NavLink('Resources', '/resources', null),
         NavLink('Help Center', '/help', null),
         NavLink('Terms & Conditions', '/terms', null),

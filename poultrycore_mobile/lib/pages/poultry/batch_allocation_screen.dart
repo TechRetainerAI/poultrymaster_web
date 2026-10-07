@@ -24,7 +24,11 @@ class BatchAllocationScreen extends StatefulWidget {
     required this.company,
     this.flocks = const [],
     this.source = 'Flock Groups page',
+    this.batchId,
   });
+
+  /// The web dialog's `batchId`: opens straight on that batch's allocation.
+  final int? batchId;
 
   final Session session;
   final Company company;
@@ -112,6 +116,13 @@ class _BatchAllocationScreenState extends State<BatchAllocationScreen> {
   void initState() {
     super.initState();
     _loadBatches();
+    final id = widget.batchId;
+    if (id != null && id > 0) {
+      _step = _Step.allocate;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _loadContext(id);
+      });
+    }
   }
 
   Future<void> _loadBatches() async {

@@ -39,6 +39,11 @@ class MobileCardList<T> extends StatefulWidget {
     this.secondary,
     this.highlights,
     this.details,
+    this.detailColor,
+    this.detailTap,
+    this.onPrimary,
+    this.alwaysExpanded = false,
+    this.secondaryBuilder,
     this.actions,
     this.extra,
     this.trailing,
@@ -54,6 +59,21 @@ class MobileCardList<T> extends StatefulWidget {
   final String Function(T)? secondary;
   final List<Highlight> Function(T)? highlights;
   final List<(String, String)> Function(T)? details;
+
+  /// A detail value's own colour (the web's styled value spans), or null.
+  final Color? Function(T item, String label)? detailColor;
+
+  /// A detail value that is a link (the web's `<Link>` in a details cell), or null.
+  final VoidCallback? Function(T item, String label)? detailTap;
+
+  /// The web's `alwaysExpanded`: cards stay open and there is no table toggle.
+  final bool alwaysExpanded;
+
+  /// The title as a link (the web wraps it in a `<Link>`), or null.
+  final void Function(T)? onPrimary;
+
+  /// A secondary line with badges or coloured parts, in place of [secondary].
+  final Widget Function(T)? secondaryBuilder;
   final List<Widget> Function(T)? actions;
 
   /// Under the details, as the web's `extra` slot.
@@ -97,6 +117,7 @@ class _MobileCardListState<T> extends State<MobileCardList<T>> {
         ),
         const SizedBox(height: 8),
       ],
+      if (!widget.alwaysExpanded)
       TextButton.icon(
         onPressed: () => setState(() => _table = true),
         iconAlignment: IconAlignment.end,
@@ -119,7 +140,7 @@ class _Card<T> extends StatefulWidget {
 }
 
 class _CardState<T> extends State<_Card<T>> {
-  late bool _open = widget.list.defaultOpen;
+  late bool _open = widget.list.defaultOpen || widget.list.alwaysExpanded;
 
   @override
   Widget build(BuildContext context) {
@@ -144,8 +165,17 @@ class _CardState<T> extends State<_Card<T>> {
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(l.primary(it), style: const TextStyle(fontWeight: FontWeight.w600, color: TColors.slate900)),
-                  if (l.secondary != null) ...[
+                  if (l.onPrimary != null)
+                    InkWell(
+                      onTap: () => l.onPrimary!(it),
+                      child: Text(l.primary(it), style: const TextStyle(fontWeight: FontWeight.w600, color: TColors.sky700)),
+                    )
+                  else
+                    Text(l.primary(it), style: const TextStyle(fontWeight: FontWeight.w600, color: TColors.slate900)),
+                  if (l.secondaryBuilder != null) ...[
+                    const SizedBox(height: 2),
+                    DefaultTextStyle.merge(style: const TextStyle(fontSize: 13, color: TColors.slate600), child: l.secondaryBuilder!(it)),
+                  ] else if (l.secondary != null) ...[
                     const SizedBox(height: 2),
                     Text(l.secondary!(it), style: const TextStyle(fontSize: 13, color: TColors.slate600)),
                   ],
@@ -192,7 +222,12 @@ class _CardState<T> extends State<_Card<T>> {
                     width: half,
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(label, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
-                      Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                      Builder(builder: (_) {
+                        final tapTo = l.detailTap?.call(it, label);
+                        final text = Text(value,
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: tapTo != null ? TColors.blue600 : l.detailColor?.call(it, label)));
+                        return tapTo == null ? text : InkWell(onTap: tapTo, child: text);
+                      }),
                     ]),
                   ),
               ]);

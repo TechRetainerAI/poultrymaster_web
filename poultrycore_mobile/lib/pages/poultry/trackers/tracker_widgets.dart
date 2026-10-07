@@ -9,7 +9,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../api/api_client.dart';
-import '../../../design/tokens.dart';
 import '../../../design/ui/buttons.dart';
 import '../../../design/ui/inputs.dart';
 import '../../../models/company.dart';
@@ -27,8 +26,8 @@ class TColors {
   static const slate800 = Color(0xFF1E293B);
   static const slate700 = Color(0xFF334155);
   static const slate600 = Color(0xFF475569);
-  static const slate500 = Color(0xFF64748B);
-  static const slate400 = Color(0xFF94A3B8);
+  static const slate500 = Color(0xFF566579);  // a shade darker than Tailwind's, for legibility
+  static const slate400 = Color(0xFF7F8EA3);  // a shade darker than Tailwind's, for legibility
   static const slate300 = Color(0xFFCBD5E1);
   static const slate200 = Color(0xFFE2E8F0);
   static const slate100 = Color(0xFFF1F5F9);
@@ -1055,7 +1054,7 @@ class FilterLabel extends StatelessWidget {
   Widget build(BuildContext context) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(text, style: TextStyle(fontSize: 12, color: context.tokens.mutedForeground)),
+          Text(text, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: TColors.slate700)),
           const SizedBox(height: 4),
           child,
         ],

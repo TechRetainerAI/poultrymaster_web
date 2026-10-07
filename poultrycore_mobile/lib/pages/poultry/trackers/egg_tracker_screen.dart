@@ -309,7 +309,6 @@ class _EggTrackerScreenState extends State<EggTrackerScreen> {
       trailing: AppButton(
         label: 'Add adjustment',
         icon: Icons.add,
-        variant: AppButtonVariant.outline,
         size: AppButtonSize.sm,
         onPressed: () => _openAdjustment(),
       ),

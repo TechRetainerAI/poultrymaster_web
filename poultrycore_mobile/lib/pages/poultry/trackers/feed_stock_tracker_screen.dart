@@ -464,7 +464,6 @@ class _FeedStockTrackerScreenState extends State<FeedStockTrackerScreen> {
           ? AppButton(
               label: 'Add adjustment',
               icon: Icons.add,
-              variant: AppButtonVariant.outline,
               size: AppButtonSize.sm,
               onPressed: () => _openAdjustment(),
             )

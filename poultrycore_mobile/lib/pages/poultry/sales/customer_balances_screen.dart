@@ -342,6 +342,8 @@ class _CustomerBalancesScreenState extends State<CustomerBalancesScreen> {
                   AppInput(controller: _search, hintText: '${_side.partyTitle} name or phone', onChanged: (_) => _load()),
                 ),
                 const SizedBox(height: 10),
+                // Two filters to a row, so the card stays short.
+                filterRow([
                 FilterLabel(
                   _side.partyTitle,
                   AppSelect<String>(
@@ -356,7 +358,6 @@ class _CustomerBalancesScreenState extends State<CustomerBalancesScreen> {
                     },
                   ),
                 ),
-                const SizedBox(height: 10),
                 FilterLabel(
                   'Payment method',
                   AppSelect<String>(
@@ -368,7 +369,9 @@ class _CustomerBalancesScreenState extends State<CustomerBalancesScreen> {
                     onChanged: (v) => setState(() => _method = v ?? 'all'),
                   ),
                 ),
+                ]),
                 const SizedBox(height: 10),
+                filterRow([
                 FilterLabel(
                   'Status',
                   AppSelect<String>(
@@ -380,7 +383,6 @@ class _CustomerBalancesScreenState extends State<CustomerBalancesScreen> {
                     },
                   ),
                 ),
-                const SizedBox(height: 10),
                 FilterLabel(
                   'Period',
                   AppSelect<String>(
@@ -403,6 +405,7 @@ class _CustomerBalancesScreenState extends State<CustomerBalancesScreen> {
                     },
                   ),
                 ),
+                ]),
                 const SizedBox(height: 10),
                 filterRow([
                   FilterLabel('From', FilterDate(value: _from, hint: 'From', onChanged: (v) {

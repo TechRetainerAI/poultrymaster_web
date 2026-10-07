@@ -65,9 +65,10 @@ class AppButton extends StatelessWidget {
         bg = scheme.secondary;
         fg = scheme.onSecondary;
       case AppButtonVariant.outline:
-        bg = scheme.surface;
+        final light = scheme.brightness == Brightness.light;
+        bg = light ? const Color(0xFFF8FAFC) : scheme.surface;
         fg = scheme.onSurface;
-        side = BorderSide(color: tokens.border);
+        side = BorderSide(color: light ? const Color(0xFFCBD5E1) : const Color(0xFF404040));
       case AppButtonVariant.ghost:
       case AppButtonVariant.link:
         bg = Colors.transparent;
@@ -98,7 +99,7 @@ class AppButton extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 14,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
                     decoration: variant == AppButtonVariant.link
                         ? TextDecoration.underline
                         : null,
@@ -124,6 +125,7 @@ class AppButton extends StatelessWidget {
               border: side == BorderSide.none ? null : Border.fromBorderSide(side),
             ),
             child: Center(
+              widthFactor: fullWidth ? null : 1,
               child: DefaultTextStyle.merge(
                 style: TextStyle(color: fg),
                 child: IconTheme(data: IconThemeData(color: fg), child: content),
@@ -135,9 +137,11 @@ class AppButton extends StatelessWidget {
     );
 
     // Pad the hit area to 48dp without changing the drawn height.
+    // widthFactor 1 keeps the button its own width: without it Center grows
+    // to the full row, so buttons laid out in a Wrap each took a whole line.
     final tappable = ConstrainedBox(
       constraints: const BoxConstraints(minHeight: _minTapHeight),
-      child: Center(heightFactor: 1, child: button),
+      child: Center(heightFactor: 1, widthFactor: fullWidth ? null : 1, child: button),
     );
 
     return fullWidth

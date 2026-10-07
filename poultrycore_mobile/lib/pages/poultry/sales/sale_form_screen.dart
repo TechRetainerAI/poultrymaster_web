@@ -566,17 +566,23 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
           const SizedBox(height: 20),
           const Divider(height: 1),
           const SizedBox(height: 12),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: TColors.red600, minimumSize: const Size.fromHeight(44)),
-            onPressed: _saving ? null : () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          const SizedBox(height: 8),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: TColors.blue600, minimumSize: const Size.fromHeight(44)),
-            onPressed: _saving ? null : _save,
-            child: Text(_isEdit ? 'Update Sale' : 'Create Sale'),
-          ),
+          Row(children: [
+            Expanded(
+              child: FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: TColors.red600, minimumSize: const Size.fromHeight(44)),
+                onPressed: _saving ? null : () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: TColors.blue600, minimumSize: const Size.fromHeight(44)),
+                onPressed: _saving ? null : _save,
+                child: Text(_isEdit ? 'Update Sale' : 'Create Sale'),
+              ),
+            ),
+          ]),
         ],
       ),
     );
