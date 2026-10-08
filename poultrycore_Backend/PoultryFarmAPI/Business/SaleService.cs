@@ -320,7 +320,7 @@ namespace PoultryFarmAPIWeb.Business
 
         /// <summary>
         /// The sale's SG number, giving it one first if it has none (migration
-        /// 345), so egg sizes added on edit join this sale instead of becoming
+        /// 349), so egg sizes added on edit join this sale instead of becoming
         /// separate sales.
         /// </summary>
         public async Task<string> EnsureGroup(int saleId, string farmId, string? userId)

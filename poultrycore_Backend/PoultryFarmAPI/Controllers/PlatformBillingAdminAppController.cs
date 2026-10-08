@@ -228,7 +228,9 @@ namespace PoultryFarmAPIWeb.Controllers
     public class PlatformBillingPublicController : ControllerBase
     {
         private readonly IPlatformBillingAdminService _admin;
-        public PlatformBillingPublicController(IPlatformBillingAdminService admin) => _admin = admin;
+        private readonly IPlatformBillingService _svc;
+        public PlatformBillingPublicController(IPlatformBillingAdminService admin, IPlatformBillingService svc)
+        { _admin = admin; _svc = svc; }
 
         [HttpGet("public-pricing")]
         public async Task<IActionResult> PublicPricing([FromQuery] string market = "GH",
@@ -236,6 +238,18 @@ namespace PoultryFarmAPIWeb.Controllers
         {
             var m = await _admin.GetPublicPricingAsync(market, profile, template);
             return m is null ? NotFound("No presentation is configured for that profile.") : Ok(m);
+        }
+
+        /// <summary>The pricing-context selector's options (customer-app spec 3).</summary>
+        [HttpGet("pricing-contexts")]
+        public async Task<IActionResult> PricingContexts() => Ok(await _admin.GetPricingContextsAsync());
+
+        /// <summary>Backend-computed monthly↔annual comparison for the switch confirmation (customer-app spec 8/9).</summary>
+        [HttpGet("cycle-preview")]
+        public async Task<IActionResult> CyclePreview([FromQuery] string userId, [FromQuery] string cycle)
+        {
+            var m = await _svc.PreviewBillingCycleAsync(userId, cycle);
+            return m is null ? NotFound("No billing account yet.") : Ok(m);
         }
     }
 

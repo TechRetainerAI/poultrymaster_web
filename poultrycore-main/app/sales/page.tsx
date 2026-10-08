@@ -791,7 +791,7 @@ export default function SalesPage() {
           return
         }
         // A single sale getting its first extra size needs a sale number for
-        // the new lines to join (migration 345). Asked first, so a failure
+        // the new lines to join (migration 349). Asked first, so a failure
         // here leaves the sale exactly as it was.
         let groupNo = editingSale.saleGroupNo ?? null
         if (!groupNo && extraEggLines.some((l) => !l.saleId)) {
@@ -2609,7 +2609,7 @@ export default function SalesPage() {
                         />
                       </div>
                       {/* A single sale can have sizes added too: it is given a
-                          sale number on save (migration 345). */}
+                          sale number on save (migration 349). */}
                       {hasEggSizes && (
                         <>
                           <ExtraEggLines classes={eggClasses} lines={extraEggLines} onChange={setExtraEggLines}

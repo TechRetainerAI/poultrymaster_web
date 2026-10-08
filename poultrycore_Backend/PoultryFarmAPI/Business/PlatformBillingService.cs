@@ -35,6 +35,7 @@ namespace PoultryFarmAPIWeb.Business
         Task<(bool Ok, string Message)> CancelAtPeriodEndAsync(string userId, string? reason);
         Task<(bool Ok, string Message)> ReactivateAsync(string userId);
         Task<PlanUsageModel?> GetPlanUsageAsync(string userId, string farmId);
+        Task<CyclePreviewModel?> PreviewBillingCycleAsync(string userId, string cycle);
         Task<List<EntitlementModel>> GetEntitlementsAsync(string userId, string farmId);
         Task<string> RunDailyMaintenanceAsync(string actor);
         Task<bool> IsPlatformAdminAsync(string userId);
@@ -373,6 +374,18 @@ namespace PoultryFarmAPIWeb.Business
             }
 
             row.MetricValue = await MetricValueAsync(conn, metricType, company.FarmId, state);
+
+            // Water with no recorded production lines and no configured scale is
+            // a SETUP state, never a Starter bill (customer-app spec 18/20):
+            // pricing can be fully configured while the company's scale is not.
+            // It neither bills nor blocks the rest of the organization's invoice.
+            if (string.Equals(metricType, "ActiveProductionLines", StringComparison.OrdinalIgnoreCase)
+                && row.MetricValue <= 0 && !state.ManualScale.HasValue)
+            {
+                row.PricingStatus = "ScaleSetupRequired";
+                return row;
+            }
+
             row.TierCode = PlatformBillingRules.QualifyTier(cfg.TierRules, profileCode, row.MetricValue);
             row.TierName = row.TierCode != null && cfg.Tiers.TryGetValue(row.TierCode, out var t) ? t.Name : row.TierCode;
 
@@ -472,6 +485,7 @@ namespace PoultryFarmAPIWeb.Business
                 Preview = await BuildPreviewAsync(conn, cfg, acct, companies, ps, pe),
                 PendingTierChanges = await PendingTierChangesAsync(conn, cfg, acct, companies, ps),
             };
+            summary.Savings = await CustomerSavingsAsync(conn, acct, summary.Preview);
             return summary;
         }
 
@@ -499,6 +513,116 @@ namespace PoultryFarmAPIWeb.Business
                 CreditsAvailable = creditsAvailable,
                 EstimatedCreditApplied = estCredit,
                 EstimatedAmountDue = charges.Total - estCredit,
+            };
+        }
+
+        /// <summary>
+        /// Customer-safe savings breakdown (customer-app spec 23-26): the auto
+        /// multi-company rule explained, each special discount/promotion with
+        /// its expiry and remaining periods, and the account credit — never
+        /// internal notes, never who created what.
+        /// </summary>
+        private static async Task<List<SavingsDetailModel>> CustomerSavingsAsync(
+            NpgsqlConnection conn, BillingAccountModel acct, BillPreviewModel preview)
+        {
+            var list = new List<SavingsDetailModel>();
+            var byId = preview.DiscountBreakdown.ToDictionary(x => x.Id, x => x.Amount);
+
+            if (byId.TryGetValue(0, out var autoAmt) && autoAmt > 0)
+                list.Add(new SavingsDetailModel
+                {
+                    Kind = "MultiCompany",
+                    Name = "Multi-company savings",
+                    DiscountType = "Percentage",
+                    Value = preview.DiscountPercent,
+                    AmountThisPeriod = autoAmt,
+                    Explanation = $"Applied because {preview.EligibleCompanyCount} eligible paid companies are included in your VisibilityCore subscription.",
+                });
+
+            using (var q = new NpgsqlCommand(@"
+                SELECT d.id, d.name, d.discounttype, d.value, d.enddate, d.durationperiods, d.promotionid,
+                       (SELECT COUNT(*) FROM platformdiscountapplications a WHERE a.discountid = d.id)
+                  FROM platformdiscounts d
+                 WHERE d.accountid = @A AND d.active AND d.revokedatutc IS NULL
+                   AND d.startdate <= CURRENT_DATE
+                   AND (d.enddate IS NULL OR d.enddate >= CURRENT_DATE)
+                   AND (d.durationperiods IS NULL OR
+                        (SELECT COUNT(*) FROM platformdiscountapplications a WHERE a.discountid = d.id) < d.durationperiods)
+                 ORDER BY d.id", conn))
+            {
+                q.Parameters.AddWithValue("@A", acct.Id);
+                using var r = await q.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                {
+                    var id = r.GetInt64(0);
+                    var duration = r.IsDBNull(5) ? (int?)null : r.GetInt32(5);
+                    var applied = r.GetInt32(7);
+                    list.Add(new SavingsDetailModel
+                    {
+                        Kind = r.IsDBNull(6) ? "Discount" : "Promotion",
+                        Name = r.GetString(1),
+                        DiscountType = r.GetString(2),
+                        Value = r.GetDecimal(3),
+                        AmountThisPeriod = byId.TryGetValue(id, out var amt) ? amt : 0m,
+                        EndDate = r.IsDBNull(4) ? null : r.GetDateTime(4),
+                        RemainingPeriods = duration.HasValue ? Math.Max(0, duration.Value - applied) : null,
+                    });
+                }
+            }
+
+            if ((preview.EstimatedCreditApplied) > 0)
+                list.Add(new SavingsDetailModel
+                {
+                    Kind = "Credit",
+                    Name = "Account credit",
+                    AmountThisPeriod = preview.EstimatedCreditApplied,
+                    Explanation = $"Remaining credit after this bill: {acct.CurrencyCode} {(preview.CreditsAvailable - preview.EstimatedCreditApplied):N2}.",
+                });
+            return list;
+        }
+
+        /// <summary>
+        /// Monthly ↔ annual comparison, backend-computed (customer-app spec 8/9).
+        /// Evaluates nothing persistently and changes nothing; the switch itself
+        /// stays SetBillingCycleAsync, effective next billing period.
+        /// </summary>
+        public async Task<CyclePreviewModel?> PreviewBillingCycleAsync(string userId, string cycle)
+        {
+            cycle = string.Equals(cycle, "annual", StringComparison.OrdinalIgnoreCase) ? "annual" : "monthly";
+            using var conn = new NpgsqlConnection(_cs);
+            await conn.OpenAsync();
+            var acct = await ReadAccountAsync(conn, userId);
+            if (acct is null) return null;
+            var cfg = await LoadConfigAsync(conn, acct.MarketCode);
+
+            var target = new BillingAccountModel
+            {
+                Id = acct.Id, OwnerUserId = acct.OwnerUserId, MarketCode = acct.MarketCode,
+                CurrencyCode = acct.CurrencyCode, Status = acct.Status, BillingCycle = cycle,
+            };
+
+            var (cps, cpe) = CurrentPeriod(acct.BillingCycle);
+            var (tps, tpe) = CurrentPeriod(cycle);
+            var currentRows = new List<CompanyBillingRowModel>();
+            var targetRows = new List<CompanyBillingRowModel>();
+            foreach (var c in await LoadCompaniesAsync(conn, userId))
+            {
+                currentRows.Add(await EvaluateCompanyAsync(conn, cfg, acct, c, "CyclePreview", cps, cpe, persistEvaluation: false));
+                targetRows.Add(await EvaluateCompanyAsync(conn, cfg, target, c, "CyclePreview", tps, tpe, persistEvaluation: false));
+            }
+            var missing = targetRows
+                .Where(x => x.PricingStatus == "PricingNotConfigured")
+                .Where(x => currentRows.FirstOrDefault(y => y.FarmId == x.FarmId)?.PricingStatus is "Resolved" or "CustomPrice" or "Grandfathered")
+                .Select(x => x.CompanyName).ToList();
+
+            return new CyclePreviewModel
+            {
+                CurrentCycle = acct.BillingCycle,
+                TargetCycle = cycle,
+                Current = await BuildPreviewAsync(conn, cfg, acct, currentRows, cps, cpe),
+                Target = await BuildPreviewAsync(conn, cfg, target, targetRows, tps, tpe),
+                MissingPrices = missing,
+                EffectiveDate = cpe.AddDays(1),
             };
         }
 

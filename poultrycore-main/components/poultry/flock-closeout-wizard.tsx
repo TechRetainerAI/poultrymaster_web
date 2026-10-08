@@ -18,6 +18,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { SuggestInput } from "@/components/ui/suggest-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -373,8 +374,8 @@ export function FlockCloseoutWizard({ flockId, open, onOpenChange, onClosed }: P
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">Customer{s.paymentTerms === "Paid" ? " (optional)" : ""}</Label>
-                        <Input list="closeout-customers" placeholder="Customer name" value={s.customerName ?? ""}
-                          onChange={(e) => patchSale(i, { customerName: e.target.value })} />
+                        <SuggestInput placeholder="Customer name" value={s.customerName ?? ""} suggestions={customers.map((c) => c.name)}
+                          onChange={(v) => patchSale(i, { customerName: v })} />
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="space-y-1">
@@ -423,9 +424,6 @@ export function FlockCloseoutWizard({ flockId, open, onOpenChange, onClosed }: P
                       )}
                     </div>
                   ))}
-                  <datalist id="closeout-customers">
-                    {customers.map((c) => <option key={c.customerId} value={c.name} />)}
-                  </datalist>
                 </div>
 
                 {/* Culls */}

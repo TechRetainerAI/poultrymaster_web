@@ -1,3 +1,10 @@
+-- SELF-CONTAINED (added 2026-10-07): this file now opens its own transaction and
+-- ROLLS IT BACK, so running it on its own can never commit its fixtures -- two of
+-- these files write to REAL companies (a fixed farm id / the first poultry farm).
+-- The apply scripts strip BEGIN;/ROLLBACK; lines when they bundle it, so their
+-- dry runs are unchanged. Do not remove these two lines.
+BEGIN;
+
 DO $t$
 DECLARE
     v_farm text := '3c4ac3cd-8792-4739-9b20-5f3b7d655a02';
@@ -144,3 +151,5 @@ BEGIN
     END;
 END
 $t$;
+
+ROLLBACK;

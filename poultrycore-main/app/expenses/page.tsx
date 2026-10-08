@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useEffect, useState, type ReactNode } from "react"
+import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { CostBreakdownDialog } from "@/components/poultry/cost-breakdown-dialog"
 import { NO_SECOND_PAYMENT_TOOLTIP } from "@/lib/poultry/cost-recognition"
@@ -69,6 +69,10 @@ import { formatDateShort, cn } from "@/lib/utils"
 import { exportTableToPdf } from "@/lib/utils/pdf-export"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 import { DateTimeCell } from "@/components/ui/date-time-cell"
+import { useBusinessDate } from "@/hooks/use-business-date"
+import { PrefilledBanner, RepeatPreviousButton, ReviewMark, reviewRing } from "@/components/repeat/repeat-previous"
+import { buildRepeatPrefill, latestEntry, repeatSubmitBlocker, unconfirmedFields, type RepeatPrefill } from "@/lib/repeat/repeat-previous"
+import { FIELD_LABELS, expensePolicy, isRepeatableExpense, type ExpenseForm } from "@/lib/repeat/policies"
 
 // Sentinel for a farm-wide expense (flockId = null), matching /expenses/new.
 const ALL_FLOCKS = "ALL"
@@ -325,8 +329,46 @@ function ExpensesPageInner() {
     setLoading(false)
   }
 
+  // Smart Repeat (lib/repeat/policies.ts expensePolicy). The default copies what
+  // DESCRIBES the expense; amount, cash account and paid status come only when
+  // the person explicitly asks for them, and then as "check" values.
+  const { businessDate } = useBusinessDate()
+  const [prefill, setPrefill] = useState<RepeatPrefill<ExpenseForm> | null>(null)
+  const [prefillConfirmed, setPrefillConfirmed] = useState(false)
+  // Expenses a workflow wrote (feed consumption, payroll, internal use ...) are not repeatable by hand.
+  const previousExpense = useMemo(
+    () => latestEntry(expenses.filter(isRepeatableExpense), (e) => e.expenseDate, (e) => e.expenseId),
+    [expenses],
+  )
+  const createUnconfirmed = unconfirmedFields(prefill, createForm as unknown as Partial<ExpenseForm>)
+
+  const repeatPrevious = (includeAmount: boolean) => {
+    if (!previousExpense) return
+    const today = businessDate || new Date().toISOString().split("T")[0]
+    const p = buildRepeatPrefill(expensePolicy({ includeAmount }), previousExpense, {
+      businessDate: today,
+      valid: {
+        flock: new Set(flocksForSelect.map((f: { value: string }) => f.value)),
+        supplier: new Set(suppliers.map((x) => x.supplierId)),
+        cashAccount: new Set(cashAccounts.map((a) => a.poultryCashAccountId)),
+        category: new Set(expenseCategories),
+      },
+    })
+    setCreateForm({
+      flockId: "", expenseDate: today, category: "", description: "", amount: "", paymentMethod: "", poultryCashAccountId: "",
+      supplierId: "", paymentStatus: "Paid", amountPaid: "", dueDate: "",
+      ...(p.values as Partial<typeof createForm>),
+    })
+    setCreateReceiptFile(null)
+    setCreateError("")
+    setPrefill(p); setPrefillConfirmed(false)
+    loadFlocksForSelect()
+    setIsCreateDialogOpen(true)
+  }
+
   // Create handlers
   const openCreateDialog = () => {
+    setPrefill(null); setPrefillConfirmed(false)
     setCreateForm({
       flockId: "", expenseDate: new Date().toISOString().split("T")[0], category: "", description: "", amount: "", paymentMethod: "", poultryCashAccountId: "",
       // Paid by default: that is what almost every expense entered by hand is,
@@ -345,6 +387,9 @@ function ExpensesPageInner() {
     setCreateError("")
     const { userId, farmId } = getUserContext()
     if (!userId || !farmId) { setCreateError("User context not found."); toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" }); setCreateLoading(false); return }
+    // Copied amount / account / status must be confirmed first; every normal check below still runs.
+    const repeatBlock = repeatSubmitBlocker(prefill, createForm as unknown as Partial<ExpenseForm>, prefillConfirmed, FIELD_LABELS.expense)
+    if (repeatBlock) { setCreateError(repeatBlock); toastFormGuide(toast, repeatBlock); setCreateLoading(false); return }
     if (!createForm.flockId) { setCreateError("Choose a flock"); toastFormGuide(toast, "Select which flock this expense belongs to (or the closest match from the list)."); setCreateLoading(false); return }
     if (!createForm.category) { setCreateError("Choose a category"); toastFormGuide(toast, "Pick an expense category so reports and cash stay organized."); setCreateLoading(false); return }
     if (!createForm.description.trim()) { setCreateError("Add a short description"); toastFormGuide(toast, "Add a few words describing what this expense was for — it helps later when you search."); setCreateLoading(false); return }
@@ -884,8 +929,8 @@ function ExpensesPageInner() {
             </Select>
           </div>
           <div className="space-y-2">
-            <Label className="text-sm font-medium text-slate-700">Amount *</Label>
-            <NumberInput name="amount"  step="0.01" min="0" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0.00" required disabled={isLoading} className="max-w-[200px]" />
+            <Label className="text-sm font-medium text-slate-700">Amount *<ReviewMark show={form === createForm && createUnconfirmed.includes("amount")} /></Label>
+            <NumberInput name="amount"  step="0.01" min="0" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0.00" required disabled={isLoading} className={cn("max-w-[200px]", reviewRing(form === createForm && createUnconfirmed.includes("amount")))} />
           </div>
           <div className="space-y-2">
             <Label className="text-sm font-medium text-slate-700">Payment Method *</Label>
@@ -897,7 +942,7 @@ function ExpensesPageInner() {
             </Select>
           </div>
           <div className="space-y-2">
-            <Label className="text-sm font-medium text-slate-700">Pay from cash account</Label>
+            <Label className="text-sm font-medium text-slate-700">Pay from cash account<ReviewMark show={form === createForm && createUnconfirmed.includes("poultryCashAccountId")} /></Label>
             <Select value={form.poultryCashAccountId || "none"} onValueChange={(v) => setForm({ ...form, poultryCashAccountId: v === "none" ? "" : v })} disabled={isLoading}>
               <SelectTrigger><SelectValue placeholder="None (no cash movement)" /></SelectTrigger>
               <SelectContent>
@@ -1061,9 +1106,20 @@ function ExpensesPageInner() {
                   <p className="text-sm text-slate-600">Track operational costs and financial records</p>
                 </div>
               </div>
-              <Button className="gap-2 w-full sm:w-auto h-11 sm:h-10 bg-blue-600 hover:bg-blue-700 shrink-0" onClick={openCreateDialog}>
-                <Plus className="w-4 h-4" /> Add Expense
-              </Button>
+              <div className="flex flex-wrap gap-2 w-full sm:w-auto shrink-0">
+                <RepeatPreviousButton available={!!previousExpense} className="h-11 sm:h-10"
+                  label={previousExpense ? expensePolicy({ includeAmount: false }).describe(previousExpense) : null}
+                  onClick={() => repeatPrevious(false)} />
+                {previousExpense && (
+                  <Button type="button" variant="ghost" className="h-11 sm:h-10 text-xs text-slate-600" onClick={() => repeatPrevious(true)}
+                    title="Also copy the amount, cash account and paid status — each marked for you to check.">
+                    …incl. amount
+                  </Button>
+                )}
+                <Button className="gap-2 flex-1 sm:flex-none h-11 sm:h-10 bg-blue-600 hover:bg-blue-700" onClick={openCreateDialog}>
+                  <Plus className="w-4 h-4" /> Add Expense
+                </Button>
+              </div>
             </div>
             {focusExpenseId && (
               // Arriving from a link that narrows the list has to SAY it does,
@@ -1656,6 +1712,13 @@ function ExpensesPageInner() {
             <DialogDescription>Record a new farm expense</DialogDescription>
           </DialogHeader>
           {createError && <Alert variant="destructive" className="shrink-0"><AlertDescription>{createError}</AlertDescription></Alert>}
+          {prefill && (
+            <div className="shrink-0">
+              <PrefilledBanner prefill={prefill} fieldLabels={FIELD_LABELS.expense}
+                unconfirmed={createUnconfirmed} confirmed={prefillConfirmed} onConfirmedChange={setPrefillConfirmed}
+                onClear={openCreateDialog} />
+            </div>
+          )}
           <form onSubmit={handleCreateSubmit} className="flex min-h-0 flex-1 flex-col gap-0">
             <div className="min-h-0 flex-1 overflow-y-auto space-y-4 pr-2">
               {renderExpenseFormFields(

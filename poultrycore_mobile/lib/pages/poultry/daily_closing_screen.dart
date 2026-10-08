@@ -160,7 +160,7 @@ const _emerald700 = Color(0xFF047857);
 const _rose700 = Color(0xFFBE123C);
 const _amber800 = Color(0xFF92400E);
 const _sky700 = Color(0xFF0369A1);
-const _slate400 = Color(0xFF94A3B8);
+const _slate400 = Color(0xFF7F8EA3);  // a shade darker than Tailwind's, for legibility
 
 // ------------------------------------------------------------------ screen
 

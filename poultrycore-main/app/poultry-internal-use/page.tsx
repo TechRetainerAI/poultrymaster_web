@@ -54,6 +54,10 @@ import {
   type PoultryInternalUsage, type InternalUseCategory, type InternalUseStatus,
 } from "@/lib/api/internal-use"
 import { fmtDateTime, fmtInstant } from "@/lib/utils/company-datetime"
+import { useBusinessDate } from "@/hooks/use-business-date"
+import { PrefilledBanner, RepeatPreviousButton, reviewRing } from "@/components/repeat/repeat-previous"
+import { buildRepeatPrefill, latestEntry, repeatSubmitBlocker, unconfirmedFields, type RepeatPrefill } from "@/lib/repeat/repeat-previous"
+import { FIELD_LABELS, internalUsePolicy, type InternalUseForm } from "@/lib/repeat/policies"
 
 const gh = (n: number) => fmtMoney(n)
 
@@ -275,8 +279,34 @@ export default function PoultryInternalUsePage() {
     }
   }, [visible])
 
+  // ------------------------------------------------------------ smart repeat
+  // Prefill a NEW draft from the last entry (lib/repeat/policies.ts). The cost
+  // is re-suggested from today's stock, never copied; quantities are marked
+  // "check" and the normal stock check still blocks a save that can't be met.
+  const { businessDate } = useBusinessDate()
+  const [prefill, setPrefill] = useState<RepeatPrefill<InternalUseForm> | null>(null)
+  const [prefillConfirmed, setPrefillConfirmed] = useState(false)
+  const previousUsage = useMemo(
+    () => latestEntry(items.filter((r) => r.status !== "Reversed"), (r) => r.usageDate, (r) => r.poultryInternalUsageId),
+    [items],
+  )
+  const unconfirmed = unconfirmedFields(prefill, form as unknown as Partial<InternalUseForm>)
+
+  function repeatPrevious() {
+    if (!previousUsage) return
+    const today = businessDate || new Date().toISOString().split("T")[0]
+    const p = buildRepeatPrefill(internalUsePolicy, previousUsage, {
+      businessDate: today,
+      valid: { product: new Set(products.filter((x) => x.isActive !== false).map((x) => x.poultryProductId)) },
+    })
+    setForm({ ...emptyForm(), usageDate: today, ...(p.values as Partial<ReturnType<typeof emptyForm>>) })
+    setPrefill(p); setPrefillConfirmed(false)
+    setOpen(true)
+  }
+
   // ------------------------------------------------------------------ writes
   function openCreate() {
+    setPrefill(null); setPrefillConfirmed(false)
     // The product cannot be optional — the whole record is "this much of THIS
     // came out of stock, at this cost". But most farms carry one or two
     // things, so preselect when the choice is obvious and save a click.
@@ -295,6 +325,7 @@ export default function PoultryInternalUsePage() {
   }
 
   function openEdit(r: PoultryInternalUsage) {
+    setPrefill(null); setPrefillConfirmed(false)
     const line = r.items?.[0]
     setForm({
       ...emptyForm(),
@@ -334,6 +365,9 @@ export default function PoultryInternalUsePage() {
   }
 
   async function save() {
+    // Copied quantities must be confirmed first; validate() still runs in full after.
+    const repeatBlock = repeatSubmitBlocker(prefill, form as unknown as Partial<InternalUseForm>, prefillConfirmed, FIELD_LABELS.internalUse)
+    if (repeatBlock) { toast({ title: repeatBlock, variant: "destructive" }); return }
     const bad = validate()
     if (bad) { toast({ title: bad, variant: "destructive" }); return }
 
@@ -418,9 +452,13 @@ export default function PoultryInternalUsePage() {
                 <span>Posting writes a stock movement, updates inventory and books a non-cash expense.</span>
               </p>
             </div>
-            <Button onClick={openCreate} className="w-full sm:w-auto sm:shrink-0">
-              <Plus className="w-4 h-4 mr-2" /> Record internal use
-            </Button>
+            <div className="flex gap-2 w-full sm:w-auto sm:shrink-0">
+              <RepeatPreviousButton available={!!previousUsage} size="default"
+                label={previousUsage ? internalUsePolicy.describe(previousUsage) : null} onClick={repeatPrevious} />
+              <Button onClick={openCreate} className="flex-1 sm:flex-none">
+                <Plus className="w-4 h-4 mr-2" /> Record internal use
+              </Button>
+            </div>
           </div>
 
           {/* Tell them up front, not after they open the form and find an empty list. */}
@@ -567,6 +605,11 @@ export default function PoultryInternalUsePage() {
           </DialogHeader>
 
           <div className="space-y-4">
+            {prefill && !form.poultryInternalUsageId && (
+              <PrefilledBanner prefill={prefill} fieldLabels={FIELD_LABELS.internalUse}
+                unconfirmed={unconfirmed} confirmed={prefillConfirmed} onConfirmedChange={setPrefillConfirmed}
+                onClear={openCreate} />
+            )}
             <FormSection title="What was used, and why" color="sky" columns={2} stackOnMobile>
               <FormField label="Date">
                 <Input type="date" value={form.usageDate} max={today()}
@@ -670,18 +713,18 @@ export default function PoultryInternalUsePage() {
 
               {showStaffHelper && form.useStaffHelper ? (
                 <>
-                  <FormField label="Number of staff">
-                    <NumberInput min={0} value={form.staffCount}
+                  <FormField label="Number of staff" hint={unconfirmed.includes("staffCount") ? "Copied from last time — check" : undefined}>
+                    <NumberInput min={0} value={form.staffCount} className={reviewRing(unconfirmed.includes("staffCount"))}
                                  onChange={(e) => set("staffCount", Number(e.target.value) || 0)} />
                   </FormField>
-                  <FormField label={`${entryLabel} each`}>
-                    <NumberInput min={0} step={1} value={form.quantityPerStaff}
+                  <FormField label={`${entryLabel} each`} hint={unconfirmed.includes("quantityPerStaff") ? "Copied from last time — check" : undefined}>
+                    <NumberInput min={0} step={1} value={form.quantityPerStaff} className={reviewRing(unconfirmed.includes("quantityPerStaff"))}
                                  onChange={(e) => set("quantityPerStaff", Number(e.target.value) || 0)} />
                   </FormField>
                 </>
               ) : (
-                <FormField label={`Total ${entryLabel.toLowerCase()}`}>
-                  <NumberInput min={0} step={1} value={form.entryQuantity}
+                <FormField label={`Total ${entryLabel.toLowerCase()}`} hint={unconfirmed.includes("entryQuantity") ? "Copied from last time — check" : undefined}>
+                  <NumberInput min={0} step={1} value={form.entryQuantity} className={reviewRing(unconfirmed.includes("entryQuantity"))}
                                onChange={(e) => set("entryQuantity", Number(e.target.value) || 0)} />
                 </FormField>
               )}

@@ -8,6 +8,7 @@ import '../pages/registry.dart';
 import '../pages/web_nav.dart';
 import '../pages/web_page_screen.dart';
 import '../state/session.dart';
+import 'quick_links_dialog.dart';
 
 /// The web's sidebar as it appears on a phone, for Poultry, Water and Restaurant (`components/dashboard/sidebar.tsx`,
 /// the `lg:hidden` drawer): a slate-900 panel that slides in from the left,
@@ -213,6 +214,7 @@ const Map<String, IconData> _iconByHref = {
   '/poultry-staff': Icons.groups_outlined,
   '/employees': Icons.manage_accounts_outlined,
   '/profile': Icons.person_outline,
+  '#alerts': Icons.notifications_none,
   '/billing': Icons.credit_card,
   '/audit-logs': Icons.show_chart,
   '/resources': Icons.menu_book_outlined,
@@ -305,6 +307,35 @@ const Map<String, IconData> _iconByHref = {
   '/business-office/billing': Icons.credit_card,
 };
 
+/// "System Alerts and Notifications" (components/dashboard/charts.tsx). The
+/// web's alerts store is never filled, so it always reads "No alerts".
+Future<void> showSystemAlertsDialog(BuildContext context, {List<({String title, String? description, String? time})> alerts = const []}) =>
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('System Alerts and Notifications'),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          if (alerts.isEmpty)
+            const Text('No alerts', style: TextStyle(color: Color(0xFF475569)))
+          else
+            for (final a in alerts)
+              Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(border: Border.all(color: const Color(0xFFE2E8F0)), borderRadius: BorderRadius.circular(6)),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(a.title, style: const TextStyle(fontWeight: FontWeight.w500, color: Color(0xFF0F172A))),
+                  if (a.description != null) Text(a.description!, style: const TextStyle(fontSize: 14, color: Color(0xFF475569))),
+                  if (a.time != null) Text(a.time!, style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+                ]),
+              ),
+        ]),
+      ),
+    );
+
+/// The sidebar's icon for a row, for the Quick Links picker.
+IconData sidebarIconFor(String href) => _iconByHref[href] ?? Icons.insert_chart_outlined;
+
 const Map<String, IconData> _menuIcons = {
   'Quick Links': Icons.star_border,
   'Operations': Icons.factory_outlined,
@@ -350,8 +381,21 @@ class _PoultrySidebarState extends State<_PoultrySidebar> {
   /// Sub-groups the user has closed. The web reads an absent entry as open.
   final _closedSubs = <String>{};
 
-  late List<NavGroup> _groups =
-      webNavGroups[PageRegistry.moduleOf(widget.company.type)] ?? const [];
+  /// The generated nav, with the default Quick Links.
+  late final List<NavGroup> _base = webNavGroups[PageRegistry.moduleOf(widget.company.type)] ?? const [];
+
+  /// The user's stored Quick Links (318). Null = never customised, so the
+  /// defaults stand; an empty list = they cleared the bar.
+  List<String>? _quickHrefs;
+
+  /// The nav as shown: Quick Links resolved from the user's choice.
+  List<NavGroup> get _groups => [
+        for (final g in _base)
+          g.title == 'Quick Links' ? NavGroup(g.title, [NavSubGroup('', resolveQuickLinks(_base, _quickHrefs))]) : g,
+      ];
+
+  /// Poultry and Water put "Customise…" at the foot of Quick Links, as the web does.
+  bool get _customisable => widget.company.type == CompanyType.poultry || widget.company.type == CompanyType.water;
 
   @override
   void initState() {
@@ -359,32 +403,38 @@ class _PoultrySidebarState extends State<_PoultrySidebar> {
     _loadQuickLinks();
   }
 
-  /// The user's own Quick Links replace the generated defaults once loaded,
-  /// as on the web (318). Hrefs this build has no link for are dropped.
   Future<void> _loadQuickLinks() async {
     final saved = await QuickLinksApi(widget.session.farmClient).get(
       userId: widget.session.tokens.userId,
       farmId: widget.company.farmId,
     );
     if (!mounted || saved == null || !saved.customised) return;
-    final byHref = <String, NavLink>{
-      for (final g in _groups)
-        for (final s in g.subGroups)
-          for (final l in s.links) l.href: l,
-    };
-    final links = [for (final h in saved.hrefs) if (byHref[h] != null) byHref[h]!];
-    if (links.isEmpty) return;
-    setState(() {
-      _groups = [
-        for (final g in _groups)
-          g.title == 'Quick Links'
-              ? NavGroup(g.title, [NavSubGroup('', links)])
-              : g,
-      ];
-    });
+    setState(() => _quickHrefs = saved.hrefs);
   }
 
+  Future<void> _customise() async {
+    final r = await showQuickLinksDialog(
+      context,
+      farmClient: widget.session.farmClient,
+      userId: widget.session.tokens.userId ?? '',
+      farmId: widget.company.farmId,
+      groups: _base,
+      stored: _quickHrefs,
+      iconFor: sidebarIconFor,
+    );
+    if (r != null && mounted) setState(() => _quickHrefs = r.hrefs);
+  }
+
+  Widget _customiseRow() => Padding(
+        padding: const EdgeInsets.only(bottom: 2),
+        child: _Row(icon: Icons.settings_outlined, label: 'Customise…', onTap: _customise),
+      );
+
   void _go(NavLink link) {
+    if (link.href == '#alerts') {
+      showSystemAlertsDialog(context);
+      return;
+    }
     final nav = Navigator.of(context);
     nav.pop();
     if (link.href == widget.activeHref) return; // already there
@@ -516,7 +566,8 @@ class _PoultrySidebarState extends State<_PoultrySidebar> {
   Widget _menu(NavGroup g) {
     final open = _openMenus.contains(g.title);
     final subs = g.subGroups.where((s) => s.links.isNotEmpty).toList();
-    if (subs.isEmpty) return const SizedBox.shrink();
+    final quick = g.title == 'Quick Links' && _customisable;
+    if (subs.isEmpty && !quick) return const SizedBox.shrink();
     final holdsActive = g.title != 'Quick Links' &&
         subs.any((s) => s.links.any((l) => l.href == widget.activeHref));
 
@@ -565,9 +616,13 @@ class _PoultrySidebarState extends State<_PoultrySidebar> {
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: subs.length == 1
-                  ? [for (final l in subs.first.links) _link(l)]
-                  : [for (final s in subs) _subGroup(g.title, s)],
+              children: [
+                if (subs.length == 1)
+                  for (final l in subs.first.links) _link(l)
+                else
+                  for (final s in subs) _subGroup(g.title, s),
+                if (quick) _customiseRow(),
+              ],
             ),
           ),
       ],
@@ -590,11 +645,12 @@ class _PoultrySidebarState extends State<_PoultrySidebar> {
     for (final g in _groups) {
       if (sheetOnlyGroups.contains(g.title)) continue;
       final subs = g.subGroups.where((s) => s.links.isNotEmpty).toList();
-      if (subs.isEmpty) continue;
+      final quick = g.title == 'Quick Links' && _customisable;
+      if (subs.isEmpty && !quick) continue;
       if (out.isNotEmpty && !noDividerBefore.contains(g.title)) {
         out.addAll(const [SizedBox(height: 8), _Divider(), SizedBox(height: 12)]);
       }
-      for (final s in subs) {
+      for (final s in subs.isEmpty ? [const NavSubGroup('', [])] : subs) {
         final heading = switch (g.title) {
           'Setup' => 'Setup · ${s.title}',
           'System' => 'System',
@@ -602,6 +658,7 @@ class _PoultrySidebarState extends State<_PoultrySidebar> {
         };
         out.add(_subGroup(g.title, s, heading: heading));
       }
+      if (quick) out.add(_customiseRow());
     }
     return out;
   }

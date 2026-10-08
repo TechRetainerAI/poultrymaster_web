@@ -1,10 +1,16 @@
+import '../money/money_routes.dart';
 import 'package:flutter/material.dart';
 
 import '../../../models/company.dart';
 import '../../../state/session.dart';
 import '../../custom_form.dart';
 import '../../module_registry.dart';
+import '../../list_screen.dart';
+import '../../registry.dart';
+import '../../web_nav.dart';
 import '../../web_page_screen.dart';
+import '../sales/sales_screen.dart';
+import '../trackers/tracker_routes.dart';
 import 'closing_reports.dart';
 import 'dashboard_screen.dart';
 import 'money_reports.dart';
@@ -54,6 +60,25 @@ void openAppHref(BuildContext context, Session session, Company company, String 
   Navigator.of(context).push(MaterialPageRoute(
     builder: (_) => screen != null
         ? screen(session, company)
-        : WebPageScreen(label: label, href: href, company: company, session: session),
+        : salesScreenForHref(href, session, company) ??
+            moneyScreenForHref(href, session, company) ??
+            trackerScreenForHref(href, session, company) ??
+            _menuScreen(href, session, company) ??
+            WebPageScreen(label: label, href: href, company: company, session: session),
   ));
+}
+
+/// A page the menus open through its API list (e.g. `/poultry-products`), so
+/// an in-page link reaches the same screen the sidebar row does.
+Widget? _menuScreen(String href, Session session, Company company) {
+  for (final g in webNavGroups[PageRegistry.moduleOf(company.type)] ?? const <NavGroup>[]) {
+    for (final s in g.subGroups) {
+      for (final l in s.links) {
+        if (l.href != href || l.specKey == null) continue;
+        final spec = PageRegistry.of(l.specKey!);
+        if (spec != null) return ListScreen(spec: spec, session: session, company: company);
+      }
+    }
+  }
+  return null;
 }

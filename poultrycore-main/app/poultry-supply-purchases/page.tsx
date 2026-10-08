@@ -37,7 +37,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
 import Link from "next/link"
-import { Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet, AlertTriangle, Factory, History, MoreHorizontal, RefreshCw } from "lucide-react"
+import { Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet, AlertTriangle, Factory, History, MoreHorizontal, RefreshCw, PackageCheck } from "lucide-react"
 import { feedItemKind } from "@/lib/utils/feed-item-ledger"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { cn } from "@/lib/utils"
@@ -190,6 +190,7 @@ function ItemStatus({ item }: { item: PoultryRawMaterialItem }) {
 /** Paid / Part paid / Unpaid, with what is still owed -- Paid and Balance in one. */
 function PaymentPill({ p, fmt }: { p: PoultryRawMaterialPurchase; fmt: (n: number) => string }) {
   if (p.feedProductionRole === "Produced") return <span className="text-xs text-slate-400">Produced</span>
+  if (p.isReversed) return <span className="text-xs text-slate-400">Reversed</span>
   const balance = Number(p.balance) || 0
   const paid = Number(p.amountPaid) || 0
   if (balance <= 0) return <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50">Paid</Badge>
@@ -209,6 +210,21 @@ function ProductionRoleBadge({ p }: { p: PoultryRawMaterialPurchase }) {
       {p.feedProductionRole === "Produced" ? "Produced" : "For production"}
       {p.feedProductionBatchNumber ? ` · ${p.feedProductionBatchNumber}` : ""}
     </Badge>
+  )
+}
+
+// 345. The receipt a lot came in on, and whether that receipt was reversed.
+function ReceiptBadges({ p }: { p: PoultryRawMaterialPurchase }) {
+  if (!p.receiptNumber && !p.isReversed) return null
+  return (
+    <>
+      {p.receiptNumber && (
+        <Badge variant="outline" className="ml-2 text-[10px] font-normal border-emerald-300 text-emerald-700">{p.receiptNumber}</Badge>
+      )}
+      {p.isReversed && (
+        <Badge variant="outline" className="ml-2 text-[10px] font-normal border-slate-300 text-slate-500">Reversed</Badge>
+      )}
+    </>
   )
 }
 
@@ -437,13 +453,13 @@ function PoultryRawMaterialsPageInner() {
         return purchases.filter((p) => p.poultryRawMaterialPurchaseId === focusPurchaseId)
       }
       let rows = byItem(filterByDateAndSearch(purchases, { search, dateFrom, dateTo, searchKeys: ["itemName", "supplierName"], dateKey: "purchaseDate" }))
-      if (payFilter === "unpaid") rows = rows.filter((p) => (Number(p.balance) || 0) > 0)
+      if (payFilter === "unpaid") rows = rows.filter((p) => !p.isReversed && (Number(p.balance) || 0) > 0)
       if (payFilter === "paid") rows = rows.filter((p) => (Number(p.balance) || 0) <= 0)
       return rows
     },
     [purchases, search, dateFrom, dateTo, itemFilter, focusPurchaseId, payFilter],
   )
-  const unpaidCount = useMemo(() => purchases.filter((p) => (Number(p.balance) || 0) > 0).length, [purchases])
+  const unpaidCount = useMemo(() => purchases.filter((p) => !p.isReversed && (Number(p.balance) || 0) > 0).length, [purchases])
   const filteredUsage = useMemo(
     () => byItem(filterByDateAndSearch(usage, { search, dateFrom, dateTo, searchKeys: ["itemName"], dateKey: "usedDate" })),
     [usage, search, dateFrom, dateTo, itemFilter],
@@ -487,7 +503,8 @@ function PoultryRawMaterialsPageInner() {
   // the history but kept out of the spend figures — its cost is the ingredients,
   // which were already counted when they were bought. Ingredients a batch bought
   // are real supplier spend, so those do count.
-  const spend = useMemo(() => purchases.filter((p) => p.feedProductionRole !== "Produced"), [purchases])
+  // A reversed receipt's lot (migration 345) stays in the history but was never spend.
+  const spend = useMemo(() => purchases.filter((p) => p.feedProductionRole !== "Produced" && !p.isReversed), [purchases])
   const stats = useMemo(() => ({
     itemsCount: items.length,
     activeCount: items.filter((i) => i.isActive).length,
@@ -632,6 +649,17 @@ function PoultryRawMaterialsPageInner() {
     <IconAction label="Open feed production batch" onClick={() => router.push(`/poultry-feed-production/${p.sourceFeedProductionBatchId}`)}>
       <Factory className="w-4 h-4 text-indigo-600" />
     </IconAction>
+  ) : (p.poultryPurchaseReceiptId || p.isReversed) ? (
+    <>
+      {!p.isReversed && p.balance > 0 && (
+        <IconAction label="Pay balance" onClick={() => openPayBalance(p)}><Wallet className="w-4 h-4 text-emerald-600" /></IconAction>
+      )}
+      {p.poultryPurchaseReceiptId && (
+        <IconAction label={`Open receipt ${p.receiptNumber ?? ""}`.trim()} onClick={() => router.push("/poultry-purchase-receipts")}>
+          <PackageCheck className="w-4 h-4 text-emerald-600" />
+        </IconAction>
+      )}
+    </>
   ) : (
     <>
       {p.balance > 0 && (
@@ -672,12 +700,17 @@ function PoultryRawMaterialsPageInner() {
                 with Record Purchase for attention. */}
             <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0">
               <Button variant="outline" className="flex-1 sm:flex-none" onClick={openNewItem}><Plus className="w-4 h-4 mr-1" /> New Item</Button>
+              {/* 345. A whole supplier invoice (several items, part payment, due date) in one step. */}
+              <Button variant="outline" className="hidden sm:inline-flex" onClick={() => router.push("/poultry-purchase-receipts?receive=1")}><PackageCheck className="w-4 h-4 mr-1" /> Receive Invoice</Button>
               <Button className="flex-1 sm:flex-none" onClick={openNewPurchase}><ShoppingCart className="w-4 h-4 mr-1" /> Record Purchase</Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="icon" aria-label="More actions"><MoreHorizontal className="w-4 h-4" /></Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  <DropdownMenuItem className="sm:hidden" onSelect={() => router.push("/poultry-purchase-receipts?receive=1")}>
+                    <PackageCheck className="w-4 h-4 mr-2" /> Receive invoice
+                  </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => router.push("/poultry-feed-production")}>
                     <Factory className="w-4 h-4 mr-2" /> Produce feed
                   </DropdownMenuItem>
@@ -908,6 +941,7 @@ function PoultryRawMaterialsPageInner() {
                             <div className="font-medium text-slate-900">
                               {p.itemName}
                               {p.feedProductionRole && <ProductionRoleBadge p={p} />}
+                              <ReceiptBadges p={p} />
                             </div>
                             <div className="text-xs text-slate-500">{p.supplierName ?? "No supplier"}</div>
                           </TableCell>
@@ -951,7 +985,7 @@ function PoultryRawMaterialsPageInner() {
                       : pgPurchases.pageItems.map((p) => (
                         <FieldCard key={p.poultryRawMaterialPurchaseId} title={p.itemName}
                           badge={<PaymentPill p={p} fmt={gh} />}
-                          fields={[["Date", fmtDateTime(p.purchaseDate, p)], ["Supplier", p.supplierName ?? "—"], ["Quantity", `${p.quantity.toLocaleString()} ${p.unitOfMeasure ?? ""}`.trim()], ["Unit price", gh(p.unitCost)], ["Total", gh(p.totalCost)], ...(p.feedProductionRole ? [["Feed", <ProductionRoleBadge key="r" p={p} />] as [string, React.ReactNode]] : [])]}
+                          fields={[["Date", fmtDateTime(p.purchaseDate, p)], ["Supplier", p.supplierName ?? "—"], ["Quantity", `${p.quantity.toLocaleString()} ${p.unitOfMeasure ?? ""}`.trim()], ["Unit price", gh(p.unitCost)], ["Total", gh(p.totalCost)], ...(p.feedProductionRole ? [["Feed", <ProductionRoleBadge key="r" p={p} />] as [string, React.ReactNode]] : []), ...((p.receiptNumber || p.isReversed) ? [["Receipt", <ReceiptBadges key="rc" p={p} />] as [string, React.ReactNode]] : [])]}
                           actions={purchaseActions(p)} />
                       ))}
                   </div>

@@ -63,7 +63,7 @@ export function CompositionReport({ from: initialFrom, to: initialTo, flockId }:
     return [...m.values()].sort((a, b) => a.sort - b.sort)
   }, [rows])
 
-  // Each row is one flock's (migration 346), so the report says whose eggs
+  // Each row is one flock's (migration 350), so the report says whose eggs
   // they were. Grouping BY flock already names it; an older API adds every
   // flock together and sends no flock, so the column only shows when it can.
   const showFlock = groupBy !== "flock" && (rows ?? []).some((r) => r.flockName)

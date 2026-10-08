@@ -751,7 +751,7 @@ export async function createSaleGroup(input: SaleGroupInput): Promise<ApiRespons
 }
 
 /**
- * The sale's SG number, giving it one first if it has none (migration 345).
+ * The sale's SG number, giving it one first if it has none (migration 349).
  * Egg sizes added to a single sale on edit are saved with this number, so they
  * join that sale instead of becoming separate sales.
  */

@@ -53,7 +53,7 @@ namespace PoultryFarmAPIWeb.Models
         public string? TierName { get; set; }
         public decimal? MonthlyAmount { get; set; }
         public string CurrencyCode { get; set; } = string.Empty;
-        /// <summary>Resolved | PricingNotConfigured | CustomPrice | Grandfathered | Exempt.</summary>
+        /// <summary>Resolved | PricingNotConfigured | ScaleSetupRequired | CustomPrice | Grandfathered | Exempt.</summary>
         public string PricingStatus { get; set; } = string.Empty;
         public string ParticipationStatus { get; set; } = "Active";
         public long? EvaluationId { get; set; }
@@ -147,6 +147,41 @@ namespace PoultryFarmAPIWeb.Models
         /// <summary>False while the master enforcement switch is off — nothing is ever restricted.</summary>
         public bool EnforcementEnabled { get; set; }
         public List<PendingTierChangeModel> PendingTierChanges { get; set; } = new();
+        /// <summary>Customer-safe "why is my bill lower" details (customer-app spec 23-26). Never internal notes.</summary>
+        public List<SavingsDetailModel> Savings { get; set; } = new();
+    }
+
+    public class SavingsDetailModel
+    {
+        /// <summary>MultiCompany | Discount | Promotion | Credit.</summary>
+        public string Kind { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string? DiscountType { get; set; }
+        public decimal? Value { get; set; }
+        public decimal AmountThisPeriod { get; set; }
+        public DateTime? EndDate { get; set; }
+        public int? RemainingPeriods { get; set; }
+        public string? Explanation { get; set; }
+    }
+
+    /// <summary>Backend-computed monthly↔annual comparison (customer-app spec 8/9). Display + confirmation only.</summary>
+    public class CyclePreviewModel
+    {
+        public string CurrentCycle { get; set; } = string.Empty;
+        public string TargetCycle { get; set; } = string.Empty;
+        public BillPreviewModel Current { get; set; } = new();
+        public BillPreviewModel Target { get; set; } = new();
+        /// <summary>Companies that would be unpriced under the target cycle (e.g. no annual price configured).</summary>
+        public List<string> MissingPrices { get; set; } = new();
+        public DateTime EffectiveDate { get; set; }
+    }
+
+    public class PricingContextModel
+    {
+        public string BillingProfileCode { get; set; } = string.Empty;
+        public string? BusinessTemplateCode { get; set; }
+        public string DisplayName { get; set; } = string.Empty;
+        public int SortOrder { get; set; }
     }
 
     public class PlatformInvoiceModel

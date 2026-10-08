@@ -15,6 +15,8 @@ export interface PublicPlan {
   blurb: string
   /** Monthly GHS price per company, or null = request a price. */
   monthlyGhs: number | null
+  /** Configured annual price; null/undefined = annual not available (never 12x monthly). */
+  annualGhs?: number | null
   scaleLine: string
   features: string[]
   highlight?: boolean
@@ -103,6 +105,7 @@ export function plansFromApi(api: PublicPricing): PublicPlan[] {
     name: c.tierName,
     blurb: c.headline || "",
     monthlyGhs: c.monthlyPrice ?? null,
+    annualGhs: c.annualPrice ?? null,
     scaleLine: c.tierCode === "enterprise" ? "Custom contract" : scaleLine(c.minValue, c.maxValue, api.metricPlural),
     features: c.featureBullets,
     highlight: c.isMostPopular,

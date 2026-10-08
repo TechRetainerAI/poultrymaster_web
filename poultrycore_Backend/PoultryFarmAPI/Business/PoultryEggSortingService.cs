@@ -455,7 +455,7 @@ namespace PoultryFarmAPIWeb.Business
         {
             using var c = new NpgsqlConnection(_cs);
             await c.OpenAsync();
-            // Per flock from migration 346; every flock added together before it.
+            // Per flock from migration 350; every flock added together before it.
             var fn = await FunctionExistsAsync(c, "sppoultryeggsorting_compositionbyflock")
                 ? "sppoultryeggsorting_compositionbyflock" : "sppoultryeggsorting_composition";
             using var cmd = new NpgsqlCommand(

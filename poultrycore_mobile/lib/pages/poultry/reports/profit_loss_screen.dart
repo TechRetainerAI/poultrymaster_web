@@ -108,9 +108,14 @@ String _day(Object? v) => '${v ?? ''}'.split('T').first;
 /// Financing — with the owner money, borrowing and capital investments shown
 /// beside it and never inside it. Every line opens the records behind it.
 class ProfitLossScreen extends StatefulWidget {
-  const ProfitLossScreen({super.key, required this.session, required this.company});
+  const ProfitLossScreen({super.key, required this.session, required this.company, this.page = false});
   final Session session;
   final Company company;
+
+  /// The Money page (/poultry-profit-loss, chrome="page"): a plain page header
+  /// with the export buttons, no "Poultry reports" back button, no report card
+  /// or letterhead. The statement itself is the same.
+  final bool page;
 
   @override
   State<ProfitLossScreen> createState() => _ProfitLossScreenState();
@@ -394,9 +399,17 @@ class _ProfitLossScreenState extends State<ProfitLossScreen> {
 
   // ---------------------------------------------------------------- render
 
+  /// The report's card, or — on the Money page — the statement on its own.
+  Widget _frame(List<Widget> children) => widget.page
+      ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          for (var i = 0; i < children.length; i++) ...[if (i > 0) const SizedBox(height: 16), children[i]],
+        ])
+      : ReportCard(children: children);
+
   @override
   Widget build(BuildContext context) {
-    final lead = sidebarLeading(context, widget.session, widget.company, href: '/poultry/reports/profit-loss');
+    final lead = sidebarLeading(context, widget.session, widget.company,
+        href: widget.page ? '/poultry-profit-loss' : '/poultry/reports/profit-loss');
     final d = _data;
     return Scaffold(
       backgroundColor: slate50,
@@ -406,6 +419,28 @@ class _ProfitLossScreenState extends State<ProfitLossScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 32),
           children: [
+            if (widget.page) ...[
+              const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(color: Color(0xFFD1FAE5), borderRadius: BorderRadius.all(Radius.circular(8))),
+                    child: Icon(Icons.trending_up, size: 20, color: Color(0xFF047857)),
+                  ),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Profit & Loss', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                    Text('Did the business make money from its operations this period?',
+                        style: TextStyle(fontSize: 13, color: Color(0xFF475569))),
+                  ]),
+                ),
+              ]),
+              const SizedBox(height: 10),
+              ReportExportButtons(onCsv: _csv, onEmail: _email, onPdf: _pdf, busy: _downloading, disabled: d == null),
+            ] else
             Wrap(spacing: 8, runSpacing: 8, alignment: WrapAlignment.spaceBetween, children: [
               AppButton(
                 label: 'Poultry reports',
@@ -419,8 +454,8 @@ class _ProfitLossScreenState extends State<ProfitLossScreen> {
               ReportExportButtons(onCsv: _csv, onEmail: _email, onPdf: _pdf, busy: _downloading, disabled: d == null),
             ]),
             const SizedBox(height: 12),
-            ReportCard(children: [
-              ReportLetterhead(
+            _frame([
+              if (!widget.page) ReportLetterhead(
                 farmName: widget.company.name.isEmpty ? 'Poultry farm' : widget.company.name,
                 title: 'Profit & Loss',
                 description: 'Did the business make money from its operations this period?',
@@ -1053,6 +1088,14 @@ class _DrilldownPageState extends State<_DrilldownPage> {
                         child: AppInput(
                           controller: _q,
                           hintText: 'Filter these ${all.length} records…',
+                          prefixIcon: const Icon(Icons.search, size: 18, color: slate400),
+                          suffixIcon: filtered
+                              ? IconButton(
+                                  tooltip: 'Clear filter',
+                                  icon: const Icon(Icons.close, size: 16, color: slate400),
+                                  onPressed: () => setState(_q.clear),
+                                )
+                              : null,
                           onChanged: (_) => setState(() {}),
                         ),
                       ),

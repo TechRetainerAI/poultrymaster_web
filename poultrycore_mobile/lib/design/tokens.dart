@@ -34,7 +34,8 @@ class LightTokens {
   static const secondary = Color(0xFFF5F5F5);
   static const secondaryForeground = Color(0xFF171717);
   static const muted = Color(0xFFF5F5F5);
-  static const mutedForeground = Color(0xFF737373);
+  // Darker than the web's #737373 so secondary text never reads as disabled.
+  static const mutedForeground = Color(0xFF525252);
   static const accent = Color(0xFFF5F5F5);
   static const accentForeground = Color(0xFF171717);
   // The live site ships #e40014 as the hex fallback for

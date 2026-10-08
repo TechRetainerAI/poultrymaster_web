@@ -1,5 +1,5 @@
 -- =============================================================================
--- 345_PoultrySaleEnsureGroup.postgres.sql             (requires 341 and 343)
+-- 349_PoultrySaleEnsureGroup.postgres.sql             (requires 341 and 343)
 --
 -- Purpose
 -- -------

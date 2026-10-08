@@ -74,7 +74,7 @@ namespace PoultryFarmAPIWeb.Controllers
         }
 
         // POST: api/Sale/5/group?userId=xxx&farmId=xxx -- the sale's SG number,
-        // given one first if it has none (migration 345), so egg sizes added
+        // given one first if it has none (migration 349), so egg sizes added
         // on edit join this sale.
         [HttpPost("{id}/group")]
         public async Task<IActionResult> EnsureGroup(int id, [FromQuery] string userId, [FromQuery] string farmId)
