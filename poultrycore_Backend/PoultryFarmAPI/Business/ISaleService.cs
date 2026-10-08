@@ -15,6 +15,7 @@ namespace PoultryFarmAPIWeb.Business
 
         /// <summary>One sale entry of several egg classes / products (migration 343), atomically.</summary>
         Task<SaleGroupResult> CreateGroup(SaleGroupRequest request);
+        Task<string> EnsureGroup(int saleId, string farmId, string? userId);
     }
 
 }

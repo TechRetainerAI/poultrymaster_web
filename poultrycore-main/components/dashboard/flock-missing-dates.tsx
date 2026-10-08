@@ -17,6 +17,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { CornerDownRight, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import {
   getFlockMissingProductionDates,
   type FlockMissingProductionDates,
@@ -67,13 +68,17 @@ export function FlockMissingDateRows({ flockId, businessDate }: { flockId: numbe
         const inBatch = d.pendingBatchRecordId != null
         return (
           <tr key={d.date} className={ROW}>
-            <td className="px-3 py-2 pl-8 font-medium text-slate-800">
+            <td className="px-3 py-2 pl-6 font-medium text-slate-800 sm:pl-8">
               <span className="inline-flex items-center gap-1.5">
                 <CornerDownRight className="h-3.5 w-3.5 text-slate-400" />
                 {formatWeekdayDate(d.date)}
               </span>
+              {/* Phone: the status column is hidden, so it reads here. */}
+              <span className={cn("block pl-5 text-xs font-normal sm:hidden", inBatch ? "text-sky-800" : "text-amber-800")}>
+                {inBatch ? `In batch #${d.pendingBatchRecordId} — not posted` : "No production record"}
+              </span>
             </td>
-            <td colSpan={3} className="px-3 py-2">
+            <td colSpan={3} className="hidden px-3 py-2 sm:table-cell">
               {inBatch ? (
                 <span className="text-sky-800">
                   In batch entry #{d.pendingBatchRecordId} — not posted yet
@@ -82,8 +87,8 @@ export function FlockMissingDateRows({ flockId, businessDate }: { flockId: numbe
                 <span className="text-amber-800">No production record</span>
               )}
             </td>
-            <td className="px-3 py-2 text-slate-500">{daysAgoLabel(d.date, data.businessDate)}</td>
-            <td className="px-3 py-2 text-right">
+            <td className="px-3 py-2 text-xs text-slate-500 sm:text-sm">{daysAgoLabel(d.date, data.businessDate)}</td>
+            <td className="whitespace-nowrap px-3 py-2 text-right">
               <Button asChild size="sm" variant="outline" className="h-7 px-2.5 text-xs">
                 <Link href={missingDateHref(flockId, d.date, d.pendingBatchRecordId, d.pendingBatchStatus)}>
                   {inBatch ? (d.pendingBatchStatus === "Draft" ? "Finish batch" : "Post batch") : "Record"}
@@ -94,7 +99,7 @@ export function FlockMissingDateRows({ flockId, businessDate }: { flockId: numbe
         )
       })}
       <tr className={ROW}>
-        <td colSpan={COLS} className="px-3 py-1.5 pl-8 text-xs text-slate-500">
+        <td colSpan={COLS} className="px-3 py-1.5 pl-6 text-xs text-slate-500 sm:pl-8">
           <span className="inline-flex flex-wrap items-center gap-2">
             {n === 0
               ? `No missing days in the last ${data.windowDays} days.`

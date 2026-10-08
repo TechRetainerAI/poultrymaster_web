@@ -129,7 +129,7 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount, qui
         items: [
           { id: "stock",             title: "Stock movement",            icon: Boxes,         href: "/water-stock" },
           { id: "inventory",         title: "Inventory",                 icon: Boxes,         href: "/water-inventory" },
-          { id: "raw-materials",     title: "Raw materials & supplies",  icon: Box,           href: "/water-raw-materials" },
+          { id: "raw-materials",     title: "Inventory & supply purchases", icon: Box,        href: "/water-supply-purchases" },
           // Internal Use moved to Sales, Expenses & Money > Expenses, matching
           // the poultry rail. Stock the company consumes itself is a COST, not
           // a stock count -- and migration 212 records it exactly that way, as

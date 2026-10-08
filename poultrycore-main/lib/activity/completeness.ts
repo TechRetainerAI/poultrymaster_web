@@ -228,7 +228,7 @@ export function missingDateHref(
 }
 
 export function itemActionLabel(item: ActivityCheckItem): string {
-  if (item.state === "Missing" && item.daysOutstanding > 1) return `Record ${item.daysOutstanding} days`
+  if (item.state === "Missing" && item.daysOutstanding > 1) return `Record batch(${item.daysOutstanding})`
   if (item.state !== "AwaitingPosting") return "Record"
   return item.relatedRecordStatus === "Draft" ? "Finish batch" : "Post batch"
 }

@@ -201,6 +201,9 @@ namespace PoultryFarmAPIWeb.Models
         public string GroupKey { get; set; } = string.Empty;
         public string GroupLabel { get; set; } = string.Empty;
         public string GroupSort { get; set; } = string.Empty;
+        /// <summary>The flock the row belongs to (migration 350); null before it.</summary>
+        public int? FlockId { get; set; }
+        public string? FlockName { get; set; }
         public string LineType { get; set; } = string.Empty;
         public int? EggSizeId { get; set; }
         public string? SizeName { get; set; }
@@ -213,6 +216,9 @@ namespace PoultryFarmAPIWeb.Models
     public class EggCarryoverRow
     {
         public DateTime ProductionDate { get; set; }
+        /// <summary>The flock the row belongs to (migration 350); null before it.</summary>
+        public int? FlockId { get; set; }
+        public string? FlockName { get; set; }
         public int Records { get; set; }
         public long Gross { get; set; }
         public long CollectionLoss { get; set; }

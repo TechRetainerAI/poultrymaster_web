@@ -79,6 +79,17 @@ const STATUS_STYLE: Record<PickStatus, string> = {
   Complete: "bg-emerald-100 text-emerald-800",
 }
 
+// One accent per flock, so "All flocks" reads as separate sections at a
+// glance. Literal class names: Tailwind only ships classes it can see.
+const FLOCK_ACCENTS = [
+  { edge: "border-l-amber-400", dot: "bg-amber-400" },
+  { edge: "border-l-sky-400", dot: "bg-sky-400" },
+  { edge: "border-l-violet-400", dot: "bg-violet-400" },
+  { edge: "border-l-emerald-400", dot: "bg-emerald-400" },
+  { edge: "border-l-rose-400", dot: "bg-rose-400" },
+  { edge: "border-l-teal-400", dot: "bg-teal-400" },
+]
+
 function Stat({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "warn" | "good" }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
@@ -119,6 +130,10 @@ function EggSortingInner() {
   const [statusFilter, setStatusFilter] = useState<"open" | "all" | PickStatus>("open")
   const [search, setSearch] = useState("")
   const [tab, setTab] = useState(searchParams.get("tab") ?? "workspace")
+  // Setup > Production > Egg Sorting Settings links here with ?tab=settings;
+  // follow it even when the page is already open on another tab.
+  const tabParam = searchParams.get("tab")
+  useEffect(() => { if (tabParam) setTab(tabParam) }, [tabParam])
 
   const [settings, setSettings] = useState<EggSortingSettings | null>(null)
   const [classes, setClasses] = useState<EggClass[]>([])
@@ -196,9 +211,31 @@ function EggSortingInner() {
     && (!search.trim() || `${d.flockName} ${d.batchName ?? ""} ${d.houseName ?? ""}`.toLowerCase().includes(search.trim().toLowerCase())),
   ), [days, flockFilter, statusFilter, search])
 
+  // "All flocks": one section per flock instead of every flock's days mixed
+  // by date. Days are ordered flock by flock (newest day first inside each),
+  // then paged as before; a section split across pages says "continued".
+  const groupByFlock = flockFilter === "all" && !recordParam
+  const orderedDays = useMemo(() => (groupByFlock
+    ? [...shownDays].sort((a, b) =>
+        a.flockName.localeCompare(b.flockName) || a.flockId - b.flockId || b.productionDate.localeCompare(a.productionDate))
+    : shownDays), [shownDays, groupByFlock])
+  const flockTotals = useMemo(() => {
+    const m = new Map<number, { days: number; saleable: number; sorted: number; left: number; firstRecordId: number }>()
+    for (const d of orderedDays) {
+      const t = m.get(d.flockId)
+      if (t) { t.days += 1; t.saleable += d.saleable; t.sorted += d.sorted; t.left += d.left }
+      else m.set(d.flockId, { days: 1, saleable: d.saleable, sorted: d.sorted, left: d.left, firstRecordId: d.productionRecordId })
+    }
+    return m
+  }, [orderedDays])
+  const flockAccent = (flockId: number) => {
+    const i = flocks.findIndex(([id]) => id === flockId)
+    return FLOCK_ACCENTS[(i < 0 ? 0 : i) % FLOCK_ACCENTS.length]
+  }
+
   const sizes = useMemo(() => classes.filter((c) => c.classKind === "Size"), [classes])
   // Paged like every other list page (hooks/use-pagination + DataPagination).
-  const daysPg = usePagination(shownDays, 5)
+  const daysPg = usePagination(orderedDays, 5)
   const sessionsPg = usePagination(sessions ?? [], 10)
   const sortingOn = settings?.enableEggSorting ?? false
 
@@ -254,6 +291,164 @@ function EggSortingInner() {
     }
   }
 
+  const renderDay = (d: ProductionDay, grouped: boolean) => {
+    const progress = d.saleable > 0 ? Math.min(100, (d.sorted / d.saleable) * 100) : 0
+    return (
+      <Card key={d.productionRecordId} className="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <CardContent className="space-y-3 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-base font-semibold text-slate-900">
+                {grouped ? formatLongDate(d.productionDate) : `${d.flockName} — ${formatLongDate(d.productionDate)}`}
+              </div>
+              <div className="text-xs text-slate-500">
+                {[d.batchName, d.houseName].filter(Boolean).join(" · ") || " "}
+              </div>
+            </div>
+            <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
+              <Button size="sm" variant="outline" asChild>
+                <Link href={`/production-records/${d.productionRecordId}`}>View production</Link>
+              </Button>
+              <Button size="sm" disabled={!canSort || !sortingOn || d.left <= 0} onClick={() => sortAll(d)}
+                className="bg-emerald-600 text-white hover:bg-emerald-700">
+                <Layers className="mr-1.5 h-4 w-4" />
+                <span className="sm:hidden">Sort all</span>
+                <span className="hidden sm:inline">Sort all available eggs</span>
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <Stat label="Production (saleable)" value={fmtCount(d.saleable)}
+              sub={d.collectionLoss ? `${fmtCount(d.gross)} collected, ${fmtCount(d.collectionLoss)} broken/lost` : cratesText(d.saleable)} />
+            <Stat label="Sorted" value={fmtCount(d.sorted)} />
+            <Stat label="Remaining" value={fmtCount(d.left)} tone={d.left > 0 ? "warn" : "good"} />
+            <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+              <div className="flex items-center justify-between text-[11px] uppercase tracking-wide text-slate-500">
+                Progress <StatusChip status={d.status} />
+              </div>
+              <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100">
+                <div className={cn("h-full", d.left <= 0 ? "bg-emerald-500" : "bg-amber-500")} style={{ width: `${progress}%` }} />
+              </div>
+              <div className="mt-0.5 text-[11px] text-slate-500">{progress.toFixed(1)}%</div>
+            </div>
+          </div>
+
+          {/* Phone: one compact block per pick instead of a six-column table. */}
+          <div className="divide-y divide-slate-100 rounded-lg border border-slate-200 sm:hidden">
+            {d.picks.map((p) => {
+              const left = pickRemaining(p)
+              return (
+                <div key={p.pickNumber} className="space-y-2 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium text-slate-900">{pickLabel(p.pickNumber, labels)}</span>
+                    <StatusChip status={pickStatus(p)} />
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                    <div><div className="text-slate-500">Collected</div><div className="font-semibold tabular-nums text-slate-900">{fmtCount(p.pickGross)}</div></div>
+                    <div><div className="text-slate-500">Sorted</div><div className="font-semibold tabular-nums text-slate-900">{fmtCount(p.pickSorted)}</div></div>
+                    <div><div className="text-slate-500">Remaining</div><div className={cn("font-semibold tabular-nums", left > 0 ? "text-amber-700" : "text-emerald-700")}>{fmtCount(left)}</div></div>
+                  </div>
+                  <Button size="sm" variant="outline" className="w-full" disabled={!canSort || !sortingOn || left <= 0}
+                    onClick={() => setTarget({ mode: "ByPick", day: d, pick: p })}>
+                    {p.pickSorted > 0 && left > 0 ? "Continue sorting" : "Sort pick"}
+                  </Button>
+                </div>
+              )
+            })}
+          </div>
+          <div className="hidden overflow-x-auto sm:block">
+            <table className="w-full min-w-[36rem] text-sm">
+              <thead className="bg-slate-50 text-left text-xs uppercase tracking-wider text-slate-500">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Pick</th>
+                  <th className="px-3 py-2 text-right font-medium">Collected</th>
+                  <th className="px-3 py-2 text-right font-medium">Sorted</th>
+                  <th className="px-3 py-2 text-right font-medium">Remaining</th>
+                  <th className="px-3 py-2 font-medium">Status</th>
+                  <th className="px-3 py-2" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {d.picks.map((p) => {
+                  const left = pickRemaining(p)
+                  return (
+                    <tr key={p.pickNumber}>
+                      <td className="px-3 py-2 font-medium text-slate-900">{pickLabel(p.pickNumber, labels)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{fmtCount(p.pickGross)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{fmtCount(p.pickSorted)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtCount(left)}</td>
+                      <td className="px-3 py-2"><StatusChip status={pickStatus(p)} /></td>
+                      <td className="px-3 py-2 text-right">
+                        <Button size="sm" variant="outline" disabled={!canSort || !sortingOn || left <= 0}
+                          onClick={() => setTarget({ mode: "ByPick", day: d, pick: p })}>
+                          {p.pickSorted > 0 && left > 0 ? "Continue sorting" : "Sort pick"}
+                        </Button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+          {d.collectionLoss > 0 && (
+            <p className="text-xs text-slate-500">
+              Broken, meaty, soft and lost eggs are recorded for the whole day, not per pick, so the day can be sorted up to its {fmtCount(d.saleable)} saleable eggs.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // What a sorting graded, where its eggs came from and its history: under
+  // its row in the table, and inside its card on a phone.
+  const sessionDetail = (s: EggSortingSession) => (
+    <>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div>
+          <div className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">Grading</div>
+          {s.lines.map((l, i) => (
+            <div key={i} className="flex justify-between border-b border-slate-100 py-1 text-sm">
+              <span className={l.lineType !== "SizedOutput" ? "text-rose-800" : ""}>{lineTypeLabel(l.lineType, l.sizeName)}</span>
+              <span className="tabular-nums">{fmtCount(l.quantity)} <span className="text-xs text-slate-500">({pct(l.quantity, s.inputQuantity)})</span></span>
+            </div>
+          ))}
+        </div>
+        <div>
+          <div className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">Came from</div>
+          {s.sources.length === 0 && <p className="text-sm text-slate-500">Allocated when posted.</p>}
+          {s.sources.map((src, i) => (
+            <div key={i} className="flex justify-between border-b border-slate-100 py-1 text-sm">
+              <span>{formatLongDate(src.productionDate.slice(0, 10))} · {pickLabel(src.pickNumber, labels).split(" (")[0]}</span>
+              <span className="tabular-nums">{fmtCount(src.quantity)}</span>
+            </div>
+          ))}
+          <p className="mt-2 text-xs text-slate-500">
+            {s.postedAtUtc ? `Posted ${fmtInstant(s.postedAtUtc)} by ${s.postedBy ?? "—"}.` : `Saved by ${s.createdBy ?? "—"}.`}
+            {s.reversedAtUtc ? ` Reversed ${fmtInstant(s.reversedAtUtc)} by ${s.reversedBy ?? "—"}: ${s.reversalReason ?? ""}` : ""}
+            {s.notes ? ` Note: ${s.notes}` : ""}
+          </p>
+        </div>
+      </div>
+      <div className="mt-3">
+        <div className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">History</div>
+        <EggSortingAuditList bare entity="Sorting" entityId={s.sessionId} limit={20} />
+      </div>
+    </>
+  )
+
+  // The current page, cut into runs of one flock each.
+  const pageRuns = (() => {
+    const runs: { flockId: number; days: ProductionDay[] }[] = []
+    for (const d of daysPg.pageItems) {
+      const last = runs[runs.length - 1]
+      if (last && last.flockId === d.flockId) last.days.push(d)
+      else runs.push({ flockId: d.flockId, days: [d] })
+    }
+    return runs
+  })()
+
   const unsortedClass = classes.find((c) => c.classKind === "Unsorted")
   const remainingToSort = summary ? Math.min(summary.productionLeft, Math.max(0, Math.trunc(summary.unsortedOnHand))) : 0
 
@@ -270,14 +465,14 @@ function EggSortingInner() {
                   <Egg className="h-5 w-5 text-amber-700" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold text-slate-900">Egg Sorting Workspace</h1>
+                  <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Egg Sorting Workspace</h1>
                   <p className="text-sm text-slate-600">
                     Sort collected eggs into sizes — one pick at a time, or everything at once. Sorting never creates eggs:
                     it moves them from Unsorted into sizes, and records what was lost.
                   </p>
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
                 <Button variant="outline" size="sm" asChild><Link href="/egg-tracker">View Egg Tracker</Link></Button>
                 <Button variant="outline" size="sm" asChild><Link href="/production-records">View production</Link></Button>
               </div>
@@ -329,7 +524,8 @@ function EggSortingInner() {
             )}
 
             <Tabs value={tab} onValueChange={setTab}>
-              <TabsList className="flex-wrap">
+              {/* Phone: a 2 x 2 grid, so every tab is visible without scrolling. */}
+              <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:inline-flex sm:h-9 sm:w-auto sm:gap-0">
                 <TabsTrigger value="workspace">Workspace</TabsTrigger>
                 <TabsTrigger value="sessions">Sortings</TabsTrigger>
                 <TabsTrigger value="reports">Size reports</TabsTrigger>
@@ -399,90 +595,45 @@ function EggSortingInner() {
                   </Card>
                 )}
 
-                {daysPg.pageItems.map((d) => {
-                  const progress = d.saleable > 0 ? Math.min(100, (d.sorted / d.saleable) * 100) : 0
-                  return (
-                    <Card key={d.productionRecordId} className="rounded-xl border border-slate-200 bg-white shadow-sm">
-                      <CardContent className="space-y-3 p-4">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div>
-                            <div className="text-base font-semibold text-slate-900">
-                              {d.flockName} — {formatLongDate(d.productionDate)}
+                {groupByFlock
+                  ? pageRuns.map((run) => {
+                      const first = run.days[0]
+                      const t = flockTotals.get(run.flockId)
+                      const accent = flockAccent(run.flockId)
+                      const continued = t ? t.firstRecordId !== first.productionRecordId : false
+                      return (
+                        <section key={`${run.flockId}-${first.productionRecordId}`}
+                          className={cn("overflow-hidden rounded-xl border border-l-4 border-slate-200 bg-slate-100/70", accent.edge)}>
+                          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3">
+                            <div className="flex min-w-0 items-center gap-2.5">
+                              <span className={cn("h-3 w-3 shrink-0 rounded-full", accent.dot)} aria-hidden />
+                              <div className="min-w-0">
+                                <h2 className="truncate text-lg font-bold text-slate-900">
+                                  {first.flockName}
+                                  {continued && <span className="ml-2 text-xs font-normal text-slate-500">(continued)</span>}
+                                </h2>
+                                <div className="text-xs text-slate-500">
+                                  {[first.batchName, first.houseName].filter(Boolean).join(" · ") || "Flock"}
+                                </div>
+                              </div>
                             </div>
-                            <div className="text-xs text-slate-500">
-                              {[d.batchName, d.houseName].filter(Boolean).join(" · ") || " "}
-                            </div>
+                            {t && (
+                              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
+                                <span><b className="tabular-nums text-slate-900">{t.days}</b> day{t.days === 1 ? "" : "s"}</span>
+                                <span>Sorted <b className="tabular-nums text-slate-900">{fmtCount(t.sorted)}</b> of {fmtCount(t.saleable)}</span>
+                                <span className={t.left > 0 ? "text-amber-700" : "text-emerald-700"}>
+                                  {t.left > 0 ? <>Remaining <b className="tabular-nums">{fmtCount(t.left)}</b></> : "All sorted"}
+                                </span>
+                              </div>
+                            )}
                           </div>
-                          <div className="flex flex-wrap gap-2">
-                            <Button size="sm" variant="outline" asChild>
-                              <Link href={`/production-records/${d.productionRecordId}`}>View production</Link>
-                            </Button>
-                            <Button size="sm" disabled={!canSort || !sortingOn || d.left <= 0} onClick={() => sortAll(d)}
-                              className="bg-emerald-600 text-white hover:bg-emerald-700">
-                              <Layers className="mr-1.5 h-4 w-4" /> Sort all available eggs
-                            </Button>
+                          <div className="space-y-3 p-2 sm:p-3">
+                            {run.days.map((d) => renderDay(d, true))}
                           </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                          <Stat label="Production (saleable)" value={fmtCount(d.saleable)}
-                            sub={d.collectionLoss ? `${fmtCount(d.gross)} collected, ${fmtCount(d.collectionLoss)} broken/lost` : cratesText(d.saleable)} />
-                          <Stat label="Sorted" value={fmtCount(d.sorted)} />
-                          <Stat label="Remaining" value={fmtCount(d.left)} tone={d.left > 0 ? "warn" : "good"} />
-                          <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                            <div className="flex items-center justify-between text-[11px] uppercase tracking-wide text-slate-500">
-                              Progress <StatusChip status={d.status} />
-                            </div>
-                            <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100">
-                              <div className={cn("h-full", d.left <= 0 ? "bg-emerald-500" : "bg-amber-500")} style={{ width: `${progress}%` }} />
-                            </div>
-                            <div className="mt-0.5 text-[11px] text-slate-500">{progress.toFixed(1)}%</div>
-                          </div>
-                        </div>
-
-                        <div className="overflow-x-auto">
-                          <table className="w-full min-w-[36rem] text-sm">
-                            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wider text-slate-500">
-                              <tr>
-                                <th className="px-3 py-2 font-medium">Pick</th>
-                                <th className="px-3 py-2 text-right font-medium">Collected</th>
-                                <th className="px-3 py-2 text-right font-medium">Sorted</th>
-                                <th className="px-3 py-2 text-right font-medium">Remaining</th>
-                                <th className="px-3 py-2 font-medium">Status</th>
-                                <th className="px-3 py-2" />
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                              {d.picks.map((p) => {
-                                const left = pickRemaining(p)
-                                return (
-                                  <tr key={p.pickNumber}>
-                                    <td className="px-3 py-2 font-medium text-slate-900">{pickLabel(p.pickNumber, labels)}</td>
-                                    <td className="px-3 py-2 text-right tabular-nums">{fmtCount(p.pickGross)}</td>
-                                    <td className="px-3 py-2 text-right tabular-nums">{fmtCount(p.pickSorted)}</td>
-                                    <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtCount(left)}</td>
-                                    <td className="px-3 py-2"><StatusChip status={pickStatus(p)} /></td>
-                                    <td className="px-3 py-2 text-right">
-                                      <Button size="sm" variant="outline" disabled={!canSort || !sortingOn || left <= 0}
-                                        onClick={() => setTarget({ mode: "ByPick", day: d, pick: p })}>
-                                        {p.pickSorted > 0 && left > 0 ? "Continue sorting" : "Sort pick"}
-                                      </Button>
-                                    </td>
-                                  </tr>
-                                )
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                        {d.collectionLoss > 0 && (
-                          <p className="text-xs text-slate-500">
-                            Broken, meaty, soft and lost eggs are recorded for the whole day, not per pick, so the day can be sorted up to its {fmtCount(d.saleable)} saleable eggs.
-                          </p>
-                        )}
-                      </CardContent>
-                    </Card>
-                  )
-                })}
+                        </section>
+                      )
+                    })
+                  : daysPg.pageItems.map((d) => renderDay(d, false))}
                 <DataPagination {...daysPg.paginationProps} />
               </TabsContent>
 
@@ -508,7 +659,52 @@ function EggSortingInner() {
                 {sessions && sessions.length > 0 && (
                   <Card className="rounded-xl border border-slate-200 bg-white shadow-sm">
                     <CardContent className="p-0">
-                      <div className="overflow-x-auto">
+                      {/* Phone: one card per sorting; tap it to see the grading. */}
+                      <div className="divide-y divide-slate-100 sm:hidden">
+                        {sessionsPg.pageItems.map((s) => {
+                          const open = openSession === s.sessionId
+                          return (
+                            <div key={s.sessionId} className={cn("space-y-2 p-3", s.status === "Reversed" && "text-slate-500")}>
+                              <button type="button" className="flex w-full items-start justify-between gap-2 text-left"
+                                aria-expanded={open} onClick={() => setOpenSession(open ? null : s.sessionId)}>
+                                <span className="min-w-0">
+                                  <span className="flex items-center gap-1 font-medium text-slate-900">
+                                    {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />} {s.sessionNo}
+                                  </span>
+                                  <span className="block truncate text-xs text-slate-500">
+                                    {s.flockName ?? `Flock ${s.flockId}`} · sorted {formatLongDate(s.sortingDate.slice(0, 10))}
+                                  </span>
+                                  <span className="block text-xs text-slate-500">
+                                    {s.sortingMode === "ByPick" ? pickLabel(s.pickNumber ?? 0, labels).split(" (")[0] : "All available"}
+                                  </span>
+                                </span>
+                                <span className={cn("shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium",
+                                  s.status === "Posted" ? "bg-emerald-100 text-emerald-800" : s.status === "Draft" ? "bg-sky-100 text-sky-800" : "bg-slate-200 text-slate-700")}>
+                                  {s.status}
+                                </span>
+                              </button>
+                              <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                                <div><div className="text-slate-500">Sorted</div><div className="font-semibold tabular-nums">{fmtCount(s.inputQuantity)}</div></div>
+                                <div><div className="text-slate-500">Into sizes</div><div className="font-semibold tabular-nums">{fmtCount(s.outputQuantity)}</div></div>
+                                <div><div className="text-slate-500">Loss</div><div className="font-semibold tabular-nums">{fmtCount(s.lossQuantity)}</div></div>
+                              </div>
+                              {s.status === "Draft" && (
+                                <div className="grid grid-cols-2 gap-2">
+                                  <Button size="sm" variant="outline" disabled={!canSort} onClick={() => void editDraft(s)}><Pencil className="mr-1 h-3.5 w-3.5" /> Open</Button>
+                                  <Button size="sm" variant="outline" className="text-rose-700" disabled={!canRemove} onClick={() => void discard(s)}><Trash2 className="mr-1 h-3.5 w-3.5" /> Discard</Button>
+                                </div>
+                              )}
+                              {s.status === "Posted" && (
+                                <Button size="sm" variant="outline" className="w-full text-rose-700" disabled={!canRemove} onClick={() => setReverseTarget(s)}>
+                                  <RotateCcw className="mr-1 h-3.5 w-3.5" /> Reverse
+                                </Button>
+                              )}
+                              {open && <div className="rounded-md bg-slate-50 p-2">{sessionDetail(s)}</div>}
+                            </div>
+                          )
+                        })}
+                      </div>
+                      <div className="hidden overflow-x-auto sm:block">
                         <table className="w-full min-w-[52rem] text-sm">
                           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wider text-slate-500">
                             <tr>
@@ -570,38 +766,7 @@ function EggSortingInner() {
                                   </tr>
                                   {open && (
                                     <tr className="bg-slate-50/60">
-                                      <td colSpan={9} className="px-3 py-3">
-                                        <div className="grid gap-4 md:grid-cols-2">
-                                          <div>
-                                            <div className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">Grading</div>
-                                            {s.lines.map((l, i) => (
-                                              <div key={i} className="flex justify-between border-b border-slate-100 py-1 text-sm">
-                                                <span className={l.lineType !== "SizedOutput" ? "text-rose-800" : ""}>{lineTypeLabel(l.lineType, l.sizeName)}</span>
-                                                <span className="tabular-nums">{fmtCount(l.quantity)} <span className="text-xs text-slate-500">({pct(l.quantity, s.inputQuantity)})</span></span>
-                                              </div>
-                                            ))}
-                                          </div>
-                                          <div>
-                                            <div className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">Came from</div>
-                                            {s.sources.length === 0 && <p className="text-sm text-slate-500">Allocated when posted.</p>}
-                                            {s.sources.map((src, i) => (
-                                              <div key={i} className="flex justify-between border-b border-slate-100 py-1 text-sm">
-                                                <span>{formatLongDate(src.productionDate.slice(0, 10))} · {pickLabel(src.pickNumber, labels).split(" (")[0]}</span>
-                                                <span className="tabular-nums">{fmtCount(src.quantity)}</span>
-                                              </div>
-                                            ))}
-                                            <p className="mt-2 text-xs text-slate-500">
-                                              {s.postedAtUtc ? `Posted ${fmtInstant(s.postedAtUtc)} by ${s.postedBy ?? "—"}.` : `Saved by ${s.createdBy ?? "—"}.`}
-                                              {s.reversedAtUtc ? ` Reversed ${fmtInstant(s.reversedAtUtc)} by ${s.reversedBy ?? "—"}: ${s.reversalReason ?? ""}` : ""}
-                                              {s.notes ? ` Note: ${s.notes}` : ""}
-                                            </p>
-                                          </div>
-                                        </div>
-                                        <div className="mt-3">
-                                          <div className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">History</div>
-                                          <EggSortingAuditList bare entity="Sorting" entityId={s.sessionId} limit={20} />
-                                        </div>
-                                      </td>
+                                      <td colSpan={9} className="px-3 py-3">{sessionDetail(s)}</td>
                                     </tr>
                                   )}
                                 </FragmentRows>

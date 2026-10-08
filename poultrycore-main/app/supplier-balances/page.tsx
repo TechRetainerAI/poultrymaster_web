@@ -36,7 +36,7 @@ export default function SupplierBalancesPage() {
       documentHref={(doc) =>
         doc.documentType === "FlockBatch"
           ? `/flock-batch/${doc.documentId}`
-          : `/poultry-raw-materials?tab=purchases&purchaseId=${doc.documentId}`
+          : `/poultry-supply-purchases?tab=purchases&purchaseId=${doc.documentId}`
       }
       permissions={{
         view: "poultry.supplier-balances.view",

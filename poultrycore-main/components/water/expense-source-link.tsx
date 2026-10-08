@@ -6,7 +6,7 @@
 //
 // Routing rules:
 //   ProductionBatch       → /water-production-batches/[id]
-//   RawMaterialPurchase   → /water-raw-materials?purchaseId=[id]
+//   RawMaterialPurchase   → /water-supply-purchases?purchaseId=[id]
 //                           (no detail page for purchases yet — we deep-link
 //                            with a query param the list page can scroll to)
 //   Payroll               → /water-payroll/[id]
@@ -58,10 +58,10 @@ export function ExpenseSourceLink({
     case "RawMaterialPurchase":
       return (
         <Link
-          href={`/water-raw-materials?purchaseId=${resolvedId}`}
+          href={`/water-supply-purchases?purchaseId=${resolvedId}`}
           className="inline-flex items-center gap-1 text-emerald-700 hover:underline text-xs"
         >
-          <Package className="h-3.5 w-3.5" /> Raw Materials &amp; Supplies Purchase
+          <Package className="h-3.5 w-3.5" /> Inventory &amp; Supply Purchase
         </Link>
       )
     case "Payroll":

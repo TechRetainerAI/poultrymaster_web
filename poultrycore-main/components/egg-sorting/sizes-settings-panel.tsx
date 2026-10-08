@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
+import { cn } from "@/lib/utils"
 import { applyEggsPerCrate } from "@/hooks/use-eggs-per-crate"
 import { useAuthStore } from "@/lib/store/auth-store"
 import {
@@ -102,7 +103,7 @@ export function SizesSettingsPanel({
       <Card className="rounded-xl border border-slate-200 bg-white shadow-sm">
         <CardContent className="space-y-4 p-4">
           <div className="flex items-start justify-between gap-4">
-            <div>
+            <div className="min-w-0">
               <div className="font-semibold text-slate-900">Egg sorting</div>
               <p className="text-sm text-slate-600">
                 Off: production goes into Unsorted / General eggs and you sell those directly — nothing else changes.
@@ -112,20 +113,22 @@ export function SizesSettingsPanel({
             <Switch checked={on} disabled={!canEdit || busy === "settings"}
               onCheckedChange={(v) => void saveSettings({ enableEggSorting: v }, v ? "Egg sorting turned on" : "Egg sorting turned off")} />
           </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="grid gap-1 sm:col-span-3 sm:max-w-md">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="grid min-w-0 grid-cols-1 gap-1 sm:col-span-3 sm:max-w-md">
               <Label className="text-xs text-slate-500">Daily Closing, when the day&apos;s eggs are not all sorted</Label>
               <Select value={policy} disabled={!canEdit || !on || busy === "settings"}
                 onValueChange={(v) => void saveSettings({ closingPolicy: v as ClosingPolicy }, "Daily Closing rule saved")}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
+                {/* The chosen rule is a long sentence: cut it with "…" rather
+                    than let it widen the card past a phone screen. */}
+                <SelectTrigger className="w-full min-w-0 [&>span]:truncate"><SelectValue /></SelectTrigger>
+                <SelectContent className="max-w-[calc(100vw-2rem)]">
                   {(Object.keys(POLICY_TEXT) as ClosingPolicy[]).map((k) => (
-                    <SelectItem key={k} value={k}>{k} — {POLICY_TEXT[k]}</SelectItem>
+                    <SelectItem key={k} value={k} className="whitespace-normal">{k} — {POLICY_TEXT[k]}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-1">
+            <div className="grid min-w-0 grid-cols-1 gap-1">
               <Label htmlFor="es-crate" className="text-xs text-slate-500">Eggs per crate</Label>
               <Input id="es-crate" inputMode="numeric" value={crate} disabled={!canEdit}
                 onChange={(e) => setCrate(e.target.value.replace(/[^\d]/g, ""))} />
@@ -134,7 +137,7 @@ export function SizesSettingsPanel({
               </p>
               {!crateValid && <p className="text-xs text-rose-700">Between 1 and 100.</p>}
             </div>
-            <div className="grid gap-1">
+            <div className="grid min-w-0 grid-cols-1 gap-1">
               <Label htmlFor="es-uprice" className="text-xs text-slate-500">Unsorted / General price per crate</Label>
               <Input id="es-uprice" inputMode="decimal" value={unsortedPrice} placeholder="Not set" disabled={!canEdit}
                 onChange={(e) => setUnsortedPrice(e.target.value)} />
@@ -142,7 +145,7 @@ export function SizesSettingsPanel({
               {unsortedParsed === "bad" && <p className="text-xs text-rose-700">Enter a price of 0 or more.</p>}
             </div>
             <div className="flex items-end">
-              <Button size="sm" disabled={!canEdit || !settingsDirty || busy === "settings"}
+              <Button size="sm" className="w-full sm:w-auto" disabled={!canEdit || !settingsDirty || busy === "settings"}
                 onClick={() => void saveSettings({ eggsPerCrate: crateN, unsortedPricePerCrate: unsortedParsed === "bad" ? null : unsortedParsed }, "Settings saved")}>
                 {busy === "settings" && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Save
               </Button>
@@ -160,7 +163,54 @@ export function SizesSettingsPanel({
               deleted because stock and sales history refer to them.
             </p>
           </div>
-          <div className="overflow-x-auto">
+          {/* Phone: one card per size instead of a five-column table. */}
+          <div className="divide-y divide-slate-100 sm:hidden">
+            {sizes.length === 0 && <p className="px-4 py-4 text-sm text-slate-500">No sizes yet. Turning sorting on adds the standard list.</p>}
+            {sizes.map((s) => {
+              const id = s.eggSizeId as number
+              const nameChanged = (names[id] ?? s.name).trim() !== s.name
+              const p = parsePrice(prices[id] ?? "")
+              const priceChanged = p !== "bad" && p !== (s.pricePerCrate ?? null)
+              return (
+                <div key={id} className={cn("space-y-2 px-4 py-3", !s.isActive && "bg-slate-50 text-slate-500")}>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs tabular-nums text-slate-500">
+                      On hand <b className="text-slate-800">{fmtCount(s.onHand)}</b> ({cratesText(s.onHand)})
+                    </span>
+                    <label className="flex items-center gap-2 text-xs text-slate-600">
+                      Active
+                      <Switch checked={s.isActive} disabled={!canEdit || busy === `size:${id}`}
+                        onCheckedChange={(v) => void run(`size:${id}`, () => saveEggSize({ eggSizeId: id, name: s.name, sortOrder: s.sortOrder, isActive: v }),
+                          v ? `${s.name} switched on` : `${s.name} switched off`)} />
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-[1fr_7rem] gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-[11px] text-slate-500">Size</Label>
+                      <Input className="h-9" value={names[id] ?? s.name} disabled={!canEdit}
+                        onChange={(e) => setNames((x) => ({ ...x, [id]: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[11px] text-slate-500">Price / crate</Label>
+                      <Input className="h-9" inputMode="decimal" placeholder="Not set" value={prices[id] ?? ""} disabled={!canEdit}
+                        onChange={(e) => setPrices((x) => ({ ...x, [id]: e.target.value }))} />
+                    </div>
+                  </div>
+                  {p === "bad" && <div className="text-[11px] text-rose-700">Price must be 0 or more</div>}
+                  {(nameChanged || priceChanged) && (
+                    <Button size="sm" variant="outline" className="w-full" disabled={!canEdit || busy === `size:${id}` || !(names[id] ?? "").trim()}
+                      onClick={() => void run(`size:${id}`, async () => {
+                        if (nameChanged) await saveEggSize({ eggSizeId: id, name: names[id].trim(), sortOrder: s.sortOrder, isActive: s.isActive })
+                        if (priceChanged) await setEggSizePrice(id, p as number | null)
+                      }, "Size saved")}>
+                      Save
+                    </Button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          <div className="hidden overflow-x-auto sm:block">
             <table className="w-full min-w-[44rem] text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase tracking-wider text-slate-500">
                 <tr>
@@ -218,9 +268,9 @@ export function SizesSettingsPanel({
           </div>
           {canEdit && (
             <div className="flex flex-wrap items-end gap-2 border-t border-slate-100 px-4 py-3">
-              <div className="space-y-1">
+              <div className="min-w-0 flex-1 space-y-1 sm:flex-none">
                 <Label htmlFor="es-newsize" className="text-xs text-slate-500">New size</Label>
-                <Input id="es-newsize" className="h-9 w-56" value={newName} placeholder="e.g. Peewee" onChange={(e) => setNewName(e.target.value)} />
+                <Input id="es-newsize" className="h-9 w-full sm:w-56" value={newName} placeholder="e.g. Peewee" onChange={(e) => setNewName(e.target.value)} />
               </div>
               <Button size="sm" disabled={!newName.trim() || busy === "new"}
                 onClick={() => void run("new", async () => { await saveEggSize({ eggSizeId: null, name: newName.trim(), sortOrder: null, isActive: true }); setNewName("") }, "Size added")}>

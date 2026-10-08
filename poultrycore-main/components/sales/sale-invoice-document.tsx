@@ -159,10 +159,21 @@ type Props = {
   currencyCode: string
   formatMoney: (amount: number, code: string) => string
   flockLabel: string
+  /** A multi-size egg sale (SG-00001): one invoice row per egg class. */
+  lines?: SaleInvoiceLine[]
+  /** Shown as the invoice number instead of INV-…, e.g. the SG number. */
+  invoiceNo?: string | null
 }
 
-export function SaleInvoiceDocument({ sale, farm, currencyCode, formatMoney, flockLabel }: Props) {
-  const invNo = saleInvoiceNumber(sale.saleId)
+export interface SaleInvoiceLine {
+  label: string
+  quantity: number
+  unitPrice: number
+  totalAmount: number
+}
+
+export function SaleInvoiceDocument({ sale, farm, currencyCode, formatMoney, flockLabel, lines, invoiceNo }: Props) {
+  const invNo = invoiceNo || saleInvoiceNumber(sale.saleId)
   const money = (n: number) => formatMoney(n, currencyCode)
 
   // Mirrors `saleOwed` on the Sales page: fall back to the paid flag when
@@ -225,21 +236,23 @@ export function SaleInvoiceDocument({ sale, farm, currencyCode, formatMoney, flo
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td>
-                    <span className="strong">{sale.product}</span>
-                    {isEggs && sale.quantity > 0 ? (
-                      <div className="inv-line-note">
-                        {Math.floor(sale.quantity / EGGS_PER_CRATE)} crates + {sale.quantity % EGGS_PER_CRATE} loose
-                      </div>
-                    ) : null}
-                  </td>
-                  {/* data-label feeds the stacked phone layout, where the
-                      table header is hidden and each cell labels itself. */}
-                  <td className="num" data-label="Qty">{sale.quantity}</td>
-                  <td className="num" data-label="Unit price">{money(sale.unitPrice)}</td>
-                  <td className="num strong" data-label="Amount">{money(total)}</td>
-                </tr>
+                {(lines?.length ? lines : [{ label: "", quantity: sale.quantity, unitPrice: sale.unitPrice, totalAmount: total }]).map((ln, i) => (
+                  <tr key={i}>
+                    <td>
+                      <span className="strong">{sale.product}{ln.label ? ` — ${ln.label}` : ""}</span>
+                      {isEggs && ln.quantity > 0 ? (
+                        <div className="inv-line-note">
+                          {Math.floor(ln.quantity / EGGS_PER_CRATE)} crates + {ln.quantity % EGGS_PER_CRATE} loose
+                        </div>
+                      ) : null}
+                    </td>
+                    {/* data-label feeds the stacked phone layout, where the
+                        table header is hidden and each cell labels itself. */}
+                    <td className="num" data-label="Qty">{ln.quantity}</td>
+                    <td className="num" data-label="Unit price">{money(ln.unitPrice)}</td>
+                    <td className="num strong" data-label="Amount">{money(Number(ln.totalAmount) || 0)}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

@@ -51,6 +51,8 @@ export interface SaleInput {
    * General. Leave it out on an edit to keep the sale's current class.
    */
   eggProductId?: number | null
+  /** Joins a new line to an existing multi-size sale (SG-00001). Null keeps the current number. */
+  saleGroupNo?: string | null
   createdDate?: string
 }
 
@@ -472,6 +474,7 @@ export async function createSale(sale: SaleInput): Promise<ApiResponse<Sale>> {
       size: sale.size ?? null,
       poultryCashAccountId: sale.poultryCashAccountId ?? null,
       eggProductId: sale.eggProductId ?? 0,
+      saleGroupNo: sale.saleGroupNo ?? null,
       createdDate: new Date().toISOString(),
     }
 
@@ -740,6 +743,30 @@ export async function createSaleGroup(input: SaleGroupInput): Promise<ApiRespons
     try { data = text ? JSON.parse(text) : null } catch { /* not JSON */ }
     if (!response.ok) {
       return { success: false, message: data?.message || text || "Failed to create sale" }
+    }
+    return { success: true, data }
+  } catch (error) {
+    return { success: false, message: error instanceof Error ? error.message : "Network error" }
+  }
+}
+
+/**
+ * The sale's SG number, giving it one first if it has none (migration 349).
+ * Egg sizes added to a single sale on edit are saved with this number, so they
+ * join that sale instead of becoming separate sales.
+ */
+export async function ensureSaleGroup(saleId: number, userId: string, farmId: string): Promise<ApiResponse<{ saleGroupNo: string }>> {
+  try {
+    const params = new URLSearchParams({ userId, farmId })
+    const response = await fetch(farmApiUrl(`Sale/${saleId}/group?${params.toString()}`), {
+      method: "POST",
+      headers: { Accept: "application/json" },
+    })
+    const text = await response.text()
+    let data: any = null
+    try { data = text ? JSON.parse(text) : null } catch { /* not JSON */ }
+    if (!response.ok) {
+      return { success: false, message: data?.message || text || "Could not give the sale a sale number" }
     }
     return { success: true, data }
   } catch (error) {

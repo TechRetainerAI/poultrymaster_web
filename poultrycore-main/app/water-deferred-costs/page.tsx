@@ -599,8 +599,8 @@ function WaterDeferredCostsInner() {
             rows={detail ? history[detail.waterRawMaterialPurchaseId] : undefined}
             gh={gh}
             onClose={() => setDetail(null)}
-            onOpenItems={() => router.push("/water-raw-materials?tab=items")}
-            onOpenPurchase={(pid) => router.push(`/water-raw-materials?tab=purchases&purchaseId=${pid}`)}
+            onOpenItems={() => router.push("/water-supply-purchases?tab=items")}
+            onOpenPurchase={(pid) => router.push(`/water-supply-purchases?tab=purchases&purchaseId=${pid}`)}
           />
         </main>
       </div>

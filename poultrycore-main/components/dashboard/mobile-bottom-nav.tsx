@@ -269,7 +269,7 @@ export function MobileBottomNav() {
           { title: "Inventory", items: gateWater([
             { href: "/water-stock",             label: "Stock movement",           icon: Boxes },
             { href: "/water-inventory",         label: "Inventory",                icon: Boxes },
-            { href: "/water-raw-materials",     label: "Raw materials & supplies", icon: Box },
+            { href: "/water-supply-purchases",     label: "Inventory & supply purchases", icon: Box },
             { href: "/water-internal-use",      label: "Internal Use",             icon: PackageMinus },
             { href: "/water-loss-records",      label: "Damages & loss",           icon: AlertTriangle },
             { href: "/water-production-losses", label: "Production losses",        icon: AlertTriangle },

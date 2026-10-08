@@ -23,7 +23,7 @@ import { getSales, createSale, updateSale, deleteSale, getFlocks, getCustomers, 
 import { isFlockClosed } from "@/lib/utils/flock-eligibility"
 import { listPoultryCashAccounts, recordPoultryPayment, type PoultryCashAccount } from "@/lib/api/poultry-finance"
 import { listPoultryProducts, type PoultryProduct } from "@/lib/api/poultry-inventory"
-import { createSaleGroup } from "@/lib/api/sale"
+import { createSaleGroup, ensureSaleGroup } from "@/lib/api/sale"
 import { EGGS_PER_CRATE } from "@/lib/production/production-record-calc"
 import { useEggsPerCrate } from "@/hooks/use-eggs-per-crate"
 import { getEggClasses, type EggClass } from "@/lib/api/egg-sorting"
@@ -31,10 +31,12 @@ import {
   EggClassSelect,
   ExtraEggLines,
   classFor,
+  classValue,
   extraLineEggs,
   extraLineTotal,
   extraLinesShort,
   type ExtraEggLine,
+  type ReturnedEggs,
 } from "@/components/sales/egg-class-fields"
 import { useToast } from "@/hooks/use-toast"
 import { getUserContext } from "@/lib/utils/user-context"
@@ -110,6 +112,54 @@ function saleLineTotal(
   const price = Number(unitPrice) || 0
   const amount = isEggs && eggsPerCrate > 0 ? (qty / eggsPerCrate) * price : qty * price
   return Math.round(amount * 100) / 100
+}
+
+/**
+ * One entry in the sales list.
+ *
+ * A multi-size egg sale (Unsorted + Large ...) is stored as one sale row per
+ * egg class sharing a sale number (SG-00001), because stock, balances and the
+ * reports all work per class. The list shows it as ONE sale: the rows are
+ * folded into one entry here, with the rows kept on `lines` so edit, pay,
+ * delete and the invoice can act on all of them.
+ */
+type SaleRow = Sale & { lines?: Sale[] }
+
+function groupSaleLines(sales: Sale[]): SaleRow[] {
+  const byGroup = new Map<string, Sale[]>()
+  for (const s of sales) {
+    if (!s.saleGroupNo) continue
+    const g = byGroup.get(s.saleGroupNo)
+    if (g) g.push(s)
+    else byGroup.set(s.saleGroupNo, [s])
+  }
+  const round2 = (n: number) => Math.round(n * 100) / 100
+  const out: SaleRow[] = []
+  const done = new Set<string>()
+  for (const s of sales) {
+    const lines = s.saleGroupNo ? byGroup.get(s.saleGroupNo) : undefined
+    if (!lines || lines.length < 2) { out.push(s); continue }
+    if (done.has(s.saleGroupNo!)) continue
+    done.add(s.saleGroupNo!)
+    const ordered = [...lines].sort((a, b) => a.saleId - b.saleId)
+    const quantity = ordered.reduce((t, l) => t + (Number(l.quantity) || 0), 0)
+    const totalAmount = round2(ordered.reduce((t, l) => t + (Number(l.totalAmount) || 0), 0))
+    const isEggs = (ordered[0].product ?? "").toLowerCase().includes("egg")
+    out.push({
+      ...ordered[0],
+      quantity,
+      totalAmount,
+      // Lines are priced per crate at different prices: the entry shows the
+      // average price per crate, which is what total / crates comes to.
+      unitPrice: isEggs && quantity > 0 ? round2(totalAmount / (quantity / EGGS_PER_CRATE)) : ordered[0].unitPrice,
+      amountPaid: ordered.every((l) => l.amountPaid != null)
+        ? round2(ordered.reduce((t, l) => t + (Number(l.amountPaid) || 0), 0))
+        : undefined,
+      paid: ordered.every((l) => l.paid !== false),
+      lines: ordered,
+    })
+  }
+  return out
 }
 
 /**
@@ -239,13 +289,15 @@ export default function SalesPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isInvoiceDialogOpen, setIsInvoiceDialogOpen] = useState(false)
   const [editingSale, setEditingSale] = useState<Sale | null>(null)
-  const [selectedSale, setSelectedSale] = useState<Sale | null>(null)
+  // Editing a multi-size sale: every line as it was saved (editingSale is the first).
+  const [editingLines, setEditingLines] = useState<Sale[]>([])
+  const [selectedSale, setSelectedSale] = useState<SaleRow | null>(null)
   // Record-payment dialog (partial payments against a credit sale).
-  const [payDialog, setPayDialog] = useState<{ open: boolean; sale: Sale | null }>({ open: false, sale: null })
+  const [payDialog, setPayDialog] = useState<{ open: boolean; sale: SaleRow | null }>({ open: false, sale: null })
   // Which sale we are showing the payment ledger for. The dialog is the one
   // the Customer Balances page uses, scoped to a single sale, so a payment
   // reads the same wherever it is opened from.
-  const [historySale, setHistorySale] = useState<Sale | null>(null)
+  const [historySale, setHistorySale] = useState<SaleRow | null>(null)
   const { can } = usePermissions()
   const canReversePayments = can("poultry.customer-payments.reverse")
   const [payAmount, setPayAmount] = useState("")
@@ -266,6 +318,8 @@ export default function SalesPage() {
   const { toast } = useToast()
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deletingSaleId, setDeletingSaleId] = useState<number | null>(null)
+  // A multi-size sale is deleted as a whole: every line.
+  const [deletingSaleIds, setDeletingSaleIds] = useState<number[]>([])
   const [isDeleting, setIsDeleting] = useState(false)
   const invoicePrintRef = useRef<HTMLDivElement | null>(null)
 
@@ -347,6 +401,31 @@ export default function SalesPage() {
     if (p !== undefined && !(Number(formData.unitPrice) > 0)) setFormData((prev) => ({ ...prev, unitPrice: p }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEggsProduct, eggClasses])
+
+  // Mixed classes on one sale (e.g. Unsorted + Large): the Pricing box shows
+  // the whole sale, not just the first line. `formData` stays the first line,
+  // which is what the save sends as line one.
+  const hasExtraEggLines = isEggsProduct && extraEggLines.length > 0
+  const firstLineAmount = overrideAmount !== undefined && overrideAmount > 0 ? overrideAmount : Number(formData.totalAmount) || 0
+  const allLinesEggs = (Number(formData.quantity) || 0) + extraEggLines.reduce((s, l) => s + extraLineEggs(l), 0)
+  const allLinesAmount = Math.round((firstLineAmount + extraEggLines.reduce((s, l) => s + extraLineTotal(l), 0)) * 100) / 100
+  const isEditingGroup = editingLines.length > 1
+  // Editing: the eggs the sale (every line of it) already took are back on
+  // the shelf while it is changed, per class.
+  const editReturned = useMemo<ReturnedEggs | undefined>(() => {
+    const saved = editingLines.length ? editingLines : editingSale ? [editingSale] : []
+    if (!saved.length) return undefined
+    const r: ReturnedEggs = {}
+    for (const l of saved) {
+      const k = classValue(l.eggProductId)
+      r[k] = (r[k] ?? 0) + (Number(l.quantity) || 0)
+    }
+    return r
+  }, [editingLines, editingSale])
+  const eggClassLabel = (eggProductId: number | null | undefined) => {
+    const c = classFor(eggClasses, eggProductId)
+    return !c || c.classKind === "Unsorted" ? "Unsorted" : c.name
+  }
 
   // ------------------------------------------------------------ stock check
   // An egg sale draws on its own class: a sized product, or Unsorted.
@@ -702,6 +781,66 @@ export default function SalesPage() {
         eggProductId: isEggsProduct ? (formData.eggProductId ?? 0) : 0,
       }
 
+      if ((isEditingGroup || extraEggLines.length > 0) && isEggsProduct) {
+        if (extraEggLines.some((l) => extraLineEggs(l) <= 0 || l.unitPrice <= 0)) {
+          toastFormGuide(toast, "Every extra egg line needs eggs and a price per crate, or remove it.")
+          return
+        }
+        if (extraLinesShort(eggClasses, extraEggLines, quantity, formData.eggProductId ?? null, editReturned) && !overrideStock) {
+          toastFormGuide(toast, 'One of the extra egg lines asks for more eggs than its class holds. Lower it, or tick "Sell it anyway".')
+          return
+        }
+        // A single sale getting its first extra size needs a sale number for
+        // the new lines to join (migration 349). Asked first, so a failure
+        // here leaves the sale exactly as it was.
+        let groupNo = editingSale.saleGroupNo ?? null
+        if (!groupNo && extraEggLines.some((l) => !l.saleId)) {
+          const g = await ensureSaleGroup(editingSale.saleId, userId, farmId)
+          if (!g.success || !g.data?.saleGroupNo) {
+            toast({ title: "Sale not updated", description: g.message || "Could not give the sale a sale number.", variant: "destructive" })
+            return
+          }
+          groupNo = g.data.saleGroupNo
+        }
+        // One sale, several rows: the first line, then every other line with
+        // the same date, customer, payment and cash account. New lines join
+        // the sale number; lines taken off are deleted.
+        const failures: string[] = []
+        const first = await updateSale(editingSale.saleId, payload)
+        if (!first.success) failures.push(first.message || `line #${editingSale.saleId}`)
+        const kept = new Set(extraEggLines.map((l) => l.saleId).filter((id): id is number => !!id))
+        for (const l of extraEggLines) {
+          const line = {
+            ...payload,
+            quantity: extraLineEggs(l),
+            unitPrice: l.unitPrice,
+            totalAmount: extraLineTotal(l),
+            eggProductId: l.eggProductId ?? 0,
+          }
+          const r = l.saleId
+            ? await updateSale(l.saleId, line)
+            : await createSale({ ...(line as SaleInput), saleId: 0, saleGroupNo: groupNo })
+          if (!r.success) failures.push(r.message || `${eggClassLabel(l.eggProductId)} line`)
+        }
+        for (const old of editingLines.slice(1)) {
+          if (kept.has(old.saleId)) continue
+          const r = await deleteSale(old.saleId, userId, farmId)
+          if (!r.success) failures.push(r.message || `removing line #${old.saleId}`)
+        }
+        if (failures.length) {
+          toast({ title: "Sale partly updated", description: failures.join(" · "), variant: "destructive" })
+        } else {
+          toast({ title: "Success", description: `Sale ${groupNo ?? ""} updated` })
+          setIsEditDialogOpen(false)
+          setEditingSale(null)
+          setEditingLines([])
+          resetForm()
+        }
+        loadSales()
+        loadPoultryProducts()
+        return
+      }
+
       const response = await updateSale(editingSale.saleId, payload)
       if (response.success) {
         toast({
@@ -729,8 +868,9 @@ export default function SalesPage() {
     }
   }
 
-  const openDeleteSaleDialog = (id: number) => {
-    setDeletingSaleId(id)
+  const openDeleteSaleDialog = (sale: SaleRow) => {
+    setDeletingSaleId(sale.saleId)
+    setDeletingSaleIds(sale.lines ? sale.lines.map((l) => l.saleId) : [sale.saleId])
     setDeleteDialogOpen(true)
   }
 
@@ -740,7 +880,11 @@ export default function SalesPage() {
     setIsDeleting(true)
     try {
       const { userId, farmId } = getUserContext()
-      const response = await deleteSale(deletingSaleId, userId, farmId)
+      let response: { success: boolean; message?: string } = { success: true }
+      for (const id of deletingSaleIds.length ? deletingSaleIds : [deletingSaleId]) {
+        response = await deleteSale(id, userId, farmId)
+        if (!response.success) break
+      }
       if (response.success) {
         toast({
           title: "Sale deleted",
@@ -765,6 +909,7 @@ export default function SalesPage() {
     setIsDeleting(false)
     setDeleteDialogOpen(false)
     setDeletingSaleId(null)
+    setDeletingSaleIds([])
   }
 
   // Default new sales to the "Main Cash Account" (falls back to the first active
@@ -799,6 +944,7 @@ export default function SalesPage() {
       eggProductId: null,
     })
     setExtraEggLines([])
+    setEditingLines([])
     setProductSelection(undefined)
     setProductOther("")
     setShowNewCustomerInput(false)
@@ -928,7 +1074,7 @@ export default function SalesPage() {
 
   const saleOwed = (s: Sale) => Math.max(0, (Number(s.totalAmount) || 0) - salePaid(s))
 
-  const openPaymentDialog = (sale: Sale) => {
+  const openPaymentDialog = (sale: SaleRow) => {
     const owed = saleOwed(sale)
     setPayDialog({ open: true, sale })
     setPayAmount(owed > 0 ? owed.toFixed(2) : "")
@@ -943,8 +1089,25 @@ export default function SalesPage() {
     if (!amount || amount <= 0) { toast({ title: "Enter a valid amount", variant: "destructive" }); return }
     setPaySaving(true)
     try {
-      await recordPoultryPayment({ saleId: sale.saleId, amount, paymentMethod: payMethod || null, note: payNote || null })
-      toast({ title: "Payment recorded", description: `${amount.toFixed(2)} received for sale #${sale.saleId}.` })
+      if (sale.lines) {
+        // A multi-size sale: the payment settles its lines in order, each up
+        // to what that line still owes.
+        if (amount > saleOwed(sale) + 0.005) {
+          toast({ title: "Amount is more than owed", description: `This sale owes ${saleOwed(sale).toFixed(2)}.`, variant: "destructive" })
+          return
+        }
+        let left = Math.round(amount * 100) / 100
+        for (const line of sale.lines) {
+          if (left <= 0) break
+          const part = Math.min(left, Math.round(saleOwed(line) * 100) / 100)
+          if (part <= 0) continue
+          await recordPoultryPayment({ saleId: line.saleId, amount: part, paymentMethod: payMethod || null, note: payNote || null })
+          left = Math.round((left - part) * 100) / 100
+        }
+      } else {
+        await recordPoultryPayment({ saleId: sale.saleId, amount, paymentMethod: payMethod || null, note: payNote || null })
+      }
+      toast({ title: "Payment recorded", description: `${amount.toFixed(2)} received for sale ${sale.lines ? sale.saleGroupNo : `#${sale.saleId}`}.` })
       setPayDialog({ open: false, sale: null })
       loadSales()
     } catch (e: any) {
@@ -952,8 +1115,12 @@ export default function SalesPage() {
     } finally { setPaySaving(false) }
   }
 
-  const openEditDialog = (sale: Sale) => {
+  const openEditDialog = (row: SaleRow) => {
+    // A multi-size sale opens with its first line in the main fields and the
+    // other lines below it, exactly as it was entered.
+    const sale: Sale = row.lines?.[0] ?? row
     setEditingSale(sale)
+    setEditingLines(row.lines ?? [])
     setFormData({
       saleDate: sale.saleDate.split('T')[0],
       product: sale.product,
@@ -971,7 +1138,14 @@ export default function SalesPage() {
       poultryCashAccountId: sale.poultryCashAccountId ?? null,
       eggProductId: sale.eggProductId ?? null,
     })
-    setExtraEggLines([])
+    setExtraEggLines((row.lines ?? []).slice(1).map((l) => ({
+      key: `sale-${l.saleId}`,
+      saleId: l.saleId,
+      eggProductId: l.eggProductId ?? null,
+      crates: Math.floor((Number(l.quantity) || 0) / EGGS_PER_CRATE),
+      loose: (Number(l.quantity) || 0) % EGGS_PER_CRATE,
+      unitPrice: Number(l.unitPrice) || 0,
+    })))
     const selection = productOptions.includes(sale.product) ? sale.product : "Other"
     setProductSelection(selection)
     setProductOther(selection === "Other" ? sale.product : "")
@@ -999,7 +1173,7 @@ export default function SalesPage() {
     calculateTotal()
   }, [formData.quantity, formData.unitPrice, isEggsProduct])
 
-  const openInvoiceDialog = (sale: Sale) => {
+  const openInvoiceDialog = (sale: SaleRow) => {
     setSelectedSale(sale)
     setIsInvoiceDialogOpen(true)
   }
@@ -1123,7 +1297,7 @@ export default function SalesPage() {
     printWindow.document.write(`
       <html>
         <head>
-          <title>Invoice ${saleInvoiceNumber(selectedSale.saleId)}</title>
+          <title>Invoice ${(selectedSale.lines && selectedSale.saleGroupNo) || saleInvoiceNumber(selectedSale.saleId)}</title>
           <style>${SALE_INVOICE_PRINT_STYLES}</style>
         </head>
         <body>
@@ -1149,13 +1323,15 @@ export default function SalesPage() {
     router.push("/login")
   }
 
+  const groupedSales = useMemo(() => groupSaleLines(sales), [sales])
+
   const filteredSales = useMemo(() => {
     const query = searchCustomer.trim().toLowerCase()
-    return sales.filter((sale) => {
+    return groupedSales.filter((sale) => {
       // Deep link from Customer Balances -> Open sale. Narrowing to the single
       // sale is the point of the link, so it wins over the other filters (the
       // banner below offers the way back out).
-      if (focusSaleId !== null) return sale.saleId === focusSaleId
+      if (focusSaleId !== null) return sale.saleId === focusSaleId || !!sale.lines?.some((l) => l.saleId === focusSaleId)
       if (query) {
         const matchesCustomer = sale.customerName?.toLowerCase().includes(query)
         const matchesProduct = sale.product?.toLowerCase().includes(query)
@@ -1165,7 +1341,7 @@ export default function SalesPage() {
       if (dateTo && toLocalDateKey(sale.saleDate) > dateTo) return false
       return true
     })
-  }, [sales, searchCustomer, dateFrom, dateTo, focusSaleId])
+  }, [groupedSales, searchCustomer, dateFrom, dateTo, focusSaleId])
 
   const sortedSales = useMemo(() => sortData(filteredSales, sortKey, sortDir, (item: any, key: string) => {
     switch (key) {
@@ -1416,7 +1592,7 @@ export default function SalesPage() {
                         onChange={(v) => setFormData(prev => ({ ...prev, eggProductId: v, unitPrice: classPrice(v) ?? prev.unitPrice }))} />
                     </div>
                   )}
-                  <div className="grid grid-cols-1 gap-4 p-4 bg-amber-50 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-4 p-4 bg-amber-50 sm:grid-cols-2 lg:grid-cols-4">
                     <div className="space-y-2">
                       <Label htmlFor="crates" className="text-sm">Crates ({EGGS_PER_CRATE} eggs)</Label>
                       <NumberInput
@@ -1446,6 +1622,19 @@ export default function SalesPage() {
                           const total = (crates * EGGS_PER_CRATE) + l
                           setFormData(prev => ({ ...prev, quantity: total }))
                         }}
+                      />
+                    </div>
+                    {/* The first line's price sits beside its crates, like the
+                        extra egg lines below; Pricing then only shows totals. */}
+                    <div className="space-y-2">
+                      <Label htmlFor="unitPrice" className="text-sm">Price / crate *</Label>
+                      <NumberInput
+                        id="unitPrice"
+                        min="0"
+                        step="0.01"
+                        value={formData.unitPrice}
+                        onChange={(e) => setFormData(prev => ({ ...prev, unitPrice: Number(e.target.value) }))}
+                        placeholder="0.00"
                       />
                     </div>
                     <div className="space-y-2">
@@ -1480,7 +1669,8 @@ export default function SalesPage() {
                       {extraEggLines.length > 0 && (
                         <div className="border-t border-amber-200 bg-amber-100/70 px-4 py-2 text-sm">
                           <b>Sale total, all egg lines:</b>{" "}
-                          {((Number(formData.totalAmount) || 0) + extraEggLines.reduce((s, l) => s + extraLineTotal(l), 0)).toFixed(2)}
+                          {allLinesAmount.toFixed(2)} for {allLinesEggs.toLocaleString()} eggs
+                          {eggCrateBreakdown(allLinesEggs) && ` (${eggCrateBreakdown(allLinesEggs)})`}
                           <span className="ml-2 text-xs text-slate-600">
                             Saved as one sale number with {extraEggLines.length + 1} lines and one payment. The override amount applies to the first line only.
                           </span>
@@ -1504,7 +1694,7 @@ export default function SalesPage() {
                       <NumberInput
                         id="quantity"
                         step={isEggsProduct ? "0.01" : undefined}
-                        value={isEggsProduct ? eggCratesEquivalent(formData.quantity) : formData.quantity}
+                        value={hasExtraEggLines ? eggCratesEquivalent(allLinesEggs) : isEggsProduct ? eggCratesEquivalent(formData.quantity) : formData.quantity}
                         onChange={(e) => setFormData(prev => ({ ...prev, quantity: Number(e.target.value) }))}
                         placeholder="0"
                         disabled={isEggsProduct}
@@ -1512,7 +1702,9 @@ export default function SalesPage() {
                       />
                       {isEggsProduct && (
                         <p className="text-xs text-slate-500">
-                          {(Number(formData.quantity) || 0).toLocaleString()} eggs total, from the crates and loose eggs above
+                          {hasExtraEggLines
+                            ? `${allLinesEggs.toLocaleString()} eggs total across all ${extraEggLines.length + 1} egg lines`
+                            : `${(Number(formData.quantity) || 0).toLocaleString()} eggs total, from the crates and loose eggs above`}
                         </p>
                       )}
                       {!isEggsProduct && (
@@ -1526,30 +1718,37 @@ export default function SalesPage() {
                         />
                       )}
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="unitPrice">{isEggsProduct ? "Unit Price Per Crate *" : "Unit Price *"}</Label>
-                      <NumberInput
-                        id="unitPrice"
-                        
-                        step="0.01"
-                        value={formData.unitPrice}
-                        onChange={(e) => setFormData(prev => ({ ...prev, unitPrice: Number(e.target.value) }))}
-                        placeholder="0.00"
-                      />
-                    </div>
+                    {!isEggsProduct && (
+                      <div className="space-y-2">
+                        <Label htmlFor="unitPrice">Unit Price *</Label>
+                        <NumberInput
+                          id="unitPrice"
+                          step="0.01"
+                          value={formData.unitPrice}
+                          onChange={(e) => setFormData(prev => ({ ...prev, unitPrice: Number(e.target.value) }))}
+                          placeholder="0.00"
+                        />
+                      </div>
+                    )}
                   </div>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     <div className="space-y-2">
-                      <Label htmlFor="totalAmount">Calculated Amount</Label>
+                      <Label htmlFor="totalAmount">{hasExtraEggLines ? "Calculated Amount — whole sale" : "Calculated Amount"}</Label>
                       <NumberInput
                         id="totalAmount"
-                        
+
                         step="0.01"
-                        value={formData.totalAmount}
+                        value={hasExtraEggLines ? allLinesAmount : formData.totalAmount}
                         readOnly
                         className="bg-slate-100"
                       />
-                      <EggPriceNote show={isEggsProduct} crates={crates} loose={looseEggs} />
+                      {hasExtraEggLines ? (
+                        <p className="text-xs text-slate-500">
+                          First line {firstLineAmount.toFixed(2)} + other egg lines {(allLinesAmount - firstLineAmount).toFixed(2)}.
+                        </p>
+                      ) : (
+                        <EggPriceNote show={isEggsProduct} crates={crates} loose={looseEggs} />
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="overrideAmount">Override Amount</Label>
@@ -1927,7 +2126,7 @@ export default function SalesPage() {
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center gap-2">
                                     {/* Same order as the table: the id, then the date. */}
-                                    <span className="text-xs tabular-nums text-slate-500">#{sale.saleId}</span>
+                                    <span className="text-xs tabular-nums text-slate-500">{sale.lines ? sale.saleGroupNo : `#${sale.saleId}`}</span>
                                     <span className="font-semibold text-slate-900">{formatDateShort(sale.saleDate)}</span>
                                     <span className="text-slate-500">•</span>
                                     <span className="text-slate-600 truncate">{sale.customerName}</span>
@@ -1936,6 +2135,11 @@ export default function SalesPage() {
                                     <span className="text-lg font-bold text-emerald-600">{formatCurrency(sale.totalAmount, currencyCode)}</span>
                                     <span className="text-xs text-slate-500">{sale.product}</span>
                                   </div>
+                                  {sale.lines && (
+                                    <p className="mt-0.5 text-xs text-slate-500">
+                                      {sale.lines.map((l) => `${eggClassLabel(l.eggProductId)} ${eggCrateBreakdown(Number(l.quantity) || 0) ?? 0}`).join(" · ")}
+                                    </p>
+                                  )}
                                 </div>
                                 <ChevronDown className="h-5 w-5 text-slate-400 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
                               </div>
@@ -1968,7 +2172,7 @@ export default function SalesPage() {
                                   <Button variant="outline" size="sm" className="h-10 w-full" onClick={() => setHistorySale(sale)}>
                                     <History className="h-4 w-4 mr-2" /> Payments
                                   </Button>
-                                  <Button variant="outline" size="sm" className="h-10 w-full text-red-600 border-red-200 hover:bg-red-50" onClick={() => openDeleteSaleDialog(sale.saleId)}>
+                                  <Button variant="outline" size="sm" className="h-10 w-full text-red-600 border-red-200 hover:bg-red-50" onClick={() => openDeleteSaleDialog(sale)}>
                                     <Trash2 className="h-4 w-4 mr-2" /> Delete
                                   </Button>
                                 </div>
@@ -2016,9 +2220,23 @@ export default function SalesPage() {
                     <TableBody>
                       {paginatedSales.map((sale) => (
                         <TableRow key={sale.saleId}>
-                          <TableCell className="whitespace-nowrap tabular-nums text-slate-500">#{sale.saleId}</TableCell>
+                          <TableCell className="whitespace-nowrap tabular-nums text-slate-500">
+                            {sale.lines ? (
+                              <>
+                                <span className="font-medium text-slate-700">{sale.saleGroupNo}</span>
+                                <span className="block text-xs">{sale.lines.length} egg lines</span>
+                              </>
+                            ) : `#${sale.saleId}`}
+                          </TableCell>
                           <TableCell className={cn("bg-white", isMobile && "sticky-col-date")}>{isMobile ? formatDateShort(sale.saleDate) : fmtDateTime(sale.saleDate, sale)}</TableCell>
-                          <TableCell>{sale.product}</TableCell>
+                          <TableCell>
+                            {sale.product}
+                            {sale.lines && (
+                              <span className="block text-xs text-slate-500">
+                                {sale.lines.map((l) => `${eggClassLabel(l.eggProductId)} ${eggCrateBreakdown(Number(l.quantity) || 0) ?? 0}`).join(" · ")}
+                              </span>
+                            )}
+                          </TableCell>
                           <TableCell>{sale.customerName}</TableCell>
                           <TableCell>{getFlockLabel(sale.flockId)}</TableCell>
                           <TableCell className="whitespace-nowrap">
@@ -2032,7 +2250,10 @@ export default function SalesPage() {
                               </span>
                             )}
                           </TableCell>
-                          <TableCell>{formatCurrency(sale.unitPrice, currencyCode)}</TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            {formatCurrency(sale.unitPrice, currencyCode)}
+                            {sale.lines && <span className="ml-1 text-xs text-slate-500">avg</span>}
+                          </TableCell>
                           <TableCell className="font-medium">{formatCurrency(sale.totalAmount, currencyCode)}</TableCell>
                           <TableCell className="tabular-nums text-emerald-700">{formatCurrency(salePaid(sale), currencyCode)}</TableCell>
                           <TableCell className={cn("tabular-nums", saleOwed(sale) > 0 ? "font-semibold text-amber-700" : "text-slate-400")}>
@@ -2099,7 +2320,7 @@ export default function SalesPage() {
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => openDeleteSaleDialog(sale.saleId)}
+                                    onClick={() => openDeleteSaleDialog(sale)}
                                     aria-label="Delete sale"
                                   >
                                     <Trash2 className="h-4 w-4" />
@@ -2320,11 +2541,11 @@ export default function SalesPage() {
                       {hasEggSizes && (
                         <div className="px-4 pt-4 bg-amber-50 sm:max-w-md">
                           <EggClassSelect id="edit-egg-class" classes={eggClasses} value={formData.eggProductId}
-                            addBack={Number(editingSale?.quantity) || 0} addBackClass={editingSale?.eggProductId ?? null}
+                            addBack={Number(editingSale?.quantity) || 0} addBackClass={editingSale?.eggProductId ?? null} returned={editReturned}
                             onChange={(v) => setFormData(prev => ({ ...prev, eggProductId: v, unitPrice: classPrice(v) ?? prev.unitPrice }))} />
                         </div>
                       )}
-                      <div className="grid grid-cols-1 gap-4 p-4 bg-amber-50 sm:grid-cols-2 lg:grid-cols-3">
+                      <div className="grid grid-cols-1 gap-4 p-4 bg-amber-50 sm:grid-cols-2 lg:grid-cols-4">
                         <div className="space-y-2">
                           <Label htmlFor="edit-crates" className="text-sm">Crates ({EGGS_PER_CRATE} eggs)</Label>
                           <NumberInput
@@ -2357,6 +2578,17 @@ export default function SalesPage() {
                           />
                         </div>
                         <div className="space-y-2">
+                          <Label htmlFor="edit-unitPrice" className="text-sm">Price / crate *</Label>
+                          <NumberInput
+                            id="edit-unitPrice"
+                            min="0"
+                            step="0.01"
+                            value={formData.unitPrice}
+                            onChange={(e) => setFormData(prev => ({ ...prev, unitPrice: Number(e.target.value) }))}
+                            placeholder="0.00"
+                          />
+                        </div>
+                        <div className="space-y-2">
                           <Label className="text-sm">Total Eggs</Label>
                           <div className="h-10 px-3 py-2 bg-white border rounded-md flex items-center font-bold text-amber-700">
                             {((crates * EGGS_PER_CRATE) + looseEggs).toLocaleString()}
@@ -2376,6 +2608,24 @@ export default function SalesPage() {
                           idPrefix="edit-eggs"
                         />
                       </div>
+                      {/* A single sale can have sizes added too: it is given a
+                          sale number on save (migration 349). */}
+                      {hasEggSizes && (
+                        <>
+                          <ExtraEggLines classes={eggClasses} lines={extraEggLines} onChange={setExtraEggLines}
+                            mainEggs={Number(formData.quantity) || 0} mainClass={formData.eggProductId ?? null} returned={editReturned} />
+                          {extraEggLines.length > 0 && (
+                            <div className="border-t border-amber-200 bg-amber-100/70 px-4 py-2 text-sm">
+                              <b>Sale total, all egg lines:</b>{" "}
+                              {allLinesAmount.toFixed(2)} for {allLinesEggs.toLocaleString()} eggs
+                              {eggCrateBreakdown(allLinesEggs) && ` (${eggCrateBreakdown(allLinesEggs)})`}
+                              <span className="ml-2 text-xs text-slate-600">
+                                {editingSale?.saleGroupNo ? `Sale ${editingSale.saleGroupNo}` : "Gets a sale number when saved"} · {extraEggLines.length + 1} lines, one sale. The override amount applies to the first line only.
+                              </span>
+                            </div>
+                          )}
+                        </>
+                      )}
                     </div>
                   )}
 
@@ -2392,7 +2642,7 @@ export default function SalesPage() {
                           <NumberInput
                             id="edit-quantity"
                             step={isEggsProduct ? "0.01" : undefined}
-                            value={isEggsProduct ? eggCratesEquivalent(formData.quantity) : formData.quantity}
+                            value={hasExtraEggLines ? eggCratesEquivalent(allLinesEggs) : isEggsProduct ? eggCratesEquivalent(formData.quantity) : formData.quantity}
                             onChange={(e) => setFormData(prev => ({ ...prev, quantity: Number(e.target.value) }))}
                             placeholder="0"
                             disabled={isEggsProduct}
@@ -2400,7 +2650,9 @@ export default function SalesPage() {
                           />
                           {isEggsProduct && (
                             <p className="text-xs text-slate-500">
-                              {(Number(formData.quantity) || 0).toLocaleString()} eggs total, from the crates and loose eggs above
+                              {hasExtraEggLines
+                                ? `${allLinesEggs.toLocaleString()} eggs total across all ${extraEggLines.length + 1} egg lines`
+                                : `${(Number(formData.quantity) || 0).toLocaleString()} eggs total, from the crates and loose eggs above`}
                             </p>
                           )}
                           {!isEggsProduct && (
@@ -2414,30 +2666,36 @@ export default function SalesPage() {
                             />
                           )}
                         </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="edit-unitPrice">{isEggsProduct ? "Unit Price Per Crate *" : "Unit Price *"}</Label>
-                          <NumberInput
-                            id="edit-unitPrice"
-                            
-                            step="0.01"
-                            value={formData.unitPrice}
-                            onChange={(e) => setFormData(prev => ({ ...prev, unitPrice: Number(e.target.value) }))}
-                            placeholder="0.00"
-                          />
-                        </div>
+                        {!isEggsProduct && (
+                          <div className="space-y-2">
+                            <Label htmlFor="edit-unitPrice">Unit Price *</Label>
+                            <NumberInput
+                              id="edit-unitPrice"
+                              step="0.01"
+                              value={formData.unitPrice}
+                              onChange={(e) => setFormData(prev => ({ ...prev, unitPrice: Number(e.target.value) }))}
+                              placeholder="0.00"
+                            />
+                          </div>
+                        )}
                       </div>
                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                         <div className="space-y-2">
-                          <Label htmlFor="edit-totalAmount">Calculated Amount</Label>
+                          <Label htmlFor="edit-totalAmount">{hasExtraEggLines ? "Calculated Amount — whole sale" : "Calculated Amount"}</Label>
                           <NumberInput
                             id="edit-totalAmount"
-                            
                             step="0.01"
-                            value={formData.totalAmount}
+                            value={hasExtraEggLines ? allLinesAmount : formData.totalAmount}
                             readOnly
                             className="bg-slate-100"
                           />
-                          <EggPriceNote show={isEggsProduct} crates={crates} loose={looseEggs} />
+                          {hasExtraEggLines ? (
+                            <p className="text-xs text-slate-500">
+                              First line {firstLineAmount.toFixed(2)} + other egg lines {(allLinesAmount - firstLineAmount).toFixed(2)}.
+                            </p>
+                          ) : (
+                            <EggPriceNote show={isEggsProduct} crates={crates} loose={looseEggs} />
+                          )}
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="edit-overrideAmount">Override Amount</Label>
@@ -2574,6 +2832,13 @@ export default function SalesPage() {
                         currencyCode={currencyCode}
                         formatMoney={formatCurrency}
                         flockLabel={getFlockLabel(selectedSale.flockId)}
+                        invoiceNo={selectedSale.lines ? selectedSale.saleGroupNo : null}
+                        lines={selectedSale.lines?.map((l) => ({
+                          label: eggClassLabel(l.eggProductId),
+                          quantity: Number(l.quantity) || 0,
+                          unitPrice: Number(l.unitPrice) || 0,
+                          totalAmount: Number(l.totalAmount) || 0,
+                        }))}
                       />
                     </div>
                   </div>
@@ -2594,7 +2859,9 @@ export default function SalesPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Sale</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this sale? This action cannot be undone.
+              {deletingSaleIds.length > 1
+                ? `This sale has ${deletingSaleIds.length} egg lines. All of them will be deleted and their eggs go back into stock. This action cannot be undone.`
+                : "Are you sure you want to delete this sale? This action cannot be undone."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -2618,6 +2885,7 @@ export default function SalesPage() {
         partyName={historySale?.customerName ?? null}
         documentType="Sale"
         documentId={historySale?.saleId ?? null}
+        documentIds={historySale?.lines?.map((l) => l.saleId) ?? null}
         canReverse={canReversePayments}
         onReversed={() => { loadSales() }}
       />
@@ -2630,7 +2898,7 @@ export default function SalesPage() {
           {payDialog.sale && (
             <div className="space-y-4">
               <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-sm space-y-1">
-                <div className="flex justify-between"><span className="text-slate-500">Sale</span><span className="font-medium">#{payDialog.sale.saleId} · {payDialog.sale.customerName || "Walk-in"}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Sale</span><span className="font-medium">{payDialog.sale.lines ? payDialog.sale.saleGroupNo : `#${payDialog.sale.saleId}`} · {payDialog.sale.customerName || "Walk-in"}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Total</span><span className="tabular-nums">{Number(payDialog.sale.totalAmount).toFixed(2)}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Owed</span><span className="tabular-nums font-semibold text-amber-700">{saleOwed(payDialog.sale).toFixed(2)}</span></div>
               </div>

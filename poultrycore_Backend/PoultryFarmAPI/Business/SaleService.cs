@@ -318,6 +318,23 @@ namespace PoultryFarmAPIWeb.Business
                    ?? new SaleGroupResult();
         }
 
+        /// <summary>
+        /// The sale's SG number, giving it one first if it has none (migration
+        /// 349), so egg sizes added on edit join this sale instead of becoming
+        /// separate sales.
+        /// </summary>
+        public async Task<string> EnsureGroup(int saleId, string farmId, string? userId)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand(
+                "SELECT sppoultrysale_ensuregroup(p_farmid => @FarmId::text, p_saleid => @SaleId::int, p_by => @By::text)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@SaleId", saleId);
+            cmd.Parameters.AddWithValue("@By", (object?)userId ?? DBNull.Value);
+            return (string?)await cmd.ExecuteScalarAsync() ?? string.Empty;
+        }
+
         public async Task<int> Insert(SaleModel model)
         {
             try

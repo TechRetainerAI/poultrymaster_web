@@ -73,6 +73,24 @@ namespace PoultryFarmAPIWeb.Controllers
             }
         }
 
+        // POST: api/Sale/5/group?userId=xxx&farmId=xxx -- the sale's SG number,
+        // given one first if it has none (migration 349), so egg sizes added
+        // on edit join this sale.
+        [HttpPost("{id}/group")]
+        public async Task<IActionResult> EnsureGroup(int id, [FromQuery] string userId, [FromQuery] string farmId)
+        {
+            if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(farmId))
+                return BadRequest("UserId and FarmId are required.");
+            try
+            {
+                return Ok(new { saleGroupNo = await _saleService.EnsureGroup(id, farmId, userId) });
+            }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001")
+            {
+                return BadRequest(new { message = ex.MessageText });
+            }
+        }
+
         // PUT: api/Sale/5
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] SaleModel model)
