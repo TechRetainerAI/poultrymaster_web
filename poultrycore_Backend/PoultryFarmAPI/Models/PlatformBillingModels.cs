@@ -53,7 +53,7 @@ namespace PoultryFarmAPIWeb.Models
         public string? TierName { get; set; }
         public decimal? MonthlyAmount { get; set; }
         public string CurrencyCode { get; set; } = string.Empty;
-        /// <summary>Resolved | PricingNotConfigured | CustomPrice | Grandfathered | Exempt.</summary>
+        /// <summary>Resolved | PricingNotConfigured | ScaleSetupRequired | CustomPrice | Grandfathered | Exempt.</summary>
         public string PricingStatus { get; set; } = string.Empty;
         public string ParticipationStatus { get; set; } = "Active";
         public long? EvaluationId { get; set; }
@@ -103,6 +103,10 @@ namespace PoultryFarmAPIWeb.Models
         public string Capability { get; set; } = string.Empty;
         public bool Enabled { get; set; }
         public decimal? Limit { get; set; }
+        /// <summary>Current usage where the platform can measure it (MAX_USERS today); null = not measured.</summary>
+        public decimal? Usage { get; set; }
+        /// <summary>True when a configured limit is reached — the UI shows an upgrade notice, never a lockout (spec 24).</summary>
+        public bool LimitReached { get; set; }
     }
 
     /// <summary>The consolidated bill preview (spec Part 29) — same engine, no charge.</summary>
@@ -120,6 +124,19 @@ namespace PoultryFarmAPIWeb.Models
         public bool HasUnpricedCompanies { get; set; }
         public DateTime PeriodStart { get; set; }
         public DateTime PeriodEnd { get; set; }
+        /// <summary>Every discount that shaped this preview, auto + special (admin-app spec 23).</summary>
+        public List<DiscountLineModel> DiscountBreakdown { get; set; } = new();
+        /// <summary>Unused account credit that will offset the next invoice (admin-app spec 26/27).</summary>
+        public decimal CreditsAvailable { get; set; }
+        public decimal EstimatedCreditApplied { get; set; }
+        public decimal EstimatedAmountDue { get; set; }
+    }
+
+    public class DiscountLineModel
+    {
+        public long Id { get; set; }               // 0 = the automatic multi-company rule
+        public string Name { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
     }
 
     public class BillingSummaryModel
@@ -130,6 +147,41 @@ namespace PoultryFarmAPIWeb.Models
         /// <summary>False while the master enforcement switch is off — nothing is ever restricted.</summary>
         public bool EnforcementEnabled { get; set; }
         public List<PendingTierChangeModel> PendingTierChanges { get; set; } = new();
+        /// <summary>Customer-safe "why is my bill lower" details (customer-app spec 23-26). Never internal notes.</summary>
+        public List<SavingsDetailModel> Savings { get; set; } = new();
+    }
+
+    public class SavingsDetailModel
+    {
+        /// <summary>MultiCompany | Discount | Promotion | Credit.</summary>
+        public string Kind { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string? DiscountType { get; set; }
+        public decimal? Value { get; set; }
+        public decimal AmountThisPeriod { get; set; }
+        public DateTime? EndDate { get; set; }
+        public int? RemainingPeriods { get; set; }
+        public string? Explanation { get; set; }
+    }
+
+    /// <summary>Backend-computed monthly↔annual comparison (customer-app spec 8/9). Display + confirmation only.</summary>
+    public class CyclePreviewModel
+    {
+        public string CurrentCycle { get; set; } = string.Empty;
+        public string TargetCycle { get; set; } = string.Empty;
+        public BillPreviewModel Current { get; set; } = new();
+        public BillPreviewModel Target { get; set; } = new();
+        /// <summary>Companies that would be unpriced under the target cycle (e.g. no annual price configured).</summary>
+        public List<string> MissingPrices { get; set; } = new();
+        public DateTime EffectiveDate { get; set; }
+    }
+
+    public class PricingContextModel
+    {
+        public string BillingProfileCode { get; set; } = string.Empty;
+        public string? BusinessTemplateCode { get; set; }
+        public string DisplayName { get; set; } = string.Empty;
+        public int SortOrder { get; set; }
     }
 
     public class PlatformInvoiceModel
@@ -146,8 +198,10 @@ namespace PoultryFarmAPIWeb.Models
         public decimal TaxAmount { get; set; }
         public decimal TotalAmount { get; set; }
         public decimal AmountPaid { get; set; }
+        public decimal CreditApplied { get; set; }
         public decimal Balance { get; set; }
         public string Status { get; set; } = string.Empty;
+        public string? DiscountBreakdown { get; set; }
         public List<PlatformInvoiceLineModel> Lines { get; set; } = new();
     }
 

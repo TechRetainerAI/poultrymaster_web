@@ -143,6 +143,13 @@ export const EGG_MOVE_LABELS: Record<string, string> = {
   "Driver Return In": "Driver return",
   "Delivery Load": "Delivery load-out",
   "Delivery Return": "Delivery return",
+  // 342: sorting moves eggs from Unsorted into sizes; summed over all classes
+  // the pair nets to the sorting loss.
+  "Sorting Out": "Sorted (out of Unsorted)",
+  "Sorting In": "Sorted (into sizes)",
+  "Sorting Reversal": "Sorting reversed",
+  // 344: breakage / loss recorded against one egg class.
+  "Egg Loss": "Breakage / loss",
 }
 
 /**

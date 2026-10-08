@@ -1,5 +1,6 @@
 "use client"
 
+import { useEggsPerCrate } from "@/hooks/use-eggs-per-crate"
 import { useEffect, useMemo, useState } from "react"
 import { parseDateParam } from "@/lib/utils/date-param"
 import { useRouter } from "next/navigation"
@@ -295,7 +296,7 @@ export default function BatchProductionRecordsPage() {
   const totalDeaths = useMemo(() => filtered.reduce((s, r) => s + (Number(r.deaths) || 0), 0), [filtered])
   const pendingCount = useMemo(() => filtered.filter((r) => r.status === "PendingAllocation").length, [filtered])
   const postedCount = useMemo(() => filtered.filter((r) => r.status === "Posted").length, [filtered])
-  const EGGS_PER_CRATE = 30
+  const EGGS_PER_CRATE = useEggsPerCrate()
   const totalEggsCrates = Math.floor(totalEggs / EGGS_PER_CRATE)
   const totalEggsPieces = totalEggs % EGGS_PER_CRATE
 

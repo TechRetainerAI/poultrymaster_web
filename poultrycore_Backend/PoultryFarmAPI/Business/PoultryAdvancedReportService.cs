@@ -598,6 +598,21 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@EndDate", end);
 
             await conn.OpenAsync();
+
+            // The farm's own crate (344); 30 when not set or before 344.
+            var perCrate = EggsPerCrate;
+            try
+            {
+                using var pc = new NpgsqlCommand("SELECT fnpoultry_eggspercrate(@FarmId::text)", conn);
+                pc.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
+                var v = await pc.ExecuteScalarAsync();
+                if (v is not null && v is not DBNull) perCrate = Math.Max(1, Convert.ToInt32(v));
+            }
+            catch (PostgresException) { /* function missing: keep the default */ }
+            resp.EggsPerCrate = perCrate;
+            long CratesOf(long eggs) => eggs / perCrate;
+            int LooseOf(long eggs) => (int)(eggs % perCrate);
+
             using var r = await cmd.ExecuteReaderAsync();
             long opening = 0, produced = 0, broken = 0, adjustments = 0, openAdj = 0, openSales = 0, salesInRange = 0;
             long openMoves = 0, movesInRange = 0;
@@ -631,8 +646,8 @@ namespace PoultryFarmAPIWeb.Business
                 SalesRemoved = salesInRange,
                 LossesAdjustments = lossesAdjustments,
                 CurrentStockEggs = current,
-                CurrentStockCrates = Crates(current),
-                LooseEggs = LooseEggs(current),
+                CurrentStockCrates = CratesOf(current),
+                LooseEggs = LooseOf(current),
                 AverageSellingPrice = null,
                 StockValue = null,
                 Status = current > 0 ? "In stock" : "Empty",
@@ -641,8 +656,8 @@ namespace PoultryFarmAPIWeb.Business
             resp.Summary = new PoultryEggStockBalanceReportSummary
             {
                 TotalEggsInStock = current,
-                TotalCrates = Crates(current),
-                LooseEggs = LooseEggs(current),
+                TotalCrates = CratesOf(current),
+                LooseEggs = LooseOf(current),
                 SaleableEggs = current,
                 BrokenRejectedEggs = broken,
                 StockValue = null,

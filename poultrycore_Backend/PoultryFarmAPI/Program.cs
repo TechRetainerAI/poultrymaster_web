@@ -186,6 +186,19 @@ builder.Services.AddScoped<IWaterReportService>(sp => new WaterReportService(con
 // Poultry Inventory + Raw Materials (additive; mirrors the Water raw-material services)
 builder.Services.AddScoped<IPoultryRawMaterialItemService>(sp => new PoultryRawMaterialItemService(connectionString));
 builder.Services.AddScoped<IPoultryRawMaterialPurchaseService>(sp => new PoultryRawMaterialPurchaseService(connectionString));
+// 345. Receive Purchase: supplier invoice -> stock + payable + payment in one call.
+builder.Services.AddScoped<IPoultryPurchaseReceiptService>(sp => new PoultryPurchaseReceiptService(connectionString));
+// 347. Flock Lifecycle Assistant: farm-defined plans and the reminders they raise per flock.
+builder.Services.AddScoped<IPoultryLifecycleService>(sp => new PoultryLifecycleService(connectionString));
+// 348. Recurring Expense Engine -- shared by every company type. One poster per
+// expense module, each calling that module's existing expense service.
+builder.Services.AddScoped<IRecurringExpensePoster, PoultryRecurringExpensePoster>();
+builder.Services.AddScoped<IRecurringExpensePoster, WaterRecurringExpensePoster>();
+builder.Services.AddScoped<IRecurringExpensePoster, GenericRecurringExpensePoster>();
+builder.Services.AddScoped<IRecurringExpensePoster>(sp => new HotelRecurringExpensePoster(connectionString));
+builder.Services.AddScoped<IRecurringExpensePoster, RestaurantRecurringExpensePoster>();
+builder.Services.AddScoped<IRecurringExpenseService>(sp => new RecurringExpenseService(connectionString, sp.GetServices<IRecurringExpensePoster>()));
+builder.Services.AddHostedService<RecurringExpenseWorker>();
 builder.Services.AddScoped<IPoultryRawMaterialUsageService>(sp => new PoultryRawMaterialUsageService(connectionString));
 builder.Services.AddScoped<IPoultryProductService>(sp => new PoultryProductService(connectionString));
 builder.Services.AddScoped<IPoultryStockService>(sp => new PoultryStockService(connectionString));
@@ -262,10 +275,14 @@ builder.Services.AddHttpClient();
 builder.Services.AddSingleton<IPlatformPaymentProvider>(sp => new PaystackPlatformProvider(
     builder.Configuration["PAYSTACK_SECRET_KEY"] ?? builder.Configuration["PaystackSettings:SecretKey"] ?? "",
     sp.GetRequiredService<IHttpClientFactory>()));
-builder.Services.AddScoped<IPlatformBillingService>(sp => new PlatformBillingService(
+builder.Services.AddScoped<PlatformBillingService>(sp => new PlatformBillingService(
     connectionString,
     sp.GetRequiredService<IPlatformPaymentProvider>(),
     sp.GetRequiredService<ILogger<PlatformBillingService>>()));
+builder.Services.AddScoped<IPlatformBillingService>(sp => sp.GetRequiredService<PlatformBillingService>());
+// The ADMIN APP surface shares the same instance: one config loader, one
+// evaluation path, one discount/credit pipeline (admin-app spec).
+builder.Services.AddScoped<IPlatformBillingAdminService>(sp => sp.GetRequiredService<PlatformBillingService>());
 builder.Services.AddHostedService<PlatformBillingWorker>();
 // Financial settings (261): when inventory costs reach the P&L. Two independent
 // choices, feed and medication, resolved against item overrides by the SPs.
@@ -276,6 +293,8 @@ builder.Services.AddScoped<ICompanyTimeService>(sp => new CompanyTimeService(con
 // "expected but not done" question; ActivityCheckService runs the ones that
 // apply to the company's type. A new check is one class + one line here.
 builder.Services.AddScoped<IActivityCheck>(sp => new PoultryProductionCompletenessCheck(connectionString));
+// Egg sorting (344): earlier days' eggs still unsorted. Silent unless the farm sorts.
+builder.Services.AddScoped<IActivityCheck>(sp => new PoultryUnsortedEggsCheck(connectionString));
 builder.Services.AddScoped<IActivityCheckService, ActivityCheckService>();
 builder.Services.AddScoped<IPoultryProductionGapService>(sp => new PoultryProductionGapService(connectionString));
 // Daily Farm Closing / management control (333): the workspace, close, reopen
@@ -293,6 +312,9 @@ builder.Services.AddScoped<IPoultryFlockAnomalyService>(sp => new PoultryFlockAn
 // Treatment campaigns (339): medication for many flocks over one or more days,
 // posted as medication lines through spproductionrecord_update.
 builder.Services.AddScoped<IPoultryTreatmentCampaignService>(sp => new PoultryTreatmentCampaignService(connectionString));
+// Egg Sorting Workspace (341-343): egg classes in the one stock ledger and the
+// Unsorted -> size transformation. Rules live in SQL; this only maps rows.
+builder.Services.AddScoped<IPoultryEggSortingService>(sp => new PoultryEggSortingService(connectionString));
 builder.Services.AddScoped<IPoultryInventoryValuationService>(sp => new PoultryInventoryValuationService(connectionString));
 builder.Services.AddScoped<IPoultryDeferredInventoryCostService>(sp => new PoultryDeferredInventoryCostService(connectionString));
 builder.Services.AddScoped<IPoultryCapitalAssetService>(sp => new PoultryCapitalAssetService(connectionString));

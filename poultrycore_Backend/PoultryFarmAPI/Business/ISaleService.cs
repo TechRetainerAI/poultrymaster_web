@@ -12,6 +12,9 @@ namespace PoultryFarmAPIWeb.Business
 
         // Optional
         Task<List<SaleModel>> GetByFlock(int flockId, string userId, string farmId);
+
+        /// <summary>One sale entry of several egg classes / products (migration 343), atomically.</summary>
+        Task<SaleGroupResult> CreateGroup(SaleGroupRequest request);
     }
 
 }

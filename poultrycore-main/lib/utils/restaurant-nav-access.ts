@@ -2,6 +2,9 @@ import type { FeatureAccessPermissions } from "@/hooks/use-permissions"
 
 const RESTAURANT_ROUTE_ACCESS: Record<string, (f: FeatureAccessPermissions, isAdmin: boolean) => boolean> = {
   // --- POS & Orders --------------------------------------------------------
+  // 348. Setting up standing expenses (rent, internet ...) is a money decision,
+  // unlike recording a one-off expense, which staff do today.
+  "/restaurant-recurring-expenses": (f) => f.canEnterExpenses,
   "/restaurant-pos":              (f) => f.canViewRestaurantPOS,
   "/restaurant-orders":           (f) => f.canViewRestaurantPOS,
   // Accepting a guest order puts it in the kitchen and takes a table, so it

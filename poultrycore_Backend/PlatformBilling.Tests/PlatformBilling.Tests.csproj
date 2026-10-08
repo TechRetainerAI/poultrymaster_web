@@ -9,10 +9,19 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.9.0" />
     <PackageReference Include="xunit" Version="2.7.0" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.5.7" />
+    <PackageReference Include="Npgsql" Version="8.0.7" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.1" />
   </ItemGroup>
   <ItemGroup>
-    <!-- Only the pure rules file: no DB, no ASP.NET host, so tests stay fast
-         and the API project's exe output type never matters here. -->
+    <!-- Rules tests stay dependency-free; the Part 64/65 integration test also
+         compiles the real service + provider + models and runs against a
+         throwaway PostgreSQL database (BILLING_ITEST_CONN), never a live one. -->
     <Compile Include="../PoultryFarmAPI/Business/PlatformBillingRules.cs" />
+    <Compile Include="../PoultryFarmAPI/Business/PlatformBillingService.cs" />
+    <Compile Include="../PoultryFarmAPI/Business/PlatformBillingService.Admin.cs" />
+    <Compile Include="../PoultryFarmAPI/Business/PlatformPaymentProviders.cs" />
+    <Compile Include="../PoultryFarmAPI/Models/PlatformBillingModels.cs" />
+    <Compile Include="../PoultryFarmAPI/Models/PlatformBillingAdminModels.cs" />
   </ItemGroup>
 </Project>

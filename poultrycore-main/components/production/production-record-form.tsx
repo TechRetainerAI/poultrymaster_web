@@ -54,7 +54,7 @@ import { MedicationLines, computeMedLines, emptyMedLine, buildMedCredit, type Me
 import { FeedLines, computeFeedLines, emptyFeedLine, buildFeedCredit, type FeedLineDraft } from "@/components/production/feed-lines"
 import type { ConsumptionCredit } from "@/lib/utils/raw-material-costing"
 import { getBirdsLeftFromRecord, getLatestRecordForFlock } from "@/lib/utils/production-records"
-import { EGG_GRADE_OPTIONS, EGG_GRADE_SELECT_VALUE_NONE, eggGradeFromApi, eggGradeToApi } from "@/lib/constants/egg-grade"
+import { PRODUCTION_EGG_GRADE, eggGradeToApi, formatEggGradeLabel, productionEggGrade } from "@/lib/constants/egg-grade"
 import { isFinishedFeedCategory } from "@/lib/utils/feed-item-ledger"
 import { useToast } from "@/hooks/use-toast"
 import { toastFormGuide } from "@/lib/utils/validation-toast"
@@ -172,7 +172,7 @@ export function ProductionRecordForm({
     feedKg: "", feedType: "",
     mortality: "", numBirds: "",
     notes: "", medication: "",
-    eggGrade: EGG_GRADE_SELECT_VALUE_NONE,
+    eggGrade: PRODUCTION_EGG_GRADE,
   })
 
   // Mark dirty on any user edit. Hydration uses setForm directly so loading a
@@ -463,7 +463,7 @@ export function ProductionRecordForm({
       numBirds: String(rec.noOfBirds ?? ""),
       notes: r0.notes ?? "",
       medication: rec.medication ?? "",
-      eggGrade: eggGradeFromApi(r0.eggGrade),
+      eggGrade: productionEggGrade(r0.eggGrade),
     })
 
     // Crate boxes reflect the stored egg counts so the breakdown is editable.
@@ -800,14 +800,17 @@ export function ProductionRecordForm({
           </div>
           <div className="space-y-1.5">
             <Label>Egg grade</Label>
-            <Select value={form.eggGrade} onValueChange={(v) => patch({ eggGrade: v })}>
-              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {EGG_GRADE_OPTIONS.map((g) => (
-                  <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Automatic since egg sorting: the day's collection is mixed
+                sizes; sizes are recorded in the Egg Sorting Workspace. An
+                older record keeps the grade it was saved with. */}
+            <div className="flex h-9 items-center rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700">
+              {formatEggGradeLabel(eggGradeToApi(form.eggGrade))}
+            </div>
+            <p className="text-xs text-slate-500">
+              {form.eggGrade === PRODUCTION_EGG_GRADE
+                ? "Set automatically. Sizes are recorded when the eggs are sorted."
+                : "Recorded before egg sorting; kept as it was."}
+            </p>
           </div>
         </div>
       </FormSectionCard>
@@ -815,7 +818,7 @@ export function ProductionRecordForm({
       {/* --------------------------------------------- Egg Production */}
       <FormSectionCard
         title="Egg Production"
-        description="Total = crates × 30 + loose eggs"
+        description={`Total = crates × ${EGGS_PER_CRATE} + loose eggs`}
         badge={`${total.toLocaleString()} eggs`}
         accent="amber"
         icon={Egg}

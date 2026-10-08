@@ -52,6 +52,9 @@ import {
 import { flockCountsTowardBirdTotals } from "@/lib/utils/flock-eligibility"
 import { eggGradeFromApi, formatEggGradeLabel } from "@/lib/constants/egg-grade"
 import { fmtDateTime, businessSortValue } from "@/lib/utils/company-datetime"
+import { getEggSortingPicks, getEggSortingSettings } from "@/lib/api/egg-sorting"
+import { useEggsPerCrate } from "@/hooks/use-eggs-per-crate"
+import { groupProductionDays, type PickStatus } from "@/lib/production/egg-sorting"
 
 // A tap-to-read note beside a stat's label. Popover rather than Tooltip on
 // purpose: hover doesn't exist on a phone, and these notes were written for
@@ -123,6 +126,10 @@ export default function ProductionRecordsPage() {
   ].filter((c) => c.on)
   const { toast } = useToast()
   const [records, setRecords] = useState<ProductionRecord[]>([])
+  // Egg Sorting Workspace (341-343): per-record sorting status, only when the
+  // farm sorts. Production stays about production -- this is a status chip
+  // and a link, never the sorting grid itself.
+  const [sortingStatus, setSortingStatus] = useState<Map<number, { status: PickStatus; left: number }>>(new Map())
   const [flocks, setFlocks] = useState<Flock[]>([])
   const [batches, setBatches] = useState<FlockBatch[]>([])
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -208,6 +215,20 @@ export default function ProductionRecordsPage() {
     if (flocksRes.success && flocksRes.data) setFlocks(flocksRes.data)
     if (batchesRes.success && batchesRes.data) setBatches(batchesRes.data)
     setLoading(false)
+    void loadSortingStatus()
+  }
+
+  // Last 120 days is plenty for "what still needs sorting"; older records show no chip.
+  const loadSortingStatus = async () => {
+    try {
+      const settings = await getEggSortingSettings()
+      if (!settings.enableEggSorting) { setSortingStatus(new Map()); return }
+      const from = new Date(Date.now() - 120 * 86400000).toISOString().slice(0, 10)
+      const days = groupProductionDays(await getEggSortingPicks({ fromDate: from }))
+      setSortingStatus(new Map(days.map((d) => [d.productionRecordId, { status: d.status, left: d.left }])))
+    } catch {
+      setSortingStatus(new Map())   // before 341, or no access: no chip
+    }
   }
 
   const openDeleteDialog = (id: number) => {
@@ -418,7 +439,7 @@ export default function ProductionRecordsPage() {
   const footerTotalBirdsLeft = useMemo(() => sumLatestBirdsLeftByFlock(filtered), [filtered])
   const footerBirdsLeftDisplay = footerTotalBirdsLeft
   const avgEggsPerRecord = useMemo(() => filtered.length ? Math.round(totalEggs / filtered.length) : 0, [filtered, totalEggs])
-  const EGGS_PER_CRATE = 30
+  const EGGS_PER_CRATE = useEggsPerCrate()
   const totalEggsCrates = Math.floor(totalEggs / EGGS_PER_CRATE)
   const totalEggsPieces = totalEggs % EGGS_PER_CRATE
 
@@ -1247,6 +1268,18 @@ export default function ProductionRecordsPage() {
                                 {permissions.canDelete && (
                                   <Button variant="ghost" size="sm" className="text-red-600 shrink-0" onClick={() => openDeleteDialog(r.id)}>Delete</Button>
                                 )}
+                                {sortingStatus.get(r.id) && (() => {
+                                  const st = sortingStatus.get(r.id)!
+                                  return (
+                                    <Link href={`/poultry-egg-sorting?record=${r.id}`}
+                                      title={st.left > 0 ? `${st.left.toLocaleString()} eggs not sorted yet — sort eggs` : "All eggs sorted"}
+                                      className={cn("shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium",
+                                        st.status === "Complete" ? "bg-emerald-100 text-emerald-800"
+                                          : st.status === "Partial" ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-700")}>
+                                      {st.status === "Complete" ? "Sorted" : st.status === "Partial" ? `${st.left.toLocaleString()} unsorted` : "Sort eggs"}
+                                    </Link>
+                                  )
+                                })()}
                               </div>
                             </TableCell>
                           </TableRow>
@@ -1353,7 +1386,7 @@ export default function ProductionRecordsPage() {
                   <div className="text-sm font-semibold text-slate-800">{totalDeathsAllRowsFarmWide.toLocaleString()}</div>
                 </div>
                 <div className="p-2 bg-muted/30 rounded border"><div className="text-xs">Total Eggs:</div><div className="text-lg font-bold">{totalEggs.toLocaleString()}</div></div>
-                <div className="p-2 bg-muted/30 rounded border"><div className="text-xs">Total Crates:</div><div className="text-lg font-bold">{Math.floor(totalEggs/30).toLocaleString()}</div></div>
+                <div className="p-2 bg-muted/30 rounded border"><div className="text-xs">Total Crates:</div><div className="text-lg font-bold">{Math.floor(totalEggs/EGGS_PER_CRATE).toLocaleString()}</div></div>
               </div>
             )}
 

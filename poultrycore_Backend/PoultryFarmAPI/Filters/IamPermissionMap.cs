@@ -154,6 +154,20 @@ namespace PoultryFarmAPIWeb.Filters
             ["poultry/raw-material-items"] = "poultry.raw-materials",
             ["poultry/raw-material-adjustments"] = "poultry.raw-materials",
             ["poultry/raw-material-purchases"] = "poultry.raw-materials",
+            // 345. Its own resource (seeded from the raw-materials grants), so
+            // reversing a whole supplier invoice is not simply "can delete a
+            // purchase". POST = create; /reverse resolves to approve. Paying on
+            // receipt is checked against supplier-payments.create in the controller.
+            ["poultry/purchase-receipts"] = "poultry.purchase-receipts",
+            // 347. Flock lifecycle plans and their reminders. GET = view, POST = create
+            // (plans, assignments), PUT = edit (plans AND completing/skipping a task),
+            // DELETE = delete. Seeded from the poultry.flocks grants.
+            ["poultry/lifecycle"] = "poultry.lifecycle",
+            // 348. Recurring expenses are expenses: ride the module's own expenses
+            // resource, so every company type gates them the way it gates its
+            // Expenses page. POST .../record (not /post) keeps posting a draft on
+            // the create right rather than approve.
+            ["recurring-expenses"] = "*.expenses",
             // 337. How long the stock lasts is part of seeing the stock.
             ["poultry/stock-supply"] = "poultry.raw-materials",
             // 338. Flock anomaly alerts: a flock dying, laying less or eating
@@ -166,6 +180,12 @@ namespace PoultryFarmAPIWeb.Filters
             // cancel. Reversal is checked explicitly against .delete in the
             // controller.
             ["poultry/treatment-campaigns"] = "poultry.health",
+            // 341-343. Egg Sorting Workspace: its own resource. view = workspace,
+            // ledger, reports; create = save / commit a sorting; edit = sizes
+            // and settings; delete = discard a draft. Reversal is a POST to
+            // {id}/reversal (not "reverse", which would resolve to .approve)
+            // and is checked explicitly against .delete in the controller.
+            ["poultry/egg-sorting"] = "poultry.egg-sorting",
             // 268. A read-only view of the same stock, valued two ways. It is
             // the raw materials it values, so it rides their resource rather
             // than inventing a permission nobody has been granted.

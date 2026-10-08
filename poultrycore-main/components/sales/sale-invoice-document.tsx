@@ -1,5 +1,6 @@
 "use client"
 
+import { EGGS_PER_CRATE } from "@/lib/production/production-record-calc"
 import type { Sale } from "@/lib/api"
 
 export type SaleInvoiceFarmInfo = {
@@ -229,7 +230,7 @@ export function SaleInvoiceDocument({ sale, farm, currencyCode, formatMoney, flo
                     <span className="strong">{sale.product}</span>
                     {isEggs && sale.quantity > 0 ? (
                       <div className="inv-line-note">
-                        {Math.floor(sale.quantity / 30)} crates + {sale.quantity % 30} loose
+                        {Math.floor(sale.quantity / EGGS_PER_CRATE)} crates + {sale.quantity % EGGS_PER_CRATE} loose
                       </div>
                     ) : null}
                   </td>
