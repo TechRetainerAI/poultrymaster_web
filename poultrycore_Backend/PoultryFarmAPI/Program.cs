@@ -186,6 +186,19 @@ builder.Services.AddScoped<IWaterReportService>(sp => new WaterReportService(con
 // Poultry Inventory + Raw Materials (additive; mirrors the Water raw-material services)
 builder.Services.AddScoped<IPoultryRawMaterialItemService>(sp => new PoultryRawMaterialItemService(connectionString));
 builder.Services.AddScoped<IPoultryRawMaterialPurchaseService>(sp => new PoultryRawMaterialPurchaseService(connectionString));
+// 345. Receive Purchase: supplier invoice -> stock + payable + payment in one call.
+builder.Services.AddScoped<IPoultryPurchaseReceiptService>(sp => new PoultryPurchaseReceiptService(connectionString));
+// 347. Flock Lifecycle Assistant: farm-defined plans and the reminders they raise per flock.
+builder.Services.AddScoped<IPoultryLifecycleService>(sp => new PoultryLifecycleService(connectionString));
+// 348. Recurring Expense Engine -- shared by every company type. One poster per
+// expense module, each calling that module's existing expense service.
+builder.Services.AddScoped<IRecurringExpensePoster, PoultryRecurringExpensePoster>();
+builder.Services.AddScoped<IRecurringExpensePoster, WaterRecurringExpensePoster>();
+builder.Services.AddScoped<IRecurringExpensePoster, GenericRecurringExpensePoster>();
+builder.Services.AddScoped<IRecurringExpensePoster>(sp => new HotelRecurringExpensePoster(connectionString));
+builder.Services.AddScoped<IRecurringExpensePoster, RestaurantRecurringExpensePoster>();
+builder.Services.AddScoped<IRecurringExpenseService>(sp => new RecurringExpenseService(connectionString, sp.GetServices<IRecurringExpensePoster>()));
+builder.Services.AddHostedService<RecurringExpenseWorker>();
 builder.Services.AddScoped<IPoultryRawMaterialUsageService>(sp => new PoultryRawMaterialUsageService(connectionString));
 builder.Services.AddScoped<IPoultryProductService>(sp => new PoultryProductService(connectionString));
 builder.Services.AddScoped<IPoultryStockService>(sp => new PoultryStockService(connectionString));

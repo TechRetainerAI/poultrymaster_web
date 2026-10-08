@@ -18,7 +18,7 @@
 import {
   Activity, ArrowLeftRight, Banknote, Bell, Boxes, Building2, CalendarSearch, ClipboardCheck, CreditCard,
   DollarSign, FileText, HandCoins, Hourglass, MessageSquare, Package, PackageMinus, Receipt, ScrollText, Search, Settings, Shield, ShoppingCart,
-  Scale, TrendingUp, Truck, User, UserCog, Users, Users2, UtensilsCrossed, Wallet, Wrench,
+  Scale, TrendingUp, Truck, User, UserCog, Users, Users2, UtensilsCrossed, Wallet, Wrench, Repeat,
 } from "lucide-react"
 import type { UserPermissions } from "@/hooks/use-permissions"
 import { isHotelNavItemVisible } from "@/lib/utils/hotel-nav-access"
@@ -118,6 +118,8 @@ export function buildHotelNavConfig({ permissions }: HotelNavDeps): HotelNavConf
         label: "Expenses",
         items: [
           { id: "expenses",       title: "Expenses", icon: DollarSign, href: "/hotel-expenses", visible: vis("/hotel-expenses") },
+          // 348. Shared recurring-expense engine; drafts post into Hotel Expenses for approval.
+          { id: "recurring-expenses", title: "Recurring Expenses", icon: Repeat, href: "/hotel-recurring-expenses", visible: vis("/hotel-expenses") },
           { id: "internal-use",   title: "Internal Use", icon: PackageMinus, href: "/hotel-internal-use", visible: vis("/hotel-internal-use") },
           { id: "payroll",        title: "Payroll",  icon: Banknote,   href: "/hotel-payroll",  visible: vis("/hotel-payroll") },
           // Moved here from Setup > People, to where Poultry has it: directly

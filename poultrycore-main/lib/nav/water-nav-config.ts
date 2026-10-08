@@ -17,7 +17,7 @@ import {
   Activity, AlertTriangle, Banknote, BarChart3, Bell, Boxes, Box, Building2,
   CalendarDays, Cog, Coins, CreditCard, Droplets, FileText, Factory, ListTodo, PackageMinus, Receipt,
   Route as RouteIcon, Settings, ShoppingBag, ShoppingCart, Truck, User, UserCog,
-  Users, Users2, Wallet, Wrench, History, Hourglass, Scale, ArrowLeftRight, HandCoins, TrendingUp,
+  Users, Users2, Wallet, Wrench, History, Hourglass, Scale, ArrowLeftRight, HandCoins, TrendingUp, Repeat,
 } from "lucide-react"
 import type { UserPermissions } from "@/hooks/use-permissions"
 import { isWaterNavItemVisible } from "@/lib/utils/water-nav-access"
@@ -182,6 +182,8 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount, qui
         label: "Expenses",
         items: [
           { id: "expenses",      title: "Expenses",        icon: Receipt,  href: "/water-expenses" },
+          // 348. Shared recurring-expense engine; drafts post into Water Expenses for approval.
+          { id: "recurring-expenses", title: "Recurring Expenses", icon: Repeat, href: "/water-recurring-expenses" },
           // Second, right under Expenses itself: the two are the same kind of
           // thing, one paid for in cash and one paid for in stock. Moved here
           // from Operations > Inventory; ungated, exactly as it was there, so

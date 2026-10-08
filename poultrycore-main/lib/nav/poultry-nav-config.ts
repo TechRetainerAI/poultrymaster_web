@@ -17,7 +17,7 @@ import {
   Activity, AlertTriangle, ArrowLeftRight, Banknote, BarChart3, Bell, Bird, BookOpen, Box, Boxes,
   Building2, Clock, CreditCard, DollarSign, Egg, Factory, FileText, HelpCircle, History, Hourglass,
   Coins, HandCoins, ListTodo, Package, PackageMinus, Pill, Receipt, Scale, Settings, ShoppingCart, Truck, User, UserCog, Users,
-  Users2, Wallet, Wheat, TrendingUp, Sparkles, ClipboardCheck, CalendarCheck, Flag,
+  Users2, Wallet, Wheat, TrendingUp, Sparkles, ClipboardCheck, CalendarCheck, Flag, Repeat,
 } from "lucide-react"
 import type { UserPermissions } from "@/hooks/use-permissions"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
@@ -232,6 +232,8 @@ export function buildPoultryNavConfig(
         label: "Expenses",
         items: [
           { id: "expenses",      title: "Expenses",     icon: DollarSign, href: "/expenses",               visible: money("/expenses") },
+          // 348. Rent, security, internet ... raised as drafts when due. Same gate as Expenses.
+          { id: "recurring-expenses", title: "Recurring Expenses", icon: Repeat, href: "/recurring-expenses", visible: money("/expenses") },
           // Moved here from Operations > Inventory & Health. Stock the farm
           // consumes itself is money going out in kind -- it belongs with the
           // outflows it is, rather than with the stock counts it is measured
@@ -427,6 +429,10 @@ export function buildPoultryNavConfig(
           // Flock Closeout (migrations 338/339). Gated on its own IAM key, the same
           // one the page and the API check, so the row never offers a page that would refuse.
           { id: "flock-closeout", title: "Flock Closeout", icon: Flag, href: "/flock-closeout", visible: permissions.can("poultry.flock-closeout.view") },
+          // Flock Lifecycle (347): reminders for the milestones the FARM defines,
+          // worked out from each flock's age. Gated on its own IAM key, the same
+          // one the page and the API check.
+          { id: "flock-lifecycle", title: "Flock Lifecycle", icon: CalendarCheck, href: "/poultry-lifecycle", visible: permissions.can("poultry.lifecycle.view") },
           // Missing Activity Detector (332): which expected activities -- today
           // or any past day -- have not been recorded. Not gated here, like the
           // Production rows it reports on; the API gates each check on its own
@@ -455,6 +461,11 @@ export function buildPoultryNavConfig(
           // that used to head the dashboard, on one page. Ungated like the rows
           // above; each card gates itself.
           { id: "farm-alerts", title: "Farm Alerts", icon: Bell, href: "/poultry-alerts" },
+          // Receive Purchase (345): a whole supplier invoice -- several items,
+          // additional costs, part payment, due date -- received in one step, with
+          // its receipts, balances and reversals on the same dedicated page. Gated
+          // on its own IAM key, the same one the page and the API check.
+          { id: "receive-purchase", title: "Receive Purchase", icon: Receipt, href: "/poultry-purchase-receipts", visible: permissions.can("poultry.purchase-receipts.view") },
         ],
       },
     ],

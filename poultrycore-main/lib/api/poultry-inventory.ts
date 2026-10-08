@@ -108,8 +108,16 @@ export interface PoultryRawMaterialPurchase {
   deferredRemainingCost?: number
   /** Per PRODUCTION unit, so it is comparable with productionUnitCost. Null on an empty lot. */
   deferredUnitCost?: number | null
-  /** "Expensed at purchase" | "Deferred - not yet expensed" | "Deferred - fully expensed". */
+  /** "Expensed at purchase" | "Deferred - not yet expensed" | "Deferred - fully expensed" | "Reversed". */
   costRecognitionStatus?: string | null
+
+  // ----- purchase receipts (migration 345), read-only -------------------------
+  /** The receipt that created this lot was reversed: kept for history, owes nothing, holds no stock. */
+  isReversed?: boolean
+  reversedAt?: string | null
+  /** Received through Receive Purchase: change it through the receipt, not here. */
+  poultryPurchaseReceiptId?: number | null
+  receiptNumber?: string | null
 
   createdBy?: string | null
   createdAt: string
