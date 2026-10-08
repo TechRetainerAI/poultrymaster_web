@@ -35,6 +35,7 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/use-permissions"
 import { BusinessOfficeShell } from "@/components/dashboard/business-office-shell"
+import { MyTasks } from "@/components/business-office/my-tasks"
 import {
   getMyCompanies, createCompany, sendCompanyWelcomeEmail, switchCompany,
   dashboardHomeForType, type Company, type CompanyType,
@@ -231,12 +232,12 @@ export default function BusinessOfficePage() {
     finally { setPosting(false) }
   }
 
-  async function openCompany(c: Company) {
+  async function openCompany(c: Company, path?: string) {
     setOpeningId(c.farmId)
     try {
       const res = await switchCompany(c.farmId)
       setActiveCompany(res.farmId, res.farmName, c.type, res.accessToken.token)
-      router.push(dashboardHomeForType(c.type))
+      router.push(path ?? dashboardHomeForType(c.type))
     } catch (e: any) { toast({ title: "Couldn't open company", description: e?.message ?? String(e), variant: "destructive" }); setOpeningId(null) }
   }
   async function create() {
@@ -410,7 +411,10 @@ export default function BusinessOfficePage() {
           )}
         </section>
 
-        {/* My Tasks + Recent activity removed — both were empty placeholders. */}
+        {/* My Tasks (347): flock lifecycle reminders across the poultry companies
+            this user can open. Each company is asked separately, and the server
+            decides per company whether this user may see them. */}
+        <MyTasks companies={companies} onOpen={(c, path) => openCompany(c, path)} />
 
         {/* Quick actions */}
         <section>

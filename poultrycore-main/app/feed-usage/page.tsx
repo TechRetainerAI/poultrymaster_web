@@ -41,6 +41,10 @@ import { toLocalDateKey } from "@/lib/utils/date-key"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { formatDateShort, cn } from "@/lib/utils"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
+import { useBusinessDate } from "@/hooks/use-business-date"
+import { PrefilledBanner, RepeatPreviousButton, ReviewMark, reviewRing } from "@/components/repeat/repeat-previous"
+import { buildRepeatPrefill, latestEntry, repeatSubmitBlocker, unconfirmedFields, type RepeatPrefill } from "@/lib/repeat/repeat-previous"
+import { FIELD_LABELS, feedUsagePolicy, type FeedUsageForm } from "@/lib/repeat/policies"
 
 export default function FeedUsagePage() {
   const router = useRouter()
@@ -101,6 +105,12 @@ export default function FeedUsagePage() {
 
   const feedTypes = ["Starter Feed", "Grower Feed", "Layer Feed", "Broiler Feed", "Organic Feed", "Custom Mix"]
 
+  // Smart Repeat: prefill a NEW entry from the last one (lib/repeat/policies.ts).
+  // Nothing is saved until the normal Record Usage button is pressed.
+  const { businessDate } = useBusinessDate()
+  const [prefill, setPrefill] = useState<RepeatPrefill<FeedUsageForm> | null>(null)
+  const [prefillConfirmed, setPrefillConfirmed] = useState(false)
+
   useEffect(() => {
     loadUsages()
     loadFlocks()
@@ -145,9 +155,27 @@ export default function FeedUsagePage() {
 
   // Create handlers
   const openCreateDialog = () => {
-    setCreateForm({ flockId: "", usageDate: new Date().toISOString().split("T")[0], feedType: "", quantityKg: "" })
+    setPrefill(null); setPrefillConfirmed(false)
+    setCreateForm({ flockId: "", usageDate: businessDate || new Date().toISOString().split("T")[0], feedType: "", quantityKg: "" })
     setCreateError("")
     loadFlocksForSelect()
+    setIsCreateDialogOpen(true)
+  }
+
+  const previousUsage = useMemo(() => latestEntry(usages, (u) => u.usageDate, (u) => u.feedUsageId), [usages])
+
+  // Repeat previous: the flock list is re-read first, so a flock that has
+  // closed since the last entry is dropped instead of being resubmitted.
+  const repeatPrevious = async () => {
+    if (!previousUsage) return
+    setCreateError("")
+    setFlocksSelectLoading(true)
+    let fs: { value: string; label: string }[] = []
+    try { await getValidFlocks(); fs = getFlocksForSelect(); setFlocksForSelect(fs) } finally { setFlocksSelectLoading(false) }
+    const today = businessDate || new Date().toISOString().split("T")[0]
+    const p = buildRepeatPrefill(feedUsagePolicy, previousUsage, { businessDate: today, valid: { flock: new Set(fs.map((f) => f.value)), feedType: new Set(feedTypes) } })
+    setCreateForm({ flockId: "", usageDate: today, feedType: "", quantityKg: "", ...p.values })
+    setPrefill(p); setPrefillConfirmed(false)
     setIsCreateDialogOpen(true)
   }
 
@@ -157,6 +185,9 @@ export default function FeedUsagePage() {
     setCreateError("")
     const { userId, farmId } = getUserContext()
     if (!userId || !farmId) { setCreateError("User context not found."); toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" }); setCreateLoading(false); return }
+    // Copied values must be confirmed first; every normal check below still runs.
+    const repeatBlock = repeatSubmitBlocker(prefill, createForm, prefillConfirmed, FIELD_LABELS.feedUsage)
+    if (repeatBlock) { setCreateError(repeatBlock); toastFormGuide(toast, repeatBlock); setCreateLoading(false); return }
     if (!createForm.flockId) { setCreateError("Choose a flock"); toastFormGuide(toast, "Pick which flock this feed was used for from the Flock list."); setCreateLoading(false); return }
     if (!createForm.feedType) { setCreateError("Choose a feed type"); toastFormGuide(toast, "Select the feed type (starter, grower, etc.) so records stay accurate."); setCreateLoading(false); return }
     if (!createForm.quantityKg || Number(createForm.quantityKg) <= 0) { setCreateError("Enter quantity"); toastFormGuide(toast, "Enter how many kilograms were used — use a number greater than zero."); setCreateLoading(false); return }
@@ -390,7 +421,8 @@ export default function FeedUsagePage() {
   const renderFeedFormFields = (
     form: typeof createForm,
     setForm: (f: typeof createForm) => void,
-    isLoading: boolean
+    isLoading: boolean,
+    unconfirmed: string[] = [],
   ) => (
     <>
       <div className="rounded-xl border border-slate-200 overflow-hidden">
@@ -424,8 +456,8 @@ export default function FeedUsagePage() {
             </Select>
           </div>
           <div className="space-y-2">
-            <Label className="text-sm font-medium text-slate-700">Quantity (kg) *</Label>
-            <NumberInput name="quantityKg"  step="0.1" min="0" placeholder="e.g., 25.5" value={form.quantityKg} onChange={(e) => setForm({ ...form, quantityKg: e.target.value })} required disabled={isLoading} />
+            <Label className="text-sm font-medium text-slate-700">Quantity (kg) *<ReviewMark show={unconfirmed.includes("quantityKg")} /></Label>
+            <NumberInput name="quantityKg"  step="0.1" min="0" placeholder="e.g., 25.5" value={form.quantityKg} onChange={(e) => setForm({ ...form, quantityKg: e.target.value })} required disabled={isLoading} className={reviewRing(unconfirmed.includes("quantityKg"))} />
           </div>
         </div>
       </div>
@@ -450,9 +482,12 @@ export default function FeedUsagePage() {
                 </div>
                 <p className="text-slate-600">Monitor feed consumption and costs</p>
               </div>
-              <Button className="gap-2 bg-blue-600 hover:bg-blue-700" onClick={openCreateDialog}>
-                <Plus className="w-4 h-4" /> Add Usage
-              </Button>
+              <div className="flex gap-2">
+                <RepeatPreviousButton available={!!previousUsage} label={previousUsage ? feedUsagePolicy.describe(previousUsage) : null} onClick={() => void repeatPrevious()} />
+                <Button className="gap-2 bg-blue-600 hover:bg-blue-700" onClick={openCreateDialog}>
+                  <Plus className="w-4 h-4" /> Add Usage
+                </Button>
+              </div>
             </div>
 
             {/* Filters */}
@@ -809,8 +844,13 @@ export default function FeedUsagePage() {
             <DialogDescription>Record feed consumption for a flock</DialogDescription>
           </DialogHeader>
           {createError && <Alert variant="destructive"><AlertDescription>{createError}</AlertDescription></Alert>}
+          {prefill && (
+            <PrefilledBanner prefill={prefill} fieldLabels={FIELD_LABELS.feedUsage}
+              unconfirmed={unconfirmedFields(prefill, createForm)} confirmed={prefillConfirmed} onConfirmedChange={setPrefillConfirmed}
+              onClear={openCreateDialog} />
+          )}
           <form onSubmit={handleCreateSubmit} className="space-y-4">
-            {renderFeedFormFields(createForm, setCreateForm, createLoading)}
+            {renderFeedFormFields(createForm, setCreateForm, createLoading, unconfirmedFields(prefill, createForm))}
             <div className="flex gap-3 justify-end pt-2">
               <Button type="button" onClick={() => setIsCreateDialogOpen(false)} className="bg-red-600 hover:bg-red-700 text-white">Cancel</Button>
               <Button type="submit" disabled={createLoading || flocksSelectLoading}>

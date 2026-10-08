@@ -35,7 +35,7 @@ import { Badge } from "@/components/ui/badge"
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
 import Link from "next/link"
-import { Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet, AlertTriangle, Factory, History } from "lucide-react"
+import { Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet, AlertTriangle, Factory, History, PackageCheck } from "lucide-react"
 import { feedItemKind } from "@/lib/utils/feed-item-ledger"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { cn } from "@/lib/utils"
@@ -353,7 +353,8 @@ function PoultryRawMaterialsPageInner() {
   // the history but kept out of the spend figures — its cost is the ingredients,
   // which were already counted when they were bought. Ingredients a batch bought
   // are real supplier spend, so those do count.
-  const spend = useMemo(() => purchases.filter((p) => p.feedProductionRole !== "Produced"), [purchases])
+  // A reversed receipt's lot (345) stays in the history but was never spend.
+  const spend = useMemo(() => purchases.filter((p) => p.feedProductionRole !== "Produced" && !p.isReversed), [purchases])
   const stats = useMemo(() => ({
     itemsCount: items.length,
     activeCount: items.filter((i) => i.isActive).length,
@@ -506,6 +507,8 @@ function PoultryRawMaterialsPageInner() {
               <Button variant="outline" className={TOOLBAR_BTN} onClick={openNewItem}><Plus className="w-4 h-4 mr-1" /> New Item</Button>
               <Button variant="outline" className={TOOLBAR_BTN} onClick={() => router.push("/poultry-feed-production")}><Factory className="w-4 h-4 mr-1" /> Produce Feed</Button>
               <Button className={TOOLBAR_BTN} onClick={openNewPurchase}><ShoppingCart className="w-4 h-4 mr-1" /> Record Purchase</Button>
+              {/* 345. A whole supplier invoice (several items, part payment, due date) in one step. */}
+              <Button className={TOOLBAR_BTN} variant="outline" onClick={() => router.push("/poultry-purchase-receipts?receive=1")}><PackageCheck className="w-4 h-4 mr-1" /> Receive Invoice</Button>
             </div>
           </div>
           {loading ? (
@@ -838,6 +841,7 @@ function PoultryRawMaterialsPageInner() {
                                 {p.feedProductionBatchNumber ? ` · ${p.feedProductionBatchNumber}` : ""}
                               </Badge>
                             )}
+                            <ReceiptBadges p={p} />
                           </TableCell>
                           <TableCell>{p.supplierName ?? "—"}</TableCell>
                           <TableCell className="text-right">{p.quantity.toLocaleString()} {p.unitOfMeasure ?? ""}</TableCell>
@@ -883,6 +887,8 @@ function PoultryRawMaterialsPageInner() {
                               <Button variant="ghost" size="sm" onClick={() => router.push(`/poultry-feed-production/${p.sourceFeedProductionBatchId}`)} title="Open the feed production batch">
                                 <Factory className="w-4 h-4 text-indigo-600" />
                               </Button>
+                            ) : (p.poultryPurchaseReceiptId || p.isReversed) ? (
+                              <ReceiptLotActions p={p} onPay={() => openPayBalance(p)} onOpen={() => router.push("/poultry-purchase-receipts")} />
                             ) : (
                               <>
                                 {p.balance > 0 && <Button variant="ghost" size="sm" onClick={() => openPayBalance(p)} title="Pay balance"><Wallet className="w-4 h-4 text-emerald-600" /></Button>}
@@ -902,11 +908,13 @@ function PoultryRawMaterialsPageInner() {
                         <FieldCard key={p.poultryRawMaterialPurchaseId} title={p.itemName}
                           badge={p.feedProductionRole
                             ? <Badge variant="outline" className={cn("text-[10px] font-normal", p.feedProductionRole === "Produced" ? "border-emerald-300 text-emerald-700" : "border-indigo-300 text-indigo-700")}>{p.feedProductionRole === "Produced" ? "Produced" : "Bought for production"}{p.feedProductionBatchNumber ? ` · ${p.feedProductionBatchNumber}` : ""}</Badge>
-                            : <span className="text-xs text-slate-500">{fmtDateTime(p.purchaseDate, p)}</span>}
+                            : (p.poultryPurchaseReceiptId || p.isReversed) ? <ReceiptBadges p={p} /> : <span className="text-xs text-slate-500">{fmtDateTime(p.purchaseDate, p)}</span>}
                           fields={[["Supplier", p.supplierName ?? "—"], ["Purchase Qty", `${p.quantity.toLocaleString()} ${p.unitOfMeasure ?? ""}`], ["Production Qty", p.productionQuantity != null ? `${p.productionQuantity.toLocaleString()} ${p.productionUnit ?? ""}`.trim() : "—"], ["Unit Price", gh(p.unitCost)], ["Total", gh(p.totalCost)], ["Paid", gh(p.amountPaid)], ["Balance", p.balance > 0 ? <span className="text-amber-600 font-medium">{gh(p.balance)}</span> : gh(0)]]}
                           actions={p.sourceFeedProductionBatchId
                             ? <Button variant="ghost" size="sm" onClick={() => router.push(`/poultry-feed-production/${p.sourceFeedProductionBatchId}`)} title="Open the feed production batch"><Factory className="w-4 h-4 text-indigo-600" /></Button>
-                            : <>
+                            : (p.poultryPurchaseReceiptId || p.isReversed)
+                              ? <ReceiptLotActions p={p} onPay={() => openPayBalance(p)} onOpen={() => router.push("/poultry-purchase-receipts")} />
+                              : <>
                                 {p.balance > 0 && <Button variant="ghost" size="sm" onClick={() => openPayBalance(p)} title="Pay balance"><Wallet className="w-4 h-4 text-emerald-600" /></Button>}
                                 <Button variant="ghost" size="sm" onClick={() => openEditPurchase(p)}><Pencil className="w-4 h-4" /></Button>
                                 <Button variant="ghost" size="sm" onClick={() => setDeletePurchaseTarget(p)}><Trash2 className="w-4 h-4 text-red-500" /></Button>
@@ -1186,5 +1194,37 @@ export default function PoultryRawMaterialsPage() {
     <Suspense fallback={null}>
       <PoultryRawMaterialsPageInner />
     </Suspense>
+  )
+}
+
+// 345. A lot received through Receive Purchase belongs to its receipt: it is
+// reversed there, never edited or deleted here (the database refuses both).
+// Paying its balance stays here, because that is an ordinary supplier payment.
+function ReceiptBadges({ p }: { p: PoultryRawMaterialPurchase }) {
+  if (!p.receiptNumber && !p.isReversed) return null
+  return (
+    <>
+      {p.receiptNumber && (
+        <Badge variant="outline" className="ml-2 text-[10px] font-normal border-emerald-300 text-emerald-700">{p.receiptNumber}</Badge>
+      )}
+      {p.isReversed && (
+        <Badge variant="outline" className="ml-2 text-[10px] font-normal border-slate-300 text-slate-500">Reversed</Badge>
+      )}
+    </>
+  )
+}
+
+function ReceiptLotActions({ p, onPay, onOpen }: { p: PoultryRawMaterialPurchase; onPay: () => void; onOpen: () => void }) {
+  return (
+    <>
+      {!p.isReversed && p.balance > 0 && (
+        <Button variant="ghost" size="sm" onClick={onPay} title="Pay balance"><Wallet className="w-4 h-4 text-emerald-600" /></Button>
+      )}
+      {p.poultryPurchaseReceiptId && (
+        <Button variant="ghost" size="sm" onClick={onOpen} title={`Open receipt ${p.receiptNumber ?? ""}`.trim()}>
+          <PackageCheck className="w-4 h-4 text-emerald-600" />
+        </Button>
+      )}
+    </>
   )
 }
