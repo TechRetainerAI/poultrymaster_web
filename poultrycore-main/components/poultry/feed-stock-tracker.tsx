@@ -96,7 +96,7 @@ const COPY: Record<FeedItemKind, {
       </>
     ),
     links: [
-      { href: "/poultry-raw-materials", label: "Raw Materials (purchases)" },
+      { href: "/poultry-supply-purchases", label: "Inventory & Supply Purchases" },
       { href: "/feed-usage", label: "Feed usage (record OUT)" },
       { href: "/feed-ingredient-tracker", label: "Ingredients only tracker" },
     ],
@@ -104,8 +104,8 @@ const COPY: Record<FeedItemKind, {
     accentIcon: "bg-emerald-100 text-emerald-800",
     emptyLedger: (
       <>
-        No ledger rows yet. Add items with category <strong>Finished Feed</strong> on Raw Materials &amp;
-        Supplies and record their purchases, or produce feed on Feed Production.
+        No ledger rows yet. Add items with category <strong>Finished Feed</strong> on Inventory &amp;
+        Supply Purchases and record their purchases, or produce feed on Feed Production.
       </>
     ),
     inSource: "Every movement that added finished feed to stock — purchases, feed produced by a batch, and corrections.",
@@ -124,7 +124,7 @@ const COPY: Record<FeedItemKind, {
       </>
     ),
     links: [
-      { href: "/poultry-raw-materials", label: "Raw Materials (purchases)" },
+      { href: "/poultry-supply-purchases", label: "Inventory & Supply Purchases" },
       { href: "/poultry-feed-production", label: "Feed Production (record OUT)" },
       { href: "/feed-tracker", label: "Feed tracker" },
     ],
@@ -132,8 +132,8 @@ const COPY: Record<FeedItemKind, {
     accentIcon: "bg-amber-100 text-amber-800",
     emptyLedger: (
       <>
-        No ledger rows yet. Add items with category <strong>Feed Ingredient</strong> on Raw Materials &amp;
-        Supplies and record their purchases; usage appears when a feed batch draws them.
+        No ledger rows yet. Add items with category <strong>Feed Ingredient</strong> on Inventory &amp;
+        Supply Purchases and record their purchases; usage appears when a feed batch draws them.
       </>
     ),
     inSource: "Every movement that added ingredients to the store — purchases, ingredients bought during a batch, and corrections.",
@@ -200,7 +200,7 @@ export function FeedStockTracker({ kind }: { kind: FeedItemKind }) {
       return
     }
     // Stock now comes from the poultry raw-material store — the same movements
-    // that maintain the quantities shown on /poultry-raw-materials. The Supplies
+    // that maintain the quantities shown on /poultry-supply-purchases. The Supplies
     // table this page used to read has never held a feed row.
     // The ledger is built entirely from the raw-material store. The feed-usage
     // and flock lists this page also used to fetch were never rendered by it —
@@ -782,7 +782,7 @@ export function FeedStockTracker({ kind }: { kind: FeedItemKind }) {
                       </div>
                     </div>
                     <p className="text-xs text-slate-500 mt-2">
-                      Built from the same three movements that maintain stock on Raw Materials &amp; Supplies —
+                      Built from the same three movements that maintain stock on Inventory &amp; Supply Purchases —
                       purchases in, usage out, adjustments either way — so this balance and that page agree.
                       Purchases are counted in the unit the item is STOCKED in, not the unit it was bought in.
                       {copy.manualAdjustments ? (
@@ -793,7 +793,7 @@ export function FeedStockTracker({ kind }: { kind: FeedItemKind }) {
                     {feedKgAtHand < 0 && (
                       <p className="text-xs text-amber-900 mt-2 rounded-md border border-amber-200 bg-amber-100/80 px-2 py-1.5">
                         Negative balance usually means more usage was logged than purchases — check the purchase and
-                        usage dates, or run <strong>Recalculate stock</strong> on Raw Materials &amp; Supplies.
+                        usage dates, or run <strong>Recalculate stock</strong> on Inventory &amp; Supply Purchases.
                       </p>
                     )}
                   </CardContent>
@@ -898,7 +898,7 @@ export function FeedStockTracker({ kind }: { kind: FeedItemKind }) {
                     <CardTitle>{copy.noun} stock ledger</CardTitle>
                     <CardDescription>
                       Purchases in, consumption out, straight from the raw-material store — so this balance matches the
-                      stock on Raw Materials &amp; Supplies. For one item at a time, with its own opening and closing,
+                      stock on Inventory &amp; Supply Purchases. For one item at a time, with its own opening and closing,
                       use the <Link href="/feed-inventory-tracker" className="underline">feed inventory tracker</Link>.
                       Filter the table below.
                     </CardDescription>

@@ -154,7 +154,7 @@ function isConsumptionExpense(e: any): boolean {
 
 export default function ExpensesPage() {
   // useSearchParams needs a Suspense boundary during prerender — same wrapper
-  // /poultry-raw-materials uses for its ?purchaseId= deep link.
+  // /poultry-supply-purchases uses for its ?purchaseId= deep link.
   return (
     <Suspense fallback={null}>
       <ExpensesPageInner />
@@ -169,7 +169,7 @@ function ExpensesPageInner() {
   const [breakdownFor, setBreakdownFor] = useState<number | null>(null)
   // ?expenseId=N narrows the list to one bill, so a link from the Supplier
   // Payments ledger lands ON the expense that was paid rather than on the whole
-  // list with the reader left to find the row. Same trick /poultry-raw-materials
+  // list with the reader left to find the row. Same trick /poultry-supply-purchases
   // uses with ?purchaseId=.
   const searchParams = useSearchParams()
   const focusExpenseId = Number(searchParams.get("expenseId") ?? "") || null

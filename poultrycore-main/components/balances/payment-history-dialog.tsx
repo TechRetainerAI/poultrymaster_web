@@ -39,6 +39,11 @@ interface Props {
   /** Scope to one sale/purchase's payments. */
   documentType?: string | null
   documentId?: number | null
+  /**
+   * Several documents read as one, e.g. the lines of a multi-size sale
+   * (SG-00001). A payment that touched more than one of them is listed once.
+   */
+  documentIds?: number[] | null
   /** Whether this user may reverse a posted payment. */
   canReverse: boolean
   onReversed: () => void
@@ -62,8 +67,9 @@ const paymentRef = (row: { paymentNumber?: string | null; paymentId: string }) =
   row.paymentNumber?.trim() || `#${String(row.paymentId).slice(0, 8)}`
 
 export function PaymentHistoryDialog({
-  open, onOpenChange, module, side, partyId, partyName, documentType, documentId, canReverse, onReversed,
+  open, onOpenChange, module, side, partyId, partyName, documentType, documentId, documentIds, canReverse, onReversed,
 }: Props) {
+  const documentIdsKey = documentIds?.join(",") ?? ""
   const fmt = useFmt()
   const { toast } = useToast()
 
@@ -77,8 +83,15 @@ export function PaymentHistoryDialog({
   const load = async () => {
     setLoading(true)
     try {
-      const list = await listPayments(module, side, { partyId, documentType, documentId })
-      setRows(list)
+      if (documentIds && documentIds.length > 1) {
+        const lists = await Promise.all(documentIds.map((id) => listPayments(module, side, { partyId, documentType, documentId: id })))
+        const seen = new Set<string>()
+        const merged = lists.flat().filter((r) => (seen.has(r.paymentId) ? false : (seen.add(r.paymentId), true)))
+        merged.sort((a, b) => String(b.createdAt ?? b.paymentDate).localeCompare(String(a.createdAt ?? a.paymentDate)))
+        setRows(merged)
+      } else {
+        setRows(await listPayments(module, side, { partyId, documentType, documentId }))
+      }
     } catch (e: any) {
       toast({ title: "Could not load payments", description: e?.message ?? String(e), variant: "destructive" })
     } finally {
@@ -93,7 +106,7 @@ export function PaymentHistoryDialog({
     setReason("")
     void load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, partyId, documentId, module, side])
+  }, [open, partyId, documentId, documentIdsKey, module, side])
 
   const toggle = async (row: PaymentHistoryRow) => {
     if (expanded === row.paymentId) { setExpanded(null); return }

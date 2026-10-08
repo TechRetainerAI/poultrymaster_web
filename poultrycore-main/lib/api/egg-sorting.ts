@@ -143,6 +143,9 @@ export interface EggCompositionRow {
   groupKey: string
   groupLabel: string
   groupSort: string
+  /** The flock the row belongs to (migration 346); absent before it. */
+  flockId?: number | null
+  flockName?: string | null
   lineType: SortingLineType
   eggSizeId: number | null
   sizeName: string | null
@@ -154,6 +157,9 @@ export interface EggCompositionRow {
 
 export interface EggCarryoverRow {
   productionDate: string
+  /** The flock the row belongs to (migration 346); absent before it. */
+  flockId?: number | null
+  flockName?: string | null
   records: number
   gross: number
   collectionLoss: number

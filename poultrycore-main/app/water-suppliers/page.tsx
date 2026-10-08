@@ -133,7 +133,7 @@ export default function WaterSuppliersPage() {
           <p className="text-sm text-slate-500 mb-3">
             Master list of vendors, service providers and anyone you pay.
             Used as the "Paid To" picker on Expenses and as the Supplier dropdown on
-            Raw Materials &amp; Supplies purchases.
+            Inventory &amp; supply purchases.
           </p>
 
           <ListFilters

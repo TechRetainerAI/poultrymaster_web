@@ -214,7 +214,7 @@ export default function FarmAlertsPage() {
 
               <Section id="stock" title="Stock"
                 description="Feed, medication and supplies that will run out soonest at their actual usage."
-                href="/poultry-days-of-supply" linkLabel="Days of Supply">
+                href="/poultry-restock-forecast" linkLabel="Inventory Restock Forecast">
                 <StockSupplyCard key={`ss-${cardsKey}`} />
               </Section>
             </div>

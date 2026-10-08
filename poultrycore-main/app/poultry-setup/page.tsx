@@ -218,9 +218,9 @@ const tabs: SetupTab<any>[] = [
   },
   {
     key: "raw-materials",
-    label: "Raw materials & supplies",
+    label: "Inventory & supply purchases",
     icon: Box,
-    addHref: "/poultry-raw-materials",
+    addHref: "/poultry-supply-purchases",
     fetch: listPoultryRawMaterialItems,
     delete: deletePoultryRawMaterialItem,
     idOf: (i: any) => i.poultryRawMaterialItemId,

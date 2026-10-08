@@ -4,7 +4,7 @@
 // (finished products / raw materials), stat cards up top, search in the header.
 //
 // Read-only here on purpose — adjustments go through the dedicated routes
-// (/poultry-products, /poultry-raw-materials) so the audit log captures
+// (/poultry-products, /poultry-supply-purchases) so the audit log captures
 // who/what/when. This page is the at-a-glance view, plus the PDF/email report
 // and the per-item links into the egg / birds / feed / medication trackers.
 
@@ -440,7 +440,7 @@ export default function PoultryInventoryPage() {
                   <div className="flex flex-col gap-2 p-3 border-b bg-slate-50 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0 text-sm text-slate-600">Feed ingredients, medication, vaccines. Stock updated by purchases + production usage.</div>
                     <Button asChild size="sm" variant="outline" className="w-full shrink-0 sm:w-auto">
-                      <Link href="/poultry-raw-materials"><ExternalLink className="h-4 w-4 mr-1" /> Manage raw materials</Link>
+                      <Link href="/poultry-supply-purchases"><ExternalLink className="h-4 w-4 mr-1" /> Manage raw materials</Link>
                     </Button>
                   </div>
                   {loading ? (

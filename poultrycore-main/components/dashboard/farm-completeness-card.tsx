@@ -16,13 +16,15 @@
 // Dates: report.businessDate is the company's day, from the server. The browser
 // clock is never consulted.
 
-import { Fragment, useCallback, useEffect, useState } from "react"
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, ClipboardCheck, Loader2, RefreshCw } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { FlockMissingDateRows } from "@/components/dashboard/flock-missing-dates"
 import { MissingByDateTable } from "@/components/dashboard/missing-by-date"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { cn } from "@/lib/utils"
 import { useAuthStore } from "@/lib/store/auth-store"
 import {
@@ -97,10 +99,24 @@ export function FarmCompletenessCard({
       .catch(() => { if (!cancelled) setEarlier([]) })
     return () => { cancelled = true }
   }, [compact, reportDate, reportBacklog])
-  // Rows whose missing-days dropdown is open.
-  const [openRows, setOpenRows] = useState<Set<string>>(() => new Set())
+  // The By flock table as one list, paged: flocks missing the day, then
+  // flocks whose only gaps are earlier days.
+  const readyProduction = readyReport ? findCheck(readyReport, PRODUCTION_CHECK_KEY) : undefined
+  const flockRows = useMemo(() => {
+    const today = readyProduction?.items ?? []
+    const earlierOnly = earlier ? flocksWithEarlierGaps(earlier, today.map((i) => i.subjectId)) : []
+    return [
+      ...today.map((item) => ({ kind: "day" as const, item })),
+      ...earlierOnly.map((flock) => ({ kind: "earlier" as const, flock })),
+    ]
+  }, [readyProduction, earlier])
+  const flockPg = usePagination(flockRows, 10)
+
+  // Every flock's missing days are open by default; this holds the rows the
+  // user has CLOSED.
+  const [closedRows, setClosedRows] = useState<Set<string>>(() => new Set())
   const toggleRow = (key: string) =>
-    setOpenRows((prev) => {
+    setClosedRows((prev) => {
       const next = new Set(prev)
       if (next.has(key)) next.delete(key)
       else next.add(key)
@@ -127,7 +143,7 @@ export function FarmCompletenessCard({
     if (!activeFarmId) return
     setState({ kind: "loading" })
     setExpanded(defaultExpanded)
-    setOpenRows(new Set())
+    setClosedRows(new Set())
     void load(false)
     const onVisible = () => {
       if (document.visibilityState === "visible") void load(true)
@@ -184,12 +200,11 @@ export function FarmCompletenessCard({
     ? (hasWork ? "/poultry-farm-completeness" : null)
     : completeMissingProductionHref(businessDate, production)
   const effectiveView = view
-  const earlierFlocks = earlier ? flocksWithEarlierGaps(earlier, production.items.map((i) => i.subjectId)) : []
   const notApplicable = production.status === "NotApplicable"
 
   return (
     <Card className={cn("rounded-xl border border-l-4 border-slate-200 bg-white shadow-sm", style.accent)}>
-      <CardContent className="p-4">
+      <CardContent className="p-3 sm:p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
             <div
@@ -287,6 +302,8 @@ export function FarmCompletenessCard({
                 <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
               </Button>
             )}
+            {/* Hidden on request: the missing list is always open on the full
+                page, so there is nothing to show or hide.
             {!compact && hasWork && (
               <Button
                 variant="outline"
@@ -300,18 +317,27 @@ export function FarmCompletenessCard({
                 {expanded ? "Hide" : "Show"} missing
               </Button>
             )}
-            {completeHref && (
+            */}
+            {/* Hidden on request on the full page: each flock's Record button
+                does the job. The dashboard's compact card keeps its button,
+                which only leads to this page.
+            {!compact && completeHref && (
               <Button asChild size="sm" className="bg-amber-600 text-white hover:bg-amber-700">
                 <Link href={completeHref}>
-                  {/* Batch entry is one day at a time: say which day this one is. */}
                   {!compact && backlogDates > 0 ? `Complete ${isToday ? "Today's" : "This Day's"} Production` : "Complete Missing Production"}
                 </Link>
+              </Button>
+            )}
+            */}
+            {compact && completeHref && (
+              <Button asChild size="sm" className="bg-amber-600 text-white hover:bg-amber-700">
+                <Link href={completeHref}>Complete Missing Production</Link>
               </Button>
             )}
           </div>
         </div>
 
-        {!compact && expanded && hasWork && (
+        {!compact && hasWork && (
           <div className="mt-4 space-y-2">
           <div className="inline-flex rounded-md border border-slate-200 bg-slate-50 p-0.5 text-sm" role="tablist">
             {(["flock", "date"] as const).map((v) => (
@@ -334,22 +360,26 @@ export function FarmCompletenessCard({
             <MissingByDateTable businessDate={businessDate} />
           ) : (
           <div id="farm-completeness-missing" className="overflow-x-auto rounded-lg border border-slate-200">
-            <table className="w-full min-w-[36rem] text-sm">
+            {/* Phone: Flock, Days Missing and Action only; batch, house and last
+                production move under the flock's name. */}
+            <table className="w-full text-sm sm:min-w-[36rem]">
               <thead className="bg-slate-50 text-left text-xs uppercase tracking-wider text-slate-500">
                 <tr>
                   <th className="px-3 py-2 font-medium">Flock</th>
-                  <th className="px-3 py-2 font-medium">Batch</th>
-                  <th className="px-3 py-2 font-medium">House/Pen</th>
-                  <th className="px-3 py-2 font-medium">Last Production</th>
-                  <th className="px-3 py-2 font-medium">Days Missing</th>
+                  <th className="hidden px-3 py-2 font-medium sm:table-cell">Batch</th>
+                  <th className="hidden px-3 py-2 font-medium sm:table-cell">House/Pen</th>
+                  <th className="hidden px-3 py-2 font-medium sm:table-cell">Last Production</th>
+                  <th className="px-3 py-2 font-medium"><span className="sm:hidden">Missing</span><span className="hidden sm:inline">Days Missing</span></th>
                   <th className="px-3 py-2 text-right font-medium">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {production.items.map((i) => {
+                {flockPg.pageItems.map((row, idx) => {
+                  if (row.kind === "day") {
+                  const i = row.item
                   const rowStyle = severityStyle(i.severity)
                   const rowKey = `${i.subjectType}-${i.subjectId}`
-                  const rowOpen = openRows.has(rowKey)
+                  const rowOpen = !closedRows.has(rowKey)
                   return (
                     <Fragment key={rowKey}>
                     {/* Click anywhere on the flock to open its missing days.
@@ -375,10 +405,14 @@ export function FarmCompletenessCard({
                             awaiting posting
                           </span>
                         )}
+                        <span className="block pl-[1.625rem] text-xs font-normal text-slate-500 sm:hidden">
+                          {[i.groupLabel, i.locationLabel].filter(Boolean).join(" · ") || "—"}
+                          {" · last "}{i.lastCompletedDate ? formatShortDate(i.lastCompletedDate) : "never"}
+                        </span>
                       </td>
-                      <td className="px-3 py-2 text-slate-600">{i.groupLabel ?? "—"}</td>
-                      <td className="px-3 py-2 text-slate-600">{i.locationLabel ?? "—"}</td>
-                      <td className="px-3 py-2 text-slate-600">
+                      <td className="hidden px-3 py-2 text-slate-600 sm:table-cell">{i.groupLabel ?? "—"}</td>
+                      <td className="hidden px-3 py-2 text-slate-600 sm:table-cell">{i.locationLabel ?? "—"}</td>
+                      <td className="hidden px-3 py-2 text-slate-600 sm:table-cell">
                         {i.lastCompletedDate ? formatShortDate(i.lastCompletedDate) : "Never"}
                       </td>
                       <td className="px-3 py-2">
@@ -386,7 +420,7 @@ export function FarmCompletenessCard({
                           {formatDaysOutstanding(i.daysOutstanding)}
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-right">
+                      <td className="whitespace-nowrap px-3 py-2 text-right">
                         <Button asChild size="sm" variant="outline" className="h-7 px-2.5 text-xs">
                           <Link href={itemActionHref(i, businessDate)} onClick={(e) => e.stopPropagation()}>
                             {itemActionLabel(i)}
@@ -397,23 +431,21 @@ export function FarmCompletenessCard({
                     {rowOpen && <FlockMissingDateRows flockId={i.subjectId} businessDate={businessDate} />}
                     </Fragment>
                   )
-                })}
-                {/* Flocks complete on this day with EARLIER missing days. */}
-                {backlogDates > 0 && earlier == null && (
-                  <tr><td colSpan={6} className="px-3 py-2 text-xs text-slate-500">
-                    <span className="inline-flex items-center gap-1.5"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading flocks with earlier missing days…</span>
-                  </td></tr>
-                )}
-                {earlierFlocks.length > 0 && missing > 0 && (
-                  <tr className="bg-slate-50"><td colSpan={6} className="px-3 py-1.5 text-xs font-medium uppercase tracking-wider text-slate-500">
-                    Earlier days missing
-                  </td></tr>
-                )}
-                {earlierFlocks.map((f) => {
+                  }
+                  const f = row.flock
+                  // "Earlier days missing" heads the earlier-only flocks, and is
+                  // repeated at the top of a page that starts with them.
+                  const prev = flockPg.pageItems[idx - 1]
+                  const heading = missing > 0 && (idx === 0 || prev?.kind === "day")
                   const rowKey = `earlier-${f.flockId}`
-                  const rowOpen = openRows.has(rowKey)
+                  const rowOpen = !closedRows.has(rowKey)
                   return (
                     <Fragment key={rowKey}>
+                    {heading && (
+                      <tr className="bg-slate-50"><td colSpan={6} className="px-3 py-1.5 text-xs font-medium uppercase tracking-wider text-slate-500">
+                        Earlier days missing
+                      </td></tr>
+                    )}
                     <tr
                       className={cn("cursor-pointer hover:bg-slate-50", rowOpen && "bg-slate-50")}
                       role="button"
@@ -430,20 +462,24 @@ export function FarmCompletenessCard({
                           {rowOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                         </span>
                         {f.flockName}
+                        <span className="block pl-[1.625rem] text-xs font-normal text-slate-500 sm:hidden">
+                          {[f.batchName, f.houseName].filter(Boolean).join(" · ") || "—"}
+                          {" · last "}{formatShortDate(businessDate)}
+                        </span>
                       </td>
-                      <td className="px-3 py-2 text-slate-600">{f.batchName ?? "—"}</td>
-                      <td className="px-3 py-2 text-slate-600">{f.houseName ?? "—"}</td>
+                      <td className="hidden px-3 py-2 text-slate-600 sm:table-cell">{f.batchName ?? "—"}</td>
+                      <td className="hidden px-3 py-2 text-slate-600 sm:table-cell">{f.houseName ?? "—"}</td>
                       {/* Not in today's missing list, so it reported on this day. */}
-                      <td className="px-3 py-2 text-slate-600">{formatShortDate(businessDate)}</td>
+                      <td className="hidden px-3 py-2 text-slate-600 sm:table-cell">{formatShortDate(businessDate)}</td>
                       <td className="px-3 py-2">
                         <span className={cn("rounded-full border px-2 py-0.5 text-xs tabular-nums", severityStyle("Critical").badge)}>
                           {formatDaysOutstanding(f.missingDays)} earlier
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-right">
+                      <td className="whitespace-nowrap px-3 py-2 text-right">
                         <Button asChild size="sm" variant="outline" className="h-7 px-2.5 text-xs">
                           <Link href={earlierGapActionHref(f, businessDate)} onClick={(e) => e.stopPropagation()}>
-                            {f.missingDays > 1 ? `Record ${f.missingDays} days` : "Record"}
+                            {f.missingDays > 1 ? `Record batch(${f.missingDays})` : "Record"}
                           </Link>
                         </Button>
                       </td>
@@ -452,8 +488,19 @@ export function FarmCompletenessCard({
                     </Fragment>
                   )
                 })}
+                {/* Flocks complete on this day with EARLIER missing days, still loading. */}
+                {backlogDates > 0 && earlier == null && (
+                  <tr><td colSpan={6} className="px-3 py-2 text-xs text-slate-500">
+                    <span className="inline-flex items-center gap-1.5"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading flocks with earlier missing days…</span>
+                  </td></tr>
+                )}
               </tbody>
             </table>
+            {flockRows.length > 0 && (
+              <div className="border-t border-slate-100 px-3 py-2">
+                <DataPagination {...flockPg.paginationProps} />
+              </div>
+            )}
           </div>
           )}
           </div>

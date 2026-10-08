@@ -71,7 +71,7 @@ export function StockSupplyCard() {
               <Package className="h-5 w-5 text-white" />
             </div>
             <div>
-              <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Stock Days of Supply</p>
+              <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Inventory Restock Forecast</p>
               {urgent.length === 0 ? (
                 <p className="mt-1 flex items-center gap-1.5 text-sm text-emerald-700">
                   <CheckCircle2 className="h-4 w-4" /> Nothing in use is expected to run out within {warning} days.
@@ -85,7 +85,7 @@ export function StockSupplyCard() {
             </div>
           </div>
           <Button asChild variant="outline" size="sm">
-            <Link href="/poultry-days-of-supply">View all</Link>
+            <Link href="/poultry-restock-forecast">View all</Link>
           </Button>
         </div>
 
@@ -116,7 +116,7 @@ export function StockSupplyCard() {
             })}
             {urgent.length > SHOW && (
               <li className="pt-2 text-xs text-slate-500">
-                and {urgent.length - SHOW} more — <Link className="text-sky-700 underline" href="/poultry-days-of-supply">view all</Link>
+                and {urgent.length - SHOW} more — <Link className="text-sky-700 underline" href="/poultry-restock-forecast">view all</Link>
               </li>
             )}
           </ul>

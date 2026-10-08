@@ -36,7 +36,7 @@ export default function WaterSupplierBalancesPage() {
       // than at a route of their own, so this lands on that tab with the one
       // purchase in focus.
       documentHref={(doc) =>
-        `/water-raw-materials?tab=purchases&purchaseId=${doc.documentId}`
+        `/water-supply-purchases?tab=purchases&purchaseId=${doc.documentId}`
       }
       permissions={{
         view: "water.supplier-balances.view",

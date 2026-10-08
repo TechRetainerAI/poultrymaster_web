@@ -648,7 +648,7 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
     void saveAndPost()
   }
 
-  // The purchase is recorded right here, in the same dialog /poultry-raw-materials
+  // The purchase is recorded right here, in the same dialog /poultry-supply-purchases
   // uses — the batch form stays exactly as it is behind it. The row being bought
   // for seeds the dialog: the whole line for a bought row, only the shortfall
   // for a mixed one.
@@ -1112,7 +1112,7 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* The same Record Purchase dialog /poultry-raw-materials uses, raised
+      {/* The same Record Purchase dialog /poultry-supply-purchases uses, raised
           in place so the batch form is never abandoned mid-entry. */}
       <PoultryPurchaseDialog
         open={!!purchaseFor}

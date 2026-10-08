@@ -13,7 +13,6 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
@@ -159,63 +158,77 @@ export function SortEggsDialog({
 
   return (
     <Dialog open={!!target} onOpenChange={(v) => { if (!v && !busy) onClose() }}>
-      <DialogContent className="max-h-[92vh] w-[95vw] max-w-[95vw] overflow-y-auto p-4 sm:max-w-3xl sm:p-6">
+      {/* Phone: full screen, one size per row, the totals and buttons pinned
+          to the bottom. From sm up: the wide dialog built to fit a laptop
+          screen without scrolling, every section kept to as few rows as it
+          can be. */}
+      <DialogContent className="left-0 top-0 h-[100dvh] max-h-[100dvh] w-full max-w-full translate-x-0 translate-y-0 grid-cols-1 content-start gap-3 overflow-x-hidden overflow-y-auto rounded-none p-4 pb-0
+        sm:left-[50%] sm:top-[50%] sm:h-auto sm:max-h-[96vh] sm:w-[95vw] sm:max-w-6xl sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-lg sm:p-5">
         <DialogHeader>
-          <DialogTitle>{title}{target.draft ? ` — draft ${target.draft.sessionNo}` : ""}</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="pr-8 text-left">{title}{target.draft ? ` — draft ${target.draft.sessionNo}` : ""}</DialogTitle>
+          <DialogDescription className="text-left">
             {day.flockName}{day.batchName ? ` · ${day.batchName}` : ""}{day.houseName ? ` · ${day.houseName}` : ""}
           </DialogDescription>
         </DialogHeader>
 
-        {/* What is being sorted, read from production -- never retyped. */}
-        {mode === "ByPick" && pick ? (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <Fact label="Production date" value={formatLongDate(day.productionDate)} />
-            <Fact label="Collected" value={fmtCount(pick.pickGross)} sub={cratesText(pick.pickGross)} />
-            <Fact label="Already sorted" value={fmtCount(pick.pickSorted)} />
-            <Fact label="Left to sort" value={fmtCount(pick.available)} sub={cratesText(pick.available)} strong />
-          </div>
-        ) : (
-          <div className="space-y-2">
-            <Label className="text-xs text-slate-500">Eggs from</Label>
-            <div className="divide-y divide-slate-100 rounded-lg border border-slate-200">
-              {allDays.map((d) => (
-                <label key={d.productionRecordId} className={cn("flex items-center gap-3 px-3 py-2 text-sm", d.left <= 0 && "opacity-60")}>
-                  <Checkbox
-                    checked={scope.has(d.productionRecordId)}
-                    disabled={d.left <= 0 && !scope.has(d.productionRecordId)}
-                    onCheckedChange={(v) => setScope((prev) => {
-                      const next = new Set(prev)
-                      if (v === true) next.add(d.productionRecordId); else next.delete(d.productionRecordId)
-                      return next
-                    })} />
-                  <span className="flex-1">
-                    <span className="font-medium text-slate-900">{formatLongDate(d.productionDate)}</span>
-                    <span className="ml-2 text-slate-500">
-                      {d.picks.filter((p) => p.available > 0).map((p) => `${pickLabel(p.pickNumber, labels).split(" (")[0]} ${fmtCount(p.available)}`).join(" · ") || "nothing left"}
-                    </span>
-                  </span>
-                  <span className="tabular-nums font-medium">{fmtCount(d.left)}</span>
-                </label>
-              ))}
+        {/* What is being sorted (read from production, never retyped), the
+            sorting date and notes: one row. */}
+        {(() => {
+          const dateField = (
+            <div className="space-y-1">
+              <Label htmlFor="es-date" className="text-[11px] uppercase tracking-wide text-slate-500">Sorting date</Label>
+              <Input id="es-date" type="date" className="h-9" value={sortingDate} min={earliest} max={today} onChange={(e) => setSortingDate(e.target.value)} />
+              {dateProblem && <p className="text-xs text-rose-700">{dateProblem}</p>}
             </div>
-            <p className="text-xs text-slate-500">
-              Oldest eggs are used first (earliest day, then pick order). Sizes from a combined sorting are reported for the day and the flock, never for a single pick.
-            </p>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="space-y-1">
-            <Label htmlFor="es-date" className="text-xs text-slate-500">Sorting date</Label>
-            <Input id="es-date" type="date" value={sortingDate} min={earliest} max={today} onChange={(e) => setSortingDate(e.target.value)} />
-            {dateProblem && <p className="text-xs text-rose-700">{dateProblem}</p>}
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="es-notes" className="text-xs text-slate-500">Notes</Label>
-            <Textarea id="es-notes" rows={1} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" />
-          </div>
-        </div>
+          )
+          const notesField = (
+            <div className="space-y-1">
+              <Label htmlFor="es-notes" className="text-[11px] uppercase tracking-wide text-slate-500">Notes</Label>
+              <Input id="es-notes" className="h-9" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" />
+            </div>
+          )
+          return mode === "ByPick" && pick ? (
+            <div className="grid grid-cols-2 items-end gap-2 sm:grid-cols-4 lg:grid-cols-[repeat(4,minmax(0,1fr))_11rem_minmax(0,1.3fr)]">
+              <Fact label="Production date" value={formatLongDate(day.productionDate)} />
+              <Fact label="Collected" value={fmtCount(pick.pickGross)} sub={cratesText(pick.pickGross)} />
+              <Fact label="Already sorted" value={fmtCount(pick.pickSorted)} />
+              <Fact label="Left to sort" value={fmtCount(pick.available)} sub={cratesText(pick.available)} strong />
+              {dateField}
+              {notesField}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,2fr)_11rem_minmax(0,1fr)] lg:items-start">
+              <div className="min-w-0 space-y-1">
+                <Label className="text-[11px] uppercase tracking-wide text-slate-500">
+                  Eggs from <span className="block normal-case tracking-normal sm:inline">— oldest used first (earliest day, then pick)</span>
+                </Label>
+                <div className="max-h-32 divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200">
+                  {allDays.map((d) => (
+                    <label key={d.productionRecordId} className={cn("flex items-center gap-3 px-3 py-1.5 text-sm", d.left <= 0 && "opacity-60")}>
+                      <Checkbox
+                        checked={scope.has(d.productionRecordId)}
+                        disabled={d.left <= 0 && !scope.has(d.productionRecordId)}
+                        onCheckedChange={(v) => setScope((prev) => {
+                          const next = new Set(prev)
+                          if (v === true) next.add(d.productionRecordId); else next.delete(d.productionRecordId)
+                          return next
+                        })} />
+                      <span className="min-w-0 flex-1 truncate">
+                        <span className="font-medium text-slate-900">{formatLongDate(d.productionDate)}</span>
+                        <span className="ml-2 text-slate-500">
+                          {d.picks.filter((p) => p.available > 0).map((p) => `${pickLabel(p.pickNumber, labels).split(" (")[0]} ${fmtCount(p.available)}`).join(" · ") || "nothing left"}
+                        </span>
+                      </span>
+                      <span className="tabular-nums font-medium">{fmtCount(d.left)}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              {dateField}
+              {notesField}
+            </div>
+          )
+        })()}
 
         {activeSizes.length === 0 && (
           <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
@@ -223,48 +236,97 @@ export function SortEggsDialog({
           </p>
         )}
 
-        {/* Grading grid */}
-        <div className="overflow-x-auto rounded-lg border border-slate-200">
+        {/* Phone: one size (then each loss) per row, the box to type in on the
+            right, crates and share underneath. */}
+        <div className="divide-y divide-slate-100 rounded-lg border border-slate-200 sm:hidden">
+          <div className="bg-slate-50 px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-slate-500">Egg size / grade</div>
+          {lineInputs.map((l, i) => {
+            const n = Number(l.text) || 0
+            const isLoss = l.lineType !== "SizedOutput"
+            const name = isLoss ? LOSS_TYPES.find((x) => x.key === l.lineType)?.label : activeSizes.find((s) => s.eggSizeId === l.eggSizeId)?.name
+            return (
+              <div key={l.key} className={cn("flex items-center gap-3 px-3 py-2", isLoss && "bg-rose-50/50", i === activeSizes.length && "border-t-2 border-slate-300")}>
+                <div className="min-w-0 flex-1">
+                  <div className={cn("font-medium", isLoss ? "text-rose-800" : "text-slate-900")}>{name}</div>
+                  <div className="text-[11px] text-slate-500">
+                    {isLoss && <span className="text-rose-700">loss — not stocked · </span>}
+                    {n ? `${cratesText(n)} · ${pct(n, bal.input)}` : "—"}
+                  </div>
+                </div>
+                <Input inputMode="numeric" className="h-10 w-24 text-right text-base" value={l.text} placeholder="0"
+                  aria-label={`Eggs — ${name}`}
+                  onChange={(e) => setQty((p) => ({ ...p, [l.key]: e.target.value.replace(/[^\d]/g, "") }))} />
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Grading grid: one column per size / loss, the measures as rows. */}
+        <div className="hidden overflow-x-auto rounded-lg border border-slate-200 sm:block">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wider text-slate-500">
-              <tr>
-                <th className="px-3 py-2 font-medium">Egg size / grade</th>
-                <th className="w-40 px-3 py-2 font-medium">Eggs</th>
-                <th className="px-3 py-2 text-right font-medium">Crates</th>
-                <th className="px-3 py-2 text-right font-medium">% of sorted</th>
-              </tr>
-            </thead>
             <tbody className="divide-y divide-slate-100">
-              {lineInputs.map((l, i) => {
-                const n = Number(l.text) || 0
-                const isLoss = l.lineType !== "SizedOutput"
-                const name = isLoss ? LOSS_TYPES.find((x) => x.key === l.lineType)?.label : activeSizes.find((s) => s.eggSizeId === l.eggSizeId)?.name
-                return (
-                  <tr key={l.key} className={cn(isLoss && "bg-rose-50/40", i === activeSizes.length && "border-t-2 border-slate-200")}>
-                    <td className="px-3 py-1.5">
-                      <span className={cn("font-medium", isLoss ? "text-rose-800" : "text-slate-900")}>{name}</span>
-                      {isLoss && <span className="ml-1.5 text-xs text-rose-700">loss — not stocked</span>}
+              <tr className="bg-slate-50">
+                <th scope="row" className="sticky left-0 z-10 whitespace-nowrap bg-slate-50 px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                  Egg size / grade
+                </th>
+                {lineInputs.map((l, i) => {
+                  const isLoss = l.lineType !== "SizedOutput"
+                  const name = isLoss ? LOSS_TYPES.find((x) => x.key === l.lineType)?.label : activeSizes.find((s) => s.eggSizeId === l.eggSizeId)?.name
+                  return (
+                    <th key={l.key} scope="col"
+                      className={cn("min-w-[5.5rem] px-2 py-2 text-center align-bottom", isLoss && "bg-rose-50", i === activeSizes.length && "border-l-2 border-slate-300")}>
+                      <span className={cn("block font-semibold", isLoss ? "text-rose-800" : "text-slate-900")}>{name}</span>
+                      {isLoss && <span className="block text-[10px] font-normal text-rose-700">loss — not stocked</span>}
+                    </th>
+                  )
+                })}
+              </tr>
+              <tr>
+                <th scope="row" className="sticky left-0 z-10 bg-white px-3 py-1.5 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Eggs</th>
+                {lineInputs.map((l, i) => (
+                  <td key={l.key} className={cn("px-2 py-1.5", l.lineType !== "SizedOutput" && "bg-rose-50/40", i === activeSizes.length && "border-l-2 border-slate-300")}>
+                    <Input inputMode="numeric" className="h-8 text-right" value={l.text} placeholder="0"
+                      aria-label={`Eggs — ${l.lineType === "SizedOutput" ? activeSizes.find((s) => s.eggSizeId === l.eggSizeId)?.name : LOSS_TYPES.find((x) => x.key === l.lineType)?.label}`}
+                      onChange={(e) => setQty((p) => ({ ...p, [l.key]: e.target.value.replace(/[^\d]/g, "") }))} />
+                  </td>
+                ))}
+              </tr>
+              <tr>
+                <th scope="row" className="sticky left-0 z-10 bg-white px-3 py-1.5 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Crates</th>
+                {lineInputs.map((l, i) => {
+                  const n = Number(l.text) || 0
+                  return (
+                    <td key={l.key} className={cn("px-2 py-1.5 text-center text-xs text-slate-500", l.lineType !== "SizedOutput" && "bg-rose-50/40", i === activeSizes.length && "border-l-2 border-slate-300")}>
+                      {n ? cratesText(n) : "—"}
                     </td>
-                    <td className="px-3 py-1.5">
-                      <Input inputMode="numeric" className="h-8 text-right" value={l.text} placeholder="0"
-                        onChange={(e) => setQty((p) => ({ ...p, [l.key]: e.target.value.replace(/[^\d]/g, "") }))} />
+                  )
+                })}
+              </tr>
+              <tr>
+                <th scope="row" className="sticky left-0 z-10 bg-white px-3 py-1.5 text-left text-xs font-medium uppercase tracking-wider text-slate-500">% of sorted</th>
+                {lineInputs.map((l, i) => {
+                  const n = Number(l.text) || 0
+                  return (
+                    <td key={l.key} className={cn("px-2 py-1.5 text-center tabular-nums text-slate-600", l.lineType !== "SizedOutput" && "bg-rose-50/40", i === activeSizes.length && "border-l-2 border-slate-300")}>
+                      {n ? pct(n, bal.input) : "—"}
                     </td>
-                    <td className="px-3 py-1.5 text-right text-xs text-slate-500">{n ? cratesText(n) : ""}</td>
-                    <td className="px-3 py-1.5 text-right tabular-nums text-slate-600">{n ? pct(n, bal.input) : ""}</td>
-                  </tr>
-                )
-              })}
+                  )
+                })}
+              </tr>
             </tbody>
           </table>
         </div>
 
-        {/* Live balance */}
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-          <Fact label="Available" value={fmtCount(bal.available)} />
-          <Fact label="Into sizes" value={fmtCount(bal.sized)} />
-          <Fact label="Loss" value={fmtCount(bal.loss)} />
-          <Fact label="Sorted now" value={fmtCount(bal.input)} strong />
-          <Fact label="Left unsorted after" value={fmtCount(bal.remainingAfter)}
+        {/* Totals and buttons. On a phone they stay pinned to the bottom while
+            the sizes scroll, so the balance is always in view. */}
+        <div className="sticky bottom-0 -mx-4 space-y-2 border-t border-slate-200 bg-white px-4 pb-4 pt-3 sm:static sm:mx-0 sm:space-y-3 sm:border-0 sm:p-0">
+        {/* Live balance, one strip */}
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+          <Tally label="Available" value={fmtCount(bal.available)} />
+          <Tally label="Into sizes" value={fmtCount(bal.sized)} />
+          <Tally label="Loss" value={fmtCount(bal.loss)} />
+          <Tally label="Sorted now" value={fmtCount(bal.input)} strong />
+          <Tally label="Left unsorted after" value={fmtCount(bal.remainingAfter)}
             tone={bal.remainingAfter < 0 ? "bad" : bal.remainingAfter === 0 && bal.input > 0 ? "good" : undefined} />
         </div>
         {blocker && bal.input > 0 && <p className="text-sm text-rose-700">{blocker}</p>}
@@ -272,7 +334,7 @@ export function SortEggsDialog({
           <p className="text-xs text-slate-500">Partial sorting: {fmtCount(bal.remainingAfter)} eggs stay unsorted and can be sorted later.</p>
         )}
 
-        <DialogFooter className="gap-2">
+        <DialogFooter className="grid grid-cols-3 gap-2 sm:flex">
           <Button variant="outline" onClick={onClose} disabled={!!busy}>Cancel</Button>
           <Button variant="outline" onClick={() => void submit(false)}
             disabled={!!busy || !!dateProblem || bal.invalidLines > 0 || (mode === "Combined" && scope.size === 0)}>
@@ -283,6 +345,7 @@ export function SortEggsDialog({
             {busy === "post" && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Post sorting
           </Button>
         </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   )
@@ -290,11 +353,21 @@ export function SortEggsDialog({
 
 function Fact({ label, value, sub, strong, tone }: { label: string; value: string; sub?: string; strong?: boolean; tone?: "bad" | "good" }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+    <div className="rounded-lg border border-slate-200 bg-white px-3 py-1.5">
       <div className="text-[11px] uppercase tracking-wide text-slate-500">{label}</div>
       <div className={cn("tabular-nums", strong ? "font-bold" : "font-semibold",
         tone === "bad" ? "text-rose-700" : tone === "good" ? "text-emerald-700" : "text-slate-900")}>{value}</div>
       {sub && <div className="text-[11px] text-slate-500">{sub}</div>}
     </div>
+  )
+}
+
+function Tally({ label, value, strong, tone }: { label: string; value: string; strong?: boolean; tone?: "bad" | "good" }) {
+  return (
+    <span className="whitespace-nowrap">
+      <span className="text-xs text-slate-500">{label}</span>{" "}
+      <b className={cn("tabular-nums", strong ? "font-bold" : "font-semibold",
+        tone === "bad" ? "text-rose-700" : tone === "good" ? "text-emerald-700" : "text-slate-900")}>{value}</b>
+    </span>
   )
 }

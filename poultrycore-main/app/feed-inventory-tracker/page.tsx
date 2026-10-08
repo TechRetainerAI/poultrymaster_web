@@ -354,8 +354,8 @@ function FeedInventoryTrackerPageInner() {
                 <CardContent className="py-12 text-center text-slate-600">
                   No feed items yet. Add items with category <strong>Feed Ingredient</strong> or{" "}
                   <strong>Finished Feed</strong> on{" "}
-                  <Link href="/poultry-raw-materials" className="text-amber-700 underline">
-                    Raw Materials &amp; Supplies
+                  <Link href="/poultry-supply-purchases" className="text-amber-700 underline">
+                    Inventory &amp; Supply Purchases
                   </Link>{" "}
                   to start tracking them.
                 </CardContent>
@@ -452,7 +452,7 @@ function FeedInventoryTrackerPageInner() {
                       purchases, usage and adjustments, so <strong>In stock now</strong> and{" "}
                       <strong>Closing</strong> below will not meet. Pick the item to see the difference, or run{" "}
                       <strong>Recalculate stock</strong> on{" "}
-                      <Link href="/poultry-raw-materials" className="underline">Raw Materials &amp; Supplies</Link>.
+                      <Link href="/poultry-supply-purchases" className="underline">Inventory &amp; Supply Purchases</Link>.
                     </AlertDescription>
                   </Alert>
                 )}
@@ -466,7 +466,7 @@ function FeedInventoryTrackerPageInner() {
                       but its purchases, usage and adjustments add up to{" "}
                       <strong>{qty(selected.derivedNow)}</strong> — a difference of {qty(Math.abs(selected.drift))}.
                       Run <strong>Recalculate stock</strong> on{" "}
-                      <Link href="/poultry-raw-materials" className="underline">Raw Materials &amp; Supplies</Link>{" "}
+                      <Link href="/poultry-supply-purchases" className="underline">Inventory &amp; Supply Purchases</Link>{" "}
                       to bring the stored figure back in line with its own movements.
                     </AlertDescription>
                   </Alert>

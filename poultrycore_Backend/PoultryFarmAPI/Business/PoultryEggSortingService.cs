@@ -404,6 +404,13 @@ namespace PoultryFarmAPIWeb.Business
             }
         }
 
+        private static bool HasColumn(NpgsqlDataReader r, string name)
+        {
+            for (var i = 0; i < r.FieldCount; i++)
+                if (string.Equals(r.GetName(i), name, StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
+        }
+
         private static async Task<bool> FunctionExistsAsync(NpgsqlConnection c, string name)
         {
             using var probe = new NpgsqlCommand(
@@ -447,15 +454,18 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<IReadOnlyList<EggCompositionRow>> GetCompositionAsync(string farmId, DateTime from, DateTime to, string groupBy, int? flockId)
         {
             using var c = new NpgsqlConnection(_cs);
+            await c.OpenAsync();
+            // Per flock from migration 346; every flock added together before it.
+            var fn = await FunctionExistsAsync(c, "sppoultryeggsorting_compositionbyflock")
+                ? "sppoultryeggsorting_compositionbyflock" : "sppoultryeggsorting_composition";
             using var cmd = new NpgsqlCommand(
-                "SELECT * FROM sppoultryeggsorting_composition(p_farmid => @FarmId::text, p_fromdate => @From::date, "
+                $"SELECT * FROM {fn}(p_farmid => @FarmId::text, p_fromdate => @From::date, "
                 + "p_todate => @To::date, p_groupby => @By::text, p_flockid => @Flock::int)", c);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@From", from.Date);
             cmd.Parameters.AddWithValue("@To", to.Date);
             cmd.Parameters.AddWithValue("@By", string.IsNullOrWhiteSpace(groupBy) ? "productiondate" : groupBy);
             cmd.Parameters.AddWithValue("@Flock", (object?)flockId ?? DBNull.Value);
-            await c.OpenAsync();
             using var r = await cmd.ExecuteReaderAsync();
             var list = new List<EggCompositionRow>();
             while (await r.ReadAsync())
@@ -465,6 +475,8 @@ namespace PoultryFarmAPIWeb.Business
                     GroupKey = Str(r, "groupkey") ?? string.Empty,
                     GroupLabel = Str(r, "grouplabel") ?? string.Empty,
                     GroupSort = Str(r, "groupsort") ?? string.Empty,
+                    FlockId = HasColumn(r, "flockid") ? Int(r, "flockid") : null,
+                    FlockName = HasColumn(r, "flockname") ? Str(r, "flockname") : null,
                     LineType = Str(r, "linetype") ?? string.Empty,
                     EggSizeId = Int(r, "eggsizeid"),
                     SizeName = Str(r, "sizename"),
@@ -480,14 +492,16 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<IReadOnlyList<EggCarryoverRow>> GetCarryoverAsync(string farmId, DateTime from, DateTime to, int? flockId)
         {
             using var c = new NpgsqlConnection(_cs);
+            await c.OpenAsync();
+            var fn = await FunctionExistsAsync(c, "sppoultryeggsorting_carryoverbyflock")
+                ? "sppoultryeggsorting_carryoverbyflock" : "sppoultryeggsorting_carryover";
             using var cmd = new NpgsqlCommand(
-                "SELECT * FROM sppoultryeggsorting_carryover(p_farmid => @FarmId::text, p_fromdate => @From::date, "
+                $"SELECT * FROM {fn}(p_farmid => @FarmId::text, p_fromdate => @From::date, "
                 + "p_todate => @To::date, p_flockid => @Flock::int)", c);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@From", from.Date);
             cmd.Parameters.AddWithValue("@To", to.Date);
             cmd.Parameters.AddWithValue("@Flock", (object?)flockId ?? DBNull.Value);
-            await c.OpenAsync();
             using var r = await cmd.ExecuteReaderAsync();
             var list = new List<EggCarryoverRow>();
             while (await r.ReadAsync())
@@ -495,6 +509,8 @@ namespace PoultryFarmAPIWeb.Business
                 list.Add(new EggCarryoverRow
                 {
                     ProductionDate = r.GetDateTime(r.GetOrdinal("productiondate")),
+                    FlockId = HasColumn(r, "flockid") ? Int(r, "flockid") : null,
+                    FlockName = HasColumn(r, "flockname") ? Str(r, "flockname") : null,
                     Records = Int(r, "records") ?? 0,
                     Gross = Long(r, "gross"),
                     CollectionLoss = Long(r, "collectionloss"),

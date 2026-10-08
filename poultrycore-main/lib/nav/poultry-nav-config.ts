@@ -111,12 +111,12 @@ export function buildPoultryNavConfig(
         // Operations > Purchase. money() is a default-DENY allow-list, so
         // sending a non-financial page through it hides it from everyone.
         //
-        // "Raw Materials", not the full "Raw Materials & Supplies" it carries in
-        // Operations: NavDropdown's panel is a fixed w-52 (208px) and its rows
-        // do not truncate, so the full name is the one label here that wraps to
-        // a second line. Same page, and the shortcut bar does not need the
+        // "Supply Purchases", not the full "Inventory & Supply Purchases" it
+        // carries in Operations: NavDropdown's panel is a fixed w-52 (208px)
+        // and its rows do not truncate, so the full name would wrap to a
+        // second line. Same page, and the shortcut bar does not need the
         // qualifier to be unambiguous.
-        { href: "/poultry-raw-materials", label: "Raw Materials",       icon: Box },
+        { href: "/poultry-supply-purchases", label: "Supply Purchases",    icon: Box },
         { href: "/sales",                 label: "Sales",              icon: ShoppingCart,
           visible: money("/sales") },
         { href: "/poultry-payments",      label: "Payments received",  icon: Wallet,
@@ -169,11 +169,12 @@ export function buildPoultryNavConfig(
         items: [
           { id: "inventory",      title: "Inventory",                 icon: Boxes,         href: "/poultry-inventory" },
           { id: "stock",          title: "Stock movements",           icon: Boxes,         href: "/poultry-stock" },
-          { id: "raw-materials",  title: "Raw Materials & Supplies",  icon: Box,           href: "/poultry-raw-materials" },
+          { id: "raw-materials",  title: "Inventory & Supply Purchases", icon: Box,        href: "/poultry-supply-purchases" },
           // Supplies and Other Inventory are hidden rather than deleted: the
           // pages still exist and still work by URL, and their rows are one
           // uncomment away if the farm wants them back. Both overlapped what
-          // Raw Materials & Supplies and Inventory above already cover.
+          // Inventory & Supply Purchases (was Raw Materials & Supplies) and
+          // Inventory above already cover.
           // { id: "supplies",       title: "Supplies",                  icon: ShoppingCart,  href: "/supplies" },
           { id: "health",         title: "Health Records",            icon: AlertTriangle, href: "/health" },
           // Internal Use moved to Sales, Expenses & Money > Expenses. Stock
@@ -205,10 +206,10 @@ export function buildPoultryNavConfig(
           // purchase transaction that brings birds onto the farm.
           { id: "flock-batch", title: "Flock Purchases (Batches)", icon: Boxes, href: "/flock-batch" },
           // Deep link that opens the Raw Materials purchase dialog straight
-          // away (?purchase=1 is handled in app/poultry-raw-materials/page.tsx)
+          // away (?purchase=1 is handled in app/poultry-supply-purchases/page.tsx)
           // — buying feed/packaging/medication is the other purchase people do
           // daily, and it was only reachable from inside that page.
-          { id: "record-purchase", title: "Record Purchase", icon: ShoppingCart, href: "/poultry-raw-materials?purchase=1" },
+          { id: "record-purchase", title: "Record Purchase", icon: ShoppingCart, href: "/poultry-supply-purchases?purchase=1" },
         ],
       },
     ],
@@ -376,6 +377,9 @@ export function buildPoultryNavConfig(
           // A farm-level schedule that production records key off, so it sits
           // with the other production master data rather than under Company.
           { id: "egg-picks",     title: "Egg Pick Times", icon: Clock,  href: "/business-office/egg-pick-settings", visible: isAdmin },
+          // Turning egg sorting on/off, the sizes and their prices: only the
+          // settings, on a page of their own (not the whole workspace).
+          { id: "egg-sorting-settings", title: "Egg Sorting Settings", icon: Egg, href: "/poultry-egg-sorting-settings", visible: isAdmin },
         ],
       },
       {
@@ -445,8 +449,8 @@ export function buildPoultryNavConfig(
           // or more days, posted as medication lines on production records.
           // Ungated like the rows above; the API gates on poultry.health.
           { id: "treatment-campaigns", title: "Treatment Campaigns", icon: Pill, href: "/poultry-treatment-campaigns" },
-          // Days of Supply (337): how long each raw material lasts at its actual usage.
-          { id: "days-of-supply", title: "Days of Supply", icon: Package, href: "/poultry-days-of-supply" },
+          // Inventory Restock Forecast (337, was "Days of Supply"): how long each raw material lasts at its actual usage.
+          { id: "days-of-supply", title: "Inventory Restock Forecast", icon: Package, href: "/poultry-restock-forecast" },
           // Flock Alerts (338): deterministic mortality / egg / feed anomaly
           // alerts with the numbers behind each one. Ungated like the rows
           // above; the API gates on poultry.health.
