@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Npgsql;
 using PoultryFarmAPIWeb.Models;
 
@@ -15,6 +15,14 @@ namespace PoultryFarmAPIWeb.Business
         Task<List<PaymentHistoryRow>> GetCustomerPayments(string farmId, int? customerId, int? saleId, DateTime? from, DateTime? to);
         Task<List<PaymentAllocationRow>> GetCustomerPaymentAllocations(string farmId, Guid paymentGroupId);
         Task<List<StatementLine>> GetCustomerStatement(string farmId, int customerId, DateTime? from, DateTime? to);
+
+        // 351: customer credit (money received and kept, applied to no active
+        // sale) and refunds of it.
+        Task<List<CustomerCreditSummaryRow>> GetCustomerCreditSummary(string farmId);
+        Task<List<CustomerCreditRow>> GetCustomerCredit(string farmId, int customerId);
+        Task<decimal> ApplyCustomerCredit(CustomerCreditApplyRequest r);
+        Task<int> RecordCustomerRefund(CustomerRefundRequest r);
+        Task<List<CustomerRefundRow>> GetCustomerRefunds(string farmId, int? customerId);
 
         // Supplier side
         Task<List<PartyBalanceRow>> GetSupplierBalances(BalanceQuery q);
@@ -487,6 +495,102 @@ namespace PoultryFarmAPIWeb.Business
         public Task<List<StatementLine>> GetSupplierStatement(string farmId, int supplierId, DateTime? from, DateTime? to) =>
             Statement("SELECT * FROM sppoultrysupplierstatement(p_farmid => @FarmId::text, p_supplierid => @PartyId::int, p_from => @From::date, p_to => @To::date)",
                       farmId, supplierId, from, to, supplierSide: true);
+
+        // ------------------------------------------------- 351 customer credit
+
+        public Task<List<CustomerCreditSummaryRow>> GetCustomerCreditSummary(string farmId) => Query(
+            "SELECT * FROM sppoultrycustomercredit_summary(p_farmid => @FarmId::text)",
+            cmd => cmd.Parameters.AddWithValue("@FarmId", farmId),
+            r => new CustomerCreditSummaryRow
+            {
+                CustomerId = Int(r, "customerid"),
+                CustomerName = Str(r, "customername") ?? string.Empty,
+                AvailableCredit = Dec(r, "availablecredit"),
+                PaymentCount = Int(r, "paymentcount"),
+                Outstanding = Dec(r, "outstanding"),
+            });
+
+        public Task<List<CustomerCreditRow>> GetCustomerCredit(string farmId, int customerId) => Query(
+            "SELECT * FROM sppoultrycustomercredit_list(p_farmid => @FarmId::text, p_customerid => @CustomerId::int)",
+            cmd =>
+            {
+                cmd.Parameters.AddWithValue("@FarmId", farmId);
+                cmd.Parameters.AddWithValue("@CustomerId", customerId);
+            },
+            r => new CustomerCreditRow
+            {
+                PoultryPaymentId = Int(r, "poultrypaymentid"),
+                PaymentGroupId = Guid.TryParse(GuidN(r, "paymentgroupid"), out var g) ? g : null,
+                PaymentNumber = Str(r, "paymentnumber"),
+                PaymentDate = DateN(r, "paymentdate"),
+                Amount = Dec(r, "amount"),
+                Unapplied = Dec(r, "unapplied"),
+                SourceType = Str(r, "sourcetype"),
+                SaleId = Int(r, "saleid"),
+                SaleStatus = Str(r, "salestatus"),
+                PoultryCashAccountId = IntN(r, "poultrycashaccountid"),
+            });
+
+        /// <summary>An allocation only: no payment, no Money In, no cash movement.</summary>
+        public async Task<decimal> ApplyCustomerCredit(CustomerCreditApplyRequest r)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand(
+                "SELECT sppoultrycustomercredit_apply(p_farmid => @FarmId::text, p_customerid => @CustomerId::int, " +
+                "p_saleid => @SaleId::int, p_amount => @Amount::numeric, p_by => @By::text)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
+            cmd.Parameters.AddWithValue("@CustomerId", r.CustomerId);
+            cmd.Parameters.AddWithValue("@SaleId", r.SaleId);
+            cmd.Parameters.AddWithValue("@Amount", r.Amount);
+            cmd.Parameters.AddWithValue("@By", Db(r.CreatedBy));
+            await conn.OpenAsync();
+            return Convert.ToDecimal(await cmd.ExecuteScalarAsync());
+        }
+
+        /// <summary>Real Money Out from the chosen account. Not an expense; no stock moves.</summary>
+        public async Task<int> RecordCustomerRefund(CustomerRefundRequest r)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand(
+                "SELECT sppoultrycustomerrefund_record(p_farmid => @FarmId::text, p_customerid => @CustomerId::int, " +
+                "p_amount => @Amount::numeric, p_cashaccountid => @Account::int, p_paymentmethod => @Method::text, " +
+                "p_refunddate => @Date::date, p_reason => @Reason::text, p_by => @By::text)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
+            cmd.Parameters.AddWithValue("@CustomerId", r.CustomerId);
+            cmd.Parameters.AddWithValue("@Amount", r.Amount);
+            cmd.Parameters.AddWithValue("@Account", r.PoultryCashAccountId);
+            cmd.Parameters.AddWithValue("@Method", Db(r.PaymentMethod));
+            cmd.Parameters.AddWithValue("@Date", DbDate(r.RefundDate));
+            cmd.Parameters.AddWithValue("@Reason", r.Reason ?? string.Empty);
+            cmd.Parameters.AddWithValue("@By", Db(r.CreatedBy));
+            await conn.OpenAsync();
+            return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        }
+
+        public Task<List<CustomerRefundRow>> GetCustomerRefunds(string farmId, int? customerId) => Query(
+            "SELECT * FROM sppoultrycustomerrefund_list(p_farmid => @FarmId::text, p_customerid => @CustomerId::int)",
+            cmd =>
+            {
+                cmd.Parameters.AddWithValue("@FarmId", farmId);
+                cmd.Parameters.AddWithValue("@CustomerId", (object?)customerId ?? DBNull.Value);
+            },
+            r => new CustomerRefundRow
+            {
+                RefundId = Int(r, "refundid"),
+                RefundNumber = Str(r, "refundnumber") ?? string.Empty,
+                CustomerId = Int(r, "customerid"),
+                CustomerName = Str(r, "customername"),
+                Amount = Dec(r, "amount"),
+                RefundDate = DateN(r, "refunddate") ?? DateTime.MinValue,
+                PoultryCashAccountId = Int(r, "poultrycashaccountid"),
+                AccountName = Str(r, "accountname"),
+                PaymentMethod = Str(r, "paymentmethod"),
+                Reason = Str(r, "reason") ?? string.Empty,
+                Status = Str(r, "status") ?? "Posted",
+                CreatedBy = Str(r, "createdby"),
+                CreatedAt = DateN(r, "createdat") ?? DateTime.MinValue,
+                PaymentNumbers = Str(r, "paymentnumbers"),
+            });
 
         // ----------------------------------------------------------------- audit
 

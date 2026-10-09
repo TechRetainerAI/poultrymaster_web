@@ -8,6 +8,7 @@
 
 import { BalancesPage } from "@/components/balances/balances-page"
 import { listPoultryCashAccounts } from "@/lib/api/poultry-finance"
+import { CustomerCreditPanel } from "@/components/sales/customer-credit-panel"
 
 export default function CustomerBalancesPage() {
   return (
@@ -15,6 +16,8 @@ export default function CustomerBalancesPage() {
       module="poultry"
       side="customer"
       companyType="Poultry"
+      // 351: money held for customers, beside (never netted into) what they owe.
+      afterSummary={<CustomerCreditPanel />}
       loadCashAccounts={async () => {
         const accounts = await listPoultryCashAccounts()
         return accounts

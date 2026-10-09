@@ -11,7 +11,7 @@
 // or take one payment and spread it across several. The read-only, printable
 // version of the same numbers lives under Reports.
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react"
+import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -88,10 +88,16 @@ export interface BalancesPageProps {
    * Omitted (Poultry, Water, Generic) = unchanged.
    */
   pagerVariant?: "compact" | "records"
+  /**
+   * Shown under the summary cards. Poultry's customer side passes its
+   * Customer Credit panel (351); everyone else passes nothing.
+   */
+  afterSummary?: ReactNode
 }
 
 export function BalancesPage({
   module, side, companyType, loadCashAccounts, partyHref, documentHref, permissions, wording, iconClassName, pagerVariant,
+  afterSummary,
 }: BalancesPageProps) {
   const fmt = useFmt()
   const router = useRouter()
@@ -344,6 +350,8 @@ export function BalancesPage({
               </div>
             )}
           </div>
+
+          {afterSummary}
 
           {/* Two rows of four, not one wrapping row of eight. The controls grew
               one at a time into a flex-wrap bar with four different fixed widths,

@@ -289,7 +289,10 @@ export function buildEggStockLedger(
     // (txn 285) — visible on /poultry-stock and in /poultry-inventory's total,
     // invisible in this table. Show it; the sign on `quantity` already says
     // which way the eggs went.
-    if ((type === "Production" || type === "Sale") && m.relatedId != null) continue
+    // 'Sale Reversal' (351) is the same: it undoes a sale this list no longer
+    // shows (getSales leaves reversed sales out), so both legs are dropped
+    // together -- exactly as the deleted sale it replaces used to read.
+    if ((type === "Production" || type === "Sale" || type === "Sale Reversal") && m.relatedId != null) continue
     const qty = Math.round(Number(m.quantity) || 0)
     if (qty === 0) continue
     const note = (m.note || "").trim()

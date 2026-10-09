@@ -113,7 +113,13 @@ namespace PoultryFarmAPIWeb.Business
             // over the rows serves both the totals and the breakdowns.
             foreach (var g in res.Rows.GroupBy(x => x.FlowGroup))
             {
-                var total = g.Sum(x => Math.Abs(x.Amount));
+                // In-groups are summed SIGNED (351): a payment reversal or a
+                // customer refund is contra-sales -- OperatingIn, negative --
+                // and must reduce Operating income, not add to it. Out-groups
+                // keep the absolute sum they always used.
+                var total = g.Key.EndsWith("In", StringComparison.Ordinal)
+                    ? g.Sum(x => x.Amount)
+                    : g.Sum(x => Math.Abs(x.Amount));
                 switch (g.Key)
                 {
                     case "OperatingIn":  res.Summary.OperatingIn  = total; break;

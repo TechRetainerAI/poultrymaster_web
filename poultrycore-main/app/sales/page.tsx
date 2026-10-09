@@ -18,12 +18,17 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { Plus, Edit, Trash2, ShoppingCart, DollarSign, TrendingUp, Package, FileText, Printer, Loader2, Info, Search, Filter, ChevronDown, ChevronUp, Mail, Wallet, History } from "lucide-react"
-import { getSales, createSale, updateSale, deleteSale, getFlocks, getCustomers, createCustomer, type Sale, type SaleInput } from "@/lib/api"
+import { Plus, Eye, Undo2, RotateCcw, ShoppingCart, DollarSign, TrendingUp, Package, FileText, Printer, Loader2, Info, Search, Filter, ChevronDown, ChevronUp, Mail, Wallet, History } from "lucide-react"
+import { getSales, createSale, updateSale, getFlocks, getCustomers, createCustomer, type Sale, type SaleInput } from "@/lib/api"
 import { isFlockClosed } from "@/lib/utils/flock-eligibility"
 import { listPoultryCashAccounts, recordPoultryPayment, type PoultryCashAccount } from "@/lib/api/poultry-finance"
 import { listPoultryProducts, type PoultryProduct } from "@/lib/api/poultry-inventory"
-import { createSaleGroup, ensureSaleGroup } from "@/lib/api/sale"
+import { createSaleGroup, getSaleReversal } from "@/lib/api/sale"
+import { ReverseSaleDialog, type ReverseSaleResult } from "@/components/sales/reverse-sale-dialog"
+import { SaleDetailsDialog } from "@/components/sales/sale-details-dialog"
+import { ApplyCreditDialog, type ApplyCreditTarget } from "@/components/sales/apply-credit-dialog"
+import { customerCreditTotal } from "@/lib/api/customer-credit"
+import { matchesStatusFilter, SALE_STATUS_FILTERS, type SaleStatusFilter } from "@/lib/sales/reversal"
 import { EGGS_PER_CRATE } from "@/lib/production/production-record-calc"
 import { useEggsPerCrate } from "@/hooks/use-eggs-per-crate"
 import { getEggClasses, type EggClass } from "@/lib/api/egg-sorting"
@@ -286,7 +291,10 @@ export default function SalesPage() {
   const [itemsPerPage, setItemsPerPage] = useState(10)
   const handleSort = (key: string) => { const r = toggleSort(key, sortKey, sortDir); setSortKey(r.key); setSortDir(r.direction) }
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  // One save at a time: every extra click while a save is in flight used to
+  // post another, identical sale (six of them in one test).
+  const [savingSale, setSavingSale] = useState(false)
+  const savingSaleRef = useRef(false)
   const [isInvoiceDialogOpen, setIsInvoiceDialogOpen] = useState(false)
   const [editingSale, setEditingSale] = useState<Sale | null>(null)
   // Editing a multi-size sale: every line as it was saved (editingSale is the first).
@@ -316,11 +324,16 @@ export default function SalesPage() {
     email: "",
   })
   const { toast } = useToast()
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [deletingSaleId, setDeletingSaleId] = useState<number | null>(null)
+  // 351: a posted sale is viewed, reversed or corrected -- never edited or deleted.
+  const [viewSale, setViewSale] = useState<SaleRow | null>(null)
+  const [reverseTarget, setReverseTarget] = useState<{ row: SaleRow; mode: "reverse" | "correct" } | null>(null)
+  /** Set while the create form is a Correct Sale re-entry of this reversed sale. */
+  const [correcting, setCorrecting] = useState<{ saleId: number; label: string; creditKept: number } | null>(null)
+  const [applyCredit, setApplyCredit] = useState<ApplyCreditTarget | null>(null)
+  // "All": a reversed sale stays in the list (struck through, never totalled)
+  // so it never looks deleted.
+  const [statusFilter, setStatusFilter] = useState<SaleStatusFilter>("All")
   // A multi-size sale is deleted as a whole: every line.
-  const [deletingSaleIds, setDeletingSaleIds] = useState<number[]>([])
-  const [isDeleting, setIsDeleting] = useState(false)
   const invoicePrintRef = useRef<HTMLDivElement | null>(null)
 
   // Form state
@@ -579,7 +592,7 @@ export default function SalesPage() {
         return
       }
       
-      const response = await getSales(userId, farmId)
+      const response = await getSales(userId, farmId, { includeReversed: true })
       if (response.success && response.data) {
         setSales(response.data)
       } else {
@@ -601,6 +614,18 @@ export default function SalesPage() {
   }
 
   const handleCreateSale = async () => {
+    if (savingSaleRef.current) return
+    savingSaleRef.current = true
+    setSavingSale(true)
+    try {
+      await createSaleNow()
+    } finally {
+      savingSaleRef.current = false
+      setSavingSale(false)
+    }
+  }
+
+  const createSaleNow = async () => {
     try {
       const { userId, farmId } = getUserContext()
       
@@ -650,6 +675,7 @@ export default function SalesPage() {
           paid: formData.paid ?? true,
           saleDescription: formData.saleDescription || null,
           flockId: formData.flockId || null,
+          correctsSaleId: correcting?.saleId ?? null,
           lines: [
             { product, eggProductId: formData.eggProductId ?? null, quantity, unitPrice, totalAmount },
             ...extraEggLines.map((l) => ({
@@ -662,6 +688,9 @@ export default function SalesPage() {
           return
         }
         toast({ title: `Sale ${res.data?.saleGroupNo ?? ""} created`, description: `${extraEggLines.length + 1} egg lines, one sale.` })
+        const firstId = res.data?.saleIds?.[0]
+        const groupTotal = Number(res.data?.totalAmount ?? 0)
+        await afterCorrectionSaved(firstId, res.data?.saleGroupNo || (firstId ? `#${firstId}` : ""), groupTotal, !!(formData.paid ?? true))
         setIsCreateDialogOpen(false)
         resetForm()
         loadSales()
@@ -687,6 +716,7 @@ export default function SalesPage() {
         poultryCashAccountId: formData.poultryCashAccountId ?? null,
         // 0 = Unsorted / General
         eggProductId: isEggsProduct ? (formData.eggProductId ?? 0) : 0,
+        correctsSaleId: correcting?.saleId ?? null,
       }
 
       const response = await createSale(saleData)
@@ -719,8 +749,9 @@ export default function SalesPage() {
         }
         toast({
           title: "Success",
-          description: "Sale created successfully",
+          description: correcting ? `Corrected sale saved (replaces #${correcting.saleId}).` : "Sale created successfully",
         })
+        await afterCorrectionSaved(newSaleId, newSaleId ? `#${newSaleId}` : "", totalAmount, !!saleData.paid)
         setIsCreateDialogOpen(false)
         resetForm()
         loadSales()
@@ -741,175 +772,143 @@ export default function SalesPage() {
     }
   }
 
-  const handleUpdateSale = async () => {
-    if (!editingSale) return
+  // ------------------------------------------------------------------ 351
+  // A posted sale is immutable. Only its note may change; anything else is
+  // Reverse Sale, or Correct Sale (reverse, then re-enter it pre-filled).
 
-    try {
-      const { userId, farmId } = getUserContext()
-      
-      if (!userId || !farmId) {
-        toast({
-          title: "Session issue",
-          description: "We could not confirm your farm or user. Please sign in again.",
-          variant: "destructive",
-        })
-        return
-      }
-      
-      if (!validateSaleForm()) return
-
-      const quantity = Number(formData.quantity ?? 0)
-      const unitPrice = Number(formData.unitPrice ?? 0)
-      const calculatedAmount = saleLineTotal(quantity, unitPrice, isEggsProduct)
-      const totalAmount = (overrideAmount !== undefined && overrideAmount > 0) ? overrideAmount : calculatedAmount
-
-      const payload: Partial<SaleInput> = {
-        farmId,
-        userId,
-        saleDate: formData.saleDate!,
-        product: (formData.product ?? "").toString().trim(),
-        quantity,
-        unitPrice,
-        totalAmount,
-        paymentMethod: (formData.paymentMethod ?? "").toString(),
-        customerName: (formData.customerName ?? "").toString(),
-        flockId: formData.flockId ?? 0,
-        saleDescription: formData.saleDescription ?? "",
-        paid: formData.paid ?? true,
-        size: formData.size?.trim() ? formData.size.trim() : null,
-        poultryCashAccountId: formData.poultryCashAccountId ?? null,
-        eggProductId: isEggsProduct ? (formData.eggProductId ?? 0) : 0,
-      }
-
-      if ((isEditingGroup || extraEggLines.length > 0) && isEggsProduct) {
-        if (extraEggLines.some((l) => extraLineEggs(l) <= 0 || l.unitPrice <= 0)) {
-          toastFormGuide(toast, "Every extra egg line needs eggs and a price per crate, or remove it.")
-          return
-        }
-        if (extraLinesShort(eggClasses, extraEggLines, quantity, formData.eggProductId ?? null, editReturned) && !overrideStock) {
-          toastFormGuide(toast, 'One of the extra egg lines asks for more eggs than its class holds. Lower it, or tick "Sell it anyway".')
-          return
-        }
-        // A single sale getting its first extra size needs a sale number for
-        // the new lines to join (migration 349). Asked first, so a failure
-        // here leaves the sale exactly as it was.
-        let groupNo = editingSale.saleGroupNo ?? null
-        if (!groupNo && extraEggLines.some((l) => !l.saleId)) {
-          const g = await ensureSaleGroup(editingSale.saleId, userId, farmId)
-          if (!g.success || !g.data?.saleGroupNo) {
-            toast({ title: "Sale not updated", description: g.message || "Could not give the sale a sale number.", variant: "destructive" })
-            return
-          }
-          groupNo = g.data.saleGroupNo
-        }
-        // One sale, several rows: the first line, then every other line with
-        // the same date, customer, payment and cash account. New lines join
-        // the sale number; lines taken off are deleted.
-        const failures: string[] = []
-        const first = await updateSale(editingSale.saleId, payload)
-        if (!first.success) failures.push(first.message || `line #${editingSale.saleId}`)
-        const kept = new Set(extraEggLines.map((l) => l.saleId).filter((id): id is number => !!id))
-        for (const l of extraEggLines) {
-          const line = {
-            ...payload,
-            quantity: extraLineEggs(l),
-            unitPrice: l.unitPrice,
-            totalAmount: extraLineTotal(l),
-            eggProductId: l.eggProductId ?? 0,
-          }
-          const r = l.saleId
-            ? await updateSale(l.saleId, line)
-            : await createSale({ ...(line as SaleInput), saleId: 0, saleGroupNo: groupNo })
-          if (!r.success) failures.push(r.message || `${eggClassLabel(l.eggProductId)} line`)
-        }
-        for (const old of editingLines.slice(1)) {
-          if (kept.has(old.saleId)) continue
-          const r = await deleteSale(old.saleId, userId, farmId)
-          if (!r.success) failures.push(r.message || `removing line #${old.saleId}`)
-        }
-        if (failures.length) {
-          toast({ title: "Sale partly updated", description: failures.join(" · "), variant: "destructive" })
-        } else {
-          toast({ title: "Success", description: `Sale ${groupNo ?? ""} updated` })
-          setIsEditDialogOpen(false)
-          setEditingSale(null)
-          setEditingLines([])
-          resetForm()
-        }
-        loadSales()
-        loadPoultryProducts()
-        return
-      }
-
-      const response = await updateSale(editingSale.saleId, payload)
-      if (response.success) {
-        toast({
-          title: "Success",
-          description: "Sale updated successfully",
-        })
-        setIsEditDialogOpen(false)
-        setEditingSale(null)
-        resetForm()
-        loadSales()
-        loadPoultryProducts()
-      } else {
-        toast({
-          title: "Error",
-          description: response.message || "Failed to update sale",
-          variant: "destructive",
-        })
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to update sale",
-        variant: "destructive",
-      })
+  const saveSaleNote = async (row: SaleRow, note: string): Promise<boolean> => {
+    const { userId, farmId } = getUserContext()
+    const sale: Sale = row.lines?.[0] ?? row
+    const res = await updateSale(sale.saleId, {
+      ...sale,
+      farmId, userId,
+      saleDescription: note,
+      // Sent exactly as stored: the server refuses any change but the note.
+      eggProductId: undefined,
+      saleGroupNo: undefined,
+    } as SaleInput)
+    if (!res.success) {
+      toast({ title: "Note not saved", description: res.message || "The sale was not changed.", variant: "destructive" })
+      return false
     }
+    toast({ title: "Note saved" })
+    setViewSale((v) => (v ? { ...v, saleDescription: note } : v))
+    loadSales()
+    return true
   }
 
-  const openDeleteSaleDialog = (sale: SaleRow) => {
-    setDeletingSaleId(sale.saleId)
-    setDeletingSaleIds(sale.lines ? sale.lines.map((l) => l.saleId) : [sale.saleId])
-    setDeleteDialogOpen(true)
+  const openReverse = (row: SaleRow, mode: "reverse" | "correct") => {
+    setViewSale(null)
+    setReverseTarget({ row, mode })
   }
 
-  const handleDeleteSale = async () => {
-    if (!deletingSaleId) return
+  // Edit & repost: a reversed sale that was not corrected yet can be entered
+  // again, pre-filled and linked to it, at any time after the reversal. The
+  // reversed sale itself is never changed -- it is the record of what was
+  // undone -- so the repost is a new sale with a new number.
+  const canRepost = (row: SaleRow) =>
+    row.status === "Reversed" && !row.correctedBySaleId && can("poultry.sales.create")
 
-    setIsDeleting(true)
+  const repostReversed = async (row: SaleRow) => {
+    const { farmId } = getUserContext()
+    let credit = 0
     try {
-      const { userId, farmId } = getUserContext()
-      let response: { success: boolean; message?: string } = { success: true }
-      for (const id of deletingSaleIds.length ? deletingSaleIds : [deletingSaleId]) {
-        response = await deleteSale(id, userId, farmId)
-        if (!response.success) break
+      const r = await getSaleReversal(row.saleId, farmId)
+      if (r.success && r.data) {
+        if (r.data.correctionSaleId) {
+          toast({ title: "Already reposted", description: `This sale was already corrected by #${r.data.correctionSaleId}.` })
+          loadSales()
+          return
+        }
+        credit = Number(r.data.creditCreated) || 0
       }
-      if (response.success) {
-        toast({
-          title: "Sale deleted",
-          description: "The sale record has been successfully deleted.",
-        })
-        loadSales()
-        loadPoultryProducts()
-      } else {
-        toast({
-          title: "Delete failed",
-          description: response.message || "Failed to delete sale",
-          variant: "destructive",
+      // Credit kept at the reversal may have been used or refunded since.
+      if (credit > 0 && row.customerId) credit = Math.min(credit, await customerCreditTotal(Number(row.customerId)))
+    } catch { /* open the form anyway; the credit offer re-checks after saving */ }
+    setViewSale(null)
+    openCorrectionForm(row, credit)
+  }
+
+  const onSaleReversed = (result: ReverseSaleResult) => {
+    const target = reverseTarget
+    setReverseTarget(null)
+    const credit = result.reversal?.creditCreated ?? 0
+    const cashOut = result.reversal?.cashReversed ?? 0
+    const label = target?.row.lines ? target.row.saleGroupNo : `#${target?.row.saleId}`
+    toast({
+      title: `Sale ${label} reversed`,
+      description: [
+        "Revenue and stock undone.",
+        credit > 0 ? `${formatCurrency(credit, currencyCode)} kept as customer credit.` : null,
+        cashOut > 0 ? `${formatCurrency(cashOut, currencyCode)} paid back out of cash.` : null,
+      ].filter(Boolean).join(" "),
+    })
+    loadSales()
+    loadPoultryProducts()
+    if (target?.mode === "correct") openCorrectionForm(target.row, credit)
+  }
+
+  // Correct Sale: a NEW sale, pre-filled from the reversed one and linked to it.
+  // Nothing transactional is copied -- no payment, cash or stock rows, no number.
+  const openCorrectionForm = (row: SaleRow, creditKept: number) => {
+    const sale: Sale = row.lines?.[0] ?? row
+    resetForm()
+    setFormData({
+      saleDate: sale.saleDate.split('T')[0],
+      product: sale.product,
+      quantity: sale.quantity,
+      unitPrice: sale.unitPrice,
+      totalAmount: sale.totalAmount,
+      paymentMethod: sale.paymentMethod,
+      customerName: sale.customerName,
+      flockId: sale.flockId,
+      saleDescription: sale.saleDescription ?? "",
+      // Money kept as credit is applied after saving, so the corrected sale
+      // goes in as Pay later -- recording it as paid again would count the
+      // same money twice.
+      paid: creditKept > 0 ? false : (sale.paid ?? true),
+      size: sale.size ?? null,
+      poultryCashAccountId: sale.poultryCashAccountId ?? defaultCashAccountId,
+      eggProductId: sale.eggProductId ?? null,
+    })
+    setExtraEggLines((row.lines ?? []).slice(1).map((l) => ({
+      key: `fix-${l.saleId}`,
+      eggProductId: l.eggProductId ?? null,
+      crates: Math.floor((Number(l.quantity) || 0) / EGGS_PER_CRATE),
+      loose: (Number(l.quantity) || 0) % EGGS_PER_CRATE,
+      unitPrice: Number(l.unitPrice) || 0,
+    })))
+    const selection = productOptions.includes(sale.product) ? sale.product : "Other"
+    setProductSelection(selection)
+    setProductOther(selection === "Other" ? sale.product : "")
+    const isEgg = (sale.product ?? "").toLowerCase().includes("egg")
+    setCrates(isEgg ? Math.floor((Number(sale.quantity) || 0) / EGGS_PER_CRATE) : 0)
+    setLooseEggs(isEgg ? (Number(sale.quantity) || 0) % EGGS_PER_CRATE : 0)
+    setCorrecting({ saleId: sale.saleId, label: row.lines ? (row.saleGroupNo ?? `#${sale.saleId}`) : `#${sale.saleId}`, creditKept })
+    setIsCreateDialogOpen(true)
+  }
+
+  // After a corrected sale is saved on credit: offer the customer's credit.
+  const afterCorrectionSaved = async (newSaleId: number | undefined, label: string, total: number, paidNow: boolean) => {
+    const fix = correcting
+    setCorrecting(null)
+    if (!fix || !newSaleId || paidNow) return
+    const customer = customers.find((c: any) =>
+      (c.name ?? c.customerName ?? "").trim().toLowerCase() === (formData.customerName ?? "").toString().trim().toLowerCase())
+    const customerId = customer?.customerId ?? customer?.id
+    if (!customerId) return
+    try {
+      const credit = await customerCreditTotal(Number(customerId))
+      if (credit > 0) {
+        setApplyCredit({
+          customerId: Number(customerId),
+          customerName: (formData.customerName ?? "").toString(),
+          saleId: newSaleId,
+          saleLabel: label,
+          outstanding: total,
         })
       }
-    } catch (error) {
-      toast({
-        title: "Delete failed",
-        description: "Failed to delete sale. Please try again.",
-        variant: "destructive",
-      })
-    }
-    setIsDeleting(false)
-    setDeleteDialogOpen(false)
-    setDeletingSaleId(null)
-    setDeletingSaleIds([])
+    } catch { /* the credit can still be applied from Customer Balances */ }
   }
 
   // Default new sales to the "Main Cash Account" (falls back to the first active
@@ -1007,6 +1006,7 @@ export default function SalesPage() {
   }
 
   const clearFilters = () => {
+    setStatusFilter("Active")
     setSearchCustomer("")
     setDateFrom("")
     setDateTo("")
@@ -1113,54 +1113,6 @@ export default function SalesPage() {
     } catch (e: any) {
       toast({ title: "Payment failed", description: e?.message ?? String(e), variant: "destructive" })
     } finally { setPaySaving(false) }
-  }
-
-  const openEditDialog = (row: SaleRow) => {
-    // A multi-size sale opens with its first line in the main fields and the
-    // other lines below it, exactly as it was entered.
-    const sale: Sale = row.lines?.[0] ?? row
-    setEditingSale(sale)
-    setEditingLines(row.lines ?? [])
-    setFormData({
-      saleDate: sale.saleDate.split('T')[0],
-      product: sale.product,
-      quantity: sale.quantity,
-      unitPrice: sale.unitPrice,
-      totalAmount: sale.totalAmount,
-      paymentMethod: sale.paymentMethod,
-      customerName: sale.customerName,
-      flockId: sale.flockId,
-      // Null from the API for a sale with no description; the form is
-      // controlled, so it has to be a string all the way down.
-      saleDescription: sale.saleDescription ?? "",
-      paid: sale.paid ?? true,
-      size: sale.size ?? null,
-      poultryCashAccountId: sale.poultryCashAccountId ?? null,
-      eggProductId: sale.eggProductId ?? null,
-    })
-    setExtraEggLines((row.lines ?? []).slice(1).map((l) => ({
-      key: `sale-${l.saleId}`,
-      saleId: l.saleId,
-      eggProductId: l.eggProductId ?? null,
-      crates: Math.floor((Number(l.quantity) || 0) / EGGS_PER_CRATE),
-      loose: (Number(l.quantity) || 0) % EGGS_PER_CRATE,
-      unitPrice: Number(l.unitPrice) || 0,
-    })))
-    const selection = productOptions.includes(sale.product) ? sale.product : "Other"
-    setProductSelection(selection)
-    setProductOther(selection === "Other" ? sale.product : "")
-    setShowNewCustomerInput(false)
-    setOverrideStock(false)
-    // Reverse-calculate crates and loose eggs from quantity for egg products
-    const isEgg = (sale.product ?? "").toLowerCase().includes("egg")
-    if (isEgg && sale.quantity > 0) {
-      setCrates(Math.floor(sale.quantity / EGGS_PER_CRATE))
-      setLooseEggs(sale.quantity % EGGS_PER_CRATE)
-    } else {
-      setCrates(0)
-      setLooseEggs(0)
-    }
-    setIsEditDialogOpen(true)
   }
 
   const calculateTotal = () => {
@@ -1339,9 +1291,10 @@ export default function SalesPage() {
       }
       if (dateFrom && toLocalDateKey(sale.saleDate) < dateFrom) return false
       if (dateTo && toLocalDateKey(sale.saleDate) > dateTo) return false
+      if (!matchesStatusFilter(sale, paymentStatusOf(sale), statusFilter)) return false
       return true
     })
-  }, [groupedSales, searchCustomer, dateFrom, dateTo, focusSaleId])
+  }, [groupedSales, searchCustomer, dateFrom, dateTo, focusSaleId, statusFilter])
 
   const sortedSales = useMemo(() => sortData(filteredSales, sortKey, sortDir, (item: any, key: string) => {
     switch (key) {
@@ -1397,8 +1350,9 @@ export default function SalesPage() {
     }
     return pages
   }
-  const totalSales = useMemo(() => filteredSales.reduce((sum, sale) => sum + (sale.totalAmount || 0), 0), [filteredSales])
-  const totalQuantity = useMemo(() => filteredSales.reduce((sum, sale) => sum + (sale.quantity || 0), 0), [filteredSales])
+  // A reversed sale is not a sale: it is listed (Reversed / All filters) but never totalled.
+  const totalSales = useMemo(() => filteredSales.filter((s) => s.status !== "Reversed").reduce((sum, sale) => sum + (sale.totalAmount || 0), 0), [filteredSales])
+  const totalQuantity = useMemo(() => filteredSales.filter((s) => s.status !== "Reversed").reduce((sum, sale) => sum + (sale.quantity || 0), 0), [filteredSales])
   const selectedFlockId = formData.flockId ?? null
   const selectedFlockIdString = selectedFlockId !== null ? selectedFlockId.toString() : ""
   const productSelectValue = productSelection ?? (
@@ -1439,11 +1393,10 @@ export default function SalesPage() {
                 open={isCreateDialogOpen}
                 onOpenChange={(open) => {
                   setIsCreateDialogOpen(open)
-                  if (open) {
-                    resetForm()
-                  } else {
-                    resetForm()
-                  }
+                  resetForm()
+                  // Closing a Correct Sale form without saving leaves the original
+                  // reversed; it can be re-entered with Add Sale.
+                  if (!open) setCorrecting(null)
                 }}
               >
                 <DialogTrigger asChild>
@@ -1454,10 +1407,18 @@ export default function SalesPage() {
                 </DialogTrigger>
           <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] flex flex-col gap-4 overflow-hidden p-4 sm:p-6">
             <DialogHeader className="shrink-0">
-              <DialogTitle>Create New Sale</DialogTitle>
+              <DialogTitle>{correcting ? `Corrected sale (replaces ${correcting.label})` : "Create New Sale"}</DialogTitle>
               <DialogDescription>
-                Add a new sale record to track your farm&apos;s revenue
+                {correcting
+                  ? "Filled in from the reversed sale. Fix what was wrong and save: this becomes a new sale linked to it."
+                  : "Add a new sale record to track your farm's revenue"}
               </DialogDescription>
+              {correcting && correcting.creditKept > 0 && (
+                <p className="rounded-md bg-blue-50 p-2 text-sm text-blue-800">
+                  {formatCurrency(correcting.creditKept, currencyCode)} from the reversed sale is held as customer credit.
+                  Save this as Pay later and you will be offered to apply it -- no new money is recorded.
+                </p>
+              )}
             </DialogHeader>
             <div className="min-h-0 flex-1 overflow-y-auto space-y-5 py-1 pr-2">
               {/* Section: Sale Details */}
@@ -1867,7 +1828,9 @@ export default function SalesPage() {
               <Button onClick={() => setIsCreateDialogOpen(false)} className="w-full bg-red-600 hover:bg-red-700 text-white sm:w-auto">
                 Cancel
               </Button>
-              <Button onClick={handleCreateSale} className="w-full bg-blue-600 hover:bg-blue-700 sm:w-auto">Create Sale</Button>
+              <Button onClick={handleCreateSale} disabled={savingSale} className="w-full bg-blue-600 hover:bg-blue-700 sm:w-auto">
+                {savingSale ? "Saving…" : "Create Sale"}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -1911,6 +1874,15 @@ export default function SalesPage() {
                     <SheetContent side="bottom" className={MOBILE_FILTER_SHEET_CONTENT_CLASS}>
                       <MobileFilterSheetHeader />
                       <MobileFilterSheetBody>
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium text-slate-700">Status</p>
+                          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as SaleStatusFilter)}>
+                            <SelectTrigger className="h-12 w-full text-base"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {SALE_STATUS_FILTERS.map((f) => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
                         <div className="space-y-3">
                           <p className="text-sm font-medium text-slate-700">Date range</p>
                           <div className="flex flex-col gap-4">
@@ -1997,6 +1969,15 @@ export default function SalesPage() {
               <div>
                 <Label className="text-xs text-slate-500">To</Label>
                 <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-[160px]" />
+              </div>
+              <div>
+                <Label className="text-xs text-slate-500">Status</Label>
+                <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as SaleStatusFilter)}>
+                  <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {SALE_STATUS_FILTERS.map((f) => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label className="text-xs text-slate-500">Currency</Label>
@@ -2158,13 +2139,13 @@ export default function SalesPage() {
                                     buttons overflow a 375px card and the card's
                                     overflow-hidden silently clipped Invoice. */}
                                 <div className="grid grid-cols-2 gap-2 pt-2">
-                                  {saleOwed(sale) > 0 && (
+                                  {sale.status !== "Reversed" && saleOwed(sale) > 0 && (
                                     <Button variant="outline" size="sm" className="h-10 w-full text-emerald-700 border-emerald-200 hover:bg-emerald-50" onClick={() => openPaymentDialog(sale)}>
                                       <Wallet className="h-4 w-4 mr-2" /> Pay
                                     </Button>
                                   )}
-                                  <Button variant="outline" size="sm" className="h-10 w-full" onClick={() => openEditDialog(sale)}>
-                                    <Edit className="h-4 w-4 mr-2" /> Edit
+                                  <Button variant="outline" size="sm" className="h-10 w-full" onClick={() => setViewSale(sale)}>
+                                    <Eye className="h-4 w-4 mr-2" /> View
                                   </Button>
                                   <Button variant="outline" size="sm" className="h-10 w-full" onClick={() => openInvoiceDialog(sale)}>
                                     <FileText className="h-4 w-4 mr-2" /> Invoice
@@ -2172,9 +2153,16 @@ export default function SalesPage() {
                                   <Button variant="outline" size="sm" className="h-10 w-full" onClick={() => setHistorySale(sale)}>
                                     <History className="h-4 w-4 mr-2" /> Payments
                                   </Button>
-                                  <Button variant="outline" size="sm" className="h-10 w-full text-red-600 border-red-200 hover:bg-red-50" onClick={() => openDeleteSaleDialog(sale)}>
-                                    <Trash2 className="h-4 w-4 mr-2" /> Delete
-                                  </Button>
+                                  {sale.status !== "Reversed" && (
+                                    <Button variant="outline" size="sm" className="h-10 w-full text-red-600 border-red-200 hover:bg-red-50" onClick={() => openReverse(sale, "reverse")}>
+                                      <Undo2 className="h-4 w-4 mr-2" /> Reverse
+                                    </Button>
+                                  )}
+                                  {canRepost(sale) && (
+                                    <Button variant="outline" size="sm" className="h-10 w-full text-blue-700 border-blue-200 hover:bg-blue-50" onClick={() => repostReversed(sale)}>
+                                      <RotateCcw className="h-4 w-4 mr-2" /> Edit & repost
+                                    </Button>
+                                  )}
                                 </div>
                               </div>
                             </CollapsibleContent>
@@ -2219,7 +2207,7 @@ export default function SalesPage() {
                     </TableHeader>
                     <TableBody>
                       {paginatedSales.map((sale) => (
-                        <TableRow key={sale.saleId}>
+                        <TableRow key={sale.saleId} className={cn(sale.status === "Reversed" && "bg-slate-50 text-slate-400 [&_td]:line-through [&_td:last-child]:no-underline [&_td:nth-last-child(2)]:no-underline")}>
                           <TableCell className="whitespace-nowrap tabular-nums text-slate-500">
                             {sale.lines ? (
                               <>
@@ -2268,7 +2256,7 @@ export default function SalesPage() {
                                 hover. The mobile card view below uses labelled
                                 buttons instead — tooltips don't open on touch. */}
                             <div className="flex items-center gap-1 min-w-[100px]">
-                              {saleOwed(sale) > 0 && (
+                              {sale.status !== "Reversed" && saleOwed(sale) > 0 && (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <Button
@@ -2307,27 +2295,46 @@ export default function SalesPage() {
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => openEditDialog(sale)}
-                                    aria-label="Edit sale"
+                                    onClick={() => setViewSale(sale)}
+                                    aria-label="View sale"
                                   >
-                                    <Edit className="h-4 w-4" />
+                                    <Eye className="h-4 w-4" />
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent side="top">Edit sale</TooltipContent>
+                                <TooltipContent side="top">View sale · correct or reverse it</TooltipContent>
                               </Tooltip>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => openDeleteSaleDialog(sale)}
-                                    aria-label="Delete sale"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent side="top">Delete sale</TooltipContent>
-                              </Tooltip>
+                              {sale.status !== "Reversed" && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                      onClick={() => openReverse(sale, "reverse")}
+                                      aria-label="Reverse sale"
+                                    >
+                                      <Undo2 className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">Reverse sale</TooltipContent>
+                                </Tooltip>
+                              )}
+                              {canRepost(sale) && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="text-blue-700 hover:text-blue-800 hover:bg-blue-50"
+                                      onClick={() => repostReversed(sale)}
+                                      aria-label="Edit and repost sale"
+                                    >
+                                      <RotateCcw className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">Edit & repost -- enter it again, fixed, as a new sale</TooltipContent>
+                                </Tooltip>
+                              )}
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button
@@ -2393,406 +2400,6 @@ export default function SalesPage() {
               </Card>
             )}
 
-            {/* Edit Dialog */}
-            <Dialog
-              open={isEditDialogOpen}
-              onOpenChange={(open) => {
-                setIsEditDialogOpen(open)
-                if (!open) {
-                  setEditingSale(null)
-                  resetForm()
-                }
-              }}
-            >
-              <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] flex flex-col gap-4 overflow-hidden p-4 sm:p-6">
-                <DialogHeader className="shrink-0">
-                  <DialogTitle>Edit Sale</DialogTitle>
-                  <DialogDescription>
-                    Update the sale record details
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="min-h-0 flex-1 overflow-y-auto space-y-5 py-1 pr-2">
-                  {/* Section: Sale Details */}
-                  <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
-                    <div className="bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Sale Details</div>
-                    <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label htmlFor="edit-saleDate">Sale Date *</Label>
-                        <Input
-                          id="edit-saleDate"
-                          type="date"
-                          value={formData.saleDate}
-                          onChange={(e) => setFormData(prev => ({ ...prev, saleDate: e.target.value }))}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="edit-product">Product *</Label>
-                        <Select
-                          value={productSelectValue}
-                          onValueChange={handleProductSelect}
-                        >
-                          <SelectTrigger id="edit-product">
-                            <SelectValue placeholder="Select product" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {productOptions.map(option => (
-                              <SelectItem key={`edit-${option}`} value={option}>
-                                {option}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {productSelectValue === "Other" && (
-                          <Input
-                            value={productOther}
-                            onChange={(e) => {
-                              const value = e.target.value
-                              setProductOther(value)
-                              setFormData(prev => ({ ...prev, product: value }))
-                            }}
-                            placeholder="Enter product name"
-                          />
-                        )}
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <Label htmlFor="edit-customerName">Customer Name *</Label>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Info className="h-4 w-4 text-slate-400 cursor-help" />
-                            </TooltipTrigger>
-                            <TooltipContent side="top" className="max-w-[260px]">
-                              <p>If you cannot find the customer, please go to the customer page and create the Customer first</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </div>
-                        <Select
-                          value={showNewCustomerInput ? "__OTHER__" : formData.customerName || undefined}
-                          onValueChange={(value) => {
-                            if (value === "__OTHER__") {
-                              setShowNewCustomerInput(true)
-                              setOtherCustomerName("")
-                              setFormData(prev => ({ ...prev, customerName: "" }))
-                            } else {
-                              setShowNewCustomerInput(false)
-                              setOtherCustomerName("")
-                              setFormData(prev => ({ ...prev, customerName: value }))
-                            }
-                          }}
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select a customer" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {customers.map((customer) => (
-                              <SelectItem key={customer.customerId || customer.name} value={customer.name}>
-                                {customer.name}
-                              </SelectItem>
-                            ))}
-                            <SelectItem value="__OTHER__">Other Customer</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        {showNewCustomerInput && (
-                          <Input
-                            placeholder="Enter other customer name"
-                            value={otherCustomerName}
-                            onChange={(e) => {
-                              setOtherCustomerName(e.target.value)
-                              setFormData(prev => ({ ...prev, customerName: e.target.value }))
-                            }}
-                          />
-                        )}
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="edit-flockId">Flock</Label>
-                        <Select
-                          value={selectedFlockIdString}
-                          onValueChange={(value) =>
-                            setFormData(prev => ({
-                              ...prev,
-                              flockId: value ? Number(value) : undefined,
-                            }))
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a flock" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="0">All flocks</SelectItem>
-                            {flocks.map((flock) => (
-                              <SelectItem
-                                key={flock.flockId}
-                                value={flock.flockId.toString()}
-                                disabled={closedFlockBlocksSale(flock)}
-                              >
-                                {flock.name} ({flock.quantity} birds){isFlockClosed(flock) ? " · Closed" : ""}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Section: Egg Quantity (conditional) */}
-                  {isEggsProduct && (
-                    <div className="rounded-xl border border-amber-200 overflow-hidden">
-                      <div className="bg-amber-500 px-4 py-2 text-sm font-semibold text-white">Egg Quantity (Crates × {EGGS_PER_CRATE} + Loose Eggs)</div>
-                      {hasEggSizes && (
-                        <div className="px-4 pt-4 bg-amber-50 sm:max-w-md">
-                          <EggClassSelect id="edit-egg-class" classes={eggClasses} value={formData.eggProductId}
-                            addBack={Number(editingSale?.quantity) || 0} addBackClass={editingSale?.eggProductId ?? null} returned={editReturned}
-                            onChange={(v) => setFormData(prev => ({ ...prev, eggProductId: v, unitPrice: classPrice(v) ?? prev.unitPrice }))} />
-                        </div>
-                      )}
-                      <div className="grid grid-cols-1 gap-4 p-4 bg-amber-50 sm:grid-cols-2 lg:grid-cols-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="edit-crates" className="text-sm">Crates ({EGGS_PER_CRATE} eggs)</Label>
-                          <NumberInput
-                            id="edit-crates"
-                            
-                            min="0"
-                            value={crates}
-                            onChange={(e) => {
-                              const c = parseInt(e.target.value) || 0
-                              setCrates(c)
-                              const total = (c * EGGS_PER_CRATE) + looseEggs
-                              setFormData(prev => ({ ...prev, quantity: total }))
-                            }}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="edit-looseEggs" className="text-sm">Loose Eggs</Label>
-                          <NumberInput
-                            id="edit-looseEggs"
-                            
-                            min="0"
-                            max="29"
-                            value={looseEggs}
-                            onChange={(e) => {
-                              const l = parseInt(e.target.value) || 0
-                              setLooseEggs(l)
-                              const total = (crates * EGGS_PER_CRATE) + l
-                              setFormData(prev => ({ ...prev, quantity: total }))
-                            }}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="edit-unitPrice" className="text-sm">Price / crate *</Label>
-                          <NumberInput
-                            id="edit-unitPrice"
-                            min="0"
-                            step="0.01"
-                            value={formData.unitPrice}
-                            onChange={(e) => setFormData(prev => ({ ...prev, unitPrice: Number(e.target.value) }))}
-                            placeholder="0.00"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-sm">Total Eggs</Label>
-                          <div className="h-10 px-3 py-2 bg-white border rounded-md flex items-center font-bold text-amber-700">
-                            {((crates * EGGS_PER_CRATE) + looseEggs).toLocaleString()}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="space-y-2 px-4 pb-3 bg-amber-50">
-                        <p className="text-xs text-amber-600">
-                          Calculation: {crates} crates × {EGGS_PER_CRATE} + {looseEggs} loose = {((crates * EGGS_PER_CRATE) + looseEggs).toLocaleString()} eggs
-                        </p>
-                        <StockCheckNotice
-                          available={availableStock}
-                          unitLabel={stockUnits}
-                          shortfall={stockShortfall}
-                          override={overrideStock}
-                          onOverrideChange={setOverrideStock}
-                          idPrefix="edit-eggs"
-                        />
-                      </div>
-                      {/* A single sale can have sizes added too: it is given a
-                          sale number on save (migration 349). */}
-                      {hasEggSizes && (
-                        <>
-                          <ExtraEggLines classes={eggClasses} lines={extraEggLines} onChange={setExtraEggLines}
-                            mainEggs={Number(formData.quantity) || 0} mainClass={formData.eggProductId ?? null} returned={editReturned} />
-                          {extraEggLines.length > 0 && (
-                            <div className="border-t border-amber-200 bg-amber-100/70 px-4 py-2 text-sm">
-                              <b>Sale total, all egg lines:</b>{" "}
-                              {allLinesAmount.toFixed(2)} for {allLinesEggs.toLocaleString()} eggs
-                              {eggCrateBreakdown(allLinesEggs) && ` (${eggCrateBreakdown(allLinesEggs)})`}
-                              <span className="ml-2 text-xs text-slate-600">
-                                {editingSale?.saleGroupNo ? `Sale ${editingSale.saleGroupNo}` : "Gets a sale number when saved"} · {extraEggLines.length + 1} lines, one sale. The override amount applies to the first line only.
-                              </span>
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Section: Pricing */}
-                  <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
-                    <div className="bg-green-600 px-4 py-2 text-sm font-semibold text-white">Pricing</div>
-                    <div className="p-4 space-y-4">
-                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label htmlFor="edit-quantity">{isEggsProduct ? "Quantity (In crates) *" : "Quantity *"}</Label>
-                          {/* Eggs are priced per crate, so the box shows the crate
-                              equivalent of the count above (75 eggs -> 2.50). It is
-                              read-only for eggs; `formData.quantity` stays in eggs. */}
-                          <NumberInput
-                            id="edit-quantity"
-                            step={isEggsProduct ? "0.01" : undefined}
-                            value={hasExtraEggLines ? eggCratesEquivalent(allLinesEggs) : isEggsProduct ? eggCratesEquivalent(formData.quantity) : formData.quantity}
-                            onChange={(e) => setFormData(prev => ({ ...prev, quantity: Number(e.target.value) }))}
-                            placeholder="0"
-                            disabled={isEggsProduct}
-                            className={isEggsProduct ? "bg-slate-100" : ""}
-                          />
-                          {isEggsProduct && (
-                            <p className="text-xs text-slate-500">
-                              {hasExtraEggLines
-                                ? `${allLinesEggs.toLocaleString()} eggs total across all ${extraEggLines.length + 1} egg lines`
-                                : `${(Number(formData.quantity) || 0).toLocaleString()} eggs total, from the crates and loose eggs above`}
-                            </p>
-                          )}
-                          {!isEggsProduct && (
-                            <StockCheckNotice
-                              available={availableStock}
-                              unitLabel={stockUnits}
-                              shortfall={stockShortfall}
-                              override={overrideStock}
-                              onOverrideChange={setOverrideStock}
-                              idPrefix="edit"
-                            />
-                          )}
-                        </div>
-                        {!isEggsProduct && (
-                          <div className="space-y-2">
-                            <Label htmlFor="edit-unitPrice">Unit Price *</Label>
-                            <NumberInput
-                              id="edit-unitPrice"
-                              step="0.01"
-                              value={formData.unitPrice}
-                              onChange={(e) => setFormData(prev => ({ ...prev, unitPrice: Number(e.target.value) }))}
-                              placeholder="0.00"
-                            />
-                          </div>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                        <div className="space-y-2">
-                          <Label htmlFor="edit-totalAmount">{hasExtraEggLines ? "Calculated Amount — whole sale" : "Calculated Amount"}</Label>
-                          <NumberInput
-                            id="edit-totalAmount"
-                            step="0.01"
-                            value={hasExtraEggLines ? allLinesAmount : formData.totalAmount}
-                            readOnly
-                            className="bg-slate-100"
-                          />
-                          {hasExtraEggLines ? (
-                            <p className="text-xs text-slate-500">
-                              First line {firstLineAmount.toFixed(2)} + other egg lines {(allLinesAmount - firstLineAmount).toFixed(2)}.
-                            </p>
-                          ) : (
-                            <EggPriceNote show={isEggsProduct} crates={crates} loose={looseEggs} />
-                          )}
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="edit-overrideAmount">Override Amount</Label>
-                          <NumberInput
-                            id="edit-overrideAmount"
-                            
-                            step="0.01"
-                            value={overrideAmount ?? ""}
-                            onChange={(e) => setOverrideAmount(e.target.value ? Number(e.target.value) : undefined)}
-                            placeholder="Leave empty to use calculated"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="edit-paymentMethod">Payment Method *</Label>
-                          <Select value={formData.paymentMethod} onValueChange={(value) => setFormData(prev => ({ ...prev, paymentMethod: value }))}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select payment method" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {paymentMethodOptions.map(method => (
-                                <SelectItem key={`edit-${method}`} value={method}>
-                                  {method}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      <div className="rounded-md border bg-white px-3 py-2">
-                        <Label className="mb-2 block text-sm">Payment status</Label>
-                        <div className="flex flex-wrap items-center gap-4">
-                          <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
-                            <input
-                              type="radio"
-                              name="edit-payment-status"
-                              className="h-4 w-4"
-                              checked={formData.paid !== false}
-                              onChange={() => setFormData(prev => ({ ...prev, paid: true }))}
-                            />
-                            Paid
-                          </label>
-                          <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
-                            <input
-                              type="radio"
-                              name="edit-payment-status"
-                              className="h-4 w-4"
-                              checked={formData.paid === false}
-                              onChange={() => setFormData(prev => ({ ...prev, paid: false }))}
-                            />
-                            Pending (owed)
-                          </label>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-1.5">Choose &ldquo;Pending&rdquo; if this sale is still owed by the customer.</p>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="edit-cashAccount">Receive into cash account</Label>
-                        <Select
-                          value={formData.poultryCashAccountId ? String(formData.poultryCashAccountId) : "none"}
-                          onValueChange={(value) => setFormData(prev => ({ ...prev, poultryCashAccountId: value === "none" ? null : Number(value) }))}
-                        >
-                          <SelectTrigger id="edit-cashAccount">
-                            <SelectValue placeholder="None (no cash movement)" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">None (no cash movement)</SelectItem>
-                            {cashAccounts.map((a) => (
-                              <SelectItem key={`edit-${a.poultryCashAccountId}`} value={String(a.poultryCashAccountId)}>
-                                {a.accountName} ({a.currentBalance.toFixed(2)})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <p className="text-xs text-slate-500">Posts a cash-in and increases the account balance when the sale is marked paid.</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Description */}
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-saleDescription">Description</Label>
-                    <Textarea
-                      id="edit-saleDescription"
-                      value={formData.saleDescription ?? ""}
-                      onChange={(e) => setFormData(prev => ({ ...prev, saleDescription: e.target.value }))}
-                      placeholder="Additional notes about this sale"
-                    />
-                  </div>
-                </div>
-                <div className="shrink-0 flex flex-col gap-2 pt-3 border-t sm:flex-row sm:justify-end">
-                  <Button onClick={() => setIsEditDialogOpen(false)} className="w-full bg-red-600 hover:bg-red-700 text-white sm:w-auto">
-                    Cancel
-                  </Button>
-                  <Button onClick={handleUpdateSale} className="w-full bg-blue-600 hover:bg-blue-700 sm:w-auto">Update Sale</Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-
             {/* Invoice Dialog */}
             <Dialog open={isInvoiceDialogOpen} onOpenChange={closeInvoiceDialog}>
               {/* Sized to the document (820px) rather than the old 1600px, which
@@ -2853,25 +2460,49 @@ export default function SalesPage() {
         </main>
       </div>
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Sale</AlertDialogTitle>
-            <AlertDialogDescription>
-              {deletingSaleIds.length > 1
-                ? `This sale has ${deletingSaleIds.length} egg lines. All of them will be deleted and their eggs go back into stock. This action cannot be undone.`
-                : "Are you sure you want to delete this sale? This action cannot be undone."}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteSale} disabled={isDeleting} className="bg-red-600 hover:bg-red-700 focus:ring-red-600">
-              {isDeleting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Deleting...</> : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* 351: view a sale (read-only), and the two ways to fix one */}
+      <SaleDetailsDialog
+        sale={viewSale}
+        farmId={getUserContext().farmId}
+        currencyCode={currencyCode}
+        flockLabel={getFlockLabel}
+        lineLabel={(l) => `${l.product}${(l.product ?? "").toLowerCase().includes("egg") ? ` · ${eggClassLabel(l.eggProductId)} ${eggCrateBreakdown(Number(l.quantity) || 0) ?? l.quantity}` : ` · ${l.quantity}`}`}
+        canReverse={can("poultry.sales.approve") || can("poultry.sales.delete")}
+        onOpenChange={(o) => { if (!o) setViewSale(null) }}
+        onSaveNote={saveSaleNote}
+        onReverse={(row) => openReverse(row, "reverse")}
+        onCorrect={(row) => openReverse(row, "correct")}
+        canRepost={viewSale ? canRepost(viewSale) : false}
+        onRepost={(row) => { void repostReversed(row) }}
+        onInvoice={(row) => { setViewSale(null); openInvoiceDialog(row) }}
+        onShowSale={(id) => {
+          const row = groupedSales.find((g) => g.saleId === id || g.lines?.some((l) => l.saleId === id))
+          if (row) { setStatusFilter("All"); setViewSale(row) }
+        }}
+      />
+
+      <ReverseSaleDialog
+        open={!!reverseTarget}
+        saleId={reverseTarget?.row.saleId ?? null}
+        saleLabel={reverseTarget ? (reverseTarget.row.lines ? (reverseTarget.row.saleGroupNo ?? "") : `#${reverseTarget.row.saleId}`) : ""}
+        mode={reverseTarget?.mode ?? "reverse"}
+        farmId={getUserContext().farmId}
+        userId={getUserContext().userId}
+        currencyCode={currencyCode}
+        onOpenChange={(o) => { if (!o) setReverseTarget(null) }}
+        onReversed={onSaleReversed}
+      />
+
+      <ApplyCreditDialog
+        target={applyCredit}
+        currencyCode={currencyCode}
+        onOpenChange={(o) => { if (!o) setApplyCredit(null) }}
+        onApplied={(amount) => {
+          toast({ title: "Credit applied", description: `${formatCurrency(amount, currencyCode)} of customer credit settled ${applyCredit?.saleLabel}. No new cash was recorded.` })
+          setApplyCredit(null)
+          loadSales()
+        }}
+      />
 
       {/* Record payment dialog */}
       {/* The ledger for one sale: every payment that touched it, with the
@@ -2923,7 +2554,30 @@ export default function SalesPage() {
               </div>
             </div>
           )}
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="flex flex-wrap justify-end gap-2 pt-2">
+            {/* 351: settle from money the customer already paid and is held as
+                credit -- an allocation, so no second Money In. */}
+            {payDialog.sale?.customerId ? (
+              <Button
+                variant="outline"
+                className="mr-auto"
+                disabled={paySaving}
+                onClick={() => {
+                  const s = payDialog.sale!
+                  const owedLine = (s.lines ?? [s]).find((l) => saleOwed(l) > 0) ?? s
+                  setPayDialog({ open: false, sale: null })
+                  setApplyCredit({
+                    customerId: Number(s.customerId),
+                    customerName: s.customerName || "",
+                    saleId: owedLine.saleId,
+                    saleLabel: s.lines ? (s.saleGroupNo ?? `#${owedLine.saleId}`) : `#${s.saleId}`,
+                    outstanding: saleOwed(owedLine),
+                  })
+                }}
+              >
+                Use customer credit
+              </Button>
+            ) : null}
             <Button variant="outline" onClick={() => setPayDialog({ open: false, sale: null })} disabled={paySaving}>Cancel</Button>
             <Button onClick={recordPayment} disabled={paySaving} className="bg-emerald-600 hover:bg-emerald-700">{paySaving ? "Saving…" : "Record payment"}</Button>
           </div>
@@ -2945,6 +2599,13 @@ function paymentStatusOf(s: Sale): "Paid" | "Partial" | "Pending" {
 }
 
 function PaymentStatusBadge({ sale }: { sale: Sale }) {
+  if (sale.status === "Reversed") {
+    return (
+      <span className="inline-flex w-fit rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 no-underline">
+        Reversed{sale.correctedBySaleId ? ` · corrected by #${sale.correctedBySaleId}` : ""}
+      </span>
+    )
+  }
   const status = paymentStatusOf(sale)
   const cls: Record<string, string> = {
     Paid: "bg-emerald-100 text-emerald-700",

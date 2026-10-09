@@ -38,7 +38,7 @@ const TYPE_FILTERS: { key: string; label: string; match: (t: string) => boolean 
   { key: "all", label: "All movements", match: () => true },
   { key: "production", label: "Production", match: (t) => t === "Production" },
   { key: "sorting", label: "Sorting", match: (t) => t.startsWith("Sorting") },
-  { key: "sale", label: "Sales", match: (t) => t === "Sale" || t.startsWith("Driver") || t.startsWith("Delivery") },
+  { key: "sale", label: "Sales", match: (t) => t === "Sale" || t === "Sale Reversal" || t.startsWith("Driver") || t.startsWith("Delivery") },
   { key: "internal", label: "Internal use", match: (t) => t === "InternalUse" },
   { key: "adjustment", label: "Adjustments & losses", match: (t) => /adjust|increase|decrease|opening|restock|egg loss/i.test(t) },
 ]
