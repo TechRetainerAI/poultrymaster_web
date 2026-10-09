@@ -16,6 +16,12 @@ namespace PoultryFarmAPIWeb.Business
         /// <summary>One sale entry of several egg classes / products (migration 343), atomically.</summary>
         Task<SaleGroupResult> CreateGroup(SaleGroupRequest request);
         Task<string> EnsureGroup(int saleId, string farmId, string? userId);
+
+        // 351: a posted sale is reversed, never edited or deleted.
+        Task<string> GetReversalPreview(int saleId, string farmId);
+        Task<string?> GetReversal(int saleId, string farmId);
+        Task<int> Reverse(int saleId, SaleReverseRequest request);
+        Task LinkCorrectionAsync(string farmId, int newSaleId, int correctsSaleId, string? by);
     }
 
 }

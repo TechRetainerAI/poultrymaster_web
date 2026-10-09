@@ -8,6 +8,17 @@ using System.Threading.Tasks;
 
 namespace PoultryFarmAPIWeb.Business
 {
+    /// <summary>
+    /// A sale rule the database refused (posted-sale lock, reversal blockers,
+    /// a stale reversal preview). The message is written for the user.
+    /// </summary>
+    public class SaleRuleException : Exception
+    {
+        public SaleRuleException(string message, Exception inner) : base(message, inner) { }
+        /// <summary>The reversal preview the user confirmed is out of date.</summary>
+        public bool Stale { get; init; }
+    }
+
     public class SaleService : ISaleService
     {
         private readonly string _connectionString;
@@ -138,27 +149,38 @@ namespace PoultryFarmAPIWeb.Business
         // payment in August would otherwise have its whole cash-in re-dated to
         // August. See migration 229 for why this is a separate call rather than a
         // parameter on the sync.
-        private async Task SyncSaleCashAsync(string farmId, int saleId, int? cashAccountId, decimal amount, bool paid, string? description, string? createdBy, DateTime? businessDate = null)
+        // 351: runs on the caller's connection and transaction when given one,
+        // so posting a sale is a single unit of work.
+        private async Task SyncSaleCashAsync(string farmId, int saleId, int? cashAccountId, decimal amount, bool paid, string? description, string? createdBy, DateTime? businessDate = null,
+                                             NpgsqlConnection? shared = null, NpgsqlTransaction? tx = null)
         {
-            using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrysalecash_sync(p_farmid => @FarmId::text, p_saleid => @SaleId::int, p_poultrycashaccountid => @PoultryCashAccountId::int, p_amount => @Amount::numeric, p_paid => @Paid::boolean, p_description => @Description::text, p_createdby => @CreatedBy::text)", conn);
-            cmd.Parameters.AddWithValue("@FarmId", farmId);
-            cmd.Parameters.AddWithValue("@SaleId", saleId);
-            cmd.Parameters.AddWithValue("@PoultryCashAccountId", (object?)cashAccountId ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@Amount", amount);
-            cmd.Parameters.AddWithValue("@Paid", paid);
-            cmd.Parameters.AddWithValue("@Description", (object?)description ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@CreatedBy", (object?)createdBy ?? DBNull.Value);
-            await conn.OpenAsync();
-            await cmd.ExecuteNonQueryAsync();
-
-            if (businessDate.HasValue)
+            var own = shared is null ? new NpgsqlConnection(_connectionString) : null;
+            var conn = shared ?? own!;
+            try
             {
-                using var stamp = new NpgsqlCommand("SELECT public.sppoultrycashtransaction_setbusinessdate(p_farmid => @FarmId::text, p_sourcetype => 'Sale', p_sourceid => @SaleId::int, p_businessdate => @BusinessDate::timestamp)", conn);
-                stamp.Parameters.AddWithValue("@FarmId", farmId);
-                stamp.Parameters.AddWithValue("@SaleId", saleId);
-                stamp.Parameters.AddWithValue("@BusinessDate", businessDate.Value);
-                await stamp.ExecuteNonQueryAsync();
+                if (own is not null) await own.OpenAsync();
+                using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrysalecash_sync(p_farmid => @FarmId::text, p_saleid => @SaleId::int, p_poultrycashaccountid => @PoultryCashAccountId::int, p_amount => @Amount::numeric, p_paid => @Paid::boolean, p_description => @Description::text, p_createdby => @CreatedBy::text)", conn, tx);
+                cmd.Parameters.AddWithValue("@FarmId", farmId);
+                cmd.Parameters.AddWithValue("@SaleId", saleId);
+                cmd.Parameters.AddWithValue("@PoultryCashAccountId", (object?)cashAccountId ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@Amount", amount);
+                cmd.Parameters.AddWithValue("@Paid", paid);
+                cmd.Parameters.AddWithValue("@Description", (object?)description ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@CreatedBy", (object?)createdBy ?? DBNull.Value);
+                await cmd.ExecuteNonQueryAsync();
+
+                if (businessDate.HasValue)
+                {
+                    using var stamp = new NpgsqlCommand("SELECT public.sppoultrycashtransaction_setbusinessdate(p_farmid => @FarmId::text, p_sourcetype => 'Sale', p_sourceid => @SaleId::int, p_businessdate => @BusinessDate::timestamp)", conn, tx);
+                    stamp.Parameters.AddWithValue("@FarmId", farmId);
+                    stamp.Parameters.AddWithValue("@SaleId", saleId);
+                    stamp.Parameters.AddWithValue("@BusinessDate", businessDate.Value);
+                    await stamp.ExecuteNonQueryAsync();
+                }
+            }
+            finally
+            {
+                if (own is not null) await own.DisposeAsync();
             }
         }
 
@@ -186,22 +208,26 @@ namespace PoultryFarmAPIWeb.Business
         /// </para>
         ///
         /// <para>
-        /// It runs in its own transaction and swallows its own failure on
-        /// purpose. If recording the payment cannot complete, the sale is left
-        /// exactly as this method used to leave it -- paid, with no payment row
-        /// -- rather than the caller being told the sale failed when it is
-        /// already saved. The sale is the thing the user asked for; the payment
-        /// event is bookkeeping that the Pay dialog can still add by hand.
+        /// It swallows its own failure on purpose. If recording the payment
+        /// cannot complete, the sale is left exactly as this method used to
+        /// leave it -- paid, with no payment row -- rather than the caller being
+        /// told the sale failed. The sale is the thing the user asked for; the
+        /// payment event is bookkeeping (a reversal later records it from the
+        /// sale if needed).
+        /// </para>
+        ///
+        /// <para>
+        /// 351: a SAVEPOINT inside the posting transaction rather than a
+        /// transaction of its own -- a posted sale can only be shaped by the
+        /// transaction that created it, so a failure rolls back to the
+        /// savepoint and the sale stands as saved.
         /// </para>
         /// </summary>
-        private async Task TryRecordSaleEntryPaymentAsync(SaleModel model, int saleId)
+        private static async Task TryRecordSaleEntryPaymentAsync(SaleModel model, int saleId, NpgsqlConnection conn, NpgsqlTransaction tx)
         {
+            await tx.SaveAsync("sale_entry_payment");
             try
             {
-                using var conn = new NpgsqlConnection(_connectionString);
-                await conn.OpenAsync();
-                using var tx = await conn.BeginTransactionAsync();
-
                 // Clear the flag so the allocation has a balance to apply to.
                 using (var clear = new NpgsqlCommand(
                     "UPDATE sale SET paid = false WHERE saleid = @SaleId AND farmid = @FarmId", conn, tx))
@@ -227,22 +253,13 @@ namespace PoultryFarmAPIWeb.Business
                     await pay.ExecuteNonQueryAsync();
                 }
 
-                await tx.CommitAsync();
+                await tx.ReleaseAsync("sale_entry_payment");
             }
             catch
             {
-                // Deliberately swallowed -- see the note above. The sale stands.
-                using var restore = new NpgsqlConnection(_connectionString);
-                try
-                {
-                    await restore.OpenAsync();
-                    using var cmd = new NpgsqlCommand(
-                        "UPDATE sale SET paid = true WHERE saleid = @SaleId AND farmid = @FarmId", restore);
-                    cmd.Parameters.AddWithValue("@SaleId", saleId);
-                    cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
-                    await cmd.ExecuteNonQueryAsync();
-                }
-                catch { /* nothing further to try */ }
+                // Deliberately swallowed -- see the note above. Rolling back to
+                // the savepoint also puts paid = true back.
+                await tx.RollbackAsync("sale_entry_payment");
             }
         }
 
@@ -252,12 +269,12 @@ namespace PoultryFarmAPIWeb.Business
         /// stays Unsorted, as every sale was before -- on a database that does
         /// not have the function yet, so the API can deploy ahead of 341.
         /// </summary>
-        private static async Task SetEggClassAsync(NpgsqlConnection conn, SaleModel model, int saleId)
+        private static async Task SetEggClassAsync(NpgsqlConnection conn, SaleModel model, int saleId, NpgsqlTransaction? tx = null)
         {
-            if (!await FunctionExistsAsync(conn, "sppoultrysale_setegg")) return;
+            if (!await FunctionExistsAsync(conn, "sppoultrysale_setegg", tx)) return;
             using var cmd = new NpgsqlCommand(
                 "SELECT sppoultrysale_setegg(p_farmid => @FarmId::text, p_saleid => @SaleId::int, " +
-                "p_poultryproductid => @Product::int, p_salegroupno => @Group::text, p_by => @By::text)", conn);
+                "p_poultryproductid => @Product::int, p_salegroupno => @Group::text, p_by => @By::text)", conn, tx);
             cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
             cmd.Parameters.AddWithValue("@SaleId", saleId);
             // 0 is "Unsorted / General", sent explicitly so an edit can move a
@@ -270,12 +287,12 @@ namespace PoultryFarmAPIWeb.Business
 
         private static readonly ConcurrentDictionary<string, bool> FunctionExistsCache = new();
 
-        private static async Task<bool> FunctionExistsAsync(NpgsqlConnection conn, string name)
+        private static async Task<bool> FunctionExistsAsync(NpgsqlConnection conn, string name, NpgsqlTransaction? tx = null)
         {
             if (FunctionExistsCache.TryGetValue(name, out var cached) && cached) return true;
             await using var probe = new NpgsqlCommand(
                 "SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace " +
-                "WHERE n.nspname = 'public' AND p.proname = @Name LIMIT 1", conn);
+                "WHERE n.nspname = 'public' AND p.proname = @Name LIMIT 1", conn, tx);
             probe.Parameters.AddWithValue("@Name", name);
             var has = await probe.ExecuteScalarAsync() is not null;
             // Only a positive answer is cached, so applying the migration does
@@ -313,9 +330,13 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@Flock", (object?)request.FlockId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Lines", lines);
             var json = (string?)await cmd.ExecuteScalarAsync() ?? "{}";
-            return System.Text.Json.JsonSerializer.Deserialize<SaleGroupResult>(json,
+            var result = System.Text.Json.JsonSerializer.Deserialize<SaleGroupResult>(json,
                        new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true })
                    ?? new SaleGroupResult();
+            // 351: a Correct Sale re-entry points back at the sale it replaces.
+            if (request.CorrectsSaleId is > 0 && result.SaleIds.Length > 0)
+                await LinkCorrectionAsync(request.FarmId, result.SaleIds[0], request.CorrectsSaleId.Value, request.UserId);
+            return result;
         }
 
         /// <summary>
@@ -335,12 +356,19 @@ namespace PoultryFarmAPIWeb.Business
             return (string?)await cmd.ExecuteScalarAsync() ?? string.Empty;
         }
 
+        /// <summary>
+        /// Posts a sale. ONE transaction (351): the row, its egg class, its cash
+        /// and its SaleEntry payment all land or none do -- and a posted sale
+        /// can only be shaped by the transaction that created it.
+        /// </summary>
         public async Task<int> Insert(SaleModel model)
         {
             try
             {
-                using var conn = new NpgsqlConnection(_connectionString);
-                using var cmd = new NpgsqlCommand("spSale_Insert", conn);
+                await using var conn = new NpgsqlConnection(_connectionString);
+                await conn.OpenAsync();
+                await using var tx = await conn.BeginTransactionAsync();
+                using var cmd = new NpgsqlCommand("spSale_Insert", conn, tx);
                 cmd.Parameters.AddWithValue("@UserId", model.UserId);
                 cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
                 cmd.Parameters.AddWithValue("@SaleDate", model.SaleDate);
@@ -353,7 +381,6 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.Parameters.AddWithValue("@FlockId", (object?)model.FlockId ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@SaleDescription", (object?)model.SaleDescription ?? DBNull.Value);
 
-                await conn.OpenAsync();
                 if (await ProcedureHasPaidParameterAsync(conn, "spSale_Insert"))
                     cmd.Parameters.AddWithValue("@Paid", model.Paid);
                 if (await ProcedureHasSizeParameterAsync(conn, "spSale_Insert"))
@@ -365,13 +392,26 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.CommandText = await PgCallText.ForAsync("spSale_Insert", cmd);
                 var result = await cmd.ExecuteScalarAsync();
                 var newId = Convert.ToInt32(result);
-                await SetEggClassAsync(conn, model, newId);
+                await SetEggClassAsync(conn, model, newId, tx);
                 // Cash first: this is what writes the chosen account onto the
                 // sale row, and the payment below reads the account from there.
-                await SyncSaleCashAsync(model.FarmId, newId, model.PoultryCashAccountId, model.TotalAmount, model.Paid, model.SaleDescription, model.UserId, model.SaleDate);
+                await SyncSaleCashAsync(model.FarmId, newId, model.PoultryCashAccountId, model.TotalAmount, model.Paid, model.SaleDescription, model.UserId, model.SaleDate, conn, tx);
                 if (model.Paid && model.TotalAmount > 0)
-                    await TryRecordSaleEntryPaymentAsync(model, newId);
+                    await TryRecordSaleEntryPaymentAsync(model, newId, conn, tx);
+                await tx.CommitAsync();
+
+                // 351: a Correct Sale re-entry points back at the sale it replaces.
+                if (model.CorrectsSaleId is > 0)
+                    await LinkCorrectionAsync(model.FarmId, newId, model.CorrectsSaleId.Value, model.UserId);
                 return newId;
+            }
+            catch (SaleRuleException)
+            {
+                throw;
+            }
+            catch (PostgresException ex) when (ex.SqlState == "P0001")
+            {
+                throw new SaleRuleException(ex.MessageText, ex);
             }
             catch (Exception ex)
             {
@@ -406,12 +446,15 @@ namespace PoultryFarmAPIWeb.Business
                 if (await ProcedureHasCustomerIdParameterAsync(conn, "spSale_Update"))
                     cmd.Parameters.AddWithValue("@CustomerId", (object?)model.CustomerId ?? DBNull.Value);
                 cmd.CommandText = await PgCallText.ForAsync("spSale_Update", cmd);
+                // 351: spsale_update saves the description and REFUSES anything
+                // that would move money or stock, naming what changed. Nothing is
+                // re-synced afterwards -- nothing that moves stock or cash can
+                // have changed.
                 await cmd.ExecuteNonQueryAsync();
-                // An edit that does not mention the class keeps it (null = no change).
-                if (model.EggProductId.HasValue || !string.IsNullOrWhiteSpace(model.SaleGroupNo))
-                    await SetEggClassAsync(conn, model, model.SaleId);
-                conn.Close();
-                await SyncSaleCashAsync(model.FarmId, model.SaleId, model.PoultryCashAccountId, model.TotalAmount, model.Paid, model.SaleDescription, model.UserId, model.SaleDate);
+            }
+            catch (PostgresException ex) when (ex.SqlState == "P0001")
+            {
+                throw new SaleRuleException(ex.MessageText, ex);
             }
             catch (Exception ex)
             {
@@ -433,7 +476,7 @@ namespace PoultryFarmAPIWeb.Business
                 using var reader = await cmd.ExecuteReaderAsync();
                 if (await reader.ReadAsync())
                 {
-                    return new SaleModel
+                    var sale = new SaleModel
                     {
                         SaleId = reader.GetInt32(reader.GetOrdinal("SaleId")),
                         SaleDate = reader.GetDateTime(reader.GetOrdinal("SaleDate")),
@@ -455,6 +498,8 @@ namespace PoultryFarmAPIWeb.Business
                         CreatedDate = reader.GetDateTime(reader.GetOrdinal("CreatedDate")),
                         FarmId = reader.GetString(reader.GetOrdinal("FarmId"))
                     };
+                    ReadReversalFields(reader, sale);
+                    return sale;
                 }
                 return null;
             }
@@ -500,6 +545,7 @@ namespace PoultryFarmAPIWeb.Business
                         CreatedDate = reader.GetDateTime(reader.GetOrdinal("CreatedDate")),
                         FarmId = reader.GetString(reader.GetOrdinal("FarmId"))
                     };
+                    ReadReversalFields(reader, s);
                     list.Add(s);
                 }
                 return list;
@@ -510,26 +556,139 @@ namespace PoultryFarmAPIWeb.Business
             }
         }
 
+        /// <summary>
+        /// Discards a sale a failed workflow created moments ago (flock
+        /// closeout's compensation). NOT reachable from the Sales page: a
+        /// user's posted sale is reversed (<see cref="Reverse"/>), never
+        /// deleted, and spsale_delete refuses one with a payment even here.
+        /// </summary>
         public async Task Delete(int saleId, string userId, string farmId)
         {
             try
             {
-                // Reverse any cash-in this sale posted before removing it.
-                await SyncSaleCashAsync(farmId, saleId, null, 0m, false, null, userId);
+                await using var conn = new NpgsqlConnection(_connectionString);
+                await conn.OpenAsync();
+                await using var tx = await conn.BeginTransactionAsync();
+                using (var flag = new NpgsqlCommand("SELECT set_config('poultry.sale_discard', 'on', true)", conn, tx))
+                    await flag.ExecuteNonQueryAsync();
 
-                using var conn = new NpgsqlConnection(_connectionString);
-                using var cmd = new NpgsqlCommand("SELECT * FROM spsale_delete(p_saleid => @SaleId::int, p_userid => @UserId::text, p_farmid => @FarmId::text)", conn);
+                // Reverse any cash-in this sale posted before removing it.
+                await SyncSaleCashAsync(farmId, saleId, null, 0m, false, null, userId, null, conn, tx);
+
+                using var cmd = new NpgsqlCommand("SELECT * FROM spsale_delete(p_saleid => @SaleId::int, p_userid => @UserId::text, p_farmid => @FarmId::text)", conn, tx);
                 cmd.Parameters.AddWithValue("@SaleId", saleId);
                 cmd.Parameters.AddWithValue("@UserId", userId);
                 cmd.Parameters.AddWithValue("@FarmId", farmId);
-
-                await conn.OpenAsync();
                 await cmd.ExecuteNonQueryAsync();
+                await tx.CommitAsync();
             }
             catch (Exception ex)
             {
                 throw new Exception($"Error deleting Sale record ID={saleId}.", ex);
             }
+        }
+
+        // ------------------------------------------------------- 351: reversal
+
+        /// <summary>What reversing the sale would do, computed from the database (jsonb).</summary>
+        public Task<string> GetReversalPreview(int saleId, string farmId)
+            => ScalarJsonAsync("SELECT sppoultrysale_reversalpreview(p_farmid => @FarmId::text, p_saleid => @SaleId::int)::text",
+                               farmId, saleId);
+
+        /// <summary>The reversal of a sale (any row of its document), or null.</summary>
+        public async Task<string?> GetReversal(int saleId, string farmId)
+        {
+            var json = await ScalarJsonAsync("SELECT sppoultrysale_reversalget(p_farmid => @FarmId::text, p_saleid => @SaleId::int)::text",
+                                             farmId, saleId);
+            return json == "null" ? null : json;
+        }
+
+        /// <summary>
+        /// Reverses a posted sale in one transaction (sppoultrysale_reverse):
+        /// revenue, receivable and stock, every allocation applied to it, and
+        /// each payment as chosen. A refusal comes back as
+        /// <see cref="SaleRuleException"/> (Stale = the preview is out of date).
+        /// </summary>
+        public async Task<int> Reverse(int saleId, SaleReverseRequest req)
+        {
+            try
+            {
+                await using var conn = new NpgsqlConnection(_connectionString);
+                await conn.OpenAsync();
+                using var cmd = new NpgsqlCommand(
+                    "SELECT sppoultrysale_reverse(p_farmid => @FarmId::text, p_saleid => @SaleId::int, " +
+                    "p_reasoncode => @Code::text, p_reason => @Reason::text, p_handling => @Handling::jsonb, " +
+                    "p_expectedfingerprint => @Fp::text, p_idempotencykey => @Key::text, p_reversedby => @By::text)", conn);
+                cmd.Parameters.AddWithValue("@FarmId", req.FarmId);
+                cmd.Parameters.AddWithValue("@SaleId", saleId);
+                cmd.Parameters.AddWithValue("@Code", (object?)req.ReasonCode ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@Reason", req.Reason ?? string.Empty);
+                cmd.Parameters.AddWithValue("@Handling",
+                    System.Text.Json.JsonSerializer.Serialize(req.PaymentHandling ?? new Dictionary<string, string>()));
+                cmd.Parameters.AddWithValue("@Fp", (object?)req.ExpectedFingerprint ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@Key", (object?)req.IdempotencyKey ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@By", (object?)req.UserId ?? DBNull.Value);
+                return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            }
+            catch (PostgresException ex) when (ex.SqlState == "P0001")
+            {
+                throw new SaleRuleException(ex.MessageText, ex) { Stale = ex.Hint == "stale-preview" };
+            }
+        }
+
+        /// <summary>Links a corrected sale to the reversed sale it replaces.</summary>
+        public async Task LinkCorrectionAsync(string farmId, int newSaleId, int correctsSaleId, string? by)
+        {
+            try
+            {
+                await using var conn = new NpgsqlConnection(_connectionString);
+                await conn.OpenAsync();
+                using var cmd = new NpgsqlCommand(
+                    "SELECT sppoultrysale_linkcorrection(p_farmid => @FarmId::text, p_newsaleid => @New::int, " +
+                    "p_correctssaleid => @Old::int, p_by => @By::text)", conn);
+                cmd.Parameters.AddWithValue("@FarmId", farmId);
+                cmd.Parameters.AddWithValue("@New", newSaleId);
+                cmd.Parameters.AddWithValue("@Old", correctsSaleId);
+                cmd.Parameters.AddWithValue("@By", (object?)by ?? DBNull.Value);
+                await cmd.ExecuteNonQueryAsync();
+            }
+            catch (PostgresException ex) when (ex.SqlState == "P0001")
+            {
+                throw new SaleRuleException(ex.MessageText, ex);
+            }
+        }
+
+        private async Task<string> ScalarJsonAsync(string sql, string farmId, int saleId)
+        {
+            await using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@SaleId", saleId);
+            var v = await cmd.ExecuteScalarAsync();
+            return v is null || v is DBNull ? "null" : (string)v;
+        }
+
+        /// <summary>351 columns, read when present so an API ahead of the migration still lists sales.</summary>
+        private static void ReadReversalFields(NpgsqlDataReader reader, SaleModel s)
+        {
+            s.Status = GetNullableStringIfPresent(reader, "Status") ?? "Posted";
+            s.ReversedAt = GetNullableDateTimeIfPresent(reader, "ReversedAt");
+            s.ReversedBy = GetNullableStringIfPresent(reader, "ReversedBy");
+            s.ReversalReason = GetNullableStringIfPresent(reader, "ReversalReason");
+            s.SaleReversalId = GetNullableInt32IfPresent(reader, "SaleReversalId");
+            s.CorrectsSaleId = GetNullableInt32IfPresent(reader, "CorrectsSaleId");
+            s.CorrectedBySaleId = GetNullableInt32IfPresent(reader, "CorrectedBySaleId");
+        }
+
+        private static DateTime? GetNullableDateTimeIfPresent(NpgsqlDataReader reader, string columnName)
+        {
+            for (var i = 0; i < reader.FieldCount; i++)
+            {
+                if (string.Equals(reader.GetName(i), columnName, StringComparison.OrdinalIgnoreCase))
+                    return reader.IsDBNull(i) ? null : reader.GetDateTime(i);
+            }
+            return null;
         }
 
         public async Task<List<SaleModel>> GetByFlock(int flockId, string userId, string farmId)
@@ -569,6 +728,7 @@ namespace PoultryFarmAPIWeb.Business
                         CreatedDate = reader.GetDateTime(reader.GetOrdinal("CreatedDate")),
                         FarmId = reader.GetString(reader.GetOrdinal("FarmId"))
                     };
+                    ReadReversalFields(reader, s);
                     list.Add(s);
                 }
                 return list;

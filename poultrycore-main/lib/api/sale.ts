@@ -13,6 +13,8 @@ export interface Sale {
   totalAmount: number
   paymentMethod: string
   customerName: string
+  /** Link to the customer (migration 223); null for a walk-in. */
+  customerId?: number | null
   flockId: number
   saleDescription: string
   paid?: boolean
@@ -27,6 +29,16 @@ export interface Sale {
   /** Sale number shared by the lines of one multi-size sale (SG-00001). */
   saleGroupNo?: string | null
   createdDate: string
+  /** 351: Posted | Reversed. A sale posts when it is saved and is never edited afterwards. */
+  status?: "Posted" | "Reversed"
+  reversedAt?: string | null
+  reversedBy?: string | null
+  reversalReason?: string | null
+  saleReversalId?: number | null
+  /** On a corrected sale: the reversed sale it replaces. */
+  correctsSaleId?: number | null
+  /** On a reversed sale: the sale that corrected it. */
+  correctedBySaleId?: number | null
 }
 
 export interface SaleInput {
@@ -54,6 +66,8 @@ export interface SaleInput {
   /** Joins a new line to an existing multi-size sale (SG-00001). Null keeps the current number. */
   saleGroupNo?: string | null
   createdDate?: string
+  /** 351: Correct Sale -- the reversed sale this new one replaces. */
+  correctsSaleId?: number | null
 }
 
 export interface ApiResponse<T = any> {
@@ -151,11 +165,17 @@ const mockSales: Sale[] = [
 let nextSaleId = 6
 
 // Get all sales
-export async function getSales(userId?: string, farmId?: string): Promise<ApiResponse<Sale[]>> {
+/**
+ * Active sales. A reversed sale (351) is not a sale, so dashboards, trackers
+ * and reports never see one; the Sales page passes includeReversed to list
+ * them under its Reversed / All filters.
+ */
+export async function getSales(userId?: string, farmId?: string, opts?: { includeReversed?: boolean }): Promise<ApiResponse<Sale[]>> {
   try {
     const params = new URLSearchParams()
     if (userId) params.append('userId', userId)
     if (farmId) params.append('farmId', farmId)
+    if (opts?.includeReversed) params.append('includeReversed', 'true')
     
     const url = farmApiUrl(`Sale${params.toString() ? "?" + params.toString() : ""}`)
     console.log("[v0] Fetching sales:", url)
@@ -163,6 +183,7 @@ export async function getSales(userId?: string, farmId?: string): Promise<ApiRes
     const response = await fetch(url, {
       method: "GET",
       headers: {
+        ...getAuthHeaders(),
         Accept: "application/json",
       },
     })
@@ -250,6 +271,7 @@ export async function getSale(id: number, userId?: string, farmId?: string): Pro
     const response = await fetch(url, {
       method: "GET",
       headers: {
+        ...getAuthHeaders(),
         Accept: "application/json",
       },
     })
@@ -336,6 +358,7 @@ export async function getSalesByFlock(flockId: number, userId?: string, farmId?:
     const response = await fetch(url, {
       method: "GET",
       headers: {
+        ...getAuthHeaders(),
         Accept: "application/json",
       },
     })
@@ -475,6 +498,8 @@ export async function createSale(sale: SaleInput): Promise<ApiResponse<Sale>> {
       poultryCashAccountId: sale.poultryCashAccountId ?? null,
       eggProductId: sale.eggProductId ?? 0,
       saleGroupNo: sale.saleGroupNo ?? null,
+      // 351: a Correct Sale re-entry is linked to the sale it replaces.
+      correctsSaleId: sale.correctsSaleId ?? null,
       createdDate: new Date().toISOString(),
     }
 
@@ -483,6 +508,7 @@ export async function createSale(sale: SaleInput): Promise<ApiResponse<Sale>> {
     const response = await fetch(url, {
       method: "POST",
       headers: {
+        ...getAuthHeaders(),
         "Content-Type": "application/json",
         Accept: "application/json",
       },
@@ -586,6 +612,7 @@ export async function updateSale(id: number, sale: Partial<SaleInput>): Promise<
     const response = await fetch(url, {
       method: "PUT",
       headers: {
+        ...getAuthHeaders(),
         "Content-Type": "application/json",
         Accept: "application/json",
       },
@@ -723,6 +750,8 @@ export interface SaleGroupInput {
   paid: boolean
   saleDescription: string | null
   flockId: number | null
+  /** 351: Correct Sale -- the reversed sale this new one replaces. */
+  correctsSaleId?: number | null
   lines: SaleGroupLineInput[]
 }
 
@@ -735,7 +764,7 @@ export async function createSaleGroup(input: SaleGroupInput): Promise<ApiRespons
   try {
     const response = await fetch(farmApiUrl("Sale/group"), {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      headers: getAuthHeaders(),
       body: JSON.stringify(input),
     })
     const text = await response.text()
@@ -760,13 +789,172 @@ export async function ensureSaleGroup(saleId: number, userId: string, farmId: st
     const params = new URLSearchParams({ userId, farmId })
     const response = await fetch(farmApiUrl(`Sale/${saleId}/group?${params.toString()}`), {
       method: "POST",
-      headers: { Accept: "application/json" },
+      headers: getAuthHeaders(),
     })
     const text = await response.text()
     let data: any = null
     try { data = text ? JSON.parse(text) : null } catch { /* not JSON */ }
     if (!response.ok) {
       return { success: false, message: data?.message || text || "Could not give the sale a sale number" }
+    }
+    return { success: true, data }
+  } catch (error) {
+    return { success: false, message: error instanceof Error ? error.message : "Network error" }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 351: a posted sale is immutable. A wrong one is REVERSED (and, if needed,
+// entered again as a corrected sale linked to it).
+// ---------------------------------------------------------------------------
+
+export type PaymentAction = "KeepAsCredit" | "ReversePayment"
+
+/** One payment (group) applied to the sale, and what reversing the sale can do with it. */
+export interface ReversalPaymentItem {
+  /** Payment group id, or "AT-SALE" for money received at the sale with no payment record. */
+  key: string
+  paymentGroupId: string | null
+  paymentNumbers: string | null
+  /** SaleEntry | CustomerBalances | Backfill | AtSale */
+  source: string
+  /** Created by this sale and wholly its own: it may be kept as credit OR reversed. */
+  saleGenerated: boolean
+  allocated: number
+  paymentTotal: number
+  paymentDate: string | null
+  paymentMethod: string | null
+  cashAccountId: number | null
+  cashAccountName: string | null
+  customerId: number | null
+  recordedAtReversal: boolean
+  allowed: PaymentAction[]
+  default: PaymentAction
+  /** Why ReversePayment is not offered, when it is not. */
+  reverseUnavailableReason: string | null
+}
+
+export interface ReversalLine {
+  saleId: number
+  product: string
+  quantity: number
+  unitPrice: number
+  total: number
+  size: string | null
+  eggProductId: number | null
+  restoreProductId: number | null
+  restoreProductName: string | null
+  restoreQuantity: number
+  restoreUnit: "eggs" | "birds" | null
+}
+
+/** Computed by the server from the database -- never from what the browser holds. */
+export interface SaleReversalPreview {
+  found: boolean
+  saleId: number
+  saleIds: number[]
+  saleGroupNo: string | null
+  saleDate: string
+  customerId: number | null
+  customerName: string | null
+  total: number
+  paid: number
+  outstanding: number
+  lines: ReversalLine[]
+  payments: ReversalPaymentItem[]
+  customerCreditNow: number
+  blockers: { code: string; message: string }[]
+  fingerprint: string
+  defaultCreditCreated: number
+  defaultCashOut: number
+}
+
+export interface SaleReversalRecord {
+  salereversalid: number
+  reversalNumber: string
+  saleIds: number[]
+  reasonCode: string | null
+  reason: string
+  businessDate: string
+  occurredAt: string
+  reversedBy: string | null
+  paymentHandling: "None" | "KeepAsCredit" | "ReversePayment" | "Mixed"
+  total: number
+  paid: number
+  outstanding: number
+  creditCreated: number
+  cashReversed: number
+  correctionSaleId: number | null
+  payments: { paymentGroupId: string; paymentNumbers: string | null; source: string | null; amount: number; action: PaymentAction; recordedAtReversal: boolean }[]
+  lines: ReversalLine[] | null
+}
+
+export const REVERSAL_REASONS = [
+  "Wrong customer",
+  "Wrong quantity",
+  "Wrong price",
+  "Duplicate sale",
+  "Wrong product",
+  "Entered by mistake",
+  "Other",
+] as const
+
+async function readJson(response: Response): Promise<any> {
+  const text = await response.text()
+  try { return text ? JSON.parse(text) : null } catch { return text }
+}
+
+export async function getSaleReversalPreview(saleId: number, farmId: string): Promise<ApiResponse<SaleReversalPreview>> {
+  try {
+    const response = await fetch(farmApiUrl("Sale/" + saleId + "/reversal-preview?farmId=" + encodeURIComponent(farmId)), {
+      headers: getAuthHeaders(),
+    })
+    const data = await readJson(response)
+    if (!response.ok) return { success: false, message: data?.message || "Could not work out what reversing this sale would do." }
+    return { success: true, data }
+  } catch (error) {
+    return { success: false, message: error instanceof Error ? error.message : "Network error" }
+  }
+}
+
+export async function getSaleReversal(saleId: number, farmId: string): Promise<ApiResponse<SaleReversalRecord>> {
+  try {
+    const response = await fetch(farmApiUrl("Sale/" + saleId + "/reversal?farmId=" + encodeURIComponent(farmId)), {
+      headers: getAuthHeaders(),
+    })
+    const data = await readJson(response)
+    if (!response.ok) return { success: false, message: data?.message || "Reversal not found" }
+    return { success: true, data }
+  } catch (error) {
+    return { success: false, message: error instanceof Error ? error.message : "Network error" }
+  }
+}
+
+export interface ReverseSaleInput {
+  farmId: string
+  userId?: string
+  reasonCode?: string | null
+  reason: string
+  paymentHandling: Record<string, PaymentAction>
+  expectedFingerprint: string
+  /** One per confirmation dialog, so a double-click cannot reverse twice. */
+  idempotencyKey: string
+}
+
+/** stale: the sale changed after the preview was shown -- reload it and confirm again. */
+export async function reverseSale(
+  saleId: number,
+  input: ReverseSaleInput,
+): Promise<ApiResponse<{ salereversalid: number; reversal: SaleReversalRecord | null }> & { stale?: boolean }> {
+  try {
+    const response = await fetch(farmApiUrl("Sale/" + saleId + "/reverse?farmId=" + encodeURIComponent(input.farmId)), {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(input),
+    })
+    const data = await readJson(response)
+    if (!response.ok) {
+      return { success: false, stale: !!data?.stale, message: data?.message || (typeof data === "string" ? data : "The sale was not reversed.") }
     }
     return { success: true, data }
   } catch (error) {
