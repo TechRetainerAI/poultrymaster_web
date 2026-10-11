@@ -86,7 +86,7 @@ export function closingActionHref(action: string | null | undefined, businessDat
     case "cash-count":
       return "/poultry-cash-reconciliation"
     case "inventory":
-      return "/poultry-raw-materials"
+      return "/poultry-supply-purchases"
     // "Sold on credit" is about that day's sales; Customer Balances only shows
     // what is owed now, so review the day's sales instead.
     case "customer-balances":

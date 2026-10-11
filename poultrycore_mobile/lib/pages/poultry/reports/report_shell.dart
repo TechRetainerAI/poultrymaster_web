@@ -152,6 +152,7 @@ class _ReportShellScreenState extends State<ReportShellScreen> {
                         client: widget.session.farmClient,
                         document: () => _brand()!,
                         defaultRecipient: defaultEmailRecipient(widget.session, widget.company),
+                        variant: ReportEmailVariant.shell,
                       ),
             ),
             AppButton(

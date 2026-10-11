@@ -232,10 +232,9 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
           title="Operations"
           blurb="Delivery runs, production and stock — everything that moves water."
           groups={nav.operations}
-          /* 3 columns, longest label "Raw materials & supplies" / "Driver
-             collection report" (24 chars ~= 182px): 64 + 3x(40+182) + 2x16 =
-             762px. */
-          columns={3} widthRem={48.5} layout="grid"
+          /* 3 columns, longest label "Inventory & supply purchases" (28
+             chars ~= 212px): 64 + 3x(40+212) + 2x16 = 852px. */
+          columns={3} widthRem={53.5} layout="grid"
         />
 
         <NavMegaMenu
@@ -668,10 +667,10 @@ export function TopNavigation() {
             groups={nav.operations}
             /* 4 groups over 2 columns = a 2x2 block, and it's those two long
                labels that set the floor: "Flock Purchases (Batches)" is 184px in
-               Geist-Medium (the active row's weight) and "Raw Materials &
-               Supplies" 177px, so a column needs 224px:
-               64 + 2x224 + 16 = 528px. Shorten both and this drops to ~27.5rem. */
-            columns={2} widthRem={34} layout="grid" accent="orange"
+               Geist-Medium (the active row's weight) and "Inventory & Supply
+               Purchases" ~205px, so a column needs ~245px:
+               64 + 2x245 + 16 = 570px. Shorten both and this drops to ~27.5rem. */
+            columns={2} widthRem={36} layout="grid" accent="orange"
           />
 
           <NavMegaMenu

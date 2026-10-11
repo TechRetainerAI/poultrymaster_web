@@ -1137,7 +1137,7 @@ namespace PoultryFarmAPIWeb.Business
             // invoice's stored reference (Part 60, duplicate checkout).
             var numberFromRef = PlatformBillingRules.InvoiceNumberFromReference(reference);
 
-            long invoiceId; long accountId; string number; string curr;
+            long invoiceId; long accountId; string number; string curr; long paymentId;
             using (var q = new NpgsqlCommand(@"
                 SELECT id, accountid, invoicenumber, currencycode
                   FROM platforminvoices
@@ -1175,11 +1175,13 @@ namespace PoultryFarmAPIWeb.Business
                 ins.Parameters.AddWithValue("@C", curr);
                 ins.Parameters.AddWithValue("@Paid", paidAtUtc);
                 ins.Parameters.AddWithValue("@M", (object?)methodSummary ?? DBNull.Value);
-                if (await ins.ExecuteScalarAsync() is null)
+                var newPaymentId = await ins.ExecuteScalarAsync();
+                if (newPaymentId is null)
                 {
                     await tx.RollbackAsync();
                     return (true, "Payment already recorded.");   // duplicate delivery posts once (13.3)
                 }
+                paymentId = (long)newPaymentId;
             }
 
             using (var updInv = new NpgsqlCommand(@"
@@ -1211,6 +1213,33 @@ namespace PoultryFarmAPIWeb.Business
             await LogEventAsync(conn, accountId, null, "PaymentSucceeded", null,
                 $"{number} {curr} {amount}", "system", reference, (NpgsqlTransaction)tx);
             await tx.CommitAsync();
+
+            // PROMPT 1 (Platform Activity Foundation): emit the meaningful billing
+            // activity AFTER the authoritative posting committed. The correlation id
+            // makes a redelivered webhook a no-op even if the platformpayments
+            // dedupe ever lets one through. Failure here never fails the payment.
+            try
+            {
+                using var act = new NpgsqlCommand(@"
+                    SELECT platform_activity_record(
+                        p_companyid      => NULL,
+                        p_userid         => (SELECT owneruserid FROM organizationbillingaccounts WHERE id = @A),
+                        p_category       => 'BILLING',
+                        p_type           => 'SubscriptionPaymentRecorded',
+                        p_sourcemodule   => 'Billing',
+                        p_sourcerecordid => @Pid,
+                        p_ismeaningful   => true,
+                        p_correlationid  => @Corr)", conn);
+                act.Parameters.AddWithValue("@A", accountId);
+                act.Parameters.AddWithValue("@Pid", paymentId.ToString());
+                act.Parameters.AddWithValue("@Corr", $"pay:{_provider.Name}:{reference}");
+                await act.ExecuteScalarAsync();
+            }
+            catch (Exception ex)
+            {
+                _log.LogWarning(ex, "Billing activity event dropped for payment {Reference}", reference);
+            }
+
             _log.LogInformation("Payment {Reference} of {Amount} {Currency} settled invoice {Number}",
                 reference, amount, curr, number);
             return (true, $"Payment of {curr} {amount} applied to {number}.");

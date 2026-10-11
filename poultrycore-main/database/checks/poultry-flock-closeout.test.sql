@@ -361,13 +361,17 @@ BEGIN
     END;
     f := f + pg_temp.chk_like('E4. the closeout sale cannot be deleted', '%Reopen the flock%', v_msg);
 
-    -- Price, customer and payment are the sales page's business.
-    PERFORM spsale_update(p_userid => 'closeout-test', p_farmid => v_farm, p_saleid => v_sale1,
-                          p_saledate => v_today::timestamp, p_product => 'Birds', p_quantity => 450,
-                          p_unitprice => 13, p_totalamount => 5850, p_flockid => v_a, p_paid => FALSE,
-                          p_customername => 'Closeout Test Buyer');
-    SELECT totalamount INTO v_num FROM sale WHERE saleid = v_sale1;
-    f := f + pg_temp.chk('E5. the closeout sale''s price is still editable', '5850.00', v_num::text);
+    -- 351: a posted sale's price is locked too -- reversing it means reopening
+    -- the flock. Payments are still the sales page's business.
+    BEGIN
+        PERFORM spsale_update(p_userid => 'closeout-test', p_farmid => v_farm, p_saleid => v_sale1,
+                              p_saledate => v_today::timestamp, p_product => 'Birds', p_quantity => 450,
+                              p_unitprice => 13, p_totalamount => 5850, p_flockid => v_a, p_paid => FALSE,
+                              p_customername => 'Closeout Test Buyer');
+        v_msg := 'changed';
+    EXCEPTION WHEN OTHERS THEN v_msg := SQLERRM;
+    END;
+    f := f + pg_temp.chk_like('E5. the closeout sale''s price is locked (351)', '%is posted%price%', v_msg);
 
     BEGIN
         PERFORM sppoultrypayment_record(p_farmid => v_farm, p_saleid => v_sale1, p_amount => 850,
@@ -380,12 +384,9 @@ BEGIN
     SELECT amountpaid INTO v_num FROM sale WHERE saleid = v_sale1;
     f := f + pg_temp.chk('E7. ... and the sale shows it', '850.00', ROUND(v_num, 2)::text);
 
-    -- Put the price back so section F's arithmetic is the one in its comments.
-    PERFORM spsale_update(p_userid => 'closeout-test', p_farmid => v_farm, p_saleid => v_sale1,
-                          p_saledate => v_today::timestamp, p_product => 'Birds', p_quantity => 450,
-                          p_unitprice => 12.5, p_totalamount => 5625, p_flockid => v_a, p_paid => FALSE,
-                          p_customername => 'Closeout Test Buyer');
-    PERFORM spsale_delete(p_farmid => v_farm, p_userid => 'x', p_saleid => v_eggsale2);   -- the E2 egg sale
+    -- The E2 egg sale is reversed (351: a posted sale is never deleted); for
+    -- every reader below that is the same as the delete this used to be.
+    PERFORM sppoultrysale_reverse(v_farm, v_eggsale2, NULL, 'test cleanup', '{}'::jsonb, NULL, NULL, 'x');
 
     -- =====================================================================
     -- F. Lifetime metrics for A

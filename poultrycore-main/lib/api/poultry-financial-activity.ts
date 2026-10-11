@@ -243,7 +243,7 @@ export function activitySourceLink(row: FinancialActivityRow): { href: string; l
     case "CapitalAssetCost":
     case "AssetDepreciation":
       return id ? { href: `/poultry-assets`, label: "View capital assets" } : null
-    case "PoultryRawMaterialPurchase":  return { href: "/poultry-raw-materials?tab=purchases", label: "View purchase" }
+    case "PoultryRawMaterialPurchase":  return { href: "/poultry-supply-purchases?tab=purchases", label: "View purchase" }
     case "PoultryFeedConsumption":      return { href: "/feed-inventory-tracker", label: "View feed movements" }
     case "PoultryMedicationConsumption":return { href: "/medication-tracker", label: "View medication" }
     case "PoultryInternalUsage":        return { href: "/poultry-internal-use", label: "View internal use" }

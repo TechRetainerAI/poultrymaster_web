@@ -5,7 +5,7 @@
 // One page, two tabs, three top cards (total items / low stock / out of stock).
 //
 // Read-only here on purpose — adjustments go through the dedicated routes
-// (/water-products for restock, /water-raw-materials for raw-material purchases)
+// (/water-products for restock, /water-supply-purchases for raw-material purchases)
 // so the audit log captures who/what/when. This page is the at-a-glance view.
 
 import { useEffect, useMemo, useState } from "react"
@@ -290,7 +290,7 @@ export default function WaterInventoryPage() {
                   <div className="flex items-center justify-between p-3 border-b bg-slate-50">
                     <div className="text-sm text-slate-600">Sachet rolls, caps, labels. Stock updated by raw-material purchases + production usage.</div>
                     <Button asChild size="sm" variant="outline">
-                      <Link href="/water-raw-materials"><ExternalLink className="h-4 w-4 mr-1" /> Manage raw materials</Link>
+                      <Link href="/water-supply-purchases"><ExternalLink className="h-4 w-4 mr-1" /> Inventory &amp; supply purchases</Link>
                     </Button>
                   </div>
                   {loading ? (

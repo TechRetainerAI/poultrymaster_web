@@ -4,7 +4,6 @@ import 'package:intl/intl.dart';
 import '../api/api_client.dart';
 import '../design/tokens.dart';
 import '../design/web_mobile.dart';
-import '../design/ui/buttons.dart';
 import '../design/ui/form_section.dart';
 import '../design/ui/inputs.dart';
 import '../models/company.dart';
@@ -648,9 +647,20 @@ class _ListScreenState extends State<ListScreen> {
                 // whose field list is unknown), it says so rather than
                 // vanishing — a page with no records is exactly where someone
                 // reaches for "add".
-                if (acts.action != null || head.action != null) ...[
-                  const SizedBox(height: 14),
-                  PrimaryAction(
+                // The primary action and the page's first extra share one row,
+                // so the two buttons don't take a full line each.
+                ...() {
+                  final extras = listExtras[spec.key] ?? const <ListExtra>[];
+                  final hasPrimary = acts.action != null || head.action != null;
+                  Widget extra(ListExtra x) => SecondaryAction(
+                        label: x.label,
+                        icon: x.icon,
+                        color: head.color,
+                        busy: x.run != null && _extraBusy,
+                        onPressed: () => _runExtra(x),
+                      );
+                  final first = <Widget>[
+                    if (hasPrimary) Expanded(child: PrimaryAction(
                     color: head.color,
                     label: acts.action ??
                         head.action ??
@@ -697,19 +707,21 @@ class _ListScreenState extends State<ListScreen> {
                             if (saved == true) _load();
                           });
                     },
-                  ),
-                ],
-                for (final x in listExtras[spec.key] ?? const <ListExtra>[]) ...[
-                  const SizedBox(height: 8),
-                  AppButton(
-                    label: x.label,
-                    icon: x.icon,
-                    variant: AppButtonVariant.outline,
-                    fullWidth: true,
-                    busy: x.run != null && _extraBusy,
-                    onPressed: () => _runExtra(x),
-                  ),
-                ],
+                  )),
+                    if (hasPrimary && extras.isNotEmpty) const SizedBox(width: 8),
+                    if (extras.isNotEmpty) Expanded(child: extra(extras.first)),
+                  ];
+                  return <Widget>[
+                    if (first.isNotEmpty) ...[
+                      const SizedBox(height: 14),
+                      Row(crossAxisAlignment: CrossAxisAlignment.start, children: first),
+                    ],
+                    for (final x in extras.skip(1)) ...[
+                      const SizedBox(height: 8),
+                      extra(x),
+                    ],
+                  ];
+                }(),
                 const SizedBox(height: 12),
                 AppSearchField(
                   hintText: 'Search ${head.title.toLowerCase()}…',

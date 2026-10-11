@@ -209,7 +209,7 @@ class AppField extends StatelessWidget {
               child: Text(
                 label,
                 style: TextStyle(
-                  fontSize: wide ? 14 : 12,
+                  fontSize: wide ? 14 : 13,
                   fontWeight: FontWeight.w500,
                   color: labelColor,
                   height: 1.2,

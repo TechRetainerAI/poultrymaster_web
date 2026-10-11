@@ -33,6 +33,7 @@ namespace User.Management.API.Controllers
         private readonly ILogger<AuthenticationController> _logger;
         private readonly string _webAppBaseUrl;
         private readonly string _frontendAppBaseUrl;
+        private readonly string? _connStr;
 
         public AuthenticationController(UserManager<ApplicationUser> userManager,
             IEmailService emailService,
@@ -46,6 +47,7 @@ namespace User.Management.API.Controllers
             _logger = logger;
             _webAppBaseUrl = configuration["WebApp:BaseUrl"];
             _frontendAppBaseUrl = configuration["FrontendApp:BaseUrl"] ?? "http://localhost:3000";
+            _connStr = configuration.GetConnectionString("ConnStr");
         }
 
         // Prompt 3 — live availability check for an Organization Code (signup).
@@ -357,6 +359,11 @@ namespace User.Management.API.Controllers
             // For non-2FA users, password is already verified in GetOtpByLoginAsync
             // Just get the JWT token directly
             var serviceResponse = await _user.GetJwtTokenAsync(user);
+            if (serviceResponse != null && serviceResponse.IsSuccess)
+            {
+                // Platform activity foundation: verified login (never token refresh).
+                Helpers.LoginActivityRecorder.Record(_connStr, _logger, user.Id);
+            }
             return Ok(serviceResponse);
         }
 
@@ -393,6 +400,9 @@ namespace User.Management.API.Controllers
             var jwt =await _user.LoginUserWithJWTokenAsync(model.OtpCode, model.UserName);
             if (jwt.IsSuccess)
             {
+                // Platform activity foundation: OTP-verified login completed.
+                var loggedInUser = await _userManager.FindByNameAsync(model.UserName);
+                Helpers.LoginActivityRecorder.Record(_connStr, _logger, loggedInUser?.Id);
                 return Ok(jwt);
             }
             return StatusCode(StatusCodes.Status404NotFound,

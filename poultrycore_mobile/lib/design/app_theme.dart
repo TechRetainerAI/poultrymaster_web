@@ -68,6 +68,15 @@ class AppTheme {
     // rounded-md — shadcn derives this as radius - 2px.
     final mdRadius = BorderRadius.circular(Dim.radiusMd);
 
+    // Form fields and secondary buttons need to read as controls on a white
+    // card: a soft fill, a visible border, darker placeholder text and icons.
+    final light = brightness == Brightness.light;
+    final fieldFill = light ? const Color(0xFFF8FAFC) : const Color(0xFF171717);
+    final fieldBorder = light ? const Color(0xFFCBD5E1) : const Color(0xFF404040);
+    final fieldFocus = light ? const Color(0xFF2563EB) : const Color(0xFF60A5FA);
+    final fieldHint = light ? const Color(0xFF64748B) : const Color(0xFFA3A3A3);
+    final fieldIcon = light ? const Color(0xFF475569) : const Color(0xFFD4D4D4);
+
     OutlineInputBorder inputBorder(Color color, {double width = 1}) =>
         OutlineInputBorder(
           borderRadius: mdRadius,
@@ -128,22 +137,23 @@ class AppTheme {
       // uses h-12 (48px). So 48 is the product's own answer for touch input,
       // not a departure from it.
       inputDecorationTheme: InputDecorationTheme(
-        filled: false,
+        filled: true,
+        fillColor: fieldFill,
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
         constraints: const BoxConstraints(minHeight: 48),
-        border: inputBorder(tokens.input),
-        enabledBorder: inputBorder(tokens.input),
-        focusedBorder: inputBorder(tokens.ring),
+        border: inputBorder(fieldBorder),
+        enabledBorder: inputBorder(fieldBorder),
+        focusedBorder: inputBorder(fieldFocus, width: 1.6),
         errorBorder: inputBorder(tokens.destructive),
-        focusedErrorBorder: inputBorder(tokens.destructive),
+        focusedErrorBorder: inputBorder(tokens.destructive, width: 1.6),
         disabledBorder: inputBorder(tokens.input),
-        hintStyle: TextStyle(color: tokens.mutedForeground, fontSize: 14),
-        labelStyle: TextStyle(color: foreground, fontSize: 14),
-        floatingLabelStyle: TextStyle(color: foreground, fontSize: 14),
+        hintStyle: TextStyle(color: fieldHint, fontSize: 14),
+        labelStyle: TextStyle(color: foreground, fontSize: 14, fontWeight: FontWeight.w500),
+        floatingLabelStyle: TextStyle(color: foreground, fontSize: 14, fontWeight: FontWeight.w500),
         errorStyle: TextStyle(color: tokens.destructive, fontSize: 12.5),
-        suffixIconColor: tokens.mutedForeground,
-        prefixIconColor: tokens.mutedForeground,
+        suffixIconColor: fieldIcon,
+        prefixIconColor: fieldIcon,
       ),
 
       // Default variant: h-9 px-4, rounded-md, text-sm font-medium.
@@ -176,11 +186,11 @@ class AppTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: foreground,
-          backgroundColor: background,
+          backgroundColor: fieldFill,
           minimumSize: const Size(0, 36),
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          side: BorderSide(color: tokens.border),
-          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+          side: BorderSide(color: fieldBorder),
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
           shape: RoundedRectangleBorder(borderRadius: mdRadius),
         ),
       ),
@@ -191,7 +201,7 @@ class AppTheme {
           foregroundColor: foreground,
           minimumSize: const Size(0, 36),
           padding: const EdgeInsets.symmetric(horizontal: 12),
-          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
           shape: RoundedRectangleBorder(borderRadius: mdRadius),
         ),
       ),

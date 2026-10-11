@@ -107,8 +107,11 @@ export function DataPagination({
             <PaginationItem>
               <PaginationPrevious onClick={() => onPageChange(Math.max(1, page - 1))} className={page === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"} />
             </PaginationItem>
+            {/* Phone: "3 / 12" between the arrows -- seven numbered buttons
+                are wider than a phone and pushed the page sideways. */}
+            <PaginationItem className="px-2 text-sm tabular-nums text-slate-600 sm:hidden">{page} / {totalPages}</PaginationItem>
             {getPageNumbers(page, totalPages).map((p, i) => (
-              <PaginationItem key={i}>
+              <PaginationItem key={i} className="hidden sm:list-item">
                 {p === "ellipsis" ? <PaginationEllipsis /> : (
                   <PaginationLink onClick={() => onPageChange(p)} isActive={page === p} className="cursor-pointer">{p}</PaginationLink>
                 )}
@@ -153,8 +156,11 @@ export function DataPagination({
                 className={page === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
               />
             </PaginationItem>
+            {/* Phone: "3 / 12" between the arrows -- seven numbered buttons
+                are wider than a phone and pushed the page sideways. */}
+            <PaginationItem className="px-2 text-sm tabular-nums text-slate-600 sm:hidden">{page} / {totalPages}</PaginationItem>
             {getPageNumbers(page, totalPages).map((p, i) => (
-              <PaginationItem key={i}>
+              <PaginationItem key={i} className="hidden sm:list-item">
                 {p === "ellipsis" ? (
                   <PaginationEllipsis />
                 ) : (

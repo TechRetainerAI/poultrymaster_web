@@ -657,8 +657,8 @@ function DeferredCostsInner() {
             rows={detail ? history[detail.poultryRawMaterialPurchaseId] : undefined}
             gh={gh}
             onClose={() => setDetail(null)}
-            onOpenItem={(iid) => router.push(`/poultry-raw-materials?tab=items&itemId=${iid}`)}
-            onOpenPurchase={(pid) => router.push(`/poultry-raw-materials?tab=purchases&purchaseId=${pid}`)}
+            onOpenItem={(iid) => router.push(`/poultry-supply-purchases?tab=items&itemId=${iid}`)}
+            onOpenPurchase={(pid) => router.push(`/poultry-supply-purchases?tab=purchases&purchaseId=${pid}`)}
           />
         </main>
       </div>

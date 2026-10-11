@@ -65,28 +65,29 @@ function FarmCompletenessInner() {
                   <ClipboardCheck className="h-5 w-5 text-amber-600" />
                 </div>
                 <div className="min-w-0">
-                  <h1 className="text-2xl font-bold text-slate-900">Farm Completeness</h1>
+                  <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Farm Completeness</h1>
                   <p className="text-sm text-slate-600">
                     Expected farm activities that have not been recorded yet.
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-end gap-2">
+              <div className="flex w-full items-end gap-2 sm:w-auto">
                 <Button
                   variant="outline"
                   size="icon"
+                  className="shrink-0"
                   aria-label="Previous day"
                   onClick={() => choose(shiftBusinessDate(shown, -1))}
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <div className="space-y-1">
+                <div className="min-w-0 flex-1 space-y-1 sm:flex-none">
                   <Label htmlFor="completeness-date" className="text-xs text-slate-500">Business date</Label>
                   <Input
                     id="completeness-date"
                     type="date"
-                    className="w-40"
+                    className="w-full sm:w-40"
                     value={shown}
                     max={today}
                     onChange={(e) => choose(e.target.value)}
@@ -95,6 +96,7 @@ function FarmCompletenessInner() {
                 <Button
                   variant="outline"
                   size="icon"
+                  className="shrink-0"
                   aria-label="Next day"
                   disabled={isToday}
                   onClick={() => choose(shiftBusinessDate(shown, 1))}

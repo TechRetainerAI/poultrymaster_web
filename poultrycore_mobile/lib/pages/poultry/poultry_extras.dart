@@ -7,6 +7,9 @@ import 'bulk_house_screen.dart';
 import 'product_screens.dart';
 import 'driver_employee_screen.dart';
 import 'staff_attendance_screen.dart';
+import 'trackers/egg_tracker_screen.dart';
+import 'trackers/feed_inventory_tracker_screen.dart';
+import 'trackers/tracker_logic.dart';
 
 /// What the Poultry web pages offer beyond Add / Edit / Delete.
 
@@ -30,6 +33,10 @@ final Map<String, List<ListExtra>> poultryListExtras = {
     ListExtra('Add Multiple Flocks', Icons.call_split,
         (s, c, rows) => BatchAllocationScreen(session: s, company: c, flocks: rows)),
   ],
+  // app/egg-production/page.tsx — "For egg inventory and the ledger, open Egg tracker."
+  'eggproduction': [
+    ListExtra('Egg tracker', Icons.bar_chart, (s, c, rows) => EggTrackerScreen(session: s, company: c)),
+  ],
 };
 
 final Map<String, List<RecordExtra>> poultryRecordExtras = {
@@ -40,6 +47,13 @@ final Map<String, List<RecordExtra>> poultryRecordExtras = {
     RecordExtra('Recipe', Icons.checklist,
         (s, c, row) => ProductRecipeScreen(session: s, company: c, product: row),
         when: (row) => row['requiresRecipeSetup'] == true && row['isRawEggProduct'] != true),
+  ],
+  // app/poultry-raw-materials/page.tsx — Track, on feed items only.
+  'raw-materials': [
+    RecordExtra('Track', Icons.history,
+        (s, c, row) => FeedInventoryTrackerScreen(
+            session: s, company: c, initialItemId: tIntOrNull(row['poultryRawMaterialItemId'])),
+        when: (row) => feedItemKind(row['category']) != null),
   ],
   // app/poultry-staff/page.tsx — the row's "Attendance" button.
   'poultry-staff': [

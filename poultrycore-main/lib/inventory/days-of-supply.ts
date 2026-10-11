@@ -119,7 +119,7 @@ export function purchaseUnitEquivalent(
 
 /** Opens the Raw Materials purchase dialog with the item chosen. Never buys anything by itself. */
 export function restockHref(itemId: number): string {
-  return `/poultry-raw-materials?purchase=1&itemId=${itemId}`
+  return `/poultry-supply-purchases?purchase=1&itemId=${itemId}`
 }
 
 /** Sort for display: most urgent first, then fewest days, then name. */

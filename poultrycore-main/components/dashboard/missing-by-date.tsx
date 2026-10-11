@@ -13,6 +13,8 @@ import { Fragment, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { ChevronDown, ChevronUp, CornerDownRight, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { cn } from "@/lib/utils"
 import { getMissingProductionByDate, type MissingProductionByDate } from "@/lib/api/activity-checks"
 import {
@@ -42,6 +44,7 @@ export function MissingByDateTable({ businessDate }: { businessDate: string }) {
   }, [businessDate, days])
 
   const groups = useMemo(() => groupMissingByDate(data?.entries ?? []), [data])
+  const groupsPg = usePagination(groups, 10)
   const toggle = (date: string) =>
     setOpen((prev) => {
       const next = new Set(prev)
@@ -59,12 +62,13 @@ export function MissingByDateTable({ businessDate }: { businessDate: string }) {
 
   return (
     <div className="overflow-x-auto rounded-lg border border-slate-200">
-      <table className="w-full min-w-[36rem] text-sm">
+      {/* Phone: Date, Flocks and Action; the unposted batches move under the date. */}
+      <table className="w-full text-sm sm:min-w-[36rem]">
         <thead className="bg-slate-50 text-left text-xs uppercase tracking-wider text-slate-500">
           <tr>
             <th className="px-3 py-2 font-medium">Date</th>
-            <th className="px-3 py-2 font-medium">Flocks missing</th>
-            <th className="px-3 py-2 font-medium">In an unposted batch</th>
+            <th className="px-3 py-2 font-medium"><span className="sm:hidden">Flocks</span><span className="hidden sm:inline">Flocks missing</span></th>
+            <th className="hidden px-3 py-2 font-medium sm:table-cell">In an unposted batch</th>
             <th className="px-3 py-2 text-right font-medium">Action</th>
           </tr>
         </thead>
@@ -72,7 +76,7 @@ export function MissingByDateTable({ businessDate }: { businessDate: string }) {
           {groups.length === 0 && (
             <tr><td colSpan={COLS} className="px-3 py-4 text-slate-500">No missing production in the last {data.windowDays} days.</td></tr>
           )}
-          {groups.map((g) => {
+          {groupsPg.pageItems.map((g) => {
             const isOpen = open.has(g.date)
             const href = batchEntryHref(g.date, g.missing.map((m) => m.flockId))
             const inBatch = g.pendingBatches.reduce((a, b) => a + b.flocks.length, 0)
@@ -93,9 +97,19 @@ export function MissingByDateTable({ businessDate }: { businessDate: string }) {
                     </span>
                     {formatWeekdayDate(g.date)}
                     <span className="ml-2 text-xs font-normal text-slate-400">{daysAgoLabel(g.date, data.businessDate)}</span>
+                    {g.pendingBatches.length > 0 && (
+                      <span className="flex flex-wrap gap-x-2 pl-[1.625rem] text-xs font-normal sm:hidden">
+                        {g.pendingBatches.map((b) => (
+                          <Link key={b.id} className="text-sky-700 underline" onClick={(e) => e.stopPropagation()}
+                            href={missingDateHref(b.flocks[0].flockId, g.date, b.id, b.status)}>
+                            batch #{b.id} ({b.flocks.length})
+                          </Link>
+                        ))}
+                      </span>
+                    )}
                   </td>
                   <td className="px-3 py-2 tabular-nums text-slate-700">{g.missing.length || "—"}</td>
-                  <td className="px-3 py-2 text-slate-600">
+                  <td className="hidden px-3 py-2 text-slate-600 sm:table-cell">
                     {g.pendingBatches.length === 0 ? "—" : (
                       <span className="flex flex-wrap gap-x-2">
                         {g.pendingBatches.map((b) => (
@@ -108,7 +122,7 @@ export function MissingByDateTable({ businessDate }: { businessDate: string }) {
                     )}
                     {inBatch > 0 && <span className="sr-only">{inBatch} flocks in unposted batches</span>}
                   </td>
-                  <td className="px-3 py-2 text-right">
+                  <td className="whitespace-nowrap px-3 py-2 text-right">
                     {href && (
                       <Button asChild size="sm" variant="outline" className="h-7 px-2.5 text-xs">
                         <Link href={href} onClick={(e) => e.stopPropagation()}>
@@ -120,12 +134,17 @@ export function MissingByDateTable({ businessDate }: { businessDate: string }) {
                 </tr>
                 {isOpen && g.missing.map((m) => (
                   <tr key={`${g.date}-${m.flockId}`} className="bg-slate-50/80">
-                    <td className="px-3 py-2 pl-8 text-slate-800">
+                    <td className="px-3 py-2 pl-6 text-slate-800 sm:pl-8">
                       <span className="inline-flex items-center gap-1.5">
                         <CornerDownRight className="h-3.5 w-3.5 text-slate-400" /> {m.flockName}
                       </span>
+                      <span className="block pl-5 text-xs text-slate-500 sm:hidden">
+                        {[m.batchName, m.houseName].filter(Boolean).join(" · ") || "—"}
+                      </span>
                     </td>
-                    <td colSpan={2} className="px-3 py-2 text-slate-600">
+                    {/* Phone: an empty cell keeps Record under the Action column. */}
+                    <td className="px-3 py-2 sm:hidden" />
+                    <td colSpan={2} className="hidden px-3 py-2 text-slate-600 sm:table-cell">
                       {[m.batchName, m.houseName].filter(Boolean).join(" · ") || "—"}
                     </td>
                     <td className="px-3 py-2 text-right">
@@ -152,6 +171,11 @@ export function MissingByDateTable({ businessDate }: { businessDate: string }) {
           </tr>
         </tbody>
       </table>
+      {groups.length > 0 && (
+        <div className="border-t border-slate-100 px-3 py-2">
+          <DataPagination {...groupsPg.paginationProps} />
+        </div>
+      )}
     </div>
   )
 }

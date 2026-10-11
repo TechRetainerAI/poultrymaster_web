@@ -57,4 +57,19 @@ class QuickLinksApi {
       return null;
     }
   }
+
+  /// saveUserQuickLinks: PUT the chosen hrefs, in order. Throws on failure,
+  /// with the server's text when it sent one.
+  Future<UserQuickLinks> save({required String userId, required String farmId, required List<String> hrefs}) async {
+    if (userId.isEmpty || farmId.isEmpty) throw ApiException(0, 'No company is open.');
+    final res = await _farm.put('/api/UserQuickLinks', body: {'userId': userId, 'farmId': farmId, 'hrefs': hrefs});
+    return res is Map ? UserQuickLinks.fromJson(Map<String, dynamic>.from(res)) : UserQuickLinks(customised: true, hrefs: hrefs);
+  }
+
+  /// resetUserQuickLinks: deletes the choice, so the defaults (including any
+  /// added later) apply again.
+  Future<void> reset({required String userId, required String farmId}) async {
+    if (userId.isEmpty || farmId.isEmpty) throw ApiException(0, 'No company is open.');
+    await _farm.delete('/api/UserQuickLinks?userId=${Uri.encodeQueryComponent(userId)}&farmId=${Uri.encodeQueryComponent(farmId)}');
+  }
 }

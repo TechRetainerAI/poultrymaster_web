@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- PROMPT 1 (Platform Activity Foundation) unit tests: classifier, trend
+       and status math. Database-side behavior (idempotency, usage-daily
+       trigger, org aggregation, timezone business dates, isolation) is covered
+       by PoultryFarmAPI/Tests/PlatformActivity_SmokeTest.sql, which runs
+       against a live database and rolls itself back. -->
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="xunit" Version="2.6.6" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.6" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\PoultryFarmAPI\PoultryFarmAPI.csproj" />
+  </ItemGroup>
+
+</Project>

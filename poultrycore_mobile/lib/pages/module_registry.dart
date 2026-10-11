@@ -5,6 +5,7 @@ import 'page_extras.dart';
 import 'poultry/poultry_extras.dart';
 import 'poultry/poultry_forms.dart';
 import 'poultry/reports/report_routes.dart';
+import 'poultry/trackers/tracker_routes.dart';
 import 'restaurant/restaurant_extras.dart';
 import 'restaurant/restaurant_forms.dart';
 import 'shared/shared_forms.dart';
@@ -47,7 +48,12 @@ final Map<String, DeleteGuard> deleteGuards = {...waterDeleteGuards, ...restaura
 final Map<String, BeforeLoad> beforeLoad = {...poultryBeforeLoad};
 
 /// Routes that are screens of their own, keyed by web href.
-final Map<String, PageScreenBuilder> pageScreens = {...sharedPageScreens, ...poultryPageScreens, ...poultryReportScreens};
+final Map<String, PageScreenBuilder> pageScreens = {
+  ...sharedPageScreens,
+  ...poultryPageScreens,
+  ...poultryReportScreens,
+  ...poultryTrackerScreens,
+};
 
 /// The form for a spec: the curated one when there is one, else the extracted.
 FormDef? formForSpec(String specKey) {
