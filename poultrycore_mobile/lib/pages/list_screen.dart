@@ -83,6 +83,11 @@ class _ListScreenState extends State<ListScreen> {
   /// web shows.
   Future<void> _resolve(List<Map<String, dynamic>> rows) async {
     final spec = widget.spec;
+    for (final MapEntry(key: field, value: build) in spec.derive.entries) {
+      for (final r in rows) {
+        r[field] = build(r);
+      }
+    }
     if (spec.resolve.isEmpty || rows.isEmpty) return;
     final loader = LookupLoader(widget.session, widget.company);
     for (final MapEntry(key: field, value: (idKey, slot, label)) in spec.resolve.entries) {

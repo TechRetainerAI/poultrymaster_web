@@ -14,10 +14,13 @@ import '../sales/balances_widgets.dart';
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../trackers/tracker_widgets.dart';
 import 'money_widgets.dart';
+import '../reports/money_reports.dart' show MoneyRail, poultryMoneyRail;
 
 /// Poultry → Money → Owner Money, as `app/poultry-owner-money/page.tsx`: what
 /// the owner put in and took out. A contribution is not revenue and a draw is
-/// not an expense — both move cash, neither touches profit.
+/// not an expense — both move cash, neither touches profit. Water passes
+/// [OwnerMoneyScreen.rail] (`app/water-owner-money/page.tsx`): the same page
+/// on `/api/Water`, keyed on waterOwnerMoneyId, with no Cash-page rows.
 
 const ownerPaymentMethods = ['Cash', 'BankTransfer', 'MoMo', 'Cheque', 'Card', 'Other'];
 const ownerTypeFilters = ['All', 'Contribution', 'Draw'];
@@ -52,13 +55,15 @@ List<Map> filterOwnerMoney(List<Map> rows,
   }).toList();
 }
 
-String ownerNumber(Map r) => tStr(r['transactionNumber']).isNotEmpty ? tStr(r['transactionNumber']) : '#${tStr(r['sourceId'])}';
+String ownerNumber(Map r, [String idKey = 'sourceId']) =>
+    tStr(r['transactionNumber']).isNotEmpty ? tStr(r['transactionNumber']) : '#${tStr(r[idKey])}';
 String _dash(Object? v) => tStr(v).isEmpty ? '–' : tStr(v);
 
 class OwnerMoneyScreen extends StatefulWidget {
-  const OwnerMoneyScreen({super.key, required this.session, required this.company});
+  const OwnerMoneyScreen({super.key, required this.session, required this.company, this.rail = poultryMoneyRail});
   final Session session;
   final Company company;
+  final MoneyRail rail;
 
   @override
   State<OwnerMoneyScreen> createState() => _OwnerMoneyScreenState();
@@ -104,9 +109,9 @@ class _OwnerMoneyScreenState extends State<OwnerMoneyScreen> {
     try {
       final q = {'farmId': _farmId};
       final r = await Future.wait([
-        _api.get('/api/Poultry/cash-accounts', query: q),
-        _api.get('/api/Poultry/owner-money', query: q),
-        _api.get('/api/Poultry/owner-money/summary', query: q),
+        _api.get('${widget.rail.api}/cash-accounts', query: q),
+        _api.get('${widget.rail.api}/owner-money', query: q),
+        _api.get('${widget.rail.api}/owner-money/summary', query: q),
       ]);
       if (!mounted) return;
       setState(() {
@@ -122,6 +127,15 @@ class _OwnerMoneyScreenState extends State<OwnerMoneyScreen> {
 
   String _when(Map r) => fmtDateTime(r['transactionDate'], r, _offset);
 
+  bool get _water => widget.rail.idPrefix == 'water';
+
+  /// Poultry rows carry source + sourceId (a Cash-page adjustment shows here
+  /// too); Water's are its own owner-money rows only.
+  String get _idKey => _water ? 'waterOwnerMoneyId' : 'sourceId';
+  String _number(Map o) => ownerNumber(o, _idKey);
+  bool _fromCash(Map o) => !_water && tStr(o['source']) == 'CashAdjustment';
+  bool _canReverse(Map o) => tStr(o['status']) == 'Posted' && (_water || tStr(o['source']) == 'OwnerMoney');
+
   Future<void> _record(String type) async {
     final done = await showDialog<bool>(
       context: context,
@@ -131,6 +145,7 @@ class _OwnerMoneyScreenState extends State<OwnerMoneyScreen> {
         type: type,
         accounts: _accounts,
         fmt: _fmt,
+        rail: widget.rail,
       ),
     );
     if (done == true) _load();
@@ -145,6 +160,7 @@ class _OwnerMoneyScreenState extends State<OwnerMoneyScreen> {
         row: r,
         fmt: _fmt,
         when: _when(r),
+        rail: widget.rail,
       ),
     );
     if (done == true) _load();
@@ -178,8 +194,8 @@ class _OwnerMoneyScreenState extends State<OwnerMoneyScreen> {
           [
             cellText(_when(o)),
             Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-              Text(ownerNumber(o), style: const TextStyle(fontWeight: FontWeight.w500)),
-              if (tStr(o['source']) == 'CashAdjustment')
+              Text(_number(o), style: const TextStyle(fontWeight: FontWeight.w500)),
+              if (_fromCash(o))
                 const Text('From the Cash page', style: TextStyle(fontSize: 11, color: TColors.slate500)),
             ]),
             cellText(_dash(o['ownerName'])),
@@ -204,9 +220,9 @@ class _OwnerMoneyScreenState extends State<OwnerMoneyScreen> {
                 : badge(tStr(o['status']), TColors.sky100, TColors.sky800),
             Align(
               alignment: Alignment.centerRight,
-              child: tStr(o['status']) == 'Posted' && tStr(o['source']) == 'OwnerMoney'
+              child: _canReverse(o)
                   ? _reverseButton(o)
-                  : tStr(o['source']) == 'CashAdjustment'
+                  : _fromCash(o)
                       ? const Text('Cash page', style: TextStyle(fontSize: 11, color: TColors.slate500))
                       : const SizedBox.shrink(),
             ),
@@ -217,7 +233,7 @@ class _OwnerMoneyScreenState extends State<OwnerMoneyScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final lead = sidebarLeading(context, widget.session, widget.company, href: '/poultry-owner-money');
+    final lead = sidebarLeading(context, widget.session, widget.company, href: '/${widget.rail.idPrefix}-owner-money');
     final visible = filterOwnerMoney(_rows, type: _type, status: _status, search: _search.text, from: _from, to: _to);
     if (visible.length != _lastTotal) {
       _lastTotal = visible.length;
@@ -324,8 +340,8 @@ class _OwnerMoneyScreenState extends State<OwnerMoneyScreen> {
                 striped: true,
                 items: pageRows,
                 // Keyed on source + id: a Cash-page row carries poultryOwnerMoneyId 0.
-                keyOf: (o) => '${tStr(o['source'])}:${tStr(o['sourceId'])}',
-                primary: ownerNumber,
+                keyOf: (o) => _water ? tStr(o['waterOwnerMoneyId']) : '${tStr(o['source'])}:${tStr(o['sourceId'])}',
+                primary: _number,
                 secondary: (o) => '${_when(o)} · ${_dash(o['accountName'])}',
                 trailing: (o) {
                   final reversed = tStr(o['status']) == 'Reversed';
@@ -349,8 +365,8 @@ class _OwnerMoneyScreenState extends State<OwnerMoneyScreen> {
                 ],
                 actions: (o) => [
                   // Recorded on the Cash page, so it is edited and deleted there.
-                  if (tStr(o['status']) == 'Posted' && tStr(o['source']) == 'OwnerMoney') _reverseButton(o),
-                  if (tStr(o['source']) == 'CashAdjustment')
+                  if (_canReverse(o)) _reverseButton(o),
+                  if (_fromCash(o))
                     const Text('Recorded on the Cash page — edit it there.', style: TextStyle(fontSize: 11, color: TColors.slate500)),
                 ],
                 table: _table,
@@ -381,9 +397,11 @@ class OwnerMoneyDialog extends StatefulWidget {
     required this.type,
     required this.accounts,
     required this.fmt,
+    this.rail = poultryMoneyRail,
   });
   final Session session;
   final Company company;
+  final MoneyRail rail;
 
   /// "Contribution" or "Draw".
   final String type;
@@ -406,7 +424,7 @@ class _OwnerMoneyDialogState extends State<OwnerMoneyDialog> {
 
   bool get _isDraw => widget.type == 'Draw';
   num get _amountNum => num.tryParse(_amount.text) ?? 0;
-  Map? get _acc => widget.accounts.where((a) => tStr(a['poultryCashAccountId']) == _account).firstOrNull;
+  Map? get _acc => widget.accounts.where((a) => tStr(a[widget.rail.id('CashAccountId')]) == _account).firstOrNull;
   num get _balance => tNum(_acc?['currentBalance']);
   bool get _allowsNegative => _acc?['allowNegativeBalance'] == true;
   num get _after => _isDraw ? _balance - _amountNum : _balance + _amountNum;
@@ -432,10 +450,10 @@ class _OwnerMoneyDialogState extends State<OwnerMoneyDialog> {
     setState(() => _saving = true);
     String? opt(TextEditingController c) => c.text.trim().isEmpty ? null : c.text.trim();
     try {
-      await widget.session.farmClient.post('/api/Poultry/owner-money', body: {
+      await widget.session.farmClient.post('${widget.rail.api}/owner-money', body: {
         'transactionType': widget.type,
         'amount': _amountNum,
-        'poultryCashAccountId': int.parse(_account),
+        widget.rail.id('CashAccountId'): int.parse(_account),
         // Today gets a real clock time so it sorts to the top; a back-dated entry keeps midnight.
         'transactionDate': entryTimestamp(_date),
         'paymentMethod': _method.isEmpty ? null : _method,
@@ -510,7 +528,7 @@ class _OwnerMoneyDialogState extends State<OwnerMoneyDialog> {
                   items: [
                     for (final a in active)
                       AppSelectItem(
-                        value: tStr(a['poultryCashAccountId']),
+                        value: tStr(a[widget.rail.id('CashAccountId')]),
                         label: '${tStr(a['accountName'])} — ${fmt(tNum(a['currentBalance']))}',
                       ),
                   ],
@@ -587,9 +605,11 @@ class ReverseOwnerMoneyDialog extends StatefulWidget {
     required this.row,
     required this.fmt,
     required this.when,
+    this.rail = poultryMoneyRail,
   });
   final Session session;
   final Company company;
+  final MoneyRail rail;
   final Map row;
   final FarmMoney fmt;
   final String when;
@@ -617,7 +637,7 @@ class _ReverseOwnerMoneyDialogState extends State<ReverseOwnerMoneyDialog> {
     setState(() => _saving = true);
     try {
       await widget.session.farmClient.post(
-        '/api/Poultry/owner-money/${tStr(r['poultryOwnerMoneyId'])}/reverse',
+        '${widget.rail.api}/owner-money/${tStr(r[widget.rail.id('OwnerMoneyId')])}/reverse',
         query: {'farmId': widget.company.farmId, 'reversedBy': widget.session.tokens.userId ?? ''},
         body: {'reason': _reason.text.trim()},
       );
@@ -634,7 +654,7 @@ class _ReverseOwnerMoneyDialogState extends State<ReverseOwnerMoneyDialog> {
   @override
   Widget build(BuildContext context) {
     final r = widget.row;
-    final num = tStr(r['transactionNumber']).isNotEmpty ? tStr(r['transactionNumber']) : '#${tStr(r['poultryOwnerMoneyId'])}';
+    final num = tStr(r['transactionNumber']).isNotEmpty ? tStr(r['transactionNumber']) : '#${tStr(r[widget.rail.id('OwnerMoneyId')])}';
     final acc = tStr(r['accountName']);
     return PopScope(
       canPop: !_saving,

@@ -15,6 +15,7 @@ import '../sales/balances_logic.dart' show pageSlice;
 import '../sales/balances_widgets.dart';
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../trackers/tracker_widgets.dart';
+import '../reports/money_reports.dart' show MoneyRail, poultryMoneyRail;
 
 /// Poultry → Expenses → Payroll, as `app/poultry-payroll/page.tsx`: payroll
 /// runs (Draft → Approved → Paid, reopen, cancel, delete), their staff lines
@@ -867,9 +868,13 @@ class PayrollDeductionsDialog extends StatefulWidget {
     required this.runStatus,
     required this.fmt,
     required this.onChanged,
+    this.rail = poultryMoneyRail,
   });
   final Session session;
   final Company company;
+
+  /// The module (Poultry by default; Water passes waterMoneyRail).
+  final MoneyRail rail;
   final int itemId, staffId;
   final String staffName, runStatus;
   final FarmMoney fmt;
@@ -880,6 +885,7 @@ class PayrollDeductionsDialog extends StatefulWidget {
 }
 
 class _PayrollDeductionsDialogState extends State<PayrollDeductionsDialog> {
+  MoneyRail get _r => widget.rail;
   List<Map> _rows = [], _eligible = [];
   bool _loading = true, _busy = false;
   String _type = 'EmployeeLoanRepayment', _loanId = '';
@@ -888,7 +894,7 @@ class _PayrollDeductionsDialogState extends State<PayrollDeductionsDialog> {
   ApiClient get _api => widget.session.farmClient;
   bool get _editable => payrollEditable(widget.runStatus);
   bool get _isLoan => _type == 'EmployeeLoanRepayment' || _type == 'SalaryAdvanceRepayment';
-  Map? get _chosen => _eligible.where((e) => tStr(e['poultryEmployeeLoanId']) == _loanId).firstOrNull;
+  Map? get _chosen => _eligible.where((e) => tStr(e['${_r.idPrefix}EmployeeLoanId']) == _loanId).firstOrNull;
 
   @override
   void initState() {
@@ -907,8 +913,8 @@ class _PayrollDeductionsDialogState extends State<PayrollDeductionsDialog> {
     setState(() => _loading = true);
     try {
       final r = await Future.wait([
-        _api.get('/api/Poultry/payroll-deductions', query: {'farmId': widget.company.farmId, 'payrollItemId': '${widget.itemId}'}),
-        _api.get('/api/Poultry/employee-loans/eligible', query: {'farmId': widget.company.farmId, 'staffId': '${widget.staffId}'}),
+        _api.get('${_r.api}/payroll-deductions', query: {'farmId': widget.company.farmId, 'payrollItemId': '${widget.itemId}'}),
+        _api.get('${_r.api}/employee-loans/eligible', query: {'farmId': widget.company.farmId, 'staffId': '${widget.staffId}'}),
       ]);
       if (!mounted) return;
       setState(() {
@@ -916,7 +922,7 @@ class _PayrollDeductionsDialogState extends State<PayrollDeductionsDialog> {
         _eligible = rowsOf(r[1]);
         if (_eligible.isNotEmpty) {
           final e = _eligible.first;
-          _loanId = tStr(e['poultryEmployeeLoanId']);
+          _loanId = tStr(e['${_r.idPrefix}EmployeeLoanId']);
           final d = tNum(e['defaultPayrollDeduction']), o = tNum(e['outstandingBalance']);
           _amount.text = _plain(d < o ? d : o);
         } else {
@@ -982,12 +988,12 @@ class _PayrollDeductionsDialogState extends State<PayrollDeductionsDialog> {
                           style: const TextStyle(fontSize: 12),
                         ),
                         Align(alignment: Alignment.centerRight, child: Text(fmt(tNum(r['amount'])))),
-                        _editable && r['isLegacy'] != true && tStr(r['status']) == 'Draft' && r['poultryPayrollItemDeductionId'] != null
+                        _editable && r['isLegacy'] != true && tStr(r['status']) == 'Draft' && r['${_r.idPrefix}PayrollItemDeductionId'] != null
                             ? IconButton(
                                 onPressed: _busy
                                     ? null
                                     : () => _run(
-                                        () => _api.delete('/api/Poultry/payroll-deductions/${tStr(r['poultryPayrollItemDeductionId'])}'
+                                        () => _api.delete('${_r.api}/payroll-deductions/${tStr(r['${_r.idPrefix}PayrollItemDeductionId'])}'
                                             '?farmId=${Uri.encodeQueryComponent(widget.company.farmId)}&deletedBy=${Uri.encodeQueryComponent(widget.session.tokens.userId ?? '')}'),
                                         'Deduction removed'),
                                 icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFEF4444)),
@@ -1038,7 +1044,7 @@ class _PayrollDeductionsDialogState extends State<PayrollDeductionsDialog> {
                             items: [
                               for (final e in _eligible)
                                 AppSelectItem(
-                                  value: tStr(e['poultryEmployeeLoanId']),
+                                  value: tStr(e['${_r.idPrefix}EmployeeLoanId']),
                                   label: '${tStr(e['loanNumber'])} — ${fmt(tNum(e['outstandingBalance']))} outstanding',
                                 ),
                             ],
@@ -1080,11 +1086,11 @@ class _PayrollDeductionsDialogState extends State<PayrollDeductionsDialog> {
                           onPressed: _busy || !canAdd
                               ? null
                               : () => _run(() async {
-                                    await _api.post('/api/Poultry/payroll-deductions', body: {
-                                      'poultryPayrollItemId': widget.itemId,
+                                    await _api.post('${_r.api}/payroll-deductions', body: {
+                                      '${_r.idPrefix}PayrollItemId': widget.itemId,
                                       'deductionType': _type,
                                       'amount': amount,
-                                      'poultryEmployeeLoanId': _isLoan ? int.parse(_loanId) : null,
+                                      '${_r.idPrefix}EmployeeLoanId': _isLoan ? int.parse(_loanId) : null,
                                       'description': _desc.text.isEmpty ? null : _desc.text,
                                       'farmId': widget.company.farmId,
                                       'savedBy': widget.session.tokens.userId,

@@ -595,14 +595,14 @@ class _ProfitLossScreenState extends State<ProfitLossScreen> {
         ]),
       ),
       const SizedBox(height: 12),
-      _SectionCard(title: 'Revenue', tone: 'emerald', lines: _section('Revenue'), totalLabel: 'Total Revenue', total: _n('totalRevenue'), onOpen: _openDrill, gh: _gh),
-      _SectionCard(
+      PlSectionCard(title: 'Revenue', tone: 'emerald', lines: _section('Revenue'), totalLabel: 'Total Revenue', total: _n('totalRevenue'), onOpen: _openDrill, gh: _gh),
+      PlSectionCard(
           title: 'Direct Production Costs', tone: 'rose', negative: true, lines: _section('DirectCost'), totalLabel: 'Total Direct Production Costs', total: _n('totalDirectCosts'), onOpen: _openDrill, gh: _gh),
-      _SectionCard(
+      PlSectionCard(
           title: 'Operating Expenses', tone: 'amber', negative: true, lines: _section('OperatingExpense'), totalLabel: 'Total Operating Expenses', total: _n('totalOperatingExpenses'), onOpen: _openDrill, gh: _gh),
-      _SectionCard(
+      PlSectionCard(
           title: 'Depreciation & Financing Costs', tone: 'violet', negative: true, lines: _section('OtherCost'), totalLabel: 'Total Depreciation & Financing', total: _n('totalOtherCosts'), onOpen: _openDrill, gh: _gh),
-      _InfoSection(
+      PlInfoCard(
         icon: Icons.payments_outlined,
         title: 'Owner Contributions & Draws',
         subtitle: 'Excluded from profit',
@@ -615,7 +615,7 @@ class _ProfitLossScreenState extends State<ProfitLossScreen> {
         links: [('/poultry-owner-money', 'View Owner Money'), ('/cash-flow', 'View Cash Flow')],
         onLink: _link,
       ),
-      _InfoSection(
+      PlInfoCard(
         icon: Icons.account_balance_wallet_outlined,
         title: 'Loans (Financing)',
         subtitle: 'Excluded from profit',
@@ -628,7 +628,7 @@ class _ProfitLossScreenState extends State<ProfitLossScreen> {
         links: [('/poultry-loans', 'View Loans'), ('/cash-flow', 'View Cash Flow')],
         onLink: _link,
       ),
-      _InfoSection(
+      PlInfoCard(
         icon: Icons.business_outlined,
         title: 'Capital Investments',
         subtitle: 'Excluded from immediate operating expenses',
@@ -792,8 +792,9 @@ const _sectionTones = {
 
 /// One band of the statement; costs print in brackets. Every line opens the
 /// records behind it.
-class _SectionCard extends StatelessWidget {
-  const _SectionCard({
+class PlSectionCard extends StatelessWidget {
+  const PlSectionCard({
+    super.key,
     required this.title,
     required this.tone,
     required this.lines,
@@ -869,8 +870,9 @@ class _SectionCard extends StatelessWidget {
 
 /// PlInfoSection: dashed, "Excluded from profit", with the rule highlighted
 /// in sky and links to where the money lives.
-class _InfoSection extends StatelessWidget {
-  const _InfoSection({
+class PlInfoCard extends StatelessWidget {
+  const PlInfoCard({
+    super.key,
     required this.icon,
     required this.title,
     required this.subtitle,

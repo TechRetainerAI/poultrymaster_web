@@ -135,12 +135,56 @@ List<Map> filterAssets(List<Map> rows, {String search = '', String status = 'all
   }).toList();
 }
 
-/// What the New investment dialog says it will record.
-({num amount, num paid, num owing, num monthly}) newAssetPreview(String amount, String amountPaid, String usefulLife, String residual) {
+/// What the New investment dialog says it will record. [credit]: Water's rule
+/// (migration 047, carried by 283) — a Credit bill is unpaid, so a blank
+/// amount paid means nothing paid rather than paid in full.
+({num amount, num paid, num owing, num monthly}) newAssetPreview(String amount, String amountPaid, String usefulLife, String residual, {bool credit = false}) {
   final a = num.tryParse(amount) ?? 0;
-  final paid = amountPaid.trim().isEmpty ? a : (num.tryParse(amountPaid) ?? 0);
+  final paid = amountPaid.trim().isEmpty ? (credit ? 0 : a) : (num.tryParse(amountPaid) ?? 0);
   final owing = a - paid > 0 ? a - paid : 0;
   final life = num.tryParse(usefulLife) ?? 0;
   final monthly = life > 0 ? round2((a - (num.tryParse(residual) ?? 0)) / life) : 0;
   return (amount: a, paid: paid, owing: owing, monthly: monthly);
 }
+
+/// The module the asset screens run for: Poultry's Capital Investments
+/// (`app/poultry-assets`) or Water's Assets (`app/water-assets`). The web's
+/// two registers are twins apart from the ids, the links, the word
+/// ("investment" / "asset", the shared panels' `term`) and the few Water
+/// points the screens key on [isWater].
+class AssetRail {
+  const AssetRail._(this.module);
+  final String module;
+
+  static const poultry = AssetRail._('poultry');
+  static const water = AssetRail._('water');
+
+  bool get isWater => module == 'water';
+  String get api => isWater ? '/api/Water' : '/api/Poultry';
+  String get assetIdKey => '${module}CapitalAssetId';
+  String get categoryIdKey => '${module}AssetCategoryId';
+  String get costIdKey => '${module}CapitalAssetCostId';
+  String get depreciationIdKey => '${module}AssetDepreciationId';
+  String get cashAccountIdKey => '${module}CashAccountId';
+  String get expenseIdKey => isWater ? 'waterExpenseId' : 'expenseId';
+  String get assetsHref => '/$module-assets';
+  String get expensesHref => isWater ? '/water-expenses' : '/expenses';
+
+  /// The register's own name: "Capital Investments/Assets", Water's "Assets".
+  String get title => isWater ? 'Assets' : 'Capital Investments/Assets';
+
+  /// Water's wording: the capital investment is an asset.
+  String t(String s) => !isWater
+      ? s
+      : s
+          .replaceAll('capital investment', 'asset')
+          .replaceAll('Capital investment', 'Asset')
+          .replaceAll('investment', 'asset')
+          .replaceAll('Investment', 'Asset');
+}
+
+/// lib/water/financial-classification.ts.
+const capitalNotExpenseNote =
+    "Recording an asset here still moves the cash and still opens the supplier balance, exactly like any other bill. What it does not do is charge the whole amount against this period's profit — that happens month by month through depreciation.";
+const draftAssetNote =
+    'An asset stays out of service until it has both an in-service date and a useful life. Until then nothing is depreciated — which is what a half-drilled borehole should do.';

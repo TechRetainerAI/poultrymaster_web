@@ -271,3 +271,53 @@ bool paymentOverdraws(BalanceSide side, Map? account, num amount) {
   if (account['currentBalance'] == null) return false;
   return tNum(account['currentBalance']) - amount < 0;
 }
+
+// ------------------------------------------------------------------ rail
+
+/// What a module page passes the web's shared `<BalancesPage>` and
+/// `<PaymentsReceivedPage>`: its route prefix (`lib/api/balances.ts`
+/// `prefix`), its own hrefs, and whether a customer payment offers cash
+/// accounts. Water's `loadCashAccounts` is `async () => []` on purpose: its
+/// cash arrives through driver returns and daily closing, so a payment taken
+/// here must not post cash too (migration 227).
+class BalanceRail {
+  const BalanceRail._(this.api, this.paymentsHref, this.customerBalancesHref, this.supplierBalancesHref, this.customerCashAccounts);
+  final String api;
+  final String paymentsHref;
+  final String customerBalancesHref;
+  final String supplierBalancesHref;
+  final bool customerCashAccounts;
+
+  bool get isWater => api == '/api/Water';
+
+  String balancesHref(BalanceSide side) => side.isCustomer ? customerBalancesHref : supplierBalancesHref;
+
+  String get supplierPaymentsHref => isWater ? '/water-supplier-payments' : '/supplier-payments';
+
+  /// partyHref on the supplier pages.
+  String get suppliersHref => isWater ? '/water-suppliers' : '/suppliers';
+
+  /// The module's cash-accounts id key.
+  String get cashAccountIdKey => isWater ? 'waterCashAccountId' : 'poultryCashAccountId';
+
+  /// documentHref for a supplier payable. Water payables are a single table
+  /// (raw-material purchases); Poultry's also span flock batches and expenses.
+  String supplierDocumentHref(Map a) {
+    final type = '${a['documentType'] ?? ''}', id = '${a['documentId'] ?? ''}';
+    if (isWater) return '/water-raw-materials?tab=purchases&purchaseId=$id';
+    return switch (type) {
+      'FlockBatch' => '/flock-batch/$id',
+      'Expense' => '/expenses?expenseId=$id',
+      _ => '/poultry-raw-materials?tab=purchases&purchaseId=$id',
+    };
+  }
+
+  /// The Supplier Balances doc link: Poultry's has no Expense branch.
+  String supplierBalanceDocHref(Map d) =>
+      !isWater && '${d['documentType']}' == 'Expense'
+          ? '/poultry-raw-materials?tab=purchases&purchaseId=${d['documentId'] ?? ''}'
+          : supplierDocumentHref(d);
+
+  static const poultry = BalanceRail._('/api/Poultry', '/poultry-payments', '/customer-balances', '/supplier-balances', true);
+  static const water = BalanceRail._('/api/Water', '/water-payments', '/water-customer-balances', '/water-supplier-balances', false);
+}

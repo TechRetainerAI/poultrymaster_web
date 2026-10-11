@@ -42,6 +42,9 @@ class ReportShellScreen extends StatefulWidget {
     this.recordCount,
     required this.body,
     this.onRefresh,
+    this.catalog,
+    this.page = false,
+    this.pageIcon,
   });
   final Session session;
   final Company company;
@@ -65,6 +68,19 @@ class ReportShellScreen extends StatefulWidget {
   final int? recordCount;
   final List<Widget> body;
   final Future<void> Function()? onRefresh;
+
+  /// Where "Reports" goes back to; null = the Poultry catalogue. Water
+  /// passes its own (the web's `backHref`).
+  final Widget Function(Session session, Company company)? catalog;
+
+  /// The web's `chrome="page"`: a Money page reached from the sidebar. No
+  /// Reports back button, no card or accent band, and a plain page header
+  /// (icon tile, title, description) instead of the report header. The body
+  /// is the same.
+  final bool page;
+
+  /// The page header's icon tile (`pageIcon`); ignored as a report.
+  final IconData? pageIcon;
 
   @override
   State<ReportShellScreen> createState() => _ReportShellScreenState();
@@ -116,6 +132,28 @@ class _ReportShellScreenState extends State<ReportShellScreen> {
     }
   }
 
+  /// The Money-page header: an icon tile, a bold title and the description.
+  Widget _pageHeader() => Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (widget.pageIcon != null) ...[
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(color: const Color(0xFFD1FAE5), borderRadius: BorderRadius.circular(8)),
+              child: Icon(widget.pageIcon, size: 20, color: emerald700),
+            ),
+            const SizedBox(width: 12),
+          ],
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(widget.title, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w700, color: slate900)),
+              if (widget.description != null) Text(widget.description!, style: const TextStyle(fontSize: 13, color: slate600)),
+            ]),
+          ),
+        ]),
+      );
+
   @override
   Widget build(BuildContext context) {
     final lead = sidebarLeading(context, widget.session, widget.company, href: widget.href);
@@ -130,13 +168,15 @@ class _ReportShellScreenState extends State<ReportShellScreen> {
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 32),
       children: [
         Wrap(spacing: 8, runSpacing: 8, alignment: WrapAlignment.spaceBetween, children: [
-          AppButton(
+          if (widget.page) const SizedBox.shrink() else AppButton(
             label: 'Reports',
             icon: Icons.arrow_back,
             variant: AppButtonVariant.outline,
             size: AppButtonSize.sm,
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => PoultryReportsCatalogScreen(session: widget.session, company: widget.company),
+              builder: (_) =>
+                  widget.catalog?.call(widget.session, widget.company) ??
+                  PoultryReportsCatalogScreen(session: widget.session, company: widget.company),
             )),
           ),
           Wrap(spacing: 8, children: [
@@ -166,20 +206,20 @@ class _ReportShellScreenState extends State<ReportShellScreen> {
         ]),
         const SizedBox(height: 12),
         Container(
-          decoration: BoxDecoration(
+          decoration: widget.page ? null : BoxDecoration(
             color: Colors.white,
             border: Border.all(color: slate200),
             borderRadius: BorderRadius.circular(12),
             boxShadow: const [BoxShadow(color: Color(0x0D000000), blurRadius: 2, offset: Offset(0, 1))],
           ),
-          clipBehavior: Clip.antiAlias,
+          clipBehavior: widget.page ? Clip.none : Clip.antiAlias,
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Container(height: 6, decoration: const BoxDecoration(gradient: LinearGradient(colors: [emerald600s, emerald500s]))),
+            if (!widget.page) Container(height: 6, decoration: const BoxDecoration(gradient: LinearGradient(colors: [emerald600s, emerald500s]))),
             Padding(
-              padding: const EdgeInsets.all(14),
+              padding: EdgeInsets.all(widget.page ? 0 : 14),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 // ---- header
-                Container(
+                if (widget.page) _pageHeader() else Container(
                   padding: const EdgeInsets.only(bottom: 12),
                   margin: const EdgeInsets.only(bottom: 12),
                   decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: slate200))),

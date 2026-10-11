@@ -17,6 +17,7 @@ import 'cash_account_dialogs.dart' show cashReasons;
 import 'cash_accounts_screen.dart' show CashAccountDetailScreen, CashAccountsScreen;
 import 'cash_vocabulary.dart';
 import 'money_widgets.dart';
+import '../reports/money_reports.dart' show MoneyRail, poultryMoneyRail;
 
 /// Poultry → Money → Reconciliation, as `app/poultry-cash-reconciliation/page.tsx`:
 /// check what an account actually holds against what the system says. A count
@@ -37,14 +38,14 @@ const _sky600 = Color(0xFF0284C7);
       _ => (TColors.slate100, TColors.slate700),
     };
 
-String countRef(Map c) => tStr(c['referenceNo']).isNotEmpty ? tStr(c['referenceNo']) : '#${tStr(c['poultryCashReconciliationId'])}';
+String countRef(Map c, [String p = 'poultry']) => tStr(c['referenceNo']).isNotEmpty ? tStr(c['referenceNo']) : '#${tStr(c['${p}CashReconciliationId'])}';
 
 /// The account the page opens on: the asked-for one if it exists, else the
 /// first active, else the first.
-int? initialReconcileAccount(List<Map> accounts, int? wanted) {
-  if (wanted != null && wanted != 0 && accounts.any((a) => tIntOrNull(a['poultryCashAccountId']) == wanted)) return wanted;
+int? initialReconcileAccount(List<Map> accounts, int? wanted, [String p = 'poultry']) {
+  if (wanted != null && wanted != 0 && accounts.any((a) => tIntOrNull(a['${p}CashAccountId']) == wanted)) return wanted;
   final active = accounts.where((a) => a['isActive'] == true).firstOrNull;
-  return tIntOrNull((active ?? accounts.firstOrNull)?['poultryCashAccountId']);
+  return tIntOrNull((active ?? accounts.firstOrNull)?['${p}CashAccountId']);
 }
 
 /// The count form's arithmetic: difference to the cent, balanced within 0.01.
@@ -54,9 +55,12 @@ int? initialReconcileAccount(List<Map> accounts, int? wanted) {
 }
 
 class ReconciliationScreen extends StatefulWidget {
-  const ReconciliationScreen({super.key, required this.session, required this.company, this.accountId, this.fromAccounts = false});
+  const ReconciliationScreen({super.key, required this.session, required this.company, this.accountId, this.fromAccounts = false, this.rail = poultryMoneyRail});
   final Session session;
   final Company company;
+
+  /// The module (Poultry by default; Water passes waterMoneyRail).
+  final MoneyRail rail;
 
   /// `?accountId=` — the account to open on.
   final int? accountId;
@@ -69,6 +73,7 @@ class ReconciliationScreen extends StatefulWidget {
 }
 
 class _ReconciliationScreenState extends State<ReconciliationScreen> {
+  MoneyRail get _r => widget.rail;
   List<Map> _accounts = [], _status = [], _counts = [];
   int? _accountId;
   bool _loading = true, _busy = false;
@@ -96,7 +101,7 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
     final accs = await _loadAccounts();
     if (!mounted) return;
     setState(() {
-      _accountId ??= initialReconcileAccount(accs, widget.accountId);
+      _accountId ??= initialReconcileAccount(accs, widget.accountId, _r.idPrefix);
       _loading = false;
     });
     await _loadCounts();
@@ -107,13 +112,13 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
     setState(() => _error = '');
     List<Map> accs = [];
     try {
-      accs = rowsOf(await _api.get('/api/Poultry/cash-accounts', query: {'farmId': _farmId}));
+      accs = rowsOf(await _api.get('${_r.api}/cash-accounts', query: {'farmId': _farmId}));
       if (mounted) setState(() => _accounts = accs);
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
     }
     try {
-      final st = rowsOf(await _api.get('/api/Poultry/cash-reconciliations/account-status', query: {'farmId': _farmId}));
+      final st = rowsOf(await _api.get('${_r.api}/cash-reconciliations/account-status', query: {'farmId': _farmId}));
       if (mounted) setState(() => _status = st);
     } on ApiException {
       if (mounted) setState(() => _status = []);
@@ -125,7 +130,7 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
     final id = _accountId;
     if (id == null) return setState(() => _counts = []);
     try {
-      final c = rowsOf(await _api.get('/api/Poultry/cash-reconciliations/account/$id', query: {'farmId': _farmId}));
+      final c = rowsOf(await _api.get('${_r.api}/cash-reconciliations/account/$id', query: {'farmId': _farmId}));
       if (mounted && id == _accountId) setState(() => _counts = c);
     } on ApiException {
       if (mounted) setState(() => _counts = []);
@@ -137,8 +142,8 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
     await _loadCounts();
   }
 
-  Map? get _account => _accounts.where((a) => tIntOrNull(a['poultryCashAccountId']) == _accountId).firstOrNull;
-  Map? get _accountStatus => _status.where((s) => tIntOrNull(s['poultryCashAccountId']) == _accountId).firstOrNull;
+  Map? get _account => _accounts.where((a) => tIntOrNull(a['${_r.idPrefix}CashAccountId']) == _accountId).firstOrNull;
+  Map? get _accountStatus => _status.where((s) => tIntOrNull(s['${_r.idPrefix}CashAccountId']) == _accountId).firstOrNull;
   num get _systemBalance => tNum(_accountStatus?['ledgerBalance'] ?? _account?['currentBalance']);
   Map? get _openDraft => _counts.where((c) => tStr(c['status']) == 'Draft').firstOrNull;
   CashVocabulary get _vocab => cashAccountVocabulary(_account?['accountType']);
@@ -146,7 +151,7 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
   Future<void> _postDraft(Map c) async {
     setState(() => _busy = true);
     try {
-      final res = await _api.post('/api/Poultry/cash-reconciliations/${tStr(c['poultryCashReconciliationId'])}/post',
+      final res = await _api.post('${_r.api}/cash-reconciliations/${tStr(c['${_r.idPrefix}CashReconciliationId'])}/post',
           query: {'farmId': _farmId}, body: {'clearedTransactionIds': <int>[], 'postedBy': widget.session.tokens.userId});
       final adj = res is Map ? res['adjustmentTransactionId'] : null;
       if (mounted) {
@@ -165,7 +170,7 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
   Future<void> _recalculate() async {
     setState(() => _busy = true);
     try {
-      await _api.post('/api/Poultry/cash-accounts/reconcile-balances', query: {'farmId': _farmId});
+      await _api.post('${_r.api}/cash-accounts/reconcile-balances', query: {'farmId': _farmId});
       if (mounted) trackerToast(context, 'Balances recalculated', description: "Every cash account's balance was rebuilt from its transactions.");
       await _refreshAll();
     } on ApiException catch (e) {
@@ -184,13 +189,14 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
       builder: (_) => CashCountDialog(
         session: widget.session,
         company: widget.company,
+        rail: _r,
         account: acc,
         vocab: _vocab,
         systemBalance: _systemBalance,
         fmt: _gh,
         editing: count,
         mode: mode,
-        disabled: draft != null && tStr(count?['poultryCashReconciliationId']) != tStr(draft['poultryCashReconciliationId']),
+        disabled: draft != null && tStr(count?['${_r.idPrefix}CashReconciliationId']) != tStr(draft['${_r.idPrefix}CashReconciliationId']),
       ),
     );
     if (done == true) _refreshAll();
@@ -209,7 +215,7 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
         confirmLabel: 'Discard draft');
     if (!ok) return;
     try {
-      await _api.delete('/api/Poultry/cash-reconciliations/${tStr(c['poultryCashReconciliationId'])}'
+      await _api.delete('${_r.api}/cash-reconciliations/${tStr(c['${_r.idPrefix}CashReconciliationId'])}'
           '?farmId=${Uri.encodeQueryComponent(_farmId)}&userId=${Uri.encodeQueryComponent(widget.session.tokens.userId ?? '')}');
       await _refreshAll();
     } on ApiException catch (e) {
@@ -221,7 +227,7 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
     final reason = await showDialog<String>(context: context, builder: (_) => const ReasonPromptDialog());
     if (reason == null) return;
     try {
-      await _api.post('/api/Poultry/cash-reconciliations/${tStr(c['poultryCashReconciliationId'])}/reverse',
+      await _api.post('${_r.api}/cash-reconciliations/${tStr(c['${_r.idPrefix}CashReconciliationId'])}/reverse',
           query: {'farmId': _farmId}, body: {'reason': reason, 'reversedBy': widget.session.tokens.userId});
       if (mounted) trackerToast(context, 'Cash count reversed', description: 'The adjustment has been undone.');
       await _refreshAll();
@@ -255,10 +261,16 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
       : OutlinedButton(
           onPressed: on, style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact, backgroundColor: Colors.white), child: Text(label));
 
+  bool get _water => _r.idPrefix == 'water';
+
+  /// Poultry colours the whole button; Water's countActions("card") is a plain
+  /// outline button with only the icon coloured.
   Widget _action(String label, IconData icon, Color color, Color border, VoidCallback? on) => OutlinedButton.icon(
         onPressed: on,
-        style: OutlinedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: color, side: BorderSide(color: border)),
-        icon: Icon(icon, size: 16),
+        style: _water
+            ? OutlinedButton.styleFrom(backgroundColor: Colors.white)
+            : OutlinedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: color, side: BorderSide(color: border)),
+        icon: Icon(icon, size: 16, color: _water ? color : null),
         label: Text(label),
       );
 
@@ -278,7 +290,7 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final lead = sidebarLeading(context, widget.session, widget.company, href: '/poultry-cash-reconciliation');
+    final lead = sidebarLeading(context, widget.session, widget.company, href: _r.reconcileHref);
     final acc = _account;
     final st = _accountStatus;
     final draft = _openDraft;
@@ -304,7 +316,7 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
                 onPressed: () => widget.fromAccounts
                     ? Navigator.of(context).pop()
                     : Navigator.of(context).pushReplacement(
-                        MaterialPageRoute(builder: (_) => CashAccountsScreen(session: widget.session, company: widget.company))),
+                        MaterialPageRoute(builder: (_) => CashAccountsScreen(session: widget.session, company: widget.company, rail: _r))),
                 style: TextButton.styleFrom(foregroundColor: TColors.slate600, padding: EdgeInsets.zero),
                 icon: const Icon(Icons.arrow_back, size: 16),
                 label: const Text('Back to Cash & Accounts'),
@@ -335,7 +347,7 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
                     items: [
                       for (final a in _accounts)
                         AppSelectItem(
-                          value: tStr(a['poultryCashAccountId']),
+                          value: tStr(a['${_r.idPrefix}CashAccountId']),
                           label: '${tStr(a['accountName'])}${a['isActive'] == true ? '' : ' (inactive)'}',
                         ),
                     ],
@@ -360,7 +372,7 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
                         child: OutlinedButton.icon(
                           onPressed: () => Navigator.of(context).push(MaterialPageRoute(
                             builder: (_) => CashAccountDetailScreen(
-                                session: widget.session, company: widget.company, accountId: tIntOrNull(acc['poultryCashAccountId']) ?? 0),
+                                session: widget.session, company: widget.company, rail: _r, accountId: tIntOrNull(acc['${_r.idPrefix}CashAccountId']) ?? 0),
                           )),
                           icon: const Icon(Icons.open_in_new, size: 16),
                           label: const Text('Open ledger'),
@@ -438,7 +450,7 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
                   TColors.sky700,
                   Wrap(spacing: 8, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
                     Text(
-                      '${countRef(draft)} is saved but not posted — nothing has reached the ledger yet.'
+                      '${countRef(draft, _r.idPrefix)} is saved but not posted — nothing has reached the ledger yet.'
                       '${draft['actualBalance'] != null ? ' Counted ${_gh(tNum(draft['actualBalance']))}.' : ''}',
                       style: const TextStyle(fontSize: 12, color: TColors.sky900),
                     ),
@@ -465,19 +477,26 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
                   else
                     MobileCardList<Map>(
                       striped: true,
-                      stripeBlue: true,
+                      stripeBlue: !_water,
                       items: pageRows,
-                      keyOf: (c) => tStr(c['poultryCashReconciliationId']),
-                      primary: countRef,
+                      keyOf: (c) => tStr(c['${_r.idPrefix}CashReconciliationId']),
+                      primary: (c) => countRef(c, _r.idPrefix),
                       secondary: (c) => fmtDateTime(c['reconciliationDate'], c, _offset),
                       trailing: (c) {
                         final (bg, fg) = countTone(tStr(c['status']));
                         return Padding(padding: const EdgeInsets.only(left: 6), child: TBadge(tStr(c['status']), bg: bg, fg: fg));
                       },
                       highlights: (c) => [
-                        Highlight('System', _gh(tNum(c['systemBalance']))),
-                        Highlight('Counted', c['actualBalance'] != null ? _gh(tNum(c['actualBalance'])) : '—', accent: Accent.violet),
-                        Highlight('Difference', _diff(c), accent: tNum(c['difference']) < 0 ? Accent.rose : Accent.emerald, wide: true),
+                        Highlight('System', _gh(tNum(c['systemBalance'])), accent: _water ? Accent.blue : Accent.slate),
+                        Highlight(_water ? 'Actual balance' : 'Counted', c['actualBalance'] != null ? _gh(tNum(c['actualBalance'])) : '—',
+                            accent: _water ? Accent.emerald : Accent.violet),
+                        Highlight('Difference', _diff(c),
+                            accent: _water && tNum(c['difference']) == 0
+                                ? Accent.slate
+                                : tNum(c['difference']) < 0
+                                    ? Accent.rose
+                                    : Accent.emerald,
+                            wide: true),
                       ],
                       details: (c) => [('Reason', tStr(c['reason']).isEmpty ? '—' : tStr(c['reason']))],
                       actions: _countActions,
@@ -500,7 +519,7 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
                               Widget icon(String tip, IconData i, Color col, VoidCallback? on) =>
                                   IconButton(tooltip: tip, onPressed: on, icon: Icon(i, size: 18, color: col));
                               return <Widget>[
-                                Text(countRef(c), style: const TextStyle(fontWeight: FontWeight.w500)),
+                                Text(countRef(c, _r.idPrefix), style: const TextStyle(fontWeight: FontWeight.w500)),
                                 cellText(fmtDateTime(c['reconciliationDate'], c, _offset)),
                                 Align(alignment: Alignment.centerRight, child: Text(_gh(tNum(c['systemBalance'])))),
                                 Align(
@@ -563,9 +582,13 @@ class CashCountDialog extends StatefulWidget {
     this.editing,
     this.mode,
     this.disabled = false,
+    this.rail = poultryMoneyRail,
   });
   final Session session;
   final Company company;
+
+  /// The module (Poultry by default; Water passes waterMoneyRail).
+  final MoneyRail rail;
   final Map account;
   final CashVocabulary vocab;
   final num systemBalance;
@@ -583,6 +606,7 @@ class CashCountDialog extends StatefulWidget {
 }
 
 class _CashCountDialogState extends State<CashCountDialog> {
+  MoneyRail get _r => widget.rail;
   final _actual = TextEditingController();
   final _note = TextEditingController();
   final _notes = TextEditingController();
@@ -642,11 +666,11 @@ class _CashCountDialogState extends State<CashCountDialog> {
     try {
       if (widget.mode == 'draft' && widget.editing != null) {
         await api.put(
-            '/api/Poultry/cash-reconciliations/${tStr(widget.editing!['poultryCashReconciliationId'])}?farmId=${Uri.encodeQueryComponent(widget.company.farmId)}',
+            '${_r.api}/cash-reconciliations/${tStr(widget.editing!['${_r.idPrefix}CashReconciliationId'])}?farmId=${Uri.encodeQueryComponent(widget.company.farmId)}',
             body: fields);
       } else {
-        await api.post('/api/Poultry/cash-reconciliations',
-            query: q, body: {'poultryCashAccountId': tIntOrNull(widget.account['poultryCashAccountId']), ...fields});
+        await api.post('${_r.api}/cash-reconciliations',
+            query: q, body: {'${_r.idPrefix}CashAccountId': tIntOrNull(widget.account['${_r.idPrefix}CashAccountId']), ...fields});
       }
       if (!mounted) return;
       trackerToast(context, '${v.recordNounTitle} saved',

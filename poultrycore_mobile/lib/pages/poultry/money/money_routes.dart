@@ -4,6 +4,7 @@ import '../../../models/company.dart';
 import '../../../state/session.dart';
 import '../delivery/deliveries_screen.dart';
 import '../expenses/asset_detail_screen.dart';
+import '../expenses/asset_logic.dart' show AssetRail;
 import '../inventory/stock_movements_screen.dart';
 import '../production/batch_production_records_screen.dart';
 import '../production/egg_sorting_screen.dart';
@@ -16,6 +17,14 @@ import '../expenses/expenses_screen.dart';
 import '../expenses/payroll_screen.dart';
 import 'cash_accounts_screen.dart';
 import 'reconciliation_screen.dart';
+import '../../water/reports/water_money_reports.dart' show waterMoneyRail;
+import '../../water/water_payroll_screen.dart' show WaterPayrollDetailScreen;
+import '../../water/water_deferred_costs_screen.dart' show WaterDeferredCostsScreen;
+import '../../water/water_production_screen.dart' show WaterProductionDetailScreen;
+import '../../water/water_deliveries_screen.dart' show WaterDeliveryRunScreen;
+import '../../water/water_raw_materials_screen.dart' show WaterRawMaterialsScreen;
+import '../../water/water_batch_production_screen.dart'
+    show WaterBatchProductionFormScreen, WaterBatchAllocateScreen, WaterBatchProductionDetailScreen;
 
 /// Money links that carry an id or a query: `/poultry-cash-accounts/{id}` (one
 /// account's ledger) and `/poultry-cash-reconciliation?accountId=` (opened on
@@ -24,12 +33,57 @@ Widget? moneyScreenForHref(String href, Session session, Company company) {
   final uri = Uri.parse(href);
   final acc = RegExp(r'^/poultry-cash-accounts/(\d+)$').firstMatch(uri.path);
   if (acc != null) return CashAccountDetailScreen(session: session, company: company, accountId: int.parse(acc[1]!));
+  // Water's twins (app/water-cash-accounts/[id], /water-cash-reconciliation?accountId=).
+  final wacc = RegExp(r'^/water-cash-accounts/(\d+)$').firstMatch(uri.path);
+  if (wacc != null) {
+    return CashAccountDetailScreen(session: session, company: company, accountId: int.parse(wacc[1]!), rail: waterMoneyRail);
+  }
+  final wrun = RegExp(r'^/water-payroll/(\d+)$').firstMatch(uri.path);
+  if (wrun != null) return WaterPayrollDetailScreen(session: session, company: company, runId: int.parse(wrun[1]!));
+  if (uri.path == '/water-cash-reconciliation' && uri.query.isNotEmpty) {
+    return ReconciliationScreen(
+        session: session, company: company, accountId: int.tryParse(uri.queryParameters['accountId'] ?? ''), rail: waterMoneyRail);
+  }
   final run = RegExp(r'^/poultry-payroll/(\d+)$').firstMatch(uri.path);
   if (run != null) return PayrollRunDetailScreen(session: session, company: company, runId: int.parse(run[1]!));
   final asset = RegExp(r'^/poultry-assets/(\d+)$').firstMatch(uri.path);
   if (asset != null) return AssetDetailScreen(session: session, company: company, assetId: int.parse(asset[1]!));
+  final waterBatch = RegExp(r'^/water-production-batches/(\d+)$').firstMatch(uri.path);
+  if (waterBatch != null) return WaterProductionDetailScreen(session: session, company: company, batchId: int.parse(waterBatch[1]!));
+  final day = RegExp(r'^/water-daily-production/(\d+)(/edit|/allocate)?$').firstMatch(uri.path);
+  if (day != null) {
+    final id = int.parse(day[1]!);
+    return switch (day[2]) {
+      '/edit' => WaterBatchProductionFormScreen(session: session, company: company, editId: id),
+      '/allocate' => WaterBatchAllocateScreen(session: session, company: company, id: id),
+      _ => WaterBatchProductionDetailScreen(session: session, company: company, id: id),
+    };
+  }
+  if (uri.path == '/water-daily-production/new') return WaterBatchProductionFormScreen(session: session, company: company);
+  final deliveryRun = RegExp(r'^/water-driver-returns/(\d+)$').firstMatch(uri.path);
+  if (deliveryRun != null) return WaterDeliveryRunScreen(session: session, company: company, loadingId: int.parse(deliveryRun[1]!));
+  final waterAsset = RegExp(r'^/water-assets/(\d+)$').firstMatch(uri.path);
+  if (waterAsset != null) {
+    return AssetDetailScreen(session: session, company: company, assetId: int.parse(waterAsset[1]!), rail: AssetRail.water);
+  }
   if (uri.path == '/poultry-deferred-costs' && uri.query.isNotEmpty) {
     return DeferredCostsScreen(
+      session: session,
+      company: company,
+      itemId: int.tryParse(uri.queryParameters['itemId'] ?? ''),
+      scope: uri.queryParameters['scope'],
+    );
+  }
+  if (uri.path == '/water-raw-materials' && uri.query.isNotEmpty) {
+    return WaterRawMaterialsScreen(
+      session: session,
+      company: company,
+      tab: uri.queryParameters['tab'],
+      purchaseId: int.tryParse(uri.queryParameters['purchaseId'] ?? ''),
+    );
+  }
+  if (uri.path == '/water-deferred-costs' && uri.query.isNotEmpty) {
+    return WaterDeferredCostsScreen(
       session: session,
       company: company,
       itemId: int.tryParse(uri.queryParameters['itemId'] ?? ''),

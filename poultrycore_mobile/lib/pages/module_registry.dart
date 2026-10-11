@@ -10,6 +10,7 @@ import 'restaurant/restaurant_extras.dart';
 import 'restaurant/restaurant_forms.dart';
 import 'shared/shared_forms.dart';
 import 'water/water_extras.dart';
+import 'water/reports/water_report_routes.dart';
 import 'water/water_forms.dart';
 
 /// Every module's hand-made pieces in one place, for the list and record
@@ -53,6 +54,8 @@ final Map<String, PageScreenBuilder> pageScreens = {
   ...poultryPageScreens,
   ...poultryReportScreens,
   ...poultryTrackerScreens,
+  ...waterPageScreens,
+  ...waterReportScreens,
 };
 
 /// The form for a spec: the curated one when there is one, else the extracted.

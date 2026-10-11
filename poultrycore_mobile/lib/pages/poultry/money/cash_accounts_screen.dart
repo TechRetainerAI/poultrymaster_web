@@ -16,6 +16,7 @@ import '../trackers/tracker_widgets.dart';
 import 'cash_account_dialogs.dart';
 import 'money_widgets.dart';
 import 'reconciliation_screen.dart';
+import '../reports/money_reports.dart' show MoneyRail, poultryMoneyRail;
 
 /// Poultry → Money → Cash Account, as `app/poultry-cash-accounts/page.tsx`
 /// (list) and `[id]/page.tsx` (one account's ledger).
@@ -59,17 +60,17 @@ String? accountAttention(Map s) {
 
 /// Total cash at hand: active accounts, the LEDGER balance where the status
 /// feed has it, else the cached balance.
-num totalCashAtHand(List<Map> accounts, Map<String, Map> statusById) => accounts
+num totalCashAtHand(List<Map> accounts, Map<String, Map> statusById, [String p = 'poultry']) => accounts
     .where((a) => a['isActive'] == true)
-    .fold<num>(0, (s, a) => s + tNum(statusById[tStr(a['poultryCashAccountId'])]?['ledgerBalance'] ?? a['currentBalance']));
+    .fold<num>(0, (s, a) => s + tNum(statusById[tStr(a['${p}CashAccountId'])]?['ledgerBalance'] ?? a['currentBalance']));
 
 /// The account ledger, oldest-first by day then id, with the running balance
 /// from the opening balance; returned newest first.
-List<Map> accountLedger(List<Map> rows, num opening) {
+List<Map> accountLedger(List<Map> rows, num opening, [String p = 'poultry']) {
   String day(Map r) => tStr(r['transactionDate']).split('T').first;
   final asc = [...rows]..sort((a, b) {
       final d = day(a).compareTo(day(b));
-      return d != 0 ? d : (tIntOrNull(a['poultryCashTransactionId']) ?? 0).compareTo(tIntOrNull(b['poultryCashTransactionId']) ?? 0);
+      return d != 0 ? d : (tIntOrNull(a['${p}CashTransactionId']) ?? 0).compareTo(tIntOrNull(b['${p}CashTransactionId']) ?? 0);
     });
   var bal = opening;
   final out = [
@@ -81,15 +82,19 @@ List<Map> accountLedger(List<Map> rows, num opening) {
 const _sky600 = Color(0xFF0284C7);
 
 class CashAccountsScreen extends StatefulWidget {
-  const CashAccountsScreen({super.key, required this.session, required this.company});
+  const CashAccountsScreen({super.key, required this.session, required this.company, this.rail = poultryMoneyRail});
   final Session session;
   final Company company;
+
+  /// The module (Poultry by default; Water passes waterMoneyRail).
+  final MoneyRail rail;
 
   @override
   State<CashAccountsScreen> createState() => _CashAccountsScreenState();
 }
 
 class _CashAccountsScreenState extends State<CashAccountsScreen> {
+  MoneyRail get _r => widget.rail;
   List<Map> _accounts = [], _transfers = [], _status = [];
   bool _loading = true, _saving = false;
   final _search = TextEditingController();
@@ -122,7 +127,7 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
     setState(() => _loading = true);
     try {
       final q = {'farmId': _farmId};
-      final r = await Future.wait([_api.get('/api/Poultry/cash-accounts', query: q), _api.get('/api/Poultry/cash-transfers', query: q)]);
+      final r = await Future.wait([_api.get('${_r.api}/cash-accounts', query: q), _api.get('${_r.api}/cash-transfers', query: q)]);
       if (!mounted) return;
       setState(() {
         _accounts = rowsOf(r[0]);
@@ -131,7 +136,7 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
       // The status feed may not exist on an older database; the page still renders.
       List<Map> st = [];
       try {
-        st = rowsOf(await _api.get('/api/Poultry/cash-reconciliations/account-status', query: q));
+        st = rowsOf(await _api.get('${_r.api}/cash-reconciliations/account-status', query: q));
       } on ApiException {
         st = [];
       }
@@ -154,9 +159,9 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
     }
     setState(() => _saving = true);
     try {
-      await _api.post('/api/Poultry/cash-accounts', body: {
+      await _api.post('${_r.api}/cash-accounts', body: {
         'accountName': name,
-        'accountType': 'FarmCashBox',
+        'accountType': cashAccountTypesFor(_r).first,
         'openingBalance': 0,
         'allowNegativeBalance': false,
         'notes': 'Default cash account',
@@ -172,7 +177,7 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
 
   Future<void> _recalculate() async {
     try {
-      await _api.post('/api/Poultry/cash-accounts/reconcile-balances', query: {'farmId': _farmId});
+      await _api.post('${_r.api}/cash-accounts/reconcile-balances', query: {'farmId': _farmId});
       if (mounted) trackerToast(context, 'Balances recalculated');
       await _load();
     } on ApiException catch (e) {
@@ -183,11 +188,11 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
   Future<void> _delete(Map a) async {
     final ok = await confirmDelete(context,
         title: 'Remove ${tStr(a['accountName']).isEmpty ? 'this account' : tStr(a['accountName'])}?',
-        description: 'The account is deactivated so its transaction history stays intact.',
+        description: _water ? 'If this account has no transactions it is permanently deleted. If it has any history (transactions, transfers, expenses, etc.) it is deactivated instead so the records stay intact.' : 'The account is deactivated so its transaction history stays intact.',
         confirmLabel: 'Remove account');
     if (!ok) return;
     try {
-      await _api.delete('/api/Poultry/cash-accounts/${tStr(a['poultryCashAccountId'])}?farmId=${Uri.encodeQueryComponent(_farmId)}');
+      await _api.delete('${_r.api}/cash-accounts/${tStr(a['${_r.idPrefix}CashAccountId'])}?farmId=${Uri.encodeQueryComponent(_farmId)}');
       if (mounted) trackerToast(context, 'Cash account removed');
       await _load();
     } on ApiException catch (e) {
@@ -196,8 +201,8 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
   }
 
   Future<void> _transferAction(Map t, String action) async {
-    final id = tStr(t['poultryCashTransferId']);
-    await _api.post('/api/Poultry/cash-transfers/$id/$action', query: {
+    final id = tStr(t['${_r.idPrefix}CashTransferId']);
+    await _api.post('${_r.api}/cash-transfers/$id/$action', query: {
       'farmId': _farmId,
       if (action == 'approve') 'approvedBy': widget.session.tokens.userId ?? '',
     });
@@ -208,7 +213,7 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
 
   Future<void> _reconcile(int? accountId) async {
     await Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => ReconciliationScreen(session: widget.session, company: widget.company, accountId: accountId, fromAccounts: true),
+      builder: (_) => ReconciliationScreen(session: widget.session, company: widget.company, rail: _r, accountId: accountId, fromAccounts: true),
     ));
     _load();
   }
@@ -218,7 +223,8 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
       builder: (_) => CashAccountDetailScreen(
         session: widget.session,
         company: widget.company,
-        accountId: tIntOrNull(a['poultryCashAccountId']) ?? 0,
+        rail: _r,
+        accountId: tIntOrNull(a['${_r.idPrefix}CashAccountId']) ?? 0,
         fromList: true,
       ),
     ));
@@ -232,7 +238,7 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
       isScrollControlled: true,
       builder: (ctx) => StatefulBuilder(builder: (ctx, set) {
         if (rows == null) {
-          _api.get('/api/Poultry/cash-accounts/transactions', query: {'farmId': _farmId, 'cashAccountId': tStr(a['poultryCashAccountId'])}).then(
+          _api.get('${_r.api}/cash-accounts/transactions', query: {'farmId': _farmId, 'cashAccountId': tStr(a['${_r.idPrefix}CashAccountId'])}).then(
             (r) => set(() => rows = rowsOf(r)),
             onError: (Object e) {
               set(() => rows = []);
@@ -273,7 +279,20 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
     await sheet;
   }
 
+  bool get _water => _r.idPrefix == 'water';
+
   Widget _statCard(String label, String value, Accent accent) {
+    // Water's page uses plain cards: a small slate label over the figure.
+    if (_water) {
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
+          Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: TColors.slate900)),
+        ]),
+      );
+    }
     final (bg, border, lc, vc) = accentTone(accent);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -303,7 +322,7 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
         rows: [
           for (final a in items)
             () {
-              final s = statusById[tStr(a['poultryCashAccountId'])];
+              final s = statusById[tStr(a['${_r.idPrefix}CashAccountId'])];
               final reason = s == null ? null : accountAttention(s);
               final cur = tNum(a['currentBalance']);
               Widget act(String label, VoidCallback on, {Color? color}) => TextButton(
@@ -346,8 +365,8 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
                 Wrap(alignment: WrapAlignment.end, children: [
                   IconButton(tooltip: 'View details', onPressed: () => _details(a), icon: const Icon(Icons.visibility_outlined, size: 18)),
                   Tooltip(message: 'Quick transactions', child: act('Txns', () => _quickTransactions(a))),
-                  act('Reconcile', () => _reconcile(tIntOrNull(a['poultryCashAccountId']))),
-                  act('Edit', () => _dialog(CashAccountFormDialog(session: widget.session, company: widget.company, editing: a))),
+                  act('Reconcile', () => _reconcile(tIntOrNull(a['${_r.idPrefix}CashAccountId']))),
+                  act('Edit', () => _dialog(CashAccountFormDialog(session: widget.session, company: widget.company, rail: _r, editing: a))),
                   IconButton(tooltip: 'Delete account', onPressed: () => _delete(a), icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFEF4444))),
                 ]),
               ];
@@ -357,7 +376,7 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final lead = sidebarLeading(context, widget.session, widget.company, href: '/poultry-cash-accounts');
+    final lead = sidebarLeading(context, widget.session, widget.company, href: '/${_r.idPrefix}-cash-accounts');
     final q = _search.text.trim().toLowerCase();
     final visible = q.isEmpty
         ? _accounts
@@ -367,7 +386,7 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
       _page = 1;
     }
     final pageRows = pageSlice(visible, _page, _pageSize);
-    final statusById = {for (final s in _status) tStr(s['poultryCashAccountId']): s};
+    final statusById = {for (final s in _status) tStr(s['${_r.idPrefix}CashAccountId']): s};
     final recent = _transfers.take(8).toList();
 
     Widget headerButton(IconData icon, String label, VoidCallback? on) => OutlinedButton.icon(
@@ -377,38 +396,39 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
         );
 
     return Scaffold(
-      appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: const Text('Cash Account')),
+      appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: Text(_water ? 'Cash accounts' : 'Cash Account')),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
           children: [
-            const Row(children: [
-              Icon(Icons.account_balance_wallet_outlined, size: 24, color: _sky600),
-              SizedBox(width: 8),
-              Expanded(child: Text('Cash Account', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TColors.slate900))),
+            Row(children: [
+              const Icon(Icons.account_balance_wallet_outlined, size: 24, color: _sky600),
+              const SizedBox(width: 8),
+              Expanded(child: Text(_water ? 'Cash accounts' : 'Cash Account', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TColors.slate900))),
             ]),
             const SizedBox(height: 10),
             Wrap(spacing: 8, runSpacing: 8, children: [
               headerButton(Icons.balance, 'Record Cash Adjustment',
-                  () => _dialog(RecordCashAdjustmentDialog(session: widget.session, company: widget.company, accounts: _accounts, fmt: _fmt))),
+                  () => _dialog(RecordCashAdjustmentDialog(session: widget.session, company: widget.company, rail: _r, accounts: _accounts, fmt: _fmt))),
               headerButton(Icons.refresh, 'Recalculate', _recalculate),
               headerButton(Icons.balance, 'Reconcile', () => _reconcile(null)),
-              headerButton(Icons.description_outlined, 'Cash Account Report', () => _href('/poultry/reports/cash-accounts', 'Cash Account Report')),
+              headerButton(Icons.description_outlined, 'Cash Account Report', () => _href(_r.cashAccountsHref, 'Cash Account Report')),
               headerButton(Icons.swap_horiz, 'Transfer',
-                  () => _dialog(CashTransferQuickDialog(session: widget.session, company: widget.company, accounts: _accounts))),
+                  () => _dialog(CashTransferQuickDialog(session: widget.session, company: widget.company, rail: _r, accounts: _accounts))),
               headerButton(Icons.account_balance_wallet_outlined, 'Create default account', _saving ? null : _createDefault),
               FilledButton.icon(
-                onPressed: () => _dialog(CashAccountFormDialog(session: widget.session, company: widget.company)),
+                onPressed: () => _dialog(CashAccountFormDialog(session: widget.session, company: widget.company, rail: _r)),
                 icon: const Icon(Icons.add, size: 16),
                 label: const Text('New account'),
               ),
             ]),
             const SizedBox(height: 12),
-            Align(
+            // Poultry only: Water's page has no cash-flow link here.
+            if (!_water) Align(
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
-                onPressed: () => _href('/cash-flow', 'Cash Flow'),
+                onPressed: () => _href(_r.cashFlowHref, 'Cash Flow'),
                 style: TextButton.styleFrom(foregroundColor: _sky600, padding: EdgeInsets.zero),
                 icon: const Icon(Icons.swap_horiz, size: 16),
                 label: const Text("See the whole company's cash flow →"),
@@ -416,7 +436,7 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
             ),
             const SizedBox(height: 8),
             twoUp([
-              _statCard('Total cash at hand', _fmt(totalCashAtHand(_accounts, statusById)), Accent.violet),
+              _statCard('Total cash at hand', _fmt(totalCashAtHand(_accounts, statusById, _r.idPrefix)), Accent.violet),
               _statCard('Active accounts', '${_accounts.where((a) => a['isActive'] == true).length}', Accent.emerald),
               _statCard('Pending transfers', '${_transfers.where((t) => tStr(t['status']) == 'Draft').length}', Accent.amber),
               _statCard('Approved transfers', '${_transfers.where((t) => tStr(t['status']) == 'Approved').length}', Accent.blue),
@@ -457,7 +477,7 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
               MobileCardList<Map>(
                 striped: true,
                 items: pageRows,
-                keyOf: (a) => tStr(a['poultryCashAccountId']),
+                keyOf: (a) => tStr(a['${_r.idPrefix}CashAccountId']),
                 primary: (a) => tStr(a['accountName']),
                 secondary: (a) => tStr(a['accountType']),
                 trailing: (a) => Padding(padding: const EdgeInsets.only(left: 6), child: _activeBadge(a)),
@@ -469,7 +489,7 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
                 actions: (a) => [
                   OutlinedButton.icon(onPressed: () => _details(a), icon: const Icon(Icons.visibility_outlined, size: 16), label: const Text('View details')),
                   OutlinedButton(
-                    onPressed: () => _dialog(CashAccountFormDialog(session: widget.session, company: widget.company, editing: a)),
+                    onPressed: () => _dialog(CashAccountFormDialog(session: widget.session, company: widget.company, rail: _r, editing: a)),
                     child: const Text('Edit'),
                   ),
                   OutlinedButton.icon(
@@ -501,7 +521,9 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
                   const SizedBox(height: 8),
                   MobileCardList<Map>(
                     items: recent,
-                    keyOf: (t) => tStr(t['poultryCashTransferId']),
+                    striped: _water,
+                    highlights: _water ? (t) => [Highlight('Amount', _fmt(tNum(t['amount'])), accent: Accent.violet, wide: true)] : null,
+                    keyOf: (t) => tStr(t['${_r.idPrefix}CashTransferId']),
                     primary: (t) => '${tStr(t['fromAccountName'])} → ${tStr(t['toAccountName'])}',
                     secondary: (t) => fmtDateTime(t['transferDate'], t, _offset),
                     trailing: (t) => Padding(
@@ -512,7 +534,7 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
                       ('Date', fmtDateTime(t['transferDate'], t, _offset)),
                       ('From', tStr(t['fromAccountName'])),
                       ('To', tStr(t['toAccountName'])),
-                      ('Amount', _fmt(tNum(t['amount']))),
+                      if (!_water) ('Amount', _fmt(tNum(t['amount']))),
                       ('Status', tStr(t['status'])),
                     ],
                     actions: (t) => [
@@ -576,9 +598,12 @@ const _clearingTones = {
 };
 
 class CashAccountDetailScreen extends StatefulWidget {
-  const CashAccountDetailScreen({super.key, required this.session, required this.company, required this.accountId, this.fromList = false});
+  const CashAccountDetailScreen({super.key, required this.session, required this.company, required this.accountId, this.fromList = false, this.rail = poultryMoneyRail});
   final Session session;
   final Company company;
+
+  /// The module (Poultry by default; Water passes waterMoneyRail).
+  final MoneyRail rail;
   final int accountId;
 
   /// Opened from the Cash Account list, so Back (and Delete) return to it.
@@ -589,6 +614,8 @@ class CashAccountDetailScreen extends StatefulWidget {
 }
 
 class _CashAccountDetailScreenState extends State<CashAccountDetailScreen> {
+  MoneyRail get _r => widget.rail;
+  bool get _water => _r.idPrefix == 'water';
   Map? _account;
   List<Map> _rows = [];
   bool _loading = true;
@@ -624,13 +651,13 @@ class _CashAccountDetailScreenState extends State<CashAccountDetailScreen> {
     setState(() => _loading = true);
     // Settled separately: one failing does not hide the other.
     try {
-      final a = await _api.get('/api/Poultry/cash-accounts/$_id', query: {'farmId': _farmId});
+      final a = await _api.get('${_r.api}/cash-accounts/$_id', query: {'farmId': _farmId});
       if (mounted) setState(() => _account = a is Map ? a : null);
     } on ApiException catch (e) {
       if (mounted) trackerToast(context, 'Could not load account', description: e.message, error: true);
     }
     try {
-      final t = await _api.get('/api/Poultry/cash-accounts/transactions', query: {'farmId': _farmId, 'cashAccountId': '$_id'});
+      final t = await _api.get('${_r.api}/cash-accounts/transactions', query: {'farmId': _farmId, 'cashAccountId': '$_id'});
       if (mounted) setState(() => _rows = rowsOf(t));
     } on ApiException catch (e) {
       if (mounted) trackerToast(context, 'Could not load transactions', description: e.message, error: true);
@@ -640,21 +667,21 @@ class _CashAccountDetailScreenState extends State<CashAccountDetailScreen> {
 
   Future<void> _setClearing(Map r, String status) async {
     try {
-      await _api.post('/api/Poultry/cash-reconciliations/clearing', query: {'farmId': _farmId}, body: {
-        'poultryCashAccountId': _id,
-        'transactionIds': [tIntOrNull(r['poultryCashTransactionId'])],
+      await _api.post('${_r.api}/cash-reconciliations/clearing', query: {'farmId': _farmId}, body: {
+        '${_r.idPrefix}CashAccountId': _id,
+        'transactionIds': [tIntOrNull(r['${_r.idPrefix}CashTransactionId'])],
         'clearingStatus': status,
         'userId': widget.session.tokens.userId,
       });
       await _load();
     } on ApiException catch (e) {
-      if (mounted) trackerToast(context, 'Could not update clearing', description: e.message, error: true);
+      if (mounted) trackerToast(context, _water ? "Couldn't update clearing" : 'Could not update clearing', description: e.message, error: true);
     }
   }
 
   Future<void> _recalculate() async {
     try {
-      await _api.post('/api/Poultry/cash-accounts/reconcile-balances', query: {'farmId': _farmId});
+      await _api.post('${_r.api}/cash-accounts/reconcile-balances', query: {'farmId': _farmId});
       if (mounted) trackerToast(context, 'Balance recalculated from transactions');
       await _load();
     } on ApiException catch (e) {
@@ -666,11 +693,11 @@ class _CashAccountDetailScreenState extends State<CashAccountDetailScreen> {
     final name = tStr(_account?['accountName']);
     final ok = await confirmDelete(context,
         title: 'Remove ${name.isEmpty ? 'this account' : name}?',
-        description: 'The account is deactivated so its transaction history stays intact.',
+        description: _water ? 'If this account has no transactions it is permanently deleted. If it has any history (transactions, transfers, expenses, etc.) it is deactivated instead so the records stay intact.' : 'The account is deactivated so its transaction history stays intact.',
         confirmLabel: 'Remove account');
     if (!ok) return;
     try {
-      await _api.delete('/api/Poultry/cash-accounts/$_id?farmId=${Uri.encodeQueryComponent(_farmId)}');
+      await _api.delete('${_r.api}/cash-accounts/$_id?farmId=${Uri.encodeQueryComponent(_farmId)}');
       if (!mounted) return;
       trackerToast(context, 'Cash account removed');
       _toList();
@@ -683,20 +710,20 @@ class _CashAccountDetailScreenState extends State<CashAccountDetailScreen> {
   void _toList() => widget.fromList
       ? Navigator.of(context).pop()
       : Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => CashAccountsScreen(session: widget.session, company: widget.company)));
+          MaterialPageRoute(builder: (_) => CashAccountsScreen(session: widget.session, company: widget.company, rail: _r)));
 
   Future<void> _adjust() async {
     if (_account == null) return;
     final done = await showDialog<bool>(
       context: context,
-      builder: (_) => AdjustBalanceDialog(session: widget.session, company: widget.company, account: _account!, fmt: _gh),
+      builder: (_) => AdjustBalanceDialog(session: widget.session, company: widget.company, rail: _r, account: _account!, fmt: _gh),
     );
     if (done == true) _load();
   }
 
   Widget _clearingCell(Map r) {
     final st = tStr(r['clearingStatus']).isEmpty ? 'Uncleared' : tStr(r['clearingStatus']);
-    if (r['poultryCashReconciliationId'] != null) {
+    if (r['${_r.idPrefix}CashReconciliationId'] != null) {
       final (bg, fg) = _clearingTones[st] ?? _clearingTones['Uncleared']!;
       return Tooltip(
         message: 'Cleared by cash count ${tStr(r['reconciliationReference'])}'.trim(),
@@ -720,7 +747,7 @@ class _CashAccountDetailScreenState extends State<CashAccountDetailScreen> {
   Widget build(BuildContext context) {
     final gh = _gh;
     final a = _account;
-    final ledger = accountLedger(_rows, tNum(a?['openingBalance']));
+    final ledger = accountLedger(_rows, tNum(a?['openingBalance']), _r.idPrefix);
     final totalIn = _rows.where((r) => tNum(r['amount']) > 0).fold<num>(0, (s, r) => s + tNum(r['amount']));
     final totalOut = _rows.where((r) => tNum(r['amount']) < 0).fold<num>(0, (s, r) => s + tNum(r['amount']).abs());
     final q = _search.text.trim().toLowerCase();
@@ -749,7 +776,7 @@ class _CashAccountDetailScreenState extends State<CashAccountDetailScreen> {
           ]),
         );
 
-    final lead = sidebarLeading(context, widget.session, widget.company, href: '/poultry-cash-accounts');
+    final lead = sidebarLeading(context, widget.session, widget.company, href: '/${_r.idPrefix}-cash-accounts');
     return Scaffold(
       appBar: AppBar(
         leading: lead.leading,
@@ -767,7 +794,7 @@ class _CashAccountDetailScreenState extends State<CashAccountDetailScreen> {
                 onPressed: _toList,
                 style: TextButton.styleFrom(foregroundColor: TColors.slate600, padding: EdgeInsets.zero),
                 icon: const Icon(Icons.arrow_back, size: 16),
-                label: const Text('Back to Cash Account'),
+                label: Text(_water ? 'Back to Cash & Accounts' : 'Back to Cash Account'),
               ),
             ),
             Wrap(spacing: 8, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
@@ -781,7 +808,7 @@ class _CashAccountDetailScreenState extends State<CashAccountDetailScreen> {
             Wrap(spacing: 8, runSpacing: 8, children: [
               OutlinedButton.icon(onPressed: _recalculate, icon: const Icon(Icons.refresh, size: 16), label: const Text('Recalculate')),
               OutlinedButton.icon(
-                onPressed: () => openAppHref(context, widget.session, widget.company, '/poultry-cash-reconciliation?accountId=$_id', label: 'Reconciliation'),
+                onPressed: () => openAppHref(context, widget.session, widget.company, '${_r.reconcileHref}?accountId=$_id', label: 'Reconciliation'),
                 icon: const Icon(Icons.balance, size: 16),
                 label: const Text('Reconcile'),
               ),
@@ -837,18 +864,26 @@ class _CashAccountDetailScreenState extends State<CashAccountDetailScreen> {
                     child: Center(child: Text('No transactions match your filters.', style: TextStyle(color: TColors.slate500))))
               else
                 MobileCardList<Map>(
-                  defaultOpen: false,
+                  defaultOpen: _water,
+                  striped: _water,
+                  highlights: _water
+                      ? (r) => [
+                            Highlight('Money in', tNum(r['amount']) > 0 ? gh(tNum(r['amount'])) : '—', accent: Accent.emerald),
+                            Highlight('Money out', tNum(r['amount']) < 0 ? gh(tNum(r['amount']).abs()) : '—', accent: Accent.rose),
+                            Highlight('Running balance', gh(tNum(r['running'])), accent: Accent.violet, wide: true),
+                          ]
+                      : null,
                   items: pageRows,
-                  keyOf: (r) => tStr(r['poultryCashTransactionId']),
+                  keyOf: (r) => tStr(r['${_r.idPrefix}CashTransactionId']),
                   primary: (r) => '${tNum(r['amount']) < 0 ? '−' : '+'}${gh(tNum(r['amount']).abs())} · ${tStr(r['transactionType'])}',
                   secondary: (r) => '${fmtDateTime(r['transactionDate'], r, _offset)} · Bal ${gh(tNum(r['running']))}',
                   details: (r) => [
                     ('Date', fmtDateTime(r['transactionDate'], r, _offset)),
                     ('Type', tStr(r['transactionType'])),
                     ('Source', categoryLabel(r['sourceType'])),
-                    ('Money in', tNum(r['amount']) > 0 ? gh(tNum(r['amount'])) : '—'),
-                    ('Money out', tNum(r['amount']) < 0 ? gh(tNum(r['amount']).abs()) : '—'),
-                    ('Running balance', gh(tNum(r['running']))),
+                    if (!_water) ('Money in', tNum(r['amount']) > 0 ? gh(tNum(r['amount'])) : '—'),
+                    if (!_water) ('Money out', tNum(r['amount']) < 0 ? gh(tNum(r['amount']).abs()) : '—'),
+                    if (!_water) ('Running balance', gh(tNum(r['running']))),
                     ('Description', tStr(r['description']).isEmpty ? '—' : tStr(r['description'])),
                   ],
                   table: (items) => TrackerTable(

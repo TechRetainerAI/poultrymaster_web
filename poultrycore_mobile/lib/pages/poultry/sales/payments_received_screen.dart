@@ -12,16 +12,19 @@ import '../trackers/tracker_widgets.dart';
 import 'balances_logic.dart';
 import 'balances_widgets.dart';
 import 'sales_screen.dart';
+import '../../water/water_sales_screen.dart';
 
 /// Poultry → Sales, Expenses & Money → Sales → Payments, as
 /// `components/payments/payments-received-page.tsx` (module "poultry"): one
 /// row per payment the customer actually made, a part-paid sale folded to one
 /// row carrying its payment trail, and the reversal that restores every sale a
-/// payment touched. The phone layout (cards).
+/// payment touched. The phone layout (cards). Water passes [rail]
+/// (`app/water-payments/page.tsx`, module "water").
 class PaymentsReceivedScreen extends StatefulWidget {
-  const PaymentsReceivedScreen({super.key, required this.session, required this.company});
+  const PaymentsReceivedScreen({super.key, required this.session, required this.company, this.rail = BalanceRail.poultry});
   final Session session;
   final Company company;
+  final BalanceRail rail;
 
   @override
   State<PaymentsReceivedScreen> createState() => _PaymentsReceivedScreenState();
@@ -68,7 +71,7 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final res = await _api.get('/api/Poultry/customer-payments', query: {
+      final res = await _api.get('${widget.rail.api}/customer-payments', query: {
         'farmId': _farmId,
         if (_from.isNotEmpty) 'from': _from,
         if (_to.isNotEmpty) 'to': _to,
@@ -90,7 +93,7 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
   Future<void> _fetchAllocation(String id) async {
     if (_allocations.containsKey(id) || !_inflight.add(id)) return;
     try {
-      final res = await _api.get('/api/Poultry/customer-payments/${Uri.encodeComponent(id)}', query: {'farmId': _farmId});
+      final res = await _api.get('${widget.rail.api}/customer-payments/${Uri.encodeComponent(id)}', query: {'farmId': _farmId});
       if (mounted) setState(() => _allocations.putIfAbsent(id, () => res is Map ? rowsOf(res['allocations']) : []));
     } on ApiException {
       // Silent, as the web: the row still says what it said before. It stays
@@ -102,7 +105,7 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
     if (_trails.containsKey(saleId)) return;
     try {
       // No date range: the trail is the sale's whole life.
-      final res = await _api.get('/api/Poultry/customer-payments', query: {'farmId': _farmId, 'saleId': '$saleId'});
+      final res = await _api.get('${widget.rail.api}/customer-payments', query: {'farmId': _farmId, 'saleId': '$saleId'});
       if (mounted) setState(() => _trails.putIfAbsent(saleId, () => rowsOf(res)));
     } on ApiException {
       // Silent, as the web.
@@ -134,13 +137,17 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
         target: target,
         allocations: _allocations[tStr(target['paymentId'])],
         fmt: _fmt,
+        api: widget.rail.api,
       ),
     );
     if (done == true) _load();
   }
 
+  /// saleHref: Poultry's Sales page, or `/water-sales?saleId=`, focused on the sale.
   void _openSale(int saleId) => Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => SalesScreen(session: widget.session, company: widget.company, focusSaleId: saleId),
+        builder: (_) => widget.rail.isWater
+            ? WaterSalesScreen(session: widget.session, company: widget.company, focusSaleId: saleId)
+            : SalesScreen(session: widget.session, company: widget.company, focusSaleId: saleId),
       ));
 
   String _dateOf(Object? d) => tStr(d).isEmpty ? '—' : fmtDateTimeLike(d);
@@ -171,7 +178,7 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final lead = sidebarLeading(context, widget.session, widget.company, href: '/poultry-payments');
+    final lead = sidebarLeading(context, widget.session, widget.company, href: widget.rail.paymentsHref);
     final methods = {for (final r in _rows) if (tStr(r['paymentMethod']).isNotEmpty) tStr(r['paymentMethod'])}.toList()..sort();
     final sources = {for (final r in _rows) if (tStr(r['sourceType']).isNotEmpty) tStr(r['sourceType'])}.toList()..sort();
     final filtered = filterPayments(_rows,

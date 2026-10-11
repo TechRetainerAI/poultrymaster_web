@@ -692,10 +692,14 @@ class _RawPayBalanceDialogState extends State<RawPayBalanceDialog> {
 // ------------------------------------------------------------ recalculate stock
 
 class RecalculateStockDialog extends StatefulWidget {
-  const RecalculateStockDialog({super.key, required this.session, required this.company, required this.items});
+  const RecalculateStockDialog({super.key, required this.session, required this.company, required this.items, this.water = false});
   final Session session;
   final Company company;
   final List<Map> items;
+
+  /// Water's WaterRecalculateStockButton: `/api/Water`, `waterRawMaterialItemId`,
+  /// and its formula without manual adjustments.
+  final bool water;
   @override
   State<RecalculateStockDialog> createState() => _RecalculateStockDialogState();
 }
@@ -708,7 +712,7 @@ class _RecalculateStockDialogState extends State<RecalculateStockDialog> {
   Future<void> _run() async {
     setState(() => _busy = true);
     try {
-      final r = await widget.session.farmClient.post('/api/Poultry/raw-material-items/recalculate-stock',
+      final r = await widget.session.farmClient.post('/api/${widget.water ? 'Water' : 'Poultry'}/raw-material-items/recalculate-stock',
           body: const {}, query: {'farmId': widget.company.farmId, if (_target != 'all') 'itemId': _target});
       final rows = rowsOf(r);
       final changed = [for (final x in rows) if (tNum(x['delta']) != 0) x];
@@ -732,15 +736,15 @@ class _RecalculateStockDialogState extends State<RecalculateStockDialog> {
         width: 480,
         child: res == null
             ? Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                const Text.rich(
+                Text.rich(
                   TextSpan(children: [
-                    TextSpan(text: 'Recompute stock from history —'),
+                    const TextSpan(text: 'Recompute stock from history —'),
                     TextSpan(
-                        text: ' total purchased (in production units) − used in production + manual adjustments',
-                        style: TextStyle(fontWeight: FontWeight.w500)),
-                    TextSpan(text: ', floored at 0. Finished products are not affected.'),
+                        text: ' total purchased (in production units) − used in production${widget.water ? '' : ' + manual adjustments'}',
+                        style: const TextStyle(fontWeight: FontWeight.w500)),
+                    const TextSpan(text: ', floored at 0. Finished products are not affected.'),
                   ]),
-                  style: TextStyle(fontSize: 14, color: TColors.slate600),
+                  style: const TextStyle(fontSize: 14, color: TColors.slate600),
                 ),
                 const SizedBox(height: 12),
                 FilterLabel(
@@ -752,7 +756,7 @@ class _RecalculateStockDialogState extends State<RecalculateStockDialog> {
                       for (final i in widget.items)
                         if (i['isActive'] == true)
                           AppSelectItem(
-                            value: tStr(i['poultryRawMaterialItemId']),
+                            value: tStr(i[widget.water ? 'waterRawMaterialItemId' : 'poultryRawMaterialItemId']),
                             label: '${tStr(i['itemName'])}${tStr(i['category']).isNotEmpty ? ' — ${tStr(i['category'])}' : ''}',
                           ),
                     ],

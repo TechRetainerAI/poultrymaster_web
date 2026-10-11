@@ -2,6 +2,7 @@ import '../models/company.dart';
 import 'generated_pages.dart';
 import 'page_spec.dart';
 import 'poultry/poultry_labels.dart';
+import 'water/water_labels.dart';
 import 'web_nav.dart';
 import 'web_page_design.dart';
 
@@ -570,22 +571,183 @@ class PageRegistry {
         FieldSpec('amountPaid', 'Paid', kind: FieldKind.money),
       ],
     ),
+    // Products (/water-products): the web card's badges, highlights and
+    // details. The name links to Product Details (a row extra here).
     const PageSpec(
-      key: 'water-customers', module: 'water',
-      title: 'Customers',
-      path: '/api/Water/customers',
-      titleField: 'customerName',
-      searchFields: ['customerName', 'phoneNumber'],
+      key: 'water-products', module: 'water',
+      title: 'Water products',
+      path: '/api/Water/products',
+      titleField: 'name',
+      statusField: 'isActive',
+      searchFields: ['name', 'sku'],
       subtitleFields: [
-        FieldSpec('phoneNumber', 'Phone'),
-        FieldSpec('balance', 'Balance', kind: FieldKind.money),
+        FieldSpec('productType', 'Type'),
+        FieldSpec('unitPrice', 'Price', kind: FieldKind.money),
+        FieldSpec('stockOnHand', 'Stock', kind: FieldKind.number),
       ],
       fields: [
-        FieldSpec('customerName', 'Name'),
-        FieldSpec('phoneNumber', 'Phone'),
-        FieldSpec('location', 'Location'),
-        FieldSpec('balance', 'Balance', kind: FieldKind.money),
+        FieldSpec('productType', 'Type'),
+        FieldSpec('unitPrice', 'Price', kind: FieldKind.money),
+        FieldSpec('stockOnHand', 'Stock', kind: FieldKind.number),
+        FieldSpec('sku', 'SKU'),
+        FieldSpec('sizeMl', 'Size', suffix: 'ml'),
+        FieldSpec('unit', 'Unit'),
       ],
+      emptyMessage: 'No products yet. Click New product to add your first SKU.',
+    ),
+    // Drivers (/water-drivers): employees-with-driver-role plus legacy
+    // standalone drivers from /list-for-farm; edits and deletes go through
+    // /drivers/{id}. The web's column is "Assigned vehicle".
+    const PageSpec(
+      key: 'water-drivers', module: 'water',
+      title: 'Drivers',
+      path: '/api/Water/drivers/list-for-farm',
+      writePath: '/api/Water/drivers',
+      resolve: {
+        'assignedVehicleName': ('assignedWaterVehicleId', 'water-drivers.assignedWaterVehicleId', waterVehicleCellLabel),
+      },
+      titleField: 'driverName',
+      statusField: 'isActive',
+      searchFields: ['driverName', 'phoneNumber', 'licenseNumber'],
+      subtitleFields: [
+        FieldSpec('phoneNumber', 'Phone'),
+        FieldSpec('licenseNumber', 'License'),
+      ],
+      fields: [
+        FieldSpec('phoneNumber', 'Phone'),
+        FieldSpec('licenseNumber', 'License'),
+        FieldSpec('assignedVehicleName', 'Assigned vehicle'),
+        FieldSpec('isActive', 'Status', kind: FieldKind.boolean),
+      ],
+      emptyMessage: 'No drivers yet. Add one to assign a vehicle.',
+    ),
+    // Vehicles (/water-vehicles): the web card's highlights and details.
+    const PageSpec(
+      key: 'water-vehicles', module: 'water',
+      title: 'Vehicles',
+      path: '/api/Water/vehicles',
+      titleField: 'vehicleName',
+      statusField: 'status',
+      searchFields: ['vehicleName', 'vehicleType', 'registrationNumber'],
+      subtitleFields: [
+        FieldSpec('capacityBags', 'Capacity (bags)', kind: FieldKind.number),
+        FieldSpec('registrationNumber', 'Reg #'),
+      ],
+      fields: [
+        FieldSpec('vehicleType', 'Type'),
+        FieldSpec('registrationNumber', 'Reg #'),
+        FieldSpec('capacityBags', 'Capacity (bags)', kind: FieldKind.number),
+        FieldSpec('fuelType', 'Fuel'),
+        FieldSpec('status', 'Status'),
+      ],
+      emptyMessage: 'No vehicles yet.',
+    ),
+    // Routes (/water-routes): the default vehicle shown by name.
+    PageSpec(
+      key: 'water-routes', module: 'water',
+      title: 'Routes',
+      path: '/api/Water/routes',
+      titleField: 'routeName',
+      searchFields: ['routeName', 'areaCovered'],
+      resolve: const {
+        'defaultVehicleName': ('defaultVehicleId', 'water-routes.defaultVehicleId', null),
+      },
+      subtitleFields: const [
+        FieldSpec('expectedCustomers', 'Expected customers', kind: FieldKind.number),
+        FieldSpec('expectedBagsSold', 'Expected bags', kind: FieldKind.number),
+      ],
+      fields: const [
+        FieldSpec('areaCovered', 'Area'),
+        FieldSpec('defaultVehicleName', 'Default vehicle'),
+        FieldSpec('expectedCustomers', 'Expected customers', kind: FieldKind.number),
+        FieldSpec('expectedBagsSold', 'Expected bags', kind: FieldKind.number),
+      ],
+      emptyMessage: 'No routes yet.',
+    ),
+    // Customers (/water-customers): the web card. The old spec read
+    // customerName / phoneNumber / balance, which the rows do not have.
+    const PageSpec(
+      key: 'water-customers', module: 'water',
+      title: 'Water customers',
+      path: '/api/Water/customers',
+      titleField: 'name',
+      searchFields: ['name', 'contactPhone', 'contactEmail', 'city'],
+      subtitleFields: [
+        FieldSpec('contactPhone', 'Phone'),
+        FieldSpec('city', 'City'),
+        FieldSpec('outstandingBalance', 'Outstanding', kind: FieldKind.money),
+      ],
+      fields: [
+        FieldSpec('outstandingBalance', 'Outstanding', kind: FieldKind.money),
+        FieldSpec('contactPhone', 'Phone'),
+        FieldSpec('contactEmail', 'Email'),
+        FieldSpec('city', 'City'),
+        FieldSpec('defaultCustomerType', 'System default'),
+      ],
+      emptyMessage: 'No customers yet.',
+    ),
+    // Suppliers (/water-suppliers).
+    const PageSpec(
+      key: 'water-suppliers', module: 'water',
+      title: 'Suppliers',
+      path: '/api/Water/suppliers',
+      titleField: 'supplierName',
+      statusField: 'isActive',
+      searchFields: ['supplierName', 'contactPerson', 'phone', 'email', 'supplierType'],
+      subtitleFields: [
+        FieldSpec('supplierType', 'Type'),
+        FieldSpec('phone', 'Phone'),
+      ],
+      fields: [
+        FieldSpec('supplierType', 'Type'),
+        FieldSpec('contactPerson', 'Contact'),
+        FieldSpec('phone', 'Phone'),
+        FieldSpec('email', 'Email'),
+        FieldSpec('isActive', 'Status', kind: FieldKind.boolean),
+      ],
+      emptyMessage: 'No suppliers yet. Click New supplier to add the first one.',
+    ),
+    // Machines (/water-machines).
+    const PageSpec(
+      key: 'water-machines', module: 'water',
+      title: 'Machines',
+      path: '/api/Water/machines',
+      titleField: 'machineName',
+      statusField: 'status',
+      searchFields: ['machineName', 'machineType', 'manufacturer'],
+      subtitleFields: [
+        FieldSpec('capacityPerHour', 'Capacity/hr', kind: FieldKind.number),
+        FieldSpec('nextMaintenanceDate', 'Next maintenance', kind: FieldKind.date),
+      ],
+      fields: [
+        FieldSpec('capacityPerHour', 'Capacity/hr', kind: FieldKind.number),
+        FieldSpec('nextMaintenanceDate', 'Next maintenance', kind: FieldKind.date),
+        FieldSpec('machineNumber', 'Number'),
+        FieldSpec('machineType', 'Type'),
+        FieldSpec('status', 'Status'),
+      ],
+      emptyMessage: 'No machines yet.',
+    ),
+    // Boreholes (/water-boreholes).
+    const PageSpec(
+      key: 'water-boreholes', module: 'water',
+      title: 'Boreholes',
+      path: '/api/Water/boreholes',
+      titleField: 'boreholeName',
+      statusField: 'status',
+      searchFields: ['boreholeName', 'location'],
+      subtitleFields: [
+        FieldSpec('nextMaintenanceDate', 'Next maintenance', kind: FieldKind.date),
+        FieldSpec('waterQualityTestDueDate', 'Quality test due', kind: FieldKind.date),
+      ],
+      fields: [
+        FieldSpec('nextMaintenanceDate', 'Next maintenance', kind: FieldKind.date),
+        FieldSpec('waterQualityTestDueDate', 'Quality test due', kind: FieldKind.date),
+        FieldSpec('location', 'Location'),
+        FieldSpec('waterTreatmentMethod', 'Treatment'),
+        FieldSpec('status', 'Status'),
+      ],
+      emptyMessage: 'No boreholes yet.',
     ),
     const PageSpec(
       key: 'water-expenses', module: 'water',
@@ -620,23 +782,28 @@ class PageRegistry {
         FieldSpec('currentBalance', 'Current balance', kind: FieldKind.money),
       ],
     ),
-    const PageSpec(
+    // Staff (/water-staff, titled "Employees"): the web card. The old spec
+    // read fullName / status / dateJoined, which the rows do not have.
+    PageSpec(
       key: 'water-staff', module: 'water',
-      title: 'Staff',
+      title: 'Employees',
       path: '/api/Water/staff',
+      derive: {'fullName': (r) => '${r['firstName'] ?? ''} ${r['lastName'] ?? ''}'.trim()},
       titleField: 'fullName',
-      statusField: 'status',
-      searchFields: ['fullName', 'role'],
-      subtitleFields: [
+      statusField: 'isActive',
+      searchFields: const ['fullName', 'phoneNumber', 'email', 'role'],
+      subtitleFields: const [
         FieldSpec('role', 'Role'),
-        FieldSpec('phoneNumber', 'Phone'),
+        FieldSpec('basePay', 'Base pay', kind: FieldKind.money),
       ],
-      fields: [
-        FieldSpec('fullName', 'Name'),
+      fields: const [
+        FieldSpec('basePay', 'Base pay', kind: FieldKind.money),
         FieldSpec('role', 'Role'),
+        FieldSpec('salaryType', 'Salary type'),
         FieldSpec('phoneNumber', 'Phone'),
-        FieldSpec('dateJoined', 'Joined', kind: FieldKind.date),
+        FieldSpec('isActive', 'Status', kind: FieldKind.boolean),
       ],
+      emptyMessage: 'No staff yet.',
     ),
     const PageSpec(
       key: 'water-maintenance', module: 'water',

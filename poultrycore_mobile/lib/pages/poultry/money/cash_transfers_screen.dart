@@ -15,6 +15,7 @@ import '../sales/balances_widgets.dart';
 import '../trackers/tracker_logic.dart' show tNum, tStr;
 import '../trackers/tracker_widgets.dart';
 import 'money_widgets.dart';
+import '../reports/money_reports.dart' show MoneyRail, poultryMoneyRail;
 
 /// Poultry → Money → Cash Transfers, as `app/poultry-cash-transfers/page.tsx`:
 /// money moved between the farm's own accounts. It is the same money in a
@@ -31,8 +32,8 @@ const _sky600 = Color(0xFF0284C7);
       _ => (TColors.sky100, TColors.sky800),
     };
 
-String transferNumber(Map t) =>
-    tStr(t['transferNumber']).isNotEmpty ? tStr(t['transferNumber']) : '#${tStr(t['poultryCashTransferId'])}';
+String transferNumber(Map t, [String p = 'poultry']) =>
+    tStr(t['transferNumber']).isNotEmpty ? tStr(t['transferNumber']) : '#${tStr(t['${p}CashTransferId'])}';
 
 /// Status, then filterByDateAndSearch on transferDate and five search keys.
 List<Map> filterTransfers(List<Map> rows, {String status = 'All', String search = '', String from = '', String to = ''}) {
@@ -87,15 +88,19 @@ List<Map> filterTransfers(List<Map> rows, {String status = 'All', String search 
 }
 
 class CashTransfersScreen extends StatefulWidget {
-  const CashTransfersScreen({super.key, required this.session, required this.company});
+  const CashTransfersScreen({super.key, required this.session, required this.company, this.rail = poultryMoneyRail});
   final Session session;
   final Company company;
+
+  /// The module (Poultry by default; Water passes waterMoneyRail).
+  final MoneyRail rail;
 
   @override
   State<CashTransfersScreen> createState() => _CashTransfersScreenState();
 }
 
 class _CashTransfersScreenState extends State<CashTransfersScreen> {
+  MoneyRail get _r => widget.rail;
   List<Map> _accounts = [], _rows = [];
   bool _loading = true;
   String _status = 'All';
@@ -129,7 +134,7 @@ class _CashTransfersScreenState extends State<CashTransfersScreen> {
     setState(() => _loading = true);
     try {
       final q = {'farmId': widget.company.farmId};
-      final r = await Future.wait([_api.get('/api/Poultry/cash-accounts', query: q), _api.get('/api/Poultry/cash-transfers', query: q)]);
+      final r = await Future.wait([_api.get('${_r.api}/cash-accounts', query: q), _api.get('${_r.api}/cash-transfers', query: q)]);
       if (!mounted) return;
       setState(() {
         _accounts = rowsOf(r[0]);
@@ -150,14 +155,14 @@ class _CashTransfersScreenState extends State<CashTransfersScreen> {
   }
 
   Widget _reverseButton(Map t) => OutlinedButton.icon(
-        onPressed: () => _dialog(ReverseTransferDialog(session: widget.session, company: widget.company, transfer: t, fmt: _fmt, when: _when(t))),
+        onPressed: () => _dialog(ReverseTransferDialog(session: widget.session, company: widget.company, rail: _r, transfer: t, fmt: _fmt, when: _when(t))),
         icon: const Icon(Icons.undo, size: 16),
         label: const Text('Reverse'),
       );
 
   @override
   Widget build(BuildContext context) {
-    final lead = sidebarLeading(context, widget.session, widget.company, href: '/poultry-cash-transfers');
+    final lead = sidebarLeading(context, widget.session, widget.company, href: '/${_r.idPrefix}-cash-transfers');
     final visible = filterTransfers(_rows, status: _status, search: _search.text, from: _from, to: _to);
     if (visible.length != _lastTotal) {
       _lastTotal = visible.length;
@@ -180,12 +185,12 @@ class _CashTransfersScreenState extends State<CashTransfersScreen> {
             ]),
             const SizedBox(height: 4),
             Wrap(crossAxisAlignment: WrapCrossAlignment.center, children: [
-              const Text(
-                "Move money between the farm's own cash accounts. A transfer is the same money in a different box — it never counts as money in or money out on ",
-                style: TextStyle(fontSize: 13, color: TColors.slate500),
+              Text(
+                "Move money between the ${_r.entity}'s own cash accounts. A transfer is the same money in a different box — it never counts as money in or money out on ",
+                style: const TextStyle(fontSize: 13, color: TColors.slate500),
               ),
               InkWell(
-                onTap: () => openAppHref(context, widget.session, widget.company, '/cash-flow', label: 'Cash Flow'),
+                onTap: () => openAppHref(context, widget.session, widget.company, _r.cashFlowHref, label: 'Cash Flow'),
                 child: const Text('Cash Flow', style: TextStyle(fontSize: 13, color: Color(0xFF0369A1))),
               ),
               const Text('.', style: TextStyle(fontSize: 13, color: TColors.slate500)),
@@ -194,7 +199,7 @@ class _CashTransfersScreenState extends State<CashTransfersScreen> {
             Align(
               alignment: Alignment.centerLeft,
               child: FilledButton.icon(
-                onPressed: () => _dialog(RecordTransferDialog(session: widget.session, company: widget.company, accounts: _accounts, fmt: _fmt)),
+                onPressed: () => _dialog(RecordTransferDialog(session: widget.session, company: widget.company, rail: _r, accounts: _accounts, fmt: _fmt)),
                 style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
                 icon: const Icon(Icons.add, size: 18),
                 label: const Text('Record transfer'),
@@ -251,8 +256,8 @@ class _CashTransfersScreenState extends State<CashTransfersScreen> {
               MobileCardList<Map>(
                 striped: true,
                 items: pageRows,
-                keyOf: (t) => tStr(t['poultryCashTransferId']),
-                primary: transferNumber,
+                keyOf: (t) => tStr(t['${_r.idPrefix}CashTransferId']),
+                primary: (t) => transferNumber(t, _r.idPrefix),
                 secondary: (t) => '${_when(t)} · ${tStr(t['fromAccountName'])} → ${tStr(t['toAccountName'])}',
                 trailing: (t) {
                   final (bg, fg) = transferStatusTone(tStr(t['status']));
@@ -284,7 +289,7 @@ class _CashTransfersScreenState extends State<CashTransfersScreen> {
                     for (final t in items)
                       [
                         cellText(_when(t)),
-                        Text(transferNumber(t), style: const TextStyle(fontWeight: FontWeight.w500)),
+                        Text(transferNumber(t, _r.idPrefix), style: const TextStyle(fontWeight: FontWeight.w500)),
                         cellText(_dash(t['fromAccountName'])),
                         cellText(_dash(t['toAccountName'])),
                         Align(
@@ -332,9 +337,12 @@ class _CashTransfersScreenState extends State<CashTransfersScreen> {
 
 /// Record Cash Transfer: created and approved in one step.
 class RecordTransferDialog extends StatefulWidget {
-  const RecordTransferDialog({super.key, required this.session, required this.company, required this.accounts, required this.fmt});
+  const RecordTransferDialog({super.key, required this.session, required this.company, required this.accounts, required this.fmt, this.rail = poultryMoneyRail});
   final Session session;
   final Company company;
+
+  /// The module (Poultry by default; Water passes waterMoneyRail).
+  final MoneyRail rail;
   final List<Map> accounts;
   final FarmMoney fmt;
 
@@ -343,6 +351,7 @@ class RecordTransferDialog extends StatefulWidget {
 }
 
 class _RecordTransferDialogState extends State<RecordTransferDialog> {
+  MoneyRail get _r => widget.rail;
   String _from = '', _to = '';
   String _date = DateTime.now().toUtc().toIso8601String().substring(0, 10);
   final _amount = TextEditingController(text: '0');
@@ -358,7 +367,7 @@ class _RecordTransferDialogState extends State<RecordTransferDialog> {
     super.dispose();
   }
 
-  Map? _acc(String id) => widget.accounts.where((a) => tStr(a['poultryCashAccountId']) == id).firstOrNull;
+  Map? _acc(String id) => widget.accounts.where((a) => tStr(a['${_r.idPrefix}CashAccountId']) == id).firstOrNull;
   num _bal(String id) => tNum(_acc(id)?['currentBalance']);
   num get _amountNum => num.tryParse(_amount.text) ?? 0;
   num get _fromAfter => _bal(_from) - _amountNum;
@@ -374,9 +383,9 @@ class _RecordTransferDialogState extends State<RecordTransferDialog> {
     final farmId = widget.company.farmId;
     String? opt(TextEditingController c) => c.text.trim().isEmpty ? null : c.text.trim();
     try {
-      final res = await api.post('/api/Poultry/cash-transfers', body: {
-        'fromPoultryCashAccountId': int.parse(_from),
-        'toPoultryCashAccountId': int.parse(_to),
+      final res = await api.post('${_r.api}/cash-transfers', body: {
+        'from${_r.cap}CashAccountId': int.parse(_from),
+        'to${_r.cap}CashAccountId': int.parse(_to),
         'amount': _amountNum,
         'transferDate': entryTimestamp(_date),
         'referenceNumber': opt(_ref),
@@ -384,8 +393,8 @@ class _RecordTransferDialogState extends State<RecordTransferDialog> {
         'farmId': farmId,
         'createdBy': widget.session.tokens.userId,
       });
-      final id = res is Map ? tStr(res['poultryCashTransferId']) : '';
-      await api.post('/api/Poultry/cash-transfers/$id/approve', query: {'farmId': farmId, 'approvedBy': widget.session.tokens.userId ?? ''});
+      final id = res is Map ? tStr(res['${_r.idPrefix}CashTransferId']) : '';
+      await api.post('${_r.api}/cash-transfers/$id/approve', query: {'farmId': farmId, 'approvedBy': widget.session.tokens.userId ?? ''});
       if (!mounted) return;
       trackerToast(context, 'Transfer recorded');
       Navigator.pop(context, true);
@@ -419,8 +428,8 @@ class _RecordTransferDialogState extends State<RecordTransferDialog> {
     final fmt = widget.fmt;
     final active = [for (final a in widget.accounts) if (a['isActive'] == true) a];
     AppSelectItem<String> item(Map a) =>
-        AppSelectItem(value: tStr(a['poultryCashAccountId']), label: '${tStr(a['accountName'])} — ${fmt(tNum(a['currentBalance']))}');
-    final toOptions = [for (final a in active) if (tStr(a['poultryCashAccountId']) != _from) a];
+        AppSelectItem(value: tStr(a['${_r.idPrefix}CashAccountId']), label: '${tStr(a['accountName'])} — ${fmt(tNum(a['currentBalance']))}');
+    final toOptions = [for (final a in active) if (tStr(a['${_r.idPrefix}CashAccountId']) != _from) a];
     return PopScope(
       canPop: !_saving,
       child: AlertDialog(
@@ -467,7 +476,7 @@ class _RecordTransferDialogState extends State<RecordTransferDialog> {
               FilterLabel(
                 'To account *',
                 AppSelect<String>(
-                  value: toOptions.any((a) => tStr(a['poultryCashAccountId']) == _to) ? _to : null,
+                  value: toOptions.any((a) => tStr(a['${_r.idPrefix}CashAccountId']) == _to) ? _to : null,
                   hintText: 'Pick the account the money arrives in',
                   items: [for (final a in toOptions) item(a)],
                   onChanged: (v) => setState(() => _to = v ?? ''),
@@ -520,9 +529,13 @@ class ReverseTransferDialog extends StatefulWidget {
     required this.transfer,
     required this.fmt,
     required this.when,
+    this.rail = poultryMoneyRail,
   });
   final Session session;
   final Company company;
+
+  /// The module (Poultry by default; Water passes waterMoneyRail).
+  final MoneyRail rail;
   final Map transfer;
   final FarmMoney fmt;
   final String when;
@@ -532,6 +545,7 @@ class ReverseTransferDialog extends StatefulWidget {
 }
 
 class _ReverseTransferDialogState extends State<ReverseTransferDialog> {
+  MoneyRail get _r => widget.rail;
   final _reason = TextEditingController();
   bool _saving = false;
 
@@ -549,7 +563,7 @@ class _ReverseTransferDialogState extends State<ReverseTransferDialog> {
     setState(() => _saving = true);
     try {
       await widget.session.farmClient.post(
-        '/api/Poultry/cash-transfers/${tStr(t['poultryCashTransferId'])}/reverse',
+        '${_r.api}/cash-transfers/${tStr(t['${_r.idPrefix}CashTransferId'])}/reverse',
         query: {'farmId': widget.company.farmId, 'reversedBy': widget.session.tokens.userId ?? ''},
         body: {'reason': _reason.text.trim()},
       );
@@ -588,7 +602,7 @@ class _ReverseTransferDialogState extends State<ReverseTransferDialog> {
             const SizedBox(height: 12),
             formSection('Transfer being reversed', TColors.slate600, [
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(transferNumber(t), style: const TextStyle(fontWeight: FontWeight.w500)),
+                Text(transferNumber(t, _r.idPrefix), style: const TextStyle(fontWeight: FontWeight.w500)),
                 const SizedBox(height: 4),
                 Wrap(crossAxisAlignment: WrapCrossAlignment.center, spacing: 4, children: [
                   Text(tStr(t['fromAccountName']), style: const TextStyle(color: TColors.slate600)),

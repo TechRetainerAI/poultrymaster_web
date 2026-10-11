@@ -20,6 +20,58 @@ num _n(Object? v) => toNum(v);
 num _r2(num n) => (n * 100).round() / 100;
 String _day(Object? v) => '${v ?? ''}'.length >= 10 ? '${v ?? ''}'.substring(0, 10) : '${v ?? ''}';
 
+/// What differs between the Poultry and Water twins of the Cash Account and
+/// Money Movement reports. The web shares one body between the two rails
+/// (components/reports/cash-account-report.tsx; the money page is a twin), so
+/// the app does too: same arithmetic, the rail's own endpoints and words.
+class MoneyRail {
+  const MoneyRail({
+    required this.api,
+    required this.idPrefix,
+    required this.cashAccountsHref,
+    required this.moneyHref,
+    required this.cashTitle,
+    required this.cashFilename,
+    required this.cashFlowHref,
+    required this.reconcileHref,
+    required this.entity,
+    required this.catalog,
+  });
+
+  /// `/api/Poultry`, `/api/Water`.
+  final String api;
+
+  /// The id prefix: `poultry` → `poultryCashAccountId`.
+  final String idPrefix;
+  final String cashAccountsHref, moneyHref;
+  final String cashTitle, cashFilename;
+  final String cashFlowHref, reconcileHref;
+
+  /// "farm" (Poultry) or "company" (Water), in the money page's sentences.
+  final String entity;
+  final Widget Function(Session session, Company company) catalog;
+
+  String id(String suffix) => '$idPrefix$suffix';
+
+  /// `Poultry` / `Water`, for keys such as fromPoultryCashAccountId.
+  String get cap => '${idPrefix[0].toUpperCase()}${idPrefix.substring(1)}';
+}
+
+Widget _poultryCatalog(Session s, Company c) => PoultryReportsCatalogScreen(session: s, company: c);
+
+const poultryMoneyRail = MoneyRail(
+  api: '/api/Poultry',
+  idPrefix: 'poultry',
+  cashAccountsHref: '/poultry/reports/cash-accounts',
+  moneyHref: '/poultry/reports/money',
+  cashTitle: 'Poultry Cash Account Report',
+  cashFilename: 'poultry-cash-accounts',
+  cashFlowHref: '/cash-flow',
+  reconcileHref: '/poultry-cash-reconciliation',
+  entity: 'farm',
+  catalog: _poultryCatalog,
+);
+
 // =========================================================================
 // Cash Account Report
 // =========================================================================
@@ -83,9 +135,10 @@ class CashAccountRow {
 
 /// cashAccountsForPeriod: union the accounts with their status rows, split
 /// the ledger (everything up to [to]) at [from], and share by closing cash.
-List<CashAccountRow> cashAccountsForPeriod(List<Map> accounts, List<Map> status, List<Map> entries, String from, String to) {
-  final seed = {for (final a in accounts) _n(a['poultryCashAccountId']).toInt(): a};
-  final st = {for (final s in status) _n(s['poultryCashAccountId']).toInt(): s};
+List<CashAccountRow> cashAccountsForPeriod(List<Map> accounts, List<Map> status, List<Map> entries, String from, String to,
+    {String idPrefix = 'poultry'}) {
+  final seed = {for (final a in accounts) _n(a['${idPrefix}CashAccountId']).toInt(): a};
+  final st = {for (final s in status) _n(s['${idPrefix}CashAccountId']).toInt(): s};
   final ids = {...seed.keys, ...st.keys};
   final acc = <int, (num prior, num inn, num out)>{};
   for (final e in entries) {
@@ -93,7 +146,7 @@ List<CashAccountRow> cashAccountsForPeriod(List<Map> accounts, List<Map> status,
     if (amount == 0) continue;
     final day = _day(e['transactionDate']);
     if (day.isEmpty) continue;
-    final id = _n(e['poultryCashAccountId']).toInt();
+    final id = _n(e['${idPrefix}CashAccountId']).toInt();
     final b = acc[id] ?? (0, 0, 0);
     if (day.compareTo(from) < 0) {
       acc[id] = (b.$1 + amount, b.$2, b.$3);
@@ -135,9 +188,10 @@ List<CashAccountRow> cashAccountsForPeriod(List<Map> accounts, List<Map> status,
 }
 
 class CashAccountReportScreen extends StatefulWidget {
-  const CashAccountReportScreen({super.key, required this.session, required this.company});
+  const CashAccountReportScreen({super.key, required this.session, required this.company, this.rail = poultryMoneyRail});
   final Session session;
   final Company company;
+  final MoneyRail rail;
 
   @override
   State<CashAccountReportScreen> createState() => _CashAccountReportScreenState();
@@ -179,12 +233,12 @@ class _CashAccountReportScreenState extends State<CashAccountReportScreen> {
       _error = null;
     });
     final r = await Future.wait([
-      _try('/api/Poultry/cash-accounts', {'farmId': _farm}),
-      _try('/api/Poultry/cash-reconciliations/account-status', {'farmId': _farm}),
+      _try('${widget.rail.api}/cash-accounts', {'farmId': _farm}),
+      _try('${widget.rail.api}/cash-reconciliations/account-status', {'farmId': _farm}),
       // No fromDate: everything up to the period end, so the earlier rows
       // become each account's opening balance.
-      _try('/api/Poultry/cash-accounts/transactions', {'farmId': _farm, 'toDate': '${_to}T23:59:59.999'}),
-      _try('/api/Poultry/cash-transfers', {'farmId': _farm}),
+      _try('${widget.rail.api}/cash-accounts/transactions', {'farmId': _farm, 'toDate': '${_to}T23:59:59.999'}),
+      _try('${widget.rail.api}/cash-transfers', {'farmId': _farm}),
     ]);
     if (!mounted) return;
     if (r[0].$1 == null && r[2].$1 == null) {
@@ -199,7 +253,7 @@ class _CashAccountReportScreenState extends State<CashAccountReportScreen> {
     }
     final all = r[2].$1 ?? [];
     setState(() {
-      _rows = cashAccountsForPeriod(r[0].$1 ?? [], r[1].$1 ?? [], all, _from, _to);
+      _rows = cashAccountsForPeriod(r[0].$1 ?? [], r[1].$1 ?? [], all, _from, _to, idPrefix: widget.rail.idPrefix);
       _entries = [
         for (final e in all)
           if (_day(e['transactionDate']).isNotEmpty &&
@@ -245,8 +299,8 @@ class _CashAccountReportScreenState extends State<CashAccountReportScreen> {
     final t = _totals;
     final balances = (_r2(t.opening + t.moneyIn - t.moneyOut) - t.closing).abs() < 0.01;
     return ReportDocument(
-      title: 'Poultry Cash Account Report',
-      filename: 'poultry-cash-accounts',
+      title: widget.rail.cashTitle,
+      filename: widget.rail.cashFilename,
       farmName: widget.company.name,
       landscape: true,
       cards: [
@@ -285,10 +339,11 @@ class _CashAccountReportScreenState extends State<CashAccountReportScreen> {
     // Running balance only for one account, from its own opening figure.
     final asc = [
       for (final e in _entries)
-        if (selected == null || _n(e['poultryCashAccountId']).toInt() == selected) e,
+        if (selected == null || _n(e[widget.rail.id('CashAccountId')]).toInt() == selected) e,
     ]..sort((a, b) {
         final d = '${a['transactionDate'] ?? ''}'.compareTo('${b['transactionDate'] ?? ''}');
-        return d != 0 ? d : _n(a['poultryCashTransactionId']).compareTo(_n(b['poultryCashTransactionId']));
+        final k = widget.rail.id('CashTransactionId');
+        return d != 0 ? d : _n(a[k]).compareTo(_n(b[k]));
       });
     final running = <num?>[];
     var bal = selected == null ? 0 : (_rows.where((r) => r.accountId == selected).firstOrNull?.openingBalance ?? 0);
@@ -314,7 +369,8 @@ class _CashAccountReportScreenState extends State<CashAccountReportScreen> {
     return ReportShellScreen(
       session: widget.session,
       company: widget.company,
-      href: '/poultry/reports/cash-accounts',
+      href: widget.rail.cashAccountsHref,
+      catalog: widget.rail.catalog,
       title: 'Cash Account Report',
       description: 'Where your money sits, what moved through each account, and which accounts need attention.',
       busy: _busy,
@@ -350,13 +406,13 @@ class _CashAccountReportScreenState extends State<CashAccountReportScreen> {
             const Text('not', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: slate600)),
             const Text(' expected to match ', style: TextStyle(fontSize: 12, color: slate600)),
             InkWell(
-              onTap: () => _link('/cash-flow', 'Cash Flow'),
+              onTap: () => _link(widget.rail.cashFlowHref, 'Cash Flow'),
               child: const Text('Cash Flow', style: TextStyle(fontSize: 12, color: slate600, decoration: TextDecoration.underline)),
             ),
             const Text(', which is built from sales, expenses and capital and reads no account at all. Where the two disagree, ',
                 style: TextStyle(fontSize: 12, color: slate600)),
             InkWell(
-              onTap: () => _link('/poultry-cash-reconciliation', 'Cash reconciliation'),
+              onTap: () => _link(widget.rail.reconcileHref, 'Cash reconciliation'),
               child: const Text('reconciliation', style: TextStyle(fontSize: 12, color: slate600, decoration: TextDecoration.underline)),
             ),
             const Text(' is the answer.', style: TextStyle(fontSize: 12, color: slate600)),
@@ -462,9 +518,10 @@ class _CashAccountReportScreenState extends State<CashAccountReportScreen> {
 /// /poultry/reports/money: cash transfers, owner money, loans and loan
 /// repayments — none of it income or expense except interest and fees.
 class MoneyMovementScreen extends StatefulWidget {
-  const MoneyMovementScreen({super.key, required this.session, required this.company});
+  const MoneyMovementScreen({super.key, required this.session, required this.company, this.rail = poultryMoneyRail});
   final Session session;
   final Company company;
+  final MoneyRail rail;
 
   @override
   State<MoneyMovementScreen> createState() => _MoneyMovementScreenState();
@@ -498,10 +555,10 @@ class _MoneyMovementScreenState extends State<MoneyMovementScreen> {
         [for (final r in LookupLoader.rowsIn(await widget.session.farmClient.get(p, query: q))) if (r is Map) r];
     try {
       final r = await Future.wait([
-        list('/api/Poultry/cash-transfers'),
-        list('/api/Poultry/owner-money'),
-        list('/api/Poultry/loans'),
-        list('/api/Poultry/loan-payments'),
+        list('${widget.rail.api}/cash-transfers'),
+        list('${widget.rail.api}/owner-money'),
+        list('${widget.rail.api}/loans'),
+        list('${widget.rail.api}/loan-payments'),
       ]);
       if (mounted) {
         setState(() {
@@ -545,7 +602,7 @@ class _MoneyMovementScreenState extends State<MoneyMovementScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final lead = sidebarLeading(context, widget.session, widget.company, href: '/poultry/reports/money');
+    final lead = sidebarLeading(context, widget.session, widget.company, href: widget.rail.moneyHref);
     final xf = [for (final r in _transfers) if (_in(r['transferDate'])) r];
     final om = [for (final r in _owner) if (_in(r['transactionDate'])) r];
     final rp = [for (final r in _repayments) if (_in(r['paymentDate'])) r];
@@ -569,7 +626,7 @@ class _MoneyMovementScreenState extends State<MoneyMovementScreen> {
               child: TextButton.icon(
                 style: TextButton.styleFrom(foregroundColor: slate500, padding: EdgeInsets.zero),
                 onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => PoultryReportsCatalogScreen(session: widget.session, company: widget.company),
+                  builder: (_) => widget.rail.catalog(widget.session, widget.company),
                 )),
                 icon: const Icon(Icons.arrow_back, size: 14),
                 label: const Text('Back to reports', style: TextStyle(fontSize: 13)),
@@ -581,8 +638,8 @@ class _MoneyMovementScreenState extends State<MoneyMovementScreen> {
               Text('Money Movement', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w600, color: slate900)),
             ]),
             const SizedBox(height: 4),
-            const Text.rich(TextSpan(style: TextStyle(fontSize: 13, color: slate500), children: [
-              TextSpan(text: "Transfers between the farm's own accounts, money the owner put in or took out, and borrowed money. "),
+            Text.rich(TextSpan(style: const TextStyle(fontSize: 13, color: slate500), children: [
+              TextSpan(text: "Transfers between the ${widget.rail.entity}'s own accounts, money the owner put in or took out, and borrowed money. "),
               TextSpan(text: 'None of this is income or expense', style: TextStyle(fontWeight: FontWeight.w700)),
               TextSpan(text: ' — except the interest and fees on a repayment, which are the only part that reaches the profit and loss.'),
             ])),
@@ -611,7 +668,7 @@ class _MoneyMovementScreenState extends State<MoneyMovementScreen> {
               _Section(
                 icon: Icons.swap_horiz,
                 title: 'Cash transfers',
-                note: "Moving money between the farm's own accounts. Never company-wide money in or money out — the same money is simply in a different box.",
+                note: "Moving money between the ${widget.rail.entity}'s own accounts. Never company-wide money in or money out — the same money is simply in a different box.",
                 tiles: [
                   ('Moved', _money(_sum(xfLive, 'amount')), null),
                   ('Transfers', '${xfLive.length}', null),
@@ -627,7 +684,7 @@ class _MoneyMovementScreenState extends State<MoneyMovementScreen> {
                     for (final r in xf)
                       [
                         _when(r['transferDate'], r),
-                        '${r['transferNumber'] ?? '#${r['poultryCashTransferId']}'}',
+                        '${r['transferNumber'] ?? '#${r[widget.rail.id('CashTransferId')]}'}',
                         '${r['fromAccountName'] ?? '–'}',
                         '→ ${r['toAccountName'] ?? '–'}',
                         _money(_n(r['amount'])),
@@ -657,7 +714,7 @@ class _MoneyMovementScreenState extends State<MoneyMovementScreen> {
                     for (final r in om)
                       [
                         _when(r['transactionDate'], r),
-                        '${r['transactionNumber'] ?? '#${r['poultryOwnerMoneyId']}'}',
+                        '${r['transactionNumber'] ?? '#${r[widget.rail.id('OwnerMoneyId')]}'}',
                         '${r['ownerName'] ?? '–'}',
                         '${r['transactionType'] ?? ''}',
                         '${r['accountName'] ?? '–'}',
@@ -690,7 +747,7 @@ class _MoneyMovementScreenState extends State<MoneyMovementScreen> {
                   rows: [
                     for (final l in _loans)
                       [
-                        '${l['loanNumber'] ?? '#${l['poultryLoanId']}'}',
+                        '${l['loanNumber'] ?? '#${l[widget.rail.id('LoanId')]}'}',
                         '${l['lenderName'] ?? (l['source'] == 'CashAdjustment' ? 'Recorded on Cash Flow' : '–')}',
                         _money(_n(l['originalPrincipal'])),
                         _money(_n(l['amountReceived'])),
@@ -711,7 +768,7 @@ class _MoneyMovementScreenState extends State<MoneyMovementScreen> {
               _Section(
                 icon: Icons.payments_outlined,
                 title: 'Loan repayments',
-                note: 'What left the bank, and what it was for. Only the interest and fee columns are an expense — the principal column is the farm reducing a debt.',
+                note: 'What left the bank, and what it was for. Only the interest and fee columns are an expense — the principal column is the ${widget.rail.entity} reducing a debt.',
                 tiles: [
                   ('Total paid', _money(_sum(rpLive, 'totalAmount')), null),
                   ('Of which principal', _money(_sum(rpLive, 'principalAmount')), null),
@@ -728,7 +785,7 @@ class _MoneyMovementScreenState extends State<MoneyMovementScreen> {
                     for (final r in rp)
                       [
                         _when(r['paymentDate'], r),
-                        '${r['paymentNumber'] ?? '#${r['poultryLoanPaymentId']}'}',
+                        '${r['paymentNumber'] ?? '#${r[widget.rail.id('LoanPaymentId')]}'}',
                         '${r['lenderName'] ?? '–'}',
                         _money(_n(r['principalAmount'])),
                         _money(_n(r['interestAmount'])),
