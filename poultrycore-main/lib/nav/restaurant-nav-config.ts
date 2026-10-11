@@ -20,7 +20,7 @@ import {
   Activity, ArrowLeftRight, Banknote, Boxes, Building2, Calculator, CalendarCheck, CalendarDays, ClipboardList,
   CreditCard, Crown, DollarSign, Gift, Globe, HandCoins, Heart, Hourglass, Inbox, MapPin, PackageMinus,
   PartyPopper, QrCode, Receipt, Scale, Settings, ShoppingCart, TrendingUp, Truck, User, UserCog, Users,
-  UtensilsCrossed, Wallet, Bell,
+  UtensilsCrossed, Wallet, Bell, Repeat,
 } from "lucide-react"
 import type { UserPermissions } from "@/hooks/use-permissions"
 import { isRestaurantNavItemVisible } from "@/lib/utils/restaurant-nav-access"
@@ -163,6 +163,9 @@ export function buildRestaurantNavConfig(
         label: "Expenses",
         items: [
           { id: "expenses",       title: "Expenses",     icon: DollarSign, href: "/restaurant-expenses", visible: vis("/restaurant-expenses") },
+          // 348. Shared recurring-expense engine. Gated like the money rows (staff
+          // record one-off expenses, but setting up standing ones is a money decision).
+          { id: "recurring-expenses", title: "Recurring Expenses", icon: Repeat, href: "/restaurant-recurring-expenses", visible: vis("/restaurant-recurring-expenses") },
           // Migration 330. Poultry's row, title and icon.
           { id: "internal-use",   title: "Internal Use", icon: PackageMinus, href: "/restaurant-internal-use", visible: vis("/restaurant-internal-use") },
           { id: "payroll",        title: "Payroll",      icon: Banknote,   href: "/restaurant-payroll",  visible: vis("/restaurant-payroll") },

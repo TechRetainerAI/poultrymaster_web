@@ -17,8 +17,8 @@ const slate50 = Color(0xFFF8FAFC);
 const slate100 = Color(0xFFF1F5F9);
 const slate200 = Color(0xFFE2E8F0);
 const slate300 = Color(0xFFCBD5E1);
-const slate400 = Color(0xFF94A3B8);
-const slate500 = Color(0xFF64748B);
+const slate400 = Color(0xFF7F8EA3);  // a shade darker than Tailwind's, for legibility
+const slate500 = Color(0xFF566579);  // a shade darker than Tailwind's, for legibility
 const slate600 = Color(0xFF475569);
 const slate700 = Color(0xFF334155);
 const slate800 = Color(0xFF1E293B);
@@ -609,23 +609,32 @@ class ReportExportButtons extends StatelessWidget {
       ]);
 }
 
+/// Which of the web's three email dialogs this is:
+/// * [report]: `poultry-report-view.tsx` and Batch Production Summary;
+/// * [dashboard]: `poultry-dashboard-view.tsx` (every table on the view);
+/// * [shell]: `components/reports/report-shell.tsx`, which checks "at least
+///   one" and "which are invalid" separately.
+enum ReportEmailVariant { report, dashboard, shell }
+
 /// "Email “title”": recipients, comma separated; a PDF is generated and sent.
 Future<void> showReportEmailDialog(
   BuildContext context, {
   required ApiClient client,
   required ReportDocument Function() document,
   required String defaultRecipient,
+  ReportEmailVariant variant = ReportEmailVariant.report,
 }) =>
     showDialog<void>(
       context: context,
-      builder: (_) => _EmailDialog(client: client, document: document, defaultRecipient: defaultRecipient),
+      builder: (_) => _EmailDialog(client: client, document: document, defaultRecipient: defaultRecipient, variant: variant),
     );
 
 class _EmailDialog extends StatefulWidget {
-  const _EmailDialog({required this.client, required this.document, required this.defaultRecipient});
+  const _EmailDialog({required this.client, required this.document, required this.defaultRecipient, required this.variant});
   final ApiClient client;
   final ReportDocument Function() document;
   final String defaultRecipient;
+  final ReportEmailVariant variant;
 
   @override
   State<_EmailDialog> createState() => _EmailDialogState();
@@ -643,6 +652,18 @@ class _EmailDialogState extends State<_EmailDialog> {
 
   Future<void> _send() async {
     final messenger = ScaffoldMessenger.of(context);
+    if (widget.variant == ReportEmailVariant.shell) {
+      final all = _to.text.split(RegExp(r'[,;\n]')).map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+      if (all.isEmpty) {
+        messenger.showSnackBar(const SnackBar(content: Text('Enter at least one email')));
+        return;
+      }
+      final invalid = [for (final e in all) if (ReportExport.recipients(e) == null) e];
+      if (invalid.isNotEmpty) {
+        messenger.showSnackBar(SnackBar(content: Text('Invalid email address — ${invalid.join(', ')}')));
+        return;
+      }
+    }
     final list = ReportExport.recipients(_to.text);
     if (list == null) {
       messenger.showSnackBar(const SnackBar(content: Text('Enter a valid email address')));
@@ -670,8 +691,15 @@ class _EmailDialogState extends State<_EmailDialog> {
             const SizedBox(height: 4),
             AppInput(controller: _to, hintText: 'owner@example.com, accountant@example.com', keyboardType: TextInputType.emailAddress),
             const SizedBox(height: 6),
-            const Text('Separate multiple addresses with commas. A PDF of this report is generated and sent.',
-                style: TextStyle(fontSize: 12, color: slate500)),
+            Text(
+                switch (widget.variant) {
+                  ReportEmailVariant.report => 'Separate multiple addresses with commas. A PDF of this report is generated and sent.',
+                  ReportEmailVariant.dashboard =>
+                    'Separate multiple addresses with commas. A PDF of every table on this view is generated and sent.',
+                  ReportEmailVariant.shell =>
+                    'Separate multiple addresses with commas. A PDF of this report (current date range and filters) will be generated and sent to each recipient.',
+                },
+                style: const TextStyle(fontSize: 12, color: slate500)),
           ]),
           actions: [
             TextButton(onPressed: _sending ? null : () => Navigator.of(context).pop(), child: const Text('Cancel')),

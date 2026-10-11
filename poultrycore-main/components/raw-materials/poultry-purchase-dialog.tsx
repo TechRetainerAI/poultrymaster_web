@@ -1,6 +1,6 @@
 "use client"
 
-// The "Record purchase" form, lifted out of /poultry-raw-materials so Feed
+// The "Record purchase" form, lifted out of /poultry-supply-purchases so Feed
 // Production can raise the same dialog without navigating away from a
 // half-finished batch. One copy, one behaviour: whichever page opens it, the
 // purchase, its stock lot and its cash-out are recorded identically.

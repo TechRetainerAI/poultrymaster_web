@@ -670,6 +670,7 @@ class DashboardExportToolbar extends StatelessWidget {
         document: _doc,
         // The dashboards prefill the signed-in user, as the web does.
         defaultRecipient: reportUser(session) ?? '',
+        variant: ReportEmailVariant.dashboard,
       ),
     );
   }

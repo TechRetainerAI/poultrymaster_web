@@ -60,6 +60,8 @@ export interface Sale {
   totalAmount: number
   paymentMethod: string
   customerName: string
+  /** Link to the customer (migration 223); null for a walk-in. */
+  customerId?: number | null
   flockId: number
   saleDescription: string
   paid?: boolean
@@ -74,6 +76,16 @@ export interface Sale {
   /** Sale number shared by the lines of one multi-size sale (SG-00001). */
   saleGroupNo?: string | null
   createdDate: string
+  /** 351: Posted | Reversed. A sale posts when it is saved and is never edited afterwards. */
+  status?: "Posted" | "Reversed"
+  reversedAt?: string | null
+  reversedBy?: string | null
+  reversalReason?: string | null
+  saleReversalId?: number | null
+  /** On a corrected sale: the reversed sale it replaces. */
+  correctsSaleId?: number | null
+  /** On a reversed sale: the sale that corrected it. */
+  correctedBySaleId?: number | null
 }
 
 export interface SaleInput {
@@ -99,6 +111,8 @@ export interface SaleInput {
   /** Egg class (341): a sized egg product id, or 0 / null for Unsorted / General. */
   eggProductId?: number | null
   createdDate?: string
+  /** 351: Correct Sale -- the reversed sale this new one replaces. */
+  correctsSaleId?: number | null
 }
 
 // Expense types (already defined in expense.ts, but centralized here)

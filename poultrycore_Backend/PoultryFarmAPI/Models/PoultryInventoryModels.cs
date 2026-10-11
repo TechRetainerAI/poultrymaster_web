@@ -125,6 +125,23 @@ namespace PoultryFarmAPIWeb.Models
         /// </summary>
         public string? CostRecognitionStatus { get; set; }
 
+        // ---- purchase receipts (migration 345) ------------------------------
+
+        /// <summary>
+        /// True once the Purchase Receipt that created this lot was reversed. The
+        /// row stays in the history; it owes nothing and holds no stock. Read-only.
+        /// </summary>
+        public bool IsReversed { get; set; }
+        public DateTime? ReversedAt { get; set; }
+
+        /// <summary>
+        /// Set when the lot was received through Receive Purchase. Such a lot is
+        /// edited, deleted and reversed through its receipt, never on its own.
+        /// Read-only.
+        /// </summary>
+        public int? PoultryPurchaseReceiptId { get; set; }
+        public string? ReceiptNumber { get; set; }
+
         public string? CreatedBy { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }

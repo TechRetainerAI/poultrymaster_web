@@ -1,3 +1,41 @@
+import '../shared/account_screen.dart';
+import '../shared/activity_log_screen.dart';
+import '../shared/billing_screen.dart';
+import '../shared/help_screen.dart';
+import '../shared/resources_screen.dart';
+import '../shared/terms_screen.dart';
+import 'reports/profit_loss_screen.dart';
+import 'money/financial_activity_screen.dart';
+import 'money/cash_flow_screen.dart';
+import 'money/owner_money_screen.dart';
+import 'money/loans_screen.dart';
+import 'money/cash_accounts_screen.dart';
+import 'money/cash_transfers_screen.dart';
+import 'money/reconciliation_screen.dart';
+import 'expenses/assets_screen.dart';
+import 'expenses/deferred_costs_screen.dart';
+import 'expenses/supplier_payments_screen.dart';
+import 'expenses/employee_loans_screen.dart';
+import 'expenses/payroll_screen.dart';
+import 'delivery/deliveries_screen.dart';
+import 'delivery/driver_report_screen.dart';
+import 'expenses/expenses_screen.dart';
+import 'purchase/flock_batches_screen.dart';
+import 'purchase/raw_materials_screen.dart';
+import 'inventory/health_records_screen.dart';
+import 'production/batch_production_records_screen.dart';
+import 'production/egg_sorting_screen.dart';
+import 'production/feed_production_screen.dart';
+import 'production/feed_usage_screen.dart';
+import 'production/production_records_screen.dart';
+import 'inventory/inventory_screen.dart';
+import 'inventory/loss_records_screen.dart';
+import 'inventory/stock_movements_screen.dart';
+import 'expenses/internal_use_screen.dart';
+import 'sales/customer_balances_screen.dart';
+import 'sales/balances_logic.dart' show BalanceSide;
+import 'sales/payments_received_screen.dart';
+import 'sales/sales_screen.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../models/company.dart';
@@ -222,6 +260,14 @@ Widget _flockBatch(Session s, Company c, Map<String, dynamic>? e) =>
 
 /// Poultry routes that open a screen of their own (see PageScreenBuilder).
 const Map<String, PageScreenBuilder> poultryPageScreens = {
+  // Settings (the System menu).
+  '/profile': _account,
+  '/business-office/billing': _billing,
+  '/billing': _billing,
+  '/audit-logs': _activityLog,
+  '/resources': _resources,
+  '/help': _help,
+  '/terms': _terms,
   '/business-office/egg-pick-settings': _eggPicks,
   '/poultry-company-setup': _companySetup,
   '/poultry-financial-settings': _financialSettings,
@@ -231,7 +277,100 @@ const Map<String, PageScreenBuilder> poultryPageScreens = {
   '/poultry-feed-distribution': _feedDistribution,
   '/poultry-daily-closing': _dailyClosing,
   '/poultry-farm-setup': _initialFarmSetup,
+  '/sales': _sales,
+  '/poultry-payments': _payments,
+  '/customer-balances': _balances,
+  '/cash-flow': _cashFlow,
+  '/poultry-financial-activity': _financialActivity,
+  '/poultry-profit-loss': _profitLoss,
+  '/poultry-owner-money': _ownerMoney,
+  '/poultry-loans': _loans,
+  '/poultry-cash-accounts': _cashAccounts,
+  '/poultry-cash-transfers': _cashTransfers,
+  '/poultry-cash-reconciliation': _reconciliation,
+  '/poultry-assets': _assets,
+  '/poultry-deferred-costs': _deferredCosts,
+  '/supplier-balances': _supplierBalances,
+  '/supplier-payments': _supplierPayments,
+  '/poultry-employee-loans': _employeeLoans,
+  '/poultry-payroll': _payroll,
+  '/poultry-internal-use': _internalUse,
+  '/expenses': _expenses,
+  '/poultry-driver-returns': _deliveries,
+  '/poultry-driver-report': _driverReport,
+  '/flock-batch': _flockBatches,
+  '/poultry-raw-materials': _rawMaterials,
+  '/poultry-raw-materials?purchase=1': _recordPurchase,
+  '/poultry-inventory': _inventory,
+  '/poultry-stock': _stockMovements,
+  '/health': _health,
+  '/poultry-loss-records': _lossRecords,
+  '/production-records': _productionRecords,
+  '/batch-production-records': _batchProduction,
+  '/egg-production': _eggSorting,
+  '/feed-usage': _feedUsage,
+  '/poultry-feed-production': _feedProduction,
 };
+
+Widget _profitLoss(Session s, Company c) => ProfitLossScreen(session: s, company: c, page: true);
+
+Widget _ownerMoney(Session s, Company c) => OwnerMoneyScreen(session: s, company: c);
+
+Widget _loans(Session s, Company c) => LoansScreen(session: s, company: c);
+
+Widget _cashAccounts(Session s, Company c) => CashAccountsScreen(session: s, company: c);
+
+Widget _cashTransfers(Session s, Company c) => CashTransfersScreen(session: s, company: c);
+
+Widget _reconciliation(Session s, Company c) => ReconciliationScreen(session: s, company: c);
+
+Widget _assets(Session s, Company c) => AssetsScreen(session: s, company: c);
+
+Widget _deferredCosts(Session s, Company c) => DeferredCostsScreen(session: s, company: c);
+
+Widget _supplierBalances(Session s, Company c) => CustomerBalancesScreen(session: s, company: c, side: BalanceSide.supplier);
+
+Widget _supplierPayments(Session s, Company c) => SupplierPaymentsScreen(session: s, company: c);
+
+Widget _employeeLoans(Session s, Company c) => EmployeeLoansScreen(session: s, company: c);
+
+Widget _payroll(Session s, Company c) => PayrollScreen(session: s, company: c);
+
+Widget _internalUse(Session s, Company c) => InternalUseScreen(session: s, company: c);
+
+Widget _expenses(Session s, Company c) => ExpensesScreen(session: s, company: c);
+
+Widget _deliveries(Session s, Company c) => DeliveriesScreen(session: s, company: c);
+
+Widget _driverReport(Session s, Company c) => DriverReportScreen(session: s, company: c);
+
+Widget _flockBatches(Session s, Company c) => FlockBatchesScreen(session: s, company: c);
+
+Widget _rawMaterials(Session s, Company c) => RawMaterialsScreen(session: s, company: c);
+
+Widget _recordPurchase(Session s, Company c) => RawMaterialsScreen(session: s, company: c, openPurchase: true);
+
+Widget _inventory(Session s, Company c) => InventoryScreen(session: s, company: c);
+
+Widget _stockMovements(Session s, Company c) => StockMovementsScreen(session: s, company: c);
+
+Widget _health(Session s, Company c) => HealthRecordsScreen(session: s, company: c);
+
+Widget _lossRecords(Session s, Company c) => LossRecordsScreen(session: s, company: c);
+
+Widget _productionRecords(Session s, Company c) => ProductionRecordsScreen(session: s, company: c);
+Widget _batchProduction(Session s, Company c) => BatchProductionRecordsScreen(session: s, company: c);
+Widget _eggSorting(Session s, Company c) => EggSortingScreen(session: s, company: c);
+Widget _feedUsage(Session s, Company c) => FeedUsageScreen(session: s, company: c);
+Widget _feedProduction(Session s, Company c) => FeedProductionScreen(session: s, company: c);
+
+Widget _financialActivity(Session s, Company c) => FinancialActivityScreen(session: s, company: c);
+
+Widget _cashFlow(Session s, Company c) => CashFlowScreen(session: s, company: c);
+
+Widget _sales(Session s, Company c) => SalesScreen(session: s, company: c);
+Widget _payments(Session s, Company c) => PaymentsReceivedScreen(session: s, company: c);
+Widget _balances(Session s, Company c) => CustomerBalancesScreen(session: s, company: c);
 
 Widget _initialFarmSetup(Session s, Company c) => InitialFarmSetupScreen(session: s, company: c);
 
@@ -249,3 +388,10 @@ Widget _financialSettings(Session s, Company c) => FinancialSettingsScreen(sessi
 Widget _companySetup(Session s, Company c) => PoultryCompanySetupScreen(session: s, company: c);
 
 Widget _eggPicks(Session s, Company c) => EggPickSettingsScreen(session: s, company: c);
+
+Widget _account(Session s, Company c) => AccountScreen(session: s, company: c);
+Widget _billing(Session s, Company c) => BillingScreen(session: s, company: c);
+Widget _activityLog(Session s, Company c) => ActivityLogScreen(session: s, company: c);
+Widget _resources(Session s, Company c) => ResourcesScreen(session: s, company: c);
+Widget _help(Session s, Company c) => HelpCenterScreen(session: s, company: c);
+Widget _terms(Session s, Company c) => TermsScreen(session: s, company: c);

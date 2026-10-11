@@ -112,18 +112,72 @@ class PrimaryAction extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
-      height: 44, // h-11
+      height: 48,
       child: FilledButton.icon(
         onPressed: onPressed,
         icon: const Icon(Icons.add, size: 18),
         label: Text(label,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+            maxLines: 2,
+            textAlign: TextAlign.center,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, height: 1.15)),
         style: FilledButton.styleFrom(
           backgroundColor: _buttonColor(color),
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(Dim.radiusMd)),
         ),
+      ),
+    );
+  }
+}
+
+/// A page's second action ("Add Multiple Flocks", "Add Multiple
+/// Houses/Pens"): tinted in the page's colour with a solid border, so it reads
+/// as a button beside the primary one rather than as a blank box.
+class SecondaryAction extends StatelessWidget {
+  const SecondaryAction({
+    super.key,
+    required this.label,
+    required this.onPressed,
+    this.icon,
+    this.color,
+    this.busy = false,
+  });
+
+  final String label;
+  final VoidCallback? onPressed;
+  final IconData? icon;
+  final String? color;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = _buttonColor(color);
+    return SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: OutlinedButton(
+        onPressed: busy ? null : onPressed,
+        style: OutlinedButton.styleFrom(
+          backgroundColor: c.withValues(alpha: .08),
+          foregroundColor: c,
+          side: BorderSide(color: c.withValues(alpha: .55), width: 1.2),
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Dim.radiusMd)),
+        ),
+        child: busy
+            ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: c))
+            : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                if (icon != null) ...[Icon(icon, size: 18), const SizedBox(width: 6)],
+                Flexible(
+                  child: Text(label,
+                      maxLines: 2,
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, height: 1.15)),
+                ),
+              ]),
       ),
     );
   }
@@ -171,13 +225,14 @@ class ListActionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    // Wraps rather than running off a narrow phone (or large text) edge.
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
       children: [
         _Btn(icon: Icons.filter_list, label: 'Filters', onTap: onFilters),
-        const SizedBox(width: 8),
         // Labelled CSV rather than PDF: that is what the file actually is.
         _Btn(icon: Icons.download_outlined, label: 'CSV', onTap: onExport),
-        const SizedBox(width: 8),
         _Btn(icon: Icons.mail_outline, label: 'Email', onTap: onEmail),
       ],
     );

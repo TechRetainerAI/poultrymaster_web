@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:poultrycore_mobile/pages/lookup_loader.dart';
+import 'package:poultrycore_mobile/pages/module_registry.dart';
 import 'package:poultrycore_mobile/models/company.dart';
 import 'package:poultrycore_mobile/pages/poultry/reports/dashboard_screen.dart';
 import 'package:poultrycore_mobile/pages/poultry/reports/poultry_report_screen.dart';
@@ -361,6 +362,27 @@ void main() {
     final mail = utf8.decode(api.writes.lastWhere((w) => w.url.path == '/api/Email/Report').bodyBytes, allowMalformed: true);
     expect(mail, contains('boss@farm.com'));
     expect(find.text('Report sent. boss@farm.com'), findsOneWidget);
+  });
+
+  testWidgets('Money → Profit & Loss: page header, no back button, no letterhead', (tester) async {
+    expect(pageScreens.containsKey('/poultry-profit-loss'), isTrue);
+    final api = FakeApi()
+      ..gets['/api/Poultry/profit-loss'] = {
+        'totalRevenue': 1000, 'totalDirectCosts': 400, 'grossProfit': 600, 'totalOperatingExpenses': 100,
+        'operatingProfit': 500, 'totalOtherCosts': 0, 'netProfit': 500, 'status': 'Profit',
+        'lines': [
+          {'section': 'Revenue', 'lineKey': 'EggSales', 'lineLabel': 'Egg Sales', 'amount': 1000, 'sortOrder': 1},
+        ],
+      }
+      ..gets['/api/Poultry/profit-loss/expenses'] = [];
+    final c = Company(farmId: 'farm-1', name: 'Test Farm', type: CompanyType.poultry, email: 'boss@farm.com');
+    await open(tester, ProfitLossScreen(session: await sessionFor(api), company: c, page: true), size: phone);
+
+    expect(find.text('Did the business make money from its operations this period?'), findsOneWidget);
+    expect(find.text('Poultry reports'), findsNothing);
+    expect(find.text('TEST FARM'), findsNothing, reason: 'the Money page has no letterhead');
+    await _see(tester, find.text('NET PROFIT'));
+    expect(find.text('GHC 500.00'), findsWidgets);
   });
 
   group('dashboards', () {

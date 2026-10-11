@@ -287,6 +287,12 @@ namespace PoultryFarmAPIWeb.Business
             DeferredRemainingCost = HasColumn(r, "DeferredRemainingCost") && !r.IsDBNull(r.GetOrdinal("DeferredRemainingCost")) ? r.GetDecimal(r.GetOrdinal("DeferredRemainingCost")) : 0m,
             DeferredUnitCost = HasColumn(r, "DeferredUnitCost") && !r.IsDBNull(r.GetOrdinal("DeferredUnitCost")) ? r.GetDecimal(r.GetOrdinal("DeferredUnitCost")) : (decimal?)null,
             CostRecognitionStatus = HasColumn(r, "CostRecognitionStatus") && !r.IsDBNull(r.GetOrdinal("CostRecognitionStatus")) ? r.GetString(r.GetOrdinal("CostRecognitionStatus")) : null,
+            // 345. Guarded the same way: before the migration every lot is an
+            // ordinary, unreversed purchase.
+            IsReversed = HasColumn(r, "IsReversed") && !r.IsDBNull(r.GetOrdinal("IsReversed")) && r.GetBoolean(r.GetOrdinal("IsReversed")),
+            ReversedAt = HasColumn(r, "ReversedAt") && !r.IsDBNull(r.GetOrdinal("ReversedAt")) ? r.GetDateTime(r.GetOrdinal("ReversedAt")) : null,
+            PoultryPurchaseReceiptId = HasColumn(r, "PoultryPurchaseReceiptId") && !r.IsDBNull(r.GetOrdinal("PoultryPurchaseReceiptId")) ? r.GetInt32(r.GetOrdinal("PoultryPurchaseReceiptId")) : null,
+            ReceiptNumber = HasColumn(r, "ReceiptNumber") && !r.IsDBNull(r.GetOrdinal("ReceiptNumber")) ? r.GetString(r.GetOrdinal("ReceiptNumber")) : null,
             CreatedBy = r.IsDBNull(r.GetOrdinal("CreatedBy")) ? null : r.GetString(r.GetOrdinal("CreatedBy")),
             CreatedAt = r.GetDateTime(r.GetOrdinal("CreatedAt")),
             UpdatedAt = r.IsDBNull(r.GetOrdinal("UpdatedAt")) ? null : r.GetDateTime(r.GetOrdinal("UpdatedAt")),
@@ -385,9 +391,49 @@ namespace PoultryFarmAPIWeb.Business
                     "This stock lot was created by a feed production batch and can't be changed here. Reverse the batch instead.");
         }
 
+        // 345. Same idea for a lot received through Receive Purchase: the receipt
+        // owns its quantity, cost, supplier and payment, so the lot is changed by
+        // reversing the receipt. The database refuses it too (the receipt-line
+        // FK and trg_poultryrmpurchase_receiptlock); this only turns the refusal
+        // into a sentence before anything is attempted. Paying the balance stays
+        // allowed -- that is an ordinary supplier payment -- unless the receipt
+        // was reversed, in which case there is nothing left to owe.
+        private async Task GuardNotReceiptLotAsync(int id, string farmId, bool allowPayment)
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand(@"
+                SELECT r.receiptnumber, (pu.reversedat IS NOT NULL) AS reversed
+                FROM   poultryrawmaterialpurchases pu
+                LEFT   JOIN poultrypurchasereceiptlines rl ON rl.poultryrawmaterialpurchaseid = pu.poultryrawmaterialpurchaseid
+                LEFT   JOIN poultrypurchasereceipts r      ON r.poultrypurchasereceiptid = rl.poultrypurchasereceiptid
+                WHERE  pu.poultryrawmaterialpurchaseid = @Id AND pu.farmid = @FarmId", conn);
+            cmd.Parameters.AddWithValue("@Id", id);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await conn.OpenAsync();
+            try
+            {
+                using var r = await cmd.ExecuteReaderAsync();
+                if (!await r.ReadAsync()) return;
+                var receipt = r.IsDBNull(0) ? null : r.GetString(0);
+                var reversed = !r.IsDBNull(1) && r.GetBoolean(1);
+                if (reversed)
+                    throw new InvalidOperationException(
+                        $"This purchase was reversed{(receipt is null ? "" : $" with receipt {receipt}")} and can no longer be changed or paid.");
+                if (receipt is not null && !allowPayment)
+                    throw new InvalidOperationException(
+                        $"This stock lot belongs to purchase receipt {receipt}. Open the receipt to reverse it; it can't be edited or deleted on its own.");
+            }
+            catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UndefinedTable
+                                            || ex.SqlState == PostgresErrorCodes.UndefinedColumn)
+            {
+                // Database not yet on 345: no receipts can exist.
+            }
+        }
+
         public async Task UpdateAsync(PoultryRawMaterialPurchaseModel m)
         {
             await GuardNotFeedProductionLotAsync(m.PoultryRawMaterialPurchaseId, m.FarmId);
+            await GuardNotReceiptLotAsync(m.PoultryRawMaterialPurchaseId, m.FarmId, allowPayment: false);
             using var conn = new NpgsqlConnection(_cs);
             using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryrawmaterialpurchase_update(p_poultryrawmaterialpurchaseid => @PoultryRawMaterialPurchaseId::int, p_farmid => @FarmId::text, p_suppliername => @SupplierName::text, p_supplierid => @SupplierId::int, p_purchasedate => @PurchaseDate::timestamp, p_quantity => @Quantity::numeric, p_unitcost => @UnitCost::numeric, p_totalcost => @TotalCost::numeric, p_productionunit => @ProductionUnit::text, p_productionunitsperpurchaseunit => @ProductionUnitsPerPurchaseUnit::numeric, p_paymentmethod => @PaymentMethod::text, p_amountpaid => @AmountPaid::numeric, p_receipturl => @ReceiptUrl::text, p_notes => @Notes::text)", conn);
             cmd.Parameters.AddWithValue("@PoultryRawMaterialPurchaseId", m.PoultryRawMaterialPurchaseId);
@@ -413,6 +459,7 @@ namespace PoultryFarmAPIWeb.Business
         public async Task DeleteAsync(int id, string farmId)
         {
             await GuardNotFeedProductionLotAsync(id, farmId);
+            await GuardNotReceiptLotAsync(id, farmId, allowPayment: false);
             using (var conn = new NpgsqlConnection(_cs))
             using (var cmd = new NpgsqlCommand("SELECT * FROM sppoultryrawmaterialpurchase_delete(p_poultryrawmaterialpurchaseid => @PoultryRawMaterialPurchaseId::int, p_farmid => @FarmId::text)", conn))
             {
@@ -428,6 +475,7 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<decimal> PayBalanceAsync(int id, string farmId, decimal amount, string? paymentMethod, DateTime? paymentDate, string? createdBy)
         {
             await GuardNotFeedProductionLotAsync(id, farmId);
+            await GuardNotReceiptLotAsync(id, farmId, allowPayment: true);
             decimal balance;
             using (var conn = new NpgsqlConnection(_cs))
             using (var cmd = new NpgsqlCommand("SELECT * FROM sppoultryrawmaterialpurchase_paybalance(p_poultryrawmaterialpurchaseid => @PoultryRawMaterialPurchaseId::int, p_farmid => @FarmId::text, p_amount => @Amount::numeric, p_paymentmethod => @PaymentMethod::text, p_paymentdate => @PaymentDate::timestamp, p_createdby => @CreatedBy::text)", conn))

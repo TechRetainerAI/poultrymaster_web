@@ -20,7 +20,7 @@ export default function WaterSupplierPaymentsPage() {
         return accounts.map((a) => ({ id: a.waterCashAccountId, name: a.accountName }))
       }}
       partyHref={() => "/water-suppliers"}
-      documentHref={(a) => `/water-raw-materials?tab=purchases&purchaseId=${a.documentId}`}
+      documentHref={(a) => `/water-supply-purchases?tab=purchases&purchaseId=${a.documentId}`}
       permissions={{
         view: "water.supplier-balances.view",
         reverse: "water.supplier-payments.reverse",

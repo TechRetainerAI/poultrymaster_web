@@ -11,7 +11,7 @@ import { feedItemKind, productionQty, type FeedItemKind } from "@/lib/utils/feed
  *
  * This used to read its incoming side from the legacy Supplies table
  * (`/supplies`), filtering for a type containing "feed". Feed is actually bought
- * on /poultry-raw-materials, which writes poultryrawmaterialpurchases. Those are
+ * on /poultry-supply-purchases, which writes poultryrawmaterialpurchases. Those are
  * two unconnected inventory systems, and Supplies has never held a single feed
  * row on this database — so the IN side was permanently zero and every farm
  * showed a negative balance equal to its total usage. Measured before the
@@ -20,7 +20,7 @@ import { feedItemKind, productionQty, type FeedItemKind } from "@/lib/utils/feed
  *
  * The ledger now uses the same three movements that maintain
  * poultryrawmaterialitems.currentquantity, so the balance here and the stock on
- * /poultry-raw-materials are the same number by construction:
+ * /poultry-supply-purchases are the same number by construction:
  *
  *     purchases  -  usage  +  adjustments  =  current quantity
  *
@@ -178,7 +178,7 @@ export interface FeedStockLedgerInput {
   items: PoultryRawMaterialItem[]
   purchases: PoultryRawMaterialPurchase[]
   usages: PoultryRawMaterialUsage[]
-  /** Stock movements from /poultry-raw-materials (reversals, manual corrections). */
+  /** Stock movements from /poultry-supply-purchases (reversals, manual corrections). */
   adjustments: PoultryRawMaterialAdjustment[]
   /** Corrections entered on this page itself. Unused on the live data so far. */
   manualAdjustments?: FeedInventoryAdjustmentLedgerInput[]

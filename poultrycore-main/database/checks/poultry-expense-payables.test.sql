@@ -1,3 +1,10 @@
+-- SELF-CONTAINED (added 2026-10-07): this file now opens its own transaction and
+-- ROLLS IT BACK, so running it on its own can never commit its fixtures -- two of
+-- these files write to REAL companies (a fixed farm id / the first poultry farm).
+-- The apply scripts strip BEGIN;/ROLLBACK; lines when they bundle it, so their
+-- dry runs are unchanged. Do not remove these two lines.
+BEGIN;
+
 -- Behavioural checks for migration 238/239: expenses as payable documents.
 --
 -- Same shape as poultry-supplier-balances.test.sql -- one DO block, a NOTICE per
@@ -296,3 +303,5 @@ BEGIN
     RAISE NOTICE '--- done. ROLL BACK this transaction. ---';
 END
 $t$;
+
+ROLLBACK;

@@ -19,6 +19,12 @@ class Env {
       ? 'https://poultrymaster-farm-api-git-t6tn7geswq-ew.a.run.app'
       : 'https://poultrymaster-farm-api-dev-t6tn7geswq-ew.a.run.app';
 
+  /// The web portal: in-app web pages, and its own routes such as
+  /// `/api/receipt-upload` and `/api/receipt-file/...`.
+  static String get webBase => isProd
+      ? 'https://www.visibilitycore.com'
+      : 'https://poultrymaster-web-dev-t6tn7geswq-ew.a.run.app';
+
   /// Shown in the UI so a tester is never unsure which data they are looking at.
   static String get banner => isProd ? 'PRODUCTION' : 'DEV';
 }

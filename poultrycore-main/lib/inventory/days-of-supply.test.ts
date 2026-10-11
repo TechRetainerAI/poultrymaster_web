@@ -76,7 +76,7 @@ describe("units and actions", () => {
   })
 
   it("links Restock to the purchase dialog with the item chosen", () => {
-    expect(restockHref(7)).toBe("/poultry-raw-materials?purchase=1&itemId=7")
+    expect(restockHref(7)).toBe("/poultry-supply-purchases?purchase=1&itemId=7")
   })
 
   it("knows which states ask for action", () => {

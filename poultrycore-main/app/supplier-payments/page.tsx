@@ -30,7 +30,7 @@ export default function SupplierPaymentsPage() {
             // rather than on the whole list.
             return `/expenses?expenseId=${a.documentId}`
           default:
-            return `/poultry-raw-materials?tab=purchases&purchaseId=${a.documentId}`
+            return `/poultry-supply-purchases?tab=purchases&purchaseId=${a.documentId}`
         }
       }}
       permissions={{

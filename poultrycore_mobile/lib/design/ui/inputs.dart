@@ -231,14 +231,17 @@ class AppSelect<T> extends StatelessWidget {
       onChanged: enabled ? onChanged : null,
       hint: Text(hintText,
           style: TextStyle(fontSize: 14, color: tokens.mutedForeground)),
-      icon: Icon(Icons.keyboard_arrow_down, size: 18, color: tokens.mutedForeground),
-      style: TextStyle(fontSize: 14, color: tokens.cardForeground),
+      // A bold chevron in the foreground colour, so the field reads as a
+      // dropdown rather than a plain text box.
+      icon: Icon(Icons.expand_more_rounded, size: 22, color: tokens.cardForeground),
+      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: tokens.cardForeground),
       dropdownColor: tokens.card,
       borderRadius: BorderRadius.circular(Dim.radiusMd),
       items: [
         for (final item in items)
           DropdownMenuItem<T>(
             value: item.value,
+            enabled: item.enabled,
             child: Text(item.label,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontSize: 14)),
@@ -249,9 +252,12 @@ class AppSelect<T> extends StatelessWidget {
 }
 
 class AppSelectItem<T> {
-  const AppSelectItem({required this.value, required this.label});
+  const AppSelectItem({required this.value, required this.label, this.enabled = true});
   final T value;
   final String label;
+
+  /// Listed but not pickable, as a web `<SelectItem disabled>`.
+  final bool enabled;
 }
 
 /// Date field — opens the platform picker and renders as a normal input.
@@ -297,12 +303,13 @@ class AppDateField extends StatelessWidget {
       child: InputDecorator(
         decoration: InputDecoration(
           suffixIcon: Icon(Icons.calendar_today_outlined,
-              size: 16, color: tokens.mutedForeground),
+              size: 18, color: tokens.cardForeground),
         ),
         child: Text(
           value == null ? hintText : format(value!),
           style: TextStyle(
             fontSize: 14,
+            fontWeight: value == null ? FontWeight.w400 : FontWeight.w500,
             color: value == null ? tokens.mutedForeground : tokens.cardForeground,
           ),
         ),

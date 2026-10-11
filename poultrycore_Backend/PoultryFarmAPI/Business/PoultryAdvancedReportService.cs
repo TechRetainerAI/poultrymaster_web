@@ -1022,7 +1022,9 @@ namespace PoultryFarmAPIWeb.Business
                 PreviousMoneyIn = prev.In,
                 PreviousMoneyOut = prev.Out,
                 PreviousNetCashFlow = prev.In - prev.Out,
-                OperatingIn  = real.Where(x => x.FlowGroup == "OperatingIn").Sum(x => x.Inflow),
+                // Net of payment reversals and refunds (351: contra-sales rows
+                // are OperatingIn with a negative amount).
+                OperatingIn  = real.Where(x => x.FlowGroup == "OperatingIn").Sum(x => x.Inflow - x.Outflow),
                 OperatingOut = real.Where(x => x.FlowGroup == "OperatingOut").Sum(x => x.Outflow),
                 FinancingIn  = real.Where(x => x.FlowGroup == "FinancingIn").Sum(x => x.Inflow),
                 FinancingOut = real.Where(x => x.FlowGroup == "FinancingOut").Sum(x => x.Outflow),

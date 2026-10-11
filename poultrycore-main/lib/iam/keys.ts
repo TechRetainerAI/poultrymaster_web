@@ -69,6 +69,11 @@ export const LEGACY_PERMISSION_MAP: Record<StaffFeaturePermissionKey, Permission
     ...everyModule("supplier-balances", ["view"]),
     ...everyModule("supplier-payments", ["create"]),
     ...everyModule("supplier-statements", ["view"]),
+    // Receive Purchase (345) is buying stock and, usually, paying the supplier
+    // for it in the same step -- the two things this flag already allows.
+    // Reversing a receipt (.approve) is deliberately NOT here: it unwinds stock,
+    // cash and the payable at once, so it needs an explicit IAM grant.
+    "poultry.purchase-receipts.view", "poultry.purchase-receipts.create",
   ],
 
   canViewCashLedger: [
