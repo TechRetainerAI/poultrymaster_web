@@ -122,6 +122,46 @@ builder.Services.AddScoped<IFlockCloseoutService>(sp => new FlockCloseoutService
 // Audit logs service
 builder.Services.AddScoped<IAuditLogService>(sp => new AuditLogService(connectionString));
 
+// Platform activity analytics foundation (migration 346) — normalized
+// cross-company usage events + the aggregation service behind the
+// platform-admin analytics API. Thresholds come from the PlatformActivity
+// appsettings section (centralized; the UI never hardcodes them).
+var platformActivityOptions =
+    builder.Configuration.GetSection(PlatformActivityOptions.Section).Get<PlatformActivityOptions>()
+    ?? new PlatformActivityOptions();
+builder.Services.AddSingleton(platformActivityOptions);
+// Customer Health Engine thresholds (Prompt 3) — centralized, configurable.
+var platformHealthOptions =
+    builder.Configuration.GetSection(PlatformHealthOptions.Section).Get<PlatformHealthOptions>()
+    ?? new PlatformHealthOptions();
+builder.Services.AddSingleton(platformHealthOptions);
+builder.Services.AddScoped<IPlatformActivityService>(sp => new PlatformActivityService(
+    connectionString, platformActivityOptions,
+    sp.GetRequiredService<ILogger<PlatformActivityService>>(), platformHealthOptions));
+// Needs Attention workflow (migration 348).
+builder.Services.AddScoped<IPlatformHealthService>(sp => new CustomerHealthService(
+    connectionString, sp.GetRequiredService<IPlatformActivityService>(), platformHealthOptions,
+    sp.GetRequiredService<ILogger<CustomerHealthService>>()));
+// Onboarding / activation / adoption / retention analytics (migration 349).
+builder.Services.AddScoped<IPlatformAnalyticsService>(sp => new PlatformAnalyticsService(
+    connectionString, sp.GetRequiredService<IPlatformActivityService>()));
+// Customer Success CRM: 360 timelines, notes, feedback, cancellations (migration 350).
+builder.Services.AddScoped<ICustomerCrmService>(sp => new CustomerCrmService(connectionString));
+// Platform operations: errors/security/flags/releases/health + briefs (migration 352).
+builder.Services.AddScoped<IPlatformOpsService>(sp => new PlatformOpsService(
+    connectionString, sp.GetRequiredService<IPlatformActivityService>(),
+    sp.GetRequiredService<ILogger<PlatformOpsService>>()));
+builder.Services.AddScoped<IPlatformBriefService>(sp => new PlatformBriefService(
+    connectionString, sp.GetRequiredService<IPlatformActivityService>(),
+    sp.GetRequiredService<IPlatformHealthService>(), sp.GetRequiredService<IPlatformAnalyticsService>(),
+    sp.GetRequiredService<IPlatformRevenueService>(), sp.GetRequiredService<IPlatformOpsService>()));
+
+// Revenue intelligence over the authoritative billing engine (migration 351).
+builder.Services.AddScoped<IPlatformRevenueService>(sp => new PlatformRevenueService(
+    connectionString, sp.GetRequiredService<IPlatformBillingService>(),
+    sp.GetRequiredService<IPlatformActivityService>(), platformHealthOptions,
+    sp.GetRequiredService<ILogger<PlatformRevenueService>>()));
+
 // Identity & Access Management — migration 199. Read-only in phase 0; also the
 // service RequirePermissionAttribute resolves once enforcement lands (phase 3).
 builder.Services.AddScoped<IIamService>(sp => new IamService(connectionString));
@@ -754,5 +794,22 @@ app.UseAuthorization();
 
 app.MapControllers();
 app.MapHub<PoultryFarmAPIWeb.Hubs.ChatHub>("/hubs/chat");
+
+// PROMPT 7: register the running release (Cloud Run revision) so release
+// tracking uses real deployment identity — nothing is invented when absent.
+{
+    var releaseVersion = Environment.GetEnvironmentVariable("K_REVISION")
+        ?? System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString();
+    if (!string.IsNullOrWhiteSpace(releaseVersion))
+    {
+        using var scope = app.Services.CreateScope();
+        try
+        {
+            await scope.ServiceProvider.GetRequiredService<IPlatformOpsService>()
+                .RegisterReleaseAsync("farm-api", releaseVersion);
+        }
+        catch { /* release registration must never block startup */ }
+    }
+}
 
 app.Run();
