@@ -55,7 +55,7 @@ export function DashboardHeader() {
     { path: '/inventory', keywords: ['inventory', 'stock', 'items'] },
     { path: '/supplies', keywords: ['supplies', 'supply', 'materials'] },
     { path: '/production-records', keywords: ['production', 'records', 'production records'] },
-    { path: '/egg-production', keywords: ['egg sorting', 'egg collection', 'egg production', 'eggs', 'egg'] },
+    { path: '/poultry-egg-sorting', keywords: ['egg sorting', 'sort eggs', 'egg sizes', 'egg grading', 'eggs', 'egg'] },
     { path: '/egg-tracker', keywords: ['egg tracker', 'egg inventory', 'egg ledger', 'eggs at hand'] },
     { path: '/feed-tracker', keywords: ['feed at hand', 'feed tracker', 'feed analytics', 'feed consumption', 'finished feed'] },
     { path: '/feed-ingredient-tracker', keywords: ['ingredients tracker', 'ingredients at hand', 'feed ingredients', 'maize soya stock', 'raw feed materials'] },

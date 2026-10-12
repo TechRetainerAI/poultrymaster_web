@@ -106,7 +106,9 @@ export function buildPoultryNavConfig(
       // Production Records and Feed Usage from everyone.
       items: ([
         { href: "/production-records",    label: "Production Records", icon: Factory },
-        { href: "/egg-production",        label: "Egg sorting",        icon: Egg },
+        // The Egg Sorting Workspace. The legacy /egg-production page is hidden
+        // from the menus; its URL still works for old bookmarks.
+        { href: "/poultry-egg-sorting",   label: "Egg sorting",        icon: Egg },
         // Ungated, like the production rows above it and like its own row in
         // Operations > Purchase. money() is a default-DENY allow-list, so
         // sending a non-financial page through it hides it from everyone.
@@ -145,12 +147,12 @@ export function buildPoultryNavConfig(
         items: [
           { id: "production-records", title: "Production Records", icon: FileText, href: "/production-records" },
           { id: "batch-production",   title: "Batch Production",   icon: Boxes,    href: "/batch-production-records" },
-          { id: "egg-sorting",        title: "Egg sorting",        icon: Egg,      href: "/egg-production" },
           // Egg Sorting Workspace (341-343): sorts Unsorted egg stock into
-          // sizes, by pick or all at once. Beside the legacy page above, which
-          // is unchanged. Ungated like the rows around it; the API gates on
+          // sizes, by pick or all at once. The legacy "Egg sorting" row
+          // (/egg-production) is hidden from the menus; the page itself is
+          // unchanged. Ungated like the rows around it; the API gates on
           // poultry.egg-sorting.
-          { id: "egg-sorting-workspace", title: "Egg Sorting Workspace", icon: Egg, href: "/poultry-egg-sorting" },
+          { id: "egg-sorting-workspace", title: "Egg Sorting", icon: Egg, href: "/poultry-egg-sorting" },
           { id: "feed-usage",        title: "Feed Usage",         icon: Package,  href: "/feed-usage" },
           // Producing finished feed from ingredients is a production activity.
           // The formula behind it is a recipe you maintain, so it lives in
@@ -233,6 +235,11 @@ export function buildPoultryNavConfig(
         label: "Expenses",
         items: [
           { id: "expenses",      title: "Expenses",     icon: DollarSign, href: "/expenses",               visible: money("/expenses") },
+          // Right under Expenses: paying a bill and seeing what is still owed are
+          // the next things done after recording one. The payables mirror of
+          // the two Sales rows.
+          { id: "supplier-payments", title: "Supplier Payments", icon: Receipt, href: "/supplier-payments", visible: money("/supplier-payments") },
+          { id: "supplier-balances", title: "Supplier Balances", icon: Truck, href: "/supplier-balances", visible: money("/supplier-balances") },
           // 348. Rent, security, internet ... raised as drafts when due. Same gate as Expenses.
           { id: "recurring-expenses", title: "Recurring Expenses", icon: Repeat, href: "/recurring-expenses", visible: money("/expenses") },
           // Moved here from Operations > Inventory & Health. Stock the farm
@@ -250,10 +257,6 @@ export function buildPoultryNavConfig(
           // can equally be repaid in cash, and exists whether or not the
           // worker is on any payroll run. Migrations 305/306.
           { id: "employee-loans", title: "Employee Loans & Advances", icon: HandCoins, href: "/poultry-employee-loans", visible: money("/poultry-employee-loans") },
-          // The payables mirror of the two Sales rows: what we owe, and what
-          // we've paid against it.
-          { id: "supplier-payments", title: "Supplier Payments", icon: Receipt, href: "/supplier-payments", visible: money("/supplier-payments") },
-          { id: "supplier-balances", title: "Supplier Balances", icon: Truck, href: "/supplier-balances", visible: money("/supplier-balances") },
           // Migration 288. Sits with Expenses because that is what it is about:
           // stock cost that has NOT become an expense yet. It is deliberately
           // not under Inventory -- an owner asking "why is my feed bill low

@@ -21,6 +21,8 @@ export interface ProductionDay {
   left: number
   status: PickStatus
   picks: EggSortingPick[]
+  /** Eggs of this day already sold or used straight from Unsorted. 0 unless capToSortable set it. */
+  soldUnsorted?: number
 }
 
 export const LOSS_TYPES: { key: Exclude<SortingLineType, "SizedOutput">; label: string }[] = [
@@ -74,6 +76,51 @@ export function groupProductionDays(rows: EggSortingPick[]): ProductionDay[] {
   for (const d of byRecord.values()) d.picks.sort((a, b) => a.pickNumber - b.pickNumber)
   return [...byRecord.values()].sort((a, b) =>
     a.productionDate === b.productionDate ? a.flockName.localeCompare(b.flockName) : b.productionDate.localeCompare(a.productionDate))
+}
+
+/**
+ * What each open production record can REALLY still be sorted into, once the
+ * eggs sold or used straight from Unsorted are taken off.
+ *
+ * Production left (saleable - sorted) only says what was never sorted; an
+ * unsorted sale also takes eggs off the shelf, and posting refuses to sort
+ * more than Unsorted holds. The ledger does not say which day a sold egg came
+ * from, so the shortfall is taken from the OLDEST days first (date, then
+ * record) -- the eggs that go first, and the same order Sort All uses.
+ *
+ * `openDays` must hold every record with eggs left up to the business date
+ * (from the summary's oldest-left date), or the shortfall lands on the wrong
+ * days. Returns recordId -> sortable eggs, for open records only.
+ */
+export function sortableByRecord(openDays: ProductionDay[], unsortedOnHand: number): Map<number, number> {
+  const open = openDays.filter((d) => d.left > 0)
+    .sort((a, b) => a.productionDate.localeCompare(b.productionDate) || a.productionRecordId - b.productionRecordId)
+  const totalLeft = open.reduce((s, d) => s + d.left, 0)
+  let gone = Math.max(0, totalLeft - Math.max(0, Math.trunc(unsortedOnHand)))
+  const out = new Map<number, number>()
+  for (const d of open) {
+    const take = Math.min(gone, d.left)
+    gone -= take
+    out.set(d.productionRecordId, d.left - take)
+  }
+  return out
+}
+
+/**
+ * The day as it can actually be sorted: `left` and each pick's `available`
+ * cut down to `sortable` (earliest pick first), the cut kept in soldUnsorted.
+ * Undefined (a record that is not open) or enough eggs: the day unchanged.
+ */
+export function capToSortable(day: ProductionDay, sortable: number | undefined): ProductionDay {
+  if (sortable == null || sortable >= day.left) return day
+  let sold = day.left - Math.max(0, sortable)
+  const picks = day.picks.map((p) => {
+    const take = Math.min(sold, Math.max(0, p.available))
+    sold -= take
+    return take ? { ...p, available: p.available - take } : p
+  })
+  const left = Math.max(0, sortable)
+  return { ...day, picks, left, soldUnsorted: day.left - left, status: statusOf(day.sorted, left) }
 }
 
 /** What a pick can still give, shown on its row. */

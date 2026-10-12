@@ -71,7 +71,7 @@ export default function EggSortingSettingsPage() {
                   </p>
                 </div>
               </div>
-              <Button variant="outline" size="sm" asChild><Link href="/poultry-egg-sorting">Open Egg Sorting Workspace</Link></Button>
+              <Button variant="outline" size="sm" asChild><Link href="/poultry-egg-sorting">Open Egg Sorting</Link></Button>
             </div>
 
             {error && <Card className="border-rose-200 bg-rose-50"><CardContent className="p-4 text-sm text-rose-800">{error}</CardContent></Card>}

@@ -118,6 +118,8 @@ export function buildHotelNavConfig({ permissions }: HotelNavDeps): HotelNavConf
         label: "Expenses",
         items: [
           { id: "expenses",       title: "Expenses", icon: DollarSign, href: "/hotel-expenses", visible: vis("/hotel-expenses") },
+          { id: "supplier-payments", title: "Supplier Payments", icon: Receipt, href: "/hotel-supplier-payments", visible: vis("/hotel-supplier-payments") },
+          { id: "supplier-balances", title: "Supplier Balances", icon: Truck, href: "/hotel-supplier-balances", visible: vis("/hotel-supplier-balances") },
           // 348. Shared recurring-expense engine; drafts post into Hotel Expenses for approval.
           { id: "recurring-expenses", title: "Recurring Expenses", icon: Repeat, href: "/hotel-recurring-expenses", visible: vis("/hotel-expenses") },
           { id: "internal-use",   title: "Internal Use", icon: PackageMinus, href: "/hotel-internal-use", visible: vis("/hotel-internal-use") },
@@ -126,8 +128,6 @@ export function buildHotelNavConfig({ permissions }: HotelNavDeps): HotelNavConf
           // below Payroll, because payroll deduction is how most advances are
           // repaid.
           { id: "employee-loans", title: "Employee Loans & Advances", icon: HandCoins, href: "/hotel-employee-loans", visible: vis("/hotel-employee-loans") },
-          { id: "supplier-payments", title: "Supplier Payments", icon: Receipt, href: "/hotel-supplier-payments", visible: vis("/hotel-supplier-payments") },
-          { id: "supplier-balances", title: "Supplier Balances", icon: Truck, href: "/hotel-supplier-balances", visible: vis("/hotel-supplier-balances") },
           { id: "deferred-costs", title: "Deferred inventory cost", icon: Hourglass, href: "/hotel-deferred-costs", visible: vis("/hotel-deferred-costs") },
           { id: "assets", title: "Capital Investments/Assets", icon: Building2, href: "/hotel-assets", visible: vis("/hotel-assets") },
         ],

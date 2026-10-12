@@ -129,7 +129,7 @@ export function EggClassLedger() {
       <Card className="bg-white">
         <CardHeader className="pb-2">
           <div className="flex flex-wrap items-start justify-between gap-2">
-            <CardTitle className="text-base">Egg stock by class</CardTitle>
+            <CardTitle className="text-base">Egg Stock By Category</CardTitle>
             {canAdjust && (
               <Button size="sm" variant="outline" onClick={() => { setAdjClass(""); setAdjKind("Breakage"); setAdjQty(""); setAdjReason(""); setAdjOpen(true) }}>
                 <PackageMinus className="mr-1.5 h-4 w-4" /> Record loss / adjustment
@@ -137,7 +137,7 @@ export function EggClassLedger() {
             )}
           </div>
           <CardDescription>
-            Production adds to Unsorted. The <Link href="/poultry-egg-sorting" className="text-amber-700 underline">Egg Sorting Workspace</Link> moves
+            Production adds to Unsorted. <Link href="/poultry-egg-sorting" className="text-amber-700 underline">Egg Sorting</Link> moves
             Unsorted eggs into sizes; sales and internal use take from the class they name.
           </CardDescription>
         </CardHeader>

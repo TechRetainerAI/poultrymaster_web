@@ -70,7 +70,7 @@ export function EggClassSelect({
           ))}
         </SelectContent>
       </Select>
-      <p className="text-xs text-slate-500">Stock comes out of this class only. Sizes come from the Egg Sorting Workspace.</p>
+      <p className="text-xs text-slate-500">Stock comes out of this class only. Sizes come from Egg Sorting.</p>
     </div>
   )
 }
@@ -83,13 +83,24 @@ export interface ExtraEggLine {
   unitPrice: number
   /** Editing: the sale row this line already is. Absent on a new line. */
   saleId?: number
+  /** New sale "Items" table: any product. Absent = eggs (the older egg-only lines). */
+  product?: string
+  /** Units sold when the product is not eggs (eggs use crates + loose). */
+  quantity?: number
 }
+
+export const extraLineIsEggs = (l: ExtraEggLine) => l.product == null || l.product.toLowerCase().includes("egg")
 
 export const extraLineEggs = (l: ExtraEggLine) => l.crates * EGGS_PER_CRATE + l.loose
 
-/** Same pricing as the main line: per crate, loose eggs pro rata. */
+/** What the line sells: eggs for an egg line, else its quantity. */
+export const extraLineQuantity = (l: ExtraEggLine) => (extraLineIsEggs(l) ? extraLineEggs(l) : Number(l.quantity) || 0)
+
+/** Same pricing as the main line: eggs per crate (loose pro rata), else quantity x price. */
 export const extraLineTotal = (l: ExtraEggLine) =>
-  Math.round(((extraLineEggs(l) / EGGS_PER_CRATE) * l.unitPrice) * 100) / 100
+  extraLineIsEggs(l)
+    ? Math.round(((extraLineEggs(l) / EGGS_PER_CRATE) * l.unitPrice) * 100) / 100
+    : Math.round((Number(l.quantity) || 0) * l.unitPrice * 100) / 100
 
 export function ExtraEggLines({
   classes, lines, onChange, mainEggs, mainClass, returned,
@@ -178,6 +189,7 @@ export function ExtraEggLines({
 
 /** Any extra line asking for more than its class holds (after the lines above it). */
 export function extraLinesShort(classes: EggClass[], lines: ExtraEggLine[], mainEggs: number, mainClass: number | null, returned?: ReturnedEggs): boolean {
+  lines = lines.filter(extraLineIsEggs)
   return lines.some((l, idx) => {
     const cls = classFor(classes, l.eggProductId)
     const used = (mainClass === l.eggProductId ? mainEggs : 0)

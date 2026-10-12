@@ -12,7 +12,6 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input"
 import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -33,16 +32,17 @@ import { EGGS_PER_CRATE } from "@/lib/production/production-record-calc"
 import { useEggsPerCrate } from "@/hooks/use-eggs-per-crate"
 import { getEggClasses, type EggClass } from "@/lib/api/egg-sorting"
 import {
-  EggClassSelect,
-  ExtraEggLines,
   classFor,
   classValue,
   extraLineEggs,
+  extraLineIsEggs,
+  extraLineQuantity,
   extraLineTotal,
   extraLinesShort,
   type ExtraEggLine,
   type ReturnedEggs,
 } from "@/components/sales/egg-class-fields"
+import { SALE_PRODUCT_OPTIONS, SaleItemRow, SaleItemsHeader, isEggProduct } from "@/components/sales/sale-item-row"
 import { useToast } from "@/hooks/use-toast"
 import { getUserContext } from "@/lib/utils/user-context"
 import Link from "next/link"
@@ -150,8 +150,11 @@ function groupSaleLines(sales: Sale[]): SaleRow[] {
     const quantity = ordered.reduce((t, l) => t + (Number(l.quantity) || 0), 0)
     const totalAmount = round2(ordered.reduce((t, l) => t + (Number(l.totalAmount) || 0), 0))
     const isEggs = (ordered[0].product ?? "").toLowerCase().includes("egg")
+    const products = [...new Set(ordered.map((l) => (l.product ?? "").trim()).filter(Boolean))]
     out.push({
       ...ordered[0],
+      // A sale of eggs and chicken together reads "Fresh Eggs + Chicken".
+      product: products.length > 1 ? products.join(" + ") : ordered[0].product,
       quantity,
       totalAmount,
       // Lines are priced per crate at different prices: the entry shows the
@@ -165,18 +168,6 @@ function groupSaleLines(sales: Sale[]): SaleRow[] {
     })
   }
   return out
-}
-
-/**
- * An egg count as crates, e.g. 75 -> "2.50".
- *
- * The Pricing box shows this rather than the raw egg count so that the line
- * reads as the arithmetic it is: crates x price per crate = amount. The sale
- * still stores `quantity` in eggs, which is what stock and the reports count.
- */
-function eggCratesEquivalent(quantity: number | undefined, eggsPerCrate = EGGS_PER_CRATE): string {
-  const qty = Number(quantity) || 0
-  return eggsPerCrate > 0 ? (qty / eggsPerCrate).toFixed(2) : "0.00"
 }
 
 /**
@@ -264,23 +255,6 @@ function StockCheckNotice({
   )
 }
 
-/**
- * "2 crates + 15 loose priced as 2.50 crates" under the calculated amount.
- *
- * The price field is per crate while the sale is counted in crates and loose
- * eggs, so without this the total looks wrong to anyone checking it by eye.
- */
-function EggPriceNote({ show, crates, loose }: { show: boolean; crates: number; loose: number }) {
-  if (!show || crates + loose <= 0) return null
-  return (
-    <p className="text-xs text-slate-500">
-      {crates} crate{crates === 1 ? "" : "s"}{loose > 0 && ` + ${loose} loose`} priced as{" "}
-      {((crates * EGGS_PER_CRATE + loose) / EGGS_PER_CRATE).toFixed(2)} crates
-      {loose > 0 && " — loose eggs charged pro rata"}.
-    </p>
-  )
-}
-
 export default function SalesPage() {
   const router = useRouter()
   const [sales, setSales] = useState<Sale[]>([])
@@ -339,7 +313,7 @@ export default function SalesPage() {
   // Form state
   const [formData, setFormData] = useState<Partial<SaleInput>>({
     saleDate: new Date().toISOString().split('T')[0],
-    product: "",
+    product: "Fresh Eggs",   // most sales are eggs; still changeable
     quantity: 0,
     unitPrice: 0,
     totalAmount: 0,
@@ -418,9 +392,11 @@ export default function SalesPage() {
   // Mixed classes on one sale (e.g. Unsorted + Large): the Pricing box shows
   // the whole sale, not just the first line. `formData` stays the first line,
   // which is what the save sends as line one.
-  const hasExtraEggLines = isEggsProduct && extraEggLines.length > 0
+  // Lines added in the Items table may be any product (eggs, chicken, ...).
+  const hasExtraEggLines = extraEggLines.length > 0
   const firstLineAmount = overrideAmount !== undefined && overrideAmount > 0 ? overrideAmount : Number(formData.totalAmount) || 0
-  const allLinesEggs = (Number(formData.quantity) || 0) + extraEggLines.reduce((s, l) => s + extraLineEggs(l), 0)
+  const allLinesEggs = (isEggsProduct ? Number(formData.quantity) || 0 : 0)
+    + extraEggLines.filter(extraLineIsEggs).reduce((s, l) => s + extraLineEggs(l), 0)
   const allLinesAmount = Math.round((firstLineAmount + extraEggLines.reduce((s, l) => s + extraLineTotal(l), 0)) * 100) / 100
   const isEditingGroup = editingLines.length > 1
   // Editing: the eggs the sale (every line of it) already took are back on
@@ -458,8 +434,11 @@ export default function SalesPage() {
   const closedFlockBlocksSale = (flock: { flockId: number; closedDate?: string | null }) => {
     if (!isFlockClosed(flock)) return false
     if (editingSale?.flockId === flock.flockId) return false
-    const name = (formData.product ?? "").toString().trim().toLowerCase()
-    return /bird|chick|cockerel/.test(name) && !name.includes("egg")
+    const sellsBirds = (p: string | null | undefined) => {
+      const name = (p ?? "").toString().trim().toLowerCase()
+      return /bird|chick|cockerel/.test(name) && !name.includes("egg")
+    }
+    return sellsBirds(formData.product) || extraEggLines.some((l) => !extraLineIsEggs(l) && sellsBirds(l.product))
   }
 
   /**
@@ -489,6 +468,32 @@ export default function SalesPage() {
   }, [availableStock, formData.quantity])
 
   const stockUnits = stockUnitLabel(stockProduct)
+
+  // Stock left for each added line, after the lines above it took theirs.
+  // Eggs draw on their class; anything else on its stock product (birds ...).
+  const extraLineStock = useMemo(() => {
+    const firstEggs = isEggsProduct ? Number(formData.quantity) || 0 : 0
+    return extraEggLines.map((l, idx) => {
+      const above = extraEggLines.slice(0, idx)
+      if (extraLineIsEggs(l)) {
+        const cls = classFor(eggClasses, l.eggProductId)
+        if (!cls) return null
+        const used = (isEggsProduct && (formData.eggProductId ?? null) === l.eggProductId ? firstEggs : 0)
+          + above.filter((x) => extraLineIsEggs(x) && x.eggProductId === l.eggProductId).reduce((t, x) => t + extraLineEggs(x), 0)
+        const available = Math.max(0, Math.trunc(cls.onHand - used))
+        return { available, units: "eggs", short: extraLineEggs(l) > available }
+      }
+      const sp = saleStockProduct(poultryProducts, l.product)
+      if (!sp) return null
+      const same = (name: string | null | undefined) =>
+        !isEggProduct(name) && saleStockProduct(poultryProducts, name)?.poultryProductId === sp.poultryProductId
+      const used = (same(formData.product) ? Number(formData.quantity) || 0 : 0)
+        + above.filter((x) => !extraLineIsEggs(x) && same(x.product)).reduce((t, x) => t + (Number(x.quantity) || 0), 0)
+      const available = Math.max(0, (Number(sp.stockOnHand) || 0) - used)
+      return { available, units: stockUnitLabel(sp), short: (Number(l.quantity) || 0) > available }
+    })
+  }, [extraEggLines, eggClasses, poultryProducts, isEggsProduct, formData.quantity, formData.eggProductId, formData.product])
+  const extraLinesAnyShort = extraLineStock.some((x) => x?.short)
 
   useEffect(() => {
     loadSales()
@@ -654,14 +659,15 @@ export default function SalesPage() {
       const calculatedAmount = saleLineTotal(quantity, unitPrice, isEggsProduct)
       const totalAmount = (overrideAmount !== undefined && overrideAmount > 0) ? overrideAmount : calculatedAmount
 
-      // Several egg classes: one sale number, one payment, all or nothing.
-      if (isEggsProduct && extraEggLines.length > 0) {
-        if (extraEggLines.some((l) => extraLineEggs(l) <= 0 || l.unitPrice <= 0)) {
-          toastFormGuide(toast, "Every extra egg line needs eggs and a price per crate, or remove it.")
+      // Several lines (egg sizes and/or other products): one sale number, one
+      // payment, all or nothing.
+      if (extraEggLines.length > 0) {
+        if (extraEggLines.some((l) => !(l.product ?? "eggs").trim() || extraLineQuantity(l) <= 0 || l.unitPrice <= 0)) {
+          toastFormGuide(toast, "Every added line needs a product, a quantity and a price, or remove it.")
           return
         }
-        if (extraLinesShort(eggClasses, extraEggLines, quantity, formData.eggProductId ?? null) && !overrideStock) {
-          toastFormGuide(toast, 'One of the extra egg lines asks for more eggs than its class holds. Lower it, or tick "Sell it anyway".')
+        if ((extraLinesAnyShort || extraLinesShort(eggClasses, extraEggLines, isEggsProduct ? quantity : 0, isEggsProduct ? formData.eggProductId ?? null : null)) && !overrideStock) {
+          toastFormGuide(toast, 'One of the added lines asks for more than is in stock. Lower it, or tick "Sell it anyway".')
           return
         }
         const product = (formData.product ?? "").toString().trim()
@@ -677,9 +683,11 @@ export default function SalesPage() {
           flockId: formData.flockId || null,
           correctsSaleId: correcting?.saleId ?? null,
           lines: [
-            { product, eggProductId: formData.eggProductId ?? null, quantity, unitPrice, totalAmount },
+            { product, eggProductId: isEggsProduct ? formData.eggProductId ?? null : null, quantity, unitPrice, totalAmount },
             ...extraEggLines.map((l) => ({
-              product, eggProductId: l.eggProductId, quantity: extraLineEggs(l), unitPrice: l.unitPrice, totalAmount: extraLineTotal(l),
+              product: (l.product ?? product).trim(),
+              eggProductId: extraLineIsEggs(l) ? l.eggProductId : null,
+              quantity: extraLineQuantity(l), unitPrice: l.unitPrice, totalAmount: extraLineTotal(l),
             })),
           ],
         })
@@ -687,7 +695,7 @@ export default function SalesPage() {
           toast({ title: "Sale not saved", description: res.message || "Failed to create sale", variant: "destructive" })
           return
         }
-        toast({ title: `Sale ${res.data?.saleGroupNo ?? ""} created`, description: `${extraEggLines.length + 1} egg lines, one sale.` })
+        toast({ title: `Sale ${res.data?.saleGroupNo ?? ""} created`, description: `${extraEggLines.length + 1} lines, one sale.` })
         const firstId = res.data?.saleIds?.[0]
         const groupTotal = Number(res.data?.totalAmount ?? 0)
         await afterCorrectionSaved(firstId, res.data?.saleGroupNo || (firstId ? `#${firstId}` : ""), groupTotal, !!(formData.paid ?? true))
@@ -871,13 +879,19 @@ export default function SalesPage() {
       poultryCashAccountId: sale.poultryCashAccountId ?? defaultCashAccountId,
       eggProductId: sale.eggProductId ?? null,
     })
-    setExtraEggLines((row.lines ?? []).slice(1).map((l) => ({
-      key: `fix-${l.saleId}`,
-      eggProductId: l.eggProductId ?? null,
-      crates: Math.floor((Number(l.quantity) || 0) / EGGS_PER_CRATE),
-      loose: (Number(l.quantity) || 0) % EGGS_PER_CRATE,
-      unitPrice: Number(l.unitPrice) || 0,
-    })))
+    setExtraEggLines((row.lines ?? []).slice(1).map((l) => {
+      const egg = isEggProduct(l.product)
+      const q = Number(l.quantity) || 0
+      return {
+        key: `fix-${l.saleId}`,
+        product: l.product,
+        eggProductId: egg ? l.eggProductId ?? null : null,
+        crates: egg ? Math.floor(q / EGGS_PER_CRATE) : 0,
+        loose: egg ? q % EGGS_PER_CRATE : 0,
+        quantity: egg ? undefined : q,
+        unitPrice: Number(l.unitPrice) || 0,
+      }
+    }))
     const selection = productOptions.includes(sale.product) ? sale.product : "Other"
     setProductSelection(selection)
     setProductOther(selection === "Other" ? sale.product : "")
@@ -929,7 +943,7 @@ export default function SalesPage() {
   const resetForm = () => {
     setFormData({
       saleDate: new Date().toISOString().split('T')[0],
-      product: "",
+      product: "Fresh Eggs",
       quantity: 0,
       unitPrice: 0,
       totalAmount: 0,
@@ -987,22 +1001,66 @@ export default function SalesPage() {
     }
   }
 
-  const handleProductSelect = (value: string) => {
-    setProductSelection(value)
-    if (value === "Other") {
-      const existing = productOther || (typeof formData.product === "string" && !productOptions.includes(formData.product) ? formData.product : "")
-      setProductOther(existing)
-      setFormData(prev => ({ ...prev, product: existing }))
-    } else {
-      setProductOther("")
-      setFormData(prev => ({ ...prev, product: value }))
-    }
-    // Reset crate fields when switching away from egg products
-    const isEgg = value.toLowerCase().includes("egg") || (value === "Other" && productOther.toLowerCase().includes("egg"))
-    if (!isEgg) {
+  // ---------------------------------------------------- New sale Items table
+  // Line 1 is the form itself; added lines live in extraEggLines.
+  const setFirstLineProduct = (value: string) => {
+    const egg = isEggProduct(value)
+    setProductSelection(undefined)
+    setProductOther(SALE_PRODUCT_OPTIONS.includes(value) ? "" : value)
+    setFormData(prev => {
+      const wasEgg = isEggProduct(prev.product)
+      return {
+        ...prev,
+        product: value,
+        eggProductId: egg ? prev.eggProductId : null,
+        // The quantity is eggs on an egg line and units otherwise, so it does
+        // not carry across a switch between the two.
+        quantity: egg ? crates * EGGS_PER_CRATE + looseEggs : wasEgg ? 0 : prev.quantity,
+      }
+    })
+    if (!egg) {
       setCrates(0)
       setLooseEggs(0)
     }
+  }
+
+  const updateSaleLine = (key: string, patch: Partial<ExtraEggLine>) =>
+    setExtraEggLines(prev => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)))
+
+  const addSaleLine = () => {
+    // A second egg line most often sells another size: offer the next one.
+    const used = new Set([formData.eggProductId ?? null, ...extraEggLines.map((l) => l.eggProductId)])
+    const cls = eggClasses.find((c) => c.classKind === "Size" && c.isActive && !used.has(c.poultryProductId))?.poultryProductId ?? null
+    setOverrideAmount(undefined)   // the override is for a one-line sale
+    setExtraEggLines(prev => [...prev, {
+      key: `${Date.now()}-${prev.length}`,
+      product: "Fresh Eggs",
+      eggProductId: cls,
+      crates: 0,
+      loose: 0,
+      unitPrice: classPrice(cls) ?? 0,
+    }])
+  }
+
+  // Removing line 1 moves the next line up into the form.
+  const removeFirstSaleLine = () => {
+    const [next, ...rest] = extraEggLines
+    if (!next) return
+    const product = next.product ?? "Fresh Eggs"
+    const egg = isEggProduct(product)
+    setProductSelection(undefined)
+    setProductOther(SALE_PRODUCT_OPTIONS.includes(product) ? "" : product)
+    setCrates(egg ? next.crates : 0)
+    setLooseEggs(egg ? next.loose : 0)
+    setFormData(prev => ({
+      ...prev,
+      product,
+      eggProductId: egg ? next.eggProductId : null,
+      quantity: extraLineQuantity(next),
+      unitPrice: next.unitPrice,
+      size: null,
+    }))
+    setExtraEggLines(rest)
   }
 
   const clearFilters = () => {
@@ -1355,11 +1413,6 @@ export default function SalesPage() {
   const totalQuantity = useMemo(() => filteredSales.filter((s) => s.status !== "Reversed").reduce((sum, sale) => sum + (sale.quantity || 0), 0), [filteredSales])
   const selectedFlockId = formData.flockId ?? null
   const selectedFlockIdString = selectedFlockId !== null ? selectedFlockId.toString() : ""
-  const productSelectValue = productSelection ?? (
-    typeof formData.product === "string" && formData.product
-      ? (productOptions.includes(formData.product) ? formData.product : "Other")
-      : undefined
-  )
 
   useEffect(() => {
     setCurrentPage(1)
@@ -1405,13 +1458,18 @@ export default function SalesPage() {
                     Add Sale
                   </Button>
                 </DialogTrigger>
-          <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] flex flex-col gap-4 overflow-hidden p-4 sm:p-6">
-            <DialogHeader className="shrink-0">
-              <DialogTitle>{correcting ? `Corrected sale (replaces ${correcting.label})` : "Create New Sale"}</DialogTitle>
+          <DialogContent className="w-[95vw] sm:max-w-5xl max-h-[92vh] gap-4 p-4 pb-0 sm:p-6 sm:pb-0">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2.5">
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white">
+                  <ShoppingCart className="h-5 w-5" />
+                </span>
+                {correcting ? `Corrected sale (replaces ${correcting.label})` : "New sale"}
+              </DialogTitle>
               <DialogDescription>
                 {correcting
                   ? "Filled in from the reversed sale. Fix what was wrong and save: this becomes a new sale linked to it."
-                  : "Add a new sale record to track your farm's revenue"}
+                  : "Add a line for each product or egg size sold. Several lines are saved as one sale."}
               </DialogDescription>
               {correcting && correcting.creditKept > 0 && (
                 <p className="rounded-md bg-blue-50 p-2 text-sm text-blue-800">
@@ -1420,384 +1478,300 @@ export default function SalesPage() {
                 </p>
               )}
             </DialogHeader>
-            <div className="min-h-0 flex-1 overflow-y-auto space-y-5 py-1 pr-2">
-              {/* Section: Sale Details */}
-              <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
-                <div className="bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Sale Details</div>
-                <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="saleDate">Sale Date *</Label>
-                    <Input
-                      id="saleDate"
-                      type="date"
-                      value={formData.saleDate}
-                      onChange={(e) => setFormData(prev => ({ ...prev, saleDate: e.target.value }))}
-                    />
+            {/* The dialog is the only scroll area. A second, inner one let the
+                browser scroll both when a field took focus, sliding the whole
+                form up and leaving a blank gap under the buttons. */}
+            <div className="min-w-0 space-y-4">
+              {/* Who bought, when, and from which flock. */}
+              <div className="overflow-hidden rounded-xl border border-blue-200">
+                <div className="bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Customer &amp; Date</div>
+              <div className="grid grid-cols-1 gap-3 bg-blue-50/40 p-4 sm:grid-cols-3">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="customerName">Customer *</Label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-4 w-4 text-slate-400 cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-[260px]">
+                        <p>If you cannot find the customer, please go to the customer page and create the Customer first</p>
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="product">Product *</Label>
-                    <Select
-                      value={productSelectValue}
-                      onValueChange={handleProductSelect}
-                    >
-                      <SelectTrigger id="product">
-                        <SelectValue placeholder="Select product" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {productOptions.map(option => (
-                          <SelectItem key={option} value={option}>
-                            {option}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {productSelectValue === "Other" && (
-                      <Input
-                        value={productOther}
-                        onChange={(e) => {
-                          const value = e.target.value
-                          setProductOther(value)
-                          setFormData(prev => ({ ...prev, product: value }))
-                        }}
-                        placeholder="Enter product name"
-                      />
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor="customerName">Customer Name *</Label>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Info className="h-4 w-4 text-slate-400 cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="max-w-[260px]">
-                          <p>If you cannot find the customer, please go to the customer page and create the Customer first</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    <Select
-                      value={showNewCustomerInput ? "__OTHER__" : formData.customerName || undefined}
-                      onValueChange={(value) => {
-                        if (value === "__OTHER__") {
-                          setShowNewCustomerInput(true)
-                          setOtherCustomerName("")
-                          setFormData(prev => ({ ...prev, customerName: "" }))
-                        } else {
-                          setShowNewCustomerInput(false)
-                          setOtherCustomerName("")
-                          setFormData(prev => ({ ...prev, customerName: value }))
-                        }
-                      }}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select a customer" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {customers.map((customer) => (
-                          <SelectItem key={customer.customerId || customer.name} value={customer.name}>
-                            {customer.name}
-                          </SelectItem>
-                        ))}
-                        <SelectItem value="__OTHER__">Other Customer</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {showNewCustomerInput && (
-                      <Input
-                        placeholder="Enter other customer name"
-                        value={otherCustomerName}
-                        onChange={(e) => {
-                          setOtherCustomerName(e.target.value)
-                          setFormData(prev => ({ ...prev, customerName: e.target.value }))
-                        }}
-                      />
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="flockId">Flock</Label>
-                    <Select
-                      value={selectedFlockIdString}
-                      onValueChange={(value) =>
-                        setFormData(prev => ({
-                          ...prev,
-                          flockId: value ? Number(value) : undefined,
-                        }))
+                  <Select
+                    value={showNewCustomerInput ? "__OTHER__" : formData.customerName || undefined}
+                    onValueChange={(value) => {
+                      if (value === "__OTHER__") {
+                        setShowNewCustomerInput(true)
+                        setOtherCustomerName("")
+                        setFormData(prev => ({ ...prev, customerName: "" }))
+                      } else {
+                        setShowNewCustomerInput(false)
+                        setOtherCustomerName("")
+                        setFormData(prev => ({ ...prev, customerName: value }))
                       }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a flock" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="0">All flocks</SelectItem>
-                        {flocks.map((flock) => (
-                          <SelectItem
-                            key={flock.flockId}
-                            value={flock.flockId.toString()}
-                            disabled={closedFlockBlocksSale(flock)}
-                          >
-                            {flock.name} ({flock.quantity} birds){isFlockClosed(flock) ? " · Closed" : ""}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                    }}
+                  >
+                    <SelectTrigger id="customerName" className="w-full">
+                      <SelectValue placeholder="Select a customer" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {customers.map((customer) => (
+                        <SelectItem key={customer.customerId || customer.name} value={customer.name}>
+                          {customer.name}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="__OTHER__">Other Customer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {showNewCustomerInput && (
+                    <Input
+                      placeholder="Enter other customer name"
+                      value={otherCustomerName}
+                      onChange={(e) => {
+                        setOtherCustomerName(e.target.value)
+                        setFormData(prev => ({ ...prev, customerName: e.target.value }))
+                      }}
+                    />
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="saleDate">Sale date *</Label>
+                  <Input
+                    id="saleDate"
+                    type="date"
+                    value={formData.saleDate}
+                    onChange={(e) => setFormData(prev => ({ ...prev, saleDate: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="flockId">Flock</Label>
+                  <Select
+                    value={selectedFlockIdString}
+                    onValueChange={(value) =>
+                      setFormData(prev => ({
+                        ...prev,
+                        flockId: value ? Number(value) : undefined,
+                      }))
+                    }
+                  >
+                    <SelectTrigger id="flockId">
+                      <SelectValue placeholder="Select a flock" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">All flocks</SelectItem>
+                      {flocks.map((flock) => (
+                        <SelectItem
+                          key={flock.flockId}
+                          value={flock.flockId.toString()}
+                          disabled={closedFlockBlocksSale(flock)}
+                        >
+                          {flock.name} ({flock.quantity} birds){isFlockClosed(flock) ? " · Closed" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
+              </div>
 
-              {/* Section: Egg Quantity (conditional) */}
-              {isEggsProduct && (
-                <div className="rounded-xl border border-amber-200 overflow-hidden">
-                  <div className="bg-amber-500 px-4 py-2 text-sm font-semibold text-white">Egg Quantity (Crates × {EGGS_PER_CRATE} + Loose Eggs)</div>
-                  {hasEggSizes && (
-                    <div className="px-4 pt-4 bg-amber-50 sm:max-w-md">
-                      <EggClassSelect id="create-egg-class" classes={eggClasses} value={formData.eggProductId}
-                        onChange={(v) => setFormData(prev => ({ ...prev, eggProductId: v, unitPrice: classPrice(v) ?? prev.unitPrice }))} />
-                    </div>
-                  )}
-                  <div className="grid grid-cols-1 gap-4 p-4 bg-amber-50 sm:grid-cols-2 lg:grid-cols-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="crates" className="text-sm">Crates ({EGGS_PER_CRATE} eggs)</Label>
-                      <NumberInput
-                        id="crates"
-                        
-                        min="0"
-                        value={crates}
-                        onChange={(e) => {
-                          const c = parseInt(e.target.value) || 0
-                          setCrates(c)
-                          const total = (c * EGGS_PER_CRATE) + looseEggs
-                          setFormData(prev => ({ ...prev, quantity: total }))
-                        }}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="looseEggs" className="text-sm">Loose Eggs</Label>
-                      <NumberInput
-                        id="looseEggs"
-                        
-                        min="0"
-                        max="29"
-                        value={looseEggs}
-                        onChange={(e) => {
-                          const l = parseInt(e.target.value) || 0
-                          setLooseEggs(l)
-                          const total = (crates * EGGS_PER_CRATE) + l
-                          setFormData(prev => ({ ...prev, quantity: total }))
-                        }}
-                      />
-                    </div>
-                    {/* The first line's price sits beside its crates, like the
-                        extra egg lines below; Pricing then only shows totals. */}
-                    <div className="space-y-2">
-                      <Label htmlFor="unitPrice" className="text-sm">Price / crate *</Label>
-                      <NumberInput
-                        id="unitPrice"
-                        min="0"
-                        step="0.01"
-                        value={formData.unitPrice}
-                        onChange={(e) => setFormData(prev => ({ ...prev, unitPrice: Number(e.target.value) }))}
-                        placeholder="0.00"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm">Total Eggs</Label>
-                      <div className="h-10 px-3 py-2 bg-white border rounded-md flex items-center font-bold text-amber-700">
-                        {((crates * EGGS_PER_CRATE) + looseEggs).toLocaleString()}
-                      </div>
-                    </div>
-                  </div>
-                  {/* The stock line belongs with the crates that spend it, not
-                      beside the price. For eggs this card IS the quantity — the
-                      Pricing box below only restates it in crates — so "In stock:
-                      770 eggs" and any shortfall are read where the number is
-                      being typed. */}
-                  <div className="space-y-2 px-4 pb-3 bg-amber-50">
-                    <p className="text-xs text-amber-600">
-                      Calculation: {crates} crates × {EGGS_PER_CRATE} + {looseEggs} loose = {((crates * EGGS_PER_CRATE) + looseEggs).toLocaleString()} eggs
-                    </p>
-                    <StockCheckNotice
-                      available={availableStock}
-                      unitLabel={stockUnits}
-                      shortfall={stockShortfall}
-                      override={overrideStock}
-                      onOverrideChange={setOverrideStock}
-                      idPrefix="create-eggs"
-                    />
-                  </div>
-                  {hasEggSizes && (
-                    <>
-                      <ExtraEggLines classes={eggClasses} lines={extraEggLines} onChange={setExtraEggLines}
-                        mainEggs={Number(formData.quantity) || 0} mainClass={formData.eggProductId ?? null} />
-                      {extraEggLines.length > 0 && (
-                        <div className="border-t border-amber-200 bg-amber-100/70 px-4 py-2 text-sm">
-                          <b>Sale total, all egg lines:</b>{" "}
-                          {allLinesAmount.toFixed(2)} for {allLinesEggs.toLocaleString()} eggs
-                          {eggCrateBreakdown(allLinesEggs) && ` (${eggCrateBreakdown(allLinesEggs)})`}
-                          <span className="ml-2 text-xs text-slate-600">
-                            Saved as one sale number with {extraEggLines.length + 1} lines and one payment. The override amount applies to the first line only.
-                          </span>
-                        </div>
-                      )}
-                    </>
-                  )}
+              {/* Items: one line per product / egg size, like the Water sale. */}
+              <div className="overflow-hidden rounded-xl border border-amber-200">
+                <div className="flex items-center justify-between gap-2 bg-amber-500 px-4 py-1.5 text-white">
+                  <span className="text-sm font-semibold">
+                    Items <span className="ml-1 rounded-full bg-white/25 px-2 py-0.5 text-xs">{extraEggLines.length + 1}</span>
+                  </span>
+                  <Button type="button" size="sm" onClick={addSaleLine}
+                    className="h-8 bg-white text-amber-700 shadow-sm hover:bg-amber-50">
+                    <Plus className="mr-1 h-3.5 w-3.5" /> Add line
+                  </Button>
                 </div>
-              )}
-
-              {/* Section: Pricing */}
-              <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
-                <div className="bg-green-600 px-4 py-2 text-sm font-semibold text-white">Pricing</div>
-                <div className="p-4 space-y-4">
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="quantity">{isEggsProduct ? "Quantity (In crates) *" : "Quantity *"}</Label>
-                      {/* Eggs are priced per crate, so the box shows the crate
-                          equivalent of the count above (75 eggs -> 2.50). It is
-                          read-only for eggs; `formData.quantity` stays in eggs. */}
-                      <NumberInput
-                        id="quantity"
-                        step={isEggsProduct ? "0.01" : undefined}
-                        value={hasExtraEggLines ? eggCratesEquivalent(allLinesEggs) : isEggsProduct ? eggCratesEquivalent(formData.quantity) : formData.quantity}
-                        onChange={(e) => setFormData(prev => ({ ...prev, quantity: Number(e.target.value) }))}
-                        placeholder="0"
-                        disabled={isEggsProduct}
-                        className={isEggsProduct ? "bg-slate-100" : ""}
+                <div className="space-y-3 bg-amber-50/40 p-3 sm:p-4">
+                <div className="space-y-2">
+                  <SaleItemsHeader />
+                  <SaleItemRow
+                    index={1}
+                    product={(formData.product ?? "").toString()}
+                    onProductChange={setFirstLineProduct}
+                    classes={eggClasses}
+                    eggProductId={formData.eggProductId ?? null}
+                    onClassChange={(v) => setFormData(prev => ({ ...prev, eggProductId: v, unitPrice: classPrice(v) ?? prev.unitPrice }))}
+                    size={formData.size ?? ""}
+                    onSizeChange={(v) => setFormData(prev => ({ ...prev, size: v }))}
+                    crates={crates}
+                    loose={looseEggs}
+                    onCratesChange={(c) => {
+                      setCrates(c)
+                      setFormData(prev => ({ ...prev, quantity: c * EGGS_PER_CRATE + looseEggs }))
+                    }}
+                    onLooseChange={(l) => {
+                      setLooseEggs(l)
+                      setFormData(prev => ({ ...prev, quantity: crates * EGGS_PER_CRATE + l }))
+                    }}
+                    quantity={Number(formData.quantity) || 0}
+                    onQuantityChange={(n) => setFormData(prev => ({ ...prev, quantity: n }))}
+                    unitPrice={Number(formData.unitPrice) || 0}
+                    onUnitPriceChange={(n) => setFormData(prev => ({ ...prev, unitPrice: n }))}
+                    lineTotal={firstLineAmount}
+                    onRemove={hasExtraEggLines ? removeFirstSaleLine : undefined}
+                    note={
+                      <StockCheckNotice
+                        available={availableStock}
+                        unitLabel={stockUnits}
+                        shortfall={stockShortfall}
+                        override={overrideStock}
+                        onOverrideChange={setOverrideStock}
+                        idPrefix="create"
                       />
-                      {isEggsProduct && (
-                        <p className="text-xs text-slate-500">
-                          {hasExtraEggLines
-                            ? `${allLinesEggs.toLocaleString()} eggs total across all ${extraEggLines.length + 1} egg lines`
-                            : `${(Number(formData.quantity) || 0).toLocaleString()} eggs total, from the crates and loose eggs above`}
-                        </p>
-                      )}
-                      {!isEggsProduct && (
-                        <StockCheckNotice
-                          available={availableStock}
-                          unitLabel={stockUnits}
-                          shortfall={stockShortfall}
-                          override={overrideStock}
-                          onOverrideChange={setOverrideStock}
-                          idPrefix="create"
-                        />
-                      )}
-                    </div>
-                    {!isEggsProduct && (
-                      <div className="space-y-2">
-                        <Label htmlFor="unitPrice">Unit Price *</Label>
-                        <NumberInput
-                          id="unitPrice"
-                          step="0.01"
-                          value={formData.unitPrice}
-                          onChange={(e) => setFormData(prev => ({ ...prev, unitPrice: Number(e.target.value) }))}
-                          placeholder="0.00"
-                        />
-                      </div>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    <div className="space-y-2">
-                      <Label htmlFor="totalAmount">{hasExtraEggLines ? "Calculated Amount — whole sale" : "Calculated Amount"}</Label>
-                      <NumberInput
-                        id="totalAmount"
-
-                        step="0.01"
-                        value={hasExtraEggLines ? allLinesAmount : formData.totalAmount}
-                        readOnly
-                        className="bg-slate-100"
+                    }
+                  />
+                  {extraEggLines.map((l, idx) => {
+                    const st = extraLineStock[idx]
+                    return (
+                      <SaleItemRow
+                        key={l.key}
+                        index={idx + 2}
+                        product={l.product ?? "Fresh Eggs"}
+                        onProductChange={(v) => updateSaleLine(l.key, isEggProduct(v)
+                          ? { product: v, quantity: undefined }
+                          : { product: v, crates: 0, loose: 0, eggProductId: null })}
+                        classes={eggClasses}
+                        eggProductId={l.eggProductId}
+                        onClassChange={(v) => updateSaleLine(l.key, { eggProductId: v, unitPrice: classPrice(v) ?? l.unitPrice })}
+                        crates={l.crates}
+                        loose={l.loose}
+                        onCratesChange={(c) => updateSaleLine(l.key, { crates: c })}
+                        onLooseChange={(n) => updateSaleLine(l.key, { loose: n })}
+                        quantity={Number(l.quantity) || 0}
+                        onQuantityChange={(n) => updateSaleLine(l.key, { quantity: n })}
+                        unitPrice={l.unitPrice}
+                        onUnitPriceChange={(n) => updateSaleLine(l.key, { unitPrice: n })}
+                        lineTotal={extraLineTotal(l)}
+                        onRemove={() => setExtraEggLines(prev => prev.filter((x) => x.key !== l.key))}
+                        note={st && (
+                          <p className={st.short ? "text-rose-700" : undefined}>
+                            In stock: <b className="tabular-nums">{st.available.toLocaleString()}</b> {st.units}
+                            {st.short ? " — not enough" : ""}
+                          </p>
+                        )}
                       />
-                      {hasExtraEggLines ? (
-                        <p className="text-xs text-slate-500">
-                          First line {firstLineAmount.toFixed(2)} + other egg lines {(allLinesAmount - firstLineAmount).toFixed(2)}.
-                        </p>
-                      ) : (
-                        <EggPriceNote show={isEggsProduct} crates={crates} loose={looseEggs} />
-                      )}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="overrideAmount">Override Amount</Label>
+                    )
+                  })}
+                </div>
+                {extraLinesAnyShort && stockShortfall === 0 && (
+                  <label htmlFor="create-lines-override-stock" className="mt-3 flex items-start gap-2 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700">
+                    <input
+                      id="create-lines-override-stock"
+                      type="checkbox"
+                      checked={overrideStock}
+                      onChange={(e) => setOverrideStock(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-red-400"
+                    />
+                    <span>
+                      <b>A line asks for more than is in stock.</b> Sell it anyway — stock goes negative until the missing
+                      production, or a stock correction, is recorded.
+                    </span>
+                  </label>
+                )}
+                <datalist id="egg-size-suggestions">
+                  <option value="Inside" />
+                  <option value="Tee" />
+                  <option value="Serum" />
+                  <option value="Small" />
+                  <option value="Medium" />
+                  <option value="Large" />
+                  <option value="XLarge" />
+                  <option value="Jumbo" />
+                </datalist>
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
+                  {!hasExtraEggLines ? (
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="overrideAmount" className="text-xs font-medium text-emerald-800">Override total</Label>
                       <NumberInput
                         id="overrideAmount"
-                        
+                        className="h-9 w-36 bg-white text-right tabular-nums"
                         step="0.01"
                         value={overrideAmount ?? ""}
                         onChange={(e) => setOverrideAmount(e.target.value ? Number(e.target.value) : undefined)}
-                        placeholder="Leave empty to use calculated"
+                        placeholder="Optional"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="paymentMethod">Payment Method *</Label>
-                      <Select value={formData.paymentMethod} onValueChange={(value) => setFormData(prev => ({ ...prev, paymentMethod: value }))}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select payment method" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {paymentMethodOptions.map(method => (
-                            <SelectItem key={method} value={method}>
-                              {method}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                  ) : (
+                    <p className="text-xs text-emerald-800">
+                      Saved as one sale number with {extraEggLines.length + 1} lines and one payment.
+                    </p>
+                  )}
+                  <div className="text-right">
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Sale total</div>
+                    <div className="text-2xl font-bold tabular-nums text-emerald-700">{formatCurrency(allLinesAmount, currencyCode)}</div>
                   </div>
-                  <div className="grid gap-2 md:grid-cols-2">
-                    <div className="rounded-md border bg-white px-3 py-2">
-                      <Label className="mb-2 block text-sm">Payment status</Label>
-                      <div className="flex flex-wrap items-center gap-4">
-                        <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
-                          <input
-                            type="radio"
-                            name="create-payment-status"
-                            className="h-4 w-4"
-                            checked={formData.paid !== false}
-                            onChange={() => setFormData(prev => ({ ...prev, paid: true }))}
-                          />
-                          Paid now
-                        </label>
-                        <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
-                          <input
-                            type="radio"
-                            name="create-payment-status"
-                            className="h-4 w-4"
-                            checked={formData.paid === false}
-                            onChange={() => setFormData(prev => ({ ...prev, paid: false }))}
-                          />
-                          Pay later (pending)
-                        </label>
-                      </div>
-                      <p className="text-xs text-slate-500 mt-1.5">
-                        {formData.paid === false
-                          ? "Records the full amount as owed — record payments later."
-                          : "Records the sale as fully paid and posts a cash-in."}
-                      </p>
-                    </div>
-                    <div className={cn("rounded-md border bg-white px-3 py-2 space-y-1", isEggsProduct && hasEggSizes && "hidden")}>
-                      <Label htmlFor="saleSize">Egg Size (optional)</Label>
-                      <Input
-                        id="saleSize"
-                        list="egg-size-suggestions"
-                        value={formData.size ?? ""}
-                        onChange={(e) => setFormData(prev => ({ ...prev, size: e.target.value }))}
-                        placeholder="e.g. Inside, Tee, Serum"
+                </div>
+                </div>
+              </div>
+
+              {/* Payment: paid now (cash-in posted) or pay later (owed). */}
+              <div className="overflow-hidden rounded-xl border border-green-200">
+                <div className="bg-green-600 px-4 py-2 text-sm font-semibold text-white">Payment</div>
+              <div className="space-y-3 bg-green-50/40 p-4">
+                <div>
+                  <Label className="mb-2 block text-sm">Payment status</Label>
+                  {/* Two big choices rather than small radios: the colour says
+                      which one is on (green = cash in now, amber = owed). */}
+                  <div className="grid grid-cols-2 gap-2 sm:max-w-md">
+                    <label className={cn(
+                      "relative flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 px-3 py-2 text-sm font-semibold transition-colors",
+                      formData.paid !== false ? "border-green-600 bg-green-600 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-green-300")}>
+                      <input
+                        type="radio"
+                        name="create-payment-status"
+                        className="sr-only"
+                        checked={formData.paid !== false}
+                        onChange={() => setFormData(prev => ({ ...prev, paid: true }))}
                       />
-                      <datalist id="egg-size-suggestions">
-                        <option value="Inside" />
-                        <option value="Tee" />
-                        <option value="Serum" />
-                        <option value="Small" />
-                        <option value="Medium" />
-                        <option value="Large" />
-                        <option value="XLarge" />
-                        <option value="Jumbo" />
-                      </datalist>
-                      <p className="text-xs text-slate-500">Used by the weekly report&apos;s &ldquo;Egg Sales by Size&rdquo; card.</p>
-                    </div>
+                      Paid now
+                    </label>
+                    <label className={cn(
+                      "relative flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 px-3 py-2 text-sm font-semibold transition-colors",
+                      formData.paid === false ? "border-amber-500 bg-amber-500 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-amber-300")}>
+                      <input
+                        type="radio"
+                        name="create-payment-status"
+                        className="sr-only"
+                        checked={formData.paid === false}
+                        onChange={() => setFormData(prev => ({ ...prev, paid: false }))}
+                      />
+                      Pay later
+                    </label>
                   </div>
-                  <div className="space-y-2">
+                  <p className="mt-1.5 text-xs text-slate-600">
+                    {formData.paid === false
+                      ? "Records the full amount as owed — record payments later."
+                      : "Records the sale as fully paid and posts a cash-in."}
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="paymentMethod">Payment method *</Label>
+                    <Select value={formData.paymentMethod} onValueChange={(value) => setFormData(prev => ({ ...prev, paymentMethod: value }))}>
+                      <SelectTrigger id="paymentMethod" className="bg-white">
+                        <SelectValue placeholder="Select payment method" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {paymentMethodOptions.map(method => (
+                          <SelectItem key={method} value={method}>
+                            {method}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
                     <Label htmlFor="cashAccount">Receive into cash account *</Label>
                     <Select
                       value={formData.poultryCashAccountId ? String(formData.poultryCashAccountId) : "none"}
                       onValueChange={(value) => setFormData(prev => ({ ...prev, poultryCashAccountId: value === "none" ? null : Number(value) }))}
                     >
-                      <SelectTrigger id="cashAccount">
+                      <SelectTrigger id="cashAccount" className="bg-white">
                         <SelectValue placeholder="Select a cash account" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1808,28 +1782,31 @@ export default function SalesPage() {
                         ))}
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-slate-500">Posts a cash-in and increases the account balance when the sale is marked paid.</p>
                   </div>
                 </div>
               </div>
+              </div>
 
-              {/* Description */}
-              <div className="space-y-2">
-                <Label htmlFor="saleDescription">Description</Label>
-                <Textarea
+              <div className="space-y-1.5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <Label htmlFor="saleDescription">Notes</Label>
+                <Input
                   id="saleDescription"
                   value={formData.saleDescription ?? ""}
                   onChange={(e) => setFormData(prev => ({ ...prev, saleDescription: e.target.value }))}
-                  placeholder="Additional notes about this sale"
+                  placeholder="Optional"
+                  className="bg-white"
                 />
               </div>
             </div>
-            <div className="shrink-0 flex flex-col gap-2 pt-3 border-t sm:flex-row sm:justify-end">
-              <Button onClick={() => setIsCreateDialogOpen(false)} className="w-full bg-red-600 hover:bg-red-700 text-white sm:w-auto">
+            {/* Pinned to the bottom of the dialog while the form scrolls. */}
+            <div className="sticky bottom-0 z-10 -mx-4 flex flex-col-reverse gap-2 border-t bg-white px-4 py-3 sm:-mx-6 sm:flex-row sm:justify-end sm:px-6">
+              <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}
+                className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 sm:w-auto">
                 Cancel
               </Button>
-              <Button onClick={handleCreateSale} disabled={savingSale} className="w-full bg-blue-600 hover:bg-blue-700 sm:w-auto">
-                {savingSale ? "Saving…" : "Create Sale"}
+              <Button onClick={handleCreateSale} disabled={savingSale}
+                className="w-full bg-blue-600 px-6 text-white hover:bg-blue-700 sm:w-auto">
+                {savingSale ? "Saving…" : `Record sale · ${formatCurrency(allLinesAmount, currencyCode)}`}
               </Button>
             </div>
           </DialogContent>
