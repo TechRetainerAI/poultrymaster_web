@@ -18,7 +18,7 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Plus, Eye, Undo2, RotateCcw, ShoppingCart, DollarSign, TrendingUp, Package, FileText, Printer, Loader2, Info, Search, Filter, ChevronDown, ChevronUp, Mail, Wallet, History } from "lucide-react"
-import { getSales, createSale, updateSale, getFlocks, getCustomers, createCustomer, type Sale, type SaleInput } from "@/lib/api"
+import { getSales, createSale, updateSale, getFlocks, getCustomers, createCustomer, type Sale, type SaleInput, type SaleLine } from "@/lib/api"
 import { isFlockClosed } from "@/lib/utils/flock-eligibility"
 import { listPoultryCashAccounts, recordPoultryPayment, type PoultryCashAccount } from "@/lib/api/poultry-finance"
 import { listPoultryProducts, type PoultryProduct } from "@/lib/api/poultry-inventory"
@@ -120,54 +120,18 @@ function saleLineTotal(
 }
 
 /**
- * One entry in the sales list.
+ * One entry in the sales list: ONE sale (migration 358).
  *
- * A multi-size egg sale (Unsorted + Large ...) is stored as one sale row per
- * egg class sharing a sale number (SG-00001), because stock, balances and the
- * reports all work per class. The list shows it as ONE sale: the rows are
- * folded into one entry here, with the rows kept on `lines` so edit, pay,
- * delete and the invoice can act on all of them.
+ * A sale entered with several egg classes is one sale with several lines; the
+ * server returns them on the sale. `lines` is set only when there are two or
+ * more, so `row.lines` reads as "this is a multi-line sale". Lines are display
+ * data -- paying, crediting, reversing and the payment history all act on the
+ * sale itself.
  */
-type SaleRow = Sale & { lines?: Sale[] }
+type SaleRow = Sale & { lines?: SaleLine[] }
 
-function groupSaleLines(sales: Sale[]): SaleRow[] {
-  const byGroup = new Map<string, Sale[]>()
-  for (const s of sales) {
-    if (!s.saleGroupNo) continue
-    const g = byGroup.get(s.saleGroupNo)
-    if (g) g.push(s)
-    else byGroup.set(s.saleGroupNo, [s])
-  }
-  const round2 = (n: number) => Math.round(n * 100) / 100
-  const out: SaleRow[] = []
-  const done = new Set<string>()
-  for (const s of sales) {
-    const lines = s.saleGroupNo ? byGroup.get(s.saleGroupNo) : undefined
-    if (!lines || lines.length < 2) { out.push(s); continue }
-    if (done.has(s.saleGroupNo!)) continue
-    done.add(s.saleGroupNo!)
-    const ordered = [...lines].sort((a, b) => a.saleId - b.saleId)
-    const quantity = ordered.reduce((t, l) => t + (Number(l.quantity) || 0), 0)
-    const totalAmount = round2(ordered.reduce((t, l) => t + (Number(l.totalAmount) || 0), 0))
-    const isEggs = (ordered[0].product ?? "").toLowerCase().includes("egg")
-    const products = [...new Set(ordered.map((l) => (l.product ?? "").trim()).filter(Boolean))]
-    out.push({
-      ...ordered[0],
-      // A sale of eggs and chicken together reads "Fresh Eggs + Chicken".
-      product: products.length > 1 ? products.join(" + ") : ordered[0].product,
-      quantity,
-      totalAmount,
-      // Lines are priced per crate at different prices: the entry shows the
-      // average price per crate, which is what total / crates comes to.
-      unitPrice: isEggs && quantity > 0 ? round2(totalAmount / (quantity / EGGS_PER_CRATE)) : ordered[0].unitPrice,
-      amountPaid: ordered.every((l) => l.amountPaid != null)
-        ? round2(ordered.reduce((t, l) => t + (Number(l.amountPaid) || 0), 0))
-        : undefined,
-      paid: ordered.every((l) => l.paid !== false),
-      lines: ordered,
-    })
-  }
-  return out
+function toSaleRows(sales: Sale[]): SaleRow[] {
+  return sales.map((s) => ({ ...s, lines: (s.lines?.length ?? 0) > 1 ? s.lines : undefined }))
 }
 
 /**
@@ -269,6 +233,8 @@ export default function SalesPage() {
   // post another, identical sale (six of them in one test).
   const [savingSale, setSavingSale] = useState(false)
   const savingSaleRef = useRef(false)
+  // 358: one key per Add Sale form, so a retry of the same form cannot post twice.
+  const saleRequestKeyRef = useRef<string>(crypto.randomUUID())
   const [isInvoiceDialogOpen, setIsInvoiceDialogOpen] = useState(false)
   const [editingSale, setEditingSale] = useState<Sale | null>(null)
   // Editing a multi-size sale: every line as it was saved (editingSale is the first).
@@ -682,6 +648,7 @@ export default function SalesPage() {
           saleDescription: formData.saleDescription || null,
           flockId: formData.flockId || null,
           correctsSaleId: correcting?.saleId ?? null,
+          requestKey: saleRequestKeyRef.current,
           lines: [
             { product, eggProductId: isEggsProduct ? formData.eggProductId ?? null : null, quantity, unitPrice, totalAmount },
             ...extraEggLines.map((l) => ({
@@ -696,7 +663,7 @@ export default function SalesPage() {
           return
         }
         toast({ title: `Sale ${res.data?.saleGroupNo ?? ""} created`, description: `${extraEggLines.length + 1} lines, one sale.` })
-        const firstId = res.data?.saleIds?.[0]
+        const firstId = res.data?.saleId ?? res.data?.saleIds?.[0]
         const groupTotal = Number(res.data?.totalAmount ?? 0)
         await afterCorrectionSaved(firstId, res.data?.saleGroupNo || (firstId ? `#${firstId}` : ""), groupTotal, !!(formData.paid ?? true))
         setIsCreateDialogOpen(false)
@@ -786,7 +753,7 @@ export default function SalesPage() {
 
   const saveSaleNote = async (row: SaleRow, note: string): Promise<boolean> => {
     const { userId, farmId } = getUserContext()
-    const sale: Sale = row.lines?.[0] ?? row
+    const { lines: _lines, ...sale } = row
     const res = await updateSale(sale.saleId, {
       ...sale,
       farmId, userId,
@@ -859,14 +826,17 @@ export default function SalesPage() {
   // Correct Sale: a NEW sale, pre-filled from the reversed one and linked to it.
   // Nothing transactional is copied -- no payment, cash or stock rows, no number.
   const openCorrectionForm = (row: SaleRow, creditKept: number) => {
-    const sale: Sale = row.lines?.[0] ?? row
+    const sale: SaleRow = row
+    // A multi-line sale: its first line fills the form, the others the extra lines.
+    const first = row.lines?.[0]
+    const firstQty = Number(first?.quantity ?? sale.quantity) || 0
     resetForm()
     setFormData({
       saleDate: sale.saleDate.split('T')[0],
       product: sale.product,
-      quantity: sale.quantity,
-      unitPrice: sale.unitPrice,
-      totalAmount: sale.totalAmount,
+      quantity: firstQty,
+      unitPrice: first?.unitPrice ?? sale.unitPrice,
+      totalAmount: first?.totalAmount ?? sale.totalAmount,
       paymentMethod: sale.paymentMethod,
       customerName: sale.customerName,
       flockId: sale.flockId,
@@ -875,15 +845,15 @@ export default function SalesPage() {
       // goes in as Pay later -- recording it as paid again would count the
       // same money twice.
       paid: creditKept > 0 ? false : (sale.paid ?? true),
-      size: sale.size ?? null,
+      size: (first ? first.size : sale.size) ?? null,
       poultryCashAccountId: sale.poultryCashAccountId ?? defaultCashAccountId,
-      eggProductId: sale.eggProductId ?? null,
+      eggProductId: (first ? first.eggProductId : sale.eggProductId) ?? null,
     })
     setExtraEggLines((row.lines ?? []).slice(1).map((l) => {
       const egg = isEggProduct(l.product)
       const q = Number(l.quantity) || 0
       return {
-        key: `fix-${l.saleId}`,
+        key: `fix-${l.saleLineId}`,
         product: l.product,
         eggProductId: egg ? l.eggProductId ?? null : null,
         crates: egg ? Math.floor(q / EGGS_PER_CRATE) : 0,
@@ -896,8 +866,8 @@ export default function SalesPage() {
     setProductSelection(selection)
     setProductOther(selection === "Other" ? sale.product : "")
     const isEgg = (sale.product ?? "").toLowerCase().includes("egg")
-    setCrates(isEgg ? Math.floor((Number(sale.quantity) || 0) / EGGS_PER_CRATE) : 0)
-    setLooseEggs(isEgg ? (Number(sale.quantity) || 0) % EGGS_PER_CRATE : 0)
+    setCrates(isEgg ? Math.floor(firstQty / EGGS_PER_CRATE) : 0)
+    setLooseEggs(isEgg ? firstQty % EGGS_PER_CRATE : 0)
     setCorrecting({ saleId: sale.saleId, label: row.lines ? (row.saleGroupNo ?? `#${sale.saleId}`) : `#${sale.saleId}`, creditKept })
     setIsCreateDialogOpen(true)
   }
@@ -941,6 +911,7 @@ export default function SalesPage() {
   }, [isCreateDialogOpen, defaultCashAccountId])
 
   const resetForm = () => {
+    saleRequestKeyRef.current = crypto.randomUUID()
     setFormData({
       saleDate: new Date().toISOString().split('T')[0],
       product: "Fresh Eggs",
@@ -1147,24 +1118,8 @@ export default function SalesPage() {
     if (!amount || amount <= 0) { toast({ title: "Enter a valid amount", variant: "destructive" }); return }
     setPaySaving(true)
     try {
-      if (sale.lines) {
-        // A multi-size sale: the payment settles its lines in order, each up
-        // to what that line still owes.
-        if (amount > saleOwed(sale) + 0.005) {
-          toast({ title: "Amount is more than owed", description: `This sale owes ${saleOwed(sale).toFixed(2)}.`, variant: "destructive" })
-          return
-        }
-        let left = Math.round(amount * 100) / 100
-        for (const line of sale.lines) {
-          if (left <= 0) break
-          const part = Math.min(left, Math.round(saleOwed(line) * 100) / 100)
-          if (part <= 0) continue
-          await recordPoultryPayment({ saleId: line.saleId, amount: part, paymentMethod: payMethod || null, note: payNote || null })
-          left = Math.round((left - part) * 100) / 100
-        }
-      } else {
-        await recordPoultryPayment({ saleId: sale.saleId, amount, paymentMethod: payMethod || null, note: payNote || null })
-      }
+      // 358: a multi-line sale is ONE sale -- one payment, one allocation.
+      await recordPoultryPayment({ saleId: sale.saleId, amount, paymentMethod: payMethod || null, note: payNote || null })
       toast({ title: "Payment recorded", description: `${amount.toFixed(2)} received for sale ${sale.lines ? sale.saleGroupNo : `#${sale.saleId}`}.` })
       setPayDialog({ open: false, sale: null })
       loadSales()
@@ -1333,7 +1288,7 @@ export default function SalesPage() {
     router.push("/login")
   }
 
-  const groupedSales = useMemo(() => groupSaleLines(sales), [sales])
+  const groupedSales = useMemo(() => toSaleRows(sales), [sales])
 
   const filteredSales = useMemo(() => {
     const query = searchCustomer.trim().toLowerCase()
@@ -1341,7 +1296,7 @@ export default function SalesPage() {
       // Deep link from Customer Balances -> Open sale. Narrowing to the single
       // sale is the point of the link, so it wins over the other filters (the
       // banner below offers the way back out).
-      if (focusSaleId !== null) return sale.saleId === focusSaleId || !!sale.lines?.some((l) => l.saleId === focusSaleId)
+      if (focusSaleId !== null) return sale.saleId === focusSaleId
       if (query) {
         const matchesCustomer = sale.customerName?.toLowerCase().includes(query)
         const matchesProduct = sale.product?.toLowerCase().includes(query)
@@ -2453,7 +2408,7 @@ export default function SalesPage() {
         onRepost={(row) => { void repostReversed(row) }}
         onInvoice={(row) => { setViewSale(null); openInvoiceDialog(row) }}
         onShowSale={(id) => {
-          const row = groupedSales.find((g) => g.saleId === id || g.lines?.some((l) => l.saleId === id))
+          const row = groupedSales.find((g) => g.saleId === id)
           if (row) { setStatusFilter("All"); setViewSale(row) }
         }}
       />
@@ -2493,7 +2448,6 @@ export default function SalesPage() {
         partyName={historySale?.customerName ?? null}
         documentType="Sale"
         documentId={historySale?.saleId ?? null}
-        documentIds={historySale?.lines?.map((l) => l.saleId) ?? null}
         canReverse={canReversePayments}
         onReversed={() => { loadSales() }}
       />
@@ -2541,14 +2495,13 @@ export default function SalesPage() {
                 disabled={paySaving}
                 onClick={() => {
                   const s = payDialog.sale!
-                  const owedLine = (s.lines ?? [s]).find((l) => saleOwed(l) > 0) ?? s
                   setPayDialog({ open: false, sale: null })
                   setApplyCredit({
                     customerId: Number(s.customerId),
                     customerName: s.customerName || "",
-                    saleId: owedLine.saleId,
-                    saleLabel: s.lines ? (s.saleGroupNo ?? `#${owedLine.saleId}`) : `#${s.saleId}`,
-                    outstanding: saleOwed(owedLine),
+                    saleId: s.saleId,
+                    saleLabel: s.saleGroupNo ?? `#${s.saleId}`,
+                    outstanding: saleOwed(s),
                   })
                 }}
               >

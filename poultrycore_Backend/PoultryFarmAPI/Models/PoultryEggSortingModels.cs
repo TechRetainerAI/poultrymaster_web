@@ -1,4 +1,4 @@
-// Egg Sorting Workspace (migrations 341-343): egg classes (Unsorted + sizes)
+﻿// Egg Sorting Workspace (migrations 341-343): egg classes (Unsorted + sizes)
 // in the one stock ledger, sorting sessions that turn Unsorted into sizes, and
 // the readers the workspace, Egg Tracker, sales and reports use.
 
@@ -279,6 +279,11 @@ namespace PoultryFarmAPIWeb.Models
         public int? FlockId { get; set; }
         /// <summary>351: the reversed sale this one corrects, if it is a Correct Sale re-entry.</summary>
         public int? CorrectsSaleId { get; set; }
+        /// <summary>
+        /// 358: one id per Add Sale form. A retry or double-click with the same
+        /// key returns the sale already posted instead of posting a second.
+        /// </summary>
+        public string? RequestKey { get; set; }
         public List<SaleGroupLine> Lines { get; set; } = new();
     }
 
@@ -296,7 +301,13 @@ namespace PoultryFarmAPIWeb.Models
     public class SaleGroupResult
     {
         public string SaleGroupNo { get; set; } = string.Empty;
+        /// <summary>358: the ONE sale created, whatever the number of lines.</summary>
+        public int SaleId { get; set; }
+        /// <summary>Kept for older callers; since 358 always exactly [SaleId].</summary>
         public int[] SaleIds { get; set; } = Array.Empty<int>();
         public decimal TotalAmount { get; set; }
+        public int LineCount { get; set; }
+        /// <summary>True when the request key matched a sale already posted.</summary>
+        public bool Duplicate { get; set; }
     }
 }

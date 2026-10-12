@@ -240,8 +240,6 @@ export function buildPoultryNavConfig(
           // the two Sales rows.
           { id: "supplier-payments", title: "Supplier Payments", icon: Receipt, href: "/supplier-payments", visible: money("/supplier-payments") },
           { id: "supplier-balances", title: "Supplier Balances", icon: Truck, href: "/supplier-balances", visible: money("/supplier-balances") },
-          // 348. Rent, security, internet ... raised as drafts when due. Same gate as Expenses.
-          { id: "recurring-expenses", title: "Recurring Expenses", icon: Repeat, href: "/recurring-expenses", visible: money("/expenses") },
           // Moved here from Operations > Inventory & Health. Stock the farm
           // consumes itself is money going out in kind -- it belongs with the
           // outflows it is, rather than with the stock counts it is measured
@@ -473,6 +471,9 @@ export function buildPoultryNavConfig(
           // its receipts, balances and reversals on the same dedicated page. Gated
           // on its own IAM key, the same one the page and the API check.
           { id: "receive-purchase", title: "Receive Purchase", icon: Receipt, href: "/poultry-purchase-receipts", visible: permissions.can("poultry.purchase-receipts.view") },
+          // Recurring Expenses (348): rent, security, internet ... raised as drafts
+          // when due. Moved here from Finance > Expenses; same gate as Expenses.
+          { id: "recurring-expenses", title: "Recurring Expenses", icon: Repeat, href: "/recurring-expenses", visible: money("/expenses") },
         ],
       },
     ],

@@ -16,17 +16,17 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { formatCurrency } from "@/lib/utils/currency"
 import { formatDateShort } from "@/lib/utils"
-import { getSaleReversal, type Sale, type SaleReversalRecord } from "@/lib/api/sale"
+import { getSaleReversal, type Sale, type SaleLine, type SaleReversalRecord } from "@/lib/api/sale"
 import { restoreLabel } from "@/lib/sales/reversal"
 
-type SaleRow = Sale & { lines?: Sale[] }
+type SaleRow = Sale & { lines?: SaleLine[] }
 
 interface Props {
   sale: SaleRow | null
   farmId: string
   currencyCode: string
   flockLabel: (flockId?: number | null) => string
-  lineLabel: (line: Sale) => string
+  lineLabel: (line: SaleLine) => string
   canReverse: boolean
   onOpenChange: (open: boolean) => void
   onSaveNote: (sale: SaleRow, note: string) => Promise<boolean>
@@ -78,8 +78,12 @@ export function SaleDetailsDialog({
   }, [sale, farmId])
 
   if (!sale) return null
-  const label = sale.lines ? sale.saleGroupNo : `#${sale.saleId}`
-  const lines = sale.lines ?? [sale]
+  const label = sale.saleGroupNo ?? `#${sale.saleId}`
+  // 358: the sale's own lines; an older payload without them reads as one line.
+  const lines: SaleLine[] = sale.lines?.length ? sale.lines : [{
+    saleLineId: 0, lineNo: 1, product: sale.product, eggProductId: sale.eggProductId, size: sale.size,
+    quantity: sale.quantity, unitPrice: sale.unitPrice, totalAmount: sale.totalAmount,
+  }]
   const paid = Number(sale.amountPaid ?? (sale.paid === false ? 0 : sale.totalAmount)) || 0
   const noteChanged = (note ?? "") !== (sale.saleDescription ?? "")
 
@@ -121,7 +125,7 @@ export function SaleDetailsDialog({
           <section className="space-y-2">
             <SectionLabel>{lines.length > 1 ? "Lines" : "Item"}</SectionLabel>
             {lines.map((l) => (
-              <div key={l.saleId} className="flex justify-between gap-3 rounded-md border p-2.5 text-sm">
+              <div key={l.lineNo} className="flex justify-between gap-3 rounded-md border p-2.5 text-sm">
                 <span>{lineLabel(l)}</span>
                 <span className="tabular-nums font-medium">{money(l.totalAmount)}</span>
               </div>
