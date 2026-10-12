@@ -26,7 +26,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { Loader2, CreditCard, Info, Building2, Bird, Droplets, ShoppingBag, BedDouble, UtensilsCrossed } from "lucide-react"
+import { Loader2, CreditCard, Info, Building2, Bird, Droplets, ShoppingBag, BedDouble, UtensilsCrossed, ChevronDown } from "lucide-react"
 import {
   getBillingSummary,
   getPlatformInvoices,
@@ -121,6 +121,72 @@ function TypeTile({ type }: { type: string }) {
   return (
     <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ring-1 ring-inset ${cls}`}>
       <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
+    </div>
+  )
+}
+
+/** Companies grouped per business type: the type row is a dropdown — click it
+ *  and that type's companies unfold beneath; every type behaves the same. */
+function CompanyTypeGroup({ family, rows, open, onToggle, onExplain, currencyCode }: {
+  family: string
+  rows: CompanyBillingRow[]
+  open: boolean
+  onToggle: () => void
+  onExplain: (farmId: string) => void
+  currencyCode: string
+}) {
+  const billed = rows.filter(
+    (c) => c.pricingStatus === "Resolved" || c.pricingStatus === "CustomPrice" || c.pricingStatus === "Grandfathered"
+  )
+  const subtotal = billed.reduce((a, c) => a + (c.monthlyAmount ?? 0), 0)
+  const needsAttention = rows.some(
+    (c) => c.pricingStatus === "ScaleSetupRequired" || c.pricingStatus === "PricingNotConfigured"
+  )
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 bg-slate-50/40 px-4 py-3 text-left transition-colors hover:bg-slate-50 sm:px-6"
+      >
+        <div className="flex min-w-0 flex-1 basis-56 items-center gap-3">
+          <TypeTile type={family} />
+          <div className="min-w-0">
+            <p className="text-[15px] font-semibold leading-5 tracking-[-0.01em] text-slate-900">{family}</p>
+            <p className="text-xs leading-4 text-slate-500">
+              {rows.length} {rows.length === 1 ? "company" : "companies"} · {billed.length} billed
+            </p>
+          </div>
+        </div>
+        {needsAttention && !open && (
+          <span className="hidden items-center gap-1.5 text-xs font-medium text-amber-700 sm:inline-flex">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden />
+            Needs attention
+          </span>
+        )}
+        <div className="w-36 text-right">
+          {subtotal > 0 ? (
+            <span className="tabular-nums text-[15px] font-semibold tracking-[-0.01em] text-slate-900">
+              {money(subtotal, currencyCode)}
+              <span className="ml-0.5 text-xs font-normal text-slate-400">/mo</span>
+            </span>
+          ) : (
+            <span className="text-slate-300">—</span>
+          )}
+        </div>
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`}
+          strokeWidth={1.75}
+        />
+      </button>
+      {open && (
+        <div className="divide-y divide-slate-100 border-t border-slate-100 bg-white pl-2 sm:pl-4">
+          {rows.map((c) => (
+            <CompanyRow key={c.farmId} c={c} onExplain={onExplain} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -239,6 +305,9 @@ export function BillingPanel() {
   const [cycleOpen, setCycleOpen] = useState(false)
   const [cycleBusy, setCycleBusy] = useState(false)
   const [savingsOpen, setSavingsOpen] = useState(false)
+  // Companies grouped by business type; each type row is a dropdown. All start
+  // collapsed — click a type (Farm, Water, ...) and its companies unfold.
+  const [openTypes, setOpenTypes] = useState<Set<string>>(new Set())
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -385,6 +454,23 @@ export function BillingPanel() {
   }
 
   const { account: acct, preview, companies } = summary
+
+  // Companies grouped by business type; each type row is a dropdown (plain
+  // derivation — this sits after the loading early-returns, so no hook).
+  const companyGroups = (() => {
+    const order = ["Poultry", "Water", "Hotel", "Restaurant", "Generic"]
+    const map = new Map<string, CompanyBillingRow[]>()
+    for (const c of companies) {
+      const family = c.companyFamily || c.businessType || "Other"
+      if (!map.has(family)) map.set(family, [])
+      map.get(family)!.push(c)
+    }
+    return [...map.entries()].sort(
+      (a, b) =>
+        (order.indexOf(a[0]) === -1 ? 99 : order.indexOf(a[0])) -
+        (order.indexOf(b[0]) === -1 ? 99 : order.indexOf(b[0]))
+    )
+  })()
   const trialEnded = acct.status === "Trial" && (acct.trialDaysLeft ?? 0) <= 0
   const canPay = !preview.hasUnpricedCompanies && preview.total > 0
 
@@ -515,8 +601,23 @@ export function BillingPanel() {
           </div>
         </CardHeader>
         <div className="divide-y divide-slate-100">
-          {companies.map((c) => (
-            <CompanyRow key={c.farmId} c={c} onExplain={(id) => void openExplain(id)} />
+          {companyGroups.map(([family, rows]) => (
+            <CompanyTypeGroup
+              key={family}
+              family={family}
+              rows={rows}
+              open={openTypes.has(family)}
+              onToggle={() =>
+                setOpenTypes((prev) => {
+                  const next = new Set(prev)
+                  if (next.has(family)) next.delete(family)
+                  else next.add(family)
+                  return next
+                })
+              }
+              onExplain={(id) => void openExplain(id)}
+              currencyCode={preview.currencyCode}
+            />
           ))}
         </div>
         <div className="border-t border-slate-200/70 bg-slate-50/80 px-4 py-5 sm:px-6">

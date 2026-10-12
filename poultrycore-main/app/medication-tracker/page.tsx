@@ -110,7 +110,10 @@ export default function MedicationTrackerPage() {
         cost?: number; recognized?: number; reversed?: boolean
         productionRecordId?: number | null
       }> = [
-        ...purchases.filter((p) => p.poultryRawMaterialItemId === m.poultryRawMaterialItemId).map((p) => ({
+        // A reversed receipt's lot (345) put nothing on the shelf in the end, and
+        // this ledger does not read the opposite adjustment that took it back
+        // out -- so it is left out here rather than shown as stock that is not there.
+        ...purchases.filter((p) => p.poultryRawMaterialItemId === m.poultryRawMaterialItemId && !p.isReversed).map((p) => ({
           date: p.purchaseDate, type: "Purchase" as const,
           source: p.supplierName ? `Purchase — ${p.supplierName}` : "Purchase",
           inQty: p.quantity, outQty: 0, key: `p${p.poultryRawMaterialPurchaseId}`,
@@ -134,7 +137,7 @@ export default function MedicationTrackerPage() {
 
   // Per-medication summary (quantity left is the item's authoritative stock).
   const byMed = useMemo(() => meds.map((m) => {
-    const totalIn = purchases.filter((p) => p.poultryRawMaterialItemId === m.poultryRawMaterialItemId).reduce((s, p) => s + (p.quantity || 0), 0)
+    const totalIn = purchases.filter((p) => p.poultryRawMaterialItemId === m.poultryRawMaterialItemId && !p.isReversed).reduce((s, p) => s + (p.quantity || 0), 0)
     const totalOut = usage.filter((u) => u.poultryRawMaterialItemId === m.poultryRawMaterialItemId).reduce((s, u) => s + Math.abs(u.quantityUsed || 0), 0)
     const left = m.currentQuantity
     return {

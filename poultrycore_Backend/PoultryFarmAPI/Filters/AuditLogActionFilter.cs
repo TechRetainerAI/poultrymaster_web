@@ -10,11 +10,14 @@ namespace PoultryFarmAPIWeb.Filters
     public class AuditLogActionFilter : IAsyncActionFilter
     {
         private readonly IAuditLogService _auditLogService;
+        private readonly IPlatformActivityService _activityService;
         private readonly ILogger<AuditLogActionFilter> _logger;
 
-        public AuditLogActionFilter(IAuditLogService auditLogService, ILogger<AuditLogActionFilter> logger)
+        public AuditLogActionFilter(IAuditLogService auditLogService,
+            IPlatformActivityService activityService, ILogger<AuditLogActionFilter> logger)
         {
             _auditLogService = auditLogService;
+            _activityService = activityService;
             _logger = logger;
         }
 
@@ -90,12 +93,37 @@ namespace PoultryFarmAPIWeb.Filters
                     FarmId = farmId
                 };
 
+                // PROMPT 1 (Platform Activity Foundation): the same choke point also
+                // feeds the normalized analytics layer. Classified only on SUCCESS,
+                // which the action result already proves — a rolled-back transaction
+                // surfaces here as an exception/4xx+ and is never emitted. Audit logs
+                // stay the authoritative trail; this is derived analytics.
+                PoultryFarmAPIWeb.Models.PlatformActivityRecordRequest? activity = null;
+                if (status == "Success")
+                {
+                    var classification = Business.ActivityClassifier.Classify(controllerName, actionName, httpMethod);
+                    if (classification != null)
+                    {
+                        activity = new PoultryFarmAPIWeb.Models.PlatformActivityRecordRequest
+                        {
+                            CompanyId = farmId == "Unknown" ? null : farmId,
+                            UserId = userId == "Anonymous" ? null : userId,
+                            Category = classification.Category,
+                            ActivityType = classification.ActivityType,
+                            SourceModule = classification.SourceModule,
+                            SourceRecordId = resourceId,
+                            IsMeaningful = classification.IsMeaningful,
+                            OccurredAtUtc = DateTime.UtcNow,
+                        };
+                    }
+                }
+
                 // Log asynchronously without blocking
                 _ = Task.Run(async () =>
                 {
                     try
                     {
-                        _logger.LogInformation("Inserting audit log: {Action} {Resource} by {UserId} for farm {FarmId}", 
+                        _logger.LogInformation("Inserting audit log: {Action} {Resource} by {UserId} for farm {FarmId}",
                             auditLog.Action, auditLog.Resource, auditLog.UserId, auditLog.FarmId);
                         var id = await _auditLogService.InsertAsync(auditLog);
                         _logger.LogInformation("Audit log inserted successfully with ID: {Id}", id);
@@ -103,6 +131,12 @@ namespace PoultryFarmAPIWeb.Filters
                     catch (Exception ex)
                     {
                         _logger.LogError(ex, "Failed to insert audit log: {Action} {Resource}", auditLog.Action, auditLog.Resource);
+                    }
+
+                    if (activity != null)
+                    {
+                        // RecordAsync never throws (analytics must never break business flows).
+                        await _activityService.RecordAsync(activity);
                     }
                 });
             }

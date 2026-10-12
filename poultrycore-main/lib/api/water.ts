@@ -1847,7 +1847,7 @@ export const upsertWaterProductionRecipe = (waterProductId: number, input: Water
 export const deleteWaterProductionRecipe = (waterProductId: number, recipeId: number) =>
   jsend<void>(`/Water/products/${waterProductId}/recipe/${recipeId}?farmId=${encodeURIComponent(activeFarmId())}`, "DELETE")
 
-// ----- Raw Material Usage history (for /water-raw-materials → Usage History tab) -----
+// ----- Raw Material Usage history (for /water-supply-purchases → Usage History tab) -----
 export const listWaterRawMaterialUsageHistory = (opts?: { itemId?: number; fromDate?: string; toDate?: string }) => {
   const qs = new URLSearchParams({ farmId: activeFarmId() })
   if (opts?.itemId) qs.append("itemId", String(opts.itemId))

@@ -39,6 +39,8 @@ const WATER_ROUTE_ACCESS: Record<string, (f: FeatureAccessPermissions, isAdmin: 
   // --- Inventory -----------------------------------------------------------
   "/water-stock": (f) => f.canViewWaterInventory,
   "/water-inventory": (f) => f.canViewWaterInventory,
+  "/water-supply-purchases": (f) => f.canViewWaterInventory,
+  // Old address of the page above; it only redirects there now.
   "/water-raw-materials": (f) => f.canViewWaterInventory,
   "/water-loss-records": (f) => f.canViewWaterInventory,
   "/water-internal-use": (f) => f.canViewInternalUse,

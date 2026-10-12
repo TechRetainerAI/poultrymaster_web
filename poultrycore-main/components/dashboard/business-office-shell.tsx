@@ -13,7 +13,7 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useToast } from "@/hooks/use-toast"
-import { Briefcase, Building2, Bird, Droplets, ShoppingBag, Bell, HelpCircle, LogOut, Menu, Settings, CreditCard, Plus, Loader2 } from "lucide-react"
+import { Briefcase, Building2, Bird, Droplets, ShoppingBag, Bell, HelpCircle, LogOut, Menu, Settings, CreditCard, Plus, Loader2, ListTodo } from "lucide-react"
 import { BoCompanySelector } from "@/components/dashboard/bo-company-selector"
 import { getMyCompanies, switchCompany, dashboardHomeForType, type Company } from "@/lib/api/companies"
 import { companyColorMap, companyInitial, FALLBACK_COMPANY_COLOR } from "@/lib/utils/company-color"
@@ -109,9 +109,10 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
 
   const main = [
     { key: "home", href: "/business-office", label: "Business Office", icon: Briefcase },
-    // My Tasks + Notifications hidden from the sidebar until the feature is
-    // built out (James, 2026-08-06). Restore these two lines to bring them back.
-    // { key: "tasks", href: "/business-office#tasks", label: "My Tasks", icon: ListTodo },
+    // My Tasks is back (migration 347): it now lists the flock lifecycle
+    // reminders of the poultry companies this user can open. Notifications
+    // stays hidden until that feature is built out (James, 2026-08-06).
+    { key: "tasks", href: "/business-office#tasks", label: "My Tasks", icon: ListTodo },
     // { key: "notices", href: "/business-office#notices", label: "Notifications", icon: Bell },
   ]
   // Administration group — sits at the BOTTOM of the nav (below the companies

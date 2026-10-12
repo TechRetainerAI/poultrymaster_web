@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -17,6 +17,7 @@ import {
 // item, or a single picked one. Drop it on any Poultry inventory page.
 export function RecalculateStockButton({
   items, onDone, variant = "outline", size, className, label = "Recalculate stock",
+  open: openProp, onOpenChange, hideTrigger = false,
 }: {
   items: PoultryRawMaterialItem[]
   onDone?: () => void | Promise<void>
@@ -24,14 +25,24 @@ export function RecalculateStockButton({
   size?: "default" | "sm" | "lg" | "icon"
   className?: string
   label?: string
+  /** Controlled: open the dialog from elsewhere (e.g. a "More" menu item). */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  /** Render only the dialog, no button -- for a menu that opens it. */
+  hideTrigger?: boolean
 }) {
   const { toast } = useToast()
-  const [open, setOpen] = useState(false)
+  const [openState, setOpenState] = useState(false)
+  const open = openProp ?? openState
+  const setOpen = (o: boolean) => { if (openProp === undefined) setOpenState(o); onOpenChange?.(o) }
   const [target, setTarget] = useState<string>("all")   // "all" or an item id
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<PoultryRawMaterialRecalcRow[] | null>(null)
 
   const active = items.filter((i) => i.isActive)
+
+  // Every opening starts fresh, however it was opened.
+  useEffect(() => { if (open) { setResult(null); setTarget("all") } }, [open])
 
   async function run() {
     setBusy(true)
@@ -48,11 +59,13 @@ export function RecalculateStockButton({
 
   return (
     <>
-      <Button variant={variant} size={size} className={className}
-        onClick={() => { setResult(null); setTarget("all"); setOpen(true) }}
-        title="Recompute raw-material stock from purchases, usage and adjustments">
-        <RefreshCw className="w-4 h-4 mr-1" /> {label}
-      </Button>
+      {!hideTrigger && (
+        <Button variant={variant} size={size} className={className}
+          onClick={() => setOpen(true)}
+          title="Recompute raw-material stock from purchases, usage and adjustments">
+          <RefreshCw className="w-4 h-4 mr-1" /> {label}
+        </Button>
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">

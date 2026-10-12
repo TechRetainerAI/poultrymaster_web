@@ -85,9 +85,10 @@ BEGIN
     SELECT COALESCE(SUM(amount), 0) INTO v_num FROM poultrycashtransactions WHERE farmid = v_farm;
     f := f + pg_temp.chk2('R2. the cash ledger nets to zero', '0', ROUND(v_num)::text);
     SELECT string_agg(status || '|' || COALESCE(reversalreason, ''), ',') INTO v_msg FROM poultrypayments WHERE saleid = v_sale;
-    f := f + pg_temp.chk2('R3. the payment is kept, Reversed, with the reason', 'Reversed|Flock reopened: Closed the wrong flock', v_msg);
-    SELECT COUNT(*) INTO v_n FROM sale WHERE saleid = v_sale;
-    f := f + pg_temp.chk2('R4. the sale is gone from the Sales page', '0', v_n::text);
+    f := f + pg_temp.chk2('R3. the payment is kept, Reversed, with the reason', 'Reversed|Sale reversed: Flock reopened: Closed the wrong flock', v_msg);
+    -- 351: the sale is REVERSED, not deleted -- it stays in the history.
+    SELECT string_agg(status, ',') INTO v_msg FROM sale WHERE saleid = v_sale;
+    f := f + pg_temp.chk2('R4. the sale is kept, Reversed', 'Reversed', v_msg);
     SELECT COALESCE(SUM(quantity), 0) INTO v_num FROM poultrystocktransactions
     WHERE  farmid = v_farm AND txntype = 'Bird Sale' AND relatedid = v_sale;
     f := f + pg_temp.chk2('R5. its Bird Sale ledger row is reversed, not deleted (nets 0)', '0', ROUND(v_num)::text);
@@ -123,7 +124,7 @@ BEGIN
 
     SELECT currentbalance INTO v_num FROM poultrycashaccounts WHERE poultrycashaccountid = v_acct;
     f := f + pg_temp.chk2('P1. the part payment is taken back out', '0.00', v_num::text);
-    SELECT COUNT(*) INTO v_n FROM sale WHERE saleid = v_sale;
+    SELECT COUNT(*) INTO v_n FROM sppoultrycustomeropensales(v_farm, (SELECT customerid FROM sale WHERE saleid = v_sale)) o WHERE o.saleid = v_sale;
     f := f + pg_temp.chk2('P2. the receivable goes with the sale', '0', v_n::text);
     SELECT COUNT(*) INTO v_n FROM poultrypayments WHERE saleid = v_sale AND COALESCE(status, 'Posted') = 'Posted';
     f := f + pg_temp.chk2('P3. no payment is left Posted against it', '0', v_n::text);

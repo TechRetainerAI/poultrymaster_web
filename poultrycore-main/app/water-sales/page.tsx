@@ -138,7 +138,7 @@ function WaterSalesPageInner() {
   )
 
   // Only Finished Goods are sellable. RawMaterial / PackagingMaterial belong on
-  // /water-raw-materials and the production-batch recipe pickers — they were
+  // /water-supply-purchases and the production-batch recipe pickers — they were
   // leaking into the Sales dropdown because the previous filter only checked
   // `isActive`. Migration 063 added ProductType for exactly this distinction.
   const saleableProducts = useMemo(

@@ -361,9 +361,9 @@ const tabs: SetupTab<any>[] = [
   },
   {
     key: "raw-materials",
-    label: "Raw materials & supplies",
+    label: "Inventory & supply purchases",
     icon: Box,
-    addHref: "/water-raw-materials",
+    addHref: "/water-supply-purchases",
     fetch: listWaterRawMaterialItems,
     delete: deleteWaterRawMaterialItem,
     idOf: (i: any) => i.waterRawMaterialItemId,

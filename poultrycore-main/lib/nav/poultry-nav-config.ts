@@ -17,7 +17,7 @@ import {
   Activity, AlertTriangle, ArrowLeftRight, Banknote, BarChart3, Bell, Bird, BookOpen, Box, Boxes,
   Building2, Clock, CreditCard, DollarSign, Egg, Factory, FileText, HelpCircle, History, Hourglass,
   Coins, HandCoins, ListTodo, Package, PackageMinus, Pill, Receipt, Scale, Settings, ShoppingCart, Truck, User, UserCog, Users,
-  Users2, Wallet, Wheat, TrendingUp, Sparkles, ClipboardCheck, CalendarCheck, Flag,
+  Users2, Wallet, Wheat, TrendingUp, Sparkles, ClipboardCheck, CalendarCheck, Flag, Repeat,
 } from "lucide-react"
 import type { UserPermissions } from "@/hooks/use-permissions"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
@@ -111,12 +111,12 @@ export function buildPoultryNavConfig(
         // Operations > Purchase. money() is a default-DENY allow-list, so
         // sending a non-financial page through it hides it from everyone.
         //
-        // "Raw Materials", not the full "Raw Materials & Supplies" it carries in
-        // Operations: NavDropdown's panel is a fixed w-52 (208px) and its rows
-        // do not truncate, so the full name is the one label here that wraps to
-        // a second line. Same page, and the shortcut bar does not need the
+        // "Supply Purchases", not the full "Inventory & Supply Purchases" it
+        // carries in Operations: NavDropdown's panel is a fixed w-52 (208px)
+        // and its rows do not truncate, so the full name would wrap to a
+        // second line. Same page, and the shortcut bar does not need the
         // qualifier to be unambiguous.
-        { href: "/poultry-raw-materials", label: "Raw Materials",       icon: Box },
+        { href: "/poultry-supply-purchases", label: "Supply Purchases",    icon: Box },
         { href: "/sales",                 label: "Sales",              icon: ShoppingCart,
           visible: money("/sales") },
         { href: "/poultry-payments",      label: "Payments received",  icon: Wallet,
@@ -169,11 +169,12 @@ export function buildPoultryNavConfig(
         items: [
           { id: "inventory",      title: "Inventory",                 icon: Boxes,         href: "/poultry-inventory" },
           { id: "stock",          title: "Stock movements",           icon: Boxes,         href: "/poultry-stock" },
-          { id: "raw-materials",  title: "Raw Materials & Supplies",  icon: Box,           href: "/poultry-raw-materials" },
+          { id: "raw-materials",  title: "Inventory & Supply Purchases", icon: Box,        href: "/poultry-supply-purchases" },
           // Supplies and Other Inventory are hidden rather than deleted: the
           // pages still exist and still work by URL, and their rows are one
           // uncomment away if the farm wants them back. Both overlapped what
-          // Raw Materials & Supplies and Inventory above already cover.
+          // Inventory & Supply Purchases (was Raw Materials & Supplies) and
+          // Inventory above already cover.
           // { id: "supplies",       title: "Supplies",                  icon: ShoppingCart,  href: "/supplies" },
           { id: "health",         title: "Health Records",            icon: AlertTriangle, href: "/health" },
           // Internal Use moved to Sales, Expenses & Money > Expenses. Stock
@@ -205,10 +206,10 @@ export function buildPoultryNavConfig(
           // purchase transaction that brings birds onto the farm.
           { id: "flock-batch", title: "Flock Purchases (Batches)", icon: Boxes, href: "/flock-batch" },
           // Deep link that opens the Raw Materials purchase dialog straight
-          // away (?purchase=1 is handled in app/poultry-raw-materials/page.tsx)
+          // away (?purchase=1 is handled in app/poultry-supply-purchases/page.tsx)
           // — buying feed/packaging/medication is the other purchase people do
           // daily, and it was only reachable from inside that page.
-          { id: "record-purchase", title: "Record Purchase", icon: ShoppingCart, href: "/poultry-raw-materials?purchase=1" },
+          { id: "record-purchase", title: "Record Purchase", icon: ShoppingCart, href: "/poultry-supply-purchases?purchase=1" },
         ],
       },
     ],
@@ -232,6 +233,8 @@ export function buildPoultryNavConfig(
         label: "Expenses",
         items: [
           { id: "expenses",      title: "Expenses",     icon: DollarSign, href: "/expenses",               visible: money("/expenses") },
+          // 348. Rent, security, internet ... raised as drafts when due. Same gate as Expenses.
+          { id: "recurring-expenses", title: "Recurring Expenses", icon: Repeat, href: "/recurring-expenses", visible: money("/expenses") },
           // Moved here from Operations > Inventory & Health. Stock the farm
           // consumes itself is money going out in kind -- it belongs with the
           // outflows it is, rather than with the stock counts it is measured
@@ -376,6 +379,9 @@ export function buildPoultryNavConfig(
           // A farm-level schedule that production records key off, so it sits
           // with the other production master data rather than under Company.
           { id: "egg-picks",     title: "Egg Pick Times", icon: Clock,  href: "/business-office/egg-pick-settings", visible: isAdmin },
+          // Turning egg sorting on/off, the sizes and their prices: only the
+          // settings, on a page of their own (not the whole workspace).
+          { id: "egg-sorting-settings", title: "Egg Sorting Settings", icon: Egg, href: "/poultry-egg-sorting-settings", visible: isAdmin },
         ],
       },
       {
@@ -427,6 +433,10 @@ export function buildPoultryNavConfig(
           // Flock Closeout (migrations 338/339). Gated on its own IAM key, the same
           // one the page and the API check, so the row never offers a page that would refuse.
           { id: "flock-closeout", title: "Flock Closeout", icon: Flag, href: "/flock-closeout", visible: permissions.can("poultry.flock-closeout.view") },
+          // Flock Lifecycle (347): reminders for the milestones the FARM defines,
+          // worked out from each flock's age. Gated on its own IAM key, the same
+          // one the page and the API check.
+          { id: "flock-lifecycle", title: "Flock Lifecycle", icon: CalendarCheck, href: "/poultry-lifecycle", visible: permissions.can("poultry.lifecycle.view") },
           // Missing Activity Detector (332): which expected activities -- today
           // or any past day -- have not been recorded. Not gated here, like the
           // Production rows it reports on; the API gates each check on its own
@@ -445,8 +455,8 @@ export function buildPoultryNavConfig(
           // or more days, posted as medication lines on production records.
           // Ungated like the rows above; the API gates on poultry.health.
           { id: "treatment-campaigns", title: "Treatment Campaigns", icon: Pill, href: "/poultry-treatment-campaigns" },
-          // Days of Supply (337): how long each raw material lasts at its actual usage.
-          { id: "days-of-supply", title: "Days of Supply", icon: Package, href: "/poultry-days-of-supply" },
+          // Inventory Restock Forecast (337, was "Days of Supply"): how long each raw material lasts at its actual usage.
+          { id: "days-of-supply", title: "Inventory Restock Forecast", icon: Package, href: "/poultry-restock-forecast" },
           // Flock Alerts (338): deterministic mortality / egg / feed anomaly
           // alerts with the numbers behind each one. Ungated like the rows
           // above; the API gates on poultry.health.
@@ -455,6 +465,11 @@ export function buildPoultryNavConfig(
           // that used to head the dashboard, on one page. Ungated like the rows
           // above; each card gates itself.
           { id: "farm-alerts", title: "Farm Alerts", icon: Bell, href: "/poultry-alerts" },
+          // Receive Purchase (345): a whole supplier invoice -- several items,
+          // additional costs, part payment, due date -- received in one step, with
+          // its receipts, balances and reversals on the same dedicated page. Gated
+          // on its own IAM key, the same one the page and the API check.
+          { id: "receive-purchase", title: "Receive Purchase", icon: Receipt, href: "/poultry-purchase-receipts", visible: permissions.can("poultry.purchase-receipts.view") },
         ],
       },
     ],

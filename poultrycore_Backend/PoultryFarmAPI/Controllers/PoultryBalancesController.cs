@@ -131,6 +131,63 @@ namespace PoultryFarmAPIWeb.Controllers
             return Ok(await _svc.GetCustomerStatement(farmId, customerId, from, to));
         }
 
+        // -------------------------------------------- 351 customer credit / refunds
+        // Under customer-payments on purpose: applying credit and refunding it
+        // are payment-side actions, so they share that permission key
+        // (poultry.customer-payments.*) rather than inventing new ones.
+
+        [HttpGet("customer-payments/credit")]
+        public async Task<ActionResult<IEnumerable<CustomerCreditSummaryRow>>> GetCreditSummary([FromQuery] string farmId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest(new { message = "Company ID is required." });
+            return Ok(await _svc.GetCustomerCreditSummary(farmId));
+        }
+
+        [HttpGet("customer-payments/credit/{customerId:int}")]
+        public async Task<ActionResult<IEnumerable<CustomerCreditRow>>> GetCustomerCredit(int customerId, [FromQuery] string farmId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest(new { message = "Company ID is required." });
+            return Ok(await _svc.GetCustomerCredit(farmId, customerId));
+        }
+
+        [HttpPost("customer-payments/apply-credit")]
+        public async Task<ActionResult> ApplyCustomerCredit([FromBody] CustomerCreditApplyRequest r)
+        {
+            if (r is null || string.IsNullOrWhiteSpace(r.FarmId)) return BadRequest(new { message = "Company ID is required." });
+            r.CreatedBy = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? r.CreatedBy;
+            try
+            {
+                return Ok(new { applied = await _svc.ApplyCustomerCredit(r) });
+            }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001")
+            {
+                return BadRequest(new { message = ex.MessageText });
+            }
+        }
+
+        [HttpPost("customer-payments/refunds")]
+        public async Task<ActionResult> RecordCustomerRefund([FromBody] CustomerRefundRequest r)
+        {
+            if (r is null || string.IsNullOrWhiteSpace(r.FarmId)) return BadRequest(new { message = "Company ID is required." });
+            if (string.IsNullOrWhiteSpace(r.Reason)) return BadRequest(new { message = "Give a reason for the refund." });
+            r.CreatedBy = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? r.CreatedBy;
+            try
+            {
+                return Ok(new { refundId = await _svc.RecordCustomerRefund(r) });
+            }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001")
+            {
+                return BadRequest(new { message = ex.MessageText });
+            }
+        }
+
+        [HttpGet("customer-payments/refunds")]
+        public async Task<ActionResult<IEnumerable<CustomerRefundRow>>> GetCustomerRefunds([FromQuery] string farmId, [FromQuery] int? customerId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest(new { message = "Company ID is required." });
+            return Ok(await _svc.GetCustomerRefunds(farmId, customerId));
+        }
+
         // ------------------------------------------------------ supplier balances
 
         [HttpGet("supplier-balances")]

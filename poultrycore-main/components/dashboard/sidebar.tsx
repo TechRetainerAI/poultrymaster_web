@@ -355,8 +355,11 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
       ? [{ href: "/generic-supplier-balances", label: "Supplier balances", icon: Scale }]
       : []),
     { href: "/generic-expenses",           label: "Expenses",          icon: DollarSign },
+    // 348: the shared engine (drafts for review, no month-end drift) replaces
+    // the Generic-only page here. /generic-recurring-expenses still works by URL
+    // for templates created before it.
     ...(genericModules.showExisting("enableRecurringExpenses")
-      ? [{ href: "/generic-recurring-expenses", label: "Recurring expenses", icon: Repeat }]
+      ? [{ href: "/recurring-expenses", label: "Recurring expenses", icon: Repeat }]
       : []),
   ]
   const genericMoneyItems = [

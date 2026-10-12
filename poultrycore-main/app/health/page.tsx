@@ -37,6 +37,10 @@ import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
 import { isMedicationPhotoReferenceRecord } from "@/lib/utils/medication-photo"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
+import { useBusinessDate } from "@/hooks/use-business-date"
+import { PrefilledBanner, RepeatPreviousButton, ReviewMark, reviewRing } from "@/components/repeat/repeat-previous"
+import { buildRepeatPrefill, latestEntry, repeatSubmitBlocker, unconfirmedFields, type RepeatPrefill } from "@/lib/repeat/repeat-previous"
+import { FIELD_LABELS, treatmentPolicy, type TreatmentForm } from "@/lib/repeat/policies"
 
 type HealthType = "flock" | "house" | "inventory"
 
@@ -84,6 +88,13 @@ export default function HealthPage() {
     notes: "",
   })
   const healthRecordTypes = ["Vaccination", "Medication", "Treatment", "Illness", "Mortality"] as const
+
+  // Smart Repeat (lib/repeat/policies.ts treatmentPolicy). Medicine name,
+  // treatment and dosage are copied ONLY as "check this" values and the save
+  // is blocked until they are changed or explicitly confirmed.
+  const { businessDate } = useBusinessDate()
+  const [prefill, setPrefill] = useState<RepeatPrefill<TreatmentForm> | null>(null)
+  const [prefillConfirmed, setPrefillConfirmed] = useState(false)
   const [recordType, setRecordType] = useState<(typeof healthRecordTypes)[number]>("Vaccination")
 
   const withTypePrefix = (type: string, notes?: string | null) => {
@@ -328,9 +339,17 @@ export default function HealthPage() {
     }
   }, [activeTab, tabBaseRecords.length, filteredRecords.length])
 
+  const treatmentState = (): Partial<TreatmentForm> => ({
+    vaccination: formData.vaccination ?? "", medication: formData.medication ?? "",
+    waterConsumption: formData.waterConsumption ?? undefined,
+  })
+
   const handleCreate = async () => {
     const { userId, farmId } = getUserContext()
     if (!userId || !farmId) return
+    // Copied medical values must be confirmed first; the normal checks below still run.
+    const repeatBlock = repeatSubmitBlocker(prefill, treatmentState(), prefillConfirmed, FIELD_LABELS.treatment)
+    if (repeatBlock) { toastFormGuide(toast, repeatBlock); return }
     const hasTarget = activeTab === "flock" ? !!formData.flockId : activeTab === "house" ? !!formData.houseId : !!formData.itemId
     if (!hasTarget || !formData.recordDate) {
       const targetHint =
@@ -454,6 +473,7 @@ export default function HealthPage() {
   }
 
   const resetForm = () => {
+    setPrefill(null); setPrefillConfirmed(false)
     setRecordType("Vaccination")
     setFormData({
       flockId: null,
@@ -466,6 +486,39 @@ export default function HealthPage() {
       notes: "",
     })
   }
+  // The last record on the current tab (flock / house / inventory).
+  const previousRecord = useMemo(
+    () => latestEntry(tabBaseRecords, (r) => r.recordDate, (r) => r.id ?? 0),
+    [tabBaseRecords],
+  )
+
+  const repeatPrevious = () => {
+    if (!previousRecord) return
+    const today = businessDate || new Date().toISOString().split("T")[0]
+    const p = buildRepeatPrefill(treatmentPolicy, previousRecord, {
+      businessDate: today,
+      valid: {
+        flock: new Set(flocks.filter((f) => isFlockOpenForEntry(f)).map((f) => f.flockId)),
+        house: new Set(houses.map((h) => h.houseId)),
+        item: new Set(inventoryItems.map((i: any) => i.id)),
+      },
+    })
+    const v = p.values
+    setRecordType((v.recordType as (typeof healthRecordTypes)[number]) ?? "Vaccination")
+    setFormData({
+      flockId: activeTab === "flock" ? v.flockId ?? null : null,
+      houseId: activeTab === "house" ? v.houseId ?? null : null,
+      itemId: activeTab === "inventory" ? v.itemId ?? null : null,
+      recordDate: today,
+      vaccination: v.vaccination ?? "",
+      medication: v.medication ?? "",
+      waterConsumption: v.waterConsumption ?? undefined,
+      notes: "",
+    })
+    setPrefill(p); setPrefillConfirmed(false)
+    setIsCreateDialogOpen(true)
+  }
+
 
   const openEditDialog = (record: HealthRecord) => {
     setEditingRecord(record)
@@ -548,12 +601,16 @@ export default function HealthPage() {
                   if (!open) resetForm()
                 }}
               >
-                <DialogTrigger asChild>
-                  <Button className="gap-2 w-full sm:w-auto h-11 sm:h-10 bg-blue-600 hover:bg-blue-700 shrink-0">
-                    <Plus className="w-4 h-4" />
-                    Add Health Record
-                  </Button>
-                </DialogTrigger>
+                <div className="flex gap-2 w-full sm:w-auto">
+                  <RepeatPreviousButton available={!!previousRecord} className="h-11 sm:h-10"
+                    label={previousRecord ? treatmentPolicy.describe(previousRecord) : null} onClick={repeatPrevious} />
+                  <DialogTrigger asChild>
+                    <Button className="gap-2 flex-1 sm:flex-none h-11 sm:h-10 bg-blue-600 hover:bg-blue-700 shrink-0">
+                      <Plus className="w-4 h-4" />
+                      Add Health Record
+                    </Button>
+                  </DialogTrigger>
+                </div>
                 <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] flex flex-col">
                   <DialogHeader>
                     <DialogTitle>Create Health Record</DialogTitle>
@@ -562,6 +619,11 @@ export default function HealthPage() {
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-5 py-4 overflow-y-auto pr-1">
+                    {prefill && (
+                      <PrefilledBanner prefill={prefill} fieldLabels={FIELD_LABELS.treatment}
+                        unconfirmed={unconfirmedFields(prefill, treatmentState())} confirmed={prefillConfirmed}
+                        onConfirmedChange={setPrefillConfirmed} onClear={resetForm} />
+                    )}
                     <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
                       <div className="bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Record Details</div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
@@ -656,31 +718,34 @@ export default function HealthPage() {
                       <div className="bg-green-600 px-4 py-2 text-sm font-semibold text-white">Treatment Details</div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
                         <div className="space-y-2">
-                          <Label htmlFor="vaccination">Name</Label>
+                          <Label htmlFor="vaccination">Name<ReviewMark show={unconfirmedFields(prefill, treatmentState()).includes("vaccination")} /></Label>
                           <Input
                             id="vaccination"
                             placeholder="Medication/vaccine name"
+                            className={reviewRing(unconfirmedFields(prefill, treatmentState()).includes("vaccination"))}
                             value={formData.vaccination || ""}
                             onChange={(e) => setFormData(prev => ({ ...prev, vaccination: e.target.value }))}
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="medication">Treatment</Label>
+                          <Label htmlFor="medication">Treatment<ReviewMark show={unconfirmedFields(prefill, treatmentState()).includes("medication")} /></Label>
                           <Input
                             id="medication"
                             placeholder="Disease or condition treated"
+                            className={reviewRing(unconfirmedFields(prefill, treatmentState()).includes("medication"))}
                             value={formData.medication || ""}
                             onChange={(e) => setFormData(prev => ({ ...prev, medication: e.target.value }))}
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="waterConsumption">Dosage</Label>
+                          <Label htmlFor="waterConsumption">Dosage<ReviewMark show={unconfirmedFields(prefill, treatmentState()).includes("waterConsumption")} /></Label>
                           <NumberInput
                             id="waterConsumption"
                             
                             step="0.1"
                             min="0"
                             placeholder="e.g., 1ml per bird"
+                            className={reviewRing(unconfirmedFields(prefill, treatmentState()).includes("waterConsumption"))}
                             value={formData.waterConsumption || ""}
                             onChange={(e) => setFormData(prev => ({ ...prev, waterConsumption: e.target.value ? parseFloat(e.target.value) : undefined }))}
                           />

@@ -10,10 +10,31 @@ import {
   type FarmSummary,
 } from "./api"
 import { hasPlatformDirectoryAccess } from "./platform-roles"
+import BillingAdmin, { BILLING_SECTIONS, type Section as BillingSection } from "./BillingAdmin"
+import { CustomersPage, FarmsPage, SettingsPage } from "./pages"
+import { ReportsPage } from "./reports"
+import { PlatformDashboard } from "./platform-dashboard"
+import { CustomerIntelligencePage } from "./customer-intelligence"
+import { CustomerSuccessPage } from "./customer-success"
+import { AnalyticsPage } from "./analytics"
+import { RevenuePage } from "./revenue"
+import { OperationsPage } from "./operations"
+import { fetchRevenueDashboard, type RevenueDashboard } from "./platform-activity-api"
+import { fetchOrganizations, type OrganizationSummary } from "./platform-activity-api"
 import { appendActivity, clearActivityLog, readActivityLog, type DeveloperActivity } from "./activity-log"
 
-type Tab = "all" | "paid" | "unpaid"
-type DevPage = "directory" | "audit"
+type DevPage = "dashboard" | "intel" | "success" | "analytics" | "revenue" | "operations" | "farms" | "customers" | "audit" | "reports" | "billing" | "settings"
+
+const DEV_PAGES: DevPage[] = ["dashboard", "intel", "success", "analytics", "revenue", "operations", "farms", "customers", "audit", "reports", "billing", "settings"]
+
+/** Deep links: #/page?k=v so dashboards, directory focus and audit filters survive reload/sharing. */
+function readHash(): { page: DevPage | null; params: URLSearchParams } {
+  if (typeof window === "undefined") return { page: null, params: new URLSearchParams() }
+  const h = window.location.hash.replace(/^#\/?/, "")
+  const [p, qs] = h.split("?")
+  const page = (DEV_PAGES as string[]).includes(p) ? (p as DevPage) : null
+  return { page, params: new URLSearchParams(qs || "") }
+}
 type AuditSort = "time-desc" | "time-asc" | "farm-asc" | "farm-desc" | "action-asc"
 
 const TOKEN_KEY = "frp_token"
@@ -35,14 +56,25 @@ export default function App() {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [farms, setFarms] = useState<FarmSummary[]>([])
-  const [tab, setTab] = useState<Tab>("all")
   const [activity, setActivity] = useState<DeveloperActivity[]>([])
   const [farmAuditRows, setFarmAuditRows] = useState<FarmAuditLogRow[]>([])
   const [farmAuditErr, setFarmAuditErr] = useState<string | null>(null)
   const [farmAuditLoading, setFarmAuditLoading] = useState(false)
-  const [devPage, setDevPage] = useState<DevPage>("directory")
+  const [devPage, setDevPage] = useState<DevPage>(() => readHash().page ?? "dashboard")
+  const [orgs, setOrgs] = useState<OrganizationSummary[]>([])
+  const [orgsLoading, setOrgsLoading] = useState(false)
+  const [orgsErr, setOrgsErr] = useState<string | null>(null)
+  const [intelView, setIntelView] = useState<"orgs" | "companies">(() => (readHash().params.get("view") === "companies" ? "companies" : "orgs"))
+  const [intelFocusOrg, setIntelFocusOrg] = useState<string | null>(() => readHash().params.get("org"))
+  const [intelFocusCompany, setIntelFocusCompany] = useState<string | null>(() => readHash().params.get("company"))
+  const [auditFamily, setAuditFamily] = useState("")
+  const [revenue, setRevenue] = useState<RevenueDashboard | null>(null)
+  const [auditOrg, setAuditOrg] = useState("")
+  /** Owner picked on the Customers page; opens pre-loaded in Billing → Organizations. */
+  const [billingOwner, setBillingOwner] = useState<string | null>(null)
+  const [billingSection, setBillingSection] = useState<BillingSection>("overview")
   /** When set, audit table shows only rows for this farmId; null = all farms. */
-  const [selectedAuditFarmId, setSelectedAuditFarmId] = useState<string | null>(null)
+  const [selectedAuditFarmId, setSelectedAuditFarmId] = useState<string | null>(() => readHash().params.get("farm"))
   const [auditSearch, setAuditSearch] = useState("")
   const [auditStatus, setAuditStatus] = useState<"all" | "Success" | "Failed">("all")
   const [auditActionQ, setAuditActionQ] = useState("")
@@ -68,7 +100,7 @@ export default function App() {
       setFarmAuditRows(rows)
     } catch (e) {
       setFarmAuditRows([])
-      setFarmAuditErr(e instanceof Error ? e.message : "Failed to load PoultryMaster audit log")
+      setFarmAuditErr(e instanceof Error ? e.message : "Failed to load the platform audit log")
     } finally {
       setFarmAuditLoading(false)
     }
@@ -134,9 +166,67 @@ export default function App() {
     syncPathForAuth(!!token)
   }, [token])
 
-  const paid = useMemo(() => farms.filter((f) => f.hasPaidSubscription === true), [farms])
-  const unpaid = useMemo(() => farms.filter((f) => f.hasPaidSubscription !== true), [farms])
-  const rows = tab === "paid" ? paid : tab === "unpaid" ? unpaid : farms
+  const loadOrganizations = useCallback(async (t: string) => {
+    if (!farmApiBase()) return
+    setOrgsLoading(true)
+    try {
+      setOrgs(await fetchOrganizations(t))
+      setOrgsErr(null)
+    } catch (e) {
+      setOrgsErr(e instanceof Error ? e.message : "Failed to load customer intelligence")
+    } finally {
+      setOrgsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (token) void loadOrganizations(token)
+  }, [token, loadOrganizations])
+
+  // Revenue intelligence is loaded lazily (it evaluates billing for every
+  // account) the first time a page that shows money opens, then cached.
+  useEffect(() => {
+    if (!token || revenue !== null) return
+    if (devPage !== "revenue" && devPage !== "intel") return
+    let gone = false
+    fetchRevenueDashboard(token)
+      .then((r) => { if (!gone) setRevenue(r) })
+      .catch(() => { /* the Revenue page surfaces its own error on open */ })
+    return () => { gone = true }
+  }, [token, devPage, revenue])
+
+  // Keep the URL hash in sync so every admin view is a shareable deep link.
+  useEffect(() => {
+    if (!token) return
+    const params = new URLSearchParams()
+    if (devPage === "intel") {
+      if (intelView !== "orgs") params.set("view", intelView)
+      if (intelFocusOrg) params.set("org", intelFocusOrg)
+      if (intelFocusCompany) params.set("company", intelFocusCompany)
+    }
+    if (devPage === "audit" && selectedAuditFarmId) params.set("farm", selectedAuditFarmId)
+    const qs = params.toString()
+    const next = `#/${devPage}${qs ? `?${qs}` : ""}`
+    if (window.location.hash !== next) window.history.replaceState(null, "", next)
+  }, [token, devPage, intelView, intelFocusOrg, intelFocusCompany, selectedAuditFarmId])
+
+  useEffect(() => {
+    const onHash = () => {
+      const { page, params } = readHash()
+      if (page) {
+        setDevPage(page)
+        if (page === "intel") {
+          setIntelView(params.get("view") === "companies" ? "companies" : "orgs")
+          setIntelFocusOrg(params.get("org"))
+          setIntelFocusCompany(params.get("company"))
+        }
+        if (page === "audit") setSelectedAuditFarmId(params.get("farm"))
+      }
+    }
+    window.addEventListener("hashchange", onHash)
+    return () => window.removeEventListener("hashchange", onHash)
+  }, [])
+
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -198,6 +288,7 @@ export default function App() {
       })
       setActivity(readActivityLog())
       void loadFarmAudit(token)
+      void loadOrganizations(token)
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to load farms"
       setErr(msg)
@@ -224,8 +315,7 @@ export default function App() {
     setFarms([])
     setFarmAuditRows([])
     setFarmAuditErr(null)
-    setTab("all")
-    setDevPage("directory")
+    setDevPage("dashboard")
     setSelectedAuditFarmId(null)
     setAuditSearch("")
     setAuditStatus("all")
@@ -255,8 +345,23 @@ export default function App() {
     return farmNameById.get(key) || "Unknown farm"
   }, [farmNameById])
 
+  const companyMetaById = useMemo(() => {
+    const m = new Map<string, { family: string | null; orgId: string | null }>()
+    for (const o of orgs) for (const c of o.companies) {
+      m.set(c.companyId.trim().toLowerCase(), { family: c.companyFamily ?? null, orgId: o.organizationId })
+    }
+    return m
+  }, [orgs])
+
   const filteredAuditRows = useMemo(() => {
     let rows = farmAuditRows
+
+    if (auditFamily) {
+      rows = rows.filter((r) => companyMetaById.get((r.farmId || "").trim().toLowerCase())?.family === auditFamily)
+    }
+    if (auditOrg) {
+      rows = rows.filter((r) => companyMetaById.get((r.farmId || "").trim().toLowerCase())?.orgId === auditOrg)
+    }
     if (selectedAuditFarmId) {
       const want = selectedAuditFarmId.trim().toLowerCase()
       rows = rows.filter((r) => (r.farmId || "").trim().toLowerCase() === want)
@@ -319,6 +424,9 @@ export default function App() {
   }, [
     farmAuditRows,
     selectedAuditFarmId,
+    auditFamily,
+    auditOrg,
+    companyMetaById,
     auditSearch,
     auditStatus,
     auditActionQ,
@@ -345,7 +453,7 @@ export default function App() {
     return (
       <div className="app-shell">
         <div className="hero">
-          <h1>Developer farm registry</h1>
+          <h1>VisibilityCore - Platform Admin</h1>
           <p>{envHint}</p>
         </div>
       </div>
@@ -358,8 +466,8 @@ export default function App() {
         <div className="login-split">
           <div className="login-illustration-panel">
             <div className="login-illustration-inner">
-              <h1>Developer Registry</h1>
-              <p>Farm directory and subscription tracking</p>
+              <h1>VisibilityCore - Platform Admin</h1>
+              <p>Operations, customer intelligence and billing for the whole platform</p>
               <img src="/farmer-illustration.png" alt="Developer portal illustration" />
             </div>
           </div>
@@ -394,54 +502,106 @@ export default function App() {
     )
   }
 
+  const pageMeta: Record<DevPage, { title: string; sub: string }> = {
+    dashboard: { title: "Platform Operations", sub: "VisibilityCore executive overview" },
+    intel: { title: "Customer Intelligence", sub: "Organizations and companies across every vertical" },
+    success: { title: "Customer Success", sub: "Needs Attention queue - explainable health, assignments and follow-ups" },
+    analytics: { title: "Analytics", sub: "Onboarding & activation, feature adoption and retention cohorts" },
+    revenue: { title: "Revenue", sub: "MRR, movement, trials, renewals, discounts, credits and revenue at risk - per currency" },
+    operations: { title: "Operations", sub: "Briefs, error intelligence, security review, feature flags, releases and system health" },
+    farms: { title: "Companies", sub: "Every registered company across the platform" },
+    customers: { title: "Customers", sub: "Billed organizations and their subscription state" },
+    audit: { title: "Platform Activity Audit", sub: "Raw cross-tenant audit trail - deep investigation" },
+    reports: { title: "Reports & Analytics", sub: "Performance and activity analytics" },
+    billing: { title: "Billing", sub: "Markets, tiers, prices, discounts & organizations" },
+    settings: { title: "Settings", sub: "Platform-wide operational switches" },
+  }
+
   return (
-    <div className="app-shell app-shell-dashboard">
-      <div className="hero page-header">
-        <div>
-          <h1>PoultryMaster — Developer</h1>
-          <p>Farm directory &amp; audit — Login API: {loginApiBase()}</p>
+    <div className="admin-shell">
+      <aside className="admin-sidebar" aria-label="Developer navigation">
+        <div className="admin-brand">
+          <span className="admin-brand-badge" aria-hidden>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14.7 6.3a4 4 0 1 0-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 0 0 5.4-5.4l-2.8 2.8-2.1-2.1 2.9-2.7z"/></svg>
+          </span>
+          <div>
+            <div className="admin-brand-name">VisibilityCore</div>
+            <div className="admin-brand-sub">Platform Admin</div>
+          </div>
         </div>
-        <div className="hero-actions">
-          <button type="button" className="ghost" onClick={logout}>
-            Log out
+        <nav className="admin-nav">
+          <button type="button" className={devPage === "dashboard" ? "active" : ""} onClick={() => setDevPage("dashboard")}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            Dashboard
           </button>
-        </div>
-      </div>
-
-      <div className="stats">
-        <div className="stat">
-          <div className="label">Registered</div>
-          <div className="value">{farms.length}</div>
-        </div>
-        <div className="stat paid">
-          <div className="label">Subscribed</div>
-          <div className="value">{paid.length}</div>
-        </div>
-        <div className="stat unpaid">
-          <div className="label">Not subscribed</div>
-          <div className="value">{unpaid.length}</div>
-        </div>
-      </div>
-
-      <div className="dashboard-grid">
-        <aside className="dev-sidebar" aria-label="Developer navigation">
-          <div className="dev-sidebar-brand">PoultryMaster</div>
-          <div className="dev-sidebar-sub">Platform developer tools — pick a page, then a farm to filter audit activity.</div>
-          <nav className="dev-nav">
-            <button type="button" className={devPage === "directory" ? "active" : ""} onClick={() => setDevPage("directory")}>
-              Directory
-            </button>
-            <button type="button" className={devPage === "audit" ? "active" : ""} onClick={() => setDevPage("audit")}>
-              Activity audit
-            </button>
-          </nav>
-          <div className="dev-sidebar-section">Farms — audit filter</div>
+          <button type="button" className={devPage === "intel" ? "active" : ""} onClick={() => setDevPage("intel")}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/><path d="M8 11h6M11 8v6"/></svg>
+            Customer Intelligence
+          </button>
+          <button type="button" className={devPage === "success" ? "active" : ""} onClick={() => setDevPage("success")}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.1V12a10 10 0 1 1-5.9-9.1"/><path d="M22 4 12 14l-3-3"/></svg>
+            Customer Success
+          </button>
+          <button type="button" className={devPage === "analytics" ? "active" : ""} onClick={() => setDevPage("analytics")}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3v18h18"/><path d="M7 13l3-3 4 4 5-6"/></svg>
+            Analytics
+          </button>
+          <button type="button" className={devPage === "revenue" ? "active" : ""} onClick={() => setDevPage("revenue")}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            Revenue
+          </button>
+          <button type="button" className={devPage === "operations" ? "active" : ""} onClick={() => setDevPage("operations")}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+            Operations
+          </button>
+          <button type="button" className={devPage === "farms" ? "active" : ""} onClick={() => setDevPage("farms")}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/></svg>
+            Companies
+          </button>
+          <button type="button" className={devPage === "customers" ? "active" : ""} onClick={() => setDevPage("customers")}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6 7-6s7 2 7 6"/><path d="M17 11a4 4 0 1 0-2-7.5"/><path d="M22 21c0-3-1.5-5-4-5.6"/></svg>
+            Customers
+          </button>
+          <button type="button" className={devPage === "audit" ? "active" : ""} onClick={() => setDevPage("audit")}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/></svg>
+            Activity Audit
+          </button>
+          <button type="button" className={devPage === "reports" ? "active" : ""} onClick={() => setDevPage("reports")}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3v18h18"/><path d="M7 15v3M12 10v8M17 6v12"/></svg>
+            Reports
+          </button>
+          <button type="button" className={devPage === "billing" ? "active" : ""}
+            onClick={() => {
+              if (devPage !== "billing") { setBillingOwner(null); setBillingSection("overview") }
+              setDevPage("billing")
+            }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+            Billing
+            <svg className={`admin-caret${devPage === "billing" ? " open" : ""}`} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          {devPage === "billing" && (
+            <div className="admin-subnav">
+              {BILLING_SECTIONS.map((sec) => (
+                <button key={sec.key} type="button" className={billingSection === sec.key ? "active" : ""}
+                  onClick={() => { setBillingOwner(null); setBillingSection(sec.key) }}>
+                  {sec.label}
+                </button>
+              ))}
+            </div>
+          )}
+          <button type="button" className={devPage === "settings" ? "active" : ""} onClick={() => setDevPage("settings")}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            Settings
+          </button>
+        </nav>
+        {devPage === "audit" && <>
+          <div className="dev-sidebar-section">Companies — audit filter</div>
           <button
             type="button"
             className={`dev-farm-btn${selectedAuditFarmId === null ? " active" : ""}`}
             onClick={() => selectFarmForAudit(null)}
           >
-            <span className="name">All farms</span>
+            <span className="name">All companies</span>
             <span className="id">Show every audit row</span>
           </button>
           <div className="dev-farm-list">
@@ -453,107 +613,94 @@ export default function App() {
                 onClick={() => selectFarmForAudit(f.farmId)}
               >
                 <span className="name">{f.farmName?.trim() || "Unnamed farm"}</span>
-                <span className="id">{f.farmId}</span>
+                <span className="id">{f.totalUsers} user{f.totalUsers === 1 ? "" : "s"} · {f.staffCount} staff</span>
               </button>
             ))}
           </div>
-        </aside>
+        </>}
+        <div className="admin-user">
+          <span className="admin-avatar">{(username || localStorage.getItem("lastDeveloperUser") || "DV").slice(0, 2).toUpperCase()}</span>
+          <div>
+            <div className="admin-user-name">{username || localStorage.getItem("lastDeveloperUser") || "Developer"}</div>
+            <div className="admin-user-role">Platform admin</div>
+          </div>
+        </div>
+      </aside>
 
-        <div className="dashboard-main">
-          {devPage === "directory" ? (
-            <div className="card">
-              <div className="card-toolbar">
-                <h2 className="card-toolbar-title">Farm directory</h2>
-                <button type="button" className="primary primary-inline" onClick={() => void refresh()} disabled={busy}>
-                  {busy ? "Loading…" : "Refresh"}
-                </button>
-              </div>
-              {err ? <div className="error">{err}</div> : null}
-              <div className="tabs">
-                <button type="button" className={tab === "all" ? "active" : ""} onClick={() => setTab("all")}>
-                  All ({farms.length})
-                </button>
-                <button
-                  type="button"
-                  className={tab === "paid" ? "active" : ""}
-                  onClick={() => {
-                    setTab("paid")
-                    appendActivity({
-                      actor: localStorage.getItem("lastDeveloperUser") || "developer",
-                      action: "TAB_CHANGE",
-                      details: "Switched to Paid tab.",
-                    })
-                    setActivity(readActivityLog())
-                  }}
-                >
-                  Paid ({paid.length})
-                </button>
-                <button
-                  type="button"
-                  className={tab === "unpaid" ? "active" : ""}
-                  onClick={() => {
-                    setTab("unpaid")
-                    appendActivity({
-                      actor: localStorage.getItem("lastDeveloperUser") || "developer",
-                      action: "TAB_CHANGE",
-                      details: "Switched to Unpaid tab.",
-                    })
-                    setActivity(readActivityLog())
-                  }}
-                >
-                  Unpaid ({unpaid.length})
-                </button>
-              </div>
-              <p className="subtle-help">Click a farm in the sidebar to jump to Activity audit filtered to that farm.</p>
-              <div style={{ overflowX: "auto" }}>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Farm</th>
-                      <th>Farm ID</th>
-                      <th>Subscription</th>
-                      <th>Users</th>
-                      <th>Staff</th>
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} style={{ color: "#64748b" }}>
-                          No farms in this view.
-                        </td>
-                      </tr>
-                    ) : (
-                      rows.map((f) => (
-                        <tr key={f.farmId}>
-                          <td style={{ fontWeight: 600 }}>{f.farmName || "—"}</td>
-                          <td className="mono">{f.farmId}</td>
-                          <td>
-                            {f.hasPaidSubscription === true ? (
-                              <span className="badge badge-yes">Subscribed</span>
-                            ) : (
-                              <span className="badge badge-no">Not subscribed</span>
-                            )}
-                          </td>
-                          <td>{f.totalUsers}</td>
-                          <td>{f.staffCount}</td>
-                          <td>
-                            <button type="button" className="primary primary-inline" onClick={() => selectFarmForAudit(f.farmId)}>
-                              Audit
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+      <div className="admin-main">
+        <header className="admin-topbar">
+          <div>
+            <h1>{pageMeta[devPage].title}</h1>
+            <p>{pageMeta[devPage].sub} · {loginApiBase().replace("https://", "")}</p>
+          </div>
+          <div className="admin-topbar-actions">
+            <button type="button" className="admin-btn-ghost" onClick={() => void refresh()} disabled={busy}>
+              {busy ? "Loading…" : "Refresh"}
+            </button>
+            <button type="button" className="admin-btn-primary" onClick={logout}>Log out</button>
+          </div>
+        </header>
+        <div className="admin-content">
+          {devPage === "billing" ? (
+            <BillingAdmin
+              token={token!}
+              actor={username || localStorage.getItem("lastDeveloperUser") || "developer"}
+              section={billingSection}
+              initialOwner={billingOwner ?? undefined}
+            />
+          ) : devPage === "farms" ? (
+            <FarmsPage farms={farmsSorted} onAudit={selectFarmForAudit} token={token!} onDeleted={() => void refresh()} />
+          ) : devPage === "customers" ? (
+            <CustomersPage token={token!} onInspect={(owner) => { setBillingOwner(owner); setBillingSection("orgs"); setDevPage("billing") }} />
+          ) : devPage === "settings" ? (
+            <SettingsPage token={token!} actor={username || localStorage.getItem("lastDeveloperUser") || "developer"} roles={rolesFromJwt(token!)} />
+          ) : devPage === "reports" ? (
+            <ReportsPage farms={farms} rows={farmAuditRows} resolveFarmName={resolveFarmName} />
+          ) : devPage === "dashboard" ? (
+            <PlatformDashboard
+              token={token!}
+              organizations={orgs}
+              onOpenIntel={(opts) => {
+                if (opts?.view) setIntelView(opts.view)
+                setIntelFocusOrg(opts?.org ?? null)
+                setIntelFocusCompany(null)
+                setDevPage("intel")
+              }}
+              onOpenAudit={(companyId) => selectFarmForAudit(companyId ?? null)}
+            />
+          ) : devPage === "analytics" ? (
+            <AnalyticsPage token={token!} />
+          ) : devPage === "operations" ? (
+            <OperationsPage token={token!} onNavigate={(page) => setDevPage(page as DevPage)} />
+          ) : devPage === "revenue" ? (
+            <RevenuePage
+              token={token!}
+              revenue={revenue}
+              onLoaded={setRevenue}
+              onOpenOrg={(orgId) => { setIntelFocusCompany(null); setIntelFocusOrg(orgId); setDevPage("intel") }}
+            />
+          ) : devPage === "success" ? (
+            <CustomerSuccessPage token={token!} organizations={orgs} />
+          ) : devPage === "intel" ? (
+            <CustomerIntelligencePage
+              token={token!}
+              organizations={orgs}
+              loading={orgsLoading && orgs.length === 0}
+              error={orgsErr}
+              view={intelView}
+              onViewChange={setIntelView}
+              focusOrg={intelFocusOrg}
+              onFocusOrg={(org) => { setIntelFocusOrg(org); if (org) setIntelFocusCompany(null) }}
+              focusCompany={intelFocusCompany}
+              onFocusCompany={(companyId) => { setIntelFocusCompany(companyId); if (companyId) setIntelFocusOrg(null) }}
+              onDrillAudit={(companyId) => selectFarmForAudit(companyId || null)}
+              onOpenBilling={(owner) => { setBillingOwner(owner); setBillingSection("orgs"); setDevPage("billing") }}
+              revenueByOrg={revenue ? new Map(revenue.organizations.map((o) => [o.organizationId, o])) : null}
+            />
           ) : (
             <div className="card">
               <div className="card-toolbar">
-                <h2 className="card-toolbar-title">PoultryMaster activity</h2>
+                <h2 className="card-toolbar-title">Platform Activity Audit</h2>
                 <button
                   type="button"
                   className="primary primary-inline"
@@ -567,7 +714,6 @@ export default function App() {
                 {selectedAuditFarmId ? (
                   <>
                     Showing audit for: <strong>{resolveFarmName(selectedAuditFarmId)}</strong>
-                    <span className="mono"> ({selectedAuditFarmId})</span>
                   </>
                 ) : (
                   <>Showing audit for <strong>all farms</strong>.</>
@@ -600,6 +746,20 @@ export default function App() {
                       <option value="all">All</option>
                       <option value="Success">Success</option>
                       <option value="Failed">Failed</option>
+                    </select>
+                  </label>
+                  <label className="audit-filter-label">
+                    Company type
+                    <select className="audit-filter-input" value={auditFamily} onChange={(e) => setAuditFamily(e.target.value)}>
+                      <option value="">All</option>
+                      {["Poultry", "Water", "Hotel", "Restaurant", "Generic"].map((f) => <option key={f} value={f}>{f}</option>)}
+                    </select>
+                  </label>
+                  <label className="audit-filter-label">
+                    Organization
+                    <select className="audit-filter-input" value={auditOrg} onChange={(e) => setAuditOrg(e.target.value)}>
+                      <option value="">All</option>
+                      {orgs.map((o) => <option key={o.organizationId} value={o.organizationId}>{o.organizationName || o.organizationId}</option>)}
                     </select>
                   </label>
                   <label className="audit-filter-label">
@@ -647,6 +807,8 @@ export default function App() {
                       onClick={() => {
                         setAuditSearch("")
                         setAuditStatus("all")
+                        setAuditFamily("")
+                        setAuditOrg("")
                         setAuditActionQ("")
                         setAuditResourceQ("")
                         setAuditDateFrom("")

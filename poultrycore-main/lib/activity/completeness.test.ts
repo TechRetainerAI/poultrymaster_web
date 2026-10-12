@@ -245,7 +245,7 @@ describe("step-through for a flock behind by several days", () => {
   it("opens the normal form in catch-up mode", () => {
     const i = item({ subjectId: 7, daysOutstanding: 5 })
     expect(itemActionHref(i, "2026-09-20")).toBe("/production-records/new?flockId=7&catchUp=1&asOf=2026-09-20")
-    expect(itemActionLabel(i)).toBe("Record 5 days")
+    expect(itemActionLabel(i)).toBe("Record batch(5)")
     expect(flockStepThroughHref(7, "2026-09-20")).toBe("/production-records/new?flockId=7&catchUp=1&asOf=2026-09-20")
   })
 
