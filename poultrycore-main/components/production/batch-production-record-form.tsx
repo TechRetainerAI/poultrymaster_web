@@ -615,7 +615,7 @@ export function BatchProductionRecordForm({
           <div className="space-y-1.5">
             <Label>Egg grade</Label>
             {/* Automatic since egg sorting: the day's collection is mixed
-                sizes; sizes are recorded in the Egg Sorting Workspace. An
+                sizes; sizes are recorded in Egg Sorting. An
                 older record keeps the grade it was saved with. */}
             <div className="flex h-9 items-center rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700">
               {formatEggGradeLabel(eggGradeToApi(form.eggGrade))}

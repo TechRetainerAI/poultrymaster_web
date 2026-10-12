@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest"
 import type { EggSortingPick } from "@/lib/api/egg-sorting"
 import {
+  capToSortable,
   cratesText,
   groupProductionDays,
   parseEggs,
   pickStatus,
+  sortableByRecord,
   sortingBalance,
   sortingBlocker,
   statusOf,
@@ -82,5 +84,35 @@ describe("egg sorting helpers", () => {
     expect(cratesText(28870)).toBe("962 cr + 10")
     expect(cratesText(60)).toBe("2 cr")
     expect(cratesText(7)).toBe("7 eggs")
+  })
+
+  it("takes eggs sold from Unsorted off the oldest days first", () => {
+    const days = groupProductionDays([
+      pick({ productionRecordId: 1, productionDate: "2026-10-04", recordLeft: 300, available: 300 }),
+      pick({ productionRecordId: 2, productionDate: "2026-10-05", recordLeft: 500, available: 500 }),
+      pick({ productionRecordId: 3, productionDate: "2026-10-06", recordLeft: 0, available: 0, recordSorted: 400 }),
+    ])
+    // 800 never sorted, but only 600 still on the shelf: 200 were sold.
+    const m = sortableByRecord(days, 600)
+    expect(m.get(1)).toBe(100)
+    expect(m.get(2)).toBe(500)
+    expect(m.has(3)).toBe(false)                                   // nothing left, not open
+    // Enough stock (or more, from an opening balance): nothing is cut.
+    expect(sortableByRecord(days, 900).get(1)).toBe(300)
+    // Nothing on the shelf: nothing can be sorted.
+    expect(sortableByRecord(days, 0).get(2)).toBe(0)
+  })
+
+  it("cuts a day's picks down to what can be sorted, earliest pick first", () => {
+    const [day] = groupProductionDays([
+      pick({ pickNumber: 1, available: 200, recordLeft: 500 }),
+      pick({ pickNumber: 2, available: 300, recordLeft: 500 }),
+    ])
+    const capped = capToSortable(day, 150)
+    expect(capped.left).toBe(150)
+    expect(capped.soldUnsorted).toBe(350)
+    expect(capped.picks.map((p) => p.available)).toEqual([0, 150])
+    expect(capToSortable(day, undefined)).toBe(day)
+    expect(capToSortable(day, 500)).toBe(day)
   })
 })

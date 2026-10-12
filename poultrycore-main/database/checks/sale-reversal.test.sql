@@ -430,7 +430,9 @@ BEGIN
     v_l0 := pg_temp.sr_onhand(v_farm, v_med);
     v_b0 := pg_temp.sr_onhand(v_farm, v_uns);
     v_pv := sppoultrysale_reversalpreview(v_farm, v_s);
-    f := f + pg_temp.sr_chk('I1 the whole SG sale is reversed together', '2', jsonb_array_length(v_pv->'saleIds')::text);
+    -- 358: one sale, two lines
+    f := f + pg_temp.sr_chk('I1 the whole SG sale is reversed together', '1|2',
+                         jsonb_array_length(v_pv->'saleIds')::text || '|' || jsonb_array_length(v_pv->'lines')::text);
     PERFORM sppoultrysale_reverse(v_farm, v_s, 'Wrong product', 'x', '{}'::jsonb, NULL, NULL, 'tester');
     f := f + pg_temp.sr_chk('I2 Large +300', (v_open + 300)::text, pg_temp.sr_onhand(v_farm, v_large)::text);
     f := f + pg_temp.sr_chk('I3 Medium +150', (v_l0 + 150)::text, pg_temp.sr_onhand(v_farm, v_med)::text);

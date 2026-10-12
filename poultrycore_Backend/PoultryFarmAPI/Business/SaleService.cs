@@ -311,13 +311,20 @@ namespace PoultryFarmAPIWeb.Business
                 unitPrice = l.UnitPrice,
                 totalAmount = l.TotalAmount,
             }));
+            // 360: different products in one entry are saved as one sale per
+            // product (358 keeps a sale to one product), in one transaction.
+            var mixed = request.Lines
+                .Select(l => (l.Product ?? string.Empty).Trim().ToLowerInvariant())
+                .Distinct().Count() > 1;
+            var fn = mixed ? "sppoultrysale_createsplit" : "sppoultrysale_creategroup";
             using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync();
             using var cmd = new NpgsqlCommand(
-                "SELECT sppoultrysale_creategroup(p_farmid => @FarmId::text, p_userid => @UserId::text, " +
+                $"SELECT {fn}(p_farmid => @FarmId::text, p_userid => @UserId::text, " +
                 "p_saledate => @Date::timestamp, p_customername => @Customer::text, p_customerid => @CustomerId::int, " +
                 "p_paymentmethod => @Method::text, p_cashaccountid => @Account::int, p_paid => @Paid::boolean, " +
-                "p_description => @Description::text, p_flockid => @Flock::int, p_linesjson => @Lines::text)::text", conn);
+                "p_description => @Description::text, p_flockid => @Flock::int, p_linesjson => @Lines::text, " +
+                "p_requestkey => @RequestKey::text)::text", conn);
             cmd.Parameters.AddWithValue("@FarmId", request.FarmId);
             cmd.Parameters.AddWithValue("@UserId", request.UserId);
             cmd.Parameters.AddWithValue("@Date", request.SaleDate);
@@ -329,31 +336,16 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@Description", (object?)request.SaleDescription ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Flock", (object?)request.FlockId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Lines", lines);
+            cmd.Parameters.AddWithValue("@RequestKey", (object?)request.RequestKey ?? DBNull.Value);
             var json = (string?)await cmd.ExecuteScalarAsync() ?? "{}";
             var result = System.Text.Json.JsonSerializer.Deserialize<SaleGroupResult>(json,
                        new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true })
                    ?? new SaleGroupResult();
+            if (result.SaleId == 0 && result.SaleIds.Length > 0) result.SaleId = result.SaleIds[0];
             // 351: a Correct Sale re-entry points back at the sale it replaces.
-            if (request.CorrectsSaleId is > 0 && result.SaleIds.Length > 0)
-                await LinkCorrectionAsync(request.FarmId, result.SaleIds[0], request.CorrectsSaleId.Value, request.UserId);
+            if (request.CorrectsSaleId is > 0 && result.SaleId > 0 && !result.Duplicate)
+                await LinkCorrectionAsync(request.FarmId, result.SaleId, request.CorrectsSaleId.Value, request.UserId);
             return result;
-        }
-
-        /// <summary>
-        /// The sale's SG number, giving it one first if it has none (migration
-        /// 349), so egg sizes added on edit join this sale instead of becoming
-        /// separate sales.
-        /// </summary>
-        public async Task<string> EnsureGroup(int saleId, string farmId, string? userId)
-        {
-            using var conn = new NpgsqlConnection(_connectionString);
-            await conn.OpenAsync();
-            using var cmd = new NpgsqlCommand(
-                "SELECT sppoultrysale_ensuregroup(p_farmid => @FarmId::text, p_saleid => @SaleId::int, p_by => @By::text)", conn);
-            cmd.Parameters.AddWithValue("@FarmId", farmId);
-            cmd.Parameters.AddWithValue("@SaleId", saleId);
-            cmd.Parameters.AddWithValue("@By", (object?)userId ?? DBNull.Value);
-            return (string?)await cmd.ExecuteScalarAsync() ?? string.Empty;
         }
 
         /// <summary>
@@ -679,6 +671,15 @@ namespace PoultryFarmAPIWeb.Business
             s.SaleReversalId = GetNullableInt32IfPresent(reader, "SaleReversalId");
             s.CorrectsSaleId = GetNullableInt32IfPresent(reader, "CorrectsSaleId");
             s.CorrectedBySaleId = GetNullableInt32IfPresent(reader, "CorrectedBySaleId");
+
+            // 358: what was sold inside the sale. A one-line sale has one line
+            // mirroring the header; a multi-line sale's header is their sum.
+            s.LineCount = GetNullableInt32IfPresent(reader, "LineCount") ?? 1;
+            var lines = GetNullableStringIfPresent(reader, "SaleLines");
+            if (!string.IsNullOrEmpty(lines))
+                s.Lines = System.Text.Json.JsonSerializer.Deserialize<List<SaleLineModel>>(lines,
+                              new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+                          ?? new List<SaleLineModel>();
         }
 
         private static DateTime? GetNullableDateTimeIfPresent(NpgsqlDataReader reader, string columnName)

@@ -1,6 +1,9 @@
 // API utility functions for Sale management
 
 import { farmApiUrl, getAuthHeaders } from './config'
+import type { SaleLine } from './types'
+
+export type { SaleLine }
 
 export interface Sale {
   farmId: string
@@ -26,7 +29,7 @@ export interface Sale {
   poultryCashAccountId?: number | null
   /** Egg class sold (migration 341): a sized egg product, null = Unsorted / General. */
   eggProductId?: number | null
-  /** Sale number shared by the lines of one multi-size sale (SG-00001). */
+  /** The sale number (SG-00001) of a sale entered through Add Sale with lines. */
   saleGroupNo?: string | null
   createdDate: string
   /** 351: Posted | Reversed. A sale posts when it is saved and is never edited afterwards. */
@@ -39,6 +42,10 @@ export interface Sale {
   correctsSaleId?: number | null
   /** On a reversed sale: the sale that corrected it. */
   correctedBySaleId?: number | null
+  /** 358: number of lines (1 for an ordinary sale). */
+  lineCount?: number
+  /** 358: what was sold inside the sale, in entry order. */
+  lines?: SaleLine[]
 }
 
 export interface SaleInput {
@@ -752,15 +759,31 @@ export interface SaleGroupInput {
   flockId: number | null
   /** 351: Correct Sale -- the reversed sale this new one replaces. */
   correctsSaleId?: number | null
+  /** 358: one id per Add Sale form; a retry with the same key returns the sale already posted. */
+  requestKey?: string | null
   lines: SaleGroupLineInput[]
 }
 
+export interface SaleGroupResult {
+  saleGroupNo: string
+  /** The ONE sale created (358), whatever the number of lines. */
+  saleId: number
+  /** Older shape, always [saleId] since 358. */
+  saleIds: number[]
+  totalAmount: number
+  lineCount: number
+  /** 360: sales created. Above 1 when different products were split, one sale each. */
+  saleCount?: number
+  /** The request key matched a sale already posted: nothing new was saved. */
+  duplicate: boolean
+}
+
 /**
- * One sale of several egg classes (migration 343): every line becomes a sale
- * row sharing one sale number, and a paid sale to a known customer is ONE
- * payment across them. All or nothing.
+ * One sale with several lines (343, 358): ONE sale with one line per egg
+ * class, one stock movement per line and -- paid now by a known customer --
+ * ONE payment allocated to the sale. All or nothing.
  */
-export async function createSaleGroup(input: SaleGroupInput): Promise<ApiResponse<{ saleGroupNo: string; saleIds: number[]; totalAmount: number }>> {
+export async function createSaleGroup(input: SaleGroupInput): Promise<ApiResponse<SaleGroupResult>> {
   try {
     const response = await fetch(farmApiUrl("Sale/group"), {
       method: "POST",
@@ -772,30 +795,6 @@ export async function createSaleGroup(input: SaleGroupInput): Promise<ApiRespons
     try { data = text ? JSON.parse(text) : null } catch { /* not JSON */ }
     if (!response.ok) {
       return { success: false, message: data?.message || text || "Failed to create sale" }
-    }
-    return { success: true, data }
-  } catch (error) {
-    return { success: false, message: error instanceof Error ? error.message : "Network error" }
-  }
-}
-
-/**
- * The sale's SG number, giving it one first if it has none (migration 349).
- * Egg sizes added to a single sale on edit are saved with this number, so they
- * join that sale instead of becoming separate sales.
- */
-export async function ensureSaleGroup(saleId: number, userId: string, farmId: string): Promise<ApiResponse<{ saleGroupNo: string }>> {
-  try {
-    const params = new URLSearchParams({ userId, farmId })
-    const response = await fetch(farmApiUrl(`Sale/${saleId}/group?${params.toString()}`), {
-      method: "POST",
-      headers: getAuthHeaders(),
-    })
-    const text = await response.text()
-    let data: any = null
-    try { data = text ? JSON.parse(text) : null } catch { /* not JSON */ }
-    if (!response.ok) {
-      return { success: false, message: data?.message || text || "Could not give the sale a sale number" }
     }
     return { success: true, data }
   } catch (error) {

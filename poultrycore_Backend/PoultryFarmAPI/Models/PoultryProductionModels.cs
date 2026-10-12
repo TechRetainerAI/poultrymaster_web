@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace PoultryFarmAPIWeb.Models
 {
@@ -38,6 +38,58 @@ namespace PoultryFarmAPIWeb.Models
         [StringLength(500)] public string? Note { get; set; }
         public DateTime CreatedDate { get; set; }
         public string? CreatedBy { get; set; }
+    }
+
+    /// <summary>
+    /// 359: a bird adjustment. FlockId set = that flock's birds (its latest
+    /// production record opens with the corrected count); FlockId null = the
+    /// batch's birds not yet placed in any flock. Quantity is SIGNED.
+    /// </summary>
+    public class PoultryBirdAdjustmentRequest
+    {
+        [Required] public string FarmId { get; set; } = string.Empty;
+        [Required] public int BatchId { get; set; }
+        public int? FlockId { get; set; }
+        public string MovementType { get; set; } = "Adjustment";
+        public int Quantity { get; set; }
+        [StringLength(500)] public string? Note { get; set; }
+        public string? CreatedBy { get; set; }
+    }
+
+    public class PoultryBirdAdjustmentModel
+    {
+        public int BirdAdjustmentId { get; set; }
+        public DateTime AdjustmentDate { get; set; }
+        public int BatchId { get; set; }
+        public string? BatchCode { get; set; }
+        public int? FlockId { get; set; }
+        public string? FlockName { get; set; }
+        public string MovementType { get; set; } = string.Empty;
+        public int Quantity { get; set; }
+        public int BirdsBefore { get; set; }
+        public int BirdsAfter { get; set; }
+        public int? ProductionRecordId { get; set; }
+        public string? Note { get; set; }
+        public string? CreatedBy { get; set; }
+        public DateTime CreatedAt { get; set; }
+    }
+
+    /// <summary>One batch, and one of its flocks if FlockId is set, as the adjust form offers them.</summary>
+    public class PoultryBirdAdjustmentOption
+    {
+        public int BatchId { get; set; }
+        public string BatchCode { get; set; } = string.Empty;
+        public string BatchName { get; set; } = string.Empty;
+        public int BatchBirds { get; set; }
+        /// <summary>Birds of the batch not placed in any flock.</summary>
+        public int UnplacedBirds { get; set; }
+        public int? FlockId { get; set; }
+        public string? FlockName { get; set; }
+        /// <summary>The flock's birds now (fnflock_birdposition.currentlivebirds).</summary>
+        public int? LiveBirds { get; set; }
+        public DateTime? LastCountDate { get; set; }
+        public bool HasProductionRecord { get; set; }
+        public bool IsClosed { get; set; }
     }
 
     public class PoultryProductionRecipeItemModel

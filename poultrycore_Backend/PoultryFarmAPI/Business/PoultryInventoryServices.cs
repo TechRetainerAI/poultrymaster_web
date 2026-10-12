@@ -314,6 +314,45 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<int> InsertAsync(PoultryRawMaterialPurchaseModel m)
         {
+            // 356: the purchase, its cash account and the money paid up front as a
+            // supplier payment (so it is listed on Supplier Payments), in one call.
+            // Falls back to the older insert + cash sync until 356 is applied.
+            try
+            {
+                return await RecordAsync(m);
+            }
+            catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UndefinedFunction)
+            {
+                return await InsertLegacyAsync(m);
+            }
+        }
+
+        private async Task<int> RecordAsync(PoultryRawMaterialPurchaseModel m)
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT sppoultryrawmaterialpurchase_record(p_farmid => @FarmId::text, p_poultryrawmaterialitemid => @PoultryRawMaterialItemId::int, p_suppliername => @SupplierName::text, p_supplierid => @SupplierId::int, p_purchasedate => @PurchaseDate::timestamp, p_quantity => @Quantity::numeric, p_unitcost => @UnitCost::numeric, p_totalcost => @TotalCost::numeric, p_productionunit => @ProductionUnit::text, p_productionunitsperpurchaseunit => @ProductionUnitsPerPurchaseUnit::numeric, p_paymentmethod => @PaymentMethod::text, p_amountpaid => @AmountPaid::numeric, p_receipturl => @ReceiptUrl::text, p_notes => @Notes::text, p_createdby => @CreatedBy::text, p_poultrycashaccountid => @CashAccountId::int)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
+            cmd.Parameters.AddWithValue("@PoultryRawMaterialItemId", m.PoultryRawMaterialItemId);
+            cmd.Parameters.AddWithValue("@SupplierName", (object?)m.SupplierName ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@SupplierId", (object?)m.SupplierId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@PurchaseDate", (object?)m.PurchaseDate ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Quantity", m.Quantity);
+            cmd.Parameters.AddWithValue("@UnitCost", m.UnitCost);
+            cmd.Parameters.AddWithValue("@TotalCost", m.TotalCost > 0 ? m.TotalCost : (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@ProductionUnit", (object?)m.ProductionUnit ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ProductionUnitsPerPurchaseUnit", (object?)m.ProductionUnitsPerPurchaseUnit ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@PaymentMethod", (object?)m.PaymentMethod ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@AmountPaid", m.AmountPaid);
+            cmd.Parameters.AddWithValue("@ReceiptUrl", (object?)m.ReceiptUrl ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Notes", (object?)m.Notes ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@CreatedBy", (object?)m.CreatedBy ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@CashAccountId", (object?)m.PoultryCashAccountId ?? DBNull.Value);
+            await conn.OpenAsync();
+            return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        }
+
+        private async Task<int> InsertLegacyAsync(PoultryRawMaterialPurchaseModel m)
+        {
             using var conn = new NpgsqlConnection(_cs);
             using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryrawmaterialpurchase_insert(p_farmid => @FarmId::text, p_poultryrawmaterialitemid => @PoultryRawMaterialItemId::int, p_suppliername => @SupplierName::text, p_supplierid => @SupplierId::int, p_purchasedate => @PurchaseDate::timestamp, p_quantity => @Quantity::numeric, p_unitcost => @UnitCost::numeric, p_totalcost => @TotalCost::numeric, p_productionunit => @ProductionUnit::text, p_productionunitsperpurchaseunit => @ProductionUnitsPerPurchaseUnit::numeric, p_paymentmethod => @PaymentMethod::text, p_amountpaid => @AmountPaid::numeric, p_receipturl => @ReceiptUrl::text, p_notes => @Notes::text, p_createdby => @CreatedBy::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);

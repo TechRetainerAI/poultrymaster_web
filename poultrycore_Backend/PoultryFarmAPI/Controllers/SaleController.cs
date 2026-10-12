@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PoultryFarmAPIWeb.Business;
@@ -77,9 +77,10 @@ namespace PoultryFarmAPIWeb.Controllers
             }
         }
 
-        // POST: api/Sale/group -- one sale of several egg classes (migration 343).
-        // Every line is a sale row sharing one sale number; a paid sale to a
-        // known customer becomes ONE payment across them. All or nothing.
+        // POST: api/Sale/group -- one sale of one or more lines (343, 358). ONE
+        // sale row, one line per product / egg class, one stock movement per
+        // egg line, and -- paid now by a known customer -- ONE payment with ONE
+        // allocation to the sale. All or nothing.
         [HttpPost("group")]
         public async Task<ActionResult<SaleGroupResult>> CreateGroup([FromBody] SaleGroupRequest request)
         {
@@ -101,23 +102,6 @@ namespace PoultryFarmAPIWeb.Controllers
             }
         }
 
-        // POST: api/Sale/5/group?userId=xxx&farmId=xxx -- the sale's SG number,
-        // given one first if it has none (migration 349), so egg sizes added
-        // on edit join this sale.
-        [HttpPost("{id}/group")]
-        public async Task<IActionResult> EnsureGroup(int id, [FromQuery] string userId, [FromQuery] string farmId)
-        {
-            if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(farmId))
-                return BadRequest("UserId and FarmId are required.");
-            try
-            {
-                return Ok(new { saleGroupNo = await _saleService.EnsureGroup(id, farmId, userId) });
-            }
-            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001")
-            {
-                return BadRequest(new { message = ex.MessageText });
-            }
-        }
 
         // PUT: api/Sale/5
         [HttpPut("{id}")]
