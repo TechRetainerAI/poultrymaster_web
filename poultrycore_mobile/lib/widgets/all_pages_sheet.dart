@@ -7,6 +7,7 @@ import '../pages/registry.dart';
 import '../pages/web_nav.dart';
 import '../state/session.dart';
 import 'module_sidebar.dart';
+import 'quick_links_dialog.dart';
 
 /// The web's "All pages" panel: a dark sheet with a search box and orange
 /// uppercase section headers, each showing how many pages it holds and
@@ -57,6 +58,15 @@ class _AllPagesSheetState extends State<_AllPagesSheet> {
   /// is simply absent rather than guessed at.
   List<NavLink>? _quickLinks;
 
+  /// Water (mobile-bottom-nav.tsx): Quick Links is an ordinary section of the
+  /// sheet, resolved from the user's stored bar (null = never customised =
+  /// the defaults), ending in "Customise Quick Links". Poultry keeps its own
+  /// sheet as it was.
+  bool get _customisable => widget.company.type == CompanyType.water;
+  List<String>? _storedHrefs;
+
+  static const _customiseHref = '#customise-quick-links';
+
   @override
   void initState() {
     super.initState();
@@ -69,6 +79,10 @@ class _AllPagesSheetState extends State<_AllPagesSheet> {
       userId: widget.session.tokens.userId,
       farmId: widget.company.farmId,
     );
+    if (_customisable) {
+      if (mounted && saved != null && saved.customised) setState(() => _storedHrefs = saved.hrefs);
+      return;
+    }
     if (!mounted || saved == null || !saved.customised) return;
 
     // Resolve each stored href against the nav so a shortcut opens the same
@@ -94,9 +108,32 @@ class _AllPagesSheetState extends State<_AllPagesSheet> {
   /// Same routing as the sidebar (openNavLink): a screen of its own, then
   /// the page's list, then the real web page.
   void _open_(NavLink link) {
+    if (link.href == _customiseHref) {
+      _customise();
+      return;
+    }
+    // Water's System → Alerts is a button on the web (onOpenAlerts), not a
+    // page: it opens the alerts dialog over the sheet.
+    if (link.href == '#alerts' && widget.company.type == CompanyType.water) {
+      showSystemAlertsDialog(context);
+      return;
+    }
     final nav = Navigator.of(context);
     nav.pop();
     openNavLink(nav, link, widget.session, widget.company);
+  }
+
+  Future<void> _customise() async {
+    final r = await showQuickLinksDialog(
+      context,
+      farmClient: widget.session.farmClient,
+      userId: widget.session.tokens.userId ?? '',
+      farmId: widget.company.farmId,
+      groups: widget.groups,
+      stored: _storedHrefs,
+      iconFor: sidebarIconFor,
+    );
+    if (r != null && mounted) setState(() => _storedHrefs = r.hrefs);
   }
 
   @override
@@ -108,9 +145,21 @@ class _AllPagesSheetState extends State<_AllPagesSheet> {
     // loaded, that snapshot is stale by definition, so it is dropped rather
     // than shown twice. With no saved bar it stays: an unpersonalised user
     // should still see the same default shortcuts the web gives them.
-    final source = _quickLinks == null
-        ? widget.groups
-        : widget.groups.where((g) => g.title != 'Quick Links').toList();
+    final source = _customisable
+        ? [
+            for (final g in widget.groups)
+              g.title == 'Quick Links'
+                  ? NavGroup(g.title, [
+                      NavSubGroup('', [
+                        ...resolveQuickLinks(widget.groups, _storedHrefs),
+                        const NavLink('Customise Quick Links', _customiseHref, null),
+                      ]),
+                    ])
+                  : g,
+          ]
+        : _quickLinks == null
+            ? widget.groups
+            : widget.groups.where((g) => g.title != 'Quick Links').toList();
 
     final groups = [
       for (final g in source)
@@ -386,7 +435,7 @@ class _Tile extends StatelessWidget {
     if (l.contains('customer') || l.contains('staff') || l.contains('people')) {
       return Icons.people_outline;
     }
-    if (l.contains('setup') || l.contains('setting')) return Icons.settings_outlined;
+    if (l.contains('setup') || l.contains('setting') || l.contains('customise')) return Icons.settings_outlined;
     return Icons.insert_chart_outlined;
   }
 

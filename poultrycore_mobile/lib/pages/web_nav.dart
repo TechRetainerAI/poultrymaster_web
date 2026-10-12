@@ -268,24 +268,64 @@ const Map<String, List<NavGroup>> webNavGroups = {
       ]),
     ]),
     NavGroup('Trackers', [
-      NavSubGroup('Trackers', [
+      // The web's analytics column is labelled "Stock" (water-nav-config.ts).
+      NavSubGroup('Stock', [
         NavLink('Inventory tracker', '/water-inventory-tracker', 'water-reports-inventory-tracker'),
       ]),
     ]),
+    // Rebuilt 2026-10-08 from WATER_REPORT_GROUPS (lib/reports/water-reports-config.ts),
+    // the web sidebar's Reports menu. In the drawer the web leads with an
+    // "All reports" group (renderMenu's inlineLead); "View all reports →" is
+    // the desktop panel's header link. Every report has a native screen.
     NavGroup('Reports', [
-      NavSubGroup('Reports', [
+      NavSubGroup('All reports', [
         NavLink('Reports', '/water-reports', null),
+      ]),
+      NavSubGroup('Financial', [
+        NavLink('Closing Report', '/water-reports/closing-report', null),
+        NavLink('Profit & Loss', '/water-reports/profit-loss', null),
+        NavLink('Daily Business Summary', '/water-reports/daily-summary', null),
+        NavLink('Cash Movement', '/water-reports/cash-movement', null),
+        NavLink('Cash Flow Detail', '/water-reports/cash-flow-detail', null),
+        NavLink('Cash Account Report', '/water-reports/cash-accounts', null),
+        NavLink('Money Movement', '/water-reports/money-movement', null),
+        NavLink('Expense Report', '/water-reports/expense-report', null),
+        NavLink('Supplier Activity', '/water-reports/supplier-activity', null),
+      ]),
+      NavSubGroup('Sales & Customers', [
+        NavLink('Sales Report', '/water-reports/sales-report', null),
+        NavLink('Payments Received', '/water-reports/payments-received', null),
+        NavLink('Customer Balances', '/water-reports/customer-balances', null),
+        NavLink('Customer Sales History', '/water-reports/customer-history', null),
+        NavLink('Top Customers', '/water-reports/top-customers', null),
+      ]),
+      NavSubGroup('Production & Inventory', [
+        NavLink('Production Report', '/water-reports/production-report', null),
+        NavLink('Raw Material Usage', '/water-reports/raw-material-usage', null),
+        NavLink('Raw Material Purchases', '/water-reports/raw-material-purchase', null),
+        NavLink('Inventory / Stock', '/water-reports/inventory-report', null),
+        NavLink('Stock Movement', '/water-reports/stock-movement', null),
+        NavLink('Product Performance', '/water-reports/product-performance', null),
+      ]),
+      NavSubGroup('Delivery & Operations', [
+        NavLink('Delivery Run Report', '/water-reports/delivery-run-report', null),
+        NavLink('Driver Accountability', '/water-reports/driver-accountability', null),
+        NavLink('Route Performance', '/water-reports/route-performance', null),
+        NavLink('Driver Collection', '/water-reports/driver-collection', null),
+        NavLink('Vehicle Usage', '/water-reports/vehicle-usage', null),
+        NavLink('Loss Report', '/water-reports/loss-report', null),
+        NavLink('Operational dashboard', '/water-reports/operational', null),
       ]),
     ]),
     NavGroup('Setup', [
       NavSubGroup('Company', [
         NavLink('Setup', '/water-setup', null),
-        NavLink('Company Setup', '/water-company-setup', 'water-company'),
-        NavLink('Financial Settings', '/water-financial-settings', 'water-financial-settings-items'),
+        NavLink('Company Setup', '/water-company-setup', null),
+        NavLink('Financial Settings', '/water-financial-settings', null),
         NavLink('Companies', '/companies', 'companies-mine'),
       ]),
       NavSubGroup('Delivery', [
-        NavLink('Drivers', '/water-drivers', 'water-drivers-list-for-farm'),
+        NavLink('Drivers', '/water-drivers', 'water-drivers'),
         NavLink('Vehicles', '/water-vehicles', 'water-vehicles'),
         NavLink('Routes', '/water-routes', 'water-routes'),
       ]),
@@ -307,36 +347,12 @@ const Map<String, List<NavGroup>> webNavGroups = {
     ]),
     NavGroup('System', [
       NavSubGroup('Your account', [
-        NavLink('Account', '/profile', 'authentication-get-current-user'),
-        NavLink('Billing', '/billing', 'payments-subscription-tiers'),
+        // No Account row: water-nav-config.ts hides it (visible: false).
+        // An action, not a page: opens "System Alerts and Notifications".
+        NavLink('Alerts', '#alerts', null),
+        NavLink('Billing', '/business-office/billing', null),
         NavLink('Activity Log', '/audit-logs', 'auditlogs'),
         NavLink('Terms & Conditions', '/terms', null),
-      ]),
-    ]),
-    // Not on the web sidebar, whose Reports group is one link to the
-    // catalogue. Kept so the All pages sheet still opens each report directly.
-    NavGroup('Report pages', [
-      NavSubGroup('', [
-        NavLink('Profit & Loss', '/water-reports/profit-loss', 'water-reports-period-pnl'),
-        NavLink('Vehicle Usage', '/water-reports/vehicle-usage', 'water-vehicle-loadings'),
-        NavLink('Route Performance', '/water-reports/route-performance', 'water-reports-route-profitability'),
-        NavLink('Product Performance', '/water-reports/product-performance', 'water-production-batches'),
-        NavLink('Operational', '/water-reports/operational', 'water-reports-driver-reconciliation'),
-        NavLink('Money Movement', '/water-reports/money-movement', 'water-owner-money'),
-        NavLink('Loss Report', '/water-reports/loss-report', 'water-loss-records'),
-        NavLink('Inventory Report', '/water-reports/inventory-report', 'water-products'),
-        NavLink('Driver Accountability', '/water-reports/driver-accountability', 'water-reports-driver-reconciliation'),
-        NavLink('Delivery Run Report', '/water-reports/delivery-run-report', 'water-driver-returns'),
-        NavLink('Daily Summary', '/water-reports/daily-summary', 'water-daily-closings'),
-        NavLink('Cash Accounts', '/water-reports/cash-accounts', 'water-cash-accounts'),
-        NavLink('Raw Material Usage', '/water-reports/raw-material-usage', 'water-raw-material-usage-history'),
-        NavLink('Raw Material Purchases', '/water-reports/raw-material-purchase', 'water-raw-material-purchases'),
-        NavLink('Production Report', '/water-reports/production-report', 'water-production-batches'),
-        NavLink('Expense Report', '/water-reports/expense-report', 'water-expenses'),
-        NavLink('Closing Report', '/water-reports/closing-report', 'water-daily-closings'),
-        NavLink('Driver Collection', '/water-reports/driver-collection', 'water-reports-driver-collection'),
-        NavLink('Supplier Activity', '/water-reports/supplier-activity', 'water-reports-supplier-activity'),
-        NavLink('Top Customers', '/water-reports/top-customers', 'water-reports-top-customers'),
       ]),
     ]),
   ],

@@ -17,7 +17,10 @@ import 'assets_screen.dart';
 /// Financial and Source & audit, the cost history and the depreciation
 /// history with its reversal.
 class AssetDetailScreen extends StatefulWidget {
-  const AssetDetailScreen({super.key, required this.session, required this.company, required this.assetId});
+  const AssetDetailScreen({super.key, required this.session, required this.company, required this.assetId, this.rail = AssetRail.poultry});
+
+  /// The module (Poultry by default; Water's `app/water-assets/[id]` passes AssetRail.water).
+  final AssetRail rail;
   final Session session;
   final Company company;
   final int assetId;
@@ -27,11 +30,12 @@ class AssetDetailScreen extends StatefulWidget {
 }
 
 class _AssetDetailScreenState extends State<AssetDetailScreen> {
+  AssetRail get _r => widget.rail;
   Map? _asset;
   bool _loading = true;
   FarmMoney _gh = const FarmMoney();
   Duration _offset = DateTime.now().timeZoneOffset;
-  late final AssetApi _api = AssetApi(widget.session, widget.company);
+  late final AssetApi _api = AssetApi(widget.session, widget.company, widget.rail);
 
   @override
   void initState() {
@@ -51,7 +55,7 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
       final a = await _api.get(widget.assetId);
       if (mounted) setState(() => _asset = a);
     } on ApiException catch (e) {
-      if (mounted) trackerToast(context, 'Could not load the investment', description: e.message, error: true);
+      if (mounted) trackerToast(context, _r.t('Could not load the investment'), description: e.message, error: true);
     }
     if (mounted) setState(() => _loading = false);
   }
@@ -64,12 +68,12 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
     if (nav.canPop()) {
       nav.pop();
     } else {
-      nav.pushReplacement(MaterialPageRoute(builder: (_) => AssetsScreen(session: widget.session, company: widget.company)));
+      nav.pushReplacement(MaterialPageRoute(builder: (_) => AssetsScreen(session: widget.session, company: widget.company, rail: _r)));
     }
   }
 
   Future<void> _reverse(Map d) async {
-    final done = await showDialog<bool>(context: context, builder: (_) => _ReverseChargeDialog(api: _api, entryId: tIntOrNull(d['poultryAssetDepreciationId']) ?? 0));
+    final done = await showDialog<bool>(context: context, builder: (_) => _ReverseChargeDialog(api: _api, entryId: tIntOrNull(d[_r.depreciationIdKey]) ?? 0));
     if (done == true && mounted) {
       trackerToast(context, 'Depreciation reversed', description: 'The original entry is kept and an opposite entry added. No cash moved.');
       await _load();
@@ -84,20 +88,20 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final lead = sidebarLeading(context, widget.session, widget.company, href: '/poultry-assets');
+    final lead = sidebarLeading(context, widget.session, widget.company, href: _r.assetsHref);
     final a = _asset;
     return Scaffold(
-      appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: Text(a == null ? 'Capital investment' : tStr(a['assetName']))),
+      appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: Text(a == null ? _r.t('Capital investment') : tStr(a['assetName']))),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : a == null
               ? Padding(
                   padding: const EdgeInsets.all(24),
                   child: Wrap(crossAxisAlignment: WrapCrossAlignment.center, children: [
-                    const Text('Capital investment not found. ', style: TextStyle(color: TColors.slate600)),
+                    Text(_r.t('Capital investment not found. '), style: TextStyle(color: TColors.slate600)),
                     InkWell(
                       onTap: _back,
-                      child: const Text('Back to Capital Investments/Assets', style: TextStyle(decoration: TextDecoration.underline)),
+                      child: Text('Back to ${_r.title}', style: TextStyle(decoration: TextDecoration.underline)),
                     ),
                   ]),
                 )
@@ -120,7 +124,7 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
             onPressed: _back,
             style: TextButton.styleFrom(foregroundColor: TColors.slate600, padding: EdgeInsets.zero),
             icon: const Icon(Icons.arrow_back, size: 16),
-            label: const Text('Back to Capital Investments'),
+            label: Text(_r.isWater ? 'Back to Assets' : _r.t('Back to Capital Investments')),
           ),
         ),
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -153,6 +157,15 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
             child: Text('This acquisition was reversed: ${tStr(a['reversalReason'])}', style: const TextStyle(fontSize: 13, color: Color(0xFF991B1B))),
           ),
         ],
+        // Water's page answers its commonest question on it.
+        if (_r.isWater && tStr(a['status']) == 'Draft') ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: TColors.slate50, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+            child: const Text(draftAssetNote, style: TextStyle(fontSize: 13, color: TColors.slate600)),
+          ),
+        ],
         const SizedBox(height: 12),
         _card('General', [
           assetLine('Category', tStr(a['categoryName']).isEmpty ? '—' : tStr(a['categoryName'])),
@@ -164,15 +177,15 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
         ]),
         const SizedBox(height: 12),
         _card('Financial', [
-          assetLine(acquisitionCostLabel, gh(tNum(a['acquisitionCost'])), hint: acquisitionCostTooltip),
-          assetLine(additionalCostLabel, gh(tNum(a['additionalCost'])), hint: additionalCostTooltip),
-          assetLine(totalCapitalizedCostLabel, gh(tNum(a['totalCapitalizedCost'])), hint: totalCapitalizedCostTooltip, bold: true),
+          assetLine(acquisitionCostLabel, gh(tNum(a['acquisitionCost'])), hint: _r.t(acquisitionCostTooltip)),
+          assetLine(additionalCostLabel, gh(tNum(a['additionalCost'])), hint: _r.t(additionalCostTooltip)),
+          assetLine(totalCapitalizedCostLabel, gh(tNum(a['totalCapitalizedCost'])), hint: _r.t(totalCapitalizedCostTooltip), bold: true),
           assetLine('Residual value', gh(tNum(a['residualValue']))),
           assetLine('Depreciable amount', gh(tNum(a['depreciableAmount']))),
           assetLine('Useful life', tNum(a['usefulLifeMonths']) > 0 ? '${tStr(a['usefulLifeMonths'])} months' : 'Not set'),
           assetLine('Monthly depreciation', tNum(a['monthlyDepreciation']) != 0 ? gh(tNum(a['monthlyDepreciation'])) : '—'),
           assetLine('Depreciation so far', gh(tNum(a['accumulatedDepreciation'])), color: TColors.amber800),
-          assetLine('Book value', gh(tNum(a['currentBookValue'])), hint: bookValueTooltip, bold: true, color: TColors.emerald800),
+          assetLine('Book value', gh(tNum(a['currentBookValue'])), hint: _r.t(bookValueTooltip), bold: true, color: TColors.emerald800),
         ]),
         const SizedBox(height: 12),
         _card('Source & audit', [
@@ -189,7 +202,7 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
         const SizedBox(height: 12),
         _card('Cost history', [
           TrackerTable(
-            emptyText: 'Nothing capitalised yet. Use "Add cost" on the register to build this investment up.',
+            emptyText: _r.t('Nothing capitalised yet. Use "Add cost" on the register to build this investment up.'),
             columns: const [
               TCol('Date', width: 140),
               TCol('What for', width: 150),
@@ -230,13 +243,18 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
                 style: const TextStyle(fontSize: 11, color: TColors.slate500),
               ),
             ),
+          if (_r.isWater)
+            const Padding(
+              padding: EdgeInsets.only(top: 6),
+              child: Text(capitalNotExpenseNote, style: TextStyle(fontSize: 11, color: TColors.slate500)),
+            ),
         ]),
         const SizedBox(height: 12),
         _card('Depreciation history', [
           const Text(depreciationNoncashNote, style: TextStyle(fontSize: 11, color: TColors.slate500)),
           const SizedBox(height: 8),
           TrackerTable(
-            emptyText: 'Nothing charged yet.${tStr(a['status']) == 'Draft' ? ' This investment is not in service, so it does not depreciate.' : ''}',
+            emptyText: 'Nothing charged yet.${tStr(a['status']) == 'Draft' ? _r.t(' This investment is not in service, so it does not depreciate.') : ''}',
             columns: const [
               TCol('Period', width: 130),
               TCol('Type', width: 140),

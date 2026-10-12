@@ -14,6 +14,7 @@ import 'balances_widgets.dart';
 import 'payments_received_screen.dart' show fmtDateTimeLike;
 import 'sale_dialogs.dart';
 import 'sales_screen.dart';
+import '../../water/water_sales_screen.dart';
 import '../reports/report_routes.dart' show openAppHref;
 
 /// Poultry → Sales, Expenses & Money → Sales → Customer Balances, as
@@ -22,7 +23,11 @@ import '../reports/report_routes.dart' show openAppHref;
 /// or per-sale payments, the statement and payment history. The phone layout
 /// (one card per customer; Poultry has no pager on this page).
 class CustomerBalancesScreen extends StatefulWidget {
-  const CustomerBalancesScreen({super.key, required this.session, required this.company, this.side = BalanceSide.customer});
+  const CustomerBalancesScreen(
+      {super.key, required this.session, required this.company, this.side = BalanceSide.customer, this.rail = BalanceRail.poultry});
+
+  /// The module (`app/water-customer-balances/page.tsx` passes module "water").
+  final BalanceRail rail;
 
   /// Customer Balances, or (BalancesPage side "supplier") Supplier Balances.
   final BalanceSide side;
@@ -92,7 +97,7 @@ class _CustomerBalancesScreenState extends State<CustomerBalancesScreen> {
     setState(() => _loading = true);
     try {
       final r = await Future.wait([
-        _api.get('/api/Poultry/${_side.balancesPath}', query: {
+        _api.get('${widget.rail.api}/${_side.balancesPath}', query: {
           'farmId': _farmId,
           if (_from.isNotEmpty) 'from': _from,
           if (_to.isNotEmpty) 'to': _to,
@@ -101,7 +106,7 @@ class _CustomerBalancesScreenState extends State<CustomerBalancesScreen> {
           if (_min.text.isNotEmpty) 'minBalance': _min.text,
           if (_search.text.trim().isNotEmpty) 'search': _search.text.trim(),
         }),
-        _api.get('/api/Poultry/${_side.balancesPath}/summary', query: {'farmId': _farmId}),
+        _api.get('${widget.rail.api}/${_side.balancesPath}/summary', query: {'farmId': _farmId}),
       ]);
       if (!mounted || seq != _loadSeq) return;
       final list = rowsOf(r[0]);
@@ -122,7 +127,7 @@ class _CustomerBalancesScreenState extends State<CustomerBalancesScreen> {
   /// when a payment is posted or reversed.
   Future<void> _loadMethods() async {
     try {
-      final res = await _api.get('/api/Poultry/${_side.paymentsPath}', query: {'farmId': _farmId});
+      final res = await _api.get('${widget.rail.api}/${_side.paymentsPath}', query: {'farmId': _farmId});
       final byParty = <int, List<String>>{};
       final seen = <String>{};
       for (final p in rowsOf(res)) {
@@ -152,14 +157,19 @@ class _CustomerBalancesScreenState extends State<CustomerBalancesScreen> {
   }
 
   Future<void> _loadAccounts() async {
+    // Water's customer page: loadCashAccounts={async () => []}.
+    if (_side.isCustomer && !widget.rail.customerCashAccounts) {
+      _accounts = [];
+      return;
+    }
     try {
-      final res = await _api.get('/api/Poultry/cash-accounts', query: {'farmId': _farmId});
+      final res = await _api.get('${widget.rail.api}/cash-accounts', query: {'farmId': _farmId});
       if (mounted) {
         setState(() => _accounts = [
               for (final a in rowsOf(res))
                 if (a['isActive'] == true)
                   {
-                    'id': a['poultryCashAccountId'],
+                    'id': a[widget.rail.cashAccountIdKey],
                     'name': a['accountName'],
                     'currentBalance': a['currentBalance'],
                     'allowNegativeBalance': a['allowNegativeBalance'],
@@ -187,7 +197,7 @@ class _CustomerBalancesScreenState extends State<CustomerBalancesScreen> {
     if (_docs.containsKey(pid)) return;
     setState(() => _docsLoading = pid);
     try {
-      final res = await _api.get('/api/Poultry/${_side.balancesPath}/$pid/${_side.openLeaf}', query: {
+      final res = await _api.get('${widget.rail.api}/${_side.balancesPath}/$pid/${_side.openLeaf}', query: {
         'farmId': _farmId,
         if (_from.isNotEmpty) 'from': _from,
         if (_to.isNotEmpty) 'to': _to,
@@ -209,13 +219,14 @@ class _CustomerBalancesScreenState extends State<CustomerBalancesScreen> {
         single: doc,
         cashAccounts: _accounts,
         side: _side,
+        api: widget.rail.api,
       ),
     ));
     if (ok == true) _afterPayment();
   }
 
   void _statement(Map party) => Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => StatementScreen(session: widget.session, company: widget.company, party: party, side: _side),
+        builder: (_) => StatementScreen(session: widget.session, company: widget.company, party: party, side: _side, api: widget.rail.api),
       ));
 
   void _history({Map? party, Map? doc}) => showPaymentHistory(context,
@@ -227,16 +238,15 @@ class _CustomerBalancesScreenState extends State<CustomerBalancesScreen> {
       documentId: doc == null ? null : tIntOrNull(doc['documentId']),
       canReverse: _can,
       onReversed: _afterPayment,
-      side: _side);
+      side: _side,
+      api: widget.rail.api);
 
   /// documentHref: a sale opens the Sales page focused on it; a flock batch
   /// its batch page; any other purchase the raw-material purchases tab.
   void _openDocument(Map d) {
     final id = tIntOrNull(d['documentId']);
     if (!_side.isCustomer) {
-      final href = tStr(d['documentType']) == 'FlockBatch'
-          ? '/flock-batch/${tStr(d['documentId'])}'
-          : '/poultry-raw-materials?tab=purchases&purchaseId=${tStr(d['documentId'])}';
+      final href = widget.rail.supplierBalanceDocHref(d);
       openAppHref(context, widget.session, widget.company, href, label: _side.docTitle);
       return;
     }
@@ -245,7 +255,9 @@ class _CustomerBalancesScreenState extends State<CustomerBalancesScreen> {
       return;
     }
     Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => SalesScreen(session: widget.session, company: widget.company, focusSaleId: id),
+      builder: (_) => widget.rail.isWater
+          ? WaterSalesScreen(session: widget.session, company: widget.company, focusSaleId: id)
+          : SalesScreen(session: widget.session, company: widget.company, focusSaleId: id),
     ));
   }
 
@@ -264,7 +276,7 @@ class _CustomerBalancesScreenState extends State<CustomerBalancesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final lead = sidebarLeading(context, widget.session, widget.company, href: _side.isCustomer ? '/customer-balances' : '/supplier-balances');
+    final lead = sidebarLeading(context, widget.session, widget.company, href: widget.rail.balancesHref(_side));
     final visible = _method == 'all'
         ? _rows
         : [for (final r in _rows) if ((_methodsByParty[tIntOrNull(r['partyId'])] ?? const []).contains(_method)) r];

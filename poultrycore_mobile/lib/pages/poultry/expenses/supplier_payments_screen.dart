@@ -14,7 +14,7 @@ import '../money/money_widgets.dart';
 import '../reports/report_export.dart';
 import '../reports/report_format.dart';
 import '../reports/report_routes.dart' show openAppHref;
-import '../sales/balances_logic.dart' show pageSlice;
+import '../sales/balances_logic.dart' show BalanceRail, pageSlice;
 import '../sales/balances_widgets.dart';
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../trackers/tracker_widgets.dart';
@@ -41,12 +41,9 @@ const _payableLabels = {
 };
 String payableTypeLabel(Object? t) => tStr(t).trim().isEmpty ? '—' : _payableLabels[tStr(t).trim()] ?? tStr(t).trim();
 
-/// documentHref for an allocation (app/supplier-payments/page.tsx).
-String supplierDocumentHref(Map a) => switch (tStr(a['documentType'])) {
-      'FlockBatch' => '/flock-batch/${tStr(a['documentId'])}',
-      'Expense' => '/expenses?expenseId=${tStr(a['documentId'])}',
-      _ => '/poultry-raw-materials?tab=purchases&purchaseId=${tStr(a['documentId'])}',
-    };
+/// documentHref for an allocation (app/supplier-payments/page.tsx, or
+/// app/water-supplier-payments/page.tsx on the Water rail).
+String supplierDocumentHref(Map a, [BalanceRail rail = BalanceRail.poultry]) => rail.supplierDocumentHref(a);
 
 class SupplierPaymentFilters {
   String search = '', supplier = 'all', method = 'all', account = 'all', source = 'all', status = 'all';
@@ -94,9 +91,12 @@ const supplierExportHeaders = [
 ];
 
 class SupplierPaymentsScreen extends StatefulWidget {
-  const SupplierPaymentsScreen({super.key, required this.session, required this.company});
+  const SupplierPaymentsScreen({super.key, required this.session, required this.company, this.rail = BalanceRail.poultry});
   final Session session;
   final Company company;
+
+  /// The module (Poultry by default; Water passes BalanceRail.water).
+  final BalanceRail rail;
 
   @override
   State<SupplierPaymentsScreen> createState() => _SupplierPaymentsScreenState();
@@ -118,6 +118,7 @@ class _SupplierPaymentsScreenState extends State<SupplierPaymentsScreen> {
   Duration _offset = DateTime.now().timeZoneOffset;
 
   ApiClient get _api => widget.session.farmClient;
+  BalanceRail get _rail => widget.rail;
   String get _farmId => widget.company.farmId;
 
   /// The web gates reversal on poultry.supplier-payments.reverse; the app has
@@ -148,7 +149,7 @@ class _SupplierPaymentsScreenState extends State<SupplierPaymentsScreen> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final res = await _api.get('/api/Poultry/supplier-payments', query: {
+      final res = await _api.get('${_rail.api}/supplier-payments', query: {
         'farmId': _farmId,
         if (_from.isNotEmpty) 'from': _from,
         if (_to.isNotEmpty) 'to': _to,
@@ -168,10 +169,10 @@ class _SupplierPaymentsScreenState extends State<SupplierPaymentsScreen> {
 
   Future<void> _loadAccounts() async {
     try {
-      final res = await _api.get('/api/Poultry/cash-accounts', query: {'farmId': _farmId});
+      final res = await _api.get('${_rail.api}/cash-accounts', query: {'farmId': _farmId});
       if (mounted) {
         setState(() => _accounts = [
-              for (final a in rowsOf(res)) {'id': tIntOrNull(a['poultryCashAccountId']), 'name': tStr(a['accountName'])},
+              for (final a in rowsOf(res)) {'id': tIntOrNull(a[_rail.cashAccountIdKey]), 'name': tStr(a['accountName'])},
             ]);
       }
     } on ApiException {
@@ -192,7 +193,7 @@ class _SupplierPaymentsScreenState extends State<SupplierPaymentsScreen> {
   Future<void> _fetch(String id, {bool silent = false}) async {
     if (_allocations.containsKey(id) || !_inflight.add(id)) return;
     try {
-      final res = await _api.get('/api/Poultry/supplier-payments/${Uri.encodeComponent(id)}', query: {'farmId': _farmId});
+      final res = await _api.get('${_rail.api}/supplier-payments/${Uri.encodeComponent(id)}', query: {'farmId': _farmId});
       if (mounted) setState(() => _allocations[id] = res is Map ? rowsOf(res['allocations']) : []);
     } on ApiException catch (e) {
       if (silent) {
@@ -223,7 +224,7 @@ class _SupplierPaymentsScreenState extends State<SupplierPaymentsScreen> {
           description: 'Say why this payment is being reversed — it is written to the audit trail.', error: true);
     }
     try {
-      await _api.post('/api/Poultry/supplier-payments/${Uri.encodeComponent(tStr(r['paymentId']))}/reverse',
+      await _api.post('${_rail.api}/supplier-payments/${Uri.encodeComponent(tStr(r['paymentId']))}/reverse',
           body: {'farmId': _farmId, 'reason': _reason.text.trim(), 'reversedBy': widget.session.tokens.userId});
       if (!mounted) return;
       trackerToast(context, 'Payment reversed', description: '${_fmt(tNum(r['totalAmount']))} put back on the balance.');
@@ -387,7 +388,7 @@ class _SupplierPaymentsScreenState extends State<SupplierPaymentsScreen> {
               Align(alignment: Alignment.centerLeft, child: _statusBadge(a)),
               IconButton(
                 tooltip: 'Open the item this paid',
-                onPressed: () => _href(supplierDocumentHref(a), payableTypeLabel(a['documentType'])),
+                onPressed: () => _href(supplierDocumentHref(a, _rail), payableTypeLabel(a['documentType'])),
                 icon: const Icon(Icons.open_in_new, size: 16),
               ),
             ],
@@ -433,7 +434,7 @@ class _SupplierPaymentsScreenState extends State<SupplierPaymentsScreen> {
                 Text('SPAY-$id', style: const TextStyle(fontWeight: FontWeight.w500)),
                 tIntOrNull(r['partyId']) != null
                     ? InkWell(
-                        onTap: () => _href('/suppliers', 'Suppliers'),
+                        onTap: () => _href(_rail.suppliersHref, 'Suppliers'),
                         child: Text(tStr(r['partyName']).isNotEmpty ? tStr(r['partyName']) : '#${tStr(r['partyId'])}',
                             style: const TextStyle(color: Color(0xFF0369A1))),
                       )
@@ -457,7 +458,7 @@ class _SupplierPaymentsScreenState extends State<SupplierPaymentsScreen> {
                   if (!multi && a != null)
                     IconButton(
                       tooltip: 'Open the item this paid',
-                      onPressed: () => _href(supplierDocumentHref(a), payableTypeLabel(a['documentType'])),
+                      onPressed: () => _href(supplierDocumentHref(a, _rail), payableTypeLabel(a['documentType'])),
                       icon: const Icon(Icons.open_in_new, size: 16),
                     ),
                   if (_canReverse && !reversed)
@@ -606,7 +607,7 @@ class _SupplierPaymentsScreenState extends State<SupplierPaymentsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final lead = sidebarLeading(context, widget.session, widget.company, href: '/supplier-payments');
+    final lead = sidebarLeading(context, widget.session, widget.company, href: _rail.supplierPaymentsHref);
     final filtered = filterSupplierPayments(_rows, _f, _allocations);
     if (filtered.length != _lastTotal) {
       _lastTotal = filtered.length;

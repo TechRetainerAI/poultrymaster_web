@@ -90,6 +90,7 @@ class AssetDetailsPanel extends StatefulWidget {
     this.onViewCost,
     this.onReverseCost,
     this.onReverseDepreciation,
+    this.rail = AssetRail.poultry,
   });
   final Map? view;
   final bool loading;
@@ -99,12 +100,16 @@ class AssetDetailsPanel extends StatefulWidget {
   final VoidCallback? onRetry, onEdit, onAddCost, onCorrectOriginalCost, onOpenFullPage, onOpenExpenses;
   final void Function(Map cost)? onViewCost, onReverseCost, onReverseDepreciation;
 
+  /// The module (Poultry by default; Water passes AssetRail.water).
+  final AssetRail rail;
+
   @override
   State<AssetDetailsPanel> createState() => _AssetDetailsPanelState();
 }
 
 class _AssetDetailsPanelState extends State<AssetDetailsPanel> {
   String _tab = 'overview';
+  AssetRail get _r => widget.rail;
 
   FarmMoney get _fmt => widget.fmt;
   String _dt(Object? d, [Map? r]) => fmtDateTime(d, r, widget.offset);
@@ -175,17 +180,17 @@ class _AssetDetailsPanelState extends State<AssetDetailsPanel> {
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       sectionLabel('What it cost'),
       _grid([
-        assetFigure('Original acquisition cost', _fmt(tNum(v['acquisitionCost'])), hint: acquisitionCostTooltip),
-        assetFigure('Additional capitalised costs', _fmt(tNum(v['additionalCost'])), hint: additionalCostTooltip),
-        assetFigure('Total capitalised cost', _fmt(total), strong: true, hint: totalCapitalizedCostTooltip),
+        assetFigure('Original acquisition cost', _fmt(tNum(v['acquisitionCost'])), hint: _r.t(acquisitionCostTooltip)),
+        assetFigure('Additional capitalised costs', _fmt(tNum(v['additionalCost'])), hint: _r.t(additionalCostTooltip)),
+        assetFigure('Total capitalised cost', _fmt(total), strong: true, hint: _r.t(totalCapitalizedCostTooltip)),
       ]),
       const SizedBox(height: 14),
       sectionLabel('What it is worth now'),
       _grid([
         assetFigure('Accumulated depreciation', _fmt(acc), tone: TColors.amber800, hint: depreciationNoncashNote),
-        assetFigure('Current book value', _fmt(bv), tone: TColors.emerald800, strong: true, hint: bookValueTooltip),
+        assetFigure('Current book value', _fmt(bv), tone: TColors.emerald800, strong: true, hint: _r.t(bookValueTooltip)),
         assetFigure('Residual value', _fmt(res),
-            hint: 'What the investment is expected to still be worth at the end of its life. Book value never falls below it.'),
+            hint: _r.t('What the investment is expected to still be worth at the end of its life. Book value never falls below it.')),
       ]),
       const SizedBox(height: 6),
       Text.rich(
@@ -221,17 +226,17 @@ class _AssetDetailsPanelState extends State<AssetDetailsPanel> {
         const Divider(height: 24),
         Wrap(spacing: 8, runSpacing: 8, children: [
           if (widget.onEdit != null)
-            OutlinedButton.icon(onPressed: widget.onEdit, icon: const Icon(Icons.edit_outlined, size: 15), label: const Text('Edit investment')),
+            OutlinedButton.icon(onPressed: widget.onEdit, icon: const Icon(Icons.edit_outlined, size: 15), label: Text(_r.t('Edit investment'))),
           if (widget.onAddCost != null)
             Tooltip(
-              message: locked ? costLockedByDepreciationNote : 'Add capitalised cost',
+              message: locked ? _r.t(costLockedByDepreciationNote) : 'Add capitalised cost',
               child: OutlinedButton.icon(
                   onPressed: locked ? null : widget.onAddCost, icon: const Icon(Icons.payments_outlined, size: 15), label: const Text('Add cost')),
             ),
           if (widget.onCorrectOriginalCost != null)
             Tooltip(
               message: tNum(v['acquisitionCost']) <= 0
-                  ? 'This investment has no original acquisition to correct — its cost was built up with Add cost.'
+                  ? _r.t('This investment has no original acquisition to correct — its cost was built up with Add cost.')
                   : 'Fix a mistake in what the original acquisition was recorded as costing',
               child: OutlinedButton.icon(
                 onPressed: tNum(v['acquisitionCost']) <= 0 ? null : widget.onCorrectOriginalCost,
@@ -276,7 +281,7 @@ class _AssetDetailsPanelState extends State<AssetDetailsPanel> {
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       if (posted.isEmpty)
         _box(Text(
-          'Nothing has been capitalised into this investment yet, so its cost is ${_fmt(0)}. Use “Add cost” to build it up — that is how a investment that is constructed rather than bought is recorded.',
+          _r.t('Nothing has been capitalised into this investment yet, so its cost is ${_fmt(0)}. Use “Add cost” to build it up — that is how a investment that is constructed rather than bought is recorded.'),
           style: const TextStyle(fontSize: 13, color: TColors.slate600),
         ))
       else ...[
@@ -307,7 +312,7 @@ class _AssetDetailsPanelState extends State<AssetDetailsPanel> {
                 ),
               if (widget.onReverseCost != null && costReversible(c))
                 IconButton(
-                  tooltip: locked ? costLockedByDepreciationNote : 'Reverse this cost',
+                  tooltip: locked ? _r.t(costLockedByDepreciationNote) : 'Reverse this cost',
                   onPressed: locked ? null : () => widget.onReverseCost!(c),
                   icon: Icon(Icons.undo, size: 18, color: locked ? null : const Color(0xFFEF4444)),
                 ),
@@ -371,7 +376,7 @@ class _AssetDetailsPanelState extends State<AssetDetailsPanel> {
       const SizedBox(height: 10),
       if (rows.isEmpty)
         _box(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('No depreciation has been posted for this investment yet.', style: TextStyle(fontSize: 13, color: TColors.slate600)),
+          Text(_r.t('No depreciation has been posted for this investment yet.'), style: TextStyle(fontSize: 13, color: TColors.slate600)),
           if (tStr(v['status']) == 'Draft')
             const Text('It is not in service, so it does not depreciate. Set an in-service date and a useful life to start.',
                 style: TextStyle(fontSize: 11, color: TColors.slate500))
@@ -407,11 +412,11 @@ class _AssetDetailsPanelState extends State<AssetDetailsPanel> {
                         style: const TextStyle(fontSize: 11, color: TColors.slate500))),
               ]),
               Wrap(alignment: WrapAlignment.spaceBetween, children: [
-                if (d['expenseId'] != null)
+                if (d[_r.expenseIdKey] != null)
                   TextButton.icon(
                     onPressed: widget.onOpenExpenses,
                     icon: const Icon(Icons.receipt_long, size: 14),
-                    label: Text('Expense #${tStr(d['expenseId'])}', style: const TextStyle(fontSize: 11)),
+                    label: Text('Expense #${tStr(d[_r.expenseIdKey])}', style: const TextStyle(fontSize: 11)),
                   ),
                 if (widget.onReverseDepreciation != null && tStr(d['status']) == 'Posted' && tNum(d['amount']) > 0)
                   TextButton.icon(
@@ -458,6 +463,7 @@ class CostDetailDialog extends StatelessWidget {
     this.onReverse,
     this.reverseDisabledReason,
     this.onOpenExpenses,
+    this.rail = AssetRail.poultry,
   });
   final Map cost;
   final String? assetName;
@@ -465,6 +471,7 @@ class CostDetailDialog extends StatelessWidget {
   final Duration offset;
   final VoidCallback? onReverse, onOpenExpenses;
   final String? reverseDisabledReason;
+  final AssetRail rail;
 
   @override
   Widget build(BuildContext context) {
@@ -490,8 +497,8 @@ class CostDetailDialog extends StatelessWidget {
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Text(
             correction
-                ? "A correction to what this investment was recorded as costing. It amended the original acquisition's own document — no second payment and no second expense were created."
-                : "One amount capitalised into ${assetName ?? 'this investment'}. It increased what the investment is worth and was not charged against this period's profit.",
+                ? rail.t("A correction to what this investment was recorded as costing. It amended the original acquisition's own document — no second payment and no second expense were created.")
+                : rail.t("One amount capitalised into ${assetName ?? 'this investment'}. It increased what the investment is worth and was not charged against this period's profit."),
             style: const TextStyle(fontSize: 13, color: TColors.slate500),
           ),
           const SizedBox(height: 12),
@@ -520,12 +527,12 @@ class CostDetailDialog extends StatelessWidget {
           ],
           const SizedBox(height: 12),
           sectionLabel('The record behind it'),
-          c['expenseId'] != null
+          c[rail.expenseIdKey] != null
               ? row(
                   'Expense',
                   InkWell(
                     onTap: onOpenExpenses,
-                    child: Text('Expense #${tStr(c['expenseId'])}',
+                    child: Text('Expense #${tStr(c[rail.expenseIdKey])}',
                         style: const TextStyle(fontSize: 13, decoration: TextDecoration.underline)),
                   ),
                 )
@@ -560,7 +567,8 @@ class CostDetailDialog extends StatelessWidget {
 
 /// CorrectOriginalCostDialog. [onSubmit] throws to keep the dialog open with the error.
 class CorrectOriginalCostDialog extends StatefulWidget {
-  const CorrectOriginalCostDialog({super.key, required this.asset, required this.fmt, required this.onSubmit});
+  const CorrectOriginalCostDialog({super.key, required this.asset, required this.fmt, required this.onSubmit, this.rail = AssetRail.poultry});
+  final AssetRail rail;
   final Map asset;
   final FarmMoney fmt;
   final Future<void> Function(num newAmount, String? effectiveDate, String reason) onSubmit;
@@ -570,6 +578,7 @@ class CorrectOriginalCostDialog extends StatefulWidget {
 }
 
 class _CorrectOriginalCostDialogState extends State<CorrectOriginalCostDialog> {
+  AssetRail get _r => widget.rail;
   late final _amount = TextEditingController(text: _plain(tNum(widget.asset['acquisitionCost'])));
   final _reason = TextEditingController();
   String _date = DateTime.now().toUtc().toIso8601String().substring(0, 10);
@@ -698,9 +707,9 @@ class _CorrectOriginalCostDialogState extends State<CorrectOriginalCostDialog> {
             const SizedBox(height: 10),
             FilterLabel('Reason *',
                 AppInput(controller: _reason, minLines: 2, maxLines: 4, hintText: 'Original invoice amount was entered incorrectly', onChanged: (_) => setState(() {}))),
-            const Padding(
-              padding: EdgeInsets.only(top: 4),
-              child: Text("Required. It is kept on the investment's cost history with your name and the date.",
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(_r.t("Required. It is kept on the investment's cost history with your name and the date."),
                   style: TextStyle(fontSize: 11, color: TColors.slate500)),
             ),
             if (p != null) ...[
@@ -731,7 +740,7 @@ class _CorrectOriginalCostDialogState extends State<CorrectOriginalCostDialog> {
             ],
             if (deps > 0) ...[
               const SizedBox(height: 10),
-              _amberNote('$deps month(s) of depreciation have already been posted for this investment. $correctionDepreciationNote'),
+              _amberNote(_r.t('$deps month(s) of depreciation have already been posted for this investment. $correctionDepreciationNote')),
             ],
             if (p != null && p.residualTooHigh) ...[
               const SizedBox(height: 10),
@@ -747,7 +756,7 @@ class _CorrectOriginalCostDialogState extends State<CorrectOriginalCostDialog> {
             if (p != null && !p.residualTooHigh && (p.overDepreciated || p.nothingLeft)) ...[
               const SizedBox(height: 10),
               _amberNote(
-                  'After this correction there is nothing further to depreciate. The months already charged stand as charged and nothing more will be due — the investment will read as fully depreciated.'),
+                  _r.t('After this correction there is nothing further to depreciate. The months already charged stand as charged and nothing more will be due — the investment will read as fully depreciated.')),
             ],
             if (_error != null) ...[
               const SizedBox(height: 10),

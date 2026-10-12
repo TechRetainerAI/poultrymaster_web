@@ -12,6 +12,7 @@ import '../reports/report_format.dart';
 import '../reports/report_routes.dart' show openAppHref;
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../trackers/tracker_widgets.dart';
+import '../reports/money_reports.dart' show MoneyRail, poultryMoneyRail;
 
 /// Poultry → Expenses → Employee Loans & Advances, as `app/poultry-employee-loans/page.tsx`:
 /// money advanced to staff and what has come back. An advance is not an
@@ -53,7 +54,10 @@ Widget _loanBadge(Object? status) {
 }
 
 class EmployeeLoansScreen extends StatefulWidget {
-  const EmployeeLoansScreen({super.key, required this.session, required this.company});
+  const EmployeeLoansScreen({super.key, required this.session, required this.company, this.rail = poultryMoneyRail});
+
+  /// The module (Poultry by default; Water passes waterMoneyRail).
+  final MoneyRail rail;
   final Session session;
   final Company company;
 
@@ -62,6 +66,7 @@ class EmployeeLoansScreen extends StatefulWidget {
 }
 
 class _EmployeeLoansScreenState extends State<EmployeeLoansScreen> {
+  MoneyRail get _r => widget.rail;
   List<Map> _rows = [], _staff = [], _accounts = [];
   int _total = 0, _offset = 0;
   Map? _summary;
@@ -93,8 +98,8 @@ class _EmployeeLoansScreenState extends State<EmployeeLoansScreen> {
   Future<void> _loadLookups() async {
     try {
       final r = await Future.wait([
-        _api.get('/api/Poultry/staff', query: {'farmId': _farmId}),
-        _api.get('/api/Poultry/cash-accounts', query: {'farmId': _farmId}),
+        _api.get('${_r.api}/staff', query: {'farmId': _farmId}),
+        _api.get('${_r.api}/cash-accounts', query: {'farmId': _farmId}),
       ]);
       if (!mounted) return;
       setState(() {
@@ -110,7 +115,7 @@ class _EmployeeLoansScreenState extends State<EmployeeLoansScreen> {
     setState(() => _error = '');
     try {
       final r = await Future.wait([
-        _api.get('/api/Poultry/employee-loans', query: {
+        _api.get('${_r.api}/employee-loans', query: {
           'farmId': _farmId,
           if (_status.isNotEmpty) 'status': _status,
           if (_search.text.trim().isNotEmpty) 'search': _search.text.trim(),
@@ -119,7 +124,7 @@ class _EmployeeLoansScreenState extends State<EmployeeLoansScreen> {
           'limit': '$employeeLoanPageSize',
           'offset': '$_offset',
         }),
-        _api.get('/api/Poultry/employee-loans/summary', query: {'farmId': _farmId}),
+        _api.get('${_r.api}/employee-loans/summary', query: {'farmId': _farmId}),
       ]);
       if (!mounted) return;
       final page = r[0] is Map ? r[0] as Map : const {};
@@ -142,9 +147,9 @@ class _EmployeeLoansScreenState extends State<EmployeeLoansScreen> {
     final pairs = await Future.wait([
       for (final l in _rows)
         () async {
-          final id = tIntOrNull(l['poultryEmployeeLoanId']) ?? 0;
+          final id = tIntOrNull(l['${_r.idPrefix}EmployeeLoanId']) ?? 0;
           try {
-            return MapEntry(id, rowsOf(await _api.get('/api/Poultry/employee-loans/$id/repayments', query: {'farmId': _farmId})));
+            return MapEntry(id, rowsOf(await _api.get('${_r.api}/employee-loans/$id/repayments', query: {'farmId': _farmId})));
           } on ApiException {
             return MapEntry(id, <Map>[]);
           }
@@ -184,12 +189,13 @@ class _EmployeeLoansScreenState extends State<EmployeeLoansScreen> {
   Future<void> _newLoan() => showDialog<void>(
         context: context,
         builder: (ctx) => NewEmployeeLoanDialog(
+          rail: _r,
           staff: _staff,
           accounts: _accounts,
           fmt: _fmt,
           onSave: (input) async {
             final ok = await _run(
-                () => _api.post('/api/Poultry/employee-loans', body: {...input, ..._who, 'createdBy': widget.session.tokens.userId}),
+                () => _api.post('${_r.api}/employee-loans', body: {...input, ..._who, 'createdBy': widget.session.tokens.userId}),
                 'Advance recorded');
             if (ok && ctx.mounted) Navigator.pop(ctx);
           },
@@ -199,12 +205,13 @@ class _EmployeeLoansScreenState extends State<EmployeeLoansScreen> {
   Future<void> _disburse(Map l) => showDialog<void>(
         context: context,
         builder: (ctx) => DisburseLoanDialog(
+          rail: _r,
           loan: l,
           accounts: _accounts,
           fmt: _fmt,
           onSave: (input) async {
             final ok = await _run(
-                () => _api.post('/api/Poultry/employee-loans/${tStr(l['poultryEmployeeLoanId'])}/disburse',
+                () => _api.post('${_r.api}/employee-loans/${tStr(l['${_r.idPrefix}EmployeeLoanId'])}/disburse',
                     body: {...input, ..._who, 'disbursedBy': widget.session.tokens.userId}),
                 'Advance handed over');
             if (ok && ctx.mounted) Navigator.pop(ctx);
@@ -215,12 +222,13 @@ class _EmployeeLoansScreenState extends State<EmployeeLoansScreen> {
   Future<void> _repay(Map l) => showDialog<void>(
         context: context,
         builder: (ctx) => RepayLoanDialog(
+          rail: _r,
           loan: l,
           accounts: _accounts,
           fmt: _fmt,
           onSave: (input) async {
             final ok = await _run(
-                () => _api.post('/api/Poultry/employee-loans/repayments', body: {...input, ..._who, 'createdBy': widget.session.tokens.userId}),
+                () => _api.post('${_r.api}/employee-loans/repayments', body: {...input, ..._who, 'createdBy': widget.session.tokens.userId}),
                 'Repayment recorded');
             if (ok && ctx.mounted) Navigator.pop(ctx);
           },
@@ -242,9 +250,9 @@ class _EmployeeLoansScreenState extends State<EmployeeLoansScreen> {
         onUndo: (r) => _run(() async {
           final body = {..._who, 'reason': r, 'actionBy': widget.session.tokens.userId};
           if (repayment != null) {
-            await _api.post('/api/Poultry/employee-loans/repayments/${tStr(repayment['poultryEmployeeLoanRepaymentId'])}/reverse', body: body);
+            await _api.post('${_r.api}/employee-loans/repayments/${tStr(repayment['${_r.idPrefix}EmployeeLoanRepaymentId'])}/reverse', body: body);
           } else if (loan != null) {
-            await _api.post('/api/Poultry/employee-loans/${tStr(loan['poultryEmployeeLoanId'])}/${draft ? 'cancel' : 'reverse'}', body: body);
+            await _api.post('${_r.api}/employee-loans/${tStr(loan['${_r.idPrefix}EmployeeLoanId'])}/${draft ? 'cancel' : 'reverse'}', body: body);
           }
         }, 'Done'),
       ),
@@ -254,8 +262,9 @@ class _EmployeeLoansScreenState extends State<EmployeeLoansScreen> {
   Future<void> _details(Map l) => showDialog<void>(
         context: context,
         builder: (ctx) => LoanDetailDialog(
+          p: _r.idPrefix,
           loan: l,
-          rows: _history[tIntOrNull(l['poultryEmployeeLoanId']) ?? 0] ?? const [],
+          rows: _history[tIntOrNull(l['${_r.idPrefix}EmployeeLoanId']) ?? 0] ?? const [],
           loading: _historyLoading,
           fmt: _fmt,
           onReverse: (r) {
@@ -267,7 +276,7 @@ class _EmployeeLoansScreenState extends State<EmployeeLoansScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final lead = sidebarLeading(context, widget.session, widget.company, href: '/poultry-employee-loans');
+    final lead = sidebarLeading(context, widget.session, widget.company, href: '/${_r.idPrefix}-employee-loans');
     final s = _summary;
     final (from, to) = employeeLoanRange(_offset, _total);
     final filtered = _status.isNotEmpty || _search.text.isNotEmpty || _staffId != 'ALL' || _loanType != 'ALL';
@@ -298,7 +307,7 @@ class _EmployeeLoansScreenState extends State<EmployeeLoansScreen> {
             const SizedBox(height: 10),
             Wrap(spacing: 8, runSpacing: 8, children: [
               OutlinedButton(
-                onPressed: () => openAppHref(context, widget.session, widget.company, '/poultry-payroll', label: 'Payroll'),
+                onPressed: () => openAppHref(context, widget.session, widget.company, '/${_r.idPrefix}-payroll', label: 'Payroll'),
                 style: OutlinedButton.styleFrom(minimumSize: const Size(0, 44)),
                 child: const Text('Payroll'),
               ),
@@ -311,7 +320,7 @@ class _EmployeeLoansScreenState extends State<EmployeeLoansScreen> {
             ]),
             const SizedBox(height: 14),
             twoUp([
-              moneyStat('Outstanding', _fmt(tNum(s?['outstandingTotal'])), hint: 'What staff still owe the farm', color: const Color(0xFF4338CA)),
+              moneyStat('Outstanding', _fmt(tNum(s?['outstandingTotal'])), hint: 'What staff still owe the ${_r.entity}', color: const Color(0xFF4338CA)),
               moneyStat('Advanced', _fmt(tNum(s?['disbursedInPeriod'])), color: TColors.rose600),
               moneyStat('Repaid', _fmt(tNum(s?['repaidInPeriod'])), color: TColors.emerald700),
               moneyStat('Active advances', tStr(s?['activeLoans']).isEmpty ? '0' : tStr(s?['activeLoans']),
@@ -329,7 +338,7 @@ class _EmployeeLoansScreenState extends State<EmployeeLoansScreen> {
               value: _staffId,
               items: [
                 const AppSelectItem(value: 'ALL', label: 'All staff'),
-                for (final st in _staff) AppSelectItem(value: tStr(st['poultryStaffId']), label: '${tStr(st['firstName'])} ${tStr(st['lastName'])}'),
+                for (final st in _staff) AppSelectItem(value: tStr(st['${_r.idPrefix}StaffId']), label: '${tStr(st['firstName'])} ${tStr(st['lastName'])}'),
               ],
               onChanged: (v) => _refilter(() => _staffId = v ?? 'ALL'),
             ),
@@ -368,9 +377,9 @@ class _EmployeeLoansScreenState extends State<EmployeeLoansScreen> {
               MobileCardList<Map>(
                 striped: true,
                 items: _rows,
-                keyOf: (l) => tStr(l['poultryEmployeeLoanId']),
+                keyOf: (l) => tStr(l['${_r.idPrefix}EmployeeLoanId']),
                 primary: (l) =>
-                    '${tStr(l['loanNumber']).isNotEmpty ? tStr(l['loanNumber']) : '#${tStr(l['poultryEmployeeLoanId'])}'} · ${tStr(l['staffName'])}',
+                    '${tStr(l['loanNumber']).isNotEmpty ? tStr(l['loanNumber']) : '#${tStr(l['${_r.idPrefix}EmployeeLoanId'])}'} · ${tStr(l['staffName'])}',
                 secondary: (l) => '${_date(l['disbursementDate'])} · ${employeeLoanTypeLabel(l['loanType'])}',
                 trailing: (l) => Padding(padding: const EdgeInsets.only(left: 6), child: _loanBadge(l['status'])),
                 highlights: (l) => [
@@ -425,7 +434,7 @@ class _EmployeeLoansScreenState extends State<EmployeeLoansScreen> {
                         return <Widget>[
                           InkWell(
                             onTap: () => _details(l),
-                            child: Text(tStr(l['loanNumber']).isNotEmpty ? tStr(l['loanNumber']) : '#${tStr(l['poultryEmployeeLoanId'])}',
+                            child: Text(tStr(l['loanNumber']).isNotEmpty ? tStr(l['loanNumber']) : '#${tStr(l['${_r.idPrefix}EmployeeLoanId'])}',
                                 style: const TextStyle(fontWeight: FontWeight.w500)),
                           ),
                           cellText(tStr(l['staffName'])),
@@ -476,13 +485,13 @@ class _EmployeeLoansScreenState extends State<EmployeeLoansScreen> {
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(color: const Color(0xFFF0F9FF), border: Border.all(color: const Color(0xFFBAE6FD)), borderRadius: BorderRadius.circular(12)),
-              child: const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Icon(Icons.info_outline, size: 16, color: TColors.sky700),
-                SizedBox(width: 8),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Icon(Icons.info_outline, size: 16, color: TColors.sky700),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Repayments taken from a wage do not show as money coming in, because none did — the farm simply paid out less that month. They still reduce what the worker owes. To undo one, reopen the payroll run that created it.',
-                    style: TextStyle(fontSize: 12, color: TColors.sky900),
+                    'Repayments taken from a wage do not show as money coming in, because none did — the ${_r.entity} simply paid out less that month. They still reduce what the worker owes. To undo one, reopen the payroll run that created it.',
+                    style: const TextStyle(fontSize: 12, color: TColors.sky900),
                   ),
                 ),
               ]),
@@ -515,14 +524,14 @@ Widget _switchRow(String title, String hint, bool v, ValueChanged<bool> on) => C
       ]),
     );
 
-AppSelect<String> _accountSelect(List<Map> accounts, String value, ValueChanged<String> on, {required FarmMoney fmt, bool balances = true, String hint = 'Choose a cash account'}) =>
+AppSelect<String> _accountSelect(List<Map> accounts, String value, ValueChanged<String> on, {required FarmMoney fmt, bool balances = true, String hint = 'Choose a cash account', String p = 'poultry'}) =>
     AppSelect<String>(
       value: value.isEmpty ? null : value,
       hintText: hint,
       items: [
         for (final a in accounts)
           AppSelectItem(
-            value: tStr(a['poultryCashAccountId']),
+            value: tStr(a['${p}CashAccountId']),
             label: balances ? '${tStr(a['accountName'])} — ${fmt(tNum(a['currentBalance']))}' : tStr(a['accountName']),
           ),
       ],
@@ -531,7 +540,10 @@ AppSelect<String> _accountSelect(List<Map> accounts, String value, ValueChanged<
 
 /// New loan or advance.
 class NewEmployeeLoanDialog extends StatefulWidget {
-  const NewEmployeeLoanDialog({super.key, required this.staff, required this.accounts, required this.fmt, required this.onSave});
+  const NewEmployeeLoanDialog({super.key, required this.staff, required this.accounts, required this.fmt, required this.onSave, this.rail = poultryMoneyRail});
+
+  /// The module (Poultry by default; Water passes waterMoneyRail).
+  final MoneyRail rail;
   final List<Map> staff, accounts;
   final FarmMoney fmt;
   final Future<void> Function(Map<String, Object?> input) onSave;
@@ -541,6 +553,7 @@ class NewEmployeeLoanDialog extends StatefulWidget {
 }
 
 class _NewEmployeeLoanDialogState extends State<NewEmployeeLoanDialog> {
+  MoneyRail get _r => widget.rail;
   String _staff = '', _type = 'EmployeeLoan', _method = 'PayrollDeduction', _account = '';
   String _date = DateTime.now().toUtc().toIso8601String().substring(0, 10);
   final _amount = TextEditingController(text: '0'), _deduction = TextEditingController(text: '0');
@@ -563,7 +576,7 @@ class _NewEmployeeLoanDialogState extends State<NewEmployeeLoanDialog> {
     setState(() => _saving = true);
     final ded = num.tryParse(_deduction.text) ?? 0;
     await widget.onSave({
-      'poultryStaffId': int.parse(_staff),
+      '${_r.idPrefix}StaffId': int.parse(_staff),
       'loanType': _type,
       'principalAmount': _principal,
       'disbursementDate': _date,
@@ -574,7 +587,7 @@ class _NewEmployeeLoanDialogState extends State<NewEmployeeLoanDialog> {
       'interestEnabled': _interestOn,
       'interestAmount': _interestOn ? _interestAmt : 0,
       'disburseNow': _now,
-      'poultryCashAccountId': _now ? int.parse(_account) : null,
+      '${_r.idPrefix}CashAccountId': _now ? int.parse(_account) : null,
       'paymentMethod': _now ? 'Cash' : null,
       'referenceNumber': _ref.text.isEmpty ? null : _ref.text,
     });
@@ -604,7 +617,7 @@ class _NewEmployeeLoanDialogState extends State<NewEmployeeLoanDialog> {
               hintText: 'Choose a member of staff',
               items: [
                 for (final s in widget.staff)
-                  AppSelectItem(value: tStr(s['poultryStaffId']), label: '${tStr(s['firstName'])} ${tStr(s['lastName'])} — ${tStr(s['role'])}'),
+                  AppSelectItem(value: tStr(s['${_r.idPrefix}StaffId']), label: '${tStr(s['firstName'])} ${tStr(s['lastName'])} — ${tStr(s['role'])}'),
               ],
               onChanged: (v) => setState(() => _staff = v ?? ''),
             ),
@@ -640,7 +653,7 @@ class _NewEmployeeLoanDialogState extends State<NewEmployeeLoanDialog> {
           const SizedBox(height: 10),
           FilterLabel('Purpose', AppInput(controller: _purpose, hintText: 'School fees, medical, rent…')),
           const SizedBox(height: 10),
-          _switchRow('Charge interest', 'Most farm advances are interest-free.', _interestOn, (v) => setState(() => _interestOn = v)),
+          _switchRow('Charge interest', _r.idPrefix == 'water' ? 'Most staff advances are interest-free.' : 'Most farm advances are interest-free.', _interestOn, (v) => setState(() => _interestOn = v)),
           if (_interestOn) ...[const SizedBox(height: 10), FilterLabel('Interest amount', _num(_interest, () => setState(() {})))],
           const SizedBox(height: 10),
           Container(
@@ -656,7 +669,7 @@ class _NewEmployeeLoanDialogState extends State<NewEmployeeLoanDialog> {
               (v) => setState(() => _now = v)),
           if (_now) ...[
             const SizedBox(height: 10),
-            FilterLabel('Pay from *', _accountSelect(widget.accounts, _account, (v) => setState(() => _account = v), fmt: fmt)),
+            FilterLabel('Pay from *', _accountSelect(widget.accounts, _account, (v) => setState(() => _account = v), fmt: fmt, p: _r.idPrefix)),
             const SizedBox(height: 10),
             FilterLabel('Reference', AppInput(controller: _ref, hintText: 'MoMo ID, voucher number…')),
           ],
@@ -672,7 +685,10 @@ class _NewEmployeeLoanDialogState extends State<NewEmployeeLoanDialog> {
 
 /// Hand over a draft advance.
 class DisburseLoanDialog extends StatefulWidget {
-  const DisburseLoanDialog({super.key, required this.loan, required this.accounts, required this.fmt, required this.onSave});
+  const DisburseLoanDialog({super.key, required this.loan, required this.accounts, required this.fmt, required this.onSave, this.rail = poultryMoneyRail});
+
+  /// The module (Poultry by default; Water passes waterMoneyRail).
+  final MoneyRail rail;
   final Map loan;
   final List<Map> accounts;
   final FarmMoney fmt;
@@ -683,6 +699,7 @@ class DisburseLoanDialog extends StatefulWidget {
 }
 
 class _DisburseLoanDialogState extends State<DisburseLoanDialog> {
+  MoneyRail get _r => widget.rail;
   String _account = '';
   final _ref = TextEditingController();
   bool _saving = false;
@@ -708,7 +725,7 @@ class _DisburseLoanDialogState extends State<DisburseLoanDialog> {
             style: const TextStyle(fontSize: 13, color: TColors.slate500),
           ),
           const SizedBox(height: 12),
-          FilterLabel('Pay from *', _accountSelect(widget.accounts, _account, (v) => setState(() => _account = v), fmt: fmt)),
+          FilterLabel('Pay from *', _accountSelect(widget.accounts, _account, (v) => setState(() => _account = v), fmt: fmt, p: _r.idPrefix)),
           const SizedBox(height: 10),
           FilterLabel('Reference', AppInput(controller: _ref)),
         ]),
@@ -721,7 +738,7 @@ class _DisburseLoanDialogState extends State<DisburseLoanDialog> {
               : () async {
                   setState(() => _saving = true);
                   await widget.onSave({
-                    'poultryCashAccountId': int.parse(_account),
+                    '${_r.idPrefix}CashAccountId': int.parse(_account),
                     'paymentMethod': 'Cash',
                     'referenceNumber': _ref.text.isEmpty ? null : _ref.text,
                   });
@@ -736,7 +753,10 @@ class _DisburseLoanDialogState extends State<DisburseLoanDialog> {
 
 /// Record a repayment the worker hands over (a payroll deduction is added on the payroll run).
 class RepayLoanDialog extends StatefulWidget {
-  const RepayLoanDialog({super.key, required this.loan, required this.accounts, required this.fmt, required this.onSave});
+  const RepayLoanDialog({super.key, required this.loan, required this.accounts, required this.fmt, required this.onSave, this.rail = poultryMoneyRail});
+
+  /// The module (Poultry by default; Water passes waterMoneyRail).
+  final MoneyRail rail;
   final Map loan;
   final List<Map> accounts;
   final FarmMoney fmt;
@@ -747,6 +767,7 @@ class RepayLoanDialog extends StatefulWidget {
 }
 
 class _RepayLoanDialogState extends State<RepayLoanDialog> {
+  MoneyRail get _r => widget.rail;
   final _amount = TextEditingController(text: '0'), _ref = TextEditingController();
   String _source = 'ManualCash', _account = '', _date = DateTime.now().toUtc().toIso8601String().substring(0, 10);
   bool _saving = false;
@@ -795,7 +816,7 @@ class _RepayLoanDialogState extends State<RepayLoanDialog> {
             ),
           ),
           const SizedBox(height: 10),
-          FilterLabel('Into *', _accountSelect(widget.accounts, _account, (v) => setState(() => _account = v), fmt: fmt, balances: false, hint: 'Cash account')),
+          FilterLabel('Into *', _accountSelect(widget.accounts, _account, (v) => setState(() => _account = v), fmt: fmt, balances: false, hint: 'Cash account', p: _r.idPrefix)),
           const SizedBox(height: 10),
           FilterLabel('Reference', AppInput(controller: _ref, hintText: 'MoMo ID, receipt number…')),
           const SizedBox(height: 10),
@@ -817,11 +838,11 @@ class _RepayLoanDialogState extends State<RepayLoanDialog> {
               : () async {
                   setState(() => _saving = true);
                   await widget.onSave({
-                    'poultryEmployeeLoanId': tIntOrNull(l['poultryEmployeeLoanId']),
+                    '${_r.idPrefix}EmployeeLoanId': tIntOrNull(l['${_r.idPrefix}EmployeeLoanId']),
                     'amount': amount,
                     'sourceType': _source,
                     'repaymentDate': _date,
-                    'poultryCashAccountId': int.parse(_account),
+                    '${_r.idPrefix}CashAccountId': int.parse(_account),
                     'referenceNumber': _ref.text.isEmpty ? null : _ref.text,
                   });
                   if (mounted) setState(() => _saving = false);
@@ -835,7 +856,11 @@ class _RepayLoanDialogState extends State<RepayLoanDialog> {
 
 /// The loan's figures, facts and repayment history.
 class LoanDetailDialog extends StatelessWidget {
-  const LoanDetailDialog({super.key, required this.loan, required this.rows, required this.loading, required this.fmt, required this.onReverse});
+  const LoanDetailDialog(
+      {super.key, required this.loan, required this.rows, required this.loading, required this.fmt, required this.onReverse, this.p = 'poultry'});
+
+  /// The id prefix (MoneyRail.idPrefix).
+  final String p;
   final Map loan;
   final List<Map> rows;
   final bool loading;
@@ -864,7 +889,7 @@ class LoanDetailDialog extends StatelessWidget {
     return AlertDialog(
       scrollable: true,
       title: Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
-        Text(tStr(l['loanNumber']).isNotEmpty ? tStr(l['loanNumber']) : '#${tStr(l['poultryEmployeeLoanId'])}'),
+        Text(tStr(l['loanNumber']).isNotEmpty ? tStr(l['loanNumber']) : '#${tStr(l['${p}EmployeeLoanId'])}'),
         const Text('·', style: TextStyle(color: TColors.slate400)),
         Text(tStr(l['staffName'])),
         _loanBadge(l['status']),
@@ -940,7 +965,7 @@ class LoanDetailDialog extends StatelessWidget {
                         payroll
                             ? (tStr(r['payrollPeriodStart']).isNotEmpty
                                 ? 'Payroll ${_date(r['payrollPeriodStart'])} – ${_date(r['payrollPeriodEnd'])}'
-                                : 'Payroll run ${tStr(r['poultryPayrollRunId']).isEmpty ? '—' : tStr(r['poultryPayrollRunId'])}')
+                                : 'Payroll run ${tStr(r['${p}PayrollRunId']).isEmpty ? '—' : tStr(r['${p}PayrollRunId'])}')
                             : (tStr(r['referenceNumber']).isNotEmpty
                                 ? tStr(r['referenceNumber'])
                                 : (tStr(r['cashAccountName']).isNotEmpty ? tStr(r['cashAccountName']) : '—')),

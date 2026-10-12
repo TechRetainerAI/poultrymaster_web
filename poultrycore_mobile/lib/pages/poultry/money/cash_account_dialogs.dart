@@ -10,11 +10,17 @@ import '../reports/report_routes.dart' show openAppHref;
 import '../trackers/tracker_logic.dart' show tNum, tStr;
 import '../trackers/tracker_widgets.dart';
 import 'money_widgets.dart';
+import '../reports/money_reports.dart' show MoneyRail, poultryMoneyRail;
 
 /// The Cash Account pages' dialogs, from `app/poultry-cash-accounts/page.tsx`,
 /// `[id]/page.tsx` and `components/cash/record-cash-adjustment-dialog.tsx`.
 
 const cashAccountTypes = ['FarmCashBox', 'OwnerCash', 'MoMoWallet', 'BankAccount', 'PettyCash', 'Other'];
+
+/// Water's ACCOUNT_TYPES (app/water-cash-accounts): a factory cash box and driver cash.
+const waterCashAccountTypes = ['FactoryCashBox', 'OwnerCash', 'MoMoWallet', 'BankAccount', 'DriverCash', 'PettyCash', 'Other'];
+
+List<String> cashAccountTypesFor(MoneyRail r) => r.idPrefix == 'water' ? waterCashAccountTypes : cashAccountTypes;
 
 /// POULTRY_CASH_REASONS — why the cash differed. Stored as text.
 const cashReasons = [
@@ -57,9 +63,12 @@ Widget _dialogTitle(IconData icon, Color color, String text) => Row(children: [
 
 /// New cash account / Edit account.
 class CashAccountFormDialog extends StatefulWidget {
-  const CashAccountFormDialog({super.key, required this.session, required this.company, this.editing});
+  const CashAccountFormDialog({super.key, required this.session, required this.company, this.editing, this.rail = poultryMoneyRail});
   final Session session;
   final Company company;
+
+  /// The module (Poultry by default; Water passes waterMoneyRail).
+  final MoneyRail rail;
   final Map? editing;
 
   @override
@@ -67,11 +76,12 @@ class CashAccountFormDialog extends StatefulWidget {
 }
 
 class _CashAccountFormDialogState extends State<CashAccountFormDialog> {
+  MoneyRail get _r => widget.rail;
   late final Map? _e = widget.editing;
   late final _name = TextEditingController(text: tStr(_e?['accountName']));
   late final _notes = TextEditingController(text: tStr(_e?['notes']));
   final _opening = TextEditingController(text: '0');
-  late String _type = tStr(_e?['accountType']).isEmpty ? 'FarmCashBox' : tStr(_e?['accountType']);
+  late String _type = tStr(_e?['accountType']).isEmpty ? cashAccountTypesFor(widget.rail).first : tStr(_e?['accountType']);
   late bool _allowNeg = _e?['allowNegativeBalance'] == true;
   late bool _active = _e == null ? true : _e['isActive'] == true;
   bool _saving = false;
@@ -91,19 +101,19 @@ class _CashAccountFormDialogState extends State<CashAccountFormDialog> {
     final farmId = widget.company.farmId;
     try {
       if (_e != null) {
-        final id = tStr(_e['poultryCashAccountId']);
-        await api.put('/api/Poultry/cash-accounts/$id', body: {
+        final id = tStr(_e['${_r.idPrefix}CashAccountId']);
+        await api.put('${_r.api}/cash-accounts/$id', body: {
           'accountName': _name.text,
           'accountType': _type,
           'allowNegativeBalance': _allowNeg,
           'isActive': _active,
           'notes': _notes.text,
-          'poultryCashAccountId': int.parse(id),
+          '${_r.idPrefix}CashAccountId': int.parse(id),
           'farmId': farmId,
         });
         if (mounted) trackerToast(context, 'Account updated');
       } else {
-        await api.post('/api/Poultry/cash-accounts', body: {
+        await api.post('${_r.api}/cash-accounts', body: {
           'accountName': _name.text,
           'accountType': _type,
           'openingBalance': num.tryParse(_opening.text) ?? 0,
@@ -141,7 +151,7 @@ class _CashAccountFormDialogState extends State<CashAccountFormDialog> {
                 'Type',
                 AppSelect<String>(
                   value: _type,
-                  items: [for (final t in cashAccountTypes) AppSelectItem(value: t, label: t)],
+                  items: [for (final t in cashAccountTypesFor(_r)) AppSelectItem(value: t, label: t)],
                   onChanged: (v) => setState(() => _type = v ?? _type),
                 ),
               ),
@@ -168,9 +178,12 @@ class _CashAccountFormDialogState extends State<CashAccountFormDialog> {
 
 /// Cash transfer (Draft → Approved): created, then approved in the same click.
 class CashTransferQuickDialog extends StatefulWidget {
-  const CashTransferQuickDialog({super.key, required this.session, required this.company, required this.accounts});
+  const CashTransferQuickDialog({super.key, required this.session, required this.company, required this.accounts, this.rail = poultryMoneyRail});
   final Session session;
   final Company company;
+
+  /// The module (Poultry by default; Water passes waterMoneyRail).
+  final MoneyRail rail;
   final List<Map> accounts;
 
   @override
@@ -178,6 +191,7 @@ class CashTransferQuickDialog extends StatefulWidget {
 }
 
 class _CashTransferQuickDialogState extends State<CashTransferQuickDialog> {
+  MoneyRail get _r => widget.rail;
   String _from = '0', _to = '0', _reason = '';
   final _amount = TextEditingController(text: '0');
   final _other = TextEditingController();
@@ -197,16 +211,16 @@ class _CashTransferQuickDialogState extends State<CashTransferQuickDialog> {
     final api = widget.session.farmClient;
     final farmId = widget.company.farmId;
     try {
-      final res = await api.post('/api/Poultry/cash-transfers', body: {
-        'fromPoultryCashAccountId': int.parse(_from),
-        'toPoultryCashAccountId': int.parse(_to),
+      final res = await api.post('${_r.api}/cash-transfers', body: {
+        'from${_r.cap}CashAccountId': int.parse(_from),
+        'to${_r.cap}CashAccountId': int.parse(_to),
         'amount': amount,
         'notes': _reason == 'Other' ? _other.text.trim() : _reason,
         'farmId': farmId,
         'createdBy': widget.session.tokens.userId,
       });
-      final id = res is Map ? tStr(res['poultryCashTransferId']) : '';
-      await api.post('/api/Poultry/cash-transfers/$id/approve',
+      final id = res is Map ? tStr(res['${_r.idPrefix}CashTransferId']) : '';
+      await api.post('${_r.api}/cash-transfers/$id/approve',
           query: {'farmId': farmId, 'approvedBy': widget.session.tokens.userId ?? ''});
       if (!mounted) return;
       trackerToast(context, 'Transfer approved');
@@ -220,9 +234,9 @@ class _CashTransferQuickDialogState extends State<CashTransferQuickDialog> {
   Widget build(BuildContext context) {
     final active = [for (final a in widget.accounts) if (a['isActive'] == true) a];
     AppSelect<String> pick(String value, String hint, ValueChanged<String> on) => AppSelect<String>(
-          value: active.any((a) => tStr(a['poultryCashAccountId']) == value) ? value : null,
+          value: active.any((a) => tStr(a['${_r.idPrefix}CashAccountId']) == value) ? value : null,
           hintText: hint,
-          items: [for (final a in active) AppSelectItem(value: tStr(a['poultryCashAccountId']), label: tStr(a['accountName']))],
+          items: [for (final a in active) AppSelectItem(value: tStr(a['${_r.idPrefix}CashAccountId']), label: tStr(a['accountName']))],
           onChanged: (v) => setState(() => on(v ?? '0')),
         );
     return AlertDialog(
@@ -275,9 +289,13 @@ class RecordCashAdjustmentDialog extends StatefulWidget {
     required this.company,
     required this.accounts,
     required this.fmt,
+    this.rail = poultryMoneyRail,
   });
   final Session session;
   final Company company;
+
+  /// The module (Poultry by default; Water passes waterMoneyRail).
+  final MoneyRail rail;
   final List<Map> accounts;
   final FarmMoney fmt;
 
@@ -286,8 +304,9 @@ class RecordCashAdjustmentDialog extends StatefulWidget {
 }
 
 class _RecordCashAdjustmentDialogState extends State<RecordCashAdjustmentDialog> {
+  MoneyRail get _r => widget.rail;
   late final List<Map> _active = [for (final a in widget.accounts) if (a['isActive'] == true) a];
-  late String? _account = _active.length == 1 ? tStr(_active.first['poultryCashAccountId']) : null;
+  late String? _account = _active.length == 1 ? tStr(_active.first['${_r.idPrefix}CashAccountId']) : null;
   String _direction = 'in', _reason = '';
   final _amount = TextEditingController();
   final _note = TextEditingController();
@@ -314,7 +333,7 @@ class _RecordCashAdjustmentDialogState extends State<RecordCashAdjustmentDialog>
     final signed = _signed;
     try {
       await widget.session.farmClient.post(
-        '/api/Poultry/cash-accounts/$_account/adjust',
+        '${_r.api}/cash-accounts/$_account/adjust',
         query: {'farmId': widget.company.farmId},
         body: {'amount': signed, 'reason': _needsNote ? _note.text.trim() : _reason, 'createdBy': widget.session.tokens.userId},
       );
@@ -349,7 +368,7 @@ class _RecordCashAdjustmentDialogState extends State<RecordCashAdjustmentDialog>
                   AppSelect<String>(
                     value: _account,
                     hintText: 'Which account?',
-                    items: [for (final a in _active) AppSelectItem(value: tStr(a['poultryCashAccountId']), label: tStr(a['accountName']))],
+                    items: [for (final a in _active) AppSelectItem(value: tStr(a['${_r.idPrefix}CashAccountId']), label: tStr(a['accountName']))],
                     onChanged: (v) => setState(() => _account = v),
                   ),
                 ),
@@ -414,7 +433,7 @@ class _RecordCashAdjustmentDialogState extends State<RecordCashAdjustmentDialog>
                   OutlinedButton.icon(
                     onPressed: () {
                       Navigator.pop(context, false);
-                      openAppHref(context, widget.session, widget.company, '/poultry-cash-reconciliation', label: 'Reconciliation');
+                      openAppHref(context, widget.session, widget.company, _r.reconcileHref, label: 'Reconciliation');
                     },
                     iconAlignment: IconAlignment.end,
                     icon: const Icon(Icons.arrow_forward, size: 14),
@@ -447,9 +466,12 @@ class _RecordCashAdjustmentDialogState extends State<RecordCashAdjustmentDialog>
 
 /// The detail page's "Adjust balance": the new balance is shown before saving.
 class AdjustBalanceDialog extends StatefulWidget {
-  const AdjustBalanceDialog({super.key, required this.session, required this.company, required this.account, required this.fmt});
+  const AdjustBalanceDialog({super.key, required this.session, required this.company, required this.account, required this.fmt, this.rail = poultryMoneyRail});
   final Session session;
   final Company company;
+
+  /// The module (Poultry by default; Water passes waterMoneyRail).
+  final MoneyRail rail;
   final Map account;
   final FarmMoney fmt;
 
@@ -458,6 +480,7 @@ class AdjustBalanceDialog extends StatefulWidget {
 }
 
 class _AdjustBalanceDialogState extends State<AdjustBalanceDialog> {
+  MoneyRail get _r => widget.rail;
   String _direction = 'in', _reason = '';
   final _amount = TextEditingController(text: '0');
   final _note = TextEditingController();
@@ -480,7 +503,7 @@ class _AdjustBalanceDialogState extends State<AdjustBalanceDialog> {
     final signed = _direction == 'out' ? -_value.abs() : _value.abs();
     try {
       await widget.session.farmClient.post(
-        '/api/Poultry/cash-accounts/${tStr(widget.account['poultryCashAccountId'])}/adjust',
+        '${_r.api}/cash-accounts/${tStr(widget.account['${_r.idPrefix}CashAccountId'])}/adjust',
         query: {'farmId': widget.company.farmId},
         body: {'amount': signed, 'reason': _reason == 'Other' ? _note.text.trim() : _reason, 'createdBy': widget.session.tokens.userId},
       );
@@ -546,7 +569,11 @@ class _AdjustBalanceDialogState extends State<AdjustBalanceDialog> {
                 ),
                 if (_reason == 'Other') ...[
                   const SizedBox(height: 8),
-                  AppInput(controller: _note, autofocus: true, hintText: 'Say what happened'),
+                  // Water gives the note its own labelled field.
+                  _r.idPrefix == 'water'
+                      ? FilterLabel('Say what happened *',
+                          AppInput(controller: _note, autofocus: true, hintText: 'e.g. Till float returned from the depot'))
+                      : AppInput(controller: _note, autofocus: true, hintText: 'Say what happened'),
                 ],
               ]),
             ]),

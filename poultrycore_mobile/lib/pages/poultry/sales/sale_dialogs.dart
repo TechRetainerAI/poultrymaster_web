@@ -191,6 +191,7 @@ Future<void> showPaymentHistory(
   required bool canReverse,
   required VoidCallback onReversed,
   BalanceSide side = BalanceSide.customer,
+  String api = '/api/Poultry',
 }) =>
     showModalBottomSheet<void>(
       context: context,
@@ -211,6 +212,7 @@ Future<void> showPaymentHistory(
           canReverse: canReverse,
           onReversed: onReversed,
           side: side,
+          api: api,
         ),
       ),
     );
@@ -227,8 +229,10 @@ class _PaymentHistory extends StatefulWidget {
     required this.canReverse,
     required this.onReversed,
     this.side = BalanceSide.customer,
+    this.api = '/api/Poultry',
   });
   final BalanceSide side;
+  final String api;
   final ScrollController controller;
   final Session session;
   final Company company;
@@ -268,7 +272,7 @@ class _PaymentHistoryState extends State<_PaymentHistory> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final res = await _api.get('/api/Poultry/${widget.side.paymentsPath}', query: {
+      final res = await _api.get('${widget.api}/${widget.side.paymentsPath}', query: {
         'farmId': _farmId,
         ...widget.side.paymentQuery(partyId: widget.partyId, documentType: widget.documentType, documentId: widget.documentId),
       });
@@ -288,7 +292,7 @@ class _PaymentHistoryState extends State<_PaymentHistory> {
     setState(() => _expanded = id);
     if (_allocations.containsKey(id)) return;
     try {
-      final res = await _api.get('/api/Poultry/${widget.side.paymentsPath}/${Uri.encodeComponent(id)}', query: {'farmId': _farmId});
+      final res = await _api.get('${widget.api}/${widget.side.paymentsPath}/${Uri.encodeComponent(id)}', query: {'farmId': _farmId});
       final alloc = res is Map ? rowsOf(res['allocations']) : <Map>[];
       if (mounted) setState(() => _allocations[id] = alloc);
     } on ApiException catch (e) {
@@ -304,7 +308,7 @@ class _PaymentHistoryState extends State<_PaymentHistory> {
     }
     final money = await FarmMoney.load(widget.session, widget.company);
     try {
-      await _api.post('/api/Poultry/${widget.side.paymentsPath}/${Uri.encodeComponent(tStr(row['paymentId']))}/reverse', body: {
+      await _api.post('${widget.api}/${widget.side.paymentsPath}/${Uri.encodeComponent(tStr(row['paymentId']))}/reverse', body: {
         'farmId': _farmId,
         'reason': _reason.text.trim(),
         'reversedBy': widget.session.tokens.userId,

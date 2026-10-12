@@ -237,10 +237,14 @@ class ReversePaymentDialog extends StatefulWidget {
     required this.target,
     required this.allocations,
     required this.fmt,
+    this.api = '/api/Poultry',
   });
   final Session session;
   final Company company;
   final Map target;
+
+  /// The module's route prefix (BalanceRail.api).
+  final String api;
 
   /// The allocation already loaded for this payment, if any — as on the web,
   /// the dialog shows what is cached and does not fetch it.
@@ -270,7 +274,7 @@ class _ReversePaymentDialogState extends State<ReversePaymentDialog> {
     setState(() => _busy = true);
     try {
       await widget.session.farmClient.post(
-          '/api/Poultry/customer-payments/${Uri.encodeComponent(tStr(t['paymentId']))}/reverse',
+          '${widget.api}/customer-payments/${Uri.encodeComponent(tStr(t['paymentId']))}/reverse',
           body: {'farmId': widget.company.farmId, 'reason': _reason.text.trim(), 'reversedBy': widget.session.tokens.userId});
       if (!mounted) return;
       final n = tIntOrNull(t['allocationCount']) ?? 0;
@@ -350,12 +354,16 @@ class RecordPaymentScreen extends StatefulWidget {
     this.single,
     this.side = BalanceSide.customer,
     this.sourceType,
+    this.api = '/api/Poultry',
   });
   final Session session;
   final Company company;
   final Map party;
   final Map? single;
   final BalanceSide side;
+
+  /// The module's route prefix (BalanceRail.api).
+  final String api;
 
   /// Where the payment was entered from; the side's balances page by default
   /// (the Expenses page posts as `ExpenseEntry`).
@@ -414,7 +422,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
     setState(() => _loading = true);
     try {
       final res = await widget.session.farmClient.get(
-          '/api/Poultry/${widget.side.balancesPath}/${widget.party['partyId']}/${widget.side.openLeaf}',
+          '${widget.api}/${widget.side.balancesPath}/${widget.party['partyId']}/${widget.side.openLeaf}',
           query: {'farmId': widget.company.farmId});
       if (mounted) setState(() => _docs = rowsOf(res));
     } on ApiException catch (e) {
@@ -458,7 +466,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
     setState(() => _posting = true);
     final side = widget.side;
     try {
-      await widget.session.farmClient.post('/api/Poultry/${side.paymentsPath}', body: {
+      await widget.session.farmClient.post('${widget.api}/${side.paymentsPath}', body: {
         'partyId': tIntOrNull(widget.party['partyId']),
         'amount': num.tryParse(_amount.text) ?? 0,
         'paymentDate': entryTimestamp(_date),
@@ -700,11 +708,15 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
 /// "Customer statement": opening balance, every sale and payment in the
 /// window, and a running balance. Print shares a PDF.
 class StatementScreen extends StatefulWidget {
-  const StatementScreen({super.key, required this.session, required this.company, required this.party, this.side = BalanceSide.customer});
+  const StatementScreen(
+      {super.key, required this.session, required this.company, required this.party, this.side = BalanceSide.customer, this.api = '/api/Poultry'});
   final Session session;
   final Company company;
   final Map party;
   final BalanceSide side;
+
+  /// The module's route prefix (BalanceRail.api).
+  final String api;
   @override
   State<StatementScreen> createState() => _StatementScreenState();
 }
@@ -730,7 +742,7 @@ class _StatementScreenState extends State<StatementScreen> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final res = await widget.session.farmClient.get('/api/Poultry/${widget.side.statementLeaf}/${widget.party['partyId']}/statement', query: {
+      final res = await widget.session.farmClient.get('${widget.api}/${widget.side.statementLeaf}/${widget.party['partyId']}/statement', query: {
         'farmId': widget.company.farmId,
         if (_from.isNotEmpty) 'from': _from,
         if (_to.isNotEmpty) 'to': _to,
@@ -750,7 +762,7 @@ class _StatementScreenState extends State<StatementScreen> {
     setState(() => _openPayment = id);
     if (_alloc.containsKey(id)) return;
     try {
-      final res = await widget.session.farmClient.get('/api/Poultry/${widget.side.paymentsPath}/${Uri.encodeComponent(id)}',
+      final res = await widget.session.farmClient.get('${widget.api}/${widget.side.paymentsPath}/${Uri.encodeComponent(id)}',
           query: {'farmId': widget.company.farmId});
       if (mounted) setState(() => _alloc[id] = res is Map ? rowsOf(res['allocations']) : []);
     } on ApiException catch (e) {

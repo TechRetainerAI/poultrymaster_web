@@ -16,27 +16,31 @@ const birdStockLockedReason =
     'Bird stock comes from the birds left in your flocks — correct it in the flock / production records (record mortality, or edit the flock).';
 
 /// The products the stock take lists: id, name, current stock, and why it is locked.
-List<({int id, String name, num current, String? locked})> stockTakeProducts(List<Map> products) => [
+/// [water]: Water's products (`waterProductId`, `/api/Water`), none locked.
+List<({int id, String name, num current, String? locked})> stockTakeProducts(List<Map> products, {bool water = false}) => [
       for (final p in products)
         (
-          id: tIntOrNull(p['poultryProductId']) ?? 0,
+          id: tIntOrNull(p[water ? 'waterProductId' : 'poultryProductId']) ?? 0,
           name: tStr(p['name']),
           current: tNum(p['stockOnHand']),
-          locked: p['isBirdProduct'] == true || tStr(p['name']) == 'Birds' ? birdStockLockedReason : null,
+          locked: !water && (p['isBirdProduct'] == true || tStr(p['name']) == 'Birds') ? birdStockLockedReason : null,
         ),
     ];
 
 class SetProductStockDialog extends StatefulWidget {
-  const SetProductStockDialog({super.key, required this.session, required this.company, required this.products});
+  const SetProductStockDialog({super.key, required this.session, required this.company, required this.products, this.water = false});
   final Session session;
   final Company company;
   final List<Map> products;
+
+  /// Water's stock take (`setWaterProductStock`).
+  final bool water;
   @override
   State<SetProductStockDialog> createState() => _SetProductStockDialogState();
 }
 
 class _SetProductStockDialogState extends State<SetProductStockDialog> {
-  late final _rows = stockTakeProducts(widget.products);
+  late final _rows = stockTakeProducts(widget.products, water: widget.water);
   late final Map<int, TextEditingController> _counts = {for (final p in _rows) p.id: TextEditingController(text: _plain(p.current))};
   final _note = TextEditingController(), _q = TextEditingController();
   bool _busy = false;
@@ -84,7 +88,7 @@ class _SetProductStockDialogState extends State<SetProductStockDialog> {
     var ok = 0, fail = 0;
     for (final p in changed) {
       try {
-        await widget.session.farmClient.post('/api/Poultry/products/${p.id}/set-stock', body: {
+        await widget.session.farmClient.post('/api/${widget.water ? 'Water' : 'Poultry'}/products/${p.id}/set-stock', body: {
           'farmId': widget.company.farmId,
           'targetQuantity': num.parse(_counts[p.id]!.text),
           'note': _note.text.isEmpty ? 'Stock-take correction' : _note.text,
@@ -271,10 +275,13 @@ class _SetProductStockDialogState extends State<SetProductStockDialog> {
 }
 
 class ReconcileProductStockDialog extends StatefulWidget {
-  const ReconcileProductStockDialog({super.key, required this.session, required this.company, required this.products});
+  const ReconcileProductStockDialog({super.key, required this.session, required this.company, required this.products, this.water = false});
   final Session session;
   final Company company;
   final List<Map> products;
+
+  /// Water's reconcile (`reconcileWaterProductStock`).
+  final bool water;
   @override
   State<ReconcileProductStockDialog> createState() => _ReconcileProductStockDialogState();
 }
@@ -287,7 +294,7 @@ class _ReconcileProductStockDialogState extends State<ReconcileProductStockDialo
   Future<void> _run() async {
     setState(() => _busy = true);
     try {
-      final r = await widget.session.farmClient.get('/api/Poultry/products/reconcile-stock',
+      final r = await widget.session.farmClient.get('/api/${widget.water ? 'Water' : 'Poultry'}/products/reconcile-stock',
           query: {'farmId': widget.company.farmId, if (_target != 'all') 'productId': _target});
       if (!mounted) return;
       _ran = true;
@@ -325,7 +332,7 @@ class _ReconcileProductStockDialogState extends State<ReconcileProductStockDialo
                     value: _target,
                     items: [
                       const AppSelectItem(value: 'all', label: 'All finished products'),
-                      for (final p in widget.products) AppSelectItem(value: tStr(p['poultryProductId']), label: tStr(p['name'])),
+                      for (final p in widget.products) AppSelectItem(value: tStr(p[widget.water ? 'waterProductId' : 'poultryProductId']), label: tStr(p['name'])),
                     ],
                     onChanged: (v) => setState(() => _target = v ?? 'all'),
                   ),

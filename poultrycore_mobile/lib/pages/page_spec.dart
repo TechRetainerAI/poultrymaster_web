@@ -85,6 +85,7 @@ class PageSpec {
     this.readOnly = false,
     this.writePath,
     this.resolve = const {},
+    this.derive = const {},
   });
 
   /// True when the endpoint serves GET but no POST — a report or a view.
@@ -103,6 +104,10 @@ class PageSpec {
   /// tables do (`vehicles.find(v => v.id === r.defaultVehicleId)?.vehicleName`).
   /// Maps the new field to (id field, lookup slot, optional label wording).
   final Map<String, (String, String, String Function(Map row)?)> resolve;
+
+  /// Display fields built from the row's own fields after it loads, as the
+  /// web's cards do (`${s.firstName} ${s.lastName}`).
+  final Map<String, String Function(Map row)> derive;
 
   /// Per-page summary cards. When empty the list screen derives
   /// generic ones from whatever numeric fields the rows carry.

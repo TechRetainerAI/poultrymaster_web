@@ -256,8 +256,9 @@ const Map<String, List<List<String>>> staticOptions = {
   "water-stock-transactions.txnType": [["Restock", "Restock (add stock)"], ["Adjust", "Adjust (signed)"], ["Return", "Return (add back)"]],
   "water-suppliers.isActive": [["yes", "Active"], ["no", "Inactive"]],
   "water-suppliers.supplierType": [["Raw Material Supplier", "Raw Material Supplier"], ["Packaging Supplier", "Packaging Supplier"], ["Fuel Supplier", "Fuel Supplier"], ["Machine Parts Supplier", "Machine Parts Supplier"], ["Vehicle Repair Supplier", "Vehicle Repair Supplier"], ["Utility Provider", "Utility Provider"], ["Service Provider", "Service Provider"], ["Other", "Other"]],
-  "water-vehicles.status": [["Present", "Present"], ["Absent", "Absent"], ["Late", "Late"], ["HalfDay", "HalfDay"], ["OffDay", "OffDay"]],
-  "water-vehicles.vehicleType": [["Truck", "Truck"], ["Van", "Van"], ["Tricycle", "Tricycle"], ["Motorbike", "Motorbike"], ["Pickup", "Pickup"], ["Other", "Other"]],
+  // STATUSES / TYPES in app/water-vehicles/page.tsx (status was attendance values).
+  "water-vehicles.status": [["Active", "Active"], ["Inactive", "Inactive"], ["UnderMaintenance", "UnderMaintenance"]],
+  "water-vehicles.vehicleType": [["Truck", "Truck"], ["MotorKing", "MotorKing"], ["Tricycle", "Tricycle"], ["Van", "Van"], ["Motorbike", "Motorbike"], ["Other", "Other"]],
   // ---- resolved from the web pages and verified against the API ----
 "egginventoryadjustment.adjustmentType": [["Correction", "Correction"], ["Correction", "Correction"], ["Stocktake", "Stocktake"], ["Stocktake", "Stocktake"], ["OpeningBalance", "OpeningBalance"], ["Opening balance", "Opening balance"]],
   "flock.supplierType": [["local", "Local"], ["foreign", "Foreign"]],

@@ -15,6 +15,7 @@ import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, FlowBucket,
 import '../trackers/tracker_widgets.dart';
 import 'cash_adjustment_dialog.dart';
 import 'money_widgets.dart';
+import '../reports/money_reports.dart' show MoneyRail, poultryMoneyRail;
 
 // ------------------------------------------------------------------ logic
 
@@ -105,11 +106,15 @@ const _sourceOwnedHint = 'Sales and expenses are managed from their own pages.';
 
 /// Poultry → Money → Cash Flow, as `app/cash-flow/page.tsx`: an independent
 /// report built from GET /Poultry/cash-flow (receipts, expenses, capital) —
-/// never from account balances. Phone layout.
+/// never from account balances. Phone layout. Water passes [rail]
+/// (`app/water-cash-flow/page.tsx`): the same report on /Water, with its own
+/// wording, a second note on capital, an always-open explanation and cards
+/// that lead with the amount.
 class CashFlowScreen extends StatefulWidget {
-  const CashFlowScreen({super.key, required this.session, required this.company});
+  const CashFlowScreen({super.key, required this.session, required this.company, this.rail = poultryMoneyRail});
   final Session session;
   final Company company;
+  final MoneyRail rail;
 
   @override
   State<CashFlowScreen> createState() => _CashFlowScreenState();
@@ -140,6 +145,9 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
 
   ApiClient get _api => widget.session.farmClient;
   String get _farmId => widget.company.farmId;
+  String get _base => widget.rail.api;
+  String get _p => widget.rail.idPrefix;
+  bool get _water => _p == 'water';
 
   /// canViewCashLedger on the web; the phone has no feature flags, so Staff
   /// are the ones refused.
@@ -161,7 +169,7 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
   }
 
   Future<Map?> _cashFlow([String? from, String? to]) async {
-    final res = await _api.get('/api/Poultry/cash-flow', query: {
+    final res = await _api.get('$_base/cash-flow', query: {
       'farmId': _farmId,
       if ((from ?? '').isNotEmpty) 'fromDate': from,
       if ((to ?? '').isNotEmpty) 'toDate': to,
@@ -196,9 +204,9 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
     final r = await Future.wait<Object?>([
       prev.from != null && prev.to != null ? settle(_cashFlow(prev.from, prev.to)) : Future.value(null),
       settle(_cashFlow()),
-      settle(_api.get('/api/Poultry/customer-balances/summary', query: {'farmId': _farmId})),
-      settle(_api.get('/api/Poultry/supplier-balances/summary', query: {'farmId': _farmId})),
-      settle(_api.get('/api/Poultry/cash-accounts', query: {'farmId': _farmId})),
+      settle(_api.get('$_base/customer-balances/summary', query: {'farmId': _farmId})),
+      settle(_api.get('$_base/supplier-balances/summary', query: {'farmId': _farmId})),
+      settle(_api.get('$_base/cash-accounts', query: {'farmId': _farmId})),
     ]);
     if (!mounted) return;
     setState(() {
@@ -232,7 +240,7 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
 
   List<AdjustableAccount> get _adjustable => [
         for (final a in _accounts)
-          (accountId: tIntOrNull(a['poultryCashAccountId']) ?? 0, accountName: tStr(a['accountName']), isActive: a['isActive'] == true),
+          (accountId: tIntOrNull(a['${_p}CashAccountId']) ?? 0, accountName: tStr(a['accountName']), isActive: a['isActive'] == true),
       ];
 
   Future<void> _adjust([CashAdjustmentSeed? editing]) async {
@@ -262,13 +270,13 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
     }
     // Borrowing is a real loan; its create writes its own cash row.
     if (i.adjustmentType == 'LoanReceived' && i.amount > 0) {
-      await _api.post('/api/Poultry/loans', body: {
+      await _api.post('$_base/loans', body: {
         'lenderName': (i.lenderName ?? '').trim(),
         'originalPrincipal': i.amount,
         'amountReceived': i.amount,
         'startDate': i.adjustmentDate,
         'loanDate': i.adjustmentDate,
-        'poultryCashAccountId': i.accountId,
+        '${_p}CashAccountId': i.accountId,
         'notes': i.description.isEmpty ? null : i.description,
         'farmId': _farmId,
         'createdBy': userId,
@@ -277,10 +285,10 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
     }
     // Owner money is a record of its own, amount positive, direction in the type.
     if ((i.adjustmentType == 'OwnerInjection' || i.adjustmentType == 'Withdrawal') && i.accountId != null && i.amount != 0) {
-      await _api.post('/api/Poultry/owner-money', body: {
+      await _api.post('$_base/owner-money', body: {
         'transactionType': i.adjustmentType == 'OwnerInjection' ? 'Contribution' : 'Draw',
         'amount': i.amount.abs(),
-        'poultryCashAccountId': i.accountId,
+        '${_p}CashAccountId': i.accountId,
         'transactionDate': i.adjustmentDate,
         'notes': i.description.isEmpty ? null : i.description,
         'ownerName': i.ownerName,
@@ -300,7 +308,7 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
     });
     if (i.accountId != null) {
       final label = adjustmentTypes.where((t) => t.$1 == i.adjustmentType).firstOrNull?.$2 ?? i.adjustmentType;
-      await _api.post('/api/Poultry/cash-accounts/${i.accountId}/adjust?farmId=${Uri.encodeQueryComponent(_farmId)}', body: {
+      await _api.post('$_base/cash-accounts/${i.accountId}/adjust?farmId=${Uri.encodeQueryComponent(_farmId)}', body: {
         'amount': i.amount,
         'reason': i.description.isNotEmpty ? '$label - ${i.description}' : label,
         'createdBy': userId,
@@ -397,7 +405,7 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final lead = sidebarLeading(context, widget.session, widget.company, href: '/cash-flow');
+    final lead = sidebarLeading(context, widget.session, widget.company, href: widget.rail.cashFlowHref);
     if (!_canView) {
       return Scaffold(
         appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: const Text('Cash Flow')),
@@ -431,13 +439,22 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 28),
           children: [
-            const Row(children: [
-              Icon(Icons.account_balance_wallet_outlined, size: 20, color: TColors.emerald600),
-              SizedBox(width: 6),
-              Text('Cash Flow', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: TColors.slate900)),
+            Row(children: [
+              _water
+                  ? const Icon(Icons.water_drop_outlined, size: 20, color: Color(0xFF0284C7))
+                  : const Icon(Icons.account_balance_wallet_outlined, size: 20, color: TColors.emerald600),
+              const SizedBox(width: 6),
+              const Text('Cash Flow', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: TColors.slate900)),
             ]),
             const Text('What the business earned and spent', style: TextStyle(fontSize: 12, color: TColors.slate500)),
             const SizedBox(height: 8),
+            if (_water)
+              Wrap(spacing: 8, runSpacing: 8, children: [
+                _insightsButton(negative),
+                FilledButton.icon(onPressed: () => _adjust(), icon: const Icon(Icons.add, size: 16), label: const Text('Add Adjustment')),
+                _cashAccountsButton(),
+              ])
+            else ...[
             twoUp([
               OutlinedButton.icon(
                 onPressed: _loading ? null : () => _insights(negative),
@@ -457,13 +474,23 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
               FilledButton.icon(onPressed: () => _adjust(), icon: const Icon(Icons.add, size: 16), label: const Text('Add Adjustment')),
             ]),
             const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: () => openAppHref(context, widget.session, widget.company, '/poultry-cash-accounts', label: 'Cash Account'),
-              icon: const Icon(Icons.open_in_new, size: 16),
-              label: const Text('View Cash Accounts'),
-            ),
+            _cashAccountsButton(),
+            ],
             const SizedBox(height: 12),
-            // Closed by default on a phone, as the web's Collapsible.
+            // Water's panel is always open; Poultry's is closed by default on a
+            // phone, as the web's Collapsible.
+            if (_water)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+                child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Where your money came from and went.', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: TColors.slate900)),
+                  SizedBox(height: 4),
+                  Text('Built from your sales, customer payments, approved expenses and capital records. A draft expense, or one bought on credit, is not counted until it is approved and paid. Operating money is what the business earned and spent; capital is money put in or taken out by owners and lenders. Transfers between your own cash accounts are not cash flow and are excluded — they are managed in Cash Accounts.',
+                      style: TextStyle(fontSize: 12, color: TColors.slate600)),
+                ]),
+              )
+            else
             Container(
               decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -521,7 +548,9 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
                   note: 'For selected period',
                   color: TColors.emerald700,
                   icon: Icons.trending_up,
-                  tip: 'Customer receipts plus any capital put into the business during the selected period.',
+                  tip: _water
+                      ? 'Customer payments received during the selected period.'
+                      : 'Customer receipts plus any capital put into the business during the selected period.',
                 ),
                 InfoTile(
                   label: 'Money Out',
@@ -529,7 +558,9 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
                   note: 'For selected period',
                   color: TColors.rose700,
                   icon: Icons.trending_down,
-                  tip: 'Expenses paid plus any capital taken out during the selected period.',
+                  tip: _water
+                      ? 'Approved expenses paid during the selected period. Credit purchases are not counted until they are paid.'
+                      : 'Expenses paid plus any capital taken out during the selected period.',
                 ),
                 InfoTile(
                   label: 'Cash at Hand',
@@ -580,7 +611,7 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
                         style: const TextStyle(color: TColors.rose700)),
                     Text.rich(TextSpan(children: [const TextSpan(text: '= closing '), TextSpan(text: _gh(tNum(s['closingCash'])), style: const TextStyle(fontWeight: FontWeight.w700, color: TColors.slate900))])),
                   ].map((w) => DefaultTextStyle.merge(style: const TextStyle(fontSize: 12, color: TColors.slate600), child: w)).toList()),
-                  if (tNum(s['financingIn']) > 0 || tNum(s['financingOut']) > 0)
+                  if (!_water && (tNum(s['financingIn']) > 0 || tNum(s['financingOut']) > 0))
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: Text(
@@ -623,20 +654,27 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
                 ),
                 padding: const EdgeInsets.fromLTRB(10, 14, 10, 10),
                 child: history.isEmpty
-                    ? const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 28),
-                        child: Text('No cash movement in this period. Record a sale, an expense or an adjustment and it appears here.',
-                            textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: TColors.slate500)),
+                    ? Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 28),
+                        child: Text(
+                            _water
+                                ? 'No cash movement in this period. Record a sale, a payment or an approved expense and it appears here.'
+                                : 'No cash movement in this period. Record a sale, an expense or an adjustment and it appears here.',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontSize: 13, color: TColors.slate500)),
                       )
                     : MobileCardList<Map>(
                         items: pageRows,
                         striped: true,
-                        stripeBlue: true,
+                        stripeBlue: !_water,
                         keyOf: (r) => '${r['rowSource']}-${r['id']}',
-                        primary: (r) => categoryLabel(r['category']),
+                        primary: (r) => _water
+                            ? '${tNum(r['amount']) < 0 ? '−' : '+'}${_gh(tNum(r['amount']).abs())} · ${categoryLabel(r['category'])}'
+                            : categoryLabel(r['category']),
                         secondary: (r) => '${fmtDateTimeLike(r['transactionDate'])} · ${flowGroupLabel(r['flowGroup'])}',
                         highlights: (r) {
                           final a = tNum(r['amount']);
+                          if (_water) return [Highlight('Running cash', _gh(tNum(r['running'])), accent: Accent.violet, wide: true)];
                           return [
                             Highlight(a < 0 ? 'Money out' : 'Money in', '${a < 0 ? '−' : '+'}${_gh(a.abs())}',
                                 accent: a < 0 ? Accent.rose : Accent.emerald),
@@ -644,6 +682,7 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
                           ];
                         },
                         details: (r) => [
+                          if (_water) ('Type', categoryLabel(r['category'])),
                           ('Category', flowGroupLabel(r['flowGroup'])),
                           ('Recorded as', sourceTypeLabel(r['sourceType'])),
                           ('Description', tStr(r['description']).isEmpty ? '—' : tStr(r['description'])),
@@ -731,6 +770,30 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
         ],
       );
 
+  String get _recordsWord => _water ? 'sales, payments and approved expenses' : 'sales, expenses and capital records';
+
+  Widget _insightsButton(bool negative) => OutlinedButton.icon(
+        onPressed: _loading ? null : () => _insights(negative),
+        icon: const Icon(Icons.lightbulb_outline, size: 16),
+        label: Row(mainAxisSize: MainAxisSize.min, children: [
+          const Text('Cash Flow Insights'),
+          if (negative) ...[
+            const SizedBox(width: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5),
+              decoration: BoxDecoration(color: const Color(0xFFF59E0B), borderRadius: BorderRadius.circular(999)),
+              child: const Text('1', style: TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ]),
+      );
+
+  Widget _cashAccountsButton() => OutlinedButton.icon(
+        onPressed: () => openAppHref(context, widget.session, widget.company, '/$_p-cash-accounts', label: 'Cash Account'),
+        icon: const Icon(Icons.open_in_new, size: 16),
+        label: const Text('View Cash Accounts'),
+      );
+
   void _insights(bool negative) {
     final analysis = _analysis;
     final ins = cashFlowBuckets(_rows, true), outs = cashFlowBuckets(_rows, false);
@@ -773,31 +836,45 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
             ]),
             if (negative) ...[
               label('Worth checking first'),
-              TrackerBanner.error('', spans: const [
-                TextSpan(text: 'Closing cash is negative.', style: TextStyle(fontWeight: FontWeight.w700)),
+              TrackerBanner.error('', spans: [
+                const TextSpan(text: 'Closing cash is negative.', style: TextStyle(fontWeight: FontWeight.w700)),
                 TextSpan(
-                    text: ' The recorded transactions add up to less than nothing, which usually means an opening balance was never entered, or spending was recorded before the income that funded it.'),
+                    text: ' The recorded transactions add up to less than nothing, which usually means an opening ${_water ? 'figure' : 'balance'} was never entered, or spending was recorded before the income that funded it.'),
               ]),
             ],
             label('About these figures'),
             TrackerBanner.info(
-              'These figures come from your sales, expenses and capital records — not from your cash account balances. Closing cash is not expected to match what your accounts hold; comparing the two is what reconciliation is for.',
+              'These figures come from your $_recordsWord — not from your cash account balances. Closing cash is not expected to match what your accounts hold; comparing the two is what reconciliation is for.',
               spans: [
-                const TextSpan(
-                    text: 'These figures come from your sales, expenses and capital records — not from your cash account balances. Closing cash is '),
+                TextSpan(
+                    text: 'These figures come from your $_recordsWord — not from your cash account balances. Closing cash is '),
                 const TextSpan(text: 'not', style: TextStyle(fontWeight: FontWeight.w700)),
                 const TextSpan(text: ' expected to match what your accounts hold; comparing the two is what '),
                 WidgetSpan(
                   alignment: PlaceholderAlignment.baseline,
                   baseline: TextBaseline.alphabetic,
                   child: GestureDetector(
-                    onTap: () => openAppHref(context, widget.session, widget.company, '/poultry-cash-reconciliation', label: 'Reconciliation'),
+                    onTap: () => openAppHref(context, widget.session, widget.company, widget.rail.reconcileHref, label: 'Reconciliation'),
                     child: const Text('reconciliation', style: TextStyle(fontSize: 12, decoration: TextDecoration.underline)),
                   ),
                 ),
                 const TextSpan(text: ' is for.'),
               ],
             ),
+            if (_water) ...[
+              const SizedBox(height: 8),
+              TrackerBanner.info(
+                'Owner contributions, loans and withdrawals are capital, not trading. Record them with Add Adjustment and they are counted here separately from what the business earned and spent. Linking a cash account is optional — it moves that balance too.',
+                spans: const [
+                  TextSpan(text: 'Owner contributions, loans and withdrawals are '),
+                  TextSpan(text: 'capital', style: TextStyle(fontWeight: FontWeight.w700)),
+                  TextSpan(text: ', not trading. Record them with '),
+                  TextSpan(text: 'Add Adjustment', style: TextStyle(fontWeight: FontWeight.w700)),
+                  TextSpan(
+                      text: ' and they are counted here separately from what the business earned and spent. Linking a cash account is optional — it moves that balance too.'),
+                ],
+              ),
+            ],
             label('What happened'),
             for (final a in analysis)
               Container(

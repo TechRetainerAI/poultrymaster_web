@@ -629,18 +629,18 @@ class _PoultrySidebarState extends State<_PoultrySidebar> {
     );
   }
 
-  /// Water and Restaurant render the web's flat layout; Poultry its menus.
-  bool get _flat => widget.company.type != CompanyType.poultry;
+  /// Restaurant renders the web's flat layout; Poultry and Water their menus.
+  /// Water moved to menus on the web (sidebar.tsx's isWater branch now calls
+  /// renderMenu for Quick Links, Operations, Sales Expenses & Money,
+  /// Trackers, Reports and Setup, as Poultry does): in the drawer each is a
+  /// collapsible section showing its columns as sub-headings.
+  bool get _flat => widget.company.type == CompanyType.restaurant;
 
-  /// Water's and Restaurant's layout on the web (sidebar.tsx, the isWater
-  /// and isRestaurant branches): not menus but a flat run of titled groups,
-  /// each open and collapsible, with a divider where the top nav has a
-  /// separate menu. Water's Setup columns are titled "Setup · Company" and
-  /// so on, because Delivery and Production also exist under Operations.
+  /// Restaurant's layout on the web (sidebar.tsx, the isRestaurant branch):
+  /// not menus but a flat run of titled groups, each open and collapsible,
+  /// with a divider where the top nav has a separate menu.
   List<Widget> _flatGroups() {
-    // Water's Trackers and Reports sit together with no divider between.
-    final noDividerBefore =
-        widget.company.type == CompanyType.water ? const {'Reports'} : const <String>{};
+    const noDividerBefore = <String>{};
     final out = <Widget>[];
     for (final g in _groups) {
       if (sheetOnlyGroups.contains(g.title)) continue;

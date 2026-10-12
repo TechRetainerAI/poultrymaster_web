@@ -17,9 +17,9 @@ const repaymentMethods = ['Cash', 'BankTransfer', 'MoMo', 'Cheque', 'Card', 'Oth
 
 /// isRepayableLoan: a real loan record, Active or Overdue, with debt left.
 /// A Cash-Flow "Loan received" row (source CashAdjustment, id 0) never is.
-bool isRepayableLoan(Map l) {
+bool isRepayableLoan(Map l, [String idPrefix = 'poultry']) {
   if ((tStr(l['source']).isEmpty ? 'Loan' : tStr(l['source'])) != 'Loan') return false;
-  if ((tIntOrNull(l['poultryLoanId']) ?? 0) == 0) return false;
+  if ((tIntOrNull(l['${idPrefix}LoanId']) ?? 0) == 0) return false;
   final st = tStr(l['status']);
   if (st != 'Active' && st != 'Overdue') return false;
   return tNum(l['outstandingPrincipal']) > 0;
@@ -47,6 +47,7 @@ class LoanRepaymentDialog extends StatefulWidget {
     required this.fmtMoney,
     required this.onSubmit,
     this.entityLabel = 'business',
+    this.idPrefix = 'poultry',
   });
 
   /// The loan row (PoultryLoan).
@@ -56,6 +57,9 @@ class LoanRepaymentDialog extends StatefulWidget {
   final List<Map> accounts;
   final String Function(num) fmtMoney;
   final String entityLabel;
+
+  /// `poultry` / `water`: the loan and account id keys.
+  final String idPrefix;
   final Future<void> Function(LoanRepaymentInput input) onSubmit;
 
   @override
@@ -69,7 +73,7 @@ class _LoanRepaymentDialogState extends State<LoanRepaymentDialog> {
   final _other = TextEditingController(text: '0');
   final _ref = TextEditingController();
   final _notes = TextEditingController();
-  late String _account = (tIntOrNull(widget.loan['poultryCashAccountId']) ?? 0) > 0 ? tStr(widget.loan['poultryCashAccountId']) : '';
+  late String _account = (tIntOrNull(widget.loan['${widget.idPrefix}CashAccountId']) ?? 0) > 0 ? tStr(widget.loan['${widget.idPrefix}CashAccountId']) : '';
   String _date = DateTime.now().toUtc().toIso8601String().substring(0, 10);
   String _next = '';
   String _method = 'BankTransfer';
@@ -83,18 +87,18 @@ class _LoanRepaymentDialogState extends State<LoanRepaymentDialog> {
     super.dispose();
   }
 
-  Map? get _selected => isRepayableLoan(widget.loan) ? widget.loan : null;
+  Map? get _selected => isRepayableLoan(widget.loan, widget.idPrefix) ? widget.loan : null;
   num _n(TextEditingController c) => num.tryParse(c.text) ?? 0;
   num get _total => _n(_principal) + _n(_interest) + _n(_fee) + _n(_other);
   num get _cost => _n(_interest) + _n(_fee);
   num get _owed => tNum(_selected?['outstandingPrincipal']);
   num get _after => _selected == null ? 0 : _owed - _n(_principal);
-  Map? get _acc => widget.accounts.where((a) => tStr(a['poultryCashAccountId']) == _account).firstOrNull;
+  Map? get _acc => widget.accounts.where((a) => tStr(a['${widget.idPrefix}CashAccountId']) == _account).firstOrNull;
   bool get _overdraw =>
       _account.isNotEmpty && _total > 0 && tNum(_acc?['currentBalance']) - _total < 0 && _acc?['allowNegativeBalance'] != true;
 
   String _label(Map l) {
-    final n = tStr(l['loanNumber']).isNotEmpty ? tStr(l['loanNumber']) : '#${tStr(l['poultryLoanId'])}';
+    final n = tStr(l['loanNumber']).isNotEmpty ? tStr(l['loanNumber']) : '#${tStr(l['${widget.idPrefix}LoanId'])}';
     return '$n · ${tStr(l['lenderName']).isEmpty ? '–' : tStr(l['lenderName'])}';
   }
 
@@ -110,7 +114,7 @@ class _LoanRepaymentDialogState extends State<LoanRepaymentDialog> {
     String? opt(TextEditingController c) => c.text.trim().isEmpty ? null : c.text.trim();
     try {
       await widget.onSubmit((
-        loanId: tIntOrNull(sel['poultryLoanId'])!,
+        loanId: tIntOrNull(sel['${widget.idPrefix}LoanId'])!,
         accountId: int.parse(_account),
         principalAmount: _n(_principal),
         interestAmount: _n(_interest),
@@ -241,7 +245,7 @@ class _LoanRepaymentDialogState extends State<LoanRepaymentDialog> {
                     items: [
                       for (final a in active)
                         AppSelectItem(
-                          value: tStr(a['poultryCashAccountId']),
+                          value: tStr(a['${widget.idPrefix}CashAccountId']),
                           label: '${tStr(a['accountName'])} — ${fmt(tNum(a['currentBalance']))}',
                         ),
                     ],

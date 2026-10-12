@@ -86,12 +86,12 @@ class ApiClient {
       _write(() => _http.post(_uri(path, query),
           headers: _headers(), body: body == null ? null : jsonEncode(body)));
 
-  Future<dynamic> put(String path, {Object? body}) => _write(() => _http
-      .put(_uri(path), headers: _headers(), body: body == null ? null : jsonEncode(body)));
+  Future<dynamic> put(String path, {Object? body, Map<String, dynamic>? query}) => _write(() => _http
+      .put(_uri(path, query), headers: _headers(), body: body == null ? null : jsonEncode(body)));
 
   /// [body] for the endpoints that read one on DELETE (a reversal's reason).
-  Future<dynamic> delete(String path, {Object? body}) =>
-      _write(() => _http.delete(_uri(path), headers: _headers(), body: body == null ? null : jsonEncode(body)));
+  Future<dynamic> delete(String path, {Object? body, Map<String, dynamic>? query}) =>
+      _write(() => _http.delete(_uri(path, query), headers: _headers(), body: body == null ? null : jsonEncode(body)));
 
   /// A multipart upload: one file plus text fields, as the web's FormData
   /// (e.g. POST /Email/Report with a PDF). The request is rebuilt on the

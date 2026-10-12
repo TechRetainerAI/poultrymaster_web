@@ -21,35 +21,41 @@ import 'asset_widgets.dart';
 
 /// Poultry → Expenses → Capital Investments/Assets, as `app/poultry-assets/page.tsx`:
 /// the register of long-term investments, their cost, depreciation and book value.
+/// On AssetRail.water it is Water's Assets (`app/water-assets/page.tsx`): the
+/// table on every width, a supplier picker and a payment method in New asset,
+/// and the supplier picker in Add cost.
 
 String _today() => DateTime.now().toUtc().toIso8601String().substring(0, 10);
 
 /// The API calls the register and the investment page share.
 class AssetApi {
-  AssetApi(this.session, this.company);
+  AssetApi(this.session, this.company, [this.rail = AssetRail.poultry]);
   final Session session;
   final Company company;
+  final AssetRail rail;
+  AssetRail get _r => rail;
   ApiClient get _api => session.farmClient;
   String get _q => 'farmId=${Uri.encodeQueryComponent(company.farmId)}';
   Map<String, Object?> get _who => {'farmId': company.farmId, 'createdBy': session.tokens.userId};
 
   Future<Map?> get(int id) async {
-    final r = await _api.get('/api/Poultry/assets/$id', query: {'farmId': company.farmId});
+    final r = await _api.get('${_r.api}/assets/$id', query: {'farmId': company.farmId});
     return r is Map ? r : null;
   }
 
   Future<void> correctOriginalCost(int id, num newAmount, String? date, String reason) =>
-      _api.put('/api/Poultry/assets/$id/original-cost?$_q', body: {'newAmount': newAmount, 'effectiveDate': date, 'reason': reason, ..._who});
+      _api.put('${_r.api}/assets/$id/original-cost?$_q', body: {'newAmount': newAmount, 'effectiveDate': date, 'reason': reason, ..._who});
 
   Future<void> reverseCost(int assetId, int costId, String reason) =>
-      _api.delete('/api/Poultry/assets/$assetId/costs/$costId?$_q', body: {'farmId': company.farmId, 'reason': reason, 'createdBy': session.tokens.userId});
+      _api.delete('${_r.api}/assets/$assetId/costs/$costId?$_q', body: {'farmId': company.farmId, 'reason': reason, 'createdBy': session.tokens.userId});
 
-  Future<void> reverseDepreciation(int entryId, String reason) => _api.post('/api/Poultry/asset-depreciation/$entryId/reverse',
+  Future<void> reverseDepreciation(int entryId, String reason) => _api.post('${_r.api}/asset-depreciation/$entryId/reverse',
       query: {'farmId': company.farmId}, body: {'farmId': company.farmId, 'reason': reason, 'createdBy': session.tokens.userId});
 }
 
 class AssetsScreen extends StatefulWidget {
-  const AssetsScreen({super.key, required this.session, required this.company});
+  const AssetsScreen({super.key, required this.session, required this.company, this.rail = AssetRail.poultry});
+  final AssetRail rail;
   final Session session;
   final Company company;
 
@@ -58,7 +64,8 @@ class AssetsScreen extends StatefulWidget {
 }
 
 class _AssetsScreenState extends State<AssetsScreen> {
-  List<Map> _assets = [], _categories = [], _due = [], _cash = [];
+  AssetRail get _r => widget.rail;
+  List<Map> _assets = [], _categories = [], _due = [], _cash = [], _suppliers = [];
   Map? _summary;
   bool _loading = true, _saving = false;
   final _search = TextEditingController();
@@ -74,7 +81,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
 
   ApiClient get _api => widget.session.farmClient;
   String get _farmId => widget.company.farmId;
-  late final AssetApi _assetsApi = AssetApi(widget.session, widget.company);
+  late final AssetApi _assetsApi = AssetApi(widget.session, widget.company, widget.rail);
 
   @override
   void initState() {
@@ -107,11 +114,12 @@ class _AssetsScreenState extends State<AssetsScreen> {
 
     try {
       final r = await Future.wait([
-        _api.get('/api/Poultry/assets', query: q),
-        _api.get('/api/Poultry/assets/categories', query: q),
-        _api.get('/api/Poultry/assets/summary', query: q),
-        soft('/api/Poultry/asset-depreciation/due'),
-        soft('/api/Poultry/cash-accounts'),
+        _api.get('${_r.api}/assets', query: q),
+        _api.get('${_r.api}/assets/categories', query: q),
+        _api.get('${_r.api}/assets/summary', query: q),
+        soft('${_r.api}/asset-depreciation/due'),
+        soft('${_r.api}/cash-accounts'),
+        if (_r.isWater) soft('${_r.api}/suppliers'),
       ]);
       if (!mounted) return;
       setState(() {
@@ -120,9 +128,10 @@ class _AssetsScreenState extends State<AssetsScreen> {
         _summary = r[2] is Map ? r[2] as Map : null;
         _due = rowsOf(r[3]);
         _cash = [for (final a in rowsOf(r[4])) if (a['isActive'] == true) a];
+        if (_r.isWater) _suppliers = [for (final x in rowsOf(r[5])) if (x['isActive'] == true && x['isDeleted'] != true) x];
       });
     } on ApiException catch (e) {
-      if (mounted) trackerToast(context, 'Could not load capital investments', description: e.message, error: true);
+      if (mounted) trackerToast(context, _r.t('Could not load capital investments'), description: e.message, error: true);
     }
     if (mounted) setState(() => _loading = false);
   }
@@ -151,7 +160,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
     await Future.wait([for (final id in _expanded) _loadDetail(id)]);
   }
 
-  int _id(Map a) => tIntOrNull(a['poultryCapitalAssetId']) ?? 0;
+  int _id(Map a) => tIntOrNull(a[_r.assetIdKey]) ?? 0;
 
   Future<void> _dialog(Widget d) async {
     final done = await showDialog<bool>(context: context, builder: (_) => d);
@@ -161,6 +170,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
   Future<void> _edit(Map a) => _dialog(AssetEditDialog(
         session: widget.session,
         company: widget.company,
+        rail: _r,
         asset: a,
         categories: _categories,
         fmt: _gh,
@@ -168,12 +178,13 @@ class _AssetsScreenState extends State<AssetsScreen> {
         onCorrectOriginalCost: () => _correct(a),
       ));
 
-  Future<void> _addCost(Map a) => _dialog(AddAssetCostDialog(session: widget.session, company: widget.company, asset: a, cashAccounts: _cash, fmt: _gh));
+  Future<void> _addCost(Map a) => _dialog(AddAssetCostDialog(session: widget.session, company: widget.company, rail: _r, asset: a, cashAccounts: _cash, suppliers: _suppliers, fmt: _gh));
 
   Future<void> _correct(Map a) async {
     final done = await showDialog<bool>(
       context: context,
       builder: (_) => CorrectOriginalCostDialog(
+        rail: _r,
         asset: a,
         fmt: _gh,
         onSubmit: (amount, date, reason) => _assetsApi.correctOriginalCost(_id(a), amount, date, reason),
@@ -192,10 +203,10 @@ class _AssetsScreenState extends State<AssetsScreen> {
       builder: (_) => ReasonTextPrompt(
         title: 'Reverse this capitalised cost',
         description:
-            "The entry is kept on the record and marked reversed, and the investment's value falls by ${_gh(tNum(row['amount']))}. Any cash paid is returned and any balance owed is closed. Nothing is charged to profit.",
-        placeholder: 'Entered against the wrong investment',
+            _r.t("The entry is kept on the record and marked reversed, and the investment's value falls by ${_gh(tNum(row['amount']))}. Any cash paid is returned and any balance owed is closed. Nothing is charged to profit."),
+        placeholder: _r.t('Entered against the wrong investment'),
         confirmLabel: 'Reverse cost',
-        onSubmit: (reason) => _assetsApi.reverseCost(assetId, tIntOrNull(row['poultryCapitalAssetCostId']) ?? 0, reason),
+        onSubmit: (reason) => _assetsApi.reverseCost(assetId, tIntOrNull(row[_r.costIdKey]) ?? 0, reason),
       ),
     );
     if (done == true && mounted) {
@@ -213,7 +224,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
             'The original entry is kept and an opposite one is written beside it, so the history still shows what was charged and when. No cash is affected.',
         placeholder: 'Wrong in-service month',
         confirmLabel: 'Reverse charge',
-        onSubmit: (reason) => _assetsApi.reverseDepreciation(tIntOrNull(row['poultryAssetDepreciationId']) ?? 0, reason),
+        onSubmit: (reason) => _assetsApi.reverseDepreciation(tIntOrNull(row[_r.depreciationIdKey]) ?? 0, reason),
       ),
     );
     if (done == true && mounted) {
@@ -227,11 +238,12 @@ class _AssetsScreenState extends State<AssetsScreen> {
     final reverse = await showDialog<bool>(
       context: context,
       builder: (ctx) => CostDetailDialog(
+        rail: _r,
         cost: row,
         assetName: tStr(asset['assetName']),
         fmt: _gh,
         offset: _offset,
-        reverseDisabledReason: locked ? costLockedByDepreciationNote : null,
+        reverseDisabledReason: locked ? _r.t(costLockedByDepreciationNote) : null,
         onReverse: () => Navigator.pop(ctx, true),
         onOpenExpenses: _openExpenses,
       ),
@@ -239,11 +251,11 @@ class _AssetsScreenState extends State<AssetsScreen> {
     if (reverse == true) await _reverseCost(_id(asset), row);
   }
 
-  void _openExpenses() => openAppHref(context, widget.session, widget.company, '/expenses', label: 'Expenses');
+  void _openExpenses() => openAppHref(context, widget.session, widget.company, _r.expensesHref, label: 'Expenses');
 
   Future<void> _openPage(Map a) async {
     await Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => AssetDetailScreen(session: widget.session, company: widget.company, assetId: _id(a)),
+      builder: (_) => AssetDetailScreen(session: widget.session, company: widget.company, rail: _r, assetId: _id(a)),
     ));
     _load();
   }
@@ -251,14 +263,14 @@ class _AssetsScreenState extends State<AssetsScreen> {
   Future<void> _runDepreciation() async {
     setState(() => _saving = true);
     try {
-      final res = await _api.post('/api/Poultry/asset-depreciation/generate',
+      final res = await _api.post('${_r.api}/asset-depreciation/generate',
           query: {'farmId': _farmId}, body: {'farmId': _farmId, 'createdBy': widget.session.tokens.userId});
       final created = tIntOrNull(res is Map ? res['entriesCreated'] : null) ?? 0;
       if (mounted) {
         trackerToast(context, created > 0 ? 'Depreciation posted' : 'Nothing was due',
             description: created > 0
                 ? '$created month(s) across ${tStr((res as Map)['assetsProcessed'])} asset(s), ${_gh(tNum(res['totalAmount']))} charged to Profit & Loss. No cash moved.'
-                : 'Every capital investment is up to date.');
+                : _r.t('Every capital investment is up to date.'));
         Navigator.of(context).pop();
       }
       await _load();
@@ -283,10 +295,10 @@ class _AssetsScreenState extends State<AssetsScreen> {
               const Text(depreciationNoncashNote, style: TextStyle(fontSize: 13, color: TColors.slate500)),
               const SizedBox(height: 12),
               if (_due.isEmpty)
-                const Text('Every capital investment is up to date. Nothing is due.', style: TextStyle(fontSize: 13, color: TColors.slate600))
+                Text(_r.t('Every capital investment is up to date. Nothing is due.'), style: TextStyle(fontSize: 13, color: TColors.slate600))
               else ...[
                 TrackerTable(
-                  columns: const [TCol('Investment', width: 150), TCol('From', width: 110), TCol('Months', right: true, width: 80), TCol('Amount', right: true, width: 120)],
+                  columns: [TCol(_r.t('Investment'), width: 150), TCol('From', width: 110), TCol('Months', right: true, width: 80), TCol('Amount', right: true, width: 120)],
                   rows: [
                     for (final d in _due)
                       [
@@ -365,7 +377,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
       OutlinedButton.icon(onPressed: () => _edit(a), icon: const Icon(Icons.edit_outlined, size: 16), label: const Text('Edit')),
       if (!disposed)
         Tooltip(
-          message: locked ? costLockedByDepreciationNote : 'Add capitalised cost',
+          message: locked ? _r.t(costLockedByDepreciationNote) : 'Add capitalised cost',
           child: OutlinedButton.icon(
               onPressed: locked ? null : () => _addCost(a), icon: const Icon(Icons.payments_outlined, size: 16), label: const Text('Add cost')),
         ),
@@ -373,14 +385,14 @@ class _AssetsScreenState extends State<AssetsScreen> {
         OutlinedButton.icon(onPressed: () => _correct(a), icon: const Icon(Icons.tune, size: 16), label: const Text('Correct cost')),
       if (!disposed)
         OutlinedButton.icon(
-          onPressed: () => _dialog(DisposeAssetDialog(session: widget.session, company: widget.company, asset: a, cashAccounts: _cash, fmt: _gh)),
+          onPressed: () => _dialog(DisposeAssetDialog(session: widget.session, company: widget.company, rail: _r, asset: a, cashAccounts: _cash, fmt: _gh)),
           style: OutlinedButton.styleFrom(foregroundColor: TColors.amber700),
           icon: const Icon(Icons.remove_circle_outline, size: 16),
           label: const Text('Dispose'),
         ),
       if (!locked && !disposed)
         OutlinedButton.icon(
-          onPressed: () => _dialog(ReverseAssetDialog(session: widget.session, company: widget.company, asset: a)),
+          onPressed: () => _dialog(ReverseAssetDialog(session: widget.session, company: widget.company, rail: _r, asset: a)),
           style: OutlinedButton.styleFrom(foregroundColor: TColors.red600),
           icon: const Icon(Icons.undo, size: 16),
           label: const Text('Reverse'),
@@ -393,6 +405,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
     return Container(
       decoration: BoxDecoration(color: TColors.slate50, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
       child: AssetDetailsPanel(
+        rail: _r,
         view: _details[id],
         loading: _detailBusy.contains(id),
         error: _detailError[id],
@@ -419,12 +432,12 @@ class _AssetsScreenState extends State<AssetsScreen> {
         sort: _sort,
         onSort: onSort,
         emptyText: total == 0
-            ? 'No capital investments recorded. A poultry house, a vehicle or a feed mixer belongs here rather than on the Expenses page.'
+            ? (_r.isWater ? 'No assets recorded. A borehole, a sachet machine or a delivery truck belongs here rather than on the Expenses page.' : _r.t('No capital investments recorded. A poultry house, a vehicle or a feed mixer belongs here rather than on the Expenses page.'))
             : null,
-        columns: const [
-          TCol('', width: 36),
-          TCol('Investment #', sortKey: 'assetNumber', width: 120),
-          TCol('Investment', sortKey: 'assetName', width: 150),
+        columns: [
+          const TCol('', width: 36),
+          TCol(_r.t('Investment #'), sortKey: 'assetNumber', width: 120),
+          TCol(_r.t('Investment'), sortKey: 'assetName', width: 150),
           TCol('Category', sortKey: 'categoryName', width: 120),
           TCol('Acquired', sortKey: 'acquisitionDate', width: 140),
           TCol('Capitalised cost', sortKey: 'totalCapitalizedCost', right: true, width: 160),
@@ -457,7 +470,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
                 cellText(tStr(a['categoryName']).isEmpty ? '—' : tStr(a['categoryName'])),
                 cellText(fmtDateTime(a['acquisitionDate'], a, _offset)),
                 Tooltip(
-                  message: totalCapitalizedCostTooltip,
+                  message: _r.t(totalCapitalizedCostTooltip),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
                     Text(_gh(tNum(a['totalCapitalizedCost']))),
                     if (tNum(a['additionalCost']) > 0)
@@ -485,7 +498,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
                         IconButton(tooltip: 'Edit', onPressed: () => _edit(a), icon: const Icon(Icons.edit_outlined, size: 18)),
                         if (!disposed)
                           IconButton(
-                            tooltip: locked ? costLockedByDepreciationNote : 'Add capitalised cost',
+                            tooltip: locked ? _r.t(costLockedByDepreciationNote) : 'Add capitalised cost',
                             onPressed: locked ? null : () => _addCost(a),
                             icon: const Icon(Icons.payments_outlined, size: 18),
                           ),
@@ -495,13 +508,13 @@ class _AssetsScreenState extends State<AssetsScreen> {
                           IconButton(
                             tooltip: 'Dispose',
                             onPressed: () =>
-                                _dialog(DisposeAssetDialog(session: widget.session, company: widget.company, asset: a, cashAccounts: _cash, fmt: _gh)),
+                                _dialog(DisposeAssetDialog(session: widget.session, company: widget.company, rail: _r, asset: a, cashAccounts: _cash, fmt: _gh)),
                             icon: const Icon(Icons.remove_circle_outline, size: 18, color: TColors.amber600),
                           ),
                         if (!locked && !disposed)
                           IconButton(
                             tooltip: 'Reverse this acquisition',
-                            onPressed: () => _dialog(ReverseAssetDialog(session: widget.session, company: widget.company, asset: a)),
+                            onPressed: () => _dialog(ReverseAssetDialog(session: widget.session, company: widget.company, rail: _r, asset: a)),
                             icon: const Icon(Icons.undo, size: 18, color: Color(0xFFEF4444)),
                           ),
                       ]),
@@ -513,9 +526,20 @@ class _AssetsScreenState extends State<AssetsScreen> {
     ]);
   }
 
+  CompactPager _pager(int total) => CompactPager(
+        total: total,
+        page: _page,
+        pageSize: _pageSize,
+        onPage: (p) => setState(() => _page = p),
+        onPageSize: (v) => setState(() {
+          _pageSize = v;
+          _page = 1;
+        }),
+      );
+
   @override
   Widget build(BuildContext context) {
-    final lead = sidebarLeading(context, widget.session, widget.company, href: '/poultry-assets');
+    final lead = sidebarLeading(context, widget.session, widget.company, href: _r.assetsHref);
     final filtered = filterAssets(_assets, search: _search.text, status: _status, category: _category);
     final sorted = sortRows(filtered, _sort, (Map a, String k) {
       if (k == 'acquisitionDate') return '${tStr(a['acquisitionDate']).split('T').first}|${tStr(a['createdAt'])}';
@@ -530,14 +554,14 @@ class _AssetsScreenState extends State<AssetsScreen> {
     final s = _summary;
 
     return Scaffold(
-      appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: const Text('Capital Investments/Assets')),
+      appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: Text(_r.title)),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
           children: [
-            const Text('Capital Investments/Assets', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: TColors.slate900)),
-            const Text('Track major long-term business investments, their cost, depreciation, and current book value.',
+            Text(_r.title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: TColors.slate900)),
+            Text(_r.t('Track major long-term business investments, their cost, depreciation, and current book value.'),
                 style: TextStyle(fontSize: 12, color: TColors.slate500)),
             const SizedBox(height: 10),
             Wrap(spacing: 8, runSpacing: 8, children: [
@@ -550,27 +574,27 @@ class _AssetsScreenState extends State<AssetsScreen> {
                 ]),
               ),
               FilledButton.icon(
-                onPressed: () => _dialog(NewAssetDialog(session: widget.session, company: widget.company, categories: _categories, cashAccounts: _cash, fmt: _gh)),
+                onPressed: () => _dialog(NewAssetDialog(session: widget.session, company: widget.company, rail: _r, categories: _categories, cashAccounts: _cash, suppliers: _suppliers, fmt: _gh)),
                 icon: const Icon(Icons.add, size: 16),
-                label: const Text('New investment'),
+                label: Text(_r.t('New investment')),
               ),
             ]),
             if (s != null) ...[
               const SizedBox(height: 12),
               twoUp([
-                _statCard('Total capitalised cost', _gh(tNum(s['totalAssetCost'])), hint: totalCapitalizedCostTooltip),
+                _statCard(_r.isWater ? 'Total asset cost' : 'Total capitalised cost', _gh(tNum(s['totalAssetCost'])), hint: _r.t(totalCapitalizedCostTooltip)),
                 _statCard('Depreciation so far', _gh(tNum(s['accumulatedDepreciation'])),
                     hint: 'Charged to Profit & Loss over time. No cash moved.', tone: TColors.amber800),
-                _statCard('Current book value', _gh(tNum(s['currentBookValue'])), hint: bookValueTooltip, tone: TColors.emerald800, strong: true),
+                _statCard('Current book value', _gh(tNum(s['currentBookValue'])), hint: _r.t(bookValueTooltip), tone: TColors.emerald800, strong: true),
                 _statCard('Added this period', _gh(tNum(s['addedInPeriod'])), hint: '${tStr(s['addedCount']).isEmpty ? '0' : tStr(s['addedCount'])} asset(s) acquired'),
-                _statCard('Active investments', tStr(s['activeAssets']).isEmpty ? '0' : tStr(s['activeAssets']),
+                _statCard(_r.t('Active investments'), tStr(s['activeAssets']).isEmpty ? '0' : tStr(s['activeAssets']),
                     hint: '${tStr(s['draftAssets']).isEmpty ? '0' : tStr(s['draftAssets'])} not in service · ${tStr(s['fullyDepreciated']).isEmpty ? '0' : tStr(s['fullyDepreciated'])} fully depreciated'),
               ]),
             ],
             const SizedBox(height: 12),
             ListFiltersCard(
               search: _search,
-              searchPlaceholder: 'Search investment, number, location or supplier',
+              searchPlaceholder: _r.t('Search investment, number, location or supplier'),
               searchOnly: true,
               onSearch: () => setState(() {}),
               from: '',
@@ -590,7 +614,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
                   value: _category,
                   items: [
                     const AppSelectItem(value: 'all', label: 'All categories'),
-                    for (final c in _categories) AppSelectItem(value: tStr(c['poultryAssetCategoryId']), label: tStr(c['categoryName'])),
+                    for (final c in _categories) AppSelectItem(value: tStr(c[_r.categoryIdKey]), label: tStr(c['categoryName'])),
                   ],
                   onChanged: (v) => setState(() => _category = v ?? 'all'),
                 ),
@@ -603,17 +627,27 @@ class _AssetsScreenState extends State<AssetsScreen> {
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
-                child: const Text(
-                  'No capital investments recorded. A poultry house, a vehicle or a feed mixer belongs here rather than on the Expenses page.',
+                child: Text(
+                  _r.isWater ? 'No assets recorded. A borehole, a sachet machine or a delivery truck belongs here rather than on the Expenses page.' : _r.t('No capital investments recorded. A poultry house, a vehicle or a feed mixer belongs here rather than on the Expenses page.'),
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 13, color: TColors.slate500),
                 ),
+              )
+            else if (_r.isWater)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  _table(pageRows, sorted.length),
+                  const SizedBox(height: 8),
+                  _pager(sorted.length),
+                ]),
               )
             else
               MobileCardList<Map>(
                 striped: true,
                 items: pageRows,
-                keyOf: (a) => tStr(a['poultryCapitalAssetId']),
+                keyOf: (a) => tStr(a[_r.assetIdKey]),
                 primary: (a) => tStr(a['assetName']),
                 secondary: (a) =>
                     '${tStr(a['assetNumber'])} · ${tStr(a['categoryName']).isEmpty ? 'Uncategorised' : tStr(a['categoryName'])}${tStr(a['location']).isNotEmpty ? ' · ${tStr(a['location'])}' : ''}',
@@ -637,20 +671,11 @@ class _AssetsScreenState extends State<AssetsScreen> {
                 actions: _actions,
                 extra: (a) => _expanded.contains(_id(a)) ? _panel(a) : const SizedBox.shrink(),
                 table: (items) => _table(items, sorted.length),
-                pager: CompactPager(
-                  total: sorted.length,
-                  page: _page,
-                  pageSize: _pageSize,
-                  onPage: (p) => setState(() => _page = p),
-                  onPageSize: (v) => setState(() {
-                    _pageSize = v;
-                    _page = 1;
-                  }),
-                ),
+                pager: _pager(sorted.length),
               ),
             const SizedBox(height: 12),
-            const Text(
-              'Capital investments affect Cash Flow when they are paid for and appear on Supplier Balances when they are bought on credit. They are not charged against profit in the month they are bought — their cost reaches Profit & Loss over time through depreciation.',
+            Text(
+              '${_r.isWater ? 'Capital assets' : _r.t('Capital investments')} affect Cash Flow when they are paid for and appear on Supplier Balances when they are bought on credit. They are not charged against profit in the month they are bought — their cost reaches Profit & Loss over time through depreciation.',
               style: TextStyle(fontSize: 11, color: TColors.slate500),
             ),
           ],
@@ -691,21 +716,39 @@ Widget _dateField(String value, ValueChanged<String> on, {bool enabled = true, b
       onChanged: (d) => on(d == null ? (clearable ? '' : value) : isoDay(d)),
     );
 
-AppSelect<String> _accountSelect(List<Map> accounts, String value, ValueChanged<String> on) => AppSelect<String>(
+AppSelect<String> _accountSelect(AssetRail r, List<Map> accounts, String value, ValueChanged<String> on) => AppSelect<String>(
       value: value.isEmpty ? null : value,
       hintText: 'Cash account',
-      items: [for (final a in accounts) AppSelectItem(value: tStr(a['poultryCashAccountId']), label: tStr(a['accountName']))],
+      items: [for (final a in accounts) AppSelectItem(value: tStr(a[r.cashAccountIdKey]), label: tStr(a['accountName']))],
       onChanged: (v) => on(v ?? ''),
     );
 
 const _blue = Color(0xFF2563EB);
 
+/// Water's SupplierField: the picker shared by the two forms that open a payable.
+Widget _supplierField(List<Map> suppliers, String value, ValueChanged<String> on) => _hinted(
+      'Supplier',
+      AppSelect<String>(
+        value: value.isEmpty ? null : value,
+        hintText: 'No supplier',
+        items: [for (final x in suppliers) AppSelectItem(value: tStr(x['waterSupplierId']), label: tStr(x['supplierName']))],
+        onChanged: (v) => on(v ?? ''),
+      ),
+      'Needed for a credit purchase, so the balance lands on Supplier Balances.',
+    );
+
+const _methods = ['Cash', 'MoMo', 'Bank', 'Credit'];
+
 /// New capital investment.
 class NewAssetDialog extends StatefulWidget {
-  const NewAssetDialog({super.key, required this.session, required this.company, required this.categories, required this.cashAccounts, required this.fmt});
+  const NewAssetDialog({super.key, required this.session, required this.company, required this.categories, required this.cashAccounts, required this.fmt, this.rail = AssetRail.poultry, this.suppliers = const []});
+  final AssetRail rail;
   final Session session;
   final Company company;
   final List<Map> categories, cashAccounts;
+
+  /// Water's active suppliers (the Poultry form takes a typed payee).
+  final List<Map> suppliers;
   final FarmMoney fmt;
 
   @override
@@ -713,11 +756,15 @@ class NewAssetDialog extends StatefulWidget {
 }
 
 class _NewAssetDialogState extends State<NewAssetDialog> {
+  AssetRail get _r => widget.rail;
   final _name = TextEditingController(), _location = TextEditingController(), _serial = TextEditingController();
   final _desc = TextEditingController(), _amount = TextEditingController(), _supplier = TextEditingController();
   final _paid = TextEditingController(), _life = TextEditingController(), _residual = TextEditingController(text: '0');
   String _category = '', _account = '', _acquired = _today(), _due = '', _inService = '';
+  String _supplierId = '', _method = 'Cash';
   bool _saving = false;
+
+  bool get _credit => _r.isWater && _method == 'Credit';
 
   @override
   void dispose() {
@@ -727,16 +774,20 @@ class _NewAssetDialogState extends State<NewAssetDialog> {
     super.dispose();
   }
 
-  Map? get _cat => widget.categories.where((c) => tStr(c['poultryAssetCategoryId']) == _category).firstOrNull;
+  Map? get _cat => widget.categories.where((c) => tStr(c[_r.categoryIdKey]) == _category).firstOrNull;
 
   Future<void> _save() async {
-    if (_name.text.trim().isEmpty) return trackerToast(context, 'Name the investment', error: true);
+    if (_name.text.trim().isEmpty) return trackerToast(context, _r.t('Name the investment'), error: true);
+    final p = newAssetPreview(_amount.text, _paid.text, _life.text, _residual.text, credit: _credit);
+    if (_r.isWater && p.owing > 0 && _supplierId.isEmpty) {
+      return trackerToast(context, 'Choose a supplier',
+          description: 'There is a balance outstanding, and without a supplier it cannot appear on Supplier Balances.', error: true);
+    }
     setState(() => _saving = true);
-    final p = newAssetPreview(_amount.text, _paid.text, _life.text, _residual.text);
     final life = num.tryParse(_life.text) ?? 0;
     String? opt(TextEditingController c) => c.text.isEmpty ? null : c.text;
     try {
-      await widget.session.farmClient.post('/api/Poultry/assets', query: {'farmId': widget.company.farmId}, body: {
+      await widget.session.farmClient.post('${_r.api}/assets', query: {'farmId': widget.company.farmId}, body: {
         'assetName': _name.text,
         'assetCategoryId': _category.isEmpty ? null : int.parse(_category),
         'description': opt(_desc),
@@ -745,9 +796,9 @@ class _NewAssetDialogState extends State<NewAssetDialog> {
         'amount': p.amount > 0 ? p.amount : null,
         'residualValue': num.tryParse(_residual.text) ?? 0,
         'usefulLifeMonths': life > 0 ? life : null,
-        'supplier': opt(_supplier),
-        'supplierId': null,
-        'paymentMethod': 'Cash',
+        if (!_r.isWater) 'supplier': opt(_supplier),
+        'supplierId': _supplierId.isEmpty ? null : int.parse(_supplierId),
+        'paymentMethod': _r.isWater ? _method : 'Cash',
         'amountPaid': p.amount > 0 ? p.paid : null,
         'dueDate': _due.isEmpty ? null : _due,
         'cashAccountId': _account.isEmpty ? null : int.parse(_account),
@@ -758,25 +809,25 @@ class _NewAssetDialogState extends State<NewAssetDialog> {
         'createdBy': widget.session.tokens.userId,
       });
       if (!mounted) return;
-      trackerToast(context, 'Investment recorded', description: "It is in the register and excluded from this period's operating expenses.");
+      trackerToast(context, _r.t('Investment recorded'), description: "It is in the register and excluded from this period's operating expenses.");
       Navigator.pop(context, true);
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);
-      trackerToast(context, 'Could not record the investment', description: e.message, error: true);
+      trackerToast(context, _r.t('Could not record the investment'), description: e.message, error: true);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final fmt = widget.fmt;
-    final p = newAssetPreview(_amount.text, _paid.text, _life.text, _residual.text);
+    final p = newAssetPreview(_amount.text, _paid.text, _life.text, _residual.text, credit: _credit);
     final cat = _cat;
     return PopScope(
       canPop: !_saving,
       child: AlertDialog(
         scrollable: true,
-        title: const Text('New capital investment'),
+        title: Text(_r.t('New capital investment')),
         content: SizedBox(
           width: 620,
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -786,13 +837,13 @@ class _NewAssetDialogState extends State<NewAssetDialog> {
             ),
             const SizedBox(height: 12),
             formSection('What it is', _blue, [
-              FilterLabel('Investment name', AppInput(controller: _name, hintText: 'Poultry House 4')),
+              FilterLabel(_r.t('Investment name'), AppInput(controller: _name, hintText: _r.isWater ? 'Borehole 2' : 'Poultry House 4')),
               FilterLabel(
                 'Category',
                 AppSelect<String>(
                   value: _category.isEmpty ? null : _category,
                   hintText: 'Choose a category',
-                  items: [for (final c in widget.categories) AppSelectItem(value: tStr(c['poultryAssetCategoryId']), label: tStr(c['categoryName']))],
+                  items: [for (final c in widget.categories) AppSelectItem(value: tStr(c[_r.categoryIdKey]), label: tStr(c['categoryName']))],
                   onChanged: (v) => setState(() {
                     _category = v ?? '';
                     // The category's usual life fills an empty field only.
@@ -807,10 +858,22 @@ class _NewAssetDialogState extends State<NewAssetDialog> {
             const SizedBox(height: 12),
             formSection('What it cost', _blue, [
               FilterLabel('Acquisition date', _dateField(_acquired, (v) => setState(() => _acquired = v), clearable: true)),
-              _hinted('Cost', _num(_amount, () => setState(() {})), 'Leave blank for an investment you will build up cost by cost.'),
-              FilterLabel('Supplier / payee', AppInput(controller: _supplier)),
-              _hinted('Amount paid now', _num(_paid, () => setState(() {})), 'Leave blank if paid in full.'),
-              FilterLabel('Paid from', _accountSelect(widget.cashAccounts, _account, (v) => setState(() => _account = v))),
+              _hinted('Cost', _num(_amount, () => setState(() {})), _r.t('Leave blank for an investment you will build up cost by cost.')),
+              if (_r.isWater) ...[
+                _supplierField(widget.suppliers, _supplierId, (v) => setState(() => _supplierId = v)),
+                FilterLabel(
+                  'Payment method',
+                  AppSelect<String>(
+                    value: _method,
+                    items: [for (final m in _methods) AppSelectItem(value: m, label: m)],
+                    onChanged: (v) => setState(() => _method = v ?? 'Cash'),
+                  ),
+                ),
+              ] else
+                FilterLabel('Supplier / payee', AppInput(controller: _supplier)),
+              _hinted('Amount paid now', _num(_paid, () => setState(() {})),
+                  _credit ? 'Credit: blank means nothing has been paid.' : 'Leave blank if paid in full.'),
+              FilterLabel('Paid from', _accountSelect(_r, widget.cashAccounts, _account, (v) => setState(() => _account = v))),
               FilterLabel('Balance due date', _dateField(_due, (v) => setState(() => _due = v), clearable: true)),
             ]),
             const SizedBox(height: 12),
@@ -833,7 +896,7 @@ class _NewAssetDialogState extends State<NewAssetDialog> {
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     const Text('What this will record', style: TextStyle(fontWeight: FontWeight.w600)),
                     Text.rich(TextSpan(children: [
-                      const TextSpan(text: 'Investment value '),
+                      TextSpan(text: _r.t('Investment value ')),
                       TextSpan(text: fmt(p.amount), style: const TextStyle(fontWeight: FontWeight.w700)),
                     ])),
                     Text.rich(TextSpan(children: [
@@ -857,6 +920,9 @@ class _NewAssetDialogState extends State<NewAssetDialog> {
                     if (_inService.isEmpty)
                       const Text('No in-service date — it will be saved as not in service and will not depreciate yet.',
                           style: TextStyle(color: TColors.amber800)),
+                    if (_r.isWater && p.owing > 0 && _supplierId.isEmpty)
+                      const Text('A balance is outstanding but no supplier is chosen, so it would not appear on Supplier Balances.',
+                          style: TextStyle(color: TColors.amber800)),
                   ]),
                 ),
               ),
@@ -865,7 +931,7 @@ class _NewAssetDialogState extends State<NewAssetDialog> {
         ),
         actions: [
           OutlinedButton(onPressed: _saving ? null : () => Navigator.pop(context, false), child: const Text('Cancel')),
-          FilledButton(onPressed: _saving ? null : _save, child: Text(_saving ? 'Saving…' : 'Record investment')),
+          FilledButton(onPressed: _saving ? null : _save, child: Text(_saving ? 'Saving…' : _r.t('Record investment'))),
         ],
       ),
     );
@@ -883,7 +949,9 @@ class AssetEditDialog extends StatefulWidget {
     required this.fmt,
     required this.offset,
     required this.onCorrectOriginalCost,
+    this.rail = AssetRail.poultry,
   });
+  final AssetRail rail;
   final Session session;
   final Company company;
   final Map asset;
@@ -897,6 +965,7 @@ class AssetEditDialog extends StatefulWidget {
 }
 
 class _AssetEditDialogState extends State<AssetEditDialog> {
+  AssetRail get _r => widget.rail;
   late final Map a = widget.asset;
   late final _name = TextEditingController(text: tStr(a['assetName']));
   late final _location = TextEditingController(text: tStr(a['location']));
@@ -905,7 +974,7 @@ class _AssetEditDialogState extends State<AssetEditDialog> {
   late final _notes = TextEditingController(text: tStr(a['notes']));
   late final _life = TextEditingController(text: tStr(a['usefulLifeMonths']));
   late final _residual = TextEditingController(text: tStr(a['residualValue']));
-  late String _category = tStr(a['poultryAssetCategoryId']);
+  late String _category = tStr(a[_r.categoryIdKey]);
   late String _inService = tStr(a['inServiceDate']).split('T').first;
   bool _saving = false;
 
@@ -925,7 +994,7 @@ class _AssetEditDialogState extends State<AssetEditDialog> {
     String? opt(TextEditingController c) => c.text.isEmpty ? null : c.text;
     try {
       await widget.session.farmClient.put(
-        '/api/Poultry/assets/${tStr(a['poultryCapitalAssetId'])}?farmId=${Uri.encodeQueryComponent(widget.company.farmId)}',
+        '${_r.api}/assets/${tStr(a[_r.assetIdKey])}?farmId=${Uri.encodeQueryComponent(widget.company.farmId)}',
         body: {
           'assetName': _name.text,
           'assetCategoryId': _category.isEmpty ? null : int.tryParse(_category),
@@ -942,12 +1011,12 @@ class _AssetEditDialogState extends State<AssetEditDialog> {
         },
       );
       if (!mounted) return;
-      trackerToast(context, 'Investment updated');
+      trackerToast(context, _r.t('Investment updated'));
       Navigator.pop(context, true);
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);
-      trackerToast(context, 'Could not update the investment', description: e.message, error: true);
+      trackerToast(context, _r.t('Could not update the investment'), description: e.message, error: true);
     }
   }
 
@@ -964,20 +1033,20 @@ class _AssetEditDialogState extends State<AssetEditDialog> {
           width: 580,
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             formSection('Details', _blue, [
-              FilterLabel('Investment name', AppInput(controller: _name)),
+              FilterLabel(_r.t('Investment name'), AppInput(controller: _name)),
               FilterLabel(
                 'Category',
                 AppSelect<String>(
                   value: _category.isEmpty ? null : _category,
                   hintText: 'Choose a category',
-                  items: [for (final c in widget.categories) AppSelectItem(value: tStr(c['poultryAssetCategoryId']), label: tStr(c['categoryName']))],
+                  items: [for (final c in widget.categories) AppSelectItem(value: tStr(c[_r.categoryIdKey]), label: tStr(c['categoryName']))],
                   onChanged: (v) => setState(() => _category = v ?? ''),
                 ),
               ),
               FilterLabel('Location', AppInput(controller: _location)),
               FilterLabel('Serial number', AppInput(controller: _serial)),
-              _hinted('Acquired', _readOnly(fmtDateTime(a['acquisitionDate'], a, widget.offset)), 'Set when the investment was recorded and not editable here.'),
-              FilterLabel('Investment number', _readOnly(tStr(a['assetNumber']))),
+              _hinted('Acquired', _readOnly(fmtDateTime(a['acquisitionDate'], a, widget.offset)), _r.t('Set when the investment was recorded and not editable here.')),
+              FilterLabel(_r.t('Investment number'), _readOnly(tStr(a['assetNumber']))),
               FilterLabel('Description', AppInput(controller: _desc, minLines: 2, maxLines: 4)),
               FilterLabel('Notes', AppInput(controller: _notes, minLines: 2, maxLines: 4)),
             ]),
@@ -990,9 +1059,9 @@ class _AssetEditDialogState extends State<AssetEditDialog> {
             ]),
             const SizedBox(height: 12),
             formSection('Cost summary', _blue, [
-              _hinted(acquisitionCostLabel, _readOnly(fmt(tNum(a['acquisitionCost']))), acquisitionCostTooltip),
-              _hinted(additionalCostLabel, _readOnly(fmt(tNum(a['additionalCost']))), additionalCostTooltip),
-              _hinted(totalCapitalizedCostLabel, _readOnly(fmt(tNum(a['totalCapitalizedCost'])), bold: true), totalCapitalizedCostTooltip),
+              _hinted(acquisitionCostLabel, _readOnly(fmt(tNum(a['acquisitionCost']))), _r.t(acquisitionCostTooltip)),
+              _hinted(additionalCostLabel, _readOnly(fmt(tNum(a['additionalCost']))), _r.t(additionalCostTooltip)),
+              _hinted(totalCapitalizedCostLabel, _readOnly(fmt(tNum(a['totalCapitalizedCost'])), bold: true), _r.t(totalCapitalizedCostTooltip)),
             ]),
             const SizedBox(height: 12),
             Container(
@@ -1009,7 +1078,7 @@ class _AssetEditDialogState extends State<AssetEditDialog> {
                 ),
                 const SizedBox(height: 6),
                 Tooltip(
-                  message: noAcq ? 'This investment has no original acquisition to correct — its cost was built up with Add cost.' : '',
+                  message: noAcq ? _r.t('This investment has no original acquisition to correct — its cost was built up with Add cost.') : '',
                   child: OutlinedButton.icon(
                     onPressed: noAcq
                         ? null
@@ -1026,7 +1095,7 @@ class _AssetEditDialogState extends State<AssetEditDialog> {
             if (_locked) ...[
               const SizedBox(height: 10),
               amberNote(
-                  'Depreciation has been posted for this investment, so its in-service date, useful life and residual value are locked — changing them would make every month already charged wrong. Reverse the depreciation first. The name, category and location can still be edited.'),
+                  _r.t('Depreciation has been posted for this investment, so its in-service date, useful life and residual value are locked — changing them would make every month already charged wrong. Reverse the depreciation first. The name, category and location can still be edited.')),
             ],
           ]),
         ),
@@ -1041,19 +1110,24 @@ class _AssetEditDialogState extends State<AssetEditDialog> {
 
 /// Add cost: capitalise real extra money, or be sent to Expenses for an operating cost.
 class AddAssetCostDialog extends StatefulWidget {
-  const AddAssetCostDialog({super.key, required this.session, required this.company, required this.asset, required this.cashAccounts, required this.fmt});
+  const AddAssetCostDialog({super.key, required this.session, required this.company, required this.asset, required this.cashAccounts, required this.fmt, this.rail = AssetRail.poultry, this.suppliers = const []});
+  final AssetRail rail;
   final Session session;
   final Company company;
   final Map asset;
   final List<Map> cashAccounts;
   final FarmMoney fmt;
 
+  /// Water's active suppliers (the Poultry form takes a typed payee).
+  final List<Map> suppliers;
+
   @override
   State<AddAssetCostDialog> createState() => _AddAssetCostDialogState();
 }
 
 class _AddAssetCostDialogState extends State<AddAssetCostDialog> {
-  String _treatment = 'capitalise', _method = 'Cash', _account = '', _date = _today(), _due = '';
+  AssetRail get _r => widget.rail;
+  String _treatment = 'capitalise', _method = 'Cash', _account = '', _date = _today(), _due = '', _supplierId = '';
   final _amount = TextEditingController(), _desc = TextEditingController(), _type = TextEditingController();
   final _supplier = TextEditingController(), _paid = TextEditingController();
   bool _saving = false;
@@ -1072,14 +1146,14 @@ class _AddAssetCostDialogState extends State<AddAssetCostDialog> {
     setState(() => _saving = true);
     String? opt(TextEditingController c) => c.text.isEmpty ? null : c.text;
     try {
-      await widget.session.farmClient.post('/api/Poultry/assets/${tStr(widget.asset['poultryCapitalAssetId'])}/costs',
+      await widget.session.farmClient.post('${_r.api}/assets/${tStr(widget.asset[_r.assetIdKey])}/costs',
           query: {'farmId': widget.company.farmId},
           body: {
             'costDate': _date.isEmpty ? null : _date,
             'description': opt(_desc),
             'costCategory': opt(_type),
             'amount': amount,
-            'supplier': opt(_supplier),
+            if (_r.isWater) 'supplierId': _supplierId.isEmpty ? null : int.parse(_supplierId) else 'supplier': opt(_supplier),
             'paymentMethod': _method,
             'amountPaid': _paid.text.isEmpty ? null : num.tryParse(_paid.text),
             'dueDate': _due.isEmpty ? null : _due,
@@ -1088,7 +1162,7 @@ class _AddAssetCostDialogState extends State<AddAssetCostDialog> {
             'createdBy': widget.session.tokens.userId,
           });
       if (!mounted) return;
-      trackerToast(context, 'Cost added', description: "The investment's value has increased. Nothing was charged to profit.");
+      trackerToast(context, 'Cost added', description: _r.t("The investment's value has increased. Nothing was charged to profit."));
       Navigator.pop(context, true);
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -1112,7 +1186,7 @@ class _AddAssetCostDialogState extends State<AddAssetCostDialog> {
           width: 580,
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Text(
-              'Cement, roofing, labour — real extra money spent on this investment, added to what it is worth. It currently stands at ${fmt(tNum(a['totalCapitalizedCost']))}'
+              '${_r.isWater ? 'Drilling, the pump, casing, wiring' : 'Cement, roofing, labour'} — real extra money spent on this ${_r.t('investment')}, added to what it is worth. It currently stands at ${fmt(tNum(a['totalCapitalizedCost']))}'
               '${tNum(a['additionalCost']) > 0 ? ' (${fmt(tNum(a['acquisitionCost']))} acquired, ${fmt(tNum(a['additionalCost']))} added since).' : '.'}'
               ' To fix a wrong amount rather than record a new one, use Correct original cost instead.',
               style: const TextStyle(fontSize: 13, color: TColors.slate500),
@@ -1123,13 +1197,13 @@ class _AddAssetCostDialogState extends State<AddAssetCostDialog> {
                 'Cost treatment',
                 AppSelect<String>(
                   value: _treatment,
-                  items: const [
-                    AppSelectItem(value: 'capitalise', label: 'Capitalise to this investment'),
-                    AppSelectItem(value: 'expense', label: 'Record as an operating expense'),
+                  items: [
+                    AppSelectItem(value: 'capitalise', label: _r.t('Capitalise to this investment')),
+                    const AppSelectItem(value: 'expense', label: 'Record as an operating expense'),
                   ],
                   onChanged: (v) => setState(() => _treatment = v ?? 'capitalise'),
                 ),
-                costTreatmentNote,
+                _r.t(costTreatmentNote),
               ),
             ]),
             const SizedBox(height: 12),
@@ -1141,8 +1215,8 @@ class _AddAssetCostDialogState extends State<AddAssetCostDialog> {
                   const Text('An operating expense is recorded on the Expenses page',
                       style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: TColors.amber900)),
                   const SizedBox(height: 4),
-                  const Text(
-                    "It will be charged in full against this period's profit and will NOT change what this investment is worth. Record it there and it behaves exactly like any other bill.",
+                  Text(
+                    _r.t("It will be charged in full against this period's profit and will NOT change what this investment is worth. Record it there and it behaves exactly like any other bill."),
                     style: TextStyle(fontSize: 12, color: TColors.amber900),
                   ),
                   const SizedBox(height: 8),
@@ -1151,7 +1225,7 @@ class _AddAssetCostDialogState extends State<AddAssetCostDialog> {
                     FilledButton(
                       onPressed: () {
                         Navigator.pop(context, false);
-                        openAppHref(context, widget.session, widget.company, '/expenses', label: 'Expenses');
+                        openAppHref(context, widget.session, widget.company, _r.expensesHref, label: 'Expenses');
                       },
                       child: const Text('Go to Expenses'),
                     ),
@@ -1162,22 +1236,30 @@ class _AddAssetCostDialogState extends State<AddAssetCostDialog> {
               formSection('Cost', _blue, [
                 FilterLabel('Date', _dateField(_date, (v) => setState(() => _date = v), clearable: true)),
                 FilterLabel('Amount', _num(_amount, () => setState(() {}))),
-                FilterLabel('What it was for', AppInput(controller: _desc, hintText: 'Roofing sheets')),
+                FilterLabel('What it was for', AppInput(controller: _desc, hintText: _r.isWater ? 'Submersible pump' : 'Roofing sheets')),
                 FilterLabel('Cost type', AppInput(controller: _type, hintText: 'Materials / Labour')),
-                FilterLabel('Supplier / payee', AppInput(controller: _supplier)),
+                if (_r.isWater)
+                  _supplierField(widget.suppliers, _supplierId, (v) => setState(() => _supplierId = v))
+                else
+                  FilterLabel('Supplier / payee', AppInput(controller: _supplier)),
                 FilterLabel(
                   'Payment method',
                   AppSelect<String>(
                     value: _method,
-                    items: [for (final m in const ['Cash', 'MoMo', 'Bank', 'Credit']) AppSelectItem(value: m, label: m)],
+                    items: [for (final m in _methods) AppSelectItem(value: m, label: m)],
                     onChanged: (v) => setState(() => _method = v ?? 'Cash'),
                   ),
                 ),
                 _hinted('Amount paid now', _num(_paid, () => setState(() {})), 'Leave blank if paid in full.'),
-                FilterLabel('Paid from', _accountSelect(widget.cashAccounts, _account, (v) => setState(() => _account = v))),
+                FilterLabel('Paid from', _accountSelect(_r, widget.cashAccounts, _account, (v) => setState(() => _account = v))),
                 _hinted('Balance due date', _dateField(_due, (v) => setState(() => _due = v), clearable: true), 'When the unpaid part falls due.'),
               ]),
-              if (locked) ...[const SizedBox(height: 10), amberNote(costLockedByDepreciationNote)],
+              if (locked) ...[
+                const SizedBox(height: 10),
+                amberNote(_r.isWater
+                    ? 'Depreciation has already been posted for this asset, so its cost cannot be changed — every month already charged was worked out from the current cost. Reverse the depreciation first.'
+                    : costLockedByDepreciationNote),
+              ],
             ],
           ]),
         ),
@@ -1194,7 +1276,8 @@ class _AddAssetCostDialogState extends State<AddAssetCostDialog> {
 
 /// Dispose: proceeds are money in, not sales revenue.
 class DisposeAssetDialog extends StatefulWidget {
-  const DisposeAssetDialog({super.key, required this.session, required this.company, required this.asset, required this.cashAccounts, required this.fmt});
+  const DisposeAssetDialog({super.key, required this.session, required this.company, required this.asset, required this.cashAccounts, required this.fmt, this.rail = AssetRail.poultry});
+  final AssetRail rail;
   final Session session;
   final Company company;
   final Map asset;
@@ -1206,6 +1289,7 @@ class DisposeAssetDialog extends StatefulWidget {
 }
 
 class _DisposeAssetDialogState extends State<DisposeAssetDialog> {
+  AssetRail get _r => widget.rail;
   String _date = _today(), _account = '';
   final _proceeds = TextEditingController(), _notes = TextEditingController();
   bool _saving = false;
@@ -1220,7 +1304,7 @@ class _DisposeAssetDialogState extends State<DisposeAssetDialog> {
   Future<void> _save() async {
     setState(() => _saving = true);
     try {
-      await widget.session.farmClient.post('/api/Poultry/assets/${tStr(widget.asset['poultryCapitalAssetId'])}/dispose',
+      await widget.session.farmClient.post('${_r.api}/assets/${tStr(widget.asset[_r.assetIdKey])}/dispose',
           query: {'farmId': widget.company.farmId},
           body: {
             'disposalDate': _date.isEmpty ? null : _date,
@@ -1231,12 +1315,12 @@ class _DisposeAssetDialogState extends State<DisposeAssetDialog> {
             'createdBy': widget.session.tokens.userId,
           });
       if (!mounted) return;
-      trackerToast(context, 'Investment disposed');
+      trackerToast(context, _r.t('Investment disposed'));
       Navigator.pop(context, true);
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);
-      trackerToast(context, 'Could not dispose the investment', description: e.message, error: true);
+      trackerToast(context, _r.t('Could not dispose the investment'), description: e.message, error: true);
     }
   }
 
@@ -1257,7 +1341,7 @@ class _DisposeAssetDialogState extends State<DisposeAssetDialog> {
               formSection('Disposal', _blue, [
                 FilterLabel('Date', _dateField(_date, (v) => setState(() => _date = v), clearable: true)),
                 _hinted('Proceeds', _num(_proceeds, () => setState(() {})), 'Leave blank if nothing was received.'),
-                FilterLabel('Received into', _accountSelect(widget.cashAccounts, _account, (v) => setState(() => _account = v))),
+                FilterLabel('Received into', _accountSelect(_r, widget.cashAccounts, _account, (v) => setState(() => _account = v))),
                 FilterLabel('Notes', AppInput(controller: _notes, minLines: 2, maxLines: 4)),
               ]),
               const SizedBox(height: 8),
@@ -1277,7 +1361,8 @@ class _DisposeAssetDialogState extends State<DisposeAssetDialog> {
 
 /// Reverse an acquisition: kept and marked reversed, cash paid returned.
 class ReverseAssetDialog extends StatefulWidget {
-  const ReverseAssetDialog({super.key, required this.session, required this.company, required this.asset});
+  const ReverseAssetDialog({super.key, required this.session, required this.company, required this.asset, this.rail = AssetRail.poultry});
+  final AssetRail rail;
   final Session session;
   final Company company;
   final Map asset;
@@ -1287,6 +1372,7 @@ class ReverseAssetDialog extends StatefulWidget {
 }
 
 class _ReverseAssetDialogState extends State<ReverseAssetDialog> {
+  AssetRail get _r => widget.rail;
   final _reason = TextEditingController();
   bool _saving = false;
 
@@ -1300,7 +1386,7 @@ class _ReverseAssetDialogState extends State<ReverseAssetDialog> {
     if (_reason.text.trim().isEmpty) return trackerToast(context, 'A reason is required', error: true);
     setState(() => _saving = true);
     try {
-      await widget.session.farmClient.post('/api/Poultry/assets/${tStr(widget.asset['poultryCapitalAssetId'])}/reverse',
+      await widget.session.farmClient.post('${_r.api}/assets/${tStr(widget.asset[_r.assetIdKey])}/reverse',
           query: {'farmId': widget.company.farmId},
           body: {'farmId': widget.company.farmId, 'reason': _reason.text.trim(), 'createdBy': widget.session.tokens.userId});
       if (!mounted) return;
@@ -1309,7 +1395,7 @@ class _ReverseAssetDialogState extends State<ReverseAssetDialog> {
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);
-      trackerToast(context, 'Could not reverse the investment', description: e.message, error: true);
+      trackerToast(context, _r.t('Could not reverse the investment'), description: e.message, error: true);
     }
   }
 
@@ -1322,8 +1408,8 @@ class _ReverseAssetDialogState extends State<ReverseAssetDialog> {
           content: SizedBox(
             width: 460,
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              const Text(
-                'The investment and its costs are kept and marked reversed; any cash paid is returned to its account. This is refused if depreciation has been posted or a supplier payment has been recorded against it.',
+              Text(
+                _r.t('The investment and its costs are kept and marked reversed; any cash paid is returned to its account. This is refused if depreciation has been posted or a supplier payment has been recorded against it.'),
                 style: TextStyle(fontSize: 13, color: TColors.slate500),
               ),
               const SizedBox(height: 12),
