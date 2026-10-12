@@ -772,6 +772,8 @@ export interface SaleGroupResult {
   saleIds: number[]
   totalAmount: number
   lineCount: number
+  /** 360: sales created. Above 1 when different products were split, one sale each. */
+  saleCount?: number
   /** The request key matched a sale already posted: nothing new was saved. */
   duplicate: boolean
 }

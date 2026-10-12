@@ -311,10 +311,16 @@ namespace PoultryFarmAPIWeb.Business
                 unitPrice = l.UnitPrice,
                 totalAmount = l.TotalAmount,
             }));
+            // 360: different products in one entry are saved as one sale per
+            // product (358 keeps a sale to one product), in one transaction.
+            var mixed = request.Lines
+                .Select(l => (l.Product ?? string.Empty).Trim().ToLowerInvariant())
+                .Distinct().Count() > 1;
+            var fn = mixed ? "sppoultrysale_createsplit" : "sppoultrysale_creategroup";
             using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync();
             using var cmd = new NpgsqlCommand(
-                "SELECT sppoultrysale_creategroup(p_farmid => @FarmId::text, p_userid => @UserId::text, " +
+                $"SELECT {fn}(p_farmid => @FarmId::text, p_userid => @UserId::text, " +
                 "p_saledate => @Date::timestamp, p_customername => @Customer::text, p_customerid => @CustomerId::int, " +
                 "p_paymentmethod => @Method::text, p_cashaccountid => @Account::int, p_paid => @Paid::boolean, " +
                 "p_description => @Description::text, p_flockid => @Flock::int, p_linesjson => @Lines::text, " +

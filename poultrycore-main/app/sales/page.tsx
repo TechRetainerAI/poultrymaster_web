@@ -99,6 +99,24 @@ function eggCrateBreakdown(
 }
 
 /**
+ * Line amounts that add up to an overridden sale total.
+ *
+ * The override replaces the TOTAL; each line keeps its share of the calculated
+ * total, rounded to the minor unit, and the last line takes the rounding so
+ * the lines sum to the override exactly. No override: the amounts as they are.
+ * All-zero lines share it equally.
+ */
+function scaleLineTotals(calculated: number[], override: number | null): number[] {
+  if (override == null || !(override > 0) || calculated.length === 0) return calculated
+  const target = Math.round(override * 100)
+  const sum = calculated.reduce((a, b) => a + b, 0)
+  const shares = calculated.map((c) => (sum > 0 ? c / sum : 1 / calculated.length))
+  const cents = shares.map((sh) => Math.round(target * sh))
+  cents[cents.length - 1] += target - cents.reduce((a, b) => a + b, 0)
+  return cents.map((c) => c / 100)
+}
+
+/**
  * What a sale line comes to.
  *
  * Egg prices are quoted per crate, but a sale is rarely a whole number of
@@ -360,10 +378,18 @@ export default function SalesPage() {
   // which is what the save sends as line one.
   // Lines added in the Items table may be any product (eggs, chicken, ...).
   const hasExtraEggLines = extraEggLines.length > 0
-  const firstLineAmount = overrideAmount !== undefined && overrideAmount > 0 ? overrideAmount : Number(formData.totalAmount) || 0
+  // Calculated line amounts; the override (if any) replaces the sale's TOTAL
+  // and is shared across the lines in proportion (see scaleLineTotals).
+  const hasOverride = overrideAmount !== undefined && overrideAmount > 0
+  // 360: a sale is one product, so different products are saved as one sale each.
+  const saleProductCount = new Set(
+    [(formData.product ?? "").toString(), ...extraEggLines.map((l) => l.product ?? "Fresh Eggs")]
+      .map((p) => p.trim().toLowerCase()).filter(Boolean)).size
+  const firstLineAmount = Number(formData.totalAmount) || 0
   const allLinesEggs = (isEggsProduct ? Number(formData.quantity) || 0 : 0)
     + extraEggLines.filter(extraLineIsEggs).reduce((s, l) => s + extraLineEggs(l), 0)
-  const allLinesAmount = Math.round((firstLineAmount + extraEggLines.reduce((s, l) => s + extraLineTotal(l), 0)) * 100) / 100
+  const calculatedSaleTotal = Math.round((firstLineAmount + extraEggLines.reduce((s, l) => s + extraLineTotal(l), 0)) * 100) / 100
+  const allLinesAmount = hasOverride ? Math.round(overrideAmount! * 100) / 100 : calculatedSaleTotal
   const isEditingGroup = editingLines.length > 1
   // Editing: the eggs the sale (every line of it) already took are back on
   // the shelf while it is changed, per class.
@@ -649,20 +675,27 @@ export default function SalesPage() {
           flockId: formData.flockId || null,
           correctsSaleId: correcting?.saleId ?? null,
           requestKey: saleRequestKeyRef.current,
-          lines: [
-            { product, eggProductId: isEggsProduct ? formData.eggProductId ?? null : null, quantity, unitPrice, totalAmount },
-            ...extraEggLines.map((l) => ({
-              product: (l.product ?? product).trim(),
-              eggProductId: extraLineIsEggs(l) ? l.eggProductId : null,
-              quantity: extraLineQuantity(l), unitPrice: l.unitPrice, totalAmount: extraLineTotal(l),
-            })),
-          ],
+          lines: (() => {
+            const lines = [
+              { product, eggProductId: isEggsProduct ? formData.eggProductId ?? null : null, quantity, unitPrice, totalAmount: calculatedAmount },
+              ...extraEggLines.map((l) => ({
+                product: (l.product ?? product).trim(),
+                eggProductId: extraLineIsEggs(l) ? l.eggProductId : null,
+                quantity: extraLineQuantity(l), unitPrice: l.unitPrice, totalAmount: extraLineTotal(l),
+              })),
+            ]
+            const totals = scaleLineTotals(lines.map((l) => l.totalAmount), hasOverride ? overrideAmount! : null)
+            return lines.map((l, i) => ({ ...l, totalAmount: totals[i] }))
+          })(),
         })
         if (!res.success) {
           toast({ title: "Sale not saved", description: res.message || "Failed to create sale", variant: "destructive" })
           return
         }
-        toast({ title: `Sale ${res.data?.saleGroupNo ?? ""} created`, description: `${extraEggLines.length + 1} lines, one sale.` })
+        const saleCount = res.data?.saleCount ?? 1
+        toast(saleCount > 1
+          ? { title: `${saleCount} sales created: ${res.data?.saleGroupNo ?? ""}`, description: "One sale per product, as each product is its own sale." }
+          : { title: `Sale ${res.data?.saleGroupNo ?? ""} created`, description: `${extraEggLines.length + 1} lines, one sale.` })
         const firstId = res.data?.saleId ?? res.data?.saleIds?.[0]
         const groupTotal = Number(res.data?.totalAmount ?? 0)
         await afterCorrectionSaved(firstId, res.data?.saleGroupNo || (firstId ? `#${firstId}` : ""), groupTotal, !!(formData.paid ?? true))
@@ -1002,7 +1035,6 @@ export default function SalesPage() {
     // A second egg line most often sells another size: offer the next one.
     const used = new Set([formData.eggProductId ?? null, ...extraEggLines.map((l) => l.eggProductId)])
     const cls = eggClasses.find((c) => c.classKind === "Size" && c.isActive && !used.has(c.poultryProductId))?.poultryProductId ?? null
-    setOverrideAmount(undefined)   // the override is for a one-line sale
     setExtraEggLines(prev => [...prev, {
       key: `${Date.now()}-${prev.length}`,
       product: "Fresh Eggs",
@@ -1639,9 +1671,9 @@ export default function SalesPage() {
                   <option value="Jumbo" />
                 </datalist>
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
-                  {!hasExtraEggLines ? (
+                  <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <Label htmlFor="overrideAmount" className="text-xs font-medium text-emerald-800">Override total</Label>
+                      <Label htmlFor="overrideAmount" className="text-xs font-medium text-emerald-800">Override Total Sale Amount</Label>
                       <NumberInput
                         id="overrideAmount"
                         className="h-9 w-36 bg-white text-right tabular-nums"
@@ -1651,14 +1683,22 @@ export default function SalesPage() {
                         placeholder="Optional"
                       />
                     </div>
-                  ) : (
-                    <p className="text-xs text-emerald-800">
-                      Saved as one sale number with {extraEggLines.length + 1} lines and one payment.
-                    </p>
-                  )}
+                    {hasExtraEggLines && (
+                      <p className="text-xs text-emerald-800">
+                        {hasOverride
+                          ? "The override is shared across the lines in proportion to their amounts."
+                          : saleProductCount > 1
+                            ? `${saleProductCount} different products: saved as ${saleProductCount} sales, one per product, in one go.`
+                            : `Saved as one sale number with ${extraEggLines.length + 1} lines and one payment.`}
+                      </p>
+                    )}
+                  </div>
                   <div className="text-right">
                     <div className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Sale total</div>
                     <div className="text-2xl font-bold tabular-nums text-emerald-700">{formatCurrency(allLinesAmount, currencyCode)}</div>
+                    {hasOverride && Math.abs(allLinesAmount - calculatedSaleTotal) >= 0.005 && (
+                      <div className="text-xs text-emerald-800">calculated {formatCurrency(calculatedSaleTotal, currencyCode)}</div>
+                    )}
                   </div>
                 </div>
                 </div>

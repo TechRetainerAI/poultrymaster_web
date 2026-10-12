@@ -307,6 +307,8 @@ namespace PoultryFarmAPIWeb.Models
         public int[] SaleIds { get; set; } = Array.Empty<int>();
         public decimal TotalAmount { get; set; }
         public int LineCount { get; set; }
+        /// <summary>360: sales created; above 1 when different products were split.</summary>
+        public int SaleCount { get; set; } = 1;
         /// <summary>True when the request key matched a sale already posted.</summary>
         public bool Duplicate { get; set; }
     }
