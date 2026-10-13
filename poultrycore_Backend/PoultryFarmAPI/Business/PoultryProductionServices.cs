@@ -1,4 +1,4 @@
-using System.Data;
+﻿using System.Data;
 using System.Text.Json;
 using Npgsql;
 using PoultryFarmAPIWeb.Models;
@@ -141,6 +141,10 @@ namespace PoultryFarmAPIWeb.Business
     {
         Task<List<PoultryStockTransactionModel>> GetTransactionsAsync(string farmId, int? productId);
         Task<int> AddTransactionAsync(PoultryStockTransactionModel m);
+        // 359: birds are adjusted per flock / batch, never as a bare ledger row.
+        Task<List<PoultryBirdAdjustmentOption>> GetBirdAdjustmentOptionsAsync(string farmId);
+        Task<List<PoultryBirdAdjustmentModel>> GetBirdAdjustmentsAsync(string farmId);
+        Task<int> PostBirdAdjustmentAsync(PoultryBirdAdjustmentRequest m);
     }
     public class PoultryStockService : IPoultryStockService
     {
@@ -167,6 +171,48 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@TxnType", m.TxnType); cmd.Parameters.AddWithValue("@Quantity", m.Quantity);
             cmd.Parameters.AddWithValue("@UnitCost", (object?)m.UnitCost ?? DBNull.Value); cmd.Parameters.AddWithValue("@RelatedId", (object?)m.RelatedId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Note", (object?)m.Note ?? DBNull.Value); cmd.Parameters.AddWithValue("@CreatedBy", (object?)m.CreatedBy ?? DBNull.Value);
+            await c.OpenAsync(); return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        }
+
+        public async Task<List<PoultryBirdAdjustmentOption>> GetBirdAdjustmentOptionsAsync(string farmId)
+        {
+            var list = new List<PoultryBirdAdjustmentOption>();
+            using var c = new NpgsqlConnection(_cs); using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrybirdadjustment_options(p_farmid => @FarmId::text)", c);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await c.OpenAsync(); using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync()) list.Add(new PoultryBirdAdjustmentOption
+            {
+                BatchId = r.Int("BatchId"), BatchCode = r.StrN("BatchCode") ?? "", BatchName = r.StrN("BatchName") ?? "",
+                BatchBirds = r.Int("BatchBirds"), UnplacedBirds = r.Int("UnplacedBirds"),
+                FlockId = r.IntN("FlockId"), FlockName = r.StrN("FlockName"), LiveBirds = r.IntN("LiveBirds"),
+                LastCountDate = r.DateN("LastCountDate"), HasProductionRecord = r.Bool("HasProductionRecord"), IsClosed = r.Bool("IsClosed"),
+            });
+            return list;
+        }
+
+        public async Task<List<PoultryBirdAdjustmentModel>> GetBirdAdjustmentsAsync(string farmId)
+        {
+            var list = new List<PoultryBirdAdjustmentModel>();
+            using var c = new NpgsqlConnection(_cs); using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrybirdadjustment_getall(p_farmid => @FarmId::text)", c);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await c.OpenAsync(); using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync()) list.Add(new PoultryBirdAdjustmentModel
+            {
+                BirdAdjustmentId = r.Int("BirdAdjustmentId"), AdjustmentDate = r.Date("AdjustmentDate"),
+                BatchId = r.Int("BatchId"), BatchCode = r.StrN("BatchCode"), FlockId = r.IntN("FlockId"), FlockName = r.StrN("FlockName"),
+                MovementType = r.Str("MovementType"), Quantity = r.Int("Quantity"), BirdsBefore = r.Int("BirdsBefore"), BirdsAfter = r.Int("BirdsAfter"),
+                ProductionRecordId = r.IntN("ProductionRecordId"), Note = r.StrN("Note"), CreatedBy = r.StrN("CreatedBy"), CreatedAt = r.Date("CreatedAt"),
+            });
+            return list;
+        }
+
+        public async Task<int> PostBirdAdjustmentAsync(PoultryBirdAdjustmentRequest m)
+        {
+            using var c = new NpgsqlConnection(_cs); using var cmd = new NpgsqlCommand("SELECT sppoultrybirdadjustment_post(p_farmid => @FarmId::text, p_batchid => @BatchId::int, p_flockid => @FlockId::int, p_movementtype => @MovementType::text, p_quantity => @Quantity::int, p_note => @Note::text, p_by => @By::text)", c);
+            cmd.Parameters.AddWithValue("@FarmId", m.FarmId); cmd.Parameters.AddWithValue("@BatchId", m.BatchId);
+            cmd.Parameters.AddWithValue("@FlockId", (object?)m.FlockId ?? DBNull.Value); cmd.Parameters.AddWithValue("@MovementType", m.MovementType ?? "Adjustment");
+            cmd.Parameters.AddWithValue("@Quantity", m.Quantity); cmd.Parameters.AddWithValue("@Note", (object?)m.Note ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@By", (object?)m.CreatedBy ?? DBNull.Value);
             await c.OpenAsync(); return Convert.ToInt32(await cmd.ExecuteScalarAsync());
         }
     }

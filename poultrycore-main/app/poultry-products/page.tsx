@@ -156,7 +156,8 @@ export default function PoultryProductsPage() {
                         <TableCell className="text-right">{p.stockOnHand.toLocaleString()}</TableCell>
                         <TableCell>{p.isActive ? <Badge className="bg-green-100 text-green-700">Active</Badge> : <Badge variant="secondary">Inactive</Badge>}</TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="sm" onClick={() => setStockProduct(p)} title="Add stock"><Plus className="w-4 h-4 text-emerald-600" /></Button>
+                          {/* 359: birds are adjusted per flock / batch on the Stock page */}
+{!(p.isBirdProduct || p.name === "Birds") && <Button variant="ghost" size="sm" onClick={() => setStockProduct(p)} title="Add stock"><Plus className="w-4 h-4 text-emerald-600" /></Button>}
                           {p.requiresRecipeSetup && !p.isRawEggProduct && (
                             <Button variant="ghost" size="sm" onClick={() => openRecipe(p)} title="Recipe"><ListChecks className="w-4 h-4 text-indigo-600" /></Button>
                           )}
@@ -176,7 +177,8 @@ export default function PoultryProductsPage() {
                       badge={p.isActive ? <Badge className="bg-green-100 text-green-700">Active</Badge> : <Badge variant="secondary">Inactive</Badge>}
                       fields={[["Type", p.productType], ["Unit", p.unit ?? "—"], ["Price", gh(p.unitPrice)], ["In stock", p.stockOnHand.toLocaleString()]]}
                       actions={<>
-                        <Button variant="ghost" size="sm" onClick={() => setStockProduct(p)} title="Add stock"><Plus className="w-4 h-4 text-emerald-600" /></Button>
+                        {/* 359: birds are adjusted per flock / batch on the Stock page */}
+{!(p.isBirdProduct || p.name === "Birds") && <Button variant="ghost" size="sm" onClick={() => setStockProduct(p)} title="Add stock"><Plus className="w-4 h-4 text-emerald-600" /></Button>}
                         {p.requiresRecipeSetup && !p.isRawEggProduct && <Button variant="ghost" size="sm" onClick={() => openRecipe(p)} title="Recipe"><ListChecks className="w-4 h-4 text-indigo-600" /></Button>}
                         <Button variant="ghost" size="sm" onClick={() => openEdit(p)}><Pencil className="w-4 h-4" /></Button>
                         <Button variant="ghost" size="sm" onClick={() => setDelTarget(p)}><Trash2 className="w-4 h-4 text-red-500" /></Button>

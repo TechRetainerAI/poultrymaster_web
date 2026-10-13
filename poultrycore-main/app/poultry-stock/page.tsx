@@ -27,8 +27,10 @@ import {
   listPoultryRawMaterialPurchases, listPoultryRawMaterialUsageHistory,
   listPoultryRawMaterialItems, listPoultryRawMaterialAdjustments, adjustPoultryRawMaterialItem,
   setPoultryProductStock, reconcilePoultryProductStock,
-  type PoultryProduct, type PoultryStockTransaction, type PoultryRawMaterialItem,
+  listPoultryBirdAdjustmentOptions, postPoultryBirdAdjustment,
+  type PoultryProduct, type PoultryStockTransaction, type PoultryRawMaterialItem, type PoultryBirdAdjustmentOption,
 } from "@/lib/api/poultry-inventory"
+import { getUserContext } from "@/lib/api/config"
 import { RecalculateStockButton } from "@/components/poultry/recalculate-stock-button"
 import { SetProductStockButton } from "@/components/inventory/set-product-stock-button"
 import { ReconcileProductStockButton } from "@/components/inventory/reconcile-product-stock-button"
@@ -55,7 +57,19 @@ const MOVE_COLORS: Record<string, string> = {
   Adjustment: "bg-slate-100 text-slate-700", Adjust: "bg-slate-100 text-slate-700",
   Decrease: "bg-amber-100 text-amber-700", Sale: "bg-blue-100 text-blue-700", Return: "bg-amber-100 text-amber-700",
   "Damage/Loss": "bg-red-100 text-red-700", "Delivery Load": "bg-indigo-100 text-indigo-700", "Delivery Return": "bg-amber-100 text-amber-700",
+  "Bird Adjustment": "bg-violet-100 text-violet-700",
+  "Sale Reversal": "bg-sky-100 text-sky-800", "Bird Sale": "bg-blue-100 text-blue-700",
+  "Sorting In": "bg-teal-100 text-teal-800", "Sorting Out": "bg-orange-100 text-orange-800", "Sorting Reversal": "bg-slate-200 text-slate-800",
+  "Egg Loss": "bg-red-100 text-red-700", "Internal Use": "bg-amber-100 text-amber-800", Opening: "bg-slate-200 text-slate-800",
 }
+// Any movement type not listed above: dark text on grey. The Badge's own
+// default text is white, so a background-only fallback was unreadable.
+const MOVE_COLOR_FALLBACK = "bg-slate-200 text-slate-800"
+
+// "flock" select value for a batch's birds not yet placed in any flock.
+const UNPLACED = "unplaced"
+const isBirdProduct = (p: PoultryProduct) => !!p.isBirdProduct || p.name === "Birds"
+const EMPTY_FORM = { target: "", movementType: "Increase", quantity: 0, unitCost: 0, note: "", batchId: "", flockId: "" }
 type Move = { key: string; date: string; item: string; parentType: string; movementType: string; qty: number; unitCost: number | null; total: number | null; source: string; note: string | null }
 
 function sourceFor(txnType: string, relatedId?: number | null): string {
@@ -87,7 +101,10 @@ export default function PoultryStockPage() {
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   // `target` encodes the picked item: "p:<id>" = finished product, "r:<id>" = raw material / supply.
-  const [form, setForm] = useState({ target: "", movementType: "Increase", quantity: 0, unitCost: 0, note: "" })
+  // Birds also need batchId and flockId (a flock id, or UNPLACED for the batch's unplaced birds).
+  const [form, setForm] = useState(EMPTY_FORM)
+  // 359: batches and their flocks, loaded when Birds is picked.
+  const [birdOptions, setBirdOptions] = useState<PoultryBirdAdjustmentOption[] | null>(null)
 
   // List filters + column sort.
   const [search, setSearch] = useState("")
@@ -266,6 +283,36 @@ export default function PoultryStockPage() {
     }
   }
 
+  // ------------------------------------------------------------ 359 birds
+  // Birds are counted from flocks and their production records, not from the
+  // stock ledger, so a bird movement names the batch and the flock it is for.
+  const birdTarget = useMemo(() => {
+    const [kind, idStr] = form.target.split(":")
+    return kind === "p" && products.some((p) => p.poultryProductId === Number(idStr) && isBirdProduct(p))
+  }, [form.target, products])
+
+  useEffect(() => {
+    if (!open || !birdTarget || birdOptions) return
+    listPoultryBirdAdjustmentOptions()
+      .then(setBirdOptions)
+      .catch((e: any) => toast({ title: "Could not load flocks", description: e?.message, variant: "destructive" }))
+  }, [open, birdTarget, birdOptions, toast])
+
+  const birdBatches = useMemo(() => {
+    const seen = new Map<number, PoultryBirdAdjustmentOption>()
+    for (const o of birdOptions ?? []) if (!seen.has(o.batchId)) seen.set(o.batchId, o)
+    return Array.from(seen.values())
+  }, [birdOptions])
+  const batchFlocks = useMemo(
+    () => (birdOptions ?? []).filter((o) => String(o.batchId) === form.batchId && o.flockId != null),
+    [birdOptions, form.batchId])
+  const pickedBatch = birdBatches.find((b) => String(b.batchId) === form.batchId) ?? null
+  const pickedFlock = batchFlocks.find((f) => String(f.flockId) === form.flockId) ?? null
+  // Birds the chosen flock (or the batch's unplaced pool) holds now, and after this movement.
+  const birdsNow = form.flockId === UNPLACED ? pickedBatch?.unplacedBirds ?? null : pickedFlock?.liveBirds ?? null
+  const birdSign = MOVEMENTS.find((m) => m.value === form.movementType)?.sign ?? 1
+  const birdsAfter = birdsNow == null ? null : birdsNow + birdSign * Math.abs(Math.round(form.quantity || 0))
+
   async function save() {
     if (!form.target) { toast({ title: "Pick an item", variant: "destructive" }); return }
     if (form.quantity <= 0) { toast({ title: "Quantity must be greater than 0", variant: "destructive" }); return }
@@ -273,15 +320,31 @@ export default function PoultryStockPage() {
     const signed = mv.sign * Math.abs(form.quantity)
     const [kind, idStr] = form.target.split(":")
     const id = Number(idStr)
+    if (birdTarget) {
+      if (!form.batchId) { toast({ title: "Choose the batch", variant: "destructive" }); return }
+      if (!form.flockId) { toast({ title: "Choose the flock", description: "Or \"Not placed in a flock\" for the batch's birds that are not in any flock yet.", variant: "destructive" }); return }
+      if (!Number.isInteger(form.quantity)) { toast({ title: "Birds are whole numbers", variant: "destructive" }); return }
+      if (birdsAfter != null && birdsAfter < 0) { toast({ title: "Not enough birds", description: `There are only ${birdsNow} birds there.`, variant: "destructive" }); return }
+    }
     setSaving(true)
     try {
-      if (kind === "r") {
+      if (birdTarget) {
+        await postPoultryBirdAdjustment({
+          batchId: Number(form.batchId),
+          flockId: form.flockId === UNPLACED ? null : Number(form.flockId),
+          movementType: form.movementType,
+          quantity: signed,
+          note: form.note || null,
+          createdBy: getUserContext().userId || null,
+        })
+        setBirdOptions(null)      // the counts just moved
+      } else if (kind === "r") {
         // Raw material / supply — adjust its stock directly (no expense/usage side effects).
         await adjustPoultryRawMaterialItem(id, { quantity: signed, unitCost: form.unitCost || null, movementType: form.movementType, note: form.note || "Manual stock adjustment" })
       } else {
         await addPoultryStockTransaction({ poultryProductId: id, txnType: form.movementType, quantity: signed, unitCost: form.unitCost || null, note: form.note || "Manual stock entry" })
       }
-      toast({ title: "Stock movement added" }); setOpen(false); setForm({ target: "", movementType: "Increase", quantity: 0, unitCost: 0, note: "" }); await load()
+      toast({ title: birdTarget ? "Birds adjusted" : "Stock movement added" }); setOpen(false); setForm(EMPTY_FORM); await load()
     } catch (e: any) { toast({ title: "Save failed", description: e?.message, variant: "destructive" }) }
     finally { setSaving(false) }
   }
@@ -354,7 +417,7 @@ export default function PoultryStockPage() {
                         <TableCell>{fmtDateTime(m.date, m)}</TableCell>
                         <TableCell className="font-medium">{m.item}</TableCell>
                         <TableCell><Badge className={m.parentType === "Finished Product" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-700"}>{m.parentType}</Badge></TableCell>
-                        <TableCell><Badge className={MOVE_COLORS[m.movementType] ?? "bg-gray-100"}>{m.movementType}</Badge></TableCell>
+                        <TableCell><Badge className={MOVE_COLORS[m.movementType] ?? MOVE_COLOR_FALLBACK}>{m.movementType}</Badge></TableCell>
                         <TableCell className={`text-right ${m.qty < 0 ? "text-red-600" : "text-green-700"}`}>{m.qty > 0 ? "+" : ""}{m.qty.toLocaleString()}</TableCell>
                         <TableCell className="text-right">{m.unitCost != null ? gh(m.unitCost) : "—"}</TableCell>
                         <TableCell className="text-right">{m.total != null ? gh(m.total) : "—"}</TableCell>
@@ -369,7 +432,7 @@ export default function PoultryStockPage() {
                 {sortedMoves.length === 0 ? <div className="text-center text-slate-500 py-6">No stock movements yet.</div>
                   : pg.pageItems.map((m) => (
                     <FieldCard key={m.key} title={m.item}
-                      badge={<Badge className={MOVE_COLORS[m.movementType] ?? "bg-gray-100"}>{m.movementType}</Badge>}
+                      badge={<Badge className={MOVE_COLORS[m.movementType] ?? MOVE_COLOR_FALLBACK}>{m.movementType}</Badge>}
                       fields={[["Date", fmtDateTime(m.date, m)], ["Type", m.parentType], ["Qty", <span className={m.qty < 0 ? "text-red-600" : "text-green-700"}>{m.qty > 0 ? "+" : ""}{m.qty.toLocaleString()}</span>], ["Unit price", m.unitCost != null ? gh(m.unitCost) : "—"], ["Total", m.total != null ? gh(m.total) : "—"], ["Source", m.source]]} />
                   ))}
               </div>
@@ -387,7 +450,7 @@ export default function PoultryStockPage() {
           <DialogHeader><DialogTitle>New stock movement</DialogTitle></DialogHeader>
           <FormSection title="Movement" color="blue">
             <FormField label="Item *">
-              <Select value={form.target} onValueChange={(v) => setForm({ ...form, target: v })}>
+              <Select value={form.target} onValueChange={(v) => setForm({ ...form, target: v, batchId: "", flockId: "" })}>
                 <SelectTrigger><SelectValue placeholder="Pick a finished product, raw material or supply" /></SelectTrigger>
                 <SelectContent>
                   {products.filter((p) => p.isActive).length > 0 && (
@@ -409,14 +472,64 @@ export default function PoultryStockPage() {
                 </SelectContent>
               </Select>
             </FormField>
+            {birdTarget && (
+              <>
+                <FormField label="Batch *" hint="Birds are counted per flock. Pick the batch, then the flock.">
+                  <Select value={form.batchId} onValueChange={(v) => setForm({ ...form, batchId: v, flockId: "" })}>
+                    <SelectTrigger><SelectValue placeholder={birdOptions ? "Choose the batch" : "Loading batches..."} /></SelectTrigger>
+                    <SelectContent>
+                      {birdBatches.map((b) => (
+                        <SelectItem key={b.batchId} value={String(b.batchId)}>
+                          {b.batchCode}{b.batchName ? ` — ${b.batchName}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormField>
+                <FormField label="Flock *">
+                  <Select value={form.flockId} onValueChange={(v) => setForm({ ...form, flockId: v })} disabled={!form.batchId}>
+                    <SelectTrigger><SelectValue placeholder={form.batchId ? "Choose the flock" : "Choose the batch first"} /></SelectTrigger>
+                    <SelectContent>
+                      {batchFlocks.map((f) => {
+                        const why = f.isClosed ? "closed" : !f.hasProductionRecord ? "no production record yet" : null
+                        return (
+                          <SelectItem key={f.flockId!} value={String(f.flockId)} disabled={!!why}>
+                            {f.flockName} · {why ?? `${(f.liveBirds ?? 0).toLocaleString()} birds`}
+                          </SelectItem>
+                        )
+                      })}
+                      {pickedBatch && (
+                        <SelectItem value={UNPLACED}>
+                          Not placed in a flock · {pickedBatch.unplacedBirds.toLocaleString()} birds
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </FormField>
+                {birdsNow != null && (
+                  <p className="text-sm text-slate-600 sm:col-span-2">
+                    {form.flockId === UNPLACED ? "Birds of this batch not in any flock" : `Birds in ${pickedFlock?.flockName ?? "this flock"}`}:{" "}
+                    <span className="font-medium">{birdsNow.toLocaleString()}</span>
+                    {birdsAfter != null && form.quantity > 0 && (
+                      <> → <span className={birdsAfter < 0 ? "font-semibold text-red-600" : "font-semibold"}>{birdsAfter.toLocaleString()}</span></>
+                    )}
+                  </p>
+                )}
+                {pickedFlock && (
+                  <p className="text-xs text-slate-500 sm:col-span-2">
+                    The flock&apos;s latest production record{pickedFlock.lastCountDate ? ` (${pickedFlock.lastCountDate.slice(0, 10)})` : ""} takes the corrected count, so the next record starts from it.
+                  </p>
+                )}
+              </>
+            )}
             <FormField label="Movement type">
               <Select value={form.movementType} onValueChange={(v) => setForm({ ...form, movementType: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{MOVEMENTS.map((m) => <SelectItem key={m.value} value={m.value}>{m.value}</SelectItem>)}</SelectContent>
               </Select>
             </FormField>
-            <FormField label="Quantity" hint="Always enter a positive number; the movement type sets the direction."><NumberInput min={0} step="0.001" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) || 0 })} /></FormField>
-            <FormField label="Unit cost / value"><NumberInput min={0} step="0.01" value={form.unitCost} onChange={(e) => setForm({ ...form, unitCost: Number(e.target.value) || 0 })} /></FormField>
+            <FormField label={birdTarget ? "Birds" : "Quantity"} hint="Always enter a positive number; the movement type sets the direction."><NumberInput min={0} step={birdTarget ? "1" : "0.001"} value={form.quantity} onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) || 0 })} /></FormField>
+            {!birdTarget && <FormField label="Unit cost / value"><NumberInput min={0} step="0.01" value={form.unitCost} onChange={(e) => setForm({ ...form, unitCost: Number(e.target.value) || 0 })} /></FormField>}
             <FormField label="Note" full><Input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} /></FormField>
           </FormSection>
           <div className="flex justify-end gap-2">

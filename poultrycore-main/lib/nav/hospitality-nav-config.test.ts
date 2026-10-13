@@ -30,7 +30,8 @@ const access = (over: Partial<FeatureAccessPermissions> = {}) =>
   }) as unknown as FeatureAccessPermissions
 
 const perms = (isAdmin: boolean, over: Partial<FeatureAccessPermissions> = {}) =>
-  ({ isAdmin, featureAccess: access(over) }) as unknown as UserPermissions
+  // can(): per-key IAM checks (e.g. Flock Closeout). An admin may do anything.
+  ({ isAdmin, featureAccess: access(over), can: () => isAdmin }) as unknown as UserPermissions
 
 const admin = perms(true)
 const poultry = buildPoultryNavConfig({ permissions: admin, onOpenAlerts: () => {} }).salesMoney
@@ -92,9 +93,10 @@ describe("permission gating", () => {
     expect(titles({ canViewCashLedger: true })).not.toContain("Payments")
   })
 
-  it("Restaurant: Internal Use sits right after Expenses and follows the Inventory rule", () => {
+  it("Restaurant: Expenses, then the supplier rows, then Internal Use; Internal Use follows the Inventory rule", () => {
     const items = buildRestaurantNavConfig({}, admin).salesMoney.find((g) => g.key === "expenses")!.items
-    expect(items.slice(0, 2).map((i) => i.title)).toEqual(["Expenses", "Internal Use"])
+    expect(items.map((i) => i.title).filter((t) => t !== "Recurring Expenses").slice(0, 4))
+      .toEqual(["Expenses", "Supplier Payments", "Supplier Balances", "Internal Use"])
     const staff = buildRestaurantNavConfig({}, perms(false))
     const iu = staff.salesMoney.find((g) => g.key === "expenses")!.items.find((i) => i.title === "Internal Use")!
     const inv = staff.inventoryReports.flatMap((g) => g.items).find((i) => i.href === "/restaurant-inventory")!

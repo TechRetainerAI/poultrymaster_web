@@ -1,7 +1,7 @@
 "use client"
 
-// Egg Sorting Workspace (migrations 341-343). NEW page beside the legacy
-// /egg-production ("Egg sorting"), which is unchanged.
+// Egg Sorting Workspace (migrations 341-343). Replaces the legacy
+// /egg-production ("Egg sorting") in the menus; that page is unchanged.
 //
 //   PRODUCTION CREATES EGGS. SORTING DOES NOT CREATE EGGS -- IT RECLASSIFIES
 //   EGGS THAT ALREADY EXIST (Unsorted -> sizes + losses).
@@ -15,7 +15,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { AlertTriangle, ChevronDown, ChevronUp, Egg, Layers, Loader2, Pencil, RotateCcw, Trash2 } from "lucide-react"
+import { AlertTriangle, BarChart3, ChevronDown, ChevronUp, Egg, History, Layers, Loader2, Pencil, RotateCcw, Settings2, Trash2 } from "lucide-react"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
@@ -51,6 +51,7 @@ import {
 } from "@/lib/api/egg-sorting"
 import {
   STATUS_LABEL,
+  capToSortable,
   cratesText,
   fmtCount,
   groupProductionDays,
@@ -59,6 +60,7 @@ import {
   pickLabel,
   pickRemaining,
   pickStatus,
+  sortableByRecord,
   type PickStatus,
   type ProductionDay,
 } from "@/lib/production/egg-sorting"
@@ -100,9 +102,22 @@ function Stat({ label, value, sub, tone }: { label: string; value: string; sub?:
   )
 }
 
-function StatusChip({ status }: { status: PickStatus }) {
+function StatusChip({ status, sold }: { status: PickStatus; sold?: boolean }) {
+  // Nothing sorted and nothing left because the eggs were sold unsorted: not
+  // "Complete", which would read as graded.
+  if (sold) return <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[11px] font-medium text-slate-700">Sold unsorted</span>
   return <span className={cn("rounded px-1.5 py-0.5 text-[11px] font-medium", STATUS_STYLE[status])}>{STATUS_LABEL[status]}</span>
 }
+
+// Each tab its own colour, so the four read as separate places at a glance.
+// Literal class names: Tailwind only ships classes it can see.
+const TAB_STYLE = {
+  workspace: "data-[state=active]:bg-amber-500 data-[state=active]:border-amber-600 hover:bg-amber-50",
+  sessions: "data-[state=active]:bg-sky-600 data-[state=active]:border-sky-700 hover:bg-sky-50",
+  reports: "data-[state=active]:bg-violet-600 data-[state=active]:border-violet-700 hover:bg-violet-50",
+  settings: "data-[state=active]:bg-emerald-600 data-[state=active]:border-emerald-700 hover:bg-emerald-50",
+} as const
+const TAB_BASE = "h-10 gap-2 rounded-lg border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm data-[state=active]:text-white data-[state=active]:shadow-md sm:h-9"
 
 function EggSortingInner() {
   const router = useRouter()
@@ -123,9 +138,32 @@ function EggSortingInner() {
 
   // ?record=<id> (from Production Records) focuses one production record.
   const recordParam = Number(searchParams.get("record")) || null
-  const [from, setFrom] = useState(() => shiftBusinessDate(today, -6) ?? today)
-  const [to, setTo] = useState(today)
-  useEffect(() => { setTo(today); setFrom((f) => (f > today ? shiftBusinessDate(today, -6) ?? today : f)) }, [today])
+  // Blank From/To = no limit that side. The default is "All months": every
+  // production day, so nothing waiting to be sorted is hidden behind a date.
+  const [from, setFrom] = useState("")
+  const [to, setTo] = useState("")
+  // "all" = no dates; a "YYYY-MM" sets From/To to that month; "custom" =
+  // dates typed by hand.
+  const [month, setMonth] = useState("all")
+  const monthOptions = useMemo(() => {
+    const [y, m] = today.split("-").map(Number)
+    return Array.from({ length: 12 }, (_, i) => {
+      const d = new Date(Date.UTC(y, m - 1 - i, 1))
+      return {
+        value: `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`,
+        label: d.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" }),
+      }
+    })
+  }, [today])
+  const pickMonth = (v: string) => {
+    if (v === "custom") return
+    setMonth(v)
+    if (v === "all") { setFrom(""); setTo(""); return }
+    const [y, m] = v.split("-").map(Number)
+    const last = `${v}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, "0")}`
+    setFrom(`${v}-01`)
+    setTo(last > today ? today : last)
+  }
   const [flockFilter, setFlockFilter] = useState<string>("all")
   const [statusFilter, setStatusFilter] = useState<"open" | "all" | PickStatus>("open")
   const [search, setSearch] = useState("")
@@ -139,6 +177,9 @@ function EggSortingInner() {
   const [classes, setClasses] = useState<EggClass[]>([])
   const [summary, setSummary] = useState<EggSortingSummary | null>(null)
   const [picks, setPicks] = useState<EggSortingPick[] | null>(null)
+  // Every record with eggs left, to see which of them the Unsorted shelf can
+  // still cover (eggs sold unsorted are not sortable).
+  const [openPicks, setOpenPicks] = useState<EggSortingPick[] | null>(null)
   const [duplicates, setDuplicates] = useState<ProductionDuplicateGroup[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -170,12 +211,16 @@ function EggSortingInner() {
     setError(null)
     try {
       const [p, sm, dups] = await Promise.all([
-        recordParam ? getEggSortingPicks({ recordIds: [recordParam] }) : getEggSortingPicks({ fromDate: from, toDate: to }),
+        recordParam ? getEggSortingPicks({ recordIds: [recordParam] }) : getEggSortingPicks({ fromDate: from || undefined, toDate: to || undefined }),
         getEggSortingSummary(),
         getProductionDuplicates().catch(() => [] as ProductionDuplicateGroup[]),
       ])
+      const open = sm.recordsWithLeft > 0 && sm.oldestLeftDate
+        ? await getEggSortingPicks({ fromDate: sm.oldestLeftDate.slice(0, 10), toDate: sm.businessDate.slice(0, 10) }).catch(() => null)
+        : []
       setPicks(p)
       setSummary(sm)
+      setOpenPicks(open)
       setDuplicates(dups)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load production.")
@@ -187,7 +232,7 @@ function EggSortingInner() {
   const loadSessions = useCallback(async () => {
     try {
       setSessions(await listEggSortingSessions({
-        fromDate: shiftBusinessDate(from, -30) ?? from, toDate: today,
+        fromDate: from ? shiftBusinessDate(from, -30) ?? from : undefined, toDate: today,
         status: sessionStatus === "all" ? undefined : sessionStatus,
       }))
     } catch (e) {
@@ -199,7 +244,14 @@ function EggSortingInner() {
   useEffect(() => { if (activeFarmId) void load() }, [activeFarmId, load])
   useEffect(() => { if (tab === "sessions" && activeFarmId) void loadSessions() }, [tab, activeFarmId, loadSessions])
 
-  const days = useMemo(() => groupProductionDays(picks ?? []), [picks])
+  // Production left, cut down to what Unsorted stock can still give: eggs
+  // sold or used unsorted are not shown as waiting to be sorted.
+  const sortable = useMemo(
+    () => (openPicks && summary ? sortableByRecord(groupProductionDays(openPicks), summary.unsortedOnHand) : new Map<number, number>()),
+    [openPicks, summary])
+  const days = useMemo(
+    () => groupProductionDays(picks ?? []).map((d) => capToSortable(d, sortable.get(d.productionRecordId))),
+    [picks, sortable])
   const flocks = useMemo(() => {
     const m = new Map<number, string>()
     for (const d of days) m.set(d.flockId, d.flockName)
@@ -307,7 +359,7 @@ function EggSortingInner() {
             </div>
             <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
               <Button size="sm" variant="outline" asChild>
-                <Link href={`/production-records/${d.productionRecordId}`}>View production</Link>
+                <Link href={`/production-records/${d.productionRecordId}?returnTo=${encodeURIComponent(returnHere)}`}>View production</Link>
               </Button>
               <Button size="sm" disabled={!canSort || !sortingOn || d.left <= 0} onClick={() => sortAll(d)}
                 className="bg-emerald-600 text-white hover:bg-emerald-700">
@@ -322,10 +374,11 @@ function EggSortingInner() {
             <Stat label="Production (saleable)" value={fmtCount(d.saleable)}
               sub={d.collectionLoss ? `${fmtCount(d.gross)} collected, ${fmtCount(d.collectionLoss)} broken/lost` : cratesText(d.saleable)} />
             <Stat label="Sorted" value={fmtCount(d.sorted)} />
-            <Stat label="Remaining" value={fmtCount(d.left)} tone={d.left > 0 ? "warn" : "good"} />
+            <Stat label="Can be sorted" value={fmtCount(d.left)} tone={d.left > 0 ? "warn" : "good"}
+              sub={d.soldUnsorted ? `${fmtCount(d.soldUnsorted)} sold unsorted` : undefined} />
             <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
               <div className="flex items-center justify-between text-[11px] uppercase tracking-wide text-slate-500">
-                Progress <StatusChip status={d.status} />
+                Progress <StatusChip status={d.status} sold={!!d.soldUnsorted && d.left <= 0 && d.sorted <= 0} />
               </div>
               <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100">
                 <div className={cn("h-full", d.left <= 0 ? "bg-emerald-500" : "bg-amber-500")} style={{ width: `${progress}%` }} />
@@ -342,12 +395,12 @@ function EggSortingInner() {
                 <div key={p.pickNumber} className="space-y-2 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-medium text-slate-900">{pickLabel(p.pickNumber, labels)}</span>
-                    <StatusChip status={pickStatus(p)} />
+                    <StatusChip status={pickStatus(p)} sold={!!d.soldUnsorted && left <= 0 && p.pickLeft > 0} />
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-center text-xs">
                     <div><div className="text-slate-500">Collected</div><div className="font-semibold tabular-nums text-slate-900">{fmtCount(p.pickGross)}</div></div>
                     <div><div className="text-slate-500">Sorted</div><div className="font-semibold tabular-nums text-slate-900">{fmtCount(p.pickSorted)}</div></div>
-                    <div><div className="text-slate-500">Remaining</div><div className={cn("font-semibold tabular-nums", left > 0 ? "text-amber-700" : "text-emerald-700")}>{fmtCount(left)}</div></div>
+                    <div><div className="text-slate-500">Can sort</div><div className={cn("font-semibold tabular-nums", left > 0 ? "text-amber-700" : "text-emerald-700")}>{fmtCount(left)}</div></div>
                   </div>
                   <Button size="sm" variant="outline" className="w-full" disabled={!canSort || !sortingOn || left <= 0}
                     onClick={() => setTarget({ mode: "ByPick", day: d, pick: p })}>
@@ -364,7 +417,7 @@ function EggSortingInner() {
                   <th className="px-3 py-2 font-medium">Pick</th>
                   <th className="px-3 py-2 text-right font-medium">Collected</th>
                   <th className="px-3 py-2 text-right font-medium">Sorted</th>
-                  <th className="px-3 py-2 text-right font-medium">Remaining</th>
+                  <th className="px-3 py-2 text-right font-medium">Can be sorted</th>
                   <th className="px-3 py-2 font-medium">Status</th>
                   <th className="px-3 py-2" />
                 </tr>
@@ -378,7 +431,7 @@ function EggSortingInner() {
                       <td className="px-3 py-2 text-right tabular-nums">{fmtCount(p.pickGross)}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{fmtCount(p.pickSorted)}</td>
                       <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtCount(left)}</td>
-                      <td className="px-3 py-2"><StatusChip status={pickStatus(p)} /></td>
+                      <td className="px-3 py-2"><StatusChip status={pickStatus(p)} sold={!!d.soldUnsorted && left <= 0 && p.pickLeft > 0} /></td>
                       <td className="px-3 py-2 text-right">
                         <Button size="sm" variant="outline" disabled={!canSort || !sortingOn || left <= 0}
                           onClick={() => setTarget({ mode: "ByPick", day: d, pick: p })}>
@@ -391,6 +444,12 @@ function EggSortingInner() {
               </tbody>
             </table>
           </div>
+          {!!d.soldUnsorted && (
+            <p className="text-xs text-slate-500">
+              {fmtCount(d.soldUnsorted)} of this day&apos;s eggs were sold or used unsorted, so they cannot be sorted.
+              Sold eggs are counted from the oldest days first.
+            </p>
+          )}
           {d.collectionLoss > 0 && (
             <p className="text-xs text-slate-500">
               Broken, meaty, soft and lost eggs are recorded for the whole day, not per pick, so the day can be sorted up to its {fmtCount(d.saleable)} saleable eggs.
@@ -450,6 +509,8 @@ function EggSortingInner() {
   })()
 
   const unsortedClass = classes.find((c) => c.classKind === "Unsorted")
+  // Where "View production" comes back to: this page, on the same record.
+  const returnHere = recordParam ? `/poultry-egg-sorting?record=${recordParam}` : "/poultry-egg-sorting"
   const remainingToSort = summary ? Math.min(summary.productionLeft, Math.max(0, Math.trunc(summary.unsortedOnHand))) : 0
 
   return (
@@ -465,7 +526,7 @@ function EggSortingInner() {
                   <Egg className="h-5 w-5 text-amber-700" />
                 </div>
                 <div>
-                  <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Egg Sorting Workspace</h1>
+                  <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Egg Sorting</h1>
                   <p className="text-sm text-slate-600">
                     Sort collected eggs into sizes — one pick at a time, or everything at once. Sorting never creates eggs:
                     it moves them from Unsorted into sizes, and records what was lost.
@@ -525,11 +586,11 @@ function EggSortingInner() {
 
             <Tabs value={tab} onValueChange={setTab}>
               {/* Phone: a 2 x 2 grid, so every tab is visible without scrolling. */}
-              <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:inline-flex sm:h-9 sm:w-auto sm:gap-0">
-                <TabsTrigger value="workspace">Workspace</TabsTrigger>
-                <TabsTrigger value="sessions">Sortings</TabsTrigger>
-                <TabsTrigger value="reports">Size reports</TabsTrigger>
-                <TabsTrigger value="settings">Sizes &amp; settings</TabsTrigger>
+              <TabsList className="grid h-auto w-full grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-100 p-1.5 sm:inline-flex sm:w-auto">
+                <TabsTrigger value="workspace" className={cn(TAB_BASE, TAB_STYLE.workspace)}><Egg className="h-4 w-4" /> Workspace</TabsTrigger>
+                <TabsTrigger value="sessions" className={cn(TAB_BASE, TAB_STYLE.sessions)}><History className="h-4 w-4" /> Sortings</TabsTrigger>
+                <TabsTrigger value="reports" className={cn(TAB_BASE, TAB_STYLE.reports)}><BarChart3 className="h-4 w-4" /> Size reports</TabsTrigger>
+                <TabsTrigger value="settings" className={cn(TAB_BASE, TAB_STYLE.settings)}><Settings2 className="h-4 w-4" /> Sizes &amp; settings</TabsTrigger>
               </TabsList>
 
               {/* ------------------------------------------------- workspace */}
@@ -543,14 +604,25 @@ function EggSortingInner() {
                   </Card>
                 ) : (
                   <Card className="rounded-xl border border-slate-200 bg-white shadow-sm">
-                    <CardContent className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5">
+                    <CardContent className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-6">
+                      <div className="space-y-1">
+                        <Label className="text-xs text-slate-500">Month</Label>
+                        <Select value={month} onValueChange={pickMonth}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All months</SelectItem>
+                            {month === "custom" && <SelectItem value="custom">Custom dates</SelectItem>}
+                            {monthOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
                       <div className="space-y-1">
                         <Label className="text-xs text-slate-500">Production from</Label>
-                        <Input type="date" value={from} max={to} onChange={(e) => toBusinessDate(e.target.value) && setFrom(e.target.value)} />
+                        <Input type="date" value={from} max={to || today} onChange={(e) => { setFrom(toBusinessDate(e.target.value) ? e.target.value : ""); setMonth("custom") }} />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs text-slate-500">Production to</Label>
-                        <Input type="date" value={to} min={from} max={today} onChange={(e) => toBusinessDate(e.target.value) && setTo(e.target.value)} />
+                        <Input type="date" value={to} min={from || undefined} max={today} onChange={(e) => { setTo(toBusinessDate(e.target.value) ? e.target.value : ""); setMonth("custom") }} />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs text-slate-500">Flock</Label>
@@ -567,7 +639,7 @@ function EggSortingInner() {
                         <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="open">Eggs left to sort</SelectItem>
+                            <SelectItem value="open">Can be sorted</SelectItem>
                             <SelectItem value="all">All</SelectItem>
                             <SelectItem value="NotStarted">Not started</SelectItem>
                             <SelectItem value="Partial">Partial</SelectItem>
@@ -590,7 +662,9 @@ function EggSortingInner() {
                     <CardContent className="p-6 text-center text-sm text-slate-500">
                       {days.length === 0
                         ? "No production recorded in this period. Eggs appear here once a production record is saved — sorting never needs one of its own."
-                        : "Nothing matches these filters."}
+                        : statusFilter === "open"
+                          ? "Nothing left to sort here — every egg was sorted, or sold before it could be. Set Status to All to see these days."
+                          : "Nothing matches these filters."}
                     </CardContent>
                   </Card>
                 )}
@@ -652,7 +726,7 @@ function EggSortingInner() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <p className="pb-2 text-xs text-slate-500">Last 30 days before {formatLongDate(from)} to today.</p>
+                  <p className="pb-2 text-xs text-slate-500">{from ? <>Last 30 days before {formatLongDate(from)} to today.</> : "All sortings."}</p>
                 </div>
                 {!sessions && <p className="flex items-center gap-2 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</p>}
                 {sessions && sessions.length === 0 && <p className="text-sm text-slate-500">No sortings yet.</p>}
@@ -786,7 +860,7 @@ function EggSortingInner() {
               {/* --------------------------------------------------- reports */}
               <TabsContent value="reports" className="mt-4">
                 {tab === "reports" && (
-                  <CompositionReport from={shiftBusinessDate(today, -29) ?? from} to={today}
+                  <CompositionReport from={shiftBusinessDate(today, -29) ?? today} to={today}
                     flockId={flockFilter === "all" ? null : Number(flockFilter)} />
                 )}
               </TabsContent>

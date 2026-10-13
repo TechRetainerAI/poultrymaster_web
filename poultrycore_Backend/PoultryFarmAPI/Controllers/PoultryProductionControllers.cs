@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 
@@ -81,7 +81,28 @@ namespace PoultryFarmAPIWeb.Controllers
             => string.IsNullOrWhiteSpace(farmId) ? BadRequest("Company ID is required.") : Ok(await _svc.GetTransactionsAsync(farmId, productId));
 
         [HttpPost("transactions")] public async Task<ActionResult<int>> AddTransaction([FromBody] PoultryStockTransactionModel m)
-        { if (string.IsNullOrWhiteSpace(m.FarmId)) return BadRequest("Company ID is required."); var id = await _svc.AddTransactionAsync(m); return Ok(new { poultryStockTransactionId = id }); }
+        {
+            if (string.IsNullOrWhiteSpace(m.FarmId)) return BadRequest("Company ID is required.");
+            try { var id = await _svc.AddTransactionAsync(m); return Ok(new { poultryStockTransactionId = id }); }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001") { return BadRequest(new { message = ex.MessageText }); }
+        }
+
+        // 359: birds are adjusted for one flock, or for a batch's birds not yet
+        // placed in a flock -- never as a bare ledger row, which no bird count reads.
+        [HttpGet("birds/options")] public async Task<ActionResult<IEnumerable<PoultryBirdAdjustmentOption>>> GetBirdOptions([FromQuery] string farmId)
+            => string.IsNullOrWhiteSpace(farmId) ? BadRequest("Company ID is required.") : Ok(await _svc.GetBirdAdjustmentOptionsAsync(farmId));
+
+        [HttpGet("birds/adjustments")] public async Task<ActionResult<IEnumerable<PoultryBirdAdjustmentModel>>> GetBirdAdjustments([FromQuery] string farmId)
+            => string.IsNullOrWhiteSpace(farmId) ? BadRequest("Company ID is required.") : Ok(await _svc.GetBirdAdjustmentsAsync(farmId));
+
+        [HttpPost("birds/adjustments")] public async Task<IActionResult> PostBirdAdjustment([FromBody] PoultryBirdAdjustmentRequest m)
+        {
+            if (string.IsNullOrWhiteSpace(m.FarmId)) return BadRequest("Company ID is required.");
+            if (m.BatchId <= 0) return BadRequest(new { message = "Choose the batch." });
+            if (m.Quantity == 0) return BadRequest(new { message = "Enter how many birds to adjust." });
+            try { var id = await _svc.PostBirdAdjustmentAsync(m); return Ok(new { birdAdjustmentId = id }); }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001") { return BadRequest(new { message = ex.MessageText }); }
+        }
     }
 
     [ApiController]
