@@ -6,6 +6,7 @@ import '../models/company.dart';
 import '../design/tokens.dart';
 import '../design/web_mobile.dart';
 import '../state/session.dart';
+import '../pages/poultry/farm_alerts_screen.dart';
 import '../widgets/app_header.dart';
 import '../widgets/company_switcher_sheet.dart';
 
@@ -36,6 +37,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _loading = true;
   String? _error;
 
+  /// The Farm Alerts bell's number (Poultry only); null while unknown.
+  int? _alertCount;
+
+  Future<void> _loadAlertCount() async {
+    final company = widget.session.active;
+    if (company == null || company.type != CompanyType.poultry) {
+      if (mounted) setState(() => _alertCount = null);
+      return;
+    }
+    final b = await loadFarmAlertBreakdown(widget.session, company);
+    if (mounted) setState(() => _alertCount = b.total);
+  }
+
+  Future<void> _openFarmAlerts() async {
+    final company = widget.session.active;
+    if (company == null) return;
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => FarmAlertsScreen(session: widget.session, company: company),
+    ));
+    _loadAlertCount();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -45,6 +68,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _load() async {
     final company = widget.session.active;
     if (company == null) return;
+    _loadAlertCount();
     setState(() {
       _loading = true;
       _error = null;
@@ -113,6 +137,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       appBar: WebAppHeader(
         onMenu: widget.onMenu ?? () {},
         onAvatar: _switchCompany,
+        onAlerts: company.type == CompanyType.poultry ? _openFarmAlerts : null,
+        alertCount: _alertCount,
       ),
       body: Column(
         children: [

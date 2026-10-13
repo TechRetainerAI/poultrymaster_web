@@ -106,6 +106,8 @@ void main() {
     expect(find.text('Resolve'), findsOneWidget);
     expect(closingActionHref('missing-production', '2026-10-02'), '/poultry-farm-completeness?date=2026-10-02');
     expect(closingActionHref('previous-day', '2026-10-01'), '/poultry-daily-closing?date=2026-09-30');
+    expect(closingActionHref('inventory', '2026-10-01'), '/poultry-supply-purchases');
+    expect(closingActionHref('egg-sorting', '2026-10-01'), '/poultry-egg-sorting');
     expect(closingActionHref('mystery', '2026-10-01'), isNull);
 
     await tester.tap(find.text('Review'));

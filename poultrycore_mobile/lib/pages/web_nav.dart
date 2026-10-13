@@ -159,10 +159,16 @@ const Map<String, List<NavGroup>> webNavGroups = {
     NavGroup('Tools', [
       NavSubGroup('Tools', [
         NavLink('Initial Farm Setup', '/poultry-farm-setup', null),
+        NavLink('Flock Closeout', '/flock-closeout', null),
+        NavLink('Flock Lifecycle', '/poultry-lifecycle', null),
         NavLink('Farm Completeness', '/poultry-farm-completeness', null),
         NavLink('Daily Closing', '/poultry-daily-closing', 'poultry-daily-closings'),
         NavLink('Distribute Feed', '/poultry-feed-distribution', null),
-        NavLink('Days of Supply', '/poultry-days-of-supply', null),
+        NavLink('Treatment Campaigns', '/poultry-treatment-campaigns', null),
+        NavLink('Inventory Restock Forecast', '/poultry-restock-forecast', null),
+        NavLink('Flock Alerts', '/poultry-flock-alerts', null),
+        NavLink('Farm Alerts', '/poultry-alerts', null),
+        NavLink('Receive Purchase', '/poultry-purchase-receipts', null),
       ]),
     ]),
     NavGroup('Setup', [

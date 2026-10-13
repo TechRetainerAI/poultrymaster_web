@@ -109,17 +109,49 @@ void main() {
 
       expect(find.text("TODAY'S FARM COMPLETENESS"), findsOneWidget);
       expect(find.textContaining('3 / 4 recorded', findRichText: true), findsOneWidget);
-      expect(find.text('Record 2 days'), findsOneWidget);
+      expect(find.text('Record batch(2)'), findsOneWidget);
       expect(find.text('Next day'), findsNothing);
+      expect(find.textContaining('B-001 · Pen 1 · last '), findsOneWidget);
+      // Hidden on the web's full page: the list is always open.
+      expect(find.text('Show missing'), findsNothing);
+      expect(find.text('Hide missing'), findsNothing);
+      expect(find.text('Complete Missing Production'), findsNothing);
 
-      await tester.tap(find.text('Flock A'));
-      await tester.pumpAndSettle();
+      // Each flock's missing days are open by default; tapping closes them.
       expect(find.text('↳ Thu, Oct 1'), findsOneWidget);
       expect(find.text('1 missing day in the last 30 days.'), findsOneWidget);
+      await tester.tap(find.text('Flock A'));
+      await tester.pumpAndSettle();
+      expect(find.text('↳ Thu, Oct 1'), findsNothing);
 
       await tester.tap(find.text('By date'));
       await tester.pumpAndSettle();
       expect(find.text('Record batch (1)'), findsOneWidget);
+    });
+
+    testWidgets('earlier-only flocks under their heading, and the unsorted-eggs note (344)', (tester) async {
+      final r = report('2026-10-02', backlog: 1);
+      ((r['checks'] as List)).add({
+        'key': 'poultry.eggs.unsorted', 'status': 'Incomplete', 'outstandingCount': 1, 'severityReason': null,
+        'counters': {'eggs': 1200},
+      });
+      final api = FakeApi()
+        ..gets['/api/ActivityChecks'] = r
+        ..gets['/api/ActivityChecks/production/missing-by-date'] = {
+          'businessDate': '2026-10-02', 'windowDays': 30,
+          'entries': [
+            {'date': '2026-09-29T00:00:00', 'flockId': 9, 'flockName': 'Flock Z', 'batchName': 'B-009', 'houseName': 'Pen 9'},
+            {'date': '2026-09-28T00:00:00', 'flockId': 9, 'flockName': 'Flock Z', 'batchName': 'B-009', 'houseName': 'Pen 9'},
+          ],
+        };
+      await open(tester, FarmCompletenessScreen(session: await sessionFor(api), company: company), size: phone);
+
+      expect(find.text('1,200 eggs from earlier days are still unsorted.'), findsOneWidget);
+      expect(find.text('Sort eggs'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('Flock Z'), 200, scrollable: find.byType(Scrollable).first);
+      expect(find.text('EARLIER DAYS MISSING'), findsOneWidget);
+      expect(find.text('2 days earlier'), findsOneWidget);
+      expect(find.text('Record batch(2)'), findsNWidgets(2));
     });
 
     testWidgets('the previous day is asked for by date; today is left to the server', (tester) async {

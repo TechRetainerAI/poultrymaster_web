@@ -98,11 +98,14 @@ String? closingActionHref(Object? action, Object? businessDate) {
     case 'cash-count':
       return '/poultry-cash-reconciliation';
     case 'inventory':
-      return '/poultry-raw-materials';
+      return '/poultry-supply-purchases';
     case 'customer-balances':
       return date != null ? '/sales?date=$date' : '/customer-balances';
     case 'driver-returns':
       return date != null ? '/poultry-driver-returns?date=$date' : '/poultry-driver-returns';
+    // 343: the day's eggs not yet sorted (only when the farm sorts).
+    case 'egg-sorting':
+      return '/poultry-egg-sorting';
     case 'previous-day':
       final prev = date != null ? shiftBusinessDate(date, -1) : null;
       return prev != null ? '/poultry-daily-closing?date=$prev' : null;
