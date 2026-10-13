@@ -58,7 +58,13 @@ const MOVE_COLORS: Record<string, string> = {
   Decrease: "bg-amber-100 text-amber-700", Sale: "bg-blue-100 text-blue-700", Return: "bg-amber-100 text-amber-700",
   "Damage/Loss": "bg-red-100 text-red-700", "Delivery Load": "bg-indigo-100 text-indigo-700", "Delivery Return": "bg-amber-100 text-amber-700",
   "Bird Adjustment": "bg-violet-100 text-violet-700",
+  "Sale Reversal": "bg-sky-100 text-sky-800", "Bird Sale": "bg-blue-100 text-blue-700",
+  "Sorting In": "bg-teal-100 text-teal-800", "Sorting Out": "bg-orange-100 text-orange-800", "Sorting Reversal": "bg-slate-200 text-slate-800",
+  "Egg Loss": "bg-red-100 text-red-700", "Internal Use": "bg-amber-100 text-amber-800", Opening: "bg-slate-200 text-slate-800",
 }
+// Any movement type not listed above: dark text on grey. The Badge's own
+// default text is white, so a background-only fallback was unreadable.
+const MOVE_COLOR_FALLBACK = "bg-slate-200 text-slate-800"
 
 // "flock" select value for a batch's birds not yet placed in any flock.
 const UNPLACED = "unplaced"
@@ -411,7 +417,7 @@ export default function PoultryStockPage() {
                         <TableCell>{fmtDateTime(m.date, m)}</TableCell>
                         <TableCell className="font-medium">{m.item}</TableCell>
                         <TableCell><Badge className={m.parentType === "Finished Product" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-700"}>{m.parentType}</Badge></TableCell>
-                        <TableCell><Badge className={MOVE_COLORS[m.movementType] ?? "bg-gray-100"}>{m.movementType}</Badge></TableCell>
+                        <TableCell><Badge className={MOVE_COLORS[m.movementType] ?? MOVE_COLOR_FALLBACK}>{m.movementType}</Badge></TableCell>
                         <TableCell className={`text-right ${m.qty < 0 ? "text-red-600" : "text-green-700"}`}>{m.qty > 0 ? "+" : ""}{m.qty.toLocaleString()}</TableCell>
                         <TableCell className="text-right">{m.unitCost != null ? gh(m.unitCost) : "—"}</TableCell>
                         <TableCell className="text-right">{m.total != null ? gh(m.total) : "—"}</TableCell>
@@ -426,7 +432,7 @@ export default function PoultryStockPage() {
                 {sortedMoves.length === 0 ? <div className="text-center text-slate-500 py-6">No stock movements yet.</div>
                   : pg.pageItems.map((m) => (
                     <FieldCard key={m.key} title={m.item}
-                      badge={<Badge className={MOVE_COLORS[m.movementType] ?? "bg-gray-100"}>{m.movementType}</Badge>}
+                      badge={<Badge className={MOVE_COLORS[m.movementType] ?? MOVE_COLOR_FALLBACK}>{m.movementType}</Badge>}
                       fields={[["Date", fmtDateTime(m.date, m)], ["Type", m.parentType], ["Qty", <span className={m.qty < 0 ? "text-red-600" : "text-green-700"}>{m.qty > 0 ? "+" : ""}{m.qty.toLocaleString()}</span>], ["Unit price", m.unitCost != null ? gh(m.unitCost) : "—"], ["Total", m.total != null ? gh(m.total) : "—"], ["Source", m.source]]} />
                   ))}
               </div>

@@ -284,6 +284,12 @@ namespace PoultryFarmAPIWeb.Models
         /// key returns the sale already posted instead of posting a second.
         /// </summary>
         public string? RequestKey { get; set; }
+        /// <summary>
+        /// Part payment: with Paid = false, the amount the customer paid at the
+        /// counter. Recorded as ONE customer payment in the same transaction as
+        /// the sale; the rest stays owed. Needs a customer (a walk-in cannot owe).
+        /// </summary>
+        public decimal? AmountPaidNow { get; set; }
         public List<SaleGroupLine> Lines { get; set; } = new();
     }
 

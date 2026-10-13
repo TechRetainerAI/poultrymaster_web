@@ -761,6 +761,8 @@ export interface SaleGroupInput {
   correctsSaleId?: number | null
   /** 358: one id per Add Sale form; a retry with the same key returns the sale already posted. */
   requestKey?: string | null
+  /** Part payment: with paid = false, what the customer paid now. The rest stays owed. */
+  amountPaidNow?: number | null
   lines: SaleGroupLineInput[]
 }
 
