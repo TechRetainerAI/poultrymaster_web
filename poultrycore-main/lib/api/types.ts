@@ -49,6 +49,22 @@ export interface ReportRequest {
 }
 
 // Sale types
+/**
+ * One product / egg class inside a sale (migration 358). Display data: a line
+ * is never a sale of its own -- payments, balances and reversal act on the sale.
+ */
+export interface SaleLine {
+  saleLineId: number
+  lineNo: number
+  product: string
+  /** Egg class on this line; null = Unsorted / General. */
+  eggProductId?: number | null
+  size?: string | null
+  quantity: number
+  unitPrice: number
+  totalAmount: number
+}
+
 export interface Sale {
   farmId: string
   userId: string
@@ -73,7 +89,7 @@ export interface Sale {
   poultryCashAccountId?: number | null
   /** Egg class sold (migration 341): a sized egg product, null = Unsorted / General. */
   eggProductId?: number | null
-  /** Sale number shared by the lines of one multi-size sale (SG-00001). */
+  /** The sale number (SG-00001) of a sale entered through Add Sale with lines. */
   saleGroupNo?: string | null
   createdDate: string
   /** 351: Posted | Reversed. A sale posts when it is saved and is never edited afterwards. */
@@ -86,6 +102,10 @@ export interface Sale {
   correctsSaleId?: number | null
   /** On a reversed sale: the sale that corrected it. */
   correctedBySaleId?: number | null
+  /** 358: number of lines (1 for an ordinary sale). */
+  lineCount?: number
+  /** 358: what was sold inside the sale, in entry order. */
+  lines?: SaleLine[]
 }
 
 export interface SaleInput {

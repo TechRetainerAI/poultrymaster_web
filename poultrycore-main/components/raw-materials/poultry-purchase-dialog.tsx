@@ -27,13 +27,18 @@ import {
   type PoultryRawMaterialItem, type PoultryRawMaterialPurchase,
 } from "@/lib/api/poultry-inventory"
 import type { PoultryCashAccount } from "@/lib/api/poultry-finance"
+import { getSuppliers, type Supplier } from "@/lib/api/supplier"
+import { getUserContext } from "@/lib/utils/user-context"
 
 const PAYMENT_METHODS = ["Cash", "MoMo", "Bank", "Credit"]
+/** Select value for an older purchase whose typed supplier name matches no supplier. */
+const LEGACY_SUPPLIER = "__legacy"
 const roCls = "bg-slate-100 text-slate-600 font-medium pointer-events-none cursor-default border-dashed"
 
 const EMPTY_PURCHASE = {
   poultryRawMaterialItemId: 0,
   supplierName: "",
+  supplierId: 0,
   purchaseDate: new Date().toISOString().split("T")[0],
   quantity: 0,
   unitCost: 0,
@@ -89,6 +94,31 @@ export function PoultryPurchaseDialog({
 
   const itemById = useMemo(() => new Map(items.map((i) => [i.poultryRawMaterialItemId, i])), [items])
 
+  // Picked from the supplier list, like an expense, so the purchase lands on
+  // that supplier in Supplier Balances. Loaded here so every page that opens
+  // this dialog gets the same list.
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  useEffect(() => {
+    if (!open) return
+    const { userId, farmId } = getUserContext()
+    if (!userId || !farmId) return
+    getSuppliers(userId, farmId)
+      .then((r) => setSuppliers(r.success && r.data ? r.data : []))
+      .catch(() => setSuppliers([]))
+  }, [open])
+
+  // An older purchase saved only a typed name: link it when the name matches
+  // a supplier, so editing it does not drop the supplier.
+  useEffect(() => {
+    if (!open || f.supplierId || !f.supplierName.trim()) return
+    const match = suppliers.find((x) => x.name.trim().toLowerCase() === f.supplierName.trim().toLowerCase())
+    if (match) setF((prev) => ({ ...prev, supplierId: match.supplierId, supplierName: match.name }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, suppliers])
+  const supplierSelectValue = f.supplierId
+    ? String(f.supplierId)
+    : f.supplierName.trim() ? LEGACY_SUPPLIER : "none"
+
   // Build the form each time the dialog opens, so a reopen never inherits the
   // last one's figures. Deliberately keyed on `open` alone — retyped values
   // must survive the items/accounts arrays refreshing underneath.
@@ -101,6 +131,7 @@ export function PoultryPurchaseDialog({
       setF({
         poultryRawMaterialItemId: editing.poultryRawMaterialItemId,
         supplierName: editing.supplierName ?? "",
+        supplierId: editing.supplierId ?? 0,
         purchaseDate: (editing.purchaseDate || "").split("T")[0] || new Date().toISOString().split("T")[0],
         quantity: editing.quantity, unitCost: editing.unitCost, totalPurchaseCost: editing.totalCost,
         purchaseUnit: editing.unitOfMeasure ?? "", productionUnit: editing.productionUnit ?? "",
@@ -137,6 +168,7 @@ export function PoultryPurchaseDialog({
     const payload = {
       poultryRawMaterialItemId: f.poultryRawMaterialItemId,
       supplierName: f.supplierName || null,
+      supplierId: f.supplierId || null,
       purchaseDate: f.purchaseDate,
       quantity: f.quantity,
       unitCost: f.quantity > 0 ? Number((total / f.quantity).toFixed(4)) : f.unitCost,
@@ -198,7 +230,30 @@ export function PoultryPurchaseDialog({
               <SelectContent>{items.filter((i) => i.isActive).map((i) => <SelectItem key={i.poultryRawMaterialItemId} value={String(i.poultryRawMaterialItemId)}>{i.itemName}{i.unitOfMeasure ? ` (${i.unitOfMeasure})` : ""}</SelectItem>)}</SelectContent>
             </Select>
           </FormField>
-          <FormField label="Supplier" full><Input value={f.supplierName} onChange={(e) => setF({ ...f, supplierName: e.target.value })} placeholder="Supplier name" /></FormField>
+          <FormField label="Supplier" full>
+            <Select
+              value={supplierSelectValue}
+              onValueChange={(v) => {
+                if (v === LEGACY_SUPPLIER) return
+                const sup = suppliers.find((x) => String(x.supplierId) === v)
+                setF({ ...f, supplierId: sup?.supplierId ?? 0, supplierName: sup?.name ?? "" })
+              }}
+            >
+              <SelectTrigger><SelectValue placeholder="Not linked to a supplier" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Not linked to a supplier</SelectItem>
+                {supplierSelectValue === LEGACY_SUPPLIER && (
+                  <SelectItem value={LEGACY_SUPPLIER}>{f.supplierName} (typed — linked or added as a supplier when saved)</SelectItem>
+                )}
+                {suppliers.map((sup) => (
+                  <SelectItem key={sup.supplierId} value={String(sup.supplierId)}>{sup.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {f.paymentMethod === "Credit" && !f.supplierId && (
+              <p className="mt-1 text-xs text-amber-700">Pick a supplier if you want what is owed on this purchase to appear in Supplier Balances.</p>
+            )}
+          </FormField>
           <FormField label="Purchase date"><Input type="date" value={f.purchaseDate} onChange={(e) => setF({ ...f, purchaseDate: e.target.value })} /></FormField>
           <FormField label="Payment method">
             <Select value={f.paymentMethod} onValueChange={(v) => setF({ ...f, paymentMethod: v })}>
@@ -272,7 +327,14 @@ export function PoultryPurchaseDialog({
         </FormSection>
 
         <FormSection title="Payment" color="amber">
-          <FormField label="Amount paid"><NumberInput min={0} step="0.01" value={f.amountPaid} onChange={(e) => { setAmountPaidTouched(true); setF({ ...f, amountPaid: Number(e.target.value) || 0 }) }} /></FormField>
+          <FormField label="Amount paid">
+            <NumberInput min={0} step="0.01" value={f.amountPaid} onChange={(e) => { setAmountPaidTouched(true); setF({ ...f, amountPaid: Number(e.target.value) || 0 }) }} />
+            <p className="mt-1 text-xs text-slate-500">
+              {editing
+                ? "Once paid, change payments in Supplier Payments (Pay balance, or reverse a payment)."
+                : "Recorded as a supplier payment, so it appears in Supplier Payments."}
+            </p>
+          </FormField>
           <FormField label="Pay from cash account">
             <Select value={f.poultryCashAccountId ? String(f.poultryCashAccountId) : "none"} onValueChange={(v) => setF({ ...f, poultryCashAccountId: v === "none" ? 0 : Number(v) })}>
               <SelectTrigger><SelectValue placeholder="None (no cash movement)" /></SelectTrigger>

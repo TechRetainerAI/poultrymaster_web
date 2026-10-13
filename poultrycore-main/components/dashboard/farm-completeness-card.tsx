@@ -16,7 +16,7 @@
 // Dates: report.businessDate is the company's day, from the server. The browser
 // clock is never consulted.
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react"
+import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, ClipboardCheck, Loader2, RefreshCw } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
@@ -206,7 +206,7 @@ export function FarmCompletenessCard({
     <Card className={cn("rounded-xl border border-l-4 border-slate-200 bg-white shadow-sm", style.accent)}>
       <CardContent className="p-3 sm:p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex min-w-0 items-start gap-3">
+          <div className={cn("flex min-w-0 items-start gap-3", !compact && "flex-1")}>
             <div
               className={cn(
                 "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
@@ -217,10 +217,73 @@ export function FarmCompletenessCard({
                 ? <AlertTriangle className="h-5 w-5 text-white" />
                 : <ClipboardCheck className="h-5 w-5 text-white" />}
             </div>
-            <div className="min-w-0">
-              <p className="text-xs font-medium uppercase tracking-wider text-slate-500">{title}</p>
+            <div className="min-w-0 flex-1">
+              <p className={cn("font-medium uppercase tracking-wider", compact ? "text-xs text-slate-500" : "text-sm text-slate-700")}>{title}</p>
               {notApplicable ? (
                 <p className="mt-1 text-sm text-slate-600">No active flocks are expected to report production.</p>
+              ) : !compact ? (
+                // Full page: one coloured tile per figure, so today, earlier
+                // days and unsorted eggs read as separate things to do.
+                <div className="mt-2 space-y-2">
+                  <span className={cn("inline-block rounded-full border px-2 py-0.5 text-xs font-medium", style.badge)}>
+                    {style.label}
+                  </span>
+                  <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+                    <Tile
+                      tone={missing > 0 ? "amber" : "emerald"}
+                      label={isToday ? "Today" : formatShortDate(businessDate)}
+                      value={completenessHeadline(production)}
+                      sub="flocks recorded"
+                    />
+                    <Tile
+                      tone={missing > 0 ? "rose" : "emerald"}
+                      label={isToday ? "Missing today" : "Missing this day"}
+                      value={String(missing)}
+                      sub={missing > 0 ? `production record${missing === 1 ? "" : "s"}` : "nothing missing"}
+                    />
+                    <Tile
+                      tone={backlogFlockDays > 0 ? "rose" : "emerald"}
+                      label="Earlier days"
+                      value={String(backlogFlockDays)}
+                      sub={backlogFlockDays > 0
+                        ? `missing across ${backlogDates} day${backlogDates === 1 ? "" : "s"}`
+                        : "all caught up"}
+                    />
+                    {unsorted && unsorted.outstandingCount > 0 && (() => {
+                      const oldest = Math.max(0, ...unsorted.items.map((i) => i.daysOutstanding ?? 0))
+                      return (
+                        <Tile
+                          tone="sky"
+                          label="Unsorted eggs"
+                          value={(unsorted.counters?.eggs ?? 0).toLocaleString()}
+                          sub={<>
+                            {oldest >= 1 ? `oldest ${oldest} day${oldest === 1 ? "" : "s"} old · ` : ""}
+                            <Link href="/poultry-egg-sorting" className="font-semibold underline">Sort eggs</Link>
+                          </>}
+                        />
+                      )
+                    })()}
+                  </div>
+                  {missing === 0 && backlogDates === 0 ? (
+                    <p className="flex items-center gap-1.5 text-sm text-emerald-700">
+                      <CheckCircle2 className="h-4 w-4" /> All expected flock production has been recorded.
+                    </p>
+                  ) : backlogDates === 0 && production.severityReason ? (
+                    <p className="text-xs text-slate-500">{production.severityReason}</p>
+                  ) : null}
+                  {awaitingPosting > 0 && (
+                    <p className="text-xs text-slate-500">
+                      {awaitingPosting} of these {awaitingPosting === 1 ? "is" : "are"} in a batch production entry
+                      that has not been posted yet.
+                    </p>
+                  )}
+                  {duplicateFlocks > 0 && (
+                    <p className="text-xs text-amber-700">
+                      {duplicateFlocks} flock{duplicateFlocks === 1 ? " has" : "s have"} more than one production
+                      record for this day.
+                    </p>
+                  )}
+                </div>
               ) : (
                 <>
                   <div className="mt-1 flex flex-wrap items-baseline gap-x-4 gap-y-1">
@@ -507,5 +570,23 @@ export function FarmCompletenessCard({
         )}
       </CardContent>
     </Card>
+  )
+}
+
+const TILE_TONE = {
+  emerald: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  amber: "border-amber-200 bg-amber-50 text-amber-700",
+  rose: "border-rose-200 bg-rose-50 text-rose-700",
+  sky: "border-sky-200 bg-sky-50 text-sky-700",
+} as const
+
+/** One figure on the full-page summary: label, big number, a line under it. */
+function Tile({ tone, label, value, sub }: { tone: keyof typeof TILE_TONE; label: string; value: string; sub: ReactNode }) {
+  return (
+    <div className={cn("rounded-lg border px-3 py-2", TILE_TONE[tone])}>
+      <div className="text-[11px] font-semibold uppercase tracking-wide opacity-80">{label}</div>
+      <div className="text-xl font-bold tabular-nums leading-tight">{value}</div>
+      <div className="text-xs opacity-90">{sub}</div>
+    </div>
   )
 }

@@ -8,7 +8,7 @@
 //   input = sized eggs + losses,  remaining after = available - input.
 
 import { useEffect, useMemo, useState } from "react"
-import { Loader2 } from "lucide-react"
+import { ListChecks, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -198,13 +198,33 @@ export function SortEggsDialog({
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,2fr)_11rem_minmax(0,1fr)] lg:items-start">
-              <div className="min-w-0 space-y-1">
-                <Label className="text-[11px] uppercase tracking-wide text-slate-500">
-                  Eggs from <span className="block normal-case tracking-normal sm:inline">— oldest used first (earliest day, then pick)</span>
-                </Label>
-                <div className="max-h-32 divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200">
+              <div className="min-w-0 space-y-2 rounded-xl border-2 border-amber-300 bg-amber-50/60 p-3">
+                <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+                  <div className="flex items-start gap-2">
+                    <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-amber-500 text-white">
+                      <ListChecks className="h-4 w-4" />
+                    </span>
+                    <div>
+                      <Label className="text-sm font-semibold text-amber-800">Days to sort together</Label>
+                      <p className="text-xs font-medium text-amber-700">Tick two or more days to sort them in one go.</p>
+                    </div>
+                  </div>
+                  {allDays.length > 1 && (() => {
+                    const openIds = allDays.filter((d) => d.left > 0).map((d) => d.productionRecordId)
+                    return (
+                      <div className="flex gap-1 text-xs">
+                        <button type="button" className="rounded-md bg-amber-500 px-2.5 py-1 font-semibold text-white hover:bg-amber-600 disabled:opacity-40"
+                          disabled={openIds.every((id) => scope.has(id))} onClick={() => setScope(new Set(openIds))}>Select all</button>
+                        <button type="button" className="rounded-md border border-slate-300 bg-white px-2.5 py-1 font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+                          disabled={scope.size === 0} onClick={() => setScope(new Set())}>Clear</button>
+                      </div>
+                    )
+                  })()}
+                </div>
+                <div className="max-h-32 divide-y divide-amber-100 overflow-y-auto rounded-lg border border-amber-200 bg-white">
                   {allDays.map((d) => (
-                    <label key={d.productionRecordId} className={cn("flex items-center gap-3 px-3 py-1.5 text-sm", d.left <= 0 && "opacity-60")}>
+                    <label key={d.productionRecordId} className={cn("flex cursor-pointer items-center gap-3 px-3 py-1.5 text-sm",
+                      scope.has(d.productionRecordId) && "bg-amber-100/70", d.left <= 0 && "opacity-60")}>
                       <Checkbox
                         checked={scope.has(d.productionRecordId)}
                         disabled={d.left <= 0 && !scope.has(d.productionRecordId)}
@@ -223,6 +243,11 @@ export function SortEggsDialog({
                     </label>
                   ))}
                 </div>
+                <p className="text-xs text-slate-600">
+                  <b className="text-amber-800">{scope.size} of {allDays.length}</b> day{allDays.length === 1 ? "" : "s"} ticked
+                  · <b className="tabular-nums text-amber-800">{fmtCount(available)}</b> eggs to sort.
+                  The sizes you enter below cover every ticked day; the oldest eggs are used first.
+                </p>
               </div>
               {dateField}
               {notesField}

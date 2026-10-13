@@ -12,14 +12,13 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input"
 import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Plus, Eye, Undo2, RotateCcw, ShoppingCart, DollarSign, TrendingUp, Package, FileText, Printer, Loader2, Info, Search, Filter, ChevronDown, ChevronUp, Mail, Wallet, History } from "lucide-react"
-import { getSales, createSale, updateSale, getFlocks, getCustomers, createCustomer, type Sale, type SaleInput } from "@/lib/api"
+import { getSales, createSale, updateSale, getFlocks, getCustomers, createCustomer, type Sale, type SaleInput, type SaleLine } from "@/lib/api"
 import { isFlockClosed } from "@/lib/utils/flock-eligibility"
 import { listPoultryCashAccounts, recordPoultryPayment, type PoultryCashAccount } from "@/lib/api/poultry-finance"
 import { listPoultryProducts, type PoultryProduct } from "@/lib/api/poultry-inventory"
@@ -33,16 +32,17 @@ import { EGGS_PER_CRATE } from "@/lib/production/production-record-calc"
 import { useEggsPerCrate } from "@/hooks/use-eggs-per-crate"
 import { getEggClasses, type EggClass } from "@/lib/api/egg-sorting"
 import {
-  EggClassSelect,
-  ExtraEggLines,
   classFor,
   classValue,
   extraLineEggs,
+  extraLineIsEggs,
+  extraLineQuantity,
   extraLineTotal,
   extraLinesShort,
   type ExtraEggLine,
   type ReturnedEggs,
 } from "@/components/sales/egg-class-fields"
+import { SALE_PRODUCT_OPTIONS, SaleItemRow, SaleItemsHeader, isEggProduct } from "@/components/sales/sale-item-row"
 import { useToast } from "@/hooks/use-toast"
 import { getUserContext } from "@/lib/utils/user-context"
 import Link from "next/link"
@@ -99,6 +99,24 @@ function eggCrateBreakdown(
 }
 
 /**
+ * Line amounts that add up to an overridden sale total.
+ *
+ * The override replaces the TOTAL; each line keeps its share of the calculated
+ * total, rounded to the minor unit, and the last line takes the rounding so
+ * the lines sum to the override exactly. No override: the amounts as they are.
+ * All-zero lines share it equally.
+ */
+function scaleLineTotals(calculated: number[], override: number | null): number[] {
+  if (override == null || !(override > 0) || calculated.length === 0) return calculated
+  const target = Math.round(override * 100)
+  const sum = calculated.reduce((a, b) => a + b, 0)
+  const shares = calculated.map((c) => (sum > 0 ? c / sum : 1 / calculated.length))
+  const cents = shares.map((sh) => Math.round(target * sh))
+  cents[cents.length - 1] += target - cents.reduce((a, b) => a + b, 0)
+  return cents.map((c) => c / 100)
+}
+
+/**
  * What a sale line comes to.
  *
  * Egg prices are quoted per crate, but a sale is rarely a whole number of
@@ -120,63 +138,18 @@ function saleLineTotal(
 }
 
 /**
- * One entry in the sales list.
+ * One entry in the sales list: ONE sale (migration 358).
  *
- * A multi-size egg sale (Unsorted + Large ...) is stored as one sale row per
- * egg class sharing a sale number (SG-00001), because stock, balances and the
- * reports all work per class. The list shows it as ONE sale: the rows are
- * folded into one entry here, with the rows kept on `lines` so edit, pay,
- * delete and the invoice can act on all of them.
+ * A sale entered with several egg classes is one sale with several lines; the
+ * server returns them on the sale. `lines` is set only when there are two or
+ * more, so `row.lines` reads as "this is a multi-line sale". Lines are display
+ * data -- paying, crediting, reversing and the payment history all act on the
+ * sale itself.
  */
-type SaleRow = Sale & { lines?: Sale[] }
+type SaleRow = Sale & { lines?: SaleLine[] }
 
-function groupSaleLines(sales: Sale[]): SaleRow[] {
-  const byGroup = new Map<string, Sale[]>()
-  for (const s of sales) {
-    if (!s.saleGroupNo) continue
-    const g = byGroup.get(s.saleGroupNo)
-    if (g) g.push(s)
-    else byGroup.set(s.saleGroupNo, [s])
-  }
-  const round2 = (n: number) => Math.round(n * 100) / 100
-  const out: SaleRow[] = []
-  const done = new Set<string>()
-  for (const s of sales) {
-    const lines = s.saleGroupNo ? byGroup.get(s.saleGroupNo) : undefined
-    if (!lines || lines.length < 2) { out.push(s); continue }
-    if (done.has(s.saleGroupNo!)) continue
-    done.add(s.saleGroupNo!)
-    const ordered = [...lines].sort((a, b) => a.saleId - b.saleId)
-    const quantity = ordered.reduce((t, l) => t + (Number(l.quantity) || 0), 0)
-    const totalAmount = round2(ordered.reduce((t, l) => t + (Number(l.totalAmount) || 0), 0))
-    const isEggs = (ordered[0].product ?? "").toLowerCase().includes("egg")
-    out.push({
-      ...ordered[0],
-      quantity,
-      totalAmount,
-      // Lines are priced per crate at different prices: the entry shows the
-      // average price per crate, which is what total / crates comes to.
-      unitPrice: isEggs && quantity > 0 ? round2(totalAmount / (quantity / EGGS_PER_CRATE)) : ordered[0].unitPrice,
-      amountPaid: ordered.every((l) => l.amountPaid != null)
-        ? round2(ordered.reduce((t, l) => t + (Number(l.amountPaid) || 0), 0))
-        : undefined,
-      paid: ordered.every((l) => l.paid !== false),
-      lines: ordered,
-    })
-  }
-  return out
-}
-
-/**
- * An egg count as crates, e.g. 75 -> "2.50".
- *
- * The Pricing box shows this rather than the raw egg count so that the line
- * reads as the arithmetic it is: crates x price per crate = amount. The sale
- * still stores `quantity` in eggs, which is what stock and the reports count.
- */
-function eggCratesEquivalent(quantity: number | undefined, eggsPerCrate = EGGS_PER_CRATE): string {
-  const qty = Number(quantity) || 0
-  return eggsPerCrate > 0 ? (qty / eggsPerCrate).toFixed(2) : "0.00"
+function toSaleRows(sales: Sale[]): SaleRow[] {
+  return sales.map((s) => ({ ...s, lines: (s.lines?.length ?? 0) > 1 ? s.lines : undefined }))
 }
 
 /**
@@ -264,23 +237,6 @@ function StockCheckNotice({
   )
 }
 
-/**
- * "2 crates + 15 loose priced as 2.50 crates" under the calculated amount.
- *
- * The price field is per crate while the sale is counted in crates and loose
- * eggs, so without this the total looks wrong to anyone checking it by eye.
- */
-function EggPriceNote({ show, crates, loose }: { show: boolean; crates: number; loose: number }) {
-  if (!show || crates + loose <= 0) return null
-  return (
-    <p className="text-xs text-slate-500">
-      {crates} crate{crates === 1 ? "" : "s"}{loose > 0 && ` + ${loose} loose`} priced as{" "}
-      {((crates * EGGS_PER_CRATE + loose) / EGGS_PER_CRATE).toFixed(2)} crates
-      {loose > 0 && " — loose eggs charged pro rata"}.
-    </p>
-  )
-}
-
 export default function SalesPage() {
   const router = useRouter()
   const [sales, setSales] = useState<Sale[]>([])
@@ -295,6 +251,8 @@ export default function SalesPage() {
   // post another, identical sale (six of them in one test).
   const [savingSale, setSavingSale] = useState(false)
   const savingSaleRef = useRef(false)
+  // 358: one key per Add Sale form, so a retry of the same form cannot post twice.
+  const saleRequestKeyRef = useRef<string>(crypto.randomUUID())
   const [isInvoiceDialogOpen, setIsInvoiceDialogOpen] = useState(false)
   const [editingSale, setEditingSale] = useState<Sale | null>(null)
   // Editing a multi-size sale: every line as it was saved (editingSale is the first).
@@ -339,7 +297,7 @@ export default function SalesPage() {
   // Form state
   const [formData, setFormData] = useState<Partial<SaleInput>>({
     saleDate: new Date().toISOString().split('T')[0],
-    product: "",
+    product: "Fresh Eggs",   // most sales are eggs; still changeable
     quantity: 0,
     unitPrice: 0,
     totalAmount: 0,
@@ -384,6 +342,10 @@ export default function SalesPage() {
   const [crates, setCrates] = useState(0)
   const [looseEggs, setLooseEggs] = useState(0)
   const [overrideAmount, setOverrideAmount] = useState<number | undefined>(undefined)
+  // Part payment: saved as owed (paid = false) plus ONE payment for what the
+  // customer handed over now, in the same transaction as the sale.
+  const [partPayment, setPartPayment] = useState(false)
+  const [partPaidAmount, setPartPaidAmount] = useState<number | undefined>(undefined)
   // Finished products carry the stock a sale draws on (eggs, birds).
   const [poultryProducts, setPoultryProducts] = useState<PoultryProduct[]>([])
   // Ticked to record a sale bigger than the stock. Per-dialog-session: cleared
@@ -418,10 +380,20 @@ export default function SalesPage() {
   // Mixed classes on one sale (e.g. Unsorted + Large): the Pricing box shows
   // the whole sale, not just the first line. `formData` stays the first line,
   // which is what the save sends as line one.
-  const hasExtraEggLines = isEggsProduct && extraEggLines.length > 0
-  const firstLineAmount = overrideAmount !== undefined && overrideAmount > 0 ? overrideAmount : Number(formData.totalAmount) || 0
-  const allLinesEggs = (Number(formData.quantity) || 0) + extraEggLines.reduce((s, l) => s + extraLineEggs(l), 0)
-  const allLinesAmount = Math.round((firstLineAmount + extraEggLines.reduce((s, l) => s + extraLineTotal(l), 0)) * 100) / 100
+  // Lines added in the Items table may be any product (eggs, chicken, ...).
+  const hasExtraEggLines = extraEggLines.length > 0
+  // Calculated line amounts; the override (if any) replaces the sale's TOTAL
+  // and is shared across the lines in proportion (see scaleLineTotals).
+  const hasOverride = overrideAmount !== undefined && overrideAmount > 0
+  // 360: a sale is one product, so different products are saved as one sale each.
+  const saleProductCount = new Set(
+    [(formData.product ?? "").toString(), ...extraEggLines.map((l) => l.product ?? "Fresh Eggs")]
+      .map((p) => p.trim().toLowerCase()).filter(Boolean)).size
+  const firstLineAmount = Number(formData.totalAmount) || 0
+  const allLinesEggs = (isEggsProduct ? Number(formData.quantity) || 0 : 0)
+    + extraEggLines.filter(extraLineIsEggs).reduce((s, l) => s + extraLineEggs(l), 0)
+  const calculatedSaleTotal = Math.round((firstLineAmount + extraEggLines.reduce((s, l) => s + extraLineTotal(l), 0)) * 100) / 100
+  const allLinesAmount = hasOverride ? Math.round(overrideAmount! * 100) / 100 : calculatedSaleTotal
   const isEditingGroup = editingLines.length > 1
   // Editing: the eggs the sale (every line of it) already took are back on
   // the shelf while it is changed, per class.
@@ -458,8 +430,11 @@ export default function SalesPage() {
   const closedFlockBlocksSale = (flock: { flockId: number; closedDate?: string | null }) => {
     if (!isFlockClosed(flock)) return false
     if (editingSale?.flockId === flock.flockId) return false
-    const name = (formData.product ?? "").toString().trim().toLowerCase()
-    return /bird|chick|cockerel/.test(name) && !name.includes("egg")
+    const sellsBirds = (p: string | null | undefined) => {
+      const name = (p ?? "").toString().trim().toLowerCase()
+      return /bird|chick|cockerel/.test(name) && !name.includes("egg")
+    }
+    return sellsBirds(formData.product) || extraEggLines.some((l) => !extraLineIsEggs(l) && sellsBirds(l.product))
   }
 
   /**
@@ -489,6 +464,32 @@ export default function SalesPage() {
   }, [availableStock, formData.quantity])
 
   const stockUnits = stockUnitLabel(stockProduct)
+
+  // Stock left for each added line, after the lines above it took theirs.
+  // Eggs draw on their class; anything else on its stock product (birds ...).
+  const extraLineStock = useMemo(() => {
+    const firstEggs = isEggsProduct ? Number(formData.quantity) || 0 : 0
+    return extraEggLines.map((l, idx) => {
+      const above = extraEggLines.slice(0, idx)
+      if (extraLineIsEggs(l)) {
+        const cls = classFor(eggClasses, l.eggProductId)
+        if (!cls) return null
+        const used = (isEggsProduct && (formData.eggProductId ?? null) === l.eggProductId ? firstEggs : 0)
+          + above.filter((x) => extraLineIsEggs(x) && x.eggProductId === l.eggProductId).reduce((t, x) => t + extraLineEggs(x), 0)
+        const available = Math.max(0, Math.trunc(cls.onHand - used))
+        return { available, units: "eggs", short: extraLineEggs(l) > available }
+      }
+      const sp = saleStockProduct(poultryProducts, l.product)
+      if (!sp) return null
+      const same = (name: string | null | undefined) =>
+        !isEggProduct(name) && saleStockProduct(poultryProducts, name)?.poultryProductId === sp.poultryProductId
+      const used = (same(formData.product) ? Number(formData.quantity) || 0 : 0)
+        + above.filter((x) => !extraLineIsEggs(x) && same(x.product)).reduce((t, x) => t + (Number(x.quantity) || 0), 0)
+      const available = Math.max(0, (Number(sp.stockOnHand) || 0) - used)
+      return { available, units: stockUnitLabel(sp), short: (Number(l.quantity) || 0) > available }
+    })
+  }, [extraEggLines, eggClasses, poultryProducts, isEggsProduct, formData.quantity, formData.eggProductId, formData.product])
+  const extraLinesAnyShort = extraLineStock.some((x) => x?.short)
 
   useEffect(() => {
     loadSales()
@@ -654,14 +655,31 @@ export default function SalesPage() {
       const calculatedAmount = saleLineTotal(quantity, unitPrice, isEggsProduct)
       const totalAmount = (overrideAmount !== undefined && overrideAmount > 0) ? overrideAmount : calculatedAmount
 
-      // Several egg classes: one sale number, one payment, all or nothing.
-      if (isEggsProduct && extraEggLines.length > 0) {
-        if (extraEggLines.some((l) => extraLineEggs(l) <= 0 || l.unitPrice <= 0)) {
-          toastFormGuide(toast, "Every extra egg line needs eggs and a price per crate, or remove it.")
+      if (partPayment) {
+        const paidNow = Number(partPaidAmount) || 0
+        if (!(formData.customerName ?? "").toString().trim()) {
+          toastFormGuide(toast, "A part payment needs a customer, so the rest can be owed by someone.")
           return
         }
-        if (extraLinesShort(eggClasses, extraEggLines, quantity, formData.eggProductId ?? null) && !overrideStock) {
-          toastFormGuide(toast, 'One of the extra egg lines asks for more eggs than its class holds. Lower it, or tick "Sell it anyway".')
+        if (paidNow <= 0) {
+          toastFormGuide(toast, "Enter the amount the customer paid now.")
+          return
+        }
+        if (paidNow >= allLinesAmount) {
+          toastFormGuide(toast, "That covers the whole sale. Choose Paid now instead.")
+          return
+        }
+      }
+
+      // Several lines (egg sizes and/or other products), or a part payment:
+      // one sale number, one payment, all or nothing.
+      if (extraEggLines.length > 0 || partPayment) {
+        if (extraEggLines.some((l) => !(l.product ?? "eggs").trim() || extraLineQuantity(l) <= 0 || l.unitPrice <= 0)) {
+          toastFormGuide(toast, "Every added line needs a product, a quantity and a price, or remove it.")
+          return
+        }
+        if ((extraLinesAnyShort || extraLinesShort(eggClasses, extraEggLines, isEggsProduct ? quantity : 0, isEggsProduct ? formData.eggProductId ?? null : null)) && !overrideStock) {
+          toastFormGuide(toast, 'One of the added lines asks for more than is in stock. Lower it, or tick "Sell it anyway".')
           return
         }
         const product = (formData.product ?? "").toString().trim()
@@ -672,25 +690,39 @@ export default function SalesPage() {
           customerName: (formData.customerName ?? "").toString() || null,
           paymentMethod: (formData.paymentMethod ?? "").toString() || null,
           poultryCashAccountId: formData.poultryCashAccountId ?? null,
-          paid: formData.paid ?? true,
+          paid: partPayment ? false : (formData.paid ?? true),
+          amountPaidNow: partPayment ? Math.round((Number(partPaidAmount) || 0) * 100) / 100 : null,
           saleDescription: formData.saleDescription || null,
           flockId: formData.flockId || null,
           correctsSaleId: correcting?.saleId ?? null,
-          lines: [
-            { product, eggProductId: formData.eggProductId ?? null, quantity, unitPrice, totalAmount },
-            ...extraEggLines.map((l) => ({
-              product, eggProductId: l.eggProductId, quantity: extraLineEggs(l), unitPrice: l.unitPrice, totalAmount: extraLineTotal(l),
-            })),
-          ],
+          requestKey: saleRequestKeyRef.current,
+          lines: (() => {
+            const lines = [
+              { product, eggProductId: isEggsProduct ? formData.eggProductId ?? null : null, quantity, unitPrice, totalAmount: calculatedAmount },
+              ...extraEggLines.map((l) => ({
+                product: (l.product ?? product).trim(),
+                eggProductId: extraLineIsEggs(l) ? l.eggProductId : null,
+                quantity: extraLineQuantity(l), unitPrice: l.unitPrice, totalAmount: extraLineTotal(l),
+              })),
+            ]
+            const totals = scaleLineTotals(lines.map((l) => l.totalAmount), hasOverride ? overrideAmount! : null)
+            return lines.map((l, i) => ({ ...l, totalAmount: totals[i] }))
+          })(),
         })
         if (!res.success) {
           toast({ title: "Sale not saved", description: res.message || "Failed to create sale", variant: "destructive" })
           return
         }
-        toast({ title: `Sale ${res.data?.saleGroupNo ?? ""} created`, description: `${extraEggLines.length + 1} egg lines, one sale.` })
-        const firstId = res.data?.saleIds?.[0]
+        const saleCount = res.data?.saleCount ?? 1
         const groupTotal = Number(res.data?.totalAmount ?? 0)
-        await afterCorrectionSaved(firstId, res.data?.saleGroupNo || (firstId ? `#${firstId}` : ""), groupTotal, !!(formData.paid ?? true))
+        const partNote = partPayment
+          ? ` Paid ${formatCurrency(Number(partPaidAmount) || 0, currencyCode)}, owed ${formatCurrency(Math.max(0, groupTotal - (Number(partPaidAmount) || 0)), currencyCode)}.`
+          : ""
+        toast(saleCount > 1
+          ? { title: `${saleCount} sales created: ${res.data?.saleGroupNo ?? ""}`, description: `One sale per product, as each product is its own sale.${partNote}` }
+          : { title: `Sale ${res.data?.saleGroupNo ?? ""} created`, description: `${extraEggLines.length + 1} line${extraEggLines.length ? "s" : ""}, one sale.${partNote}` })
+        const firstId = res.data?.saleId ?? res.data?.saleIds?.[0]
+        await afterCorrectionSaved(firstId, res.data?.saleGroupNo || (firstId ? `#${firstId}` : ""), groupTotal, !partPayment && !!(formData.paid ?? true))
         setIsCreateDialogOpen(false)
         resetForm()
         loadSales()
@@ -778,7 +810,7 @@ export default function SalesPage() {
 
   const saveSaleNote = async (row: SaleRow, note: string): Promise<boolean> => {
     const { userId, farmId } = getUserContext()
-    const sale: Sale = row.lines?.[0] ?? row
+    const { lines: _lines, ...sale } = row
     const res = await updateSale(sale.saleId, {
       ...sale,
       farmId, userId,
@@ -851,14 +883,17 @@ export default function SalesPage() {
   // Correct Sale: a NEW sale, pre-filled from the reversed one and linked to it.
   // Nothing transactional is copied -- no payment, cash or stock rows, no number.
   const openCorrectionForm = (row: SaleRow, creditKept: number) => {
-    const sale: Sale = row.lines?.[0] ?? row
+    const sale: SaleRow = row
+    // A multi-line sale: its first line fills the form, the others the extra lines.
+    const first = row.lines?.[0]
+    const firstQty = Number(first?.quantity ?? sale.quantity) || 0
     resetForm()
     setFormData({
       saleDate: sale.saleDate.split('T')[0],
       product: sale.product,
-      quantity: sale.quantity,
-      unitPrice: sale.unitPrice,
-      totalAmount: sale.totalAmount,
+      quantity: firstQty,
+      unitPrice: first?.unitPrice ?? sale.unitPrice,
+      totalAmount: first?.totalAmount ?? sale.totalAmount,
       paymentMethod: sale.paymentMethod,
       customerName: sale.customerName,
       flockId: sale.flockId,
@@ -867,23 +902,29 @@ export default function SalesPage() {
       // goes in as Pay later -- recording it as paid again would count the
       // same money twice.
       paid: creditKept > 0 ? false : (sale.paid ?? true),
-      size: sale.size ?? null,
+      size: (first ? first.size : sale.size) ?? null,
       poultryCashAccountId: sale.poultryCashAccountId ?? defaultCashAccountId,
-      eggProductId: sale.eggProductId ?? null,
+      eggProductId: (first ? first.eggProductId : sale.eggProductId) ?? null,
     })
-    setExtraEggLines((row.lines ?? []).slice(1).map((l) => ({
-      key: `fix-${l.saleId}`,
-      eggProductId: l.eggProductId ?? null,
-      crates: Math.floor((Number(l.quantity) || 0) / EGGS_PER_CRATE),
-      loose: (Number(l.quantity) || 0) % EGGS_PER_CRATE,
-      unitPrice: Number(l.unitPrice) || 0,
-    })))
+    setExtraEggLines((row.lines ?? []).slice(1).map((l) => {
+      const egg = isEggProduct(l.product)
+      const q = Number(l.quantity) || 0
+      return {
+        key: `fix-${l.saleLineId}`,
+        product: l.product,
+        eggProductId: egg ? l.eggProductId ?? null : null,
+        crates: egg ? Math.floor(q / EGGS_PER_CRATE) : 0,
+        loose: egg ? q % EGGS_PER_CRATE : 0,
+        quantity: egg ? undefined : q,
+        unitPrice: Number(l.unitPrice) || 0,
+      }
+    }))
     const selection = productOptions.includes(sale.product) ? sale.product : "Other"
     setProductSelection(selection)
     setProductOther(selection === "Other" ? sale.product : "")
     const isEgg = (sale.product ?? "").toLowerCase().includes("egg")
-    setCrates(isEgg ? Math.floor((Number(sale.quantity) || 0) / EGGS_PER_CRATE) : 0)
-    setLooseEggs(isEgg ? (Number(sale.quantity) || 0) % EGGS_PER_CRATE : 0)
+    setCrates(isEgg ? Math.floor(firstQty / EGGS_PER_CRATE) : 0)
+    setLooseEggs(isEgg ? firstQty % EGGS_PER_CRATE : 0)
     setCorrecting({ saleId: sale.saleId, label: row.lines ? (row.saleGroupNo ?? `#${sale.saleId}`) : `#${sale.saleId}`, creditKept })
     setIsCreateDialogOpen(true)
   }
@@ -927,9 +968,10 @@ export default function SalesPage() {
   }, [isCreateDialogOpen, defaultCashAccountId])
 
   const resetForm = () => {
+    saleRequestKeyRef.current = crypto.randomUUID()
     setFormData({
       saleDate: new Date().toISOString().split('T')[0],
-      product: "",
+      product: "Fresh Eggs",
       quantity: 0,
       unitPrice: 0,
       totalAmount: 0,
@@ -950,6 +992,8 @@ export default function SalesPage() {
     setOtherCustomerName("")
     setOverrideAmount(undefined)
     setOverrideStock(false)
+    setPartPayment(false)
+    setPartPaidAmount(undefined)
     setCrates(0)
     setLooseEggs(0)
   }
@@ -987,22 +1031,65 @@ export default function SalesPage() {
     }
   }
 
-  const handleProductSelect = (value: string) => {
-    setProductSelection(value)
-    if (value === "Other") {
-      const existing = productOther || (typeof formData.product === "string" && !productOptions.includes(formData.product) ? formData.product : "")
-      setProductOther(existing)
-      setFormData(prev => ({ ...prev, product: existing }))
-    } else {
-      setProductOther("")
-      setFormData(prev => ({ ...prev, product: value }))
-    }
-    // Reset crate fields when switching away from egg products
-    const isEgg = value.toLowerCase().includes("egg") || (value === "Other" && productOther.toLowerCase().includes("egg"))
-    if (!isEgg) {
+  // ---------------------------------------------------- New sale Items table
+  // Line 1 is the form itself; added lines live in extraEggLines.
+  const setFirstLineProduct = (value: string) => {
+    const egg = isEggProduct(value)
+    setProductSelection(undefined)
+    setProductOther(SALE_PRODUCT_OPTIONS.includes(value) ? "" : value)
+    setFormData(prev => {
+      const wasEgg = isEggProduct(prev.product)
+      return {
+        ...prev,
+        product: value,
+        eggProductId: egg ? prev.eggProductId : null,
+        // The quantity is eggs on an egg line and units otherwise, so it does
+        // not carry across a switch between the two.
+        quantity: egg ? crates * EGGS_PER_CRATE + looseEggs : wasEgg ? 0 : prev.quantity,
+      }
+    })
+    if (!egg) {
       setCrates(0)
       setLooseEggs(0)
     }
+  }
+
+  const updateSaleLine = (key: string, patch: Partial<ExtraEggLine>) =>
+    setExtraEggLines(prev => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)))
+
+  const addSaleLine = () => {
+    // A second egg line most often sells another size: offer the next one.
+    const used = new Set([formData.eggProductId ?? null, ...extraEggLines.map((l) => l.eggProductId)])
+    const cls = eggClasses.find((c) => c.classKind === "Size" && c.isActive && !used.has(c.poultryProductId))?.poultryProductId ?? null
+    setExtraEggLines(prev => [...prev, {
+      key: `${Date.now()}-${prev.length}`,
+      product: "Fresh Eggs",
+      eggProductId: cls,
+      crates: 0,
+      loose: 0,
+      unitPrice: classPrice(cls) ?? 0,
+    }])
+  }
+
+  // Removing line 1 moves the next line up into the form.
+  const removeFirstSaleLine = () => {
+    const [next, ...rest] = extraEggLines
+    if (!next) return
+    const product = next.product ?? "Fresh Eggs"
+    const egg = isEggProduct(product)
+    setProductSelection(undefined)
+    setProductOther(SALE_PRODUCT_OPTIONS.includes(product) ? "" : product)
+    setCrates(egg ? next.crates : 0)
+    setLooseEggs(egg ? next.loose : 0)
+    setFormData(prev => ({
+      ...prev,
+      product,
+      eggProductId: egg ? next.eggProductId : null,
+      quantity: extraLineQuantity(next),
+      unitPrice: next.unitPrice,
+      size: null,
+    }))
+    setExtraEggLines(rest)
   }
 
   const clearFilters = () => {
@@ -1089,24 +1176,8 @@ export default function SalesPage() {
     if (!amount || amount <= 0) { toast({ title: "Enter a valid amount", variant: "destructive" }); return }
     setPaySaving(true)
     try {
-      if (sale.lines) {
-        // A multi-size sale: the payment settles its lines in order, each up
-        // to what that line still owes.
-        if (amount > saleOwed(sale) + 0.005) {
-          toast({ title: "Amount is more than owed", description: `This sale owes ${saleOwed(sale).toFixed(2)}.`, variant: "destructive" })
-          return
-        }
-        let left = Math.round(amount * 100) / 100
-        for (const line of sale.lines) {
-          if (left <= 0) break
-          const part = Math.min(left, Math.round(saleOwed(line) * 100) / 100)
-          if (part <= 0) continue
-          await recordPoultryPayment({ saleId: line.saleId, amount: part, paymentMethod: payMethod || null, note: payNote || null })
-          left = Math.round((left - part) * 100) / 100
-        }
-      } else {
-        await recordPoultryPayment({ saleId: sale.saleId, amount, paymentMethod: payMethod || null, note: payNote || null })
-      }
+      // 358: a multi-line sale is ONE sale -- one payment, one allocation.
+      await recordPoultryPayment({ saleId: sale.saleId, amount, paymentMethod: payMethod || null, note: payNote || null })
       toast({ title: "Payment recorded", description: `${amount.toFixed(2)} received for sale ${sale.lines ? sale.saleGroupNo : `#${sale.saleId}`}.` })
       setPayDialog({ open: false, sale: null })
       loadSales()
@@ -1275,7 +1346,7 @@ export default function SalesPage() {
     router.push("/login")
   }
 
-  const groupedSales = useMemo(() => groupSaleLines(sales), [sales])
+  const groupedSales = useMemo(() => toSaleRows(sales), [sales])
 
   const filteredSales = useMemo(() => {
     const query = searchCustomer.trim().toLowerCase()
@@ -1283,7 +1354,7 @@ export default function SalesPage() {
       // Deep link from Customer Balances -> Open sale. Narrowing to the single
       // sale is the point of the link, so it wins over the other filters (the
       // banner below offers the way back out).
-      if (focusSaleId !== null) return sale.saleId === focusSaleId || !!sale.lines?.some((l) => l.saleId === focusSaleId)
+      if (focusSaleId !== null) return sale.saleId === focusSaleId
       if (query) {
         const matchesCustomer = sale.customerName?.toLowerCase().includes(query)
         const matchesProduct = sale.product?.toLowerCase().includes(query)
@@ -1355,11 +1426,6 @@ export default function SalesPage() {
   const totalQuantity = useMemo(() => filteredSales.filter((s) => s.status !== "Reversed").reduce((sum, sale) => sum + (sale.quantity || 0), 0), [filteredSales])
   const selectedFlockId = formData.flockId ?? null
   const selectedFlockIdString = selectedFlockId !== null ? selectedFlockId.toString() : ""
-  const productSelectValue = productSelection ?? (
-    typeof formData.product === "string" && formData.product
-      ? (productOptions.includes(formData.product) ? formData.product : "Other")
-      : undefined
-  )
 
   useEffect(() => {
     setCurrentPage(1)
@@ -1405,13 +1471,18 @@ export default function SalesPage() {
                     Add Sale
                   </Button>
                 </DialogTrigger>
-          <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] flex flex-col gap-4 overflow-hidden p-4 sm:p-6">
-            <DialogHeader className="shrink-0">
-              <DialogTitle>{correcting ? `Corrected sale (replaces ${correcting.label})` : "Create New Sale"}</DialogTitle>
+          <DialogContent className="w-[95vw] sm:max-w-5xl max-h-[92vh] gap-4 p-4 pb-0 sm:p-6 sm:pb-0">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2.5">
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white">
+                  <ShoppingCart className="h-5 w-5" />
+                </span>
+                {correcting ? `Corrected sale (replaces ${correcting.label})` : "New sale"}
+              </DialogTitle>
               <DialogDescription>
                 {correcting
                   ? "Filled in from the reversed sale. Fix what was wrong and save: this becomes a new sale linked to it."
-                  : "Add a new sale record to track your farm's revenue"}
+                  : "Add a line for each product or egg size sold. Several lines are saved as one sale."}
               </DialogDescription>
               {correcting && correcting.creditKept > 0 && (
                 <p className="rounded-md bg-blue-50 p-2 text-sm text-blue-800">
@@ -1420,384 +1491,346 @@ export default function SalesPage() {
                 </p>
               )}
             </DialogHeader>
-            <div className="min-h-0 flex-1 overflow-y-auto space-y-5 py-1 pr-2">
-              {/* Section: Sale Details */}
-              <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
-                <div className="bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Sale Details</div>
-                <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="saleDate">Sale Date *</Label>
-                    <Input
-                      id="saleDate"
-                      type="date"
-                      value={formData.saleDate}
-                      onChange={(e) => setFormData(prev => ({ ...prev, saleDate: e.target.value }))}
-                    />
+            {/* The dialog is the only scroll area. A second, inner one let the
+                browser scroll both when a field took focus, sliding the whole
+                form up and leaving a blank gap under the buttons. */}
+            <div className="min-w-0 space-y-4">
+              {/* Who bought, when, and from which flock. */}
+              <div className="overflow-hidden rounded-xl border border-blue-200">
+                <div className="bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Customer &amp; Date</div>
+              <div className="grid grid-cols-1 gap-3 bg-blue-50/40 p-4 sm:grid-cols-3">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="customerName">Customer *</Label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-4 w-4 text-slate-400 cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-[260px]">
+                        <p>If you cannot find the customer, please go to the customer page and create the Customer first</p>
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="product">Product *</Label>
-                    <Select
-                      value={productSelectValue}
-                      onValueChange={handleProductSelect}
-                    >
-                      <SelectTrigger id="product">
-                        <SelectValue placeholder="Select product" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {productOptions.map(option => (
-                          <SelectItem key={option} value={option}>
-                            {option}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {productSelectValue === "Other" && (
-                      <Input
-                        value={productOther}
-                        onChange={(e) => {
-                          const value = e.target.value
-                          setProductOther(value)
-                          setFormData(prev => ({ ...prev, product: value }))
-                        }}
-                        placeholder="Enter product name"
-                      />
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor="customerName">Customer Name *</Label>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Info className="h-4 w-4 text-slate-400 cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="max-w-[260px]">
-                          <p>If you cannot find the customer, please go to the customer page and create the Customer first</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    <Select
-                      value={showNewCustomerInput ? "__OTHER__" : formData.customerName || undefined}
-                      onValueChange={(value) => {
-                        if (value === "__OTHER__") {
-                          setShowNewCustomerInput(true)
-                          setOtherCustomerName("")
-                          setFormData(prev => ({ ...prev, customerName: "" }))
-                        } else {
-                          setShowNewCustomerInput(false)
-                          setOtherCustomerName("")
-                          setFormData(prev => ({ ...prev, customerName: value }))
-                        }
-                      }}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select a customer" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {customers.map((customer) => (
-                          <SelectItem key={customer.customerId || customer.name} value={customer.name}>
-                            {customer.name}
-                          </SelectItem>
-                        ))}
-                        <SelectItem value="__OTHER__">Other Customer</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {showNewCustomerInput && (
-                      <Input
-                        placeholder="Enter other customer name"
-                        value={otherCustomerName}
-                        onChange={(e) => {
-                          setOtherCustomerName(e.target.value)
-                          setFormData(prev => ({ ...prev, customerName: e.target.value }))
-                        }}
-                      />
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="flockId">Flock</Label>
-                    <Select
-                      value={selectedFlockIdString}
-                      onValueChange={(value) =>
-                        setFormData(prev => ({
-                          ...prev,
-                          flockId: value ? Number(value) : undefined,
-                        }))
+                  <Select
+                    value={showNewCustomerInput ? "__OTHER__" : formData.customerName || undefined}
+                    onValueChange={(value) => {
+                      if (value === "__OTHER__") {
+                        setShowNewCustomerInput(true)
+                        setOtherCustomerName("")
+                        setFormData(prev => ({ ...prev, customerName: "" }))
+                      } else {
+                        setShowNewCustomerInput(false)
+                        setOtherCustomerName("")
+                        setFormData(prev => ({ ...prev, customerName: value }))
                       }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a flock" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="0">All flocks</SelectItem>
-                        {flocks.map((flock) => (
-                          <SelectItem
-                            key={flock.flockId}
-                            value={flock.flockId.toString()}
-                            disabled={closedFlockBlocksSale(flock)}
-                          >
-                            {flock.name} ({flock.quantity} birds){isFlockClosed(flock) ? " · Closed" : ""}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                    }}
+                  >
+                    <SelectTrigger id="customerName" className="w-full">
+                      <SelectValue placeholder="Select a customer" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {customers.map((customer) => (
+                        <SelectItem key={customer.customerId || customer.name} value={customer.name}>
+                          {customer.name}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="__OTHER__">Other Customer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {showNewCustomerInput && (
+                    <Input
+                      placeholder="Enter other customer name"
+                      value={otherCustomerName}
+                      onChange={(e) => {
+                        setOtherCustomerName(e.target.value)
+                        setFormData(prev => ({ ...prev, customerName: e.target.value }))
+                      }}
+                    />
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="saleDate">Sale date *</Label>
+                  <Input
+                    id="saleDate"
+                    type="date"
+                    value={formData.saleDate}
+                    onChange={(e) => setFormData(prev => ({ ...prev, saleDate: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="flockId">Flock</Label>
+                  <Select
+                    value={selectedFlockIdString}
+                    onValueChange={(value) =>
+                      setFormData(prev => ({
+                        ...prev,
+                        flockId: value ? Number(value) : undefined,
+                      }))
+                    }
+                  >
+                    <SelectTrigger id="flockId">
+                      <SelectValue placeholder="Select a flock" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">All flocks</SelectItem>
+                      {flocks.map((flock) => (
+                        <SelectItem
+                          key={flock.flockId}
+                          value={flock.flockId.toString()}
+                          disabled={closedFlockBlocksSale(flock)}
+                        >
+                          {flock.name} ({flock.quantity} birds){isFlockClosed(flock) ? " · Closed" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
+              </div>
 
-              {/* Section: Egg Quantity (conditional) */}
-              {isEggsProduct && (
-                <div className="rounded-xl border border-amber-200 overflow-hidden">
-                  <div className="bg-amber-500 px-4 py-2 text-sm font-semibold text-white">Egg Quantity (Crates × {EGGS_PER_CRATE} + Loose Eggs)</div>
-                  {hasEggSizes && (
-                    <div className="px-4 pt-4 bg-amber-50 sm:max-w-md">
-                      <EggClassSelect id="create-egg-class" classes={eggClasses} value={formData.eggProductId}
-                        onChange={(v) => setFormData(prev => ({ ...prev, eggProductId: v, unitPrice: classPrice(v) ?? prev.unitPrice }))} />
-                    </div>
-                  )}
-                  <div className="grid grid-cols-1 gap-4 p-4 bg-amber-50 sm:grid-cols-2 lg:grid-cols-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="crates" className="text-sm">Crates ({EGGS_PER_CRATE} eggs)</Label>
-                      <NumberInput
-                        id="crates"
-                        
-                        min="0"
-                        value={crates}
-                        onChange={(e) => {
-                          const c = parseInt(e.target.value) || 0
-                          setCrates(c)
-                          const total = (c * EGGS_PER_CRATE) + looseEggs
-                          setFormData(prev => ({ ...prev, quantity: total }))
-                        }}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="looseEggs" className="text-sm">Loose Eggs</Label>
-                      <NumberInput
-                        id="looseEggs"
-                        
-                        min="0"
-                        max="29"
-                        value={looseEggs}
-                        onChange={(e) => {
-                          const l = parseInt(e.target.value) || 0
-                          setLooseEggs(l)
-                          const total = (crates * EGGS_PER_CRATE) + l
-                          setFormData(prev => ({ ...prev, quantity: total }))
-                        }}
-                      />
-                    </div>
-                    {/* The first line's price sits beside its crates, like the
-                        extra egg lines below; Pricing then only shows totals. */}
-                    <div className="space-y-2">
-                      <Label htmlFor="unitPrice" className="text-sm">Price / crate *</Label>
-                      <NumberInput
-                        id="unitPrice"
-                        min="0"
-                        step="0.01"
-                        value={formData.unitPrice}
-                        onChange={(e) => setFormData(prev => ({ ...prev, unitPrice: Number(e.target.value) }))}
-                        placeholder="0.00"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm">Total Eggs</Label>
-                      <div className="h-10 px-3 py-2 bg-white border rounded-md flex items-center font-bold text-amber-700">
-                        {((crates * EGGS_PER_CRATE) + looseEggs).toLocaleString()}
-                      </div>
-                    </div>
-                  </div>
-                  {/* The stock line belongs with the crates that spend it, not
-                      beside the price. For eggs this card IS the quantity — the
-                      Pricing box below only restates it in crates — so "In stock:
-                      770 eggs" and any shortfall are read where the number is
-                      being typed. */}
-                  <div className="space-y-2 px-4 pb-3 bg-amber-50">
-                    <p className="text-xs text-amber-600">
-                      Calculation: {crates} crates × {EGGS_PER_CRATE} + {looseEggs} loose = {((crates * EGGS_PER_CRATE) + looseEggs).toLocaleString()} eggs
-                    </p>
-                    <StockCheckNotice
-                      available={availableStock}
-                      unitLabel={stockUnits}
-                      shortfall={stockShortfall}
-                      override={overrideStock}
-                      onOverrideChange={setOverrideStock}
-                      idPrefix="create-eggs"
-                    />
-                  </div>
-                  {hasEggSizes && (
-                    <>
-                      <ExtraEggLines classes={eggClasses} lines={extraEggLines} onChange={setExtraEggLines}
-                        mainEggs={Number(formData.quantity) || 0} mainClass={formData.eggProductId ?? null} />
-                      {extraEggLines.length > 0 && (
-                        <div className="border-t border-amber-200 bg-amber-100/70 px-4 py-2 text-sm">
-                          <b>Sale total, all egg lines:</b>{" "}
-                          {allLinesAmount.toFixed(2)} for {allLinesEggs.toLocaleString()} eggs
-                          {eggCrateBreakdown(allLinesEggs) && ` (${eggCrateBreakdown(allLinesEggs)})`}
-                          <span className="ml-2 text-xs text-slate-600">
-                            Saved as one sale number with {extraEggLines.length + 1} lines and one payment. The override amount applies to the first line only.
-                          </span>
-                        </div>
-                      )}
-                    </>
-                  )}
+              {/* Items: one line per product / egg size, like the Water sale. */}
+              <div className="overflow-hidden rounded-xl border border-amber-200">
+                <div className="flex items-center justify-between gap-2 bg-amber-500 px-4 py-1.5 text-white">
+                  <span className="text-sm font-semibold">
+                    Items <span className="ml-1 rounded-full bg-white/25 px-2 py-0.5 text-xs">{extraEggLines.length + 1}</span>
+                  </span>
+                  <Button type="button" size="sm" onClick={addSaleLine}
+                    className="h-8 bg-white text-amber-700 shadow-sm hover:bg-amber-50">
+                    <Plus className="mr-1 h-3.5 w-3.5" /> Add line
+                  </Button>
                 </div>
-              )}
-
-              {/* Section: Pricing */}
-              <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
-                <div className="bg-green-600 px-4 py-2 text-sm font-semibold text-white">Pricing</div>
-                <div className="p-4 space-y-4">
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="quantity">{isEggsProduct ? "Quantity (In crates) *" : "Quantity *"}</Label>
-                      {/* Eggs are priced per crate, so the box shows the crate
-                          equivalent of the count above (75 eggs -> 2.50). It is
-                          read-only for eggs; `formData.quantity` stays in eggs. */}
-                      <NumberInput
-                        id="quantity"
-                        step={isEggsProduct ? "0.01" : undefined}
-                        value={hasExtraEggLines ? eggCratesEquivalent(allLinesEggs) : isEggsProduct ? eggCratesEquivalent(formData.quantity) : formData.quantity}
-                        onChange={(e) => setFormData(prev => ({ ...prev, quantity: Number(e.target.value) }))}
-                        placeholder="0"
-                        disabled={isEggsProduct}
-                        className={isEggsProduct ? "bg-slate-100" : ""}
+                <div className="space-y-3 bg-amber-50/40 p-3 sm:p-4">
+                <div className="space-y-2">
+                  <SaleItemsHeader />
+                  <SaleItemRow
+                    index={1}
+                    product={(formData.product ?? "").toString()}
+                    onProductChange={setFirstLineProduct}
+                    classes={eggClasses}
+                    eggProductId={formData.eggProductId ?? null}
+                    onClassChange={(v) => setFormData(prev => ({ ...prev, eggProductId: v, unitPrice: classPrice(v) ?? prev.unitPrice }))}
+                    size={formData.size ?? ""}
+                    onSizeChange={(v) => setFormData(prev => ({ ...prev, size: v }))}
+                    crates={crates}
+                    loose={looseEggs}
+                    onCratesChange={(c) => {
+                      setCrates(c)
+                      setFormData(prev => ({ ...prev, quantity: c * EGGS_PER_CRATE + looseEggs }))
+                    }}
+                    onLooseChange={(l) => {
+                      setLooseEggs(l)
+                      setFormData(prev => ({ ...prev, quantity: crates * EGGS_PER_CRATE + l }))
+                    }}
+                    quantity={Number(formData.quantity) || 0}
+                    onQuantityChange={(n) => setFormData(prev => ({ ...prev, quantity: n }))}
+                    unitPrice={Number(formData.unitPrice) || 0}
+                    onUnitPriceChange={(n) => setFormData(prev => ({ ...prev, unitPrice: n }))}
+                    lineTotal={firstLineAmount}
+                    onRemove={hasExtraEggLines ? removeFirstSaleLine : undefined}
+                    note={
+                      <StockCheckNotice
+                        available={availableStock}
+                        unitLabel={stockUnits}
+                        shortfall={stockShortfall}
+                        override={overrideStock}
+                        onOverrideChange={setOverrideStock}
+                        idPrefix="create"
                       />
-                      {isEggsProduct && (
-                        <p className="text-xs text-slate-500">
-                          {hasExtraEggLines
-                            ? `${allLinesEggs.toLocaleString()} eggs total across all ${extraEggLines.length + 1} egg lines`
-                            : `${(Number(formData.quantity) || 0).toLocaleString()} eggs total, from the crates and loose eggs above`}
-                        </p>
-                      )}
-                      {!isEggsProduct && (
-                        <StockCheckNotice
-                          available={availableStock}
-                          unitLabel={stockUnits}
-                          shortfall={stockShortfall}
-                          override={overrideStock}
-                          onOverrideChange={setOverrideStock}
-                          idPrefix="create"
-                        />
-                      )}
-                    </div>
-                    {!isEggsProduct && (
-                      <div className="space-y-2">
-                        <Label htmlFor="unitPrice">Unit Price *</Label>
-                        <NumberInput
-                          id="unitPrice"
-                          step="0.01"
-                          value={formData.unitPrice}
-                          onChange={(e) => setFormData(prev => ({ ...prev, unitPrice: Number(e.target.value) }))}
-                          placeholder="0.00"
-                        />
-                      </div>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    <div className="space-y-2">
-                      <Label htmlFor="totalAmount">{hasExtraEggLines ? "Calculated Amount — whole sale" : "Calculated Amount"}</Label>
-                      <NumberInput
-                        id="totalAmount"
-
-                        step="0.01"
-                        value={hasExtraEggLines ? allLinesAmount : formData.totalAmount}
-                        readOnly
-                        className="bg-slate-100"
+                    }
+                  />
+                  {extraEggLines.map((l, idx) => {
+                    const st = extraLineStock[idx]
+                    return (
+                      <SaleItemRow
+                        key={l.key}
+                        index={idx + 2}
+                        product={l.product ?? "Fresh Eggs"}
+                        onProductChange={(v) => updateSaleLine(l.key, isEggProduct(v)
+                          ? { product: v, quantity: undefined }
+                          : { product: v, crates: 0, loose: 0, eggProductId: null })}
+                        classes={eggClasses}
+                        eggProductId={l.eggProductId}
+                        onClassChange={(v) => updateSaleLine(l.key, { eggProductId: v, unitPrice: classPrice(v) ?? l.unitPrice })}
+                        crates={l.crates}
+                        loose={l.loose}
+                        onCratesChange={(c) => updateSaleLine(l.key, { crates: c })}
+                        onLooseChange={(n) => updateSaleLine(l.key, { loose: n })}
+                        quantity={Number(l.quantity) || 0}
+                        onQuantityChange={(n) => updateSaleLine(l.key, { quantity: n })}
+                        unitPrice={l.unitPrice}
+                        onUnitPriceChange={(n) => updateSaleLine(l.key, { unitPrice: n })}
+                        lineTotal={extraLineTotal(l)}
+                        onRemove={() => setExtraEggLines(prev => prev.filter((x) => x.key !== l.key))}
+                        note={st && (
+                          <p className={st.short ? "text-rose-700" : undefined}>
+                            In stock: <b className="tabular-nums">{st.available.toLocaleString()}</b> {st.units}
+                            {st.short ? " — not enough" : ""}
+                          </p>
+                        )}
                       />
-                      {hasExtraEggLines ? (
-                        <p className="text-xs text-slate-500">
-                          First line {firstLineAmount.toFixed(2)} + other egg lines {(allLinesAmount - firstLineAmount).toFixed(2)}.
-                        </p>
-                      ) : (
-                        <EggPriceNote show={isEggsProduct} crates={crates} loose={looseEggs} />
-                      )}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="overrideAmount">Override Amount</Label>
+                    )
+                  })}
+                </div>
+                {extraLinesAnyShort && stockShortfall === 0 && (
+                  <label htmlFor="create-lines-override-stock" className="mt-3 flex items-start gap-2 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700">
+                    <input
+                      id="create-lines-override-stock"
+                      type="checkbox"
+                      checked={overrideStock}
+                      onChange={(e) => setOverrideStock(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-red-400"
+                    />
+                    <span>
+                      <b>A line asks for more than is in stock.</b> Sell it anyway — stock goes negative until the missing
+                      production, or a stock correction, is recorded.
+                    </span>
+                  </label>
+                )}
+                <datalist id="egg-size-suggestions">
+                  <option value="Inside" />
+                  <option value="Tee" />
+                  <option value="Serum" />
+                  <option value="Small" />
+                  <option value="Medium" />
+                  <option value="Large" />
+                  <option value="XLarge" />
+                  <option value="Jumbo" />
+                </datalist>
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="overrideAmount" className="text-xs font-medium text-emerald-800">Override Total Sale Amount</Label>
                       <NumberInput
                         id="overrideAmount"
-                        
+                        className="h-9 w-36 bg-white text-right tabular-nums"
                         step="0.01"
                         value={overrideAmount ?? ""}
                         onChange={(e) => setOverrideAmount(e.target.value ? Number(e.target.value) : undefined)}
-                        placeholder="Leave empty to use calculated"
+                        placeholder="Optional"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="paymentMethod">Payment Method *</Label>
-                      <Select value={formData.paymentMethod} onValueChange={(value) => setFormData(prev => ({ ...prev, paymentMethod: value }))}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select payment method" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {paymentMethodOptions.map(method => (
-                            <SelectItem key={method} value={method}>
-                              {method}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div className="grid gap-2 md:grid-cols-2">
-                    <div className="rounded-md border bg-white px-3 py-2">
-                      <Label className="mb-2 block text-sm">Payment status</Label>
-                      <div className="flex flex-wrap items-center gap-4">
-                        <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
-                          <input
-                            type="radio"
-                            name="create-payment-status"
-                            className="h-4 w-4"
-                            checked={formData.paid !== false}
-                            onChange={() => setFormData(prev => ({ ...prev, paid: true }))}
-                          />
-                          Paid now
-                        </label>
-                        <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
-                          <input
-                            type="radio"
-                            name="create-payment-status"
-                            className="h-4 w-4"
-                            checked={formData.paid === false}
-                            onChange={() => setFormData(prev => ({ ...prev, paid: false }))}
-                          />
-                          Pay later (pending)
-                        </label>
-                      </div>
-                      <p className="text-xs text-slate-500 mt-1.5">
-                        {formData.paid === false
-                          ? "Records the full amount as owed — record payments later."
-                          : "Records the sale as fully paid and posts a cash-in."}
+                    {hasExtraEggLines && (
+                      <p className="text-xs text-emerald-800">
+                        {hasOverride
+                          ? "The override is shared across the lines in proportion to their amounts."
+                          : saleProductCount > 1
+                            ? `${saleProductCount} different products: saved as ${saleProductCount} sales, one per product, in one go.`
+                            : `Saved as one sale number with ${extraEggLines.length + 1} lines and one payment.`}
                       </p>
-                    </div>
-                    <div className={cn("rounded-md border bg-white px-3 py-2 space-y-1", isEggsProduct && hasEggSizes && "hidden")}>
-                      <Label htmlFor="saleSize">Egg Size (optional)</Label>
-                      <Input
-                        id="saleSize"
-                        list="egg-size-suggestions"
-                        value={formData.size ?? ""}
-                        onChange={(e) => setFormData(prev => ({ ...prev, size: e.target.value }))}
-                        placeholder="e.g. Inside, Tee, Serum"
-                      />
-                      <datalist id="egg-size-suggestions">
-                        <option value="Inside" />
-                        <option value="Tee" />
-                        <option value="Serum" />
-                        <option value="Small" />
-                        <option value="Medium" />
-                        <option value="Large" />
-                        <option value="XLarge" />
-                        <option value="Jumbo" />
-                      </datalist>
-                      <p className="text-xs text-slate-500">Used by the weekly report&apos;s &ldquo;Egg Sales by Size&rdquo; card.</p>
-                    </div>
+                    )}
                   </div>
-                  <div className="space-y-2">
+                  <div className="text-right">
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Sale total</div>
+                    <div className="text-2xl font-bold tabular-nums text-emerald-700">{formatCurrency(allLinesAmount, currencyCode)}</div>
+                    {hasOverride && Math.abs(allLinesAmount - calculatedSaleTotal) >= 0.005 && (
+                      <div className="text-xs text-emerald-800">calculated {formatCurrency(calculatedSaleTotal, currencyCode)}</div>
+                    )}
+                  </div>
+                </div>
+                </div>
+              </div>
+
+              {/* Payment: paid now (cash-in posted) or pay later (owed). */}
+              <div className="overflow-hidden rounded-xl border border-green-200">
+                <div className="bg-green-600 px-4 py-2 text-sm font-semibold text-white">Payment</div>
+              <div className="space-y-3 bg-green-50/40 p-4">
+                <div>
+                  <Label className="mb-2 block text-sm">Payment status</Label>
+                  {/* Two big choices rather than small radios: the colour says
+                      which one is on (green = cash in now, amber = owed). */}
+                  <div className="grid grid-cols-3 gap-2 sm:max-w-lg">
+                    <label className={cn(
+                      "relative flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 px-3 py-2 text-sm font-semibold transition-colors",
+                      formData.paid !== false && !partPayment ? "border-green-600 bg-green-600 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-green-300")}>
+                      <input
+                        type="radio"
+                        name="create-payment-status"
+                        className="sr-only"
+                        checked={formData.paid !== false && !partPayment}
+                        onChange={() => { setPartPayment(false); setFormData(prev => ({ ...prev, paid: true })) }}
+                      />
+                      Paid now
+                    </label>
+                    <label className={cn(
+                      "relative flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 px-3 py-2 text-sm font-semibold transition-colors",
+                      partPayment ? "border-blue-600 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-blue-300")}>
+                      <input
+                        type="radio"
+                        name="create-payment-status"
+                        className="sr-only"
+                        checked={partPayment}
+                        onChange={() => { setPartPayment(true); setFormData(prev => ({ ...prev, paid: false })) }}
+                      />
+                      Part payment
+                    </label>
+                    <label className={cn(
+                      "relative flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 px-3 py-2 text-sm font-semibold transition-colors",
+                      formData.paid === false && !partPayment ? "border-amber-500 bg-amber-500 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-amber-300")}>
+                      <input
+                        type="radio"
+                        name="create-payment-status"
+                        className="sr-only"
+                        checked={formData.paid === false && !partPayment}
+                        onChange={() => { setPartPayment(false); setFormData(prev => ({ ...prev, paid: false })) }}
+                      />
+                      Pay later
+                    </label>
+                  </div>
+                  <p className="mt-1.5 text-xs text-slate-600">
+                    {partPayment
+                      ? "Records what the customer paid now as a payment; the rest stays owed on Customer Balances."
+                      : formData.paid === false
+                        ? "Records the full amount as owed — record payments later."
+                        : "Records the sale as fully paid and posts a cash-in."}
+                  </p>
+                  {partPayment && (
+                    <div className="mt-3 flex flex-wrap items-end gap-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+                      <div className="space-y-1">
+                        <Label htmlFor="partPaidAmount" className="text-xs font-medium text-blue-800">Amount paid now *</Label>
+                        <NumberInput
+                          id="partPaidAmount"
+                          className="h-9 w-40 bg-white text-right tabular-nums"
+                          step="0.01"
+                          value={partPaidAmount ?? ""}
+                          onChange={(e) => setPartPaidAmount(e.target.value ? Number(e.target.value) : undefined)}
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div className="text-sm text-blue-900">
+                        Still owed:{" "}
+                        <b className="tabular-nums">
+                          {formatCurrency(Math.max(0, allLinesAmount - (Number(partPaidAmount) || 0)), currencyCode)}
+                        </b>
+                        {(Number(partPaidAmount) || 0) >= allLinesAmount && allLinesAmount > 0 && (
+                          <span className="ml-2 text-xs text-red-600">covers the whole sale — choose Paid now</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="paymentMethod">Payment method *</Label>
+                    <Select value={formData.paymentMethod} onValueChange={(value) => setFormData(prev => ({ ...prev, paymentMethod: value }))}>
+                      <SelectTrigger id="paymentMethod" className="bg-white">
+                        <SelectValue placeholder="Select payment method" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {paymentMethodOptions.map(method => (
+                          <SelectItem key={method} value={method}>
+                            {method}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
                     <Label htmlFor="cashAccount">Receive into cash account *</Label>
                     <Select
                       value={formData.poultryCashAccountId ? String(formData.poultryCashAccountId) : "none"}
                       onValueChange={(value) => setFormData(prev => ({ ...prev, poultryCashAccountId: value === "none" ? null : Number(value) }))}
                     >
-                      <SelectTrigger id="cashAccount">
+                      <SelectTrigger id="cashAccount" className="bg-white">
                         <SelectValue placeholder="Select a cash account" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1808,28 +1841,31 @@ export default function SalesPage() {
                         ))}
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-slate-500">Posts a cash-in and increases the account balance when the sale is marked paid.</p>
                   </div>
                 </div>
               </div>
+              </div>
 
-              {/* Description */}
-              <div className="space-y-2">
-                <Label htmlFor="saleDescription">Description</Label>
-                <Textarea
+              <div className="space-y-1.5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <Label htmlFor="saleDescription">Notes</Label>
+                <Input
                   id="saleDescription"
                   value={formData.saleDescription ?? ""}
                   onChange={(e) => setFormData(prev => ({ ...prev, saleDescription: e.target.value }))}
-                  placeholder="Additional notes about this sale"
+                  placeholder="Optional"
+                  className="bg-white"
                 />
               </div>
             </div>
-            <div className="shrink-0 flex flex-col gap-2 pt-3 border-t sm:flex-row sm:justify-end">
-              <Button onClick={() => setIsCreateDialogOpen(false)} className="w-full bg-red-600 hover:bg-red-700 text-white sm:w-auto">
+            {/* Pinned to the bottom of the dialog while the form scrolls. */}
+            <div className="sticky bottom-0 z-10 -mx-4 flex flex-col-reverse gap-2 border-t bg-white px-4 py-3 sm:-mx-6 sm:flex-row sm:justify-end sm:px-6">
+              <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}
+                className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 sm:w-auto">
                 Cancel
               </Button>
-              <Button onClick={handleCreateSale} disabled={savingSale} className="w-full bg-blue-600 hover:bg-blue-700 sm:w-auto">
-                {savingSale ? "Saving…" : "Create Sale"}
+              <Button onClick={handleCreateSale} disabled={savingSale}
+                className="w-full bg-blue-600 px-6 text-white hover:bg-blue-700 sm:w-auto">
+                {savingSale ? "Saving…" : `Record sale · ${formatCurrency(allLinesAmount, currencyCode)}`}
               </Button>
             </div>
           </DialogContent>
@@ -2440,8 +2476,14 @@ export default function SalesPage() {
                         formatMoney={formatCurrency}
                         flockLabel={getFlockLabel(selectedSale.flockId)}
                         invoiceNo={selectedSale.lines ? selectedSale.saleGroupNo : null}
-                        lines={selectedSale.lines?.map((l) => ({
-                          label: eggClassLabel(l.eggProductId),
+                        // Every sale prints its lines, a one-line sale too, so
+                        // the egg size is always on the invoice.
+                        lines={(selectedSale.lines ?? [{
+                          saleLineId: 0, lineNo: 1, product: selectedSale.product, eggProductId: selectedSale.eggProductId,
+                          size: selectedSale.size, quantity: selectedSale.quantity, unitPrice: selectedSale.unitPrice,
+                          totalAmount: selectedSale.totalAmount,
+                        }]).map((l) => ({
+                          label: isEggProduct(l.product) ? eggClassLabel(l.eggProductId) : (l.size ?? ""),
                           quantity: Number(l.quantity) || 0,
                           unitPrice: Number(l.unitPrice) || 0,
                           totalAmount: Number(l.totalAmount) || 0,
@@ -2476,7 +2518,7 @@ export default function SalesPage() {
         onRepost={(row) => { void repostReversed(row) }}
         onInvoice={(row) => { setViewSale(null); openInvoiceDialog(row) }}
         onShowSale={(id) => {
-          const row = groupedSales.find((g) => g.saleId === id || g.lines?.some((l) => l.saleId === id))
+          const row = groupedSales.find((g) => g.saleId === id)
           if (row) { setStatusFilter("All"); setViewSale(row) }
         }}
       />
@@ -2516,7 +2558,6 @@ export default function SalesPage() {
         partyName={historySale?.customerName ?? null}
         documentType="Sale"
         documentId={historySale?.saleId ?? null}
-        documentIds={historySale?.lines?.map((l) => l.saleId) ?? null}
         canReverse={canReversePayments}
         onReversed={() => { loadSales() }}
       />
@@ -2564,14 +2605,13 @@ export default function SalesPage() {
                 disabled={paySaving}
                 onClick={() => {
                   const s = payDialog.sale!
-                  const owedLine = (s.lines ?? [s]).find((l) => saleOwed(l) > 0) ?? s
                   setPayDialog({ open: false, sale: null })
                   setApplyCredit({
                     customerId: Number(s.customerId),
                     customerName: s.customerName || "",
-                    saleId: owedLine.saleId,
-                    saleLabel: s.lines ? (s.saleGroupNo ?? `#${owedLine.saleId}`) : `#${s.saleId}`,
-                    outstanding: saleOwed(owedLine),
+                    saleId: s.saleId,
+                    saleLabel: s.saleGroupNo ?? `#${s.saleId}`,
+                    outstanding: saleOwed(s),
                   })
                 }}
               >

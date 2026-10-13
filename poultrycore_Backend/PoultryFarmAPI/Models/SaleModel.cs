@@ -1,4 +1,4 @@
-namespace PoultryFarmAPIWeb.Models
+﻿namespace PoultryFarmAPIWeb.Models
 {
     public class SaleModel
     {
@@ -50,6 +50,26 @@ namespace PoultryFarmAPIWeb.Models
         public int? CorrectsSaleId { get; set; }
         /// <summary>On a reversed sale: the sale that corrected it, if any.</summary>
         public int? CorrectedBySaleId { get; set; }
+
+        // ---- 358: one sale, many lines ----
+        /// <summary>Number of lines in the sale (1 for an ordinary sale).</summary>
+        public int LineCount { get; set; } = 1;
+        /// <summary>What was sold inside the sale, in entry order. Read-only: lines are written when the sale posts.</summary>
+        public List<SaleLineModel> Lines { get; set; } = new();
+    }
+
+    /// <summary>One product / egg class inside a sale (migration 358). Not a sale of its own.</summary>
+    public class SaleLineModel
+    {
+        public int SaleLineId { get; set; }
+        public int LineNo { get; set; }
+        public string Product { get; set; } = string.Empty;
+        /// <summary>Egg class sold on this line; null = Unsorted / General.</summary>
+        public int? EggProductId { get; set; }
+        public string? Size { get; set; }
+        public decimal Quantity { get; set; }
+        public decimal UnitPrice { get; set; }
+        public decimal TotalAmount { get; set; }
     }
 
     /// <summary>POST api/Sale/{id}/reverse.</summary>

@@ -163,6 +163,9 @@ export function buildRestaurantNavConfig(
         label: "Expenses",
         items: [
           { id: "expenses",       title: "Expenses",     icon: DollarSign, href: "/restaurant-expenses", visible: vis("/restaurant-expenses") },
+          // Migration 329: Poultry's three rows, same titles, icons and gates.
+          { id: "supplier-payments", title: "Supplier Payments", icon: Receipt, href: "/restaurant-supplier-payments", visible: vis("/restaurant-supplier-payments") },
+          { id: "supplier-balances", title: "Supplier Balances", icon: Truck, href: "/restaurant-supplier-balances", visible: vis("/restaurant-supplier-balances") },
           // 348. Shared recurring-expense engine. Gated like the money rows (staff
           // record one-off expenses, but setting up standing ones is a money decision).
           { id: "recurring-expenses", title: "Recurring Expenses", icon: Repeat, href: "/restaurant-recurring-expenses", visible: vis("/restaurant-recurring-expenses") },
@@ -172,9 +175,6 @@ export function buildRestaurantNavConfig(
           // Migration 326. Money LENT TO staff; "Loans (Financing)" below is
           // money the restaurant borrowed.
           { id: "employee-loans", title: "Employee Loans & Advances", icon: HandCoins, href: "/restaurant-staff-loans", visible: vis("/restaurant-staff-loans") },
-          // Migration 329: Poultry's three rows, same titles, icons and gates.
-          { id: "supplier-payments", title: "Supplier Payments", icon: Receipt, href: "/restaurant-supplier-payments", visible: vis("/restaurant-supplier-payments") },
-          { id: "supplier-balances", title: "Supplier Balances", icon: Truck, href: "/restaurant-supplier-balances", visible: vis("/restaurant-supplier-balances") },
           { id: "deferred-inventory-costs", title: "Deferred inventory cost", icon: Hourglass, href: "/restaurant-deferred-costs", visible: vis("/restaurant-deferred-costs") },
           // Migration 328. Poultry's last Expenses row, same title and icon.
           { id: "assets", title: "Capital Investments/Assets", icon: Building2, href: "/restaurant-assets", visible: vis("/restaurant-assets") },

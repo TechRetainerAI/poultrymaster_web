@@ -501,6 +501,53 @@ export const listPoultryStockTransactions = (productId?: number) => {
 export const addPoultryStockTransaction = (input: { poultryProductId: number; txnType: string; quantity: number; unitCost?: number | null; note?: string | null }) =>
   jsend<{ poultryStockTransactionId: number }>(`/Poultry/stock/transactions`, "POST", { ...input, farmId: activeFarmId() })
 
+// ===================== Bird adjustments (migration 359) =====================
+// Birds are counted from flocks and their production records, not the stock
+// ledger, so they are adjusted per flock -- or for a batch's birds not yet
+// placed in any flock -- never as a bare stock movement.
+
+/** One batch, and one of its flocks when flockId is set. */
+export interface PoultryBirdAdjustmentOption {
+  batchId: number
+  batchCode: string
+  batchName: string
+  batchBirds: number
+  /** Birds of the batch not placed in any flock. */
+  unplacedBirds: number
+  flockId: number | null
+  flockName: string | null
+  /** The flock's birds now. */
+  liveBirds: number | null
+  lastCountDate: string | null
+  hasProductionRecord: boolean
+  isClosed: boolean
+}
+
+export interface PoultryBirdAdjustment {
+  birdAdjustmentId: number
+  adjustmentDate: string
+  batchId: number
+  batchCode: string | null
+  flockId: number | null
+  flockName: string | null
+  movementType: string
+  quantity: number
+  birdsBefore: number
+  birdsAfter: number
+  productionRecordId: number | null
+  note: string | null
+  createdBy: string | null
+  createdAt: string
+}
+
+export const listPoultryBirdAdjustmentOptions = () =>
+  jget<PoultryBirdAdjustmentOption[]>(`/Poultry/stock/birds/options?farmId=${encodeURIComponent(activeFarmId())}`)
+export const listPoultryBirdAdjustments = () =>
+  jget<PoultryBirdAdjustment[]>(`/Poultry/stock/birds/adjustments?farmId=${encodeURIComponent(activeFarmId())}`)
+/** quantity is SIGNED; flockId null adjusts the batch's birds not yet placed in a flock. */
+export const postPoultryBirdAdjustment = (input: { batchId: number; flockId: number | null; movementType: string; quantity: number; note?: string | null; createdBy?: string | null }) =>
+  jsend<{ birdAdjustmentId: number }>(`/Poultry/stock/birds/adjustments`, "POST", { ...input, farmId: activeFarmId() })
+
 // ===================== Recipes (slice 3) =====================
 export interface PoultryRecipeItem {
   poultryProductionRecipeItemId?: number

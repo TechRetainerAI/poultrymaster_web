@@ -44,6 +44,7 @@ import { toLocalDateKey } from "@/lib/utils/date-key"
 import { buildEggStockLedger, type EggLedgerRow } from "@/lib/utils/egg-ledger"
 import { groupLedgerByType, EGG_MOVE_LABELS } from "@/lib/utils/ledger-breakdown"
 import { FlowBreakdownCard } from "@/components/cash/flow-breakdown-card"
+import { EggBreakdownDrillDialog, type EggDrill } from "@/components/egg-tracker/egg-breakdown-drill-dialog"
 import { EggClassLedger } from "@/components/egg-sorting/egg-class-ledger"
 import { getEggClasses } from "@/lib/api/egg-sorting"
 
@@ -257,6 +258,8 @@ export default function EggTrackerPage() {
     () => groupLedgerByType(eggLedgerAllRows, "out", EGG_MOVE_LABELS),
     [eggLedgerAllRows],
   )
+  // Clicking a Breakdown line opens the movements behind it (like Profit & Loss).
+  const [eggDrill, setEggDrill] = useState<EggDrill | null>(null)
 
   // Corrections, kept apart from the flows they sit between. An adjustment is
   // somebody reconciling the count after a stocktake, not eggs laid or sold, so
@@ -695,6 +698,11 @@ export default function EggTrackerPage() {
                   </CardContent>
                 </Card>
 
+                {/* 341-343: stock per egg category (Unsorted + sizes), between the
+                    tracker tiles and the Breakdown. Renders nothing for a farm
+                    without sizes. */}
+                <EggClassLedger />
+
                 {/* Straight under the tiles, because it is the tiles it breaks
                     apart: both cards total the whole ledger, which is what
                     "Total eggs in" and "Total eggs out" above them count. It sat
@@ -719,6 +727,7 @@ export default function EggTrackerPage() {
                         fmtMoney={(n) => n.toLocaleString()}
                         description="Every movement that added eggs to stock — the whole ledger, so it breaks down the totals above rather than the filtered table below."
                         emptyText="No eggs have come in yet."
+                        onSelect={(bucket) => setEggDrill({ bucket, direction: "in" })}
                       />
                       <FlowBreakdownCard
                         title="Eggs out by use"
@@ -728,13 +737,12 @@ export default function EggTrackerPage() {
                         fmtMoney={(n) => n.toLocaleString()}
                         description="Every movement that took eggs out of stock — sales, internal use, load-outs and the non-saleable ones."
                         emptyText="No eggs have gone out yet."
+                        onSelect={(bucket) => setEggDrill({ bucket, direction: "out" })}
                       />
                     </div>
+                    <EggBreakdownDrillDialog drill={eggDrill} rows={eggLedgerAllRows} onClose={() => setEggDrill(null)} />
                   </div>
                 )}
-
-                {/* 341-343: stock and movements per egg class (Unsorted + sizes). Renders nothing for a farm without sizes. */}
-                <EggClassLedger />
 
                 <Card className="bg-white">
                   <CardHeader>

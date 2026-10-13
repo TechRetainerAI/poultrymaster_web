@@ -12,6 +12,7 @@ export type {
   ResetPasswordData,
   ReportRequest,
   Sale,
+  SaleLine,
   SaleInput,
   Expense,
   ExpenseInput,

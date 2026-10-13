@@ -15,6 +15,7 @@ namespace PoultryFarmAPIWeb.Business
     public class SaleRuleException : Exception
     {
         public SaleRuleException(string message, Exception inner) : base(message, inner) { }
+        public SaleRuleException(string message) : base(message) { }
         /// <summary>The reversal preview the user confirmed is out of date.</summary>
         public bool Stale { get; init; }
     }
@@ -311,13 +312,26 @@ namespace PoultryFarmAPIWeb.Business
                 unitPrice = l.UnitPrice,
                 totalAmount = l.TotalAmount,
             }));
-            using var conn = new NpgsqlConnection(_connectionString);
+            // 360: different products in one entry are saved as one sale per
+            // product (358 keeps a sale to one product), in one transaction.
+            var mixed = request.Lines
+                .Select(l => (l.Product ?? string.Empty).Trim().ToLowerInvariant())
+                .Distinct().Count() > 1;
+            var fn = mixed ? "sppoultrysale_createsplit" : "sppoultrysale_creategroup";
+            var partPay = !request.Paid && request.AmountPaidNow is > 0 ? request.AmountPaidNow.Value : 0m;
+            if (partPay > 0 && request.CustomerId is null && string.IsNullOrWhiteSpace(request.CustomerName))
+                throw new SaleRuleException("A part payment needs a customer, so the rest can be owed by someone.");
+            await using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync();
+            // One transaction: the sale and its part payment land together (351:
+            // a posted sale is only shaped by the transaction that created it).
+            await using var tx = await conn.BeginTransactionAsync();
             using var cmd = new NpgsqlCommand(
-                "SELECT sppoultrysale_creategroup(p_farmid => @FarmId::text, p_userid => @UserId::text, " +
+                $"SELECT {fn}(p_farmid => @FarmId::text, p_userid => @UserId::text, " +
                 "p_saledate => @Date::timestamp, p_customername => @Customer::text, p_customerid => @CustomerId::int, " +
                 "p_paymentmethod => @Method::text, p_cashaccountid => @Account::int, p_paid => @Paid::boolean, " +
-                "p_description => @Description::text, p_flockid => @Flock::int, p_linesjson => @Lines::text)::text", conn);
+                "p_description => @Description::text, p_flockid => @Flock::int, p_linesjson => @Lines::text, " +
+                "p_requestkey => @RequestKey::text)::text", conn, tx);
             cmd.Parameters.AddWithValue("@FarmId", request.FarmId);
             cmd.Parameters.AddWithValue("@UserId", request.UserId);
             cmd.Parameters.AddWithValue("@Date", request.SaleDate);
@@ -329,31 +343,76 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@Description", (object?)request.SaleDescription ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Flock", (object?)request.FlockId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Lines", lines);
+            cmd.Parameters.AddWithValue("@RequestKey", (object?)request.RequestKey ?? DBNull.Value);
             var json = (string?)await cmd.ExecuteScalarAsync() ?? "{}";
             var result = System.Text.Json.JsonSerializer.Deserialize<SaleGroupResult>(json,
                        new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true })
                    ?? new SaleGroupResult();
+            if (result.SaleId == 0 && result.SaleIds.Length > 0) result.SaleId = result.SaleIds[0];
+            if (partPay > 0 && !result.Duplicate)
+                await RecordPartPaymentAsync(conn, tx, request, result, partPay);
+            await tx.CommitAsync();
             // 351: a Correct Sale re-entry points back at the sale it replaces.
-            if (request.CorrectsSaleId is > 0 && result.SaleIds.Length > 0)
-                await LinkCorrectionAsync(request.FarmId, result.SaleIds[0], request.CorrectsSaleId.Value, request.UserId);
+            if (request.CorrectsSaleId is > 0 && result.SaleId > 0 && !result.Duplicate)
+                await LinkCorrectionAsync(request.FarmId, result.SaleId, request.CorrectsSaleId.Value, request.UserId);
             return result;
         }
 
         /// <summary>
-        /// The sale's SG number, giving it one first if it has none (migration
-        /// 349), so egg sizes added on edit join this sale instead of becoming
-        /// separate sales.
+        /// Part payment at the counter: ONE customer payment (sourcetype
+        /// SaleEntry, like Paid now) applied to the new sale(s) in order, each
+        /// up to its total. The rest stays owed on Customer Balances.
         /// </summary>
-        public async Task<string> EnsureGroup(int saleId, string farmId, string? userId)
+        private static async Task RecordPartPaymentAsync(NpgsqlConnection conn, NpgsqlTransaction tx,
+            SaleGroupRequest request, SaleGroupResult result, decimal amount)
         {
-            using var conn = new NpgsqlConnection(_connectionString);
-            await conn.OpenAsync();
-            using var cmd = new NpgsqlCommand(
-                "SELECT sppoultrysale_ensuregroup(p_farmid => @FarmId::text, p_saleid => @SaleId::int, p_by => @By::text)", conn);
-            cmd.Parameters.AddWithValue("@FarmId", farmId);
-            cmd.Parameters.AddWithValue("@SaleId", saleId);
-            cmd.Parameters.AddWithValue("@By", (object?)userId ?? DBNull.Value);
-            return (string?)await cmd.ExecuteScalarAsync() ?? string.Empty;
+            var ids = result.SaleIds.Length > 0 ? result.SaleIds : new[] { result.SaleId };
+            var sales = new List<(int Id, decimal Total, int? CustomerId)>();
+            using (var q = new NpgsqlCommand(
+                "SELECT saleid, totalamount, customerid FROM sale WHERE farmid = @FarmId AND saleid = ANY(@Ids) ORDER BY saleid",
+                conn, tx))
+            {
+                q.Parameters.AddWithValue("@FarmId", request.FarmId);
+                q.Parameters.AddWithValue("@Ids", ids);
+                using var r = await q.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                    sales.Add((r.GetInt32(0), r.GetDecimal(1), r.IsDBNull(2) ? null : r.GetInt32(2)));
+            }
+
+            var customerId = sales.Select(s => s.CustomerId).FirstOrDefault(c => c is not null);
+            if (customerId is null)
+                throw new SaleRuleException("A part payment needs a customer, so the rest can be owed by someone.");
+            var total = sales.Sum(s => s.Total);
+            if (amount >= total)
+                throw new SaleRuleException("The part payment covers the whole sale. Choose Paid now instead.");
+
+            var left = amount;
+            var allocations = new List<object>();
+            foreach (var s in sales)
+            {
+                if (left <= 0) break;
+                var apply = Math.Min(left, s.Total);
+                if (apply <= 0) continue;
+                allocations.Add(new { saleid = s.Id, amount = apply });
+                left -= apply;
+            }
+
+            using var pay = new NpgsqlCommand(
+                "SELECT sppoultrycustomerpayment_record(p_farmid => @FarmId::text, p_customerid => @CustomerId::int, " +
+                "p_amount => @Amount::numeric, p_allocations => @Allocations::jsonb, p_paymentmethod => @Method::text, " +
+                "p_paymentdate => @Date::timestamp, p_cashaccountid => @Account::int, p_reference => @Reference::text, " +
+                "p_note => @Note::text, p_sourcetype => 'SaleEntry', p_createdby => @By::text)", conn, tx);
+            pay.Parameters.AddWithValue("@FarmId", request.FarmId);
+            pay.Parameters.AddWithValue("@CustomerId", customerId.Value);
+            pay.Parameters.AddWithValue("@Amount", amount);
+            pay.Parameters.AddWithValue("@Allocations", System.Text.Json.JsonSerializer.Serialize(allocations));
+            pay.Parameters.AddWithValue("@Method", (object?)request.PaymentMethod ?? DBNull.Value);
+            pay.Parameters.AddWithValue("@Date", request.SaleDate);
+            pay.Parameters.AddWithValue("@Account", (object?)request.PoultryCashAccountId ?? DBNull.Value);
+            pay.Parameters.AddWithValue("@Reference", string.IsNullOrEmpty(result.SaleGroupNo) ? DBNull.Value : (object)result.SaleGroupNo);
+            pay.Parameters.AddWithValue("@Note", "Part payment at point of sale");
+            pay.Parameters.AddWithValue("@By", request.UserId);
+            await pay.ExecuteNonQueryAsync();
         }
 
         /// <summary>
@@ -679,6 +738,15 @@ namespace PoultryFarmAPIWeb.Business
             s.SaleReversalId = GetNullableInt32IfPresent(reader, "SaleReversalId");
             s.CorrectsSaleId = GetNullableInt32IfPresent(reader, "CorrectsSaleId");
             s.CorrectedBySaleId = GetNullableInt32IfPresent(reader, "CorrectedBySaleId");
+
+            // 358: what was sold inside the sale. A one-line sale has one line
+            // mirroring the header; a multi-line sale's header is their sum.
+            s.LineCount = GetNullableInt32IfPresent(reader, "LineCount") ?? 1;
+            var lines = GetNullableStringIfPresent(reader, "SaleLines");
+            if (!string.IsNullOrEmpty(lines))
+                s.Lines = System.Text.Json.JsonSerializer.Deserialize<List<SaleLineModel>>(lines,
+                              new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+                          ?? new List<SaleLineModel>();
         }
 
         private static DateTime? GetNullableDateTimeIfPresent(NpgsqlDataReader reader, string columnName)

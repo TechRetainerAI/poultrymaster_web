@@ -8,6 +8,8 @@
  * like. Keeping it dumb is what lets the numbers be unit-tested.
  */
 
+import type { ReactNode } from "react"
+import { ChevronRight } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import type { FlowBucket } from "@/lib/cash/cash-flow"
@@ -21,6 +23,7 @@ export function FlowBreakdownCard({
   fmtMoney,
   emptyText,
   className,
+  onSelect,
 }: {
   title: string
   description?: string
@@ -34,6 +37,8 @@ export function FlowBreakdownCard({
    *  its stretched cell; a card with fewer buckets than its neighbour would
    *  otherwise sit short inside a full-height cell. */
   className?: string
+  /** Makes each row a button that opens what is behind it (Egg tracker). */
+  onSelect?: (bucket: FlowBucket) => void
 }) {
   const positive = direction === "in"
   // One bucket is 100% of itself. The bar fills end to end and the percentage
@@ -60,6 +65,7 @@ export function FlowBreakdownCard({
           <ul className="space-y-2.5">
             {buckets.map((b) => (
               <li key={b.key}>
+                <BucketRow onSelect={onSelect ? () => onSelect(b) : undefined} positive={positive}>
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="min-w-0 truncate text-sm text-slate-700" title={b.label}>
                     {b.label}
@@ -69,8 +75,9 @@ export function FlowBreakdownCard({
                       {b.count} {b.count === 1 ? "entry" : "entries"}
                     </span>
                   </span>
-                  <span className="whitespace-nowrap text-sm font-medium tabular-nums text-slate-900">
+                  <span className="flex items-center gap-1 whitespace-nowrap text-sm font-medium tabular-nums text-slate-900">
                     {fmtMoney(b.amount)}
+                    {onSelect && <ChevronRight className="h-4 w-4 text-slate-400" />}
                   </span>
                 </div>
                 {!single && (
@@ -95,11 +102,29 @@ export function FlowBreakdownCard({
                   </span>
                 </div>
                 )}
+                </BucketRow>
               </li>
             ))}
           </ul>
         )}
       </CardContent>
     </Card>
+  )
+}
+
+/** A plain block, or -- when the card can drill in -- a full-width button. */
+function BucketRow({ onSelect, positive, children }: { onSelect?: () => void; positive: boolean; children: ReactNode }) {
+  if (!onSelect) return <>{children}</>
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={cn(
+        "-mx-2 block w-[calc(100%+1rem)] rounded-md px-2 py-1 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-1",
+        positive ? "hover:bg-emerald-50 focus-visible:outline-emerald-400" : "hover:bg-rose-50 focus-visible:outline-rose-400",
+      )}
+    >
+      {children}
+    </button>
   )
 }

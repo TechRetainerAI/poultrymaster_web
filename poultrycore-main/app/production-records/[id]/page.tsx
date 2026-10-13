@@ -8,17 +8,33 @@
 // This file used to hold its own ~780-line copy of the form, which had already
 // drifted from the add page's copy.
 
-import { useParams, useRouter } from "next/navigation"
+import { Suspense } from "react"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
-import { FileText, X } from "lucide-react"
+import { ArrowLeft, FileText, X } from "lucide-react"
 import { ProductionRecordForm } from "@/components/production/production-record-form"
 
 export default function EditProductionRecordPage() {
+  // useSearchParams needs a Suspense boundary during prerender.
+  return (
+    <Suspense fallback={null}>
+      <EditProductionRecordInner />
+    </Suspense>
+  )
+}
+
+function EditProductionRecordInner() {
   const router = useRouter()
   const params = useParams()
   const recordId = Number(Array.isArray(params?.id) ? params.id[0] : params?.id)
+  // ?returnTo=/poultry-egg-sorting (from the Egg Sorting Workspace): Close,
+  // Cancel and Save go back there instead of to Production Records. Same-site
+  // paths only, so the link cannot send anyone off the app.
+  const returnParam = useSearchParams().get("returnTo")
+  const returnTo = returnParam && returnParam.startsWith("/") && !returnParam.startsWith("//") ? returnParam : null
+  const back = () => router.push(returnTo ?? "/production-records")
 
   const handleLogout = () => {
     localStorage.clear()
@@ -41,14 +57,20 @@ export default function EditProductionRecordPage() {
                 <p className="text-sm text-slate-600">Update production record details</p>
               </div>
             </div>
-            <Button
-              type="button"
-              size="sm"
-              className="gap-1.5 bg-red-600 text-white hover:bg-red-700"
-              onClick={() => router.push("/production-records")}
-            >
-              <X className="h-4 w-4" /> Close
-            </Button>
+            {returnTo?.startsWith("/poultry-egg-sorting") ? (
+              <Button type="button" size="sm" className="gap-1.5 bg-amber-500 text-white hover:bg-amber-600" onClick={back}>
+                <ArrowLeft className="h-4 w-4" /> Back to Egg Sorting
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                className="gap-1.5 bg-red-600 text-white hover:bg-red-700"
+                onClick={back}
+              >
+                <X className="h-4 w-4" /> Close
+              </Button>
+            )}
           </div>
 
           {Number.isFinite(recordId) && recordId > 0 ? (
@@ -56,8 +78,8 @@ export default function EditProductionRecordPage() {
               mode="edit"
               displayMode="page"
               recordId={recordId}
-              onSaved={() => router.push("/production-records")}
-              onCancel={() => router.push("/production-records")}
+              onSaved={back}
+              onCancel={back}
             />
           ) : (
             <p className="text-sm text-slate-500">That production record could not be found.</p>
