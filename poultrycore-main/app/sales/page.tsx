@@ -342,6 +342,10 @@ export default function SalesPage() {
   const [crates, setCrates] = useState(0)
   const [looseEggs, setLooseEggs] = useState(0)
   const [overrideAmount, setOverrideAmount] = useState<number | undefined>(undefined)
+  // Part payment: saved as owed (paid = false) plus ONE payment for what the
+  // customer handed over now, in the same transaction as the sale.
+  const [partPayment, setPartPayment] = useState(false)
+  const [partPaidAmount, setPartPaidAmount] = useState<number | undefined>(undefined)
   // Finished products carry the stock a sale draws on (eggs, birds).
   const [poultryProducts, setPoultryProducts] = useState<PoultryProduct[]>([])
   // Ticked to record a sale bigger than the stock. Per-dialog-session: cleared
@@ -651,9 +655,25 @@ export default function SalesPage() {
       const calculatedAmount = saleLineTotal(quantity, unitPrice, isEggsProduct)
       const totalAmount = (overrideAmount !== undefined && overrideAmount > 0) ? overrideAmount : calculatedAmount
 
-      // Several lines (egg sizes and/or other products): one sale number, one
-      // payment, all or nothing.
-      if (extraEggLines.length > 0) {
+      if (partPayment) {
+        const paidNow = Number(partPaidAmount) || 0
+        if (!(formData.customerName ?? "").toString().trim()) {
+          toastFormGuide(toast, "A part payment needs a customer, so the rest can be owed by someone.")
+          return
+        }
+        if (paidNow <= 0) {
+          toastFormGuide(toast, "Enter the amount the customer paid now.")
+          return
+        }
+        if (paidNow >= allLinesAmount) {
+          toastFormGuide(toast, "That covers the whole sale. Choose Paid now instead.")
+          return
+        }
+      }
+
+      // Several lines (egg sizes and/or other products), or a part payment:
+      // one sale number, one payment, all or nothing.
+      if (extraEggLines.length > 0 || partPayment) {
         if (extraEggLines.some((l) => !(l.product ?? "eggs").trim() || extraLineQuantity(l) <= 0 || l.unitPrice <= 0)) {
           toastFormGuide(toast, "Every added line needs a product, a quantity and a price, or remove it.")
           return
@@ -670,7 +690,8 @@ export default function SalesPage() {
           customerName: (formData.customerName ?? "").toString() || null,
           paymentMethod: (formData.paymentMethod ?? "").toString() || null,
           poultryCashAccountId: formData.poultryCashAccountId ?? null,
-          paid: formData.paid ?? true,
+          paid: partPayment ? false : (formData.paid ?? true),
+          amountPaidNow: partPayment ? Math.round((Number(partPaidAmount) || 0) * 100) / 100 : null,
           saleDescription: formData.saleDescription || null,
           flockId: formData.flockId || null,
           correctsSaleId: correcting?.saleId ?? null,
@@ -693,12 +714,15 @@ export default function SalesPage() {
           return
         }
         const saleCount = res.data?.saleCount ?? 1
-        toast(saleCount > 1
-          ? { title: `${saleCount} sales created: ${res.data?.saleGroupNo ?? ""}`, description: "One sale per product, as each product is its own sale." }
-          : { title: `Sale ${res.data?.saleGroupNo ?? ""} created`, description: `${extraEggLines.length + 1} lines, one sale.` })
-        const firstId = res.data?.saleId ?? res.data?.saleIds?.[0]
         const groupTotal = Number(res.data?.totalAmount ?? 0)
-        await afterCorrectionSaved(firstId, res.data?.saleGroupNo || (firstId ? `#${firstId}` : ""), groupTotal, !!(formData.paid ?? true))
+        const partNote = partPayment
+          ? ` Paid ${formatCurrency(Number(partPaidAmount) || 0, currencyCode)}, owed ${formatCurrency(Math.max(0, groupTotal - (Number(partPaidAmount) || 0)), currencyCode)}.`
+          : ""
+        toast(saleCount > 1
+          ? { title: `${saleCount} sales created: ${res.data?.saleGroupNo ?? ""}`, description: `One sale per product, as each product is its own sale.${partNote}` }
+          : { title: `Sale ${res.data?.saleGroupNo ?? ""} created`, description: `${extraEggLines.length + 1} line${extraEggLines.length ? "s" : ""}, one sale.${partNote}` })
+        const firstId = res.data?.saleId ?? res.data?.saleIds?.[0]
+        await afterCorrectionSaved(firstId, res.data?.saleGroupNo || (firstId ? `#${firstId}` : ""), groupTotal, !partPayment && !!(formData.paid ?? true))
         setIsCreateDialogOpen(false)
         resetForm()
         loadSales()
@@ -968,6 +992,8 @@ export default function SalesPage() {
     setOtherCustomerName("")
     setOverrideAmount(undefined)
     setOverrideStock(false)
+    setPartPayment(false)
+    setPartPaidAmount(undefined)
     setCrates(0)
     setLooseEggs(0)
   }
@@ -1712,37 +1738,75 @@ export default function SalesPage() {
                   <Label className="mb-2 block text-sm">Payment status</Label>
                   {/* Two big choices rather than small radios: the colour says
                       which one is on (green = cash in now, amber = owed). */}
-                  <div className="grid grid-cols-2 gap-2 sm:max-w-md">
+                  <div className="grid grid-cols-3 gap-2 sm:max-w-lg">
                     <label className={cn(
                       "relative flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 px-3 py-2 text-sm font-semibold transition-colors",
-                      formData.paid !== false ? "border-green-600 bg-green-600 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-green-300")}>
+                      formData.paid !== false && !partPayment ? "border-green-600 bg-green-600 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-green-300")}>
                       <input
                         type="radio"
                         name="create-payment-status"
                         className="sr-only"
-                        checked={formData.paid !== false}
-                        onChange={() => setFormData(prev => ({ ...prev, paid: true }))}
+                        checked={formData.paid !== false && !partPayment}
+                        onChange={() => { setPartPayment(false); setFormData(prev => ({ ...prev, paid: true })) }}
                       />
                       Paid now
                     </label>
                     <label className={cn(
                       "relative flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 px-3 py-2 text-sm font-semibold transition-colors",
-                      formData.paid === false ? "border-amber-500 bg-amber-500 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-amber-300")}>
+                      partPayment ? "border-blue-600 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-blue-300")}>
                       <input
                         type="radio"
                         name="create-payment-status"
                         className="sr-only"
-                        checked={formData.paid === false}
-                        onChange={() => setFormData(prev => ({ ...prev, paid: false }))}
+                        checked={partPayment}
+                        onChange={() => { setPartPayment(true); setFormData(prev => ({ ...prev, paid: false })) }}
+                      />
+                      Part payment
+                    </label>
+                    <label className={cn(
+                      "relative flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 px-3 py-2 text-sm font-semibold transition-colors",
+                      formData.paid === false && !partPayment ? "border-amber-500 bg-amber-500 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-amber-300")}>
+                      <input
+                        type="radio"
+                        name="create-payment-status"
+                        className="sr-only"
+                        checked={formData.paid === false && !partPayment}
+                        onChange={() => { setPartPayment(false); setFormData(prev => ({ ...prev, paid: false })) }}
                       />
                       Pay later
                     </label>
                   </div>
                   <p className="mt-1.5 text-xs text-slate-600">
-                    {formData.paid === false
-                      ? "Records the full amount as owed — record payments later."
-                      : "Records the sale as fully paid and posts a cash-in."}
+                    {partPayment
+                      ? "Records what the customer paid now as a payment; the rest stays owed on Customer Balances."
+                      : formData.paid === false
+                        ? "Records the full amount as owed — record payments later."
+                        : "Records the sale as fully paid and posts a cash-in."}
                   </p>
+                  {partPayment && (
+                    <div className="mt-3 flex flex-wrap items-end gap-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+                      <div className="space-y-1">
+                        <Label htmlFor="partPaidAmount" className="text-xs font-medium text-blue-800">Amount paid now *</Label>
+                        <NumberInput
+                          id="partPaidAmount"
+                          className="h-9 w-40 bg-white text-right tabular-nums"
+                          step="0.01"
+                          value={partPaidAmount ?? ""}
+                          onChange={(e) => setPartPaidAmount(e.target.value ? Number(e.target.value) : undefined)}
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div className="text-sm text-blue-900">
+                        Still owed:{" "}
+                        <b className="tabular-nums">
+                          {formatCurrency(Math.max(0, allLinesAmount - (Number(partPaidAmount) || 0)), currencyCode)}
+                        </b>
+                        {(Number(partPaidAmount) || 0) >= allLinesAmount && allLinesAmount > 0 && (
+                          <span className="ml-2 text-xs text-red-600">covers the whole sale — choose Paid now</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
@@ -2412,8 +2476,14 @@ export default function SalesPage() {
                         formatMoney={formatCurrency}
                         flockLabel={getFlockLabel(selectedSale.flockId)}
                         invoiceNo={selectedSale.lines ? selectedSale.saleGroupNo : null}
-                        lines={selectedSale.lines?.map((l) => ({
-                          label: eggClassLabel(l.eggProductId),
+                        // Every sale prints its lines, a one-line sale too, so
+                        // the egg size is always on the invoice.
+                        lines={(selectedSale.lines ?? [{
+                          saleLineId: 0, lineNo: 1, product: selectedSale.product, eggProductId: selectedSale.eggProductId,
+                          size: selectedSale.size, quantity: selectedSale.quantity, unitPrice: selectedSale.unitPrice,
+                          totalAmount: selectedSale.totalAmount,
+                        }]).map((l) => ({
+                          label: isEggProduct(l.product) ? eggClassLabel(l.eggProductId) : (l.size ?? ""),
                           quantity: Number(l.quantity) || 0,
                           unitPrice: Number(l.unitPrice) || 0,
                           totalAmount: Number(l.totalAmount) || 0,

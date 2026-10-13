@@ -29,7 +29,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { cn } from "@/lib/utils"
 import {
-  AlertTriangle, ChevronDown, ChevronRight, ExternalLink, FileText,
+  AlertTriangle, ChevronDown, ChevronRight, ExternalLink, Eye, FileText,
   History, Loader2, Users, Wallet,
 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
@@ -93,11 +93,16 @@ export interface BalancesPageProps {
    * Customer Credit panel (351); everyone else passes nothing.
    */
   afterSummary?: ReactNode
+  /**
+   * Show what is inside one open document (Poultry: the sale's lines). When
+   * given, a document row is clickable and gets a Details button.
+   */
+  onDocumentDetails?: (doc: OpenDocumentRow) => void
 }
 
 export function BalancesPage({
   module, side, companyType, loadCashAccounts, partyHref, documentHref, permissions, wording, iconClassName, pagerVariant,
-  afterSummary,
+  afterSummary, onDocumentDetails,
 }: BalancesPageProps) {
   const fmt = useFmt()
   const router = useRouter()
@@ -561,7 +566,11 @@ export function BalancesPage({
                                   ) : lines.length === 0 ? (
                                     <span className="block py-2 text-sm text-slate-500">No open {docWord}s match the current filters.</span>
                                   ) : lines.map((d) => (
-                                    <div key={`${d.documentType}:${d.documentId}`} className="rounded-md border border-blue-200 bg-white p-2.5 shadow-sm">
+                                    <div
+                                      key={`${d.documentType}:${d.documentId}`}
+                                      className={cn("rounded-md border border-blue-200 bg-white p-2.5 shadow-sm", onDocumentDetails && "cursor-pointer active:bg-blue-50")}
+                                      onClick={onDocumentDetails ? () => onDocumentDetails(d) : undefined}
+                                    >
                                       <div className="flex items-start justify-between gap-2">
                                         <div className="min-w-0">
                                           <div className="font-medium text-slate-900">{d.reference ?? d.documentId}</div>
@@ -583,6 +592,11 @@ export function BalancesPage({
                                         {canPay && (
                                           <Button size="sm" variant="outline" className="col-span-2 h-10 w-full" onClick={(e) => { e.stopPropagation(); setPayFor({ party, doc: d }) }}>
                                             <Wallet className="mr-2 h-4 w-4" /> {isCustomer ? "Receive payment" : "Record payment"}
+                                          </Button>
+                                        )}
+                                        {onDocumentDetails && (
+                                          <Button size="sm" variant="outline" className="col-span-2 h-10 w-full" onClick={(e) => { e.stopPropagation(); onDocumentDetails(d) }}>
+                                            <Eye className="mr-2 h-4 w-4" /> Details
                                           </Button>
                                         )}
                                         <Button size="sm" variant="ghost" className="h-10 w-full" onClick={(e) => { e.stopPropagation(); openDocument(d) }}>
@@ -711,7 +725,12 @@ export function BalancesPage({
                                       </TableHeader>
                                       <TableBody>
                                         {lines.map((d) => (
-                                          <TableRow key={`${d.documentType}:${d.documentId}`}>
+                                          <TableRow
+                                            key={`${d.documentType}:${d.documentId}`}
+                                            className={cn(onDocumentDetails && "cursor-pointer hover:bg-blue-50")}
+                                            onClick={onDocumentDetails ? () => onDocumentDetails(d) : undefined}
+                                            title={onDocumentDetails ? `Click to see what is on this ${docWord}` : undefined}
+                                          >
                                             <TableCell className="font-medium whitespace-nowrap">
                                               {d.reference ?? d.documentId}
                                             </TableCell>
@@ -732,7 +751,12 @@ export function BalancesPage({
                                                 : <Badge variant="secondary">{d.status}</Badge>}
                                             </TableCell>
                                             <TableCell className="text-right">
-                                              <div className="flex justify-end gap-1">
+                                              <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                                                {onDocumentDetails && (
+                                                  <Button size="sm" variant="ghost" onClick={() => onDocumentDetails(d)}>
+                                                    <Eye className="mr-1 h-3.5 w-3.5" /> Details
+                                                  </Button>
+                                                )}
                                                 {canPay && (
                                                   <Button size="sm" variant="outline" onClick={() => setPayFor({ party, doc: d })}>
                                                     {isCustomer ? "Receive payment" : "Record payment"}

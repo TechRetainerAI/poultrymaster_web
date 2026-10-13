@@ -38,7 +38,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ListFilters } from "@/components/ui/list-filters"
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
-import { ChevronDown, ChevronRight, Loader2, Undo2, Wallet } from "lucide-react"
+import { ChevronDown, ChevronRight, Eye, Loader2, Undo2, Wallet } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -88,10 +88,15 @@ export interface PaymentsReceivedPageProps {
    * Omitted (Poultry, Water, Generic) = unchanged.
    */
   pagerVariant?: "compact" | "records"
+  /**
+   * Show what was sold on the sale(s) a payment paid (Poultry: sale lines).
+   * When given, each payment gets a Details action.
+   */
+  onSaleDetails?: (saleIds: number[], title: string) => void
 }
 
 export function PaymentsReceivedPage({
-  module, companyType, saleHref, permissions, iconClassName, pagerVariant,
+  module, companyType, saleHref, permissions, iconClassName, pagerVariant, onSaleDetails,
 }: PaymentsReceivedPageProps) {
   const fmt = useFmt()
   const router = useRouter()
@@ -241,6 +246,26 @@ export function PaymentsReceivedPage({
       // Silent: an inline detail that cannot load falls back to the count, and
       // a toast per row would bury the page.
     }
+  }
+
+  // The sale(s) a payment paid, for the Details action. A multi-sale payment's
+  // sales come from its allocation, fetched here if the row was never opened.
+  const showSaleDetails = async (row: PaymentHistoryRow) => {
+    if (!onSaleDetails) return
+    const title = `Payment ${paymentRef(row)}`
+    if (row.allocationCount <= 1 && row.saleId != null) { onSaleDetails([row.saleId], title); return }
+    let list = allocations[row.paymentId]
+    if (!list) {
+      try {
+        list = (await getPayment(module, "customer", row.paymentId)).allocations
+        setAllocations((prev) => (prev[row.paymentId] ? prev : { ...prev, [row.paymentId]: list! }))
+      } catch (e: any) {
+        toast({ title: "Could not load the sales this payment paid", description: e?.message ?? String(e), variant: "destructive" })
+        return
+      }
+    }
+    const ids = Array.from(new Set(list.map((a) => a.documentId)))
+    if (ids.length) onSaleDetails(ids, title)
   }
 
   // Older APIs do not send the inline fields; those rows still need the fetch,
@@ -690,6 +715,12 @@ export function PaymentsReceivedPage({
                             </p>
                           )}
 
+                          {onSaleDetails && (
+                            <Button variant="outline" size="sm" className="mt-2 h-10 w-full bg-white"
+                                    onClick={() => void showSaleDetails(row)}>
+                              <Eye className="mr-1.5 h-3.5 w-3.5" /> Sale details
+                            </Button>
+                          )}
                           {canReverse && !isReversed && (
                             <Button variant="outline" size="sm" className="mt-2 h-10 w-full bg-white"
                                     onClick={() => { setReverseTarget(row); setReason("") }}>
@@ -826,7 +857,7 @@ export function PaymentsReceivedPage({
                           <TableHead className="text-right">After</TableHead>
                           <TableHead>Method</TableHead>
                           <TableHead>Status</TableHead>
-                          <TableHead className="w-10 text-right"><span className="sr-only">Actions</span></TableHead>
+                          <TableHead className="w-20 text-right"><span className="sr-only">Actions</span></TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -913,7 +944,14 @@ export function PaymentsReceivedPage({
                                   </span>
                                 </TableCell>
                                 <TableCell>{statusBadge(row)}</TableCell>
-                                <TableCell className="text-right">
+                                <TableCell className="whitespace-nowrap! text-right">
+                                  {onSaleDetails && (
+                                    <Button variant="ghost" size="icon" className="h-8 w-8"
+                                            onClick={() => void showSaleDetails(row)}
+                                            aria-label="Sale details" title="What was sold on this sale">
+                                      <Eye className="h-3.5 w-3.5" />
+                                    </Button>
+                                  )}
                                   {canReverse && !isReversed && (
                                     <Button variant="ghost" size="icon" className="h-8 w-8"
                                             onClick={() => { setReverseTarget(row); setReason("") }}
