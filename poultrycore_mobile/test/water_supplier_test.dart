@@ -118,7 +118,7 @@ void main() {
       const p = BalanceRail.poultry;
       expect((p.supplierPaymentsHref, p.suppliersHref, p.cashAccountIdKey), ('/supplier-payments', '/suppliers', 'poultryCashAccountId'));
       expect(p.supplierBalanceDocHref({'documentType': 'FlockBatch', 'documentId': 7}), '/flock-batch/7');
-      expect(p.supplierBalanceDocHref({'documentType': 'Expense', 'documentId': 7}), '/poultry-raw-materials?tab=purchases&purchaseId=7');
+      expect(p.supplierBalanceDocHref({'documentType': 'Expense', 'documentId': 7}), '/poultry-supply-purchases?tab=purchases&purchaseId=7');
       expect(p.supplierDocumentHref({'documentType': 'Expense', 'documentId': 7}), '/expenses?expenseId=7');
     });
 

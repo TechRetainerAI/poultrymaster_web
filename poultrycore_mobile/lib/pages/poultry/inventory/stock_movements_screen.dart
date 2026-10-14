@@ -37,8 +37,21 @@ const stockMovements = [('Increase', 1), ('Adjustment', 1), ('Decrease', -1), ('
       'Sale' => (TColors.blue100, const Color(0xFF1D4ED8)),
       'Damage/Loss' => (TColors.red100, TColors.red700),
       'Delivery Load' => (const Color(0xFFE0E7FF), const Color(0xFF4338CA)),
-      _ => (const Color(0xFFF3F4F6), TColors.slate800),
+      'Bird Adjustment' => (const Color(0xFFEDE9FE), const Color(0xFF6D28D9)),
+      'Sale Reversal' => (const Color(0xFFE0F2FE), TColors.sky800),
+      'Bird Sale' => (TColors.blue100, const Color(0xFF1D4ED8)),
+      'Sorting In' => (const Color(0xFFCCFBF1), const Color(0xFF115E59)),
+      'Sorting Out' => (const Color(0xFFFFEDD5), const Color(0xFF9A3412)),
+      'Egg Loss' => (TColors.red100, TColors.red700),
+      'Internal Use' => (TColors.amber100, TColors.amber800),
+      // Sorting Reversal, Opening and any type not listed: dark text on grey.
+      _ => (TColors.slate200, TColors.slate800),
     };
+
+/// "flock" value for a batch's birds not yet placed in any flock.
+const unplacedFlock = 'unplaced';
+
+bool isBirdStockProduct(Map p) => p['isBirdProduct'] == true || p['name'] == 'Birds';
 
 String stockSourceFor(String txnType) => switch (txnType) {
       'Production' => 'Production Record',
@@ -430,6 +443,50 @@ class _NewStockMovementDialogState extends State<NewStockMovementDialog> {
   num _qty = 0, _unitCost = 0;
   bool _saving = false;
 
+  // 359: birds are counted from flocks, so a bird movement names the batch and
+  // the flock (or the batch's unplaced birds). Options load when Birds is picked.
+  String _batchId = '', _flockId = '';
+  List<Map>? _birdOptions;
+
+  bool get _birdTarget {
+    final parts = _target.split(':');
+    return parts.first == 'p' &&
+        widget.products.any((p) => '${tIntOrNull(p['poultryProductId'])}' == parts.last && isBirdStockProduct(p));
+  }
+
+  Future<void> _loadBirdOptions() async {
+    try {
+      final res = await widget.session.farmClient.get('/api/Poultry/stock/birds/options', query: {'farmId': widget.company.farmId});
+      if (mounted) setState(() => _birdOptions = rowsOf(res));
+    } on ApiException catch (e) {
+      if (mounted) trackerToast(context, 'Could not load flocks', description: e.message, error: true);
+    }
+  }
+
+  List<Map> get _batches {
+    final seen = <int, Map>{};
+    for (final o in _birdOptions ?? const <Map>[]) {
+      seen.putIfAbsent(tIntOrNull(o['batchId']) ?? 0, () => o);
+    }
+    return seen.values.toList();
+  }
+
+  List<Map> get _batchFlocks =>
+      [for (final o in _birdOptions ?? const <Map>[]) if ('${o['batchId']}' == _batchId && o['flockId'] != null) o];
+  Map? get _pickedBatch => _batches.where((b) => '${b['batchId']}' == _batchId).firstOrNull;
+  Map? get _pickedFlock => _batchFlocks.where((f) => '${f['flockId']}' == _flockId).firstOrNull;
+
+  /// Birds the chosen flock (or the batch's unplaced pool) holds now, and after.
+  num? get _birdsNow => _flockId == unplacedFlock
+      ? (_pickedBatch == null ? null : tNum(_pickedBatch!['unplacedBirds']))
+      : (_pickedFlock == null || _pickedFlock!['liveBirds'] == null ? null : tNum(_pickedFlock!['liveBirds']));
+  num? get _birdsAfter {
+    final now = _birdsNow;
+    if (now == null) return null;
+    final sign = stockMovements.firstWhere((m) => m.$1 == _movement).$2;
+    return now + sign * _qty.round().abs();
+  }
+
   Future<void> _save() async {
     if (_target.isEmpty) {
       trackerToast(context, 'Pick an item', error: true);
@@ -442,9 +499,40 @@ class _NewStockMovementDialogState extends State<NewStockMovementDialog> {
     final sign = stockMovements.firstWhere((m) => m.$1 == _movement).$2;
     final signed = sign * _qty.abs();
     final kind = _target.split(':').first, id = int.parse(_target.split(':').last);
+    final bird = _birdTarget;
+    if (bird) {
+      if (_batchId.isEmpty) {
+        trackerToast(context, 'Choose the batch', error: true);
+        return;
+      }
+      if (_flockId.isEmpty) {
+        trackerToast(context, 'Choose the flock',
+            description: 'Or "Not placed in a flock" for the batch\'s birds that are not in any flock yet.', error: true);
+        return;
+      }
+      if (_qty != _qty.roundToDouble()) {
+        trackerToast(context, 'Birds are whole numbers', error: true);
+        return;
+      }
+      final after = _birdsAfter;
+      if (after != null && after < 0) {
+        trackerToast(context, 'Not enough birds', description: 'There are only $_birdsNow birds there.', error: true);
+        return;
+      }
+    }
     setState(() => _saving = true);
     try {
-      if (kind == 'r') {
+      if (bird) {
+        await widget.session.farmClient.post('/api/Poultry/stock/birds/adjustments', body: {
+          'batchId': int.parse(_batchId),
+          'flockId': _flockId == unplacedFlock ? null : int.parse(_flockId),
+          'movementType': _movement,
+          'quantity': signed,
+          'note': _note.isEmpty ? null : _note,
+          'createdBy': widget.session.tokens.userId,
+          'farmId': widget.company.farmId,
+        });
+      } else if (kind == 'r') {
         await widget.session.farmClient.post('/api/Poultry/raw-material-items/$id/adjust', body: {
           'quantity': signed,
           'unitCost': _unitCost == 0 ? null : _unitCost,
@@ -464,7 +552,7 @@ class _NewStockMovementDialogState extends State<NewStockMovementDialog> {
         });
       }
       if (!mounted) return;
-      trackerToast(context, 'Stock movement added');
+      trackerToast(context, bird ? 'Birds adjusted' : 'Stock movement added');
       Navigator.pop(context, true);
       return;
     } on ApiException catch (e) {
@@ -511,9 +599,97 @@ class _NewStockMovementDialogState extends State<NewStockMovementDialog> {
                     ),
                 ],
               ],
-              onChanged: (v) => setState(() => _target = v ?? ''),
+              onChanged: (v) {
+                setState(() {
+                  _target = v ?? '';
+                  _batchId = '';
+                  _flockId = '';
+                });
+                if (_birdTarget && _birdOptions == null) _loadBirdOptions();
+              },
             ),
           ),
+          if (_birdTarget) ...[
+            cell(
+              'Batch *',
+              AppSelect<String>(
+                value: _batchId.isEmpty ? null : _batchId,
+                hintText: _birdOptions != null ? 'Choose the batch' : 'Loading batches...',
+                items: [
+                  for (final b in _batches)
+                    AppSelectItem(
+                      value: '${b['batchId']}',
+                      label: '${tStr(b['batchCode'])}${tStr(b['batchName']).isNotEmpty ? ' — ${tStr(b['batchName'])}' : ''}',
+                    ),
+                ],
+                onChanged: (v) => setState(() {
+                  _batchId = v ?? '';
+                  _flockId = '';
+                }),
+              ),
+              hint: 'Birds are counted per flock. Pick the batch, then the flock.',
+            ),
+            cell(
+              'Flock *',
+              AppSelect<String>(
+                value: _flockId.isEmpty ? null : _flockId,
+                enabled: _batchId.isNotEmpty,
+                hintText: _batchId.isNotEmpty ? 'Choose the flock' : 'Choose the batch first',
+                items: [
+                  for (final f in _batchFlocks)
+                    () {
+                      final why = f['isClosed'] == true
+                          ? 'closed'
+                          : f['hasProductionRecord'] != true
+                              ? 'no production record yet'
+                              : null;
+                      return AppSelectItem(
+                        value: '${f['flockId']}',
+                        label: '${tStr(f['flockName'])} · ${why ?? '${loc(tNum(f['liveBirds']))} birds'}',
+                        enabled: why == null,
+                      );
+                    }(),
+                  if (_pickedBatch != null)
+                    AppSelectItem(
+                      value: unplacedFlock,
+                      label: 'Not placed in a flock · ${loc(tNum(_pickedBatch!['unplacedBirds']))} birds',
+                    ),
+                ],
+                onChanged: (v) => setState(() => _flockId = v ?? ''),
+              ),
+            ),
+            if (_birdsNow != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text.rich(
+                  TextSpan(children: [
+                    TextSpan(
+                        text: _flockId == unplacedFlock
+                            ? 'Birds of this batch not in any flock: '
+                            : 'Birds in ${tStr(_pickedFlock?['flockName']).isEmpty ? 'this flock' : tStr(_pickedFlock?['flockName'])}: '),
+                    TextSpan(text: loc(_birdsNow!), style: const TextStyle(fontWeight: FontWeight.w500)),
+                    if (_birdsAfter != null && _qty > 0) ...[
+                      const TextSpan(text: ' → '),
+                      TextSpan(
+                        text: loc(_birdsAfter!),
+                        style: TextStyle(fontWeight: FontWeight.w600, color: _birdsAfter! < 0 ? TColors.red600 : null),
+                      ),
+                    ],
+                  ]),
+                  style: const TextStyle(fontSize: 14, color: TColors.slate600),
+                ),
+              ),
+            if (_pickedFlock != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Text(
+                  "The flock's latest production record"
+                  '${tStr(_pickedFlock!['lastCountDate']).isNotEmpty ? ' (${tStr(_pickedFlock!['lastCountDate']).substring(0, 10)})' : ''}'
+                  ' takes the corrected count, so the next record starts from it.',
+                  style: const TextStyle(fontSize: 12, color: TColors.slate500),
+                ),
+              ),
+          ],
           cell(
             'Movement type',
             AppSelect<String>(
@@ -522,9 +698,10 @@ class _NewStockMovementDialogState extends State<NewStockMovementDialog> {
               onChanged: (v) => setState(() => _movement = v ?? _movement),
             ),
           ),
-          cell('Quantity', NumBox(value: _qty, decimal: true, onChanged: (v) => _qty = v),
+          cell(_birdTarget ? 'Birds' : 'Quantity',
+              NumBox(key: ValueKey('qty-$_birdTarget'), value: _qty, decimal: !_birdTarget, onChanged: (v) => setState(() => _qty = v)),
               hint: 'Always enter a positive number; the movement type sets the direction.'),
-          cell('Unit cost / value', NumBox(value: _unitCost, decimal: true, onChanged: (v) => _unitCost = v)),
+          if (!_birdTarget) cell('Unit cost / value', NumBox(value: _unitCost, decimal: true, onChanged: (v) => _unitCost = v)),
           cell('Note', AppInput(initialValue: _note, onChanged: (v) => _note = v)),
         ]),
       ),

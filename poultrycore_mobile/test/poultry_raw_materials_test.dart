@@ -97,6 +97,9 @@ void main() {
     expect(effectiveCostRecognition(null, 'Packaging', d).method, expenseWhenPurchased);
     expect(unitOptions('Drum').first, 'Drum');
     expect(pageScreens.containsKey('/poultry-raw-materials?purchase=1'), isTrue);
+    expect(pageScreens.containsKey('/poultry-supply-purchases'), isTrue);
+    expect(pageScreens.containsKey('/poultry-supply-purchases?purchase=1'), isTrue);
+    expect(rawMaterialsScreenForHref('/poultry-supply-purchases?tab=purchases&purchaseId=9', await sessionFor(FakeApi()), company), isA<RawMaterialsScreen>());
     final r = rawMaterialsScreenForHref('/poultry-raw-materials?purchase=1&itemId=1&qty=4', await sessionFor(FakeApi()), company) as RawMaterialsScreen;
     expect((r.openPurchase, r.purchaseItemId, r.purchaseQty), (true, 1, 4));
   });
@@ -104,17 +107,22 @@ void main() {
   testWidgets('summary, items, purchases and usage tabs, pay balance, delete', (tester) async {
     final a = api();
     await open(tester, RawMaterialsScreen(session: await sessionFor(a), company: company), size: phone);
-    expect(find.text('ACTIVE ITEMS'), findsOneWidget);
-    expect(find.text('need restocking'), findsOneWidget);
-    await see(tester, find.textContaining('excludes 1 produced feed lot'));
+    expect(find.text('Inventory & Supply Purchases'), findsWidgets);
+    expect(find.text('STOCK VALUE'), findsOneWidget);
     await see(tester, find.text('1 stock costing issue(s) found'));
     await see(tester, find.text('Maize'));
     expect(find.textContaining('On use (override)', findRichText: true), findsOneWidget);
-    expect(find.byTooltip("Track this item's movements"), findsOneWidget, reason: 'feed items only');
+    expect(find.byTooltip('Track movements'), findsOneWidget, reason: 'feed items only');
+    expect(find.byTooltip('Buy more'), findsNWidgets(2));
+    // The Low stock card opens the list already filtered to it.
+    await tap(tester, find.text('need restocking · view'));
+    await see(tester, find.text('Egg trays'));
+    expect(find.text('Maize'), findsNothing);
+    await tap(tester, find.text('All'));
 
     await tap(tester, find.text('Purchases'));
     await see(tester, find.text('Produced · FP-1'));
-    expect(find.byTooltip('Open the feed production batch'), findsOneWidget);
+    expect(find.byTooltip('Open feed production batch'), findsOneWidget);
     await tap(tester, find.byTooltip('Pay balance'));
     expect(find.text('Outstanding: GHC 1,000.00'), findsOneWidget);
     await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)).first, '1500');
@@ -136,16 +144,18 @@ void main() {
     expect(a.writes.any((x) => x.method == 'DELETE' && x.url.path == '/api/Poultry/raw-material-purchases/11'), isTrue);
     expect(find.textContaining('Deleted'), findsOneWidget);
 
-    await tap(tester, find.text('Usage History'));
+    await tap(tester, find.text('Usage'));
     await see(tester, find.textContaining('Manual adjustment (Damage) — wet', findRichText: true));
-    expect(find.text('Usage History'), findsWidgets);
+    expect(find.text('Stock used by production and feed mixing, plus manual stock adjustments.'), findsOneWidget);
   });
 
   testWidgets('record purchase from the menu: defaults, auto paid, credit, the body', (tester) async {
-    final a = api();
+    final a = api()..gets['/api/Supplier'] = [{'supplierId': 3, 'name': 'Agro Ltd'}];
     await open(tester, RawMaterialsScreen(session: await sessionFor(a), company: company, openPurchase: true, purchaseItemId: 1, purchaseQty: 4),
         size: phone);
     expect(find.text('New raw material purchase'), findsOneWidget);
+    await see(tester, find.text('Not linked to a supplier'));
+    await pick(tester, 'Not linked to a supplier', 'Agro Ltd');
     await see(tester, find.text('Main Cash Account (GHC 900.00)'));
     await see(tester, find.text('Total purchase cost *'));
     await tester.enterText(fieldUnder('Total purchase cost *'), '1200');
@@ -168,6 +178,7 @@ void main() {
     final b = jsonDecode(a.writes.lastWhere((w) => w.url.path == '/api/Poultry/raw-material-purchases').body) as Map;
     expect((b['poultryRawMaterialItemId'], b['quantity'], b['totalCost'], b['unitCost'], b['productionUnitsPerPurchaseUnit']), (1, 4, 1200, 300, 50));
     expect((b['paymentMethod'], b['amountPaid'], b['poultryCashAccountId'], b['createdBy']), ('Credit', 0, 6, 'user-1'));
+    expect((b['supplierId'], b['supplierName']), (3, 'Agro Ltd'), reason: 'picked from the supplier list');
     expect(find.textContaining('Purchase recorded'), findsOneWidget);
   });
 

@@ -56,7 +56,7 @@ final _copy = {
       t(' = feed fed to flocks. Feed ingredients are tracked separately on the Ingredients only tracker.'),
     ],
     links: const [
-      ('/poultry-raw-materials', 'Raw Materials (purchases)'),
+      ('/poultry-supply-purchases', 'Inventory & Supply Purchases'),
       ('/feed-usage', 'Feed usage (record OUT)'),
       ('/feed-ingredient-tracker', 'Ingredients only tracker'),
     ],
@@ -88,7 +88,7 @@ final _copy = {
       t(' = ingredients drawn into a feed-production batch, or fed to a flock directly. The finished feed those batches make is tracked on the Feed tracker.'),
     ],
     links: const [
-      ('/poultry-raw-materials', 'Raw Materials (purchases)'),
+      ('/poultry-supply-purchases', 'Inventory & Supply Purchases'),
       ('/poultry-feed-production', 'Feed Production (record OUT)'),
       ('/feed-tracker', 'Feed tracker'),
     ],

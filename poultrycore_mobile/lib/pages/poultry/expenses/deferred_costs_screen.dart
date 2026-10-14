@@ -238,9 +238,9 @@ class _DeferredCostsScreenState extends State<DeferredCostsScreen> {
           rows: _history[tIntOrNull(p['poultryRawMaterialPurchaseId']) ?? 0],
           fmt: _gh,
           offset: _offset,
-          onOpenItem: () => _href('/poultry-raw-materials?tab=items&itemId=${tStr(p['poultryRawMaterialItemId'])}', 'Raw materials'),
+          onOpenItem: () => _href('/poultry-supply-purchases?tab=items&itemId=${tStr(p['poultryRawMaterialItemId'])}', 'Raw materials'),
           onOpenPurchase: () =>
-              _href('/poultry-raw-materials?tab=purchases&purchaseId=${tStr(p['poultryRawMaterialPurchaseId'])}', 'Raw materials'),
+              _href('/poultry-supply-purchases?tab=purchases&purchaseId=${tStr(p['poultryRawMaterialPurchaseId'])}', 'Raw materials'),
         ),
       );
 

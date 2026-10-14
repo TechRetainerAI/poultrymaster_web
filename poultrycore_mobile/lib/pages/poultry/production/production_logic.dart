@@ -8,7 +8,28 @@ import '../../../models/company.dart';
 import '../../../state/session.dart';
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 
-const eggsPerCrate = 30;
+/// Eggs in one crate for the active farm (migration 344): 30 until the farm's
+/// setting loads, then whatever the farm uses. A mutable top-level, read at use
+/// time, so `crates * eggsPerCrate` follows the setting everywhere.
+int eggsPerCrate = 30;
+
+/// Set the active farm's crate size (1..100). Ignored when out of range.
+void setEggsPerCrate(int n) {
+  if (n < 1 || n > 100) return;
+  eggsPerCrate = n;
+}
+
+/// EggsPerCrateLoader: the Poultry farm's setting; on failure the value stays.
+Future<void> loadEggsPerCrate(Session session, Company company) async {
+  if (company.type != CompanyType.poultry) return;
+  try {
+    final res = await session.farmClient.get('/api/Poultry/egg-sorting/settings', query: {'farmId': company.farmId});
+    final n = res is Map ? tIntOrNull(res['eggsPerCrate']) : null;
+    setEggsPerCrate(n == null || n <= 0 ? 30 : n);
+  } on ApiException {
+    // Before 344 or offline: keep the current value.
+  }
+}
 
 // ------------------------------------------------------------ pick settings
 
@@ -112,6 +133,35 @@ String eggGradeFromApi(Object? value) {
 }
 
 String? eggGradeToApi(String v) => v.isEmpty || v == eggGradeNone ? null : v.trim();
+
+/// The grade every production record carries since the Egg Sorting Workspace:
+/// one record is a flock's whole day, a mix of sizes.
+const productionEggGradeValue = 'Mixed';
+
+/// productionEggGrade: an older record's specific grade is kept; anything else
+/// (a new record, or one with no grade) is Mixed.
+String productionEggGrade(Object? existing) {
+  final g = eggGradeFromApi(existing);
+  return g == eggGradeNone ? productionEggGradeValue : g;
+}
+
+/// The production records list's sorting chip (341-343): per record, its
+/// status and the eggs still unsorted, from the egg-sorting picks.
+Map<int, ({String status, num left})> sortingStatusByRecord(List<Map> picks) {
+  final out = <int, ({String status, num left})>{};
+  for (final r in picks) {
+    final id = tIntOrNull(r['productionRecordId']);
+    if (id == null || out.containsKey(id)) continue;
+    final sorted = tNum(r['recordSorted']), left = tNum(r['recordLeft']);
+    final status = left <= 0 && sorted > 0
+        ? 'Complete'
+        : sorted > 0
+            ? 'Partial'
+            : (left <= 0 ? 'Complete' : 'NotStarted');
+    out[id] = (status: status, left: left);
+  }
+  return out;
+}
 
 // ------------------------------------------------------------ production-record-calc
 

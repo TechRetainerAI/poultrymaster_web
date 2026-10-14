@@ -72,7 +72,7 @@ String positionLabel(Object? t) => _positionLabels[tStr(t)] ?? tStr(t);
     'OwnerContribution' || 'OwnerDraw' => ('/poultry-owner-money', 'View owner money'),
     'CashTransfer' => ('/poultry-cash-transfers', 'View transfer'),
     'CapitalAsset' || 'CapitalAssetCost' || 'AssetDepreciation' => id != null && id != 0 ? ('/poultry-assets', 'View capital assets') : null,
-    'PoultryRawMaterialPurchase' => ('/poultry-raw-materials?tab=purchases', 'View purchase'),
+    'PoultryRawMaterialPurchase' => ('/poultry-supply-purchases?tab=purchases', 'View purchase'),
     'PoultryFeedConsumption' => ('/feed-inventory-tracker', 'View feed movements'),
     'PoultryMedicationConsumption' => ('/medication-tracker', 'View medication'),
     'PoultryInternalUsage' => ('/poultry-internal-use', 'View internal use'),

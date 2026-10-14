@@ -11,6 +11,7 @@ import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, loc;
 import '../trackers/tracker_widgets.dart';
 import 'balances_logic.dart';
 import 'balances_widgets.dart';
+import 'sale_reversal.dart';
 import 'sales_screen.dart';
 import '../../water/water_sales_screen.dart';
 
@@ -149,6 +150,42 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
             ? WaterSalesScreen(session: widget.session, company: widget.company, focusSaleId: saleId)
             : SalesScreen(session: widget.session, company: widget.company, focusSaleId: saleId),
       ));
+
+  /// Details on a payment (Poultry): what was sold on the sale(s) it paid. A
+  /// multi-sale payment's sales come from its allocation, fetched if needed.
+  Future<void> _saleDetails(Map row) async {
+    final title = 'Payment ${paymentRef(row)}';
+    final sid = tIntOrNull(row['saleId']);
+    List<int> ids;
+    if ((tIntOrNull(row['allocationCount']) ?? 0) <= 1 && sid != null) {
+      ids = [sid];
+    } else {
+      final id = tStr(row['paymentId']);
+      if (!_allocations.containsKey(id)) {
+        try {
+          final res = await _api.get('${widget.rail.api}/customer-payments/${Uri.encodeComponent(id)}', query: {'farmId': _farmId});
+          final list = res is Map ? rowsOf(res['allocations']) : <Map>[];
+          if (mounted) setState(() => _allocations.putIfAbsent(id, () => list));
+        } on ApiException catch (e) {
+          if (mounted) trackerToast(context, 'Could not load the sales this payment paid', description: e.message, error: true);
+          return;
+        }
+      }
+      ids = {for (final a in _allocations[id] ?? const <Map>[]) if (tIntOrNull(a['documentId']) != null) tIntOrNull(a['documentId'])!}.toList();
+    }
+    if (ids.isEmpty || !mounted) return;
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (ctx) => SaleLinesScreen(
+        session: widget.session,
+        company: widget.company,
+        saleIds: ids,
+        title: title,
+        onOpenSale: (s) => Navigator.of(ctx).push(MaterialPageRoute(
+          builder: (_) => SalesScreen(session: widget.session, company: widget.company, focusSaleId: s),
+        )),
+      ),
+    ));
+  }
 
   String _dateOf(Object? d) => tStr(d).isEmpty ? '—' : fmtDateTimeLike(d);
 
@@ -465,6 +502,16 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
               'Reversed${tStr(row['reversedBy']).isNotEmpty ? ' by ${row['reversedBy']}' : ''}'
               '${tStr(row['reversedAt']).isNotEmpty ? ' on ${fmtDateTimeLike(row['reversedAt'])}' : ''}: ${row['reversalReason']}',
               style: sm),
+        ],
+        if (!widget.rail.isWater) ...[
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            key: ValueKey('sale-details-$id'),
+            style: OutlinedButton.styleFrom(backgroundColor: Colors.white, minimumSize: const Size.fromHeight(40)),
+            onPressed: () => _saleDetails(row),
+            icon: const Icon(Icons.visibility_outlined, size: 16),
+            label: const Text('Sale details'),
+          ),
         ],
         if (_canReverse && !reversed) ...[
           const SizedBox(height: 8),

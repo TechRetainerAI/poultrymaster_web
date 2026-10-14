@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../design/ui/inputs.dart';
-import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, loc;
+import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, loc, formatEggGradeLabel;
 import '../trackers/tracker_widgets.dart';
 import 'production_logic.dart';
 
@@ -304,4 +304,27 @@ class ConsumptionLines extends StatelessWidget {
       ]),
     );
   }
+}
+
+/// The production forms' Egg grade since egg sorting: read-only. A new record
+/// is Mixed ("Set automatically"); an older record keeps its own grade.
+class EggGradeReadout extends StatelessWidget {
+  const EggGradeReadout({super.key, required this.grade});
+  final String grade;
+
+  @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Container(
+          height: 40,
+          alignment: Alignment.centerLeft,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(color: TColors.slate50, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+          child: Text(formatEggGradeLabel(eggGradeToApi(grade)), style: const TextStyle(fontSize: 14, color: TColors.slate700)),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          grade == productionEggGradeValue ? 'Set automatically. Sizes are recorded when the eggs are sorted.' : 'Recorded before egg sorting; kept as it was.',
+          style: const TextStyle(fontSize: 12, color: TColors.slate500),
+        ),
+      ]);
 }

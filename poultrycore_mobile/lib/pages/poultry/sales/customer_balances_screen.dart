@@ -13,6 +13,7 @@ import 'balances_logic.dart';
 import 'balances_widgets.dart';
 import 'payments_received_screen.dart' show fmtDateTimeLike;
 import 'sale_dialogs.dart';
+import 'sale_reversal.dart';
 import 'sales_screen.dart';
 import '../../water/water_sales_screen.dart';
 import '../reports/report_routes.dart' show openAppHref;
@@ -69,6 +70,10 @@ class _CustomerBalancesScreenState extends State<CustomerBalancesScreen> {
   /// pay / statement / reverse are permission keys on the web; the phone has
   /// no permission flags, so they are offered to everyone but Staff.
   bool get _can => (widget.company.role ?? '').toLowerCase() != 'staff';
+
+  /// Poultry's customer side: the Customer Credit panel (351) and a sale's
+  /// Details (358 lines). Every other balances page passes neither.
+  bool get _poultryCustomer => _side.isCustomer && !widget.rail.isWater;
 
   bool get _filtersEmpty =>
       _from.isEmpty && _to.isEmpty && _party == 'all' && _status == 'All' && _min.text.isEmpty && _search.text.trim().isEmpty;
@@ -261,6 +266,22 @@ class _CustomerBalancesScreenState extends State<CustomerBalancesScreen> {
     ));
   }
 
+  /// Click a sale row: what was sold on it (358 lines), without leaving the page.
+  void _documentDetails(Map d) {
+    final id = tIntOrNull(d['documentId']);
+    if (id == null) return;
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (ctx) => SaleLinesScreen(
+        session: widget.session,
+        company: widget.company,
+        saleIds: [id],
+        onOpenSale: (sid) => Navigator.of(ctx).push(MaterialPageRoute(
+          builder: (_) => SalesScreen(session: widget.session, company: widget.company, focusSaleId: sid),
+        )),
+      ),
+    ));
+  }
+
   void _reset() {
     setState(() {
       _search.clear();
@@ -347,6 +368,8 @@ class _CustomerBalancesScreenState extends State<CustomerBalancesScreen> {
                 ),
               const SizedBox(height: 14),
             ],
+            // 351: money held for customers, beside (never netted into) what they owe.
+            if (_poultryCustomer) CustomerCreditPanel(session: widget.session, company: widget.company, canRefund: _can),
             TCard(
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 FilterLabel(
@@ -506,6 +529,7 @@ class _CustomerBalancesScreenState extends State<CustomerBalancesScreen> {
         onPayDoc: (d) => _pay(party, d),
         onOpenDoc: _openDocument,
         onHistoryDoc: (d) => _history(party: party, doc: d),
+        onDetailsDoc: _poultryCustomer ? _documentDetails : null,
         side: _side,
       );
 }
@@ -527,6 +551,7 @@ class _PartyCard extends StatefulWidget {
     required this.onPayDoc,
     required this.onOpenDoc,
     required this.onHistoryDoc,
+    this.onDetailsDoc,
     required this.side,
   });
   final BalanceSide side;
@@ -539,6 +564,10 @@ class _PartyCard extends StatefulWidget {
   final bool can;
   final VoidCallback onPay, onStatement, onHistory, onToggle;
   final ValueChanged<Map> onPayDoc, onOpenDoc, onHistoryDoc;
+
+  /// Show what is inside one open document; when given, the row is tappable
+  /// and gets a Details button.
+  final ValueChanged<Map>? onDetailsDoc;
   @override
   State<_PartyCard> createState() => _PartyCardState();
 }
@@ -659,7 +688,10 @@ class _PartyCardState extends State<_PartyCard> {
   }
 
   Widget _doc(Map d, FarmMoney fmt, Widget Function(String, String) kv) {
-    return Container(
+    final details = widget.onDetailsDoc;
+    return InkWell(
+      onTap: details == null ? null : () => details(d),
+      child: Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.blue200), borderRadius: BorderRadius.circular(6)),
@@ -699,6 +731,15 @@ class _PartyCardState extends State<_PartyCard> {
           ),
           const SizedBox(height: 6),
         ],
+        if (details != null) ...[
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(40)),
+            onPressed: () => details(d),
+            icon: const Icon(Icons.visibility_outlined, size: 16),
+            label: const Text('Details'),
+          ),
+          const SizedBox(height: 6),
+        ],
         Row(children: [
           Expanded(
             child: TextButton.icon(
@@ -716,6 +757,7 @@ class _PartyCardState extends State<_PartyCard> {
           ),
         ]),
       ]),
+      ),
     );
   }
 }

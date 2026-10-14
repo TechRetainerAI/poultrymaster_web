@@ -530,7 +530,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
         padding: EdgeInsets.zero,
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           _tabHeader('Feed ingredients, medication, vaccines. Stock updated by purchases + production usage.', 'Manage raw materials',
-              '/poultry-raw-materials', 'Raw Materials'),
+              '/poultry-supply-purchases', 'Raw Materials'),
           if (_loading)
             _empty('Loading…')
           else if (rows.isEmpty)

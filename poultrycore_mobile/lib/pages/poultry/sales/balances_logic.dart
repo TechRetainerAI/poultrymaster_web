@@ -308,14 +308,14 @@ class BalanceRail {
     return switch (type) {
       'FlockBatch' => '/flock-batch/$id',
       'Expense' => '/expenses?expenseId=$id',
-      _ => '/poultry-raw-materials?tab=purchases&purchaseId=$id',
+      _ => '/poultry-supply-purchases?tab=purchases&purchaseId=$id',
     };
   }
 
   /// The Supplier Balances doc link: Poultry's has no Expense branch.
   String supplierBalanceDocHref(Map d) =>
       !isWater && '${d['documentType']}' == 'Expense'
-          ? '/poultry-raw-materials?tab=purchases&purchaseId=${d['documentId'] ?? ''}'
+          ? '/poultry-supply-purchases?tab=purchases&purchaseId=${d['documentId'] ?? ''}'
           : supplierDocumentHref(d);
 
   static const poultry = BalanceRail._('/api/Poultry', '/poultry-payments', '/customer-balances', '/supplier-balances', true);

@@ -147,6 +147,11 @@ class RawPurchaseDialog extends StatefulWidget {
 class _RawPurchaseDialogState extends State<RawPurchaseDialog> {
   int _item = 0, _account = 0;
   String _supplier = '', _date = DateTime.now().toUtc().toIso8601String().substring(0, 10), _purchaseUnit = '', _prodUnit = '';
+
+  /// Picked from the supplier list, like an expense, so the purchase lands on
+  /// that supplier in Supplier Balances. 0 = not linked.
+  int _supplierId = 0;
+  List<Map> _suppliers = [];
   String _method = 'Cash', _receipt = '', _notes = '';
   num _qty = 0, _unitCost = 0, _total = 0, _per = 1, _paid = 0;
   bool _manualProd = false, _manualPurchase = false, _paidTouched = false, _saving = false;
@@ -161,6 +166,7 @@ class _RawPurchaseDialogState extends State<RawPurchaseDialog> {
     if (e != null) {
       _item = tIntOrNull(e['poultryRawMaterialItemId']) ?? 0;
       _supplier = tStr(e['supplierName']);
+      _supplierId = tIntOrNull(e['supplierId']) ?? 0;
       final d = tStr(e['purchaseDate']).split('T').first;
       if (d.isNotEmpty) _date = d;
       _qty = tNum(e['quantity']);
@@ -182,6 +188,29 @@ class _RawPurchaseDialogState extends State<RawPurchaseDialog> {
       _prodUnit = tStr(seed?['unitOfMeasure']);
       _qty = (widget.defaultQuantity ?? 0) > 0 ? widget.defaultQuantity! : 0;
       _autoPaid();
+    }
+    _loadSuppliers();
+  }
+
+  Future<void> _loadSuppliers() async {
+    try {
+      final res = await widget.session.farmClient
+          .get('/api/Supplier', query: {'userId': widget.session.tokens.userId, 'farmId': widget.company.farmId});
+      if (!mounted) return;
+      setState(() {
+        _suppliers = rowsOf(res);
+        // An older purchase saved only a typed name: link it when the name
+        // matches a supplier, so editing it does not drop the supplier.
+        if (_supplierId == 0 && _supplier.trim().isNotEmpty) {
+          final m = _suppliers.where((x) => tStr(x['name']).trim().toLowerCase() == _supplier.trim().toLowerCase()).firstOrNull;
+          if (m != null) {
+            _supplierId = tIntOrNull(m['supplierId']) ?? 0;
+            _supplier = tStr(m['name']);
+          }
+        }
+      });
+    } on ApiException {
+      if (mounted) setState(() => _suppliers = []);
     }
   }
 
@@ -210,6 +239,7 @@ class _RawPurchaseDialogState extends State<RawPurchaseDialog> {
     final payload = <String, Object?>{
       'poultryRawMaterialItemId': _item,
       'supplierName': _supplier.isEmpty ? null : _supplier,
+      'supplierId': _supplierId == 0 ? null : _supplierId,
       'purchaseDate': _date,
       'quantity': _qty,
       'unitCost': _qty > 0 ? double.parse((total / _qty).toStringAsFixed(4)) : _unitCost,
@@ -285,7 +315,36 @@ class _RawPurchaseDialogState extends State<RawPurchaseDialog> {
                 }),
               ),
             ),
-            _cell('Supplier', AppInput(initialValue: _supplier, hintText: 'Supplier name', onChanged: (v) => _supplier = v)),
+            _cell(
+              'Supplier',
+              Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                AppSelect<int>(
+                  // -1: an older purchase's typed name that matches no supplier.
+                  value: _supplierId != 0 ? _supplierId : (_supplier.trim().isNotEmpty ? -1 : 0),
+                  hintText: 'Not linked to a supplier',
+                  items: [
+                    const AppSelectItem(value: 0, label: 'Not linked to a supplier'),
+                    if (_supplierId == 0 && _supplier.trim().isNotEmpty)
+                      AppSelectItem(value: -1, label: '$_supplier (typed — linked or added as a supplier when saved)'),
+                    for (final x in _suppliers) AppSelectItem(value: tIntOrNull(x['supplierId']) ?? 0, label: tStr(x['name'])),
+                  ],
+                  onChanged: (v) {
+                    if (v == null || v == -1) return;
+                    final sup = _suppliers.where((x) => tIntOrNull(x['supplierId']) == v).firstOrNull;
+                    setState(() {
+                      _supplierId = tIntOrNull(sup?['supplierId']) ?? 0;
+                      _supplier = tStr(sup?['name']);
+                    });
+                  },
+                ),
+                if (_method == 'Credit' && _supplierId == 0)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 4),
+                    child: Text('Pick a supplier if you want what is owed on this purchase to appear in Supplier Balances.',
+                        style: TextStyle(fontSize: 12, color: TColors.amber700)),
+                  ),
+              ]),
+            ),
             _cell(
               'Purchase date',
               AppDateField(value: businessDateAsDateTime(_date), onChanged: (v) => setState(() => _date = v == null ? '' : isoDay(v))),
@@ -368,10 +427,16 @@ class _RawPurchaseDialogState extends State<RawPurchaseDialog> {
           ]),
           const SizedBox(height: 12),
           formSection('Payment', _amber, [
-            _cell('Amount paid', NumBox(value: _paid, decimal: true, onChanged: (v) => setState(() {
-                  _paidTouched = true;
-                  _paid = v;
-                }))),
+            _cell(
+              'Amount paid',
+              NumBox(value: _paid, decimal: true, onChanged: (v) => setState(() {
+                    _paidTouched = true;
+                    _paid = v;
+                  })),
+              hint: widget.editing != null
+                  ? 'Once paid, change payments in Supplier Payments (Pay balance, or reverse a payment).'
+                  : 'Recorded as a supplier payment, so it appears in Supplier Payments.',
+            ),
             _cell(
               'Pay from cash account',
               AppSelect<int>(

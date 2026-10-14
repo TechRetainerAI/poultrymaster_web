@@ -12,6 +12,7 @@ import 'package:poultrycore_mobile/pages/poultry/inventory/health_records_screen
 import 'package:poultrycore_mobile/pages/poultry/inventory/inventory_screen.dart';
 import 'package:poultrycore_mobile/pages/poultry/inventory/loss_records_screen.dart';
 import 'package:poultrycore_mobile/pages/poultry/inventory/stock_movements_screen.dart';
+import 'package:poultrycore_mobile/pages/poultry/poultry_extras.dart';
 
 import 'support/harness.dart';
 
@@ -181,6 +182,72 @@ void main() {
     await tester.pumpAndSettle();
     final b = lastBody(a, '/api/Poultry/raw-material-items/5/adjust');
     expect((b['quantity'], b['movementType'], b['note']), (-3, 'Damage/Loss', 'Manual stock adjustment'));
+  });
+
+  test('Products: Add stock is not offered on Birds (adjusted per flock on the Stock page)', () {
+    final addStock = poultryRecordExtras['poultry-products']!.firstWhere((x) => x.label == 'Add stock');
+    expect(addStock.when!(Map<String, dynamic>.from(birds)), isFalse);
+    expect(addStock.when!(Map<String, dynamic>.from(eggs)), isTrue);
+    expect(moveTone('Bird Adjustment').$2, const Color(0xFF6D28D9));
+    expect(moveTone('Something new').$1, isNot(const Color(0xFFF3F4F6)), reason: 'dark on grey, readable');
+  });
+
+  testWidgets('stock movements: Birds need the batch and the flock; the count before and after', (tester) async {
+    final a = api()
+      ..gets['/api/Poultry/stock/birds/options'] = [
+        {'batchId': 1, 'batchCode': 'B-001', 'batchName': 'Layers', 'batchBirds': 520, 'unplacedBirds': 20, 'flockId': 7, 'flockName': 'Pen 1',
+          'liveBirds': 480, 'lastCountDate': '2026-10-05T00:00:00', 'hasProductionRecord': true, 'isClosed': false},
+        {'batchId': 1, 'batchCode': 'B-001', 'batchName': 'Layers', 'batchBirds': 520, 'unplacedBirds': 20, 'flockId': 8, 'flockName': 'Old pen',
+          'liveBirds': 0, 'hasProductionRecord': true, 'isClosed': true},
+      ];
+    await open(tester, StockMovementsScreen(session: await sessionFor(a), company: company), size: phone);
+    await tap(tester, find.text('New movement'));
+    await choose(tester, 'Pick a finished product, raw material or supply', 'Birds', within: _dialog);
+    expect(find.text('Unit cost / value'), findsNothing, reason: 'birds have no unit cost');
+    expect(find.text('Birds are counted per flock. Pick the batch, then the flock.'), findsOneWidget);
+    await tester.enterText(find.descendant(of: _dialog, matching: find.byType(TextField)).first, '5');
+    await tester.pump();
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(find.text('Choose the batch'), findsWidgets);
+    clearToasts(tester);
+    await choose(tester, 'Choose the batch', 'B-001 — Layers', within: _dialog);
+    await choose(tester, 'Choose the flock', 'Pen 1 · 480 birds', within: _dialog);
+    await choose(tester, 'Increase', 'Damage/Loss', within: _dialog);
+    expect(find.text('Birds in Pen 1: 480 → 475', findRichText: true), findsOneWidget);
+    expect(find.textContaining('(2026-10-05) takes the corrected count'), findsOneWidget);
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    final b = lastBody(a, '/api/Poultry/stock/birds/adjustments');
+    expect((b['batchId'], b['flockId'], b['movementType'], b['quantity'], b['farmId']), (1, 7, 'Damage/Loss', -5, 'farm-1'));
+    expect(a.writes.where((w) => w.url.path == '/api/Poultry/stock/transactions'), isEmpty);
+  });
+
+  testWidgets('stock movements: a closed flock cannot be picked; the unplaced birds can', (tester) async {
+    final a = api()
+      ..gets['/api/Poultry/stock/birds/options'] = [
+        {'batchId': 1, 'batchCode': 'B-001', 'batchName': '', 'unplacedBirds': 20, 'flockId': 8, 'flockName': 'Old pen',
+          'liveBirds': 0, 'hasProductionRecord': true, 'isClosed': true},
+      ];
+    await open(tester, StockMovementsScreen(session: await sessionFor(a), company: company), size: phone);
+    await tap(tester, find.text('New movement'));
+    await choose(tester, 'Pick a finished product, raw material or supply', 'Birds', within: _dialog);
+    await choose(tester, 'Choose the batch', 'B-001', within: _dialog);
+    await tester.tap(find.descendant(of: _dialog, matching: find.text('Choose the flock')));
+    await tester.pumpAndSettle();
+    final closed = tester.widget<DropdownMenuItem<String>>(
+        find.ancestor(of: find.text('Old pen · closed').last, matching: find.byType(DropdownMenuItem<String>)));
+    expect(closed.enabled, isFalse);
+    await tester.tap(find.text('Not placed in a flock · 20 birds').last);
+    await tester.pumpAndSettle();
+    await choose(tester, 'Increase', 'Decrease', within: _dialog);
+    await tester.enterText(find.descendant(of: _dialog, matching: find.byType(TextField)).first, '25');
+    await tester.pump();
+    expect(find.text('Birds of this batch not in any flock: 20 → -5', findRichText: true), findsOneWidget);
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(find.text('Not enough birds — There are only 20 birds there.'), findsOneWidget);
+    expect(a.writes, isEmpty);
   });
 
   testWidgets('health records: tabs, filter dropdowns, create with type, edit keeps the type', (tester) async {

@@ -287,6 +287,63 @@ void main() {
       expect(del.url.queryParameters['farmId'], 'farm-1');
     });
 
+    testWidgets('egg classes: stock by category, the class ledger, a loss; Breakdown lines drill in', (tester) async {
+      final api = trackerApi()
+        ..gets['/api/Poultry/products'] = [
+          {'poultryProductId': 1, 'name': 'Eggs', 'isRawEggProduct': true, 'stockOnHand': 225},
+          {'poultryProductId': 11, 'name': 'Eggs - Large', 'stockOnHand': 30},
+        ]
+        ..gets['/api/Poultry/egg-sorting/classes'] = [
+          {'poultryProductId': 1, 'name': 'Unsorted', 'classKind': 'Unsorted', 'isActive': true, 'onHand': 225},
+          {'poultryProductId': 11, 'name': 'Large', 'classKind': 'Size', 'isActive': true, 'onHand': 30},
+          {'poultryProductId': 12, 'name': 'Peewee', 'classKind': 'Size', 'isActive': false, 'onHand': 0},
+        ]
+        ..gets['/api/Poultry/egg-sorting/ledger'] = [
+          {'transactionId': 1, 'businessDate': '2026-10-01T00:00:00', 'txnType': 'Production', 'poultryProductId': 1, 'classKind': 'Unsorted',
+            'className': 'Unsorted', 'quantityIn': 300, 'quantityOut': 0, 'runningBalance': 300, 'flockId': 1, 'flockName': 'Layers A', 'pickNumbers': '1,2'},
+          {'transactionId': 2, 'businessDate': '2026-10-02T00:00:00', 'txnType': 'Sorting In', 'poultryProductId': 11, 'classKind': 'Size',
+            'className': 'Large', 'quantityIn': 30, 'quantityOut': 0, 'runningBalance': 30, 'reference': 'SS-0001'},
+        ];
+      await open(tester, EggTrackerScreen(session: await sessionFor(api), company: company), size: phone);
+      expect(find.text('255'), findsOneWidget, reason: 'Eggs on hand sums every class');
+      await see(tester, find.text('Egg Stock By Category'));
+      expect(find.text('TOTAL SALEABLE'), findsOneWidget);
+      expect(find.text('PEEWEE'), findsNothing, reason: 'an inactive empty size is hidden');
+      expect(find.text('8 cr + 15'), findsOneWidget, reason: 'Total saleable 255 in crates');
+      await see(tester, find.text('Sorted (into size)'));
+      expect(find.text('October 1, 2026'), findsOneWidget);
+
+      await choose(tester, 'All movements', 'Sorting');
+      expect(find.text('Layers A'), findsNothing);
+      await choose(tester, 'All classes', 'Large');
+      expect(api.requests.lastWhere((r) => r.url.path == '/api/Poultry/egg-sorting/ledger').url.queryParameters['productId'], '11');
+
+      await tapSeen(tester, find.text('Record loss / adjustment'));
+      expect(find.text('Record egg loss or adjustment'), findsOneWidget);
+      await pick(tester, 'Choose a class', 'Large — 30 on hand');
+      await pick(tester, 'Breakage', 'Stock-take');
+      expect(find.text('Counted stock differs: + found, − missing.'), findsOneWidget);
+      await enter(tester, 'Eggs (+ found / − missing)', '-40');
+      await tester.pumpAndSettle();
+      expect(find.text('30 → -10 eggs — more than is in stock', findRichText: true), findsOneWidget);
+      await enter(tester, 'Reason *', 'recount');
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Record'));
+      await tester.pumpAndSettle();
+      final body = api.lastBody('/api/Poultry/egg-sorting/adjustments');
+      expect((body['poultryProductId'], body['kind'], body['quantity'], body['reason']), (11, 'Stocktake', -40, 'recount'));
+      expect(find.text('Egg stock adjusted — Large: −40 eggs.'), findsOneWidget);
+
+      await see(tester, find.text('Eggs in by source'));
+      await tapSeen(tester, find.byIcon(Icons.chevron_right));
+      expect(find.text('Eggs in'), findsOneWidget);
+      expect(find.textContaining('newest first — 1 entry'), findsOneWidget);
+      expect(find.text('+300'), findsOneWidget);
+      await tester.enterText(find.byType(TextFormField).first, 'nothing like this');
+      await tester.pumpAndSettle();
+      expect(find.text('Nothing here matches “nothing like this”.'), findsOneWidget);
+    });
+
     testWidgets('zero is refused; table view and page size', (tester) async {
       final api = trackerApi();
       await open(tester, EggTrackerScreen(session: await sessionFor(api), company: company), size: phone);

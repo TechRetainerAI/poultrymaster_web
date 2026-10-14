@@ -286,6 +286,90 @@ class _FarmCompletenessCardState extends State<FarmCompletenessCard> {
         builder: (_) => WebPageScreen(label: label, href: href, company: widget.company, session: widget.session),
       ));
 
+  /// The full page's summary: the severity badge, then Today / Missing /
+  /// Earlier days / Unsorted eggs as tiles, then the notes under them.
+  Widget _fullSummary({
+    required String sevLabel,
+    required Color sevBg,
+    required Color sevFg,
+    required bool isToday,
+    required String businessDate,
+    required Map p,
+    required int missing,
+    required int backlogDates,
+    required int backlogFlockDays,
+    required int awaiting,
+    required int duplicates,
+    required Map? unsorted,
+    required TextStyle Function([double]) muted,
+  }) {
+    final unsortedItems = [for (final i in (unsorted?['items'] as List? ?? const [])) if (i is Map) i];
+    final oldest = unsortedItems.fold<int>(0, (m, i) => _int(i['daysOutstanding']) > m ? _int(i['daysOutstanding']) : m);
+    final showUnsorted = unsorted != null && _int(unsorted['outstandingCount']) > 0;
+    final tiles = <Widget>[
+      _Tile(
+        tone: missing > 0 ? _TileTone.amber : _TileTone.emerald,
+        label: isToday ? 'Today' : formatShortDate(businessDate),
+        value: '${_int(p['completedCount'])} / ${_int(p['expectedCount'])} recorded',
+        sub: const Text('flocks recorded'),
+      ),
+      _Tile(
+        tone: missing > 0 ? _TileTone.rose : _TileTone.emerald,
+        label: isToday ? 'Missing today' : 'Missing this day',
+        value: '$missing',
+        sub: Text(missing > 0 ? 'production record${missing == 1 ? '' : 's'}' : 'nothing missing'),
+      ),
+      _Tile(
+        tone: backlogFlockDays > 0 ? _TileTone.rose : _TileTone.emerald,
+        label: 'Earlier days',
+        value: '$backlogFlockDays',
+        sub: Text(backlogFlockDays > 0 ? 'missing across $backlogDates day${backlogDates == 1 ? '' : 's'}' : 'all caught up'),
+      ),
+      if (showUnsorted)
+        _Tile(
+          tone: _TileTone.sky,
+          label: 'Unsorted eggs',
+          value: fmtNum(_int((unsorted['counters'] as Map?)?['eggs']), 0),
+          sub: Wrap(children: [
+            if (oldest >= 1) Text('oldest $oldest day${oldest == 1 ? '' : 's'} old · '),
+            InkWell(
+              onTap: () => openPoultryHref(context, widget.session, widget.company, '/poultry-egg-sorting', label: 'Egg Sorting'),
+              child: const Text('Sort eggs', style: TextStyle(fontWeight: FontWeight.w600, decoration: TextDecoration.underline)),
+            ),
+          ]),
+        ),
+    ];
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const SizedBox(height: 4),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(color: sevBg, borderRadius: BorderRadius.circular(999)),
+        child: Text(sevLabel, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: sevFg)),
+      ),
+      const SizedBox(height: 8),
+      // Two to a row (the card sits in an IntrinsicHeight, so no LayoutBuilder).
+      for (var i = 0; i < tiles.length; i += 2) ...[
+        if (i > 0) const SizedBox(height: 8),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(child: tiles[i]),
+          const SizedBox(width: 8),
+          Expanded(child: i + 1 < tiles.length ? tiles[i + 1] : const SizedBox.shrink()),
+        ]),
+      ],
+      const SizedBox(height: 8),
+      if (missing == 0 && backlogDates == 0)
+        const Text('✓ All expected flock production has been recorded.', style: TextStyle(fontSize: 13, color: Color(0xFF047857)))
+      else if (backlogDates == 0 && '${p['severityReason'] ?? ''}'.isNotEmpty)
+        Text('${p['severityReason']}', style: muted(12)),
+      if (awaiting > 0)
+        Text('$awaiting of these ${awaiting == 1 ? 'is' : 'are'} in a batch production entry that has not been posted yet.',
+            style: muted(12)),
+      if (duplicates > 0)
+        Text('$duplicates flock${duplicates == 1 ? ' has' : 's have'} more than one production record for this day.',
+            style: const TextStyle(fontSize: 12, color: Color(0xFFB45309))),
+    ]);
+  }
+
   @override
   Widget build(BuildContext context) {
     final tokens = context.tokens;
@@ -368,10 +452,31 @@ class _FarmCompletenessCardState extends State<FarmCompletenessCard> {
             const SizedBox(width: 10),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(title, style: muted(11.5).copyWith(fontWeight: FontWeight.w600, letterSpacing: .6)),
+                Text(title,
+                    style: widget.compact
+                        ? muted(11.5).copyWith(fontWeight: FontWeight.w600, letterSpacing: .6)
+                        : TextStyle(fontSize: 13, fontWeight: FontWeight.w600, letterSpacing: .6, color: tokens.cardForeground)),
                 const SizedBox(height: 4),
                 if (notApplicable)
                   Text('No active flocks are expected to report production.', style: muted())
+                else if (!widget.compact)
+                  // Full page: one coloured tile per figure, so today, earlier
+                  // days and unsorted eggs read as separate things to do.
+                  _fullSummary(
+                    sevLabel: sevLabel,
+                    sevBg: sevBg,
+                    sevFg: sevFg,
+                    isToday: isToday,
+                    businessDate: businessDate,
+                    p: p,
+                    missing: missing,
+                    backlogDates: backlogDates,
+                    backlogFlockDays: backlogFlockDays,
+                    awaiting: awaiting,
+                    duplicates: duplicates,
+                    unsorted: unsorted,
+                    muted: muted,
+                  )
                 else ...[
                   Wrap(spacing: 12, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
                     Text.rich(TextSpan(style: muted(), children: [
@@ -947,4 +1052,37 @@ class _MissingByDateState extends State<_MissingByDate> {
 
 extension on String {
   String ifEmpty(String other) => isEmpty ? other : this;
+}
+
+enum _TileTone { emerald, amber, rose, sky }
+
+/// One figure on the full-page summary: label, big number, a line under it.
+class _Tile extends StatelessWidget {
+  const _Tile({required this.tone, required this.label, required this.value, required this.sub});
+  final _TileTone tone;
+  final String label;
+  final String value;
+  final Widget sub;
+
+  @override
+  Widget build(BuildContext context) {
+    final (border, bg, fg) = switch (tone) {
+      _TileTone.emerald => (const Color(0xFFA7F3D0), const Color(0xFFECFDF5), const Color(0xFF047857)),
+      _TileTone.amber => (const Color(0xFFFDE68A), const Color(0xFFFFFBEB), const Color(0xFFB45309)),
+      _TileTone.rose => (const Color(0xFFFECDD3), const Color(0xFFFFF1F2), const Color(0xFFBE123C)),
+      _TileTone.sky => (const Color(0xFFBAE6FD), const Color(0xFFF0F9FF), const Color(0xFF0369A1)),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(color: bg, border: Border.all(color: border), borderRadius: BorderRadius.circular(8)),
+      child: DefaultTextStyle.merge(
+        style: TextStyle(color: fg),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label.toUpperCase(), style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: .4, color: fg.withValues(alpha: .8))),
+          Text(value, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700)),
+          DefaultTextStyle.merge(style: const TextStyle(fontSize: 12), child: sub),
+        ]),
+      ),
+    );
+  }
 }

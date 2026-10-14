@@ -6,6 +6,7 @@ import '../models/company.dart';
 import '../design/tokens.dart';
 import '../design/web_mobile.dart';
 import '../state/session.dart';
+import '../pages/poultry/production/production_logic.dart' show loadEggsPerCrate;
 import '../pages/poultry/farm_alerts_screen.dart';
 import '../widgets/app_header.dart';
 import '../widgets/company_switcher_sheet.dart';
@@ -68,6 +69,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _load() async {
     final company = widget.session.active;
     if (company == null) return;
+    // EggsPerCrateLoader (344): the farm's crate size, used by every egg screen.
+    loadEggsPerCrate(widget.session, company);
     _loadAlertCount();
     setState(() {
       _loading = true;

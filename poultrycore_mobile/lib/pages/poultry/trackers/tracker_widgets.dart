@@ -433,8 +433,12 @@ class FlowBreakdownCard extends StatelessWidget {
     required this.fmt,
     required this.emptyText,
     this.description,
+    this.onSelect,
   });
   final String title;
+
+  /// Makes each row a button that opens what is behind it (Egg tracker).
+  final ValueChanged<FlowBucket>? onSelect;
   final List<FlowBucket> buckets;
   final num total;
   final bool inDirection;
@@ -466,7 +470,9 @@ class FlowBreakdownCard extends StatelessWidget {
           : Column(
               children: [
                 for (final bk in buckets)
-                  Padding(
+                  InkWell(
+                    onTap: onSelect == null ? null : () => onSelect!(bk),
+                    child: Padding(
                     padding: const EdgeInsets.only(bottom: 10),
                     child: Column(
                       children: [
@@ -489,6 +495,7 @@ class FlowBreakdownCard extends StatelessWidget {
                             Text(fmt(bk.amount),
                                 style: const TextStyle(
                                     fontSize: 13, fontWeight: FontWeight.w500, color: TColors.slate900)),
+                            if (onSelect != null) const Icon(Icons.chevron_right, size: 16, color: TColors.slate400),
                           ],
                         ),
                         if (!single) ...[
@@ -517,6 +524,7 @@ class FlowBreakdownCard extends StatelessWidget {
                         ],
                       ],
                     ),
+                  ),
                   ),
               ],
             ),

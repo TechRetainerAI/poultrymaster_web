@@ -42,8 +42,10 @@ final Map<String, List<ListExtra>> poultryListExtras = {
 final Map<String, List<RecordExtra>> poultryRecordExtras = {
   // app/poultry-products/page.tsx — the row's Add stock and Recipe buttons.
   'poultry-products': [
+    // 359: birds are adjusted per flock / batch on the Stock page.
     RecordExtra('Add stock', Icons.add_box_outlined,
-        (s, c, row) => ProductStockScreen(session: s, company: c, product: row)),
+        (s, c, row) => ProductStockScreen(session: s, company: c, product: row),
+        when: (row) => !(row['isBirdProduct'] == true || row['name'] == 'Birds')),
     RecordExtra('Recipe', Icons.checklist,
         (s, c, row) => ProductRecipeScreen(session: s, company: c, product: row),
         when: (row) => row['requiresRecipeSetup'] == true && row['isRawEggProduct'] != true),

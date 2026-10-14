@@ -38,6 +38,8 @@ import 'inventory/inventory_screen.dart';
 import 'inventory/loss_records_screen.dart';
 import 'inventory/stock_movements_screen.dart';
 import 'expenses/internal_use_screen.dart';
+import 'expenses/recurring_expenses_screen.dart';
+import 'egg_sorting/egg_sorting_screens.dart';
 import 'sales/customer_balances_screen.dart';
 import 'sales/balances_logic.dart' show BalanceSide;
 import 'sales/payments_received_screen.dart';
@@ -285,6 +287,11 @@ const Map<String, PageScreenBuilder> poultryPageScreens = {
   '/poultry-flock-alerts': _flockAlerts,
   '/poultry-alerts': _farmAlerts,
   '/poultry-purchase-receipts': _purchaseReceipts,
+  '/recurring-expenses': _recurringExpenses,
+  '/poultry-egg-sorting': _eggSortingWorkspace,
+  // app/egg-sorting redirects to the workspace.
+  '/egg-sorting': _eggSortingWorkspace,
+  '/poultry-egg-sorting-settings': _eggSortingSettings,
   '/poultry-farm-completeness': _farmCompleteness,
   '/poultry-feed-distribution': _feedDistribution,
   '/poultry-daily-closing': _dailyClosing,
@@ -314,7 +321,9 @@ const Map<String, PageScreenBuilder> poultryPageScreens = {
   '/poultry-driver-report': _driverReport,
   '/flock-batch': _flockBatches,
   '/poultry-raw-materials': _rawMaterials,
+  '/poultry-supply-purchases': _rawMaterials,
   '/poultry-raw-materials?purchase=1': _recordPurchase,
+  '/poultry-supply-purchases?purchase=1': _recordPurchase,
   '/poultry-inventory': _inventory,
   '/poultry-stock': _stockMovements,
   '/health': _health,
@@ -406,6 +415,9 @@ Widget _flockAlerts(Session s, Company c) => FlockAlertsScreen(session: s, compa
 Widget _farmAlerts(Session s, Company c) => FarmAlertsScreen(session: s, company: c);
 
 Widget _purchaseReceipts(Session s, Company c) => PurchaseReceiptsScreen(session: s, company: c);
+Widget _recurringExpenses(Session s, Company c) => RecurringExpensesScreen(session: s, company: c);
+Widget _eggSortingWorkspace(Session s, Company c) => EggSortingWorkspaceScreen(session: s, company: c);
+Widget _eggSortingSettings(Session s, Company c) => EggSortingSettingsScreen(session: s, company: c);
 
 Widget _farmSetup(Session s, Company c) => FarmSetupScreen(session: s, company: c);
 

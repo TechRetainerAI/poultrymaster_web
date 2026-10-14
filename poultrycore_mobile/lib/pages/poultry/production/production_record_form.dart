@@ -84,7 +84,7 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
   PickSettings _picks = const PickSettings();
   Map? _loaded;
 
-  String _flockId = '', _date = '', _eggGrade = eggGradeNone, _feedType = '';
+  String _flockId = '', _date = '', _eggGrade = productionEggGradeValue, _feedType = '';
   final _broken = TextEditingController(), _meaty = TextEditingController(), _soft = TextEditingController(), _lost = TextEditingController();
   final _numBirds = TextEditingController(), _mortality = TextEditingController(), _medication = TextEditingController(), _notes = TextEditingController();
   final _manualWeeks = TextEditingController(), _manualDays = TextEditingController(), _manualYears = TextEditingController();
@@ -294,7 +294,7 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
     _numBirds.text = n(rec['noOfBirds']);
     _notes.text = tStr(rec['notes']);
     _medication.text = tStr(rec['medication']);
-    _eggGrade = eggGradeFromApi(rec['eggGrade']);
+    _eggGrade = productionEggGrade(rec['eggGrade']);
     _silent = false;
 
     final feeds = rowsOf(rec['feeds']);
@@ -606,18 +606,16 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
           ]),
           Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             _label('Egg grade'),
-            AppSelect<String>(
-              value: _eggGrade,
-              items: [for (final (v, l) in eggGradeOptions) AppSelectItem(value: v, label: l)],
-              onChanged: (v) => _set(() => _eggGrade = v ?? eggGradeNone),
-            ),
+            // Automatic since egg sorting: the day's collection is mixed sizes;
+            // sizes are recorded in Egg Sorting. An older record keeps its grade.
+            EggGradeReadout(grade: _eggGrade),
           ]),
         ]),
       ),
       const SizedBox(height: 14),
       ProdSection(
         title: 'Egg Production',
-        description: 'Total = crates × 30 + loose eggs',
+        description: 'Total = crates × $eggsPerCrate + loose eggs',
         badge: '${loc(total)} eggs',
         accent: ProdAccent.amber,
         icon: Icons.egg_outlined,
@@ -1015,11 +1013,17 @@ class _ProductionRecordModalState extends State<_ProductionRecordModal> {
 /// app/production-records/new (with ?flockId=, ?date=, ?catchUp=1&asOf=) and
 /// app/production-records/[id].
 class ProductionRecordPage extends StatelessWidget {
-  const ProductionRecordPage({super.key, required this.session, required this.company, this.recordId, this.flockId, this.date, this.catchUp = false, this.asOf});
+  const ProductionRecordPage(
+      {super.key, required this.session, required this.company, this.recordId, this.flockId, this.date, this.catchUp = false, this.asOf, this.returnTo});
   final Session session;
   final Company company;
   final int? recordId, flockId;
   final String? date, asOf;
+
+  /// ?returnTo= (from the Egg Sorting Workspace): Close, Cancel and Save go back
+  /// there. The app returns to whatever opened the page; this only changes the
+  /// button. Same-site paths only.
+  final String? returnTo;
   final bool catchUp;
 
   @override
@@ -1030,6 +1034,7 @@ class ProductionRecordPage extends StatelessWidget {
         ? 'Update production data'
         : (catchUp ? 'Each missed day in turn, oldest first, saved as its own daily record' : 'Record daily egg production data for a flock');
     void back() => Navigator.of(context).maybePop();
+    final toEggSorting = (returnTo ?? '').startsWith('/poultry-egg-sorting');
     return Scaffold(
       appBar: AppBar(title: Text(title)),
       body: ListView(padding: const EdgeInsets.fromLTRB(14, 12, 14, 28), children: [
@@ -1047,13 +1052,27 @@ class ProductionRecordPage extends StatelessWidget {
               Text(sub, style: const TextStyle(fontSize: 13, color: TColors.slate600)),
             ]),
           ),
-          FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: TColors.red600),
-            onPressed: back,
-            icon: const Icon(Icons.close, size: 16),
-            label: const Text('Close'),
-          ),
+          if (!toEggSorting)
+            FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: TColors.red600),
+              onPressed: back,
+              icon: const Icon(Icons.close, size: 16),
+              label: const Text('Close'),
+            ),
         ]),
+        // The longer button gets its own line: beside the title it overflows a phone.
+        if (toEggSorting) ...[
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: const Color(0xFFF59E0B)),
+              onPressed: back,
+              icon: const Icon(Icons.arrow_back, size: 16),
+              label: const Text('Back to Egg Sorting'),
+            ),
+          ),
+        ],
         const SizedBox(height: 16),
         if (catchUp && flockId != null)
           ProductionCatchUpFlow(session: session, company: company, flockId: flockId!, asOf: asOf)
@@ -1090,7 +1109,11 @@ Widget? productionRecordScreenForHref(String href, Session s, Company c) {
     );
   }
   final m = RegExp(r'^/production-records/(\d+)$').firstMatch(uri.path);
-  if (m != null) return ProductionRecordPage(session: s, company: c, recordId: int.parse(m[1]!));
+  if (m != null) {
+    final rt = q['returnTo'];
+    final returnTo = rt != null && rt.startsWith('/') && !rt.startsWith('//') ? rt : null;
+    return ProductionRecordPage(session: s, company: c, recordId: int.parse(m[1]!), returnTo: returnTo);
+  }
   return null;
 }
 

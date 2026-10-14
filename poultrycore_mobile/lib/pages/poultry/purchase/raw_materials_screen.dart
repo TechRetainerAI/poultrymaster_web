@@ -1,7 +1,8 @@
-// Poultry → Raw Materials & Supplies (app/poultry-raw-materials/page.tsx), and
-// Operations → Purchase → Record Purchase, which is this page opened with
-// `?purchase=1` so the purchase dialog comes up straight away. At phone width
-// the web shows the card lists (its `md:hidden` layout), so the app does too.
+// Poultry → Inventory & Supply Purchases (app/poultry-supply-purchases/page.tsx,
+// formerly Raw Materials & Supplies at /poultry-raw-materials, which now
+// redirects here), and Operations → Purchase → Record Purchase, which is this
+// page opened with `?purchase=1`. At phone width the web shows the card lists
+// (its `md:hidden` layout), so the app does too.
 
 import 'package:flutter/material.dart';
 
@@ -37,21 +38,27 @@ bool _dateAndSearch(Map r, {required String search, required List<String> keys, 
   return true;
 }
 
-List<Map> filterRawItems(List<Map> items, {String search = '', String category = 'all', String unit = 'all'}) => [
+/// [stock]: all | low (active and low) | inactive.
+List<Map> filterRawItems(List<Map> items, {String search = '', String category = 'all', String unit = 'all', String stock = 'all'}) => [
       for (final i in items)
         if (_dateAndSearch(i, search: search, keys: const ['itemName', 'category']) &&
             (category == 'all' || tStr(i['category']) == category) &&
-            (unit == 'all' || tStr(i['unitOfMeasure']) == unit || tStr(i['purchaseUnitOfMeasure']) == unit))
+            (unit == 'all' || tStr(i['unitOfMeasure']) == unit || tStr(i['purchaseUnitOfMeasure']) == unit) &&
+            (stock != 'low' || (i['isActive'] == true && i['isLowStock'] == true)) &&
+            (stock != 'inactive' || i['isActive'] != true))
           i,
     ];
 
+/// [pay]: all | unpaid (not reversed, balance owed) | paid.
 List<Map> filterRawPurchases(List<Map> rows,
-    {String search = '', String from = '', String to = '', String item = 'all', int? focusId}) {
+    {String search = '', String from = '', String to = '', String item = 'all', int? focusId, String pay = 'all'}) {
   if (focusId != null) return [for (final p in rows) if (tIntOrNull(p['poultryRawMaterialPurchaseId']) == focusId) p];
   return [
     for (final p in rows)
       if (_dateAndSearch(p, search: search, keys: const ['itemName', 'supplierName'], from: from, to: to, dateKey: 'purchaseDate') &&
-          (item == 'all' || tStr(p['poultryRawMaterialItemId']) == item))
+          (item == 'all' || tStr(p['poultryRawMaterialItemId']) == item) &&
+          (pay != 'unpaid' || (p['isReversed'] != true && tNum(p['balance']) > 0)) &&
+          (pay != 'paid' || tNum(p['balance']) <= 0))
         p,
   ];
 }
@@ -76,9 +83,10 @@ List<Map> mergeUsage(List<Map> history, List<Map> adjustments) => [
         },
     ];
 
-/// The summary: purchases produced on the farm are not spend.
+/// The summary: purchases produced on the farm are not spend, and a reversed
+/// receipt's lot (345) stays in the history but was never spend.
 ({int items, int active, int low, num purchaseTotal, num paid, num outstanding, int produced}) rawStats(List<Map> items, List<Map> purchases) {
-  final spend = [for (final p in purchases) if (tStr(p['feedProductionRole']) != 'Produced') p];
+  final spend = [for (final p in purchases) if (tStr(p['feedProductionRole']) != 'Produced' && p['isReversed'] != true) p];
   return (
     items: items.length,
     active: items.where((i) => i['isActive'] == true).length,
@@ -126,6 +134,9 @@ class _RawMaterialsScreenState extends State<RawMaterialsScreen> {
   late String _tab = rawTabs.contains(widget.tab) ? widget.tab! : 'items';
   final _search = TextEditingController();
   String _from = '', _to = '', _itemFilter = 'all', _category = 'all', _unit = 'all';
+
+  /// Quick filter chips (and the tappable Low stock / Outstanding cards).
+  String _stockFilter = 'all', _payFilter = 'all';
   late int? _focus = widget.focusPurchaseId;
   int _iPage = 1, _iSize = 10, _pPage = 1, _pSize = 10, _uPage = 1, _uSize = 10;
   FarmCostDefaults _defaults = (feed: expenseWhenPurchased, medication: expenseWhenPurchased);
@@ -286,40 +297,47 @@ class _RawMaterialsScreenState extends State<RawMaterialsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final lead = sidebarLeading(context, widget.session, widget.company, href: '/poultry-raw-materials');
+    final lead = sidebarLeading(context, widget.session, widget.company, href: '/poultry-supply-purchases');
     final s = rawStats(_items, _purchases);
     final fmt = _fmt;
+    final v = _valuation;
+    final summary = v?['summary'] is Map ? v!['summary'] as Map : const {};
+    final findings = rowsOf(v?['auditFindings']);
+    final deferred = tNum(summary['deferredValue']);
 
-    Widget toolbar(String label, IconData icon, VoidCallback onTap, {bool primary = false}) => primary
-        ? FilledButton.icon(onPressed: onTap, icon: Icon(icon, size: 16), label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis))
-        : OutlinedButton.icon(onPressed: onTap, icon: Icon(icon, size: 16), label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis));
-
-    Widget tile({required IconData icon, required Color iconColor, required String label, required String value, required String sub, Color? valueColor, bool warn = false}) =>
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: warn ? TColors.amber50 : Colors.white,
-            border: Border.all(color: warn ? TColors.amber200 : TColors.slate200),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Icon(icon, size: 16, color: iconColor),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(label.toUpperCase(),
-                    overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, letterSpacing: .4, color: TColors.slate500)),
-              ),
-            ]),
-            const SizedBox(height: 4),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: valueColor ?? TColors.slate900)),
+    Widget kpi({required IconData icon, required Color iconColor, required String label, required String value, Widget? sub, String? tone, VoidCallback? onTap, String? tip}) {
+      final card = Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: tone == 'warn' ? TColors.amber200 : tone == 'bad' ? TColors.red200 : TColors.slate200),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(icon, size: 16, color: iconColor),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(label.toUpperCase(),
+                  overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, letterSpacing: .4, color: TColors.slate500)),
             ),
-            Text(sub, style: const TextStyle(fontSize: 12, color: TColors.slate400)),
           ]),
-        );
+          const SizedBox(height: 4),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(value,
+                style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: tone == 'warn' ? TColors.amber700 : tone == 'bad' ? TColors.red600 : tone == 'good' ? TColors.emerald700 : TColors.slate900)),
+          ),
+          if (sub != null) DefaultTextStyle.merge(style: const TextStyle(fontSize: 12, color: TColors.slate500), child: sub),
+        ]),
+      );
+      final tapped = onTap == null ? card : InkWell(onTap: onTap, borderRadius: BorderRadius.circular(12), child: card);
+      return tip == null ? tapped : Tooltip(message: tip, child: tapped);
+    }
 
     Widget tabButton(String key, IconData icon, String label, String? count) => Padding(
           padding: const EdgeInsets.only(right: 4),
@@ -351,71 +369,132 @@ class _RawMaterialsScreenState extends State<RawMaterialsScreen> {
         );
 
     return Scaffold(
-      appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: const Text('Raw Materials & Supplies')),
+      appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: const Text('Inventory & Supply Purchases')),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
           children: [
-            const Text('Raw Materials & Supplies', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: TColors.slate900)),
-            const Text('Track feed inputs, packaging, medication and other supplies — purchases, costing and usage.',
+            const Text('Inventory & Supply Purchases', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: TColors.slate900)),
+            const Text('Feed inputs, packaging, medication and other supplies — what you hold, what you bought, what was used.',
                 style: TextStyle(fontSize: 13, color: TColors.slate500)),
             const SizedBox(height: 12),
-            LayoutBuilder(builder: (context, c) {
-              final w = (c.maxWidth - 8) / 2;
-              return Wrap(spacing: 8, runSpacing: 8, children: [
-                SizedBox(width: w, child: toolbar('Recalculate stock', Icons.refresh, _recalculate)),
-                SizedBox(width: w, child: toolbar('New Item', Icons.add, () => _openItem())),
-                SizedBox(width: w, child: toolbar('Produce Feed', Icons.factory_outlined, () => _href('/poultry-feed-production', 'Feed Production'))),
-                SizedBox(width: w, child: toolbar('Record Purchase', Icons.shopping_cart_outlined, () => _openPurchase(), primary: true)),
-              ]);
-            }),
+            // One clear primary action; Receive invoice, Produce feed and
+            // Recalculate stock are occasional jobs, under More.
+            Row(children: [
+              Expanded(child: OutlinedButton.icon(onPressed: () => _openItem(), icon: const Icon(Icons.add, size: 16), label: const Text('New Item'))),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton.icon(onPressed: () => _openPurchase(), icon: const Icon(Icons.shopping_cart_outlined, size: 16), label: const Text('Record Purchase')),
+              ),
+              const SizedBox(width: 4),
+              PopupMenuButton<String>(
+                tooltip: 'More actions',
+                icon: const Icon(Icons.more_horiz),
+                onSelected: (k) => switch (k) {
+                  'receive' => _href('/poultry-purchase-receipts?receive=1', 'Receive Purchase'),
+                  'feed' => _href('/poultry-feed-production', 'Feed Production'),
+                  _ => _recalculate(),
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'receive', child: ListTile(dense: true, leading: Icon(Icons.inventory_outlined), title: Text('Receive invoice'))),
+                  PopupMenuItem(value: 'feed', child: ListTile(dense: true, leading: Icon(Icons.factory_outlined), title: Text('Produce feed'))),
+                  PopupMenuItem(value: 'recalc', child: ListTile(dense: true, leading: Icon(Icons.refresh), title: Text('Recalculate stock'))),
+                ],
+              ),
+            ]),
             const SizedBox(height: 14),
             if (_loading)
               const Padding(padding: EdgeInsets.all(24), child: Text('Loading…', style: TextStyle(color: TColors.slate500)))
             else ...[
-              LayoutBuilder(builder: (context, c) {
-                final w = (c.maxWidth - 12) / 2;
-                return Wrap(spacing: 12, runSpacing: 12, children: [
-                  SizedBox(
-                    width: w,
-                    child: tile(icon: Icons.inventory_2_outlined, iconColor: TColors.blue600, label: 'Active Items', value: loc(s.active), sub: 'of ${loc(s.items)} total'),
-                  ),
-                  SizedBox(
-                    width: w,
-                    child: tile(
-                      icon: Icons.warning_amber_outlined,
-                      iconColor: s.low > 0 ? TColors.amber600 : TColors.slate400,
-                      label: 'Low Stock',
-                      value: loc(s.low),
-                      sub: s.low > 0 ? 'need restocking' : 'all stocked',
-                      valueColor: s.low > 0 ? TColors.amber700 : null,
-                      warn: s.low > 0,
+              // One summary row; Low stock and Outstanding open the list
+              // already filtered to them.
+              _pairs([
+                kpi(
+                  icon: Icons.inventory_2_outlined,
+                  iconColor: TColors.blue600,
+                  label: 'Stock value',
+                  value: v != null ? fmt(tNum(summary['operationalValue'])) : loc(s.active),
+                  tip: v != null ? operationalValueTooltip : null,
+                  sub: v != null
+                      ? Wrap(children: [
+                          Text('${tStr(summary['itemsWithStock'])} item${tNum(summary['itemsWithStock']) == 1 ? '' : 's'} in stock'),
+                          if (deferred > 0) ...[
+                            const Text(' · '),
+                            InkWell(
+                              onTap: () => _href('/poultry-deferred-costs', 'Deferred inventory cost'),
+                              child: Text('${fmt(deferred)} deferred',
+                                  style: const TextStyle(color: TColors.amber700, decoration: TextDecoration.underline)),
+                            ),
+                          ],
+                        ])
+                      : Text('active of ${loc(s.items)} items'),
+                ),
+                kpi(
+                  icon: Icons.warning_amber_outlined,
+                  iconColor: s.low > 0 ? TColors.amber600 : TColors.slate400,
+                  label: 'Low stock',
+                  value: loc(s.low),
+                  tone: s.low > 0 ? 'warn' : null,
+                  sub: Text(s.low > 0 ? 'need restocking · view' : 'all stocked'),
+                  onTap: s.low > 0
+                      ? () {
+                          setState(() => _stockFilter = 'low');
+                          _selectTab('items');
+                        }
+                      : null,
+                ),
+                kpi(
+                  icon: Icons.shopping_cart_outlined,
+                  iconColor: TColors.emerald600,
+                  label: 'Purchases',
+                  value: fmt(s.purchaseTotal),
+                  sub: Text('Paid ${fmt(s.paid)}'),
+                  tip: s.produced > 0 ? 'Excludes ${s.produced} feed lot(s) produced on the farm: their cost is the ingredients, already counted.' : null,
+                ),
+                kpi(
+                  icon: Icons.account_balance_wallet_outlined,
+                  iconColor: s.outstanding > 0 ? TColors.red600 : TColors.slate400,
+                  label: 'Outstanding',
+                  value: fmt(s.outstanding),
+                  tone: s.outstanding > 0 ? 'bad' : 'good',
+                  sub: Text(s.outstanding > 0 ? 'owed to suppliers · view' : 'nothing owed'),
+                  onTap: s.outstanding > 0
+                      ? () {
+                          setState(() => _payFilter = 'unpaid');
+                          _selectTab('purchases');
+                        }
+                      : null,
+                ),
+              ]),
+              // The costing audit is silent when healthy, so anything here is
+              // worth reading. Reported, never silently repaired.
+              if (findings.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(color: TColors.amber50, border: Border.all(color: TColors.amber300), borderRadius: BorderRadius.circular(8)),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Icon(Icons.warning_amber_outlined, size: 16, color: TColors.amber600),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: DefaultTextStyle.merge(
+                        style: const TextStyle(fontSize: 12, color: TColors.amber900),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text('${findings.length} stock costing issue(s) found', style: const TextStyle(fontWeight: FontWeight.w500)),
+                          const SizedBox(height: 4),
+                          for (final f in findings.take(5))
+                            Text.rich(TextSpan(children: [
+                              TextSpan(text: tStr(f['severity']), style: const TextStyle(fontWeight: FontWeight.w500)),
+                              TextSpan(text: '${tStr(f['itemName']).isNotEmpty ? ' · ${tStr(f['itemName'])}' : ''} — ${tStr(f['detail'])}'),
+                            ])),
+                          if (findings.length > 5) Text('…and ${findings.length - 5} more.'),
+                        ]),
+                      ),
                     ),
-                  ),
-                  SizedBox(
-                    width: w,
-                    child: tile(
-                      icon: Icons.shopping_cart_outlined,
-                      iconColor: TColors.emerald600,
-                      label: 'Purchases Value',
-                      value: fmt(s.purchaseTotal),
-                      sub: 'Paid ${fmt(s.paid)}${s.produced > 0 ? ' · excludes ${s.produced} produced feed ${s.produced == 1 ? 'lot' : 'lots'}' : ''}',
-                    ),
-                  ),
-                  SizedBox(
-                    width: w,
-                    child: tile(
-                      icon: Icons.account_balance_wallet_outlined,
-                      iconColor: s.outstanding > 0 ? TColors.red600 : TColors.slate400,
-                      label: 'Outstanding',
-                      value: fmt(s.outstanding),
-                      sub: 'owed to suppliers',
-                      valueColor: s.outstanding > 0 ? TColors.red600 : TColors.emerald700,
-                    ),
-                  ),
-                ]);
-              }),
+                  ]),
+                ),
+              ],
               const SizedBox(height: 14),
               Container(
                 padding: const EdgeInsets.all(4),
@@ -425,7 +504,7 @@ class _RawMaterialsScreenState extends State<RawMaterialsScreen> {
                   child: Row(children: [
                     tabButton('items', Icons.inventory_2_outlined, 'Items', loc(_items.length)),
                     tabButton('purchases', Icons.shopping_cart_outlined, 'Purchases', loc(_purchases.length)),
-                    tabButton('usage', Icons.account_balance_wallet_outlined, 'Usage History', _usageLoaded ? loc(_usage.length) : null),
+                    tabButton('usage', Icons.history, 'Usage', _usageLoaded ? loc(_usage.length) : null),
                   ]),
                 ),
               ),
@@ -444,12 +523,63 @@ class _RawMaterialsScreenState extends State<RawMaterialsScreen> {
     );
   }
 
-  Widget _heading(String title, String sub) => Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: TColors.slate900)),
-          Text(sub, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
-        ]),
+  /// Two to a row.
+  Widget _pairs(List<Widget> cells) => Column(children: [
+        for (var i = 0; i < cells.length; i += 2) ...[
+          if (i > 0) const SizedBox(height: 10),
+          IntrinsicHeight(
+            child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Expanded(child: cells[i]),
+              const SizedBox(width: 10),
+              Expanded(child: i + 1 < cells.length ? cells[i + 1] : const SizedBox.shrink()),
+            ]),
+          ),
+        ],
+      ]);
+
+  /// Quick filter chip with a count.
+  Widget _chip(String label, bool active, VoidCallback onTap, int count, {String? tone}) => Padding(
+        padding: const EdgeInsets.only(right: 6, bottom: 6),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(999),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+            decoration: BoxDecoration(
+              color: active ? TColors.blue600 : Colors.white,
+              border: Border.all(color: active ? TColors.blue600 : TColors.slate200),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: active ? Colors.white : TColors.slate600)),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                decoration: BoxDecoration(
+                  color: active
+                      ? Colors.white24
+                      : tone == 'warn' && count > 0
+                          ? TColors.amber100
+                          : tone == 'bad' && count > 0
+                              ? TColors.red100
+                              : TColors.slate100,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(loc(count),
+                    style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: active
+                            ? Colors.white
+                            : tone == 'warn' && count > 0
+                                ? TColors.amber800
+                                : tone == 'bad' && count > 0
+                                    ? TColors.red700
+                                    : TColors.slate600)),
+              ),
+            ]),
+          ),
+        ),
       );
 
   Widget _itemFilterDropdown() => AppSelect<String>(
@@ -465,11 +595,26 @@ class _RawMaterialsScreenState extends State<RawMaterialsScreen> {
         }),
       );
 
+  /// In stock / Low stock / Inactive.
   Widget _statusBadge(Map i) => i['isActive'] != true
       ? const TBadge('Inactive', bg: TColors.slate100, fg: TColors.slate800)
       : i['isLowStock'] == true
-          ? const TBadge('Low stock', bg: TColors.amber100, fg: TColors.amber700)
-          : const TBadge('OK', bg: TColors.green100, fg: TColors.green700);
+          ? const TBadge('Low stock', bg: TColors.amber100, fg: TColors.amber800)
+          : const TBadge('In stock', bg: TColors.emerald50, fg: TColors.emerald700);
+
+  /// Paid / Part paid / Unpaid, with what is still owed.
+  Widget _paymentPill(Map p) {
+    if (tStr(p['feedProductionRole']) == 'Produced') return const Text('Produced', style: TextStyle(fontSize: 12, color: TColors.slate400));
+    if (p['isReversed'] == true) return const Text('Reversed', style: TextStyle(fontSize: 12, color: TColors.slate400));
+    final balance = tNum(p['balance']), paid = tNum(p['amountPaid']);
+    if (balance <= 0) return const TBadge('Paid', bg: TColors.emerald50, fg: TColors.emerald700);
+    return Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
+      paid > 0
+          ? const TBadge('Part paid', bg: TColors.amber100, fg: TColors.amber800)
+          : const TBadge('Unpaid', bg: TColors.red50, fg: TColors.red700),
+      Text('${_fmt(balance)} due', style: const TextStyle(fontSize: 11, color: TColors.slate500)),
+    ]);
+  }
 
   Widget _empty(String t) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 24),
@@ -483,11 +628,30 @@ class _RawMaterialsScreenState extends State<RawMaterialsScreen> {
         onPressed: onTap,
       );
 
+  /// Purchase unit → production unit, or the one unit when they are the same.
+  static String unitsText(Map i) {
+    final prod = tStr(i['unitOfMeasure']), buy = tStr(i['purchaseUnitOfMeasure']);
+    if (prod.isEmpty && buy.isEmpty) return '—';
+    if (buy.isEmpty || buy == prod) return prod.isNotEmpty ? prod : buy;
+    return '$buy → $prod';
+  }
+
+  List<Widget> _itemActions(Map i) => [
+        // Feed items only: the tracker reads the two feed categories.
+        if (feedItemKind(i['category']) != null)
+          _iconBtn('Track movements', Icons.history, () => _href('/feed-inventory-tracker?itemId=${i['poultryRawMaterialItemId']}', 'Feed inventory tracker'),
+              color: TColors.amber700),
+        _iconBtn('Buy more', Icons.shopping_cart_outlined, () => _openPurchase(itemId: tIntOrNull(i['poultryRawMaterialItemId'])), color: TColors.blue600),
+        _iconBtn('Edit item', Icons.edit_outlined, () => _openItem(i)),
+        _iconBtn('Delete item', Icons.delete_outline, () => _deleteItem(i), color: TColors.red600),
+      ];
+
   Widget _itemsTab() {
     final fmt = _fmt;
-    final v = _valuation;
-    final summary = v?['summary'] is Map ? v!['summary'] as Map : const {};
-    final findings = rowsOf(v?['auditFindings']);
+    final s = rawStats(_items, _purchases);
+    final byItem = {
+      for (final x in rowsOf(_valuation?['items'])) tIntOrNull(x['poultryRawMaterialItemId']): x,
+    };
     final units = <String>{
       for (final i in _items) ...[
         if (tStr(i['unitOfMeasure']).isNotEmpty) tStr(i['unitOfMeasure']),
@@ -495,86 +659,15 @@ class _RawMaterialsScreenState extends State<RawMaterialsScreen> {
       ],
     }.toList()
       ..sort();
-    final rows = filterRawItems(_items, search: _search.text, category: _category, unit: _unit);
-    final deferred = tNum(summary['deferredValue']);
-
-    Widget box({required Color bg, required Color border, required String label, required Color labelColor, required String value, required Color valueColor, required String sub, required Color subColor, String? tip, VoidCallback? onTap}) {
-      final child = Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(color: bg, border: Border.all(color: border), borderRadius: BorderRadius.circular(6)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label.toUpperCase(), style: TextStyle(fontSize: 11, letterSpacing: .4, color: labelColor)),
-          Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: valueColor)),
-          Text(sub, style: TextStyle(fontSize: 11, color: subColor)),
-        ]),
-      );
-      final tapped = onTap == null ? child : InkWell(onTap: onTap, child: child);
-      return Padding(padding: const EdgeInsets.only(bottom: 8), child: tip == null ? tapped : Tooltip(message: tip, child: tapped));
-    }
+    final rows = filterRawItems(_items, search: _search.text, category: _category, unit: _unit, stock: _stockFilter);
 
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      _heading('Inventory Items', 'Feed, packaging, medication and other stock-tracked supplies.'),
-      if (v != null) ...[
-        box(
-          bg: TColors.slate50,
-          border: TColors.slate200,
-          label: 'Stock value',
-          labelColor: TColors.slate500,
-          value: fmt(tNum(summary['operationalValue'])),
-          valueColor: TColors.slate900,
-          sub: '${tStr(summary['itemsWithStock'])} item(s) in stock',
-          subColor: TColors.slate500,
-          tip: operationalValueTooltip,
-        ),
-        box(
-          bg: TColors.amber50,
-          border: TColors.amber200,
-          label: 'Deferred inventory cost',
-          labelColor: TColors.amber700,
-          value: fmt(deferred),
-          valueColor: TColors.amber900,
-          sub: deferred > 0 ? '${tStr(summary['itemsDeferring'])} item(s) expense on use · view purchases' : 'Every item is expensed at purchase',
-          subColor: TColors.amber700,
-          tip: deferred > 0 ? 'See the purchases this is waiting on' : deferredInventoryTooltip,
-          onTap: deferred > 0 ? () => _href('/poultry-deferred-costs', 'Deferred inventory cost') : null,
-        ),
-        box(
-          bg: Colors.white,
-          border: TColors.slate200,
-          label: 'Cost layers',
-          labelColor: TColors.slate500,
-          value: loc(tNum(summary['openLots'])),
-          valueColor: TColors.slate900,
-          sub: '${loc(tNum(summary['deferredLots']))} still deferring',
-          subColor: TColors.slate500,
-        ),
-        if (findings.isNotEmpty)
-          Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(color: TColors.amber50, border: Border.all(color: TColors.amber300), borderRadius: BorderRadius.circular(6)),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Icon(Icons.warning_amber_outlined, size: 16, color: TColors.amber600),
-              const SizedBox(width: 8),
-              Expanded(
-                child: DefaultTextStyle.merge(
-                  style: const TextStyle(fontSize: 12, color: TColors.amber900),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('${findings.length} stock costing issue(s) found', style: const TextStyle(fontWeight: FontWeight.w500)),
-                    const SizedBox(height: 4),
-                    for (final f in findings.take(5))
-                      Text.rich(TextSpan(children: [
-                        TextSpan(text: tStr(f['severity']), style: const TextStyle(fontWeight: FontWeight.w500)),
-                        TextSpan(text: '${tStr(f['itemName']).isNotEmpty ? ' · ${tStr(f['itemName'])}' : ''} — ${tStr(f['detail'])}'),
-                      ])),
-                    if (findings.length > 5) Text('…and ${findings.length - 5} more.'),
-                  ]),
-                ),
-              ),
-            ]),
-          ),
-      ],
+      Wrap(children: [
+        _chip('All', _stockFilter == 'all', () => setState(() => _stockFilter = 'all'), _items.length),
+        _chip('Low stock', _stockFilter == 'low', () => setState(() => _stockFilter = 'low'), s.low, tone: 'warn'),
+        _chip('Inactive', _stockFilter == 'inactive', () => setState(() => _stockFilter = 'inactive'), s.items - s.active),
+      ]),
+      const SizedBox(height: 6),
       ListFiltersCard(
         search: _search,
         searchPlaceholder: 'Search item or category',
@@ -610,7 +703,7 @@ class _RawMaterialsScreenState extends State<RawMaterialsScreen> {
       ),
       const SizedBox(height: 12),
       if (rows.isEmpty)
-        _empty('No items yet.')
+        _empty(_items.isEmpty ? 'No items yet — add one with New Item.' : 'No items match these filters.')
       else
         for (final i in pageSlice(rows, _iPage, _iSize))
           FieldCard(
@@ -618,20 +711,13 @@ class _RawMaterialsScreenState extends State<RawMaterialsScreen> {
             badge: _statusBadge(i),
             fields: [
               ('Category', rawCategoryLabel(i['category']), null),
-              ('Purchase Unit', tStr(i['purchaseUnitOfMeasure']).isEmpty ? '—' : tStr(i['purchaseUnitOfMeasure']), null),
-              ('Production Unit', tStr(i['unitOfMeasure']).isEmpty ? '—' : tStr(i['unitOfMeasure']), null),
-              ('In stock', loc(tNum(i['currentQuantity'])), null),
+              ('Units', unitsText(i), null),
+              ('In stock', '${loc(tNum(i['currentQuantity']))} ${tStr(i['unitOfMeasure'])}'.trim(), i['isActive'] == true && i['isLowStock'] == true ? TColors.amber700 : null),
               ('Min alert', loc(tNum(i['minimumStockAlert'])), null),
-              ('Cost recognised',
-                  '${methodShortLabel(i['effectiveCostRecognitionMethod'])}${tStr(i['costRecognitionSource']) == 'ItemOverride' ? ' (override)' : ''}', null),
+              ('Cost', '${methodShortLabel(i['effectiveCostRecognitionMethod'])}${tStr(i['costRecognitionSource']) == 'ItemOverride' ? ' (override)' : ''}', null),
+              ('Stock value', byItem[tIntOrNull(i['poultryRawMaterialItemId'])] != null ? fmt(tNum(byItem[tIntOrNull(i['poultryRawMaterialItemId'])]!['operationalValue'])) : '—', null),
             ],
-            actions: [
-              if (feedItemKind(i['category']) != null)
-                _iconBtn("Track this item's movements", Icons.history, () => _href('/feed-inventory-tracker?itemId=${i['poultryRawMaterialItemId']}', 'Feed inventory tracker'),
-                    color: TColors.amber700),
-              _iconBtn(null, Icons.edit_outlined, () => _openItem(i)),
-              _iconBtn(null, Icons.delete_outline, () => _deleteItem(i), color: TColors.red600),
-            ],
+            actions: _itemActions(i),
           ),
       CompactPager(total: rows.length, page: _iPage, pageSize: _iSize, onPage: (p) => setState(() => _iPage = p), onPageSize: (s) => setState(() {
             _iSize = s;
@@ -660,21 +746,52 @@ class _RawMaterialsScreenState extends State<RawMaterialsScreen> {
 
   Widget _productionBadge(Map p) {
     final produced = tStr(p['feedProductionRole']) == 'Produced';
-    final label = '${produced ? 'Produced' : 'Bought for production'}'
+    final label = '${produced ? 'Produced' : 'For production'}'
         '${tStr(p['feedProductionBatchNumber']).isNotEmpty ? ' · ${tStr(p['feedProductionBatchNumber'])}' : ''}';
     return TBadge(label,
         bg: Colors.white, fg: produced ? TColors.emerald700 : const Color(0xFF4338CA), border: produced ? TColors.emerald300 : const Color(0xFFA5B4FC));
   }
 
+  /// 345: the receipt a lot came in on, and whether that receipt was reversed.
+  Widget _receiptBadges(Map p) => Wrap(spacing: 4, children: [
+        if (tStr(p['receiptNumber']).isNotEmpty) TBadge(tStr(p['receiptNumber']), bg: Colors.white, fg: TColors.emerald700, border: TColors.emerald300),
+        if (p['isReversed'] == true) const TBadge('Reversed', bg: Colors.white, fg: TColors.slate500, border: TColors.slate300),
+      ]);
+
+  /// A feed-production lot belongs to its batch; a receipt's lot is changed
+  /// through its receipt; anything else is edited here.
+  List<Widget> _purchaseActions(Map p) {
+    if (tIntOrNull(p['sourceFeedProductionBatchId']) != null) {
+      return [
+        _iconBtn('Open feed production batch', Icons.factory_outlined,
+            () => _href('/poultry-feed-production/${p['sourceFeedProductionBatchId']}', 'Feed Production'),
+            color: const Color(0xFF4F46E5)),
+      ];
+    }
+    final hasBalance = tNum(p['balance']) > 0;
+    if (tIntOrNull(p['poultryPurchaseReceiptId']) != null || p['isReversed'] == true) {
+      return [
+        if (p['isReversed'] != true && hasBalance) _iconBtn('Pay balance', Icons.account_balance_wallet_outlined, () => _pay(p), color: TColors.emerald600),
+        if (tIntOrNull(p['poultryPurchaseReceiptId']) != null)
+          _iconBtn('Open receipt ${tStr(p['receiptNumber'])}'.trim(), Icons.inventory_outlined, () => _href('/poultry-purchase-receipts', 'Receive Purchase'),
+              color: TColors.emerald600),
+      ];
+    }
+    return [
+      if (hasBalance) _iconBtn('Pay balance', Icons.account_balance_wallet_outlined, () => _pay(p), color: TColors.emerald600),
+      _iconBtn('Edit purchase', Icons.edit_outlined, () => _openPurchase(editing: p)),
+      _iconBtn('Delete purchase', Icons.delete_outline, () => _deletePurchase(p), color: TColors.red600),
+    ];
+  }
+
   Widget _purchasesTab() {
     final fmt = _fmt;
-    final rows = filterRawPurchases(_purchases, search: _search.text, from: _from, to: _to, item: _itemFilter, focusId: _focus);
+    final rows = filterRawPurchases(_purchases, search: _search.text, from: _from, to: _to, item: _itemFilter, focusId: _focus, pay: _payFilter);
+    final unpaid = _purchases.where((p) => p['isReversed'] != true && tNum(p['balance']) > 0).length;
     final focusSupplier = _focus == null
         ? null
         : tStr(_purchases.where((p) => tIntOrNull(p['poultryRawMaterialPurchaseId']) == _focus).firstOrNull?['supplierName']);
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      _heading('Purchase History',
-          'Stock received, costing, and supplier part payments. Feed produced on the farm appears here too, tagged with its batch.'),
       if (_focus != null)
         Container(
           margin: const EdgeInsets.only(bottom: 12),
@@ -693,39 +810,40 @@ class _RawMaterialsScreenState extends State<RawMaterialsScreen> {
             ]), style: const TextStyle(fontSize: 14, color: Color(0xFF0C4A6E))),
             TextButton(onPressed: () => setState(() => _focus = null), child: const Text('Show all purchases')),
           ]),
-        ),
+        )
+      else ...[
+        Wrap(children: [
+          _chip('All', _payFilter == 'all', () => setState(() => _payFilter = 'all'), _purchases.length),
+          _chip('Unpaid', _payFilter == 'unpaid', () => setState(() => _payFilter = 'unpaid'), unpaid, tone: 'bad'),
+          _chip('Paid', _payFilter == 'paid', () => setState(() => _payFilter = 'paid'), _purchases.length - unpaid),
+        ]),
+        const SizedBox(height: 6),
+      ],
       _datedFilters('Search item or supplier'),
       const SizedBox(height: 12),
       if (rows.isEmpty)
-        _empty(_focus != null ? 'Purchase #$_focus is not in this list.' : 'No purchases yet.')
+        _empty(_focus != null
+            ? 'Purchase #$_focus is not in this list.'
+            : _purchases.isEmpty
+                ? 'No purchases yet — record one with Record Purchase.'
+                : 'No purchases match these filters.')
       else
         for (final p in pageSlice(rows, _pPage, _pSize))
           FieldCard(
             title: tStr(p['itemName']),
-            badge: tStr(p['feedProductionRole']).isNotEmpty
-                ? _productionBadge(p)
-                : Text(fmtDateTime(p['purchaseDate'], p, _offset), style: const TextStyle(fontSize: 12, color: TColors.slate500)),
+            badge: _paymentPill(p),
             fields: [
+              ('Date', fmtDateTime(p['purchaseDate'], p, _offset), null),
               ('Supplier', tStr(p['supplierName']).isEmpty ? '—' : tStr(p['supplierName']), null),
-              ('Purchase Qty', '${loc(tNum(p['quantity']))} ${tStr(p['unitOfMeasure'])}', null),
-              ('Production Qty',
-                  p['productionQuantity'] != null ? '${loc(tNum(p['productionQuantity']))} ${tStr(p['productionUnit'])}'.trim() : '—', null),
-              ('Unit Price', fmt(tNum(p['unitCost'])), null),
+              ('Quantity', '${loc(tNum(p['quantity']))} ${tStr(p['unitOfMeasure'])}'.trim(), null),
+              ('Unit price', fmt(tNum(p['unitCost'])), null),
               ('Total', fmt(tNum(p['totalCost'])), null),
-              ('Paid', fmt(tNum(p['amountPaid'])), null),
-              ('Balance', tNum(p['balance']) > 0 ? fmt(tNum(p['balance'])) : fmt(0), tNum(p['balance']) > 0 ? TColors.amber600 : null),
             ],
-            actions: tIntOrNull(p['sourceFeedProductionBatchId']) != null
-                ? [
-                    _iconBtn('Open the feed production batch', Icons.factory_outlined,
-                        () => _href('/poultry-feed-production/${p['sourceFeedProductionBatchId']}', 'Feed Production'),
-                        color: const Color(0xFF4F46E5)),
-                  ]
-                : [
-                    if (tNum(p['balance']) > 0) _iconBtn('Pay balance', Icons.account_balance_wallet_outlined, () => _pay(p), color: TColors.emerald600),
-                    _iconBtn(null, Icons.edit_outlined, () => _openPurchase(editing: p)),
-                    _iconBtn(null, Icons.delete_outline, () => _deletePurchase(p), color: TColors.red600),
-                  ],
+            extra: [
+              if (tStr(p['feedProductionRole']).isNotEmpty) ('Feed', _productionBadge(p)),
+              if (tStr(p['receiptNumber']).isNotEmpty || p['isReversed'] == true) ('Receipt', _receiptBadges(p)),
+            ],
+            actions: _purchaseActions(p),
           ),
       CompactPager(total: rows.length, page: _pPage, pageSize: _pSize, onPage: (x) => setState(() => _pPage = x), onPageSize: (s) => setState(() {
             _pSize = s;
@@ -742,8 +860,10 @@ class _RawMaterialsScreenState extends State<RawMaterialsScreen> {
           u,
     ];
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      _heading('Usage History',
-          'Stock consumed when production batches are recorded, including ingredients mixed into feed. Stock adjustments show here too.'),
+      const Padding(
+        padding: EdgeInsets.only(bottom: 10),
+        child: Text('Stock used by production and feed mixing, plus manual stock adjustments.', style: TextStyle(fontSize: 12, color: TColors.slate500)),
+      ),
       _datedFilters('Search item'),
       const SizedBox(height: 12),
       if (rows.isEmpty)
@@ -782,13 +902,16 @@ class _RawMaterialsScreenState extends State<RawMaterialsScreen> {
   }
 }
 
-/// FieldCard: a title with a badge, a two-column "Label: value" grid, and the
-/// row's actions under a rule.
+/// FieldCard: a title with a badge, a two-column "Label: value" grid (plus any
+/// widget fields), and the row's actions under a rule.
 class FieldCard extends StatelessWidget {
-  const FieldCard({super.key, required this.title, required this.badge, required this.fields, required this.actions});
+  const FieldCard({super.key, required this.title, required this.badge, required this.fields, required this.actions, this.extra = const []});
   final String title;
   final Widget badge;
   final List<(String, String, Color?)> fields;
+
+  /// Fields whose value is a widget (badges).
+  final List<(String, Widget)> extra;
   final List<Widget> actions;
 
   @override
@@ -797,10 +920,10 @@ class FieldCard extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Row(children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Expanded(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w500, color: TColors.slate900))),
             const SizedBox(width: 8),
-            Flexible(child: badge),
+            Flexible(child: Align(alignment: Alignment.centerRight, child: badge)),
           ]),
           const SizedBox(height: 8),
           LayoutBuilder(builder: (context, c) {
@@ -819,6 +942,14 @@ class FieldCard extends StatelessWidget {
                     style: const TextStyle(fontSize: 13),
                   ),
                 ),
+              for (final (l, w2) in extra)
+                SizedBox(
+                  width: w,
+                  child: Row(children: [
+                    Text('$l: ', style: const TextStyle(fontSize: 13, color: TColors.slate500)),
+                    Flexible(child: w2),
+                  ]),
+                ),
             ]);
           }),
           if (actions.isNotEmpty) ...[
@@ -830,10 +961,11 @@ class FieldCard extends StatelessWidget {
       );
 }
 
-/// `/poultry-raw-materials?purchase=1|tab=|purchaseId=`.
+/// `/poultry-supply-purchases?purchase=1|tab=|purchaseId=`, and the old
+/// `/poultry-raw-materials` address, which the web redirects here with its query.
 Widget? rawMaterialsScreenForHref(String href, Session s, Company c) {
   final uri = Uri.tryParse(href);
-  if (uri == null || uri.path != '/poultry-raw-materials' || uri.query.isEmpty) return null;
+  if (uri == null || (uri.path != '/poultry-supply-purchases' && uri.path != '/poultry-raw-materials')) return null;
   final q = uri.queryParameters;
   final qty = num.tryParse(q['qty'] ?? '');
   final pid = int.tryParse(q['purchaseId'] ?? '');

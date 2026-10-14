@@ -448,6 +448,17 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
 
   static String _plain(num v) => v == v.roundToDouble() ? v.toInt().toString() : v.toString();
 
+  /// Single-document mode has no grid to edit, so the one line tracks the amount.
+  void _changeAmount(String raw) {
+    setState(() {
+      final s = widget.single;
+      if (s == null) return;
+      _touched = true;
+      final v = num.tryParse(raw);
+      _alloc = raw.isEmpty || v == null || v == 0 ? {} : {docKey(s): v};
+    });
+  }
+
   void _setLine(Map d, String raw) {
     setState(() {
       _touched = true;
@@ -509,6 +520,9 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
     final v = validateAllocations(amount, _docs, _alloc, cashAccountRequired: widget.side.cashAccountRequired, cashAccountId: _account);
     final overdraws = _overdraws;
     final allocated = totalAllocated(_alloc);
+    // With the grid hidden, a line problem (e.g. paying more than the balance)
+    // has nowhere else to show, so every problem goes in the alert.
+    final blocking = s != null ? [for (final p in v.problems) p.$2] : v.blocking;
     final money = TextInputType.numberWithOptions(decimal: true);
     final moneyFmt = [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))];
 
@@ -530,7 +544,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
               hintText: '0.00',
               keyboardType: money,
               inputFormatters: moneyFmt,
-              onChanged: (_) => setState(() {}),
+              onChanged: _changeAmount,
             ),
           ),
           const SizedBox(height: 10),
@@ -571,6 +585,30 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
           const SizedBox(height: 10),
           FilterLabel('Notes', AppInput(controller: _notes, hintText: 'Optional', minLines: 1, maxLines: 4)),
           const SizedBox(height: 12),
+          if (s != null)
+            // Single-document mode: nothing to choose, so a summary line stands
+            // in for the table. It still posts as a one-line allocation.
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(color: TColors.slate50, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text.rich(TextSpan(children: [
+                  const TextSpan(text: 'Applies to '),
+                  TextSpan(text: '${s['reference'] ?? s['documentId']}', style: const TextStyle(fontWeight: FontWeight.w500, color: TColors.slate900)),
+                  if (tStr(s['label']).isNotEmpty) TextSpan(text: ' · ${s['label']}'),
+                ]), style: const TextStyle(fontSize: 13, color: TColors.slate500)),
+                const SizedBox(height: 2),
+                Text.rich(TextSpan(children: [
+                  TextSpan(text: 'Balance ${_fmt(tNum(s['balance']))} → '),
+                  TextSpan(
+                    text: _fmt(balanceAfterAllocation(s, _alloc)),
+                    style: TextStyle(fontWeight: FontWeight.w500, color: balanceAfterAllocation(s, _alloc) < 0 ? TColors.red600 : TColors.slate900),
+                  ),
+                  const TextSpan(text: ' after this payment'),
+                ]), style: const TextStyle(fontSize: 13, color: TColors.slate500)),
+              ]),
+            )
+          else ...[
           const Divider(height: 1),
           const SizedBox(height: 10),
           Wrap(spacing: 8, runSpacing: 6, children: [
@@ -618,13 +656,14 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
                       )
                     : Column(children: [for (final d in _docs) _line(d, v, money, moneyFmt)]),
           ),
-          if (_touched && (v.blocking.isNotEmpty || overdraws)) ...[
+          ],
+          if (_touched && (blocking.isNotEmpty || overdraws)) ...[
             const SizedBox(height: 12),
             TrackerBanner.error('', spans: [
-              for (var i = 0; i < v.blocking.length; i++) TextSpan(text: '${i > 0 ? '\n' : ''}• ${v.blocking[i]}'),
+              for (var i = 0; i < blocking.length; i++) TextSpan(text: '${i > 0 ? '\n' : ''}• ${blocking[i]}'),
               if (overdraws)
                 TextSpan(
-                    text: '${v.blocking.isNotEmpty ? '\n' : ''}• ${_acc?['name']} holds ${_fmt(tNum(_acc?['currentBalance']))} — this payment would overdraw it.'),
+                    text: '${blocking.isNotEmpty ? '\n' : ''}• ${_acc?['name']} holds ${_fmt(tNum(_acc?['currentBalance']))} — this payment would overdraw it.'),
             ]),
           ],
           const SizedBox(height: 16),

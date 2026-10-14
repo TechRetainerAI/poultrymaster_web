@@ -7,6 +7,7 @@ import '../expenses/asset_detail_screen.dart';
 import '../expenses/asset_logic.dart' show AssetRail;
 import '../inventory/stock_movements_screen.dart';
 import '../production/batch_production_records_screen.dart';
+import '../egg_sorting/egg_sorting_screens.dart' show eggSortingWorkspaceForHref;
 import '../production/egg_sorting_screen.dart';
 import '../production/feed_production_screen.dart';
 import '../production/production_records_screen.dart';
@@ -96,6 +97,8 @@ Widget? moneyScreenForHref(String href, Session session, Company company) {
   if (production != null) return production;
   final batchProduction = batchProductionScreenForHref(href, session, company);
   if (batchProduction != null) return batchProduction;
+  final workspace = eggSortingWorkspaceForHref(href, session, company);
+  if (workspace != null) return workspace;
   final eggSorting = eggSortingScreenForHref(href, session, company);
   if (eggSorting != null) return eggSorting;
   final feedProduction = feedProductionScreenForHref(href, session, company);

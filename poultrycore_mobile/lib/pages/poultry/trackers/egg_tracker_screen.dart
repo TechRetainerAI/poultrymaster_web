@@ -7,6 +7,7 @@ import '../../../models/company.dart';
 import '../../../state/session.dart';
 import '../../../widgets/module_sidebar.dart';
 import '../../shared/business_dates.dart';
+import 'egg_class_ledger.dart';
 import 'tracker_logic.dart';
 import 'tracker_widgets.dart';
 
@@ -90,11 +91,16 @@ class _EggTrackerScreenState extends State<EggTrackerScreen> {
       safe('/api/EggInventoryAdjustment', fq),
       safe('/api/Poultry/products', fq),
       safe('/api/Poultry/stock/transactions', fq),
+      // Egg classes (341): Unsorted + sorted sizes. Empty before the migration.
+      safe('/api/Poultry/egg-sorting/classes', {...fq, 'includeInactive': 'true', 'ensure': 'false'}),
     ]);
     if (!mounted) return;
     final (eggs, eggErr) = results[0];
     final products = results[4].$1;
-    final eggProducts = [for (final p in products) if (isEggProduct(p)) p];
+    // Since 341 eggs live in several classes (Unsorted + each size). This page
+    // is about ALL eggs, so it sums every class; per-class detail is the card.
+    final classIds = {for (final c in results[6].$1) tIntOrNull(c['poultryProductId'])};
+    final eggProducts = [for (final p in products) if (isEggProduct(p) || classIds.contains(tIntOrNull(p['poultryProductId']))) p];
     final eggIds = {for (final p in eggProducts) tIntOrNull(p['poultryProductId'])};
     setState(() {
       _productions = eggs;
@@ -284,6 +290,13 @@ class _EggTrackerScreenState extends State<EggTrackerScreen> {
             else ...[
               _summaryCard(),
               const SizedBox(height: 16),
+              // 341-343: stock per egg category, between the tiles and the
+              // Breakdown. Renders nothing for a farm without sizes.
+              EggClassLedger(
+                session: widget.session,
+                company: widget.company,
+                canAdjust: (widget.company.role ?? '').toLowerCase() != 'staff',
+              ),
               ..._breakdown(),
               _ledgerCard(),
             ],
@@ -379,6 +392,7 @@ class _EggTrackerScreenState extends State<EggTrackerScreen> {
           description:
               'Every movement that added eggs to stock — the whole ledger, so it breaks down the totals above rather than the filtered table below.',
           emptyText: 'No eggs have come in yet.',
+          onSelect: (b) => _drill(b, true),
         ),
         FlowBreakdownCard(
           title: 'Eggs out by use',
@@ -389,11 +403,17 @@ class _EggTrackerScreenState extends State<EggTrackerScreen> {
           description:
               'Every movement that took eggs out of stock — sales, internal use, load-outs and the non-saleable ones.',
           emptyText: 'No eggs have gone out yet.',
+          onSelect: (b) => _drill(b, false),
         ),
       ]),
       const SizedBox(height: 6),
     ];
   }
+
+  /// Tapping a Breakdown line opens the movements behind it (like Profit & Loss).
+  void _drill(FlowBucket bucket, bool inDirection) => Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => EggDrillScreen(bucket: bucket, inDirection: inDirection, rows: _all),
+      ));
 
   Widget _ledgerCard() {
     final types = {for (final r in _all) r.type}.toList()..sort();

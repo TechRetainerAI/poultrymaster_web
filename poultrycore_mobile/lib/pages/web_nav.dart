@@ -32,8 +32,10 @@ const Map<String, List<NavGroup>> webNavGroups = {
     NavGroup('Quick Links', [
       NavSubGroup('', [
         NavLink('Production Records', '/production-records', null),
-        NavLink('Egg sorting', '/egg-production', null),
-        NavLink('Raw Materials', '/poultry-raw-materials', null),
+        // The Egg Sorting Workspace; the legacy /egg-production page is hidden
+        // from the menus (its URL still works).
+        NavLink('Egg sorting', '/poultry-egg-sorting', null),
+        NavLink('Supply Purchases', '/poultry-supply-purchases', null),
         NavLink('Sales', '/sales', 'sales'),
         NavLink('Payments received', '/poultry-payments', 'poultry-payments'),
         NavLink('Customer Balances', '/customer-balances', 'poultry-customer-balances'),
@@ -47,14 +49,14 @@ const Map<String, List<NavGroup>> webNavGroups = {
       NavSubGroup('Production', [
         NavLink('Production Records', '/production-records', null),
         NavLink('Batch Production', '/batch-production-records', null),
-        NavLink('Egg sorting', '/egg-production', null),
+        NavLink('Egg Sorting', '/poultry-egg-sorting', null),
         NavLink('Feed Usage', '/feed-usage', null),
         NavLink('Feed Production', '/poultry-feed-production', null),
       ]),
       NavSubGroup('Inventory & Health', [
         NavLink('Inventory', '/poultry-inventory', null),
         NavLink('Stock movements', '/poultry-stock', null),
-        NavLink('Raw Materials & Supplies', '/poultry-raw-materials', null),
+        NavLink('Inventory & Supply Purchases', '/poultry-supply-purchases', null),
         NavLink('Health Records', '/health', null),
         NavLink('Loss & Damage', '/poultry-loss-records', null),
       ]),
@@ -64,7 +66,7 @@ const Map<String, List<NavGroup>> webNavGroups = {
       ]),
       NavSubGroup('Purchase', [
         NavLink('Flock Purchases (Batches)', '/flock-batch', null),
-        NavLink('Record Purchase', '/poultry-raw-materials?purchase=1', null),
+        NavLink('Record Purchase', '/poultry-supply-purchases?purchase=1', null),
       ]),
     ]),
     NavGroup('Sales, Expenses & Money', [
@@ -75,11 +77,12 @@ const Map<String, List<NavGroup>> webNavGroups = {
       ]),
       NavSubGroup('Expenses', [
         NavLink('Expenses', '/expenses', null),
+        // Right under Expenses: paying a bill and seeing what is still owed.
+        NavLink('Supplier Payments', '/supplier-payments', null),
+        NavLink('Supplier Balances', '/supplier-balances', null),
         NavLink('Internal Use', '/poultry-internal-use', null),
         NavLink('Payroll', '/poultry-payroll', null),
         NavLink('Employee Loans & Advances', '/poultry-employee-loans', null),
-        NavLink('Supplier Payments', '/supplier-payments', null),
-        NavLink('Supplier Balances', '/supplier-balances', null),
         NavLink('Deferred inventory cost', '/poultry-deferred-costs', null),
         NavLink('Capital Investments/Assets', '/poultry-assets', null),
       ]),
@@ -169,6 +172,8 @@ const Map<String, List<NavGroup>> webNavGroups = {
         NavLink('Flock Alerts', '/poultry-flock-alerts', null),
         NavLink('Farm Alerts', '/poultry-alerts', null),
         NavLink('Receive Purchase', '/poultry-purchase-receipts', null),
+        // Recurring Expenses (348): moved here from Expenses.
+        NavLink('Recurring Expenses', '/recurring-expenses', null),
       ]),
     ]),
     NavGroup('Setup', [
@@ -187,6 +192,7 @@ const Map<String, List<NavGroup>> webNavGroups = {
         NavLink('Products', '/poultry-products', 'poultry-products'),
         NavLink('Feed Formulas', '/poultry-feed-formulas', 'poultry-feed-formulas'),
         NavLink('Egg Pick Times', '/business-office/egg-pick-settings', 'farmproductionsettings'),
+        NavLink('Egg Sorting Settings', '/poultry-egg-sorting-settings', null),
       ]),
       NavSubGroup('Finance', [
         NavLink('Customers', '/customers', 'customer'),

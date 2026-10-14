@@ -109,6 +109,13 @@ void main() {
 
       expect(find.text("TODAY'S FARM COMPLETENESS"), findsOneWidget);
       expect(find.textContaining('3 / 4 recorded', findRichText: true), findsOneWidget);
+      // The full page's tiles (the compact card keeps the one-line summary).
+      expect(find.text('TODAY'), findsOneWidget);
+      expect(find.text('flocks recorded'), findsOneWidget);
+      expect(find.text('MISSING TODAY'), findsOneWidget);
+      expect(find.text('production record'), findsOneWidget);
+      expect(find.text('EARLIER DAYS'), findsOneWidget);
+      expect(find.text('all caught up'), findsOneWidget);
       expect(find.text('Record batch(2)'), findsOneWidget);
       expect(find.text('Next day'), findsNothing);
       expect(find.textContaining('B-001 · Pen 1 · last '), findsOneWidget);
@@ -134,6 +141,7 @@ void main() {
       ((r['checks'] as List)).add({
         'key': 'poultry.eggs.unsorted', 'status': 'Incomplete', 'outstandingCount': 1, 'severityReason': null,
         'counters': {'eggs': 1200},
+        'items': [{'daysOutstanding': 3}],
       });
       final api = FakeApi()
         ..gets['/api/ActivityChecks'] = r
@@ -146,8 +154,12 @@ void main() {
         };
       await open(tester, FarmCompletenessScreen(session: await sessionFor(api), company: company), size: phone);
 
-      expect(find.text('1,200 eggs from earlier days are still unsorted.'), findsOneWidget);
+      // The full page shows it as the Unsorted eggs tile.
+      expect(find.text('UNSORTED EGGS'), findsOneWidget);
+      expect(find.text('1,200'), findsOneWidget);
+      expect(find.text('oldest 3 days old · '), findsOneWidget);
       expect(find.text('Sort eggs'), findsOneWidget);
+      expect(find.text('missing across 1 day'), findsOneWidget, reason: 'Earlier days tile');
       await tester.scrollUntilVisible(find.text('Flock Z'), 200, scrollable: find.byType(Scrollable).first);
       expect(find.text('EARLIER DAYS MISSING'), findsOneWidget);
       expect(find.text('2 days earlier'), findsOneWidget);

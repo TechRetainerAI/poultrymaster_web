@@ -277,5 +277,86 @@ void main() {
       expect(find.text('Payment history'), findsOneWidget);
       expect(lastQuery(a, '/api/Poultry/customer-payments'), {'farmId': 'farm-1'});
     });
+
+    testWidgets('one sale: no allocation grid, the balance it leaves', (tester) async {
+      final a = api();
+      await open(tester, CustomerBalancesScreen(session: await sessionFor(a), company: company), size: phone);
+      await tapSeen(tester, find.text('Show 2 open sales'));
+      await tapSeen(tester, find.text('Receive payment'));
+      expect(find.text('Auto-allocate oldest first'), findsNothing);
+      expect(find.text('Applies to S7 · Fresh Eggs', findRichText: true), findsOneWidget);
+      expect(find.text('Balance GHC 50.00 → GHC 0.00 after this payment', findRichText: true), findsOneWidget);
+      await enter(tester, 'Payment amount', '60');
+      await tester.pumpAndSettle();
+      expect(find.textContaining(RegExp(r'Balance GHC 50\.00 → .*10\.00 after this payment'), findRichText: true), findsOneWidget);
+      await tapSeen(tester, find.widgetWithText(FilledButton, 'Receive payment'));
+      expect(a.writes, isEmpty, reason: 'more than the balance');
+      expect(find.textContaining('Cannot apply more than the 50.00 still owed on this line.', findRichText: true), findsOneWidget,
+          reason: 'with the grid hidden, a line problem shows in the alert');
+    });
+
+    testWidgets('customer credit: shown beside the balances, refunded from an account', (tester) async {
+      final a = api()
+        ..gets['/api/Poultry/customer-payments/credit'] = [
+          {'customerId': 2, 'customerName': 'Kofi', 'availableCredit': 80, 'paymentCount': 1, 'outstanding': 50},
+        ];
+      await open(tester, CustomerBalancesScreen(session: await sessionFor(a), company: company), size: phone);
+      await see(tester, find.text('GHC 80.00 held'));
+      expect(find.text('Credit GHC 80.00 · Owes GHC 50.00', findRichText: true), findsOneWidget);
+      await tapSeen(tester, find.text('Refund'));
+      expect(find.text('Refund customer credit'), findsOneWidget);
+      expect(find.text('Main Cash Account · GHC 900.00'), findsOneWidget, reason: 'the first account');
+      final refund = find.widgetWithText(FilledButton, 'Refund');
+      expect(tester.widget<FilledButton>(refund).onPressed, isNull, reason: 'a reason is required');
+      await tester.tap(find.descendant(of: find.byType(AlertDialog), matching: find.text('Cash')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Mobile Money').last);
+      await tester.pumpAndSettle();
+      await tester.enterText(find.widgetWithText(TextFormField, 'e.g. Sale cancelled, customer asked for the money back'), 'sale cancelled');
+      await tester.pumpAndSettle();
+      await tester.tap(refund);
+      await tester.pumpAndSettle();
+      final body = a.lastBody('/api/Poultry/customer-payments/refunds');
+      expect((body['customerId'], body['amount'], body['poultryCashAccountId'], body['paymentMethod'], body['reason']),
+          (2, 80, 5, 'Mobile Money', 'sale cancelled'));
+      expect(find.text('Refund recorded — Paid back to Kofi. It shows in Cash Flow as a customer refund.'), findsOneWidget);
+    });
+
+    testWidgets('an open sale’s Details: its lines, and the way to the Sales page', (tester) async {
+      final a = api()
+        ..gets['/api/Sale/7'] = {
+          'saleId': 7, 'saleGroupNo': 'SG-00007', 'saleDate': '2026-09-28T00:00:00', 'customerName': 'Ama', 'product': 'Fresh Eggs',
+          'totalAmount': 200, 'amountPaid': 150, 'status': 'Posted',
+          'lines': [
+            {'lineNo': 1, 'product': 'Fresh Eggs', 'eggProductId': 11, 'quantity': 305, 'unitPrice': 40, 'totalAmount': 120},
+            {'lineNo': 2, 'product': 'Manure', 'size': null, 'quantity': 4, 'unitPrice': 20, 'totalAmount': 80},
+          ],
+        }
+        ..gets['/api/Poultry/egg-sorting/classes'] = [
+          {'poultryProductId': 11, 'name': 'Large', 'classKind': 'Size', 'isActive': true, 'onHand': 0},
+        ];
+      await open(tester, CustomerBalancesScreen(session: await sessionFor(a), company: company), size: phone);
+      await tapSeen(tester, find.text('Show 2 open sales'));
+      await tapSeen(tester, find.text('Details'));
+      expect(find.text('Sale SG-00007'), findsOneWidget);
+      expect(find.text('Quantity: 10 crates + 5 pcs (305 eggs)'), findsOneWidget);
+      expect(find.text('Size / class: Large'), findsOneWidget);
+      expect(find.text('Size / class: —'), findsOneWidget);
+      expect(find.text('GHC 50.00'), findsOneWidget, reason: 'balance');
+      await tapSeen(tester, find.text('Open on Sales page'));
+      expect(tester.widget<SalesScreen>(find.byType(SalesScreen)).focusSaleId, 7);
+    });
+  });
+
+  testWidgets('Payments received: Sale details lists every sale a payment paid', (tester) async {
+    final a = api()
+      ..gets['/api/Sale/4'] = {'saleId': 4, 'product': 'Fresh Eggs', 'quantity': 60, 'unitPrice': 100, 'totalAmount': 200, 'amountPaid': 200, 'status': 'Posted'}
+      ..gets['/api/Sale/5'] = {'saleId': 5, 'product': 'Manure', 'quantity': 3, 'unitPrice': 50, 'totalAmount': 150, 'amountPaid': 100, 'status': 'Posted'};
+    await open(tester, PaymentsReceivedScreen(session: await sessionFor(a), company: company), size: phone);
+    await tapSeen(tester, find.byKey(const ValueKey('sale-details-p2')));
+    expect(find.text('Payment PAY-0002'), findsOneWidget);
+    expect(find.text('Sale #4'), findsOneWidget);
+    expect(find.text('Sale #5'), findsOneWidget);
+    expect(find.text('What was sold on these sales, line by line.'), findsOneWidget);
   });
 }
