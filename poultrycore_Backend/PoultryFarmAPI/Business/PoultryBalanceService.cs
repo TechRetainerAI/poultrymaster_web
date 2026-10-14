@@ -23,6 +23,9 @@ namespace PoultryFarmAPIWeb.Business
         Task<decimal> ApplyCustomerCredit(CustomerCreditApplyRequest r);
         Task<int> RecordCustomerRefund(CustomerRefundRequest r);
         Task<List<CustomerRefundRow>> GetCustomerRefunds(string farmId, int? customerId);
+        Task<string> CreateManualCredit(ManualCreditRequest r);
+        Task<int> ReverseManualCredit(Guid paymentGroupId, ManualCreditReverseRequest r);
+        Task<List<ManualCreditRow>> GetManualCredits(string farmId);
 
         // Supplier side
         Task<List<PartyBalanceRow>> GetSupplierBalances(BalanceQuery q);
@@ -590,6 +593,74 @@ namespace PoultryFarmAPIWeb.Business
                 CreatedBy = Str(r, "createdby"),
                 CreatedAt = DateN(r, "createdat") ?? DateTime.MinValue,
                 PaymentNumbers = Str(r, "paymentnumbers"),
+            });
+
+        // ------------------------------------------------- 363 manual credit
+
+        /// <summary>Opening credit / credit note: no cash. Deposit: one CashIn on its account.</summary>
+        public async Task<string> CreateManualCredit(ManualCreditRequest r)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand(
+                "SELECT sppoultrycustomercredit_create(p_farmid => @FarmId::text, p_customerid => @CustomerId::int, " +
+                "p_kind => @Kind::text, p_amount => @Amount::numeric, p_date => @Date::timestamp, " +
+                "p_cashaccountid => @Account::int, p_paymentmethod => @Method::text, p_reference => @Reference::text, " +
+                "p_reason => @Reason::text, p_by => @By::text)::text", conn);
+            cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
+            cmd.Parameters.AddWithValue("@CustomerId", r.CustomerId);
+            cmd.Parameters.AddWithValue("@Kind", r.Kind ?? string.Empty);
+            cmd.Parameters.AddWithValue("@Amount", r.Amount);
+            cmd.Parameters.AddWithValue("@Date", r.CreditDate.HasValue ? r.CreditDate.Value : DBNull.Value);
+            cmd.Parameters.AddWithValue("@Account", Db(r.PoultryCashAccountId));
+            cmd.Parameters.AddWithValue("@Method", Db(r.PaymentMethod));
+            cmd.Parameters.AddWithValue("@Reference", Db(r.Reference));
+            cmd.Parameters.AddWithValue("@Reason", r.Reason ?? string.Empty);
+            cmd.Parameters.AddWithValue("@By", Db(r.CreatedBy));
+            await conn.OpenAsync();
+            return (string?)await cmd.ExecuteScalarAsync() ?? "{}";
+        }
+
+        /// <summary>Releases what was used on sales; a deposit's cash goes back out.</summary>
+        public async Task<int> ReverseManualCredit(Guid paymentGroupId, ManualCreditReverseRequest r)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand(
+                "SELECT sppoultrycustomercredit_reverse(p_farmid => @FarmId::text, p_paymentgroupid => @Group::uuid, " +
+                "p_reason => @Reason::text, p_by => @By::text)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
+            cmd.Parameters.AddWithValue("@Group", paymentGroupId);
+            cmd.Parameters.AddWithValue("@Reason", r.Reason ?? string.Empty);
+            cmd.Parameters.AddWithValue("@By", Db(r.ReversedBy));
+            await conn.OpenAsync();
+            return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        }
+
+        public Task<List<ManualCreditRow>> GetManualCredits(string farmId) => Query(
+            "SELECT * FROM sppoultrycustomercredit_manuallist(p_farmid => @FarmId::text)",
+            cmd => cmd.Parameters.AddWithValue("@FarmId", farmId),
+            r => new ManualCreditRow
+            {
+                PaymentGroupId = Guid.TryParse(GuidN(r, "paymentgroupid"), out var g) ? g : Guid.Empty,
+                PoultryPaymentId = Int(r, "poultrypaymentid"),
+                PaymentNumber = Str(r, "paymentnumber"),
+                Kind = Str(r, "kind") ?? string.Empty,
+                CreditDate = DateN(r, "creditdate"),
+                CustomerId = Int(r, "customerid"),
+                CustomerName = Str(r, "customername"),
+                Amount = Dec(r, "amount"),
+                Used = Dec(r, "used"),
+                Refunded = Dec(r, "refunded"),
+                Remaining = Dec(r, "remaining"),
+                Status = Str(r, "status") ?? "Posted",
+                PoultryCashAccountId = IntN(r, "poultrycashaccountid"),
+                CashAccountName = Str(r, "cashaccountname"),
+                PaymentMethod = Str(r, "paymentmethod"),
+                Reference = Str(r, "reference"),
+                Reason = Str(r, "reason"),
+                CreatedBy = Str(r, "createdby"),
+                CreatedAt = DateN(r, "createdat"),
+                ReversedAt = DateN(r, "reversedat"),
+                ReversalReason = Str(r, "reversalreason"),
             });
 
         // ----------------------------------------------------------------- audit

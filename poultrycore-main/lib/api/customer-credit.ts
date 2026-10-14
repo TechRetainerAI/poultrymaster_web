@@ -108,3 +108,76 @@ export function listCustomerRefunds(customerId?: number): Promise<CustomerRefund
   if (customerId) q.set("customerId", String(customerId))
   return call(`Poultry/customer-payments/refunds?${q.toString()}`)
 }
+
+// ------------------------------------------------------------- 363 manual credit
+// Credit created by hand, owner / admin only. Each kind says where the money
+// came from -- there is no "set the balance":
+//   OpeningCredit  held before the farm used the system. No cash, no P&L.
+//   Deposit        paid in advance, no sale yet. Real cash in to an account.
+//   CreditNote     goodwill credit. No cash; a cost on Profit & Loss.
+
+export type ManualCreditKind = "OpeningCredit" | "Deposit" | "CreditNote"
+
+export const MANUAL_CREDIT_KIND_LABEL: Record<ManualCreditKind, string> = {
+  OpeningCredit: "Opening balance",
+  Deposit: "Deposit",
+  CreditNote: "Credit note",
+}
+
+export interface ManualCreditInput {
+  customerId: number
+  kind: ManualCreditKind
+  amount: number
+  creditDate?: string | null
+  /** Deposit only. */
+  poultryCashAccountId?: number | null
+  paymentMethod?: string | null
+  reference?: string | null
+  reason: string
+}
+
+export interface ManualCreditRow {
+  paymentGroupId: string
+  poultryPaymentId: number
+  paymentNumber: string | null
+  kind: ManualCreditKind
+  creditDate: string | null
+  customerId: number
+  customerName: string | null
+  amount: number
+  /** Applied to sales. */
+  used: number
+  refunded: number
+  /** Still held for the customer. */
+  remaining: number
+  status: string
+  poultryCashAccountId: number | null
+  cashAccountName: string | null
+  paymentMethod: string | null
+  reference: string | null
+  reason: string | null
+  createdBy: string | null
+  createdAt: string | null
+  reversedAt: string | null
+  reversalReason: string | null
+}
+
+export function listManualCredits(): Promise<ManualCreditRow[]> {
+  return call(`Poultry/customer-payments/credit/manual?farmId=${encodeURIComponent(farm())}`)
+}
+
+export function createManualCredit(input: ManualCreditInput): Promise<{ paymentGroupId: string; paymentNumber: string | null }> {
+  const farmId = farm()
+  return call(`Poultry/customer-payments/credit/manual?farmId=${encodeURIComponent(farmId)}`, {
+    method: "POST",
+    body: JSON.stringify({ ...input, farmId }),
+  })
+}
+
+export function reverseManualCredit(paymentGroupId: string, reason: string): Promise<{ reversed: number }> {
+  const farmId = farm()
+  return call(`Poultry/customer-payments/credit/manual/${encodeURIComponent(paymentGroupId)}/reverse?farmId=${encodeURIComponent(farmId)}`, {
+    method: "POST",
+    body: JSON.stringify({ farmId, reason }),
+  })
+}

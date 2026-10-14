@@ -5,10 +5,12 @@
 // "Customer owes us" and "we are holding the customer's money" are different
 // things, so they are shown side by side and never netted. Credit usually
 // comes from a payment kept when its sale was reversed. From here it can be
-// refunded (real Money Out); applying it to a sale is done from that sale's
-// Pay dialog on the Sales page.
+// refunded (real Money Out); applying it to a sale is done from the sale (Add
+// Sale's "Use customer credit", or its Pay dialog). The full list, where each
+// credit came from and past refunds live on /customer-credits.
 
 import { useCallback, useEffect, useState } from "react"
+import Link from "next/link"
 import { HandCoins, PiggyBank } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -52,7 +54,10 @@ export function CustomerCreditPanel() {
             <PiggyBank className="h-4 w-4 text-blue-600" /> Customer credit
             <span className="font-normal text-slate-500">— money customers paid that is not on any active sale</span>
           </h2>
-          <span className="text-sm font-semibold tabular-nums text-blue-700">{money(total)} held</span>
+          <span className="flex items-center gap-3">
+            <span className="text-sm font-semibold tabular-nums text-blue-700">{money(total)} held</span>
+            <Link href="/customer-credits" className="text-xs font-medium text-blue-700 hover:underline">Open Customer Credits</Link>
+          </span>
         </div>
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
           {rows.map((r) => (
@@ -74,7 +79,7 @@ export function CustomerCreditPanel() {
           ))}
         </div>
         <p className="text-xs text-slate-500">
-          To use credit on a sale, open the sale&apos;s Pay dialog on the Sales page and choose &quot;Use customer credit&quot;. No new money is recorded.
+          To use credit, tick &quot;Use customer credit&quot; when adding the customer&apos;s next sale, or use the Pay dialog on a sale they owe. No new money is recorded.
         </p>
       </CardContent>
       <RefundCreditDialog

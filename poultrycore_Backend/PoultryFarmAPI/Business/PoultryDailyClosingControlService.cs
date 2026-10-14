@@ -171,6 +171,20 @@ namespace PoultryFarmAPIWeb.Business
                     EggsProduced = Dec(r, "eggsproduced"),
                     MissingFlocks = Int(r, "missingflocks"),
                     HasSnapshot = r.GetBoolean(r.GetOrdinal("hassnapshot")),
+                    IsLive = r.GetBoolean(r.GetOrdinal("islive")),
+                    SalesCount = Int(r, "salescount"),
+                    CashSales = Dec(r, "cashsales"),
+                    CreditSales = Dec(r, "creditsales"),
+                    PaymentsReceived = Dec(r, "paymentsreceived"),
+                    Expenses = Dec(r, "expenses"),
+                    OpeningCash = Dec(r, "openingcash"),
+                    ClosingCash = Dec(r, "closingcash"),
+                    CashDifference = Dec(r, "cashdifference"),
+                    EggsDamaged = Dec(r, "eggsdamaged"),
+                    Mortality = Dec(r, "mortality"),
+                    FeedKg = Dec(r, "feedkg"),
+                    BlockingCount = Int(r, "blockingcount"),
+                    WarningCount = Int(r, "warningcount"),
                 });
             }
             return list;

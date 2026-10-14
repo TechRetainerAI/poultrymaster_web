@@ -9,10 +9,15 @@ import type { PaymentAction, ReversalPaymentItem, SaleReversalPreview } from "@/
 
 export type Handling = Record<string, PaymentAction>
 
-/** The choices the dialog opens with: each payment's server default. */
+/**
+ * The choices the dialog opens with: reverse the payment wherever that is
+ * allowed (user decision 2026-10-14 -- a reversed sale usually means the money
+ * went back), otherwise the server's default. Keeping it as credit is a
+ * deliberate choice.
+ */
 export function defaultHandling(preview: Pick<SaleReversalPreview, "payments">): Handling {
   const h: Handling = {}
-  for (const p of preview.payments) h[p.key] = p.default
+  for (const p of preview.payments) h[p.key] = p.allowed.includes("ReversePayment") ? "ReversePayment" : p.default
   return h
 }
 

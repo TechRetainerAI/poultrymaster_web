@@ -214,6 +214,17 @@ function PoultryDailyClosingInner() {
 
   const canSubmit = !isClosed && record?.status !== "Submitted"
 
+  // Previous closings cells: a missing figure is a dash, never 0.
+  const money = (v: number | null | undefined) => (v != null ? fmt(v) : "—")
+  const num = (v: number | null | undefined, digits = 0) =>
+    v != null ? Number(v).toLocaleString(undefined, { maximumFractionDigits: digits }) : "—"
+  const checks = (h: ClosingHistoryRow) => {
+    const b = h.blockingCount ?? null
+    const w = h.warningCount ?? h.warningsAtClose ?? null
+    if (b == null && w == null) return "—"
+    return [b ? `${b} blocking` : null, w ? `${w} warning${w === 1 ? "" : "s"}` : null].filter(Boolean).join(" · ") || "All complete"
+  }
+
   return (
     <div className="flex min-h-screen bg-slate-50">
       <DashboardSidebar onLogout={logout} />
@@ -232,32 +243,16 @@ function PoultryDailyClosingInner() {
                   <p className="text-sm text-slate-600">Check that everything that should have happened today has, then close the day.</p>
                 </div>
               </div>
-              <div className="flex flex-wrap items-end gap-2">
-                <Button variant="outline" size="icon" aria-label="Previous day" onClick={() => choose(shiftBusinessDate(businessDate, -1))}>
-                  <ChevronLeft className="h-4 w-4" />
+              {mayClose && (
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => void openPolicy()}>
+                  <Settings2 className="h-4 w-4" /> Policy
                 </Button>
-                <div className="space-y-1">
-                  <Label htmlFor="closing-date" className="text-xs text-slate-500">Business date</Label>
-                  <Input id="closing-date" type="date" className="w-40" value={businessDate} max={today}
-                    onChange={(e) => choose(e.target.value)} />
-                </div>
-                <Button variant="outline" size="icon" aria-label="Next day" disabled={businessDate >= today}
-                  onClick={() => choose(shiftBusinessDate(businessDate, 1))}>
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-                {businessDate !== today && <Button variant="ghost" size="sm" onClick={() => choose(null)}>Today</Button>}
-                <Button variant="ghost" size="icon" aria-label="Refresh" onClick={() => void load()} disabled={loading}>
-                  <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
-                </Button>
-                {mayClose && (
-                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => void openPolicy()}>
-                    <Settings2 className="h-4 w-4" /> Policy
-                  </Button>
-                )}
-              </div>
+              )}
             </div>
 
-            <Tabs value={tab} onValueChange={setTab}>
+            {/* Clicking the Day tab always comes back to today. Opening a past
+                day from Previous closings sets ?date=, and it used to stick. */}
+            <Tabs value={tab} onValueChange={(v) => { if (v === "day" && tab !== "day") setPicked(null); setTab(v) }}>
               <TabsList>
                 <TabsTrigger value="day">Day</TabsTrigger>
                 <TabsTrigger value="history">Previous closings</TabsTrigger>
@@ -265,6 +260,25 @@ function PoultryDailyClosingInner() {
 
               {/* ------------------------------------------------- day */}
               <TabsContent value="day" className="mt-4 space-y-4">
+                <div className="flex flex-wrap items-end gap-2">
+                  <Button variant="outline" size="icon" aria-label="Previous day" onClick={() => choose(shiftBusinessDate(businessDate, -1))}>
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <div className="space-y-1">
+                    <Label htmlFor="closing-date" className="text-xs text-slate-500">Business date</Label>
+                    <Input id="closing-date" type="date" className="w-40" value={businessDate} max={today}
+                      onChange={(e) => choose(e.target.value)} />
+                  </div>
+                  <Button variant="outline" size="icon" aria-label="Next day" disabled={businessDate >= today}
+                    onClick={() => choose(shiftBusinessDate(businessDate, 1))}>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  {businessDate !== today && <Button variant="ghost" size="sm" onClick={() => choose(null)}>Today</Button>}
+                  <Button variant="ghost" size="icon" aria-label="Refresh" onClick={() => void load()} disabled={loading}>
+                    <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+                  </Button>
+                </div>
+
                 {loading && !view && (
                   <p className="flex items-center gap-2 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Checking the day…</p>
                 )}
@@ -273,25 +287,21 @@ function PoultryDailyClosingInner() {
                 )}
 
                 {live && readiness && (
-                  <>
-                    {isClosed && record && atClose && (
-                      <ClosedSummary record={record} atClose={atClose} fmt={fmt} fmtInstant={fmtInstant} />
-                    )}
-                    {isClosed && <ChangesSinceClosing changes={changes} fmt={fmt} />}
-
+                  // The figures take the page; status, actions and the alerts sit in a
+                  // side panel (sticky on wide screens) so they never push the figures down.
+                  <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_24rem]">
+                  <aside className="space-y-4 lg:sticky lg:top-4 lg:order-2 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
                     {/* ----------------------------- status + actions */}
                     <Card className="rounded-xl border border-slate-200 bg-white shadow-sm">
                       <CardContent className="space-y-3 p-4">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="space-y-3">
                           <div>
                             <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
                               {formatLongDate(businessDate)}
                             </p>
-                            <p className="text-lg font-bold text-slate-900">
-                              {closingStatusLabel(record)}
-                              <span className="ml-3 text-sm font-normal text-slate-500">
-                                {live.counts.blocking} blocking · {live.counts.warning} warning{live.counts.warning === 1 ? "" : "s"} · {live.counts.complete} complete
-                              </span>
+                            <p className="text-lg font-bold text-slate-900">{closingStatusLabel(record)}</p>
+                            <p className="text-sm text-slate-500">
+                              {live.counts.blocking} blocking · {live.counts.warning} warning{live.counts.warning === 1 ? "" : "s"} · {live.counts.complete} complete
                             </p>
                             {record?.status === "Submitted" && (
                               <p className="text-xs text-slate-500">Submitted by {record.submittedBy ?? "unknown"} — waiting for someone with the close right.</p>
@@ -339,10 +349,17 @@ function PoultryDailyClosingInner() {
                           <h2 className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-500">
                             Closing checklist {isClosed && "(current)"}
                           </h2>
-                          <ClosingChecklist checks={live.checklist} businessDate={businessDate} />
+                          <ClosingChecklist checks={live.checklist} businessDate={businessDate} layout="stack" />
                         </div>
                       </CardContent>
                     </Card>
+                  </aside>
+
+                  <div className="min-w-0 space-y-4 lg:order-1">
+                    {isClosed && record && atClose && (
+                      <ClosedSummary record={record} atClose={atClose} fmt={fmt} fmtInstant={fmtInstant} />
+                    )}
+                    {isClosed && <ChangesSinceClosing changes={changes} fmt={fmt} />}
 
                     {/* ------------------------------- sections */}
                     {isClosed && atClose && (
@@ -364,7 +381,8 @@ function PoultryDailyClosingInner() {
                         <ClosingTimeline events={view?.history ?? []} fmtInstant={fmtInstant} onViewSnapshot={viewSnapshot} />
                       </CardContent>
                     </Card>
-                  </>
+                  </div>
+                  </div>
                 )}
               </TabsContent>
 
@@ -398,16 +416,28 @@ function PoultryDailyClosingInner() {
                           </span>
                         )}
                         highlights={(h) => [
-                          { label: "Sales", value: h.revenue != null ? fmt(h.revenue) : "—", accent: "emerald" },
+                          { label: "Sales", value: money(h.revenue), accent: "emerald" },
+                          { label: "Credit sales", value: money(h.creditSales), accent: (h.creditSales ?? 0) > 0 ? "rose" : "slate" },
+                          { label: "Expenses", value: money(h.expenses), accent: "amber" },
                           {
                             label: "Net cash",
-                            value: h.netCashFlow != null ? fmt(h.netCashFlow) : "—",
+                            value: money(h.netCashFlow),
                             accent: (h.netCashFlow ?? 0) < 0 ? "rose" : "blue",
                           },
                         ]}
                         details={(h) => [
-                          { label: "Warnings at closing", value: h.warningsAtClose ?? "—" },
-                          { label: "Eggs produced", value: h.eggsProduced != null ? Number(h.eggsProduced).toLocaleString() : "—" },
+                          { label: "Sales recorded", value: h.salesCount ?? "—" },
+                          { label: "Cash sales", value: money(h.cashSales) },
+                          { label: "Payments received", value: money(h.paymentsReceived) },
+                          { label: "Money in / out", value: `${money(h.moneyIn)} / ${money(h.moneyOut)}` },
+                          { label: "Opening → closing cash", value: `${money(h.openingCash)} → ${money(h.closingCash)}` },
+                          { label: "Cash difference", value: money(h.cashDifference) },
+                          { label: "Eggs produced", value: num(h.eggsProduced) },
+                          { label: "Damaged eggs", value: num(h.eggsDamaged) },
+                          { label: "Mortality", value: num(h.mortality) },
+                          { label: "Feed used", value: h.feedKg != null ? `${num(h.feedKg, 2)} kg` : "—" },
+                          { label: "Checks", value: checks(h) },
+                          { label: "Closed by", value: h.closedBy ? `${h.closedBy}${h.closedAtUtc ? ` · ${fmtInstant(h.closedAtUtc)}` : ""}` : "—" },
                           {
                             label: "Reopened",
                             value: h.reopenCount > 0
@@ -423,36 +453,65 @@ function PoultryDailyClosingInner() {
                         )}
                         desktopTable={
                           <div className="overflow-x-auto">
-                            <table className="w-full min-w-[44rem] text-sm">
+                            <table className="w-full min-w-[96rem] text-sm">
                               <thead className="bg-slate-50 text-left text-xs uppercase tracking-wider text-slate-500">
-                                <tr>
-                                  <th className="px-3 py-2 font-medium">Date</th>
+                                <tr className="whitespace-nowrap">
+                                  <th className="sticky left-0 z-10 bg-slate-50 px-3 py-2 font-medium">Date</th>
                                   <th className="px-3 py-2 font-medium">Status</th>
-                                  <th className="px-3 py-2 font-medium">Closed by</th>
                                   <th className="px-3 py-2 text-right font-medium">Sales</th>
+                                  <th className="px-3 py-2 text-right font-medium">Revenue</th>
+                                  <th className="px-3 py-2 text-right font-medium">Cash sales</th>
+                                  <th className="px-3 py-2 text-right font-medium">Credit sales</th>
+                                  <th className="px-3 py-2 text-right font-medium">Payments recd</th>
+                                  <th className="px-3 py-2 text-right font-medium">Expenses</th>
+                                  <th className="px-3 py-2 text-right font-medium">Money in</th>
+                                  <th className="px-3 py-2 text-right font-medium">Money out</th>
                                   <th className="px-3 py-2 text-right font-medium">Net cash</th>
-                                  <th className="px-3 py-2 text-right font-medium">Warnings</th>
+                                  <th className="px-3 py-2 text-right font-medium">Opening cash</th>
+                                  <th className="px-3 py-2 text-right font-medium">Closing cash</th>
+                                  <th className="px-3 py-2 text-right font-medium">Cash diff.</th>
+                                  <th className="px-3 py-2 text-right font-medium">Eggs</th>
+                                  <th className="px-3 py-2 text-right font-medium">Damaged</th>
+                                  <th className="px-3 py-2 text-right font-medium">Mortality</th>
+                                  <th className="px-3 py-2 text-right font-medium">Feed kg</th>
+                                  <th className="px-3 py-2 font-medium">Checks</th>
+                                  <th className="px-3 py-2 font-medium">Closed by</th>
                                   <th className="px-3 py-2 font-medium">Reopened</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-100">
                                 {pg.pageItems.map((h) => (
-                                  <tr key={h.poultryDailyClosingId} className="cursor-pointer hover:bg-slate-50"
+                                  <tr key={h.poultryDailyClosingId} className="group cursor-pointer whitespace-nowrap hover:bg-slate-50"
                                     onClick={() => choose(toBusinessDate(h.closingDate))}>
-                                    <td className="px-3 py-2 font-medium text-slate-900">{formatLongDate(h.closingDate)}</td>
+                                    <td className="sticky left-0 z-10 bg-white px-3 py-2 font-medium text-slate-900 group-hover:bg-slate-50">{formatLongDate(h.closingDate)}</td>
                                     <td className="px-3 py-2">
                                       <span className={cn("rounded-full px-2 py-0.5 text-xs",
                                         h.isClosed ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600")}>
                                         {closingStatusLabel(h)}
                                       </span>
+                                      {h.isLive && <span className="ml-1.5 text-[11px] text-slate-400" title="Not closed: figures are as they are now">live</span>}
                                     </td>
+                                    <td className="px-3 py-2 text-right tabular-nums">{h.salesCount ?? "—"}</td>
+                                    <td className="px-3 py-2 text-right font-medium tabular-nums">{money(h.revenue)}</td>
+                                    <td className="px-3 py-2 text-right tabular-nums">{money(h.cashSales)}</td>
+                                    <td className={cn("px-3 py-2 text-right tabular-nums", (h.creditSales ?? 0) > 0 && "text-rose-600")}>{money(h.creditSales)}</td>
+                                    <td className="px-3 py-2 text-right tabular-nums">{money(h.paymentsReceived)}</td>
+                                    <td className="px-3 py-2 text-right tabular-nums">{money(h.expenses)}</td>
+                                    <td className="px-3 py-2 text-right tabular-nums text-emerald-700">{money(h.moneyIn)}</td>
+                                    <td className="px-3 py-2 text-right tabular-nums text-rose-600">{money(h.moneyOut)}</td>
+                                    <td className={cn("px-3 py-2 text-right font-medium tabular-nums", (h.netCashFlow ?? 0) < 0 && "text-rose-600")}>{money(h.netCashFlow)}</td>
+                                    <td className="px-3 py-2 text-right tabular-nums">{money(h.openingCash)}</td>
+                                    <td className="px-3 py-2 text-right tabular-nums">{money(h.closingCash)}</td>
+                                    <td className={cn("px-3 py-2 text-right tabular-nums", (h.cashDifference ?? 0) !== 0 && "text-amber-700")}>{money(h.cashDifference)}</td>
+                                    <td className="px-3 py-2 text-right tabular-nums">{num(h.eggsProduced)}</td>
+                                    <td className="px-3 py-2 text-right tabular-nums">{num(h.eggsDamaged)}</td>
+                                    <td className="px-3 py-2 text-right tabular-nums">{num(h.mortality)}</td>
+                                    <td className="px-3 py-2 text-right tabular-nums">{num(h.feedKg, 2)}</td>
+                                    <td className="px-3 py-2">{checks(h)}</td>
                                     <td className="px-3 py-2 text-slate-600">
                                       {h.closedBy ?? "—"}{h.closedAtUtc ? ` · ${fmtInstant(h.closedAtUtc)}` : ""}
                                     </td>
-                                    <td className="px-3 py-2 text-right tabular-nums">{h.revenue != null ? fmt(h.revenue) : "—"}</td>
-                                    <td className="px-3 py-2 text-right tabular-nums">{h.netCashFlow != null ? fmt(h.netCashFlow) : "—"}</td>
-                                    <td className="px-3 py-2 text-right tabular-nums">{h.warningsAtClose ?? "—"}</td>
-                                    <td className="px-3 py-2 text-slate-600">
+                                    <td className="max-w-[16rem] truncate px-3 py-2 text-slate-600" title={h.lastReopenReason ?? undefined}>
                                       {h.reopenCount > 0 ? `${h.reopenCount}×${h.lastReopenReason ? ` — ${h.lastReopenReason}` : ""}` : "—"}
                                     </td>
                                   </tr>
@@ -466,7 +525,7 @@ function PoultryDailyClosingInner() {
                   </CardContent>
                 </Card>
                 <p className="mt-2 text-xs text-slate-500">
-                  Figures are as each day was closed. Days closed before this version show their status only.
+                  A closed day shows its figures as closed. Any other day shows its figures as they are now (marked live). Click a row to open the day.
                 </p>
               </TabsContent>
             </Tabs>

@@ -60,7 +60,13 @@ const SOURCE_LABEL: Record<string, string> = {
   PaymentsPage: "Payments",
   ImportedPayment: "Imported",
   Backfill: "Backfill",
+  // 363: credit added by hand on Customer Credits.
+  OpeningCredit: "Opening credit",
+  Deposit: "Deposit",
+  CreditNote: "Credit note",
 }
+// 363: a credit added by hand is reversed from Customer Credits (owner / admin).
+const MANUAL_CREDIT_SOURCES = new Set(["OpeningCredit", "Deposit", "CreditNote"])
 const sourceLabel = (s?: string | null) => (s ? SOURCE_LABEL[s] ?? s : "—")
 
 /**
@@ -488,7 +494,7 @@ export function PaymentsReceivedPage({
                   <TableCell className="text-right">
                     {rev
                       ? <span className="text-xs text-slate-400">Rev.</span>
-                      : canReverse && (
+                      : canReverse && !MANUAL_CREDIT_SOURCES.has(pmt.sourceType ?? "") && (
                           <Button variant="ghost" size="icon" className="h-7 w-7"
                                   onClick={() => { setReverseTarget(pmt); setReason("") }}
                                   aria-label="Reverse payment" title="Reverse payment">
@@ -721,7 +727,7 @@ export function PaymentsReceivedPage({
                               <Eye className="mr-1.5 h-3.5 w-3.5" /> Sale details
                             </Button>
                           )}
-                          {canReverse && !isReversed && (
+                          {canReverse && !isReversed && !MANUAL_CREDIT_SOURCES.has(row.sourceType ?? "") && (
                             <Button variant="outline" size="sm" className="mt-2 h-10 w-full bg-white"
                                     onClick={() => { setReverseTarget(row); setReason("") }}>
                               <Undo2 className="mr-1.5 h-3.5 w-3.5" /> Reverse
@@ -781,7 +787,7 @@ export function PaymentsReceivedPage({
                                             lives here. */}
                                         {(pmt.status ?? "Posted") === "Reversed"
                                           ? <div className="mt-1.5 text-[11px] text-slate-400">Reversed</div>
-                                          : canReverse && (
+                                          : canReverse && !MANUAL_CREDIT_SOURCES.has(pmt.sourceType ?? "") && (
                                               <Button variant="outline" size="sm" className="mt-2 h-8 w-full bg-white"
                                                       onClick={() => { setReverseTarget(pmt); setReason("") }}>
                                                 <Undo2 className="mr-1.5 h-3.5 w-3.5" /> Reverse
@@ -952,7 +958,7 @@ export function PaymentsReceivedPage({
                                       <Eye className="h-3.5 w-3.5" />
                                     </Button>
                                   )}
-                                  {canReverse && !isReversed && (
+                                  {canReverse && !isReversed && !MANUAL_CREDIT_SOURCES.has(row.sourceType ?? "") && (
                                     <Button variant="ghost" size="icon" className="h-8 w-8"
                                             onClick={() => { setReverseTarget(row); setReason("") }}
                                             aria-label="Reverse payment" title="Reverse payment">
