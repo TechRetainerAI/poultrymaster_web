@@ -19,7 +19,9 @@ import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
-import { Plus, Pencil, Trash2, Loader2, Users2 } from "lucide-react"
+import { Plus, Pencil, Trash2, Loader2, Users2, KeyRound } from "lucide-react"
+import { useStaffEmployeeLink } from "@/hooks/use-staff-employee-link"
+import { EmployeeBadge } from "@/components/employees/link-badges"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -93,6 +95,18 @@ export default function WaterStaffPage() {
   const [saving, setSaving] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<WaterStaff | null>(null)
 
+  // Employee link (362): opened from Employees -> prefilled New staff form.
+  const link = useStaffEmployeeLink({
+    onFromEmployee: (p) => {
+      setEditId(null)
+      setForm({ ...EMPTY, firstName: p.firstName, lastName: p.lastName, phoneNumber: p.phoneNumber ?? "", email: p.email ?? "" })
+      setLicenseNumber("")
+      setOpen(true)
+    },
+  })
+  const makeEmployee = (s: WaterStaff) =>
+    link.makeEmployee(s.waterStaffId, { firstName: s.firstName, lastName: s.lastName, phoneNumber: s.phoneNumber, email: s.email })
+
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Water") { router.replace("/dashboard"); return }
     void load()
@@ -132,7 +146,7 @@ export default function WaterStaffPage() {
     })
   }
 
-  function openNew() { setEditId(null); setForm(EMPTY); setLicenseNumber(""); setOpen(true) }
+  function openNew() { link.clearPending(); setEditId(null); setForm(EMPTY); setLicenseNumber(""); setOpen(true) }
   function openEdit(s: WaterStaff) {
     setEditId(s.waterStaffId)
     setForm({
@@ -154,7 +168,7 @@ export default function WaterStaffPage() {
     setSaving(true)
     try {
       if (editId) { await updateWaterStaff(editId, form); toast({ title: "Staff updated" }) }
-      else        { await createWaterStaff(form);        toast({ title: "Staff added" }) }
+      else        { const created = await createWaterStaff(form); toast({ title: "Staff added" }); await link.linkCreated(created?.waterStaffId) }
 
       // Issue 1 (test-report): when the saved staff member is a Driver,
       // mirror the License + Assigned vehicle to the WaterDrivers table so
@@ -242,6 +256,7 @@ export default function WaterStaffPage() {
                   secondary={(s) => (
                     <>
                       <Badge variant="outline">{s.role}</Badge>
+                      {link.isEmployee(s.waterStaffId) && <EmployeeBadge />}
                       {s.isActive ? <Badge className="bg-green-100 text-green-700">Active</Badge> : <Badge variant="outline">Inactive</Badge>}
                     </>
                   )}
@@ -259,6 +274,11 @@ export default function WaterStaffPage() {
                       <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => openEdit(s)}>
                         <Pencil className="h-4 w-4 mr-1" /> Edit
                       </Button>
+                      {!link.isEmployee(s.waterStaffId) && (
+                        <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => makeEmployee(s)}>
+                          <KeyRound className="h-4 w-4 mr-1" /> Make employee
+                        </Button>
+                      )}
                       <Button size="sm" variant="outline" className="flex-1 h-10 text-red-600 border-red-200" onClick={() => setDeleteTarget(s)}>
                         <Trash2 className="h-4 w-4 mr-1" /> Delete
                       </Button>
@@ -277,7 +297,7 @@ export default function WaterStaffPage() {
                       <TableBody>
                         {pg.pageItems.map((s) => (
                           <TableRow key={s.waterStaffId}>
-                            <TableCell className="font-medium">{s.firstName} {s.lastName}</TableCell>
+                            <TableCell className="font-medium">{s.firstName} {s.lastName}{link.isEmployee(s.waterStaffId) && <EmployeeBadge className="ml-2" />}</TableCell>
                             <TableCell><Badge variant="outline">{s.role}</Badge></TableCell>
                             <TableCell>{s.salaryType}</TableCell>
                             <TableCell className="text-right tabular-nums">{s.basePay.toFixed(2)}</TableCell>
@@ -285,6 +305,9 @@ export default function WaterStaffPage() {
                             <TableCell>{s.isActive ? <Badge className="bg-green-100 text-green-700">Active</Badge> : <Badge variant="outline">Inactive</Badge>}</TableCell>
                             <TableCell className="text-right">
                               <Button size="sm" variant="ghost" onClick={() => openEdit(s)}><Pencil className="h-4 w-4" /></Button>
+                              {!link.isEmployee(s.waterStaffId) && (
+                                <Button size="sm" variant="ghost" onClick={() => makeEmployee(s)} title="Make employee (give a login)"><KeyRound className="h-4 w-4" /></Button>
+                              )}
                               <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(s)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
                             </TableCell>
                           </TableRow>
@@ -401,6 +424,8 @@ export default function WaterStaffPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {link.dialog}
 
       <ConfirmDeleteDialog
         open={!!deleteTarget}

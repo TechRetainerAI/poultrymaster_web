@@ -75,6 +75,9 @@ namespace PoultryFarmAPIWeb.Filters
             // Office can ask it of every company; the module's own daily-closing
             // view right answers it.
             ["dailyclosingstatus"] = "*.daily-closing",
+            // 362. Links a staff row to an employee login; same right as the
+            // module's staff page, which is where the link is made.
+            ["staffuserlink"] = "*.staff",
 
             // ---- Poultry, via the shared/legacy controller names -------------
             ["flock"] = "poultry.flocks",

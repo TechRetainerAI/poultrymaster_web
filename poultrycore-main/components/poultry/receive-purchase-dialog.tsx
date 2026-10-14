@@ -197,7 +197,7 @@ export function ReceivePurchaseDialog({
             <SuggestInput value={supplierText} onChange={setSupplierText} suggestions={suppliers.map((s) => s.name)} placeholder="Pick or type a supplier" />
           </FormField>
           <FormField label="Purchase date *"><Input type="date" max={today} value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} /></FormField>
-          <FormField label="Invoice / reference" hint="The same invoice can't be received twice from one supplier.">
+          <FormField label="Invoice / reference" info="The same invoice can't be received twice from one supplier.">
             <Input value={referenceNo} onChange={(e) => setReferenceNo(e.target.value)} placeholder="e.g. INV-2041" />
           </FormField>
         </FormSection>
@@ -226,9 +226,9 @@ export function ReceivePurchaseDialog({
                       )}
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
-                    <div className="sm:col-span-4">
-                      <label className="text-xs text-slate-500">Item *</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-x-3 gap-y-2">
+                    <div className="sm:col-span-3">
+                      <label className={lineLabelCls}>Item *</label>
                       <Select value={l.itemId ? String(l.itemId) : ""} onValueChange={(v) => setLine(l.key, { itemId: Number(v) })}>
                         <SelectTrigger><SelectValue placeholder="Pick item" /></SelectTrigger>
                         <SelectContent>
@@ -241,20 +241,27 @@ export function ReceivePurchaseDialog({
                       </Select>
                     </div>
                     <div className="sm:col-span-2">
-                      <label className="text-xs text-slate-500">Quantity{it?.purchaseUnitOfMeasure ? ` (${it.purchaseUnitOfMeasure})` : ""} *</label>
+                      <label className={lineLabelCls} title={`Quantity${it?.purchaseUnitOfMeasure ? ` (${it.purchaseUnitOfMeasure})` : ""}`}>Quantity{it?.purchaseUnitOfMeasure ? ` (${it.purchaseUnitOfMeasure})` : ""} *</label>
                       <NumberInput min={0} step="0.001" value={l.quantity} onChange={(e) => setLine(l.key, { quantity: Number(e.target.value) || 0 })} />
                     </div>
                     <div className="sm:col-span-2">
-                      <label className="text-xs text-slate-500">Unit cost *</label>
+                      <label className={lineLabelCls}>Unit cost *</label>
                       <NumberInput min={0} step="0.01" value={l.unitCost} onChange={(e) => setLine(l.key, { unitCost: Number(e.target.value) || 0 })} />
                     </div>
                     <div className="sm:col-span-2">
-                      <label className="text-xs text-slate-500">{it?.unitOfMeasure ? `${it.unitOfMeasure} per unit` : "Units per purchase unit"}</label>
+                      <label className={lineLabelCls} title="How many stock units one purchase unit holds, e.g. 50 kg per bag">{it?.unitOfMeasure ? `${it.unitOfMeasure} per unit` : "Units per purchase unit"}</label>
                       <NumberInput min={0} step="0.0001" value={l.unitsPerPurchaseUnit} onChange={(e) => setLine(l.key, { unitsPerPurchaseUnit: Number(e.target.value) || 0 })} />
                     </div>
-                    <div className="sm:col-span-2 text-right">
-                      <label className="text-xs text-slate-500">Line total</label>
-                      <div className="h-10 flex items-center justify-end font-semibold tabular-nums">{gh(p?.total ?? 0)}</div>
+                    {/* Three columns, taken from Item: two could not hold a five-figure
+                        amount. min-w-0 + truncate keep anything bigger inside the frame
+                        (full figure on hover) rather than spilling past it. */}
+                    <div className="sm:col-span-3 min-w-0">
+                      <label className={cn(lineLabelCls, "sm:text-right")}>Line total</label>
+                      {/* Same height and frame as the inputs beside it, read-only. */}
+                      <div className="h-10 flex min-w-0 items-center justify-end overflow-hidden rounded-md border border-slate-200 bg-slate-50 px-2"
+                        title={gh(p?.total ?? 0)}>
+                        <span className="truncate text-sm font-semibold tabular-nums">{gh(p?.total ?? 0)}</span>
+                      </div>
                     </div>
                   </div>
                   {p && (p.allocatedAdditional > 0 || (l.unitsPerPurchaseUnit && l.unitsPerPurchaseUnit !== 1)) && (
@@ -273,7 +280,7 @@ export function ReceivePurchaseDialog({
         </FormSection>
 
         <FormSection title="Additional costs" color="slate">
-          <FormField label="Amount" hint="Transport, offloading … spread over the items by value, so it becomes part of their stock cost.">
+          <FormField label="Amount" info="Transport, offloading … spread over the items by value, so it becomes part of their stock cost.">
             <NumberInput min={0} step="0.01" value={additional} onChange={(e) => setAdditional(Number(e.target.value) || 0)} />
           </FormField>
           <FormField label="What it was for"><Input value={additionalNote} onChange={(e) => setAdditionalNote(e.target.value)} placeholder="e.g. Transport" disabled={additional <= 0} /></FormField>
@@ -326,7 +333,7 @@ export function ReceivePurchaseDialog({
             </>
           )}
           {preview.balance > 0 && (
-            <FormField label="Due date" hint="Empty = the supplier's payment terms.">
+            <FormField label="Due date" info="Leave empty to use the supplier's payment terms.">
               <Input type="date" min={purchaseDate} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
             </FormField>
           )}
@@ -377,6 +384,10 @@ export function ReceivePurchaseDialog({
     </Dialog>
   )
 }
+
+// Item-row labels: FormField's style, held to ONE line (long unit names are cut
+// with the full text on hover) so every box in the row starts at the same height.
+const lineLabelCls = "mb-1 block truncate text-xs sm:text-sm font-medium text-slate-700"
 
 function Figure({ label, value, tone }: { label: string; value: string; tone?: string }) {
   return (

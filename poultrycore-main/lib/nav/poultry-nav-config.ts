@@ -23,6 +23,7 @@ import type { UserPermissions } from "@/hooks/use-permissions"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
 import type { MegaMenuGroup, NavGroup, NavItem } from "./nav-model"
 import { resolveQuickLinks } from "./quick-links"
+import { isSetupAdminRoute } from "@/lib/nav/setup-admin-routes"
 
 export interface PoultryNavDeps {
   permissions: UserPermissions
@@ -497,6 +498,19 @@ export function buildPoultryNavConfig(
         ],
       },
     ],
+  }
+
+  // Setup pages are admin-only whatever the toggles say -- hide them in every
+  // panel they appear in (Setup, Tools, System) for an ordinary employee.
+  // Before the quick links below, so a pinned Setup page is dropped too.
+  // See lib/nav/setup-admin-routes.ts.
+  if (!isAdmin) {
+    for (const section of Object.values(config)) {
+      if (!Array.isArray(section)) continue
+      for (const group of section as MegaMenuGroup[]) {
+        group.items = group.items.map((i) => (isSetupAdminRoute(i.href) ? { ...i, visible: false } : i))
+      }
+    }
   }
 
   // LAST, over the finished config. resolveQuickLinks resolves the stored

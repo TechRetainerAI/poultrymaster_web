@@ -7,6 +7,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // Poultry products / stock / recipes / batches / losses / daily-closing controllers.
     // Additive; routes under /api/Poultry/*. Mirrors the Water production controllers.
 
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/Poultry/products")]
     public class PoultryProductController : ControllerBase
@@ -31,10 +32,12 @@ namespace PoultryFarmAPIWeb.Controllers
         { if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required."); await _svc.DeleteAsync(id, farmId); return NoContent(); }
 
         // Idempotently create the default egg finished-product for a farm (backfill / on-load).
+        [PoultryFarmAPIWeb.Filters.AllowStaffSetupWrite]
         [HttpPost("ensure-default-egg")] public async Task<IActionResult> EnsureDefaultEgg([FromQuery] string farmId)
         { if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required."); var id = await _svc.EnsureDefaultEggAsync(farmId); return Ok(new { poultryProductId = id }); }
 
         // Ensure both default poultry products (Eggs + Birds) exist for a farm.
+        [PoultryFarmAPIWeb.Filters.AllowStaffSetupWrite]
         [HttpPost("ensure-defaults")] public async Task<IActionResult> EnsureDefaults([FromQuery] string farmId)
         {
             if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
@@ -51,6 +54,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
         // Set a finished product's stock to a physical count (writes a correcting
         // Adjust transaction for the difference).
+        [PoultryFarmAPIWeb.Filters.AllowStaffSetupWrite]
         [HttpPost("{id:int}/set-stock")] public async Task<ActionResult<object>> SetStock(int id, [FromBody] ProductSetStockRequest body)
         {
             if (body is null || string.IsNullOrWhiteSpace(body.FarmId)) return BadRequest("Company ID is required.");

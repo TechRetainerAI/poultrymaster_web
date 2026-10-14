@@ -4,6 +4,7 @@ using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Controllers
 {
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/[controller]")]
     public class SupplierController : ControllerBase
@@ -34,6 +35,7 @@ namespace PoultryFarmAPIWeb.Controllers
             return Ok(row);
         }
 
+        [PoultryFarmAPIWeb.Filters.AllowStaffSetupWrite]
         [HttpPost]
         public async Task<ActionResult<SupplierModel>> Create([FromBody] SupplierModel model)
         {

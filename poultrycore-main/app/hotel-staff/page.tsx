@@ -14,7 +14,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { NumberInput } from "@/components/ui/number-input"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
-import { Loader2, Users, Plus, Edit2, Trash2 } from "lucide-react"
+import { Loader2, Users, Plus, Edit2, Trash2, KeyRound } from "lucide-react"
+import { useStaffEmployeeLink } from "@/hooks/use-staff-employee-link"
+import { EmployeeBadge } from "@/components/employees/link-badges"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -72,6 +74,20 @@ export default function HotelStaffPage() {
   // What each staff member still owes on loans and advances (staff id -> amount).
   const [owed, setOwed] = useState<Map<number, { amount: number; loans: number }>>(new Map())
 
+  // Employee link (362): opened from Employees -> prefilled Add Staff form.
+  const link = useStaffEmployeeLink({
+    onFromEmployee: (p) => {
+      setEditing(null)
+      setForm({ ...emptyForm, firstName: p.firstName, lastName: p.lastName, phone: p.phoneNumber ?? "", email: p.email ?? "" })
+      setDialogOpen(true)
+    },
+  })
+  const makeEmployee = (s: any) =>
+    link.makeEmployee(gid(s), {
+      firstName: gs(s, "firstName"), lastName: gs(s, "lastName"),
+      phoneNumber: gs(s, "phone") || null, email: gs(s, "email") || null,
+    })
+
   useEffect(() => { if (!activeFarmType) return; if (activeFarmType !== "Hotel") { router.replace("/dashboard"); return }; load() }, [activeFarmType, router])
   async function load() {
     setLoading(true)
@@ -86,6 +102,7 @@ export default function HotelStaffPage() {
   }
 
   function openCreate() {
+    link.clearPending()
     setEditing(null)
     setForm(emptyForm)
     setDialogOpen(true)
@@ -111,7 +128,13 @@ export default function HotelStaffPage() {
     try {
       const payload = { ...form, isActive: form.isActive }
       if (editing) { await updateHotelStaff(gid(editing), payload); toast({ title: "Staff updated" }) }
-      else { await createHotelStaff(payload); toast({ title: "Staff member added" }) }
+      else {
+        // From an employee: they already have a login, so the create must not
+        // make a second one from the email; link that login instead.
+        const created = await createHotelStaff({ ...payload, skipLogin: link.isFromEmployee() })
+        toast({ title: "Staff member added" })
+        await link.linkCreated(created ? gid(created) : null)
+      }
       setDialogOpen(false); await load()
     } catch (e: any) { toast({ title: "Save failed", description: e?.message, variant: "destructive" }) }
     finally { setSaving(false) }
@@ -168,7 +191,7 @@ export default function HotelStaffPage() {
                   const active = gb(s, "isActive") || gb(s, "isactive")
                   return (
                     <tr key={gid(s) || `staff-${idx}`} className={`border-b hover:bg-slate-50 ${!active ? "opacity-50" : ""}`}>
-                      <td className="p-3 font-semibold">{gs(s, "firstName") || gs(s, "firstname")} {gs(s, "lastName") || gs(s, "lastname")}</td>
+                      <td className="p-3 font-semibold">{gs(s, "firstName") || gs(s, "firstname")} {gs(s, "lastName") || gs(s, "lastname")}{link.isEmployee(gid(s)) && <EmployeeBadge className="ml-2" />}</td>
                       <td className="p-3">{gs(s, "role")}</td>
                       <td className="p-3"><Badge variant="outline" className={DEPT_COLOR[gs(s, "department")] ?? "bg-slate-100 text-slate-700"}>{gs(s, "department")}</Badge></td>
                       <td className="p-3">{gs(s, "phone") || "-"}</td>
@@ -188,6 +211,9 @@ export default function HotelStaffPage() {
                       </td>
                       <td className="p-3 text-right space-x-1">
                         <Button variant="ghost" size="icon" onClick={() => openEdit(s)}><Edit2 className="h-4 w-4" /></Button>
+                        {!link.isEmployee(gid(s)) && (
+                          <Button variant="ghost" size="icon" onClick={() => makeEmployee(s)} title="Make employee (give a login)"><KeyRound className="h-4 w-4" /></Button>
+                        )}
                         <Button variant="ghost" size="icon" className="text-red-600" onClick={() => setDeleteTarget(s)}><Trash2 className="h-4 w-4" /></Button>
                       </td>
                     </tr>
@@ -241,6 +267,8 @@ export default function HotelStaffPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {link.dialog}
 
         <ConfirmDeleteDialog
           open={!!deleteTarget}

@@ -16,6 +16,7 @@
 // =============================================================================
 
 import type { FeatureAccessPermissions } from "@/hooks/use-permissions"
+import { isSetupAdminRoute } from "@/lib/nav/setup-admin-routes"
 
 /** Every `/water-*` route that this file makes a decision about. */
 const WATER_ROUTE_ACCESS: Record<string, (f: FeatureAccessPermissions, isAdmin: boolean) => boolean> = {
@@ -157,6 +158,8 @@ export function isWaterNavItemVisible(
   isAdmin: boolean,
 ): boolean {
   if (isAdmin) return true
+  // Setup is admin-only whatever the toggles say (lib/nav/setup-admin-routes).
+  if (isSetupAdminRoute(href)) return false
   const rule = WATER_ROUTE_ACCESS[href]
   if (!rule) return true
   return rule(featureAccess, isAdmin)

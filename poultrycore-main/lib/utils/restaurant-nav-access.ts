@@ -1,4 +1,5 @@
 import type { FeatureAccessPermissions } from "@/hooks/use-permissions"
+import { isSetupAdminRoute } from "@/lib/nav/setup-admin-routes"
 
 const RESTAURANT_ROUTE_ACCESS: Record<string, (f: FeatureAccessPermissions, isAdmin: boolean) => boolean> = {
   // --- POS & Orders --------------------------------------------------------
@@ -108,6 +109,8 @@ export function isRestaurantNavItemVisible(
   isAdmin: boolean,
 ): boolean {
   if (isAdmin) return true
+  // Setup is admin-only whatever the toggles say (lib/nav/setup-admin-routes).
+  if (isSetupAdminRoute(href)) return false
   const check = RESTAURANT_ROUTE_ACCESS[href]
   return check ? check(featureAccess, isAdmin) : true
 }
