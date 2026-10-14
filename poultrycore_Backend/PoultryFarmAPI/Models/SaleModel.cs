@@ -111,6 +111,58 @@
         public string? CreatedBy { get; set; }
     }
 
+    /// <summary>
+    /// 363: credit created by hand -- an opening balance, a deposit (real cash
+    /// in) or a credit note (a cost). Never a typed balance.
+    /// </summary>
+    public class ManualCreditRequest
+    {
+        public string FarmId { get; set; } = string.Empty;
+        public int CustomerId { get; set; }
+        /// <summary>OpeningCredit | Deposit | CreditNote</summary>
+        public string Kind { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+        public DateTime? CreditDate { get; set; }
+        /// <summary>Deposit only: the account the money was received into.</summary>
+        public int? PoultryCashAccountId { get; set; }
+        public string? PaymentMethod { get; set; }
+        public string? Reference { get; set; }
+        public string Reason { get; set; } = string.Empty;
+        public string? CreatedBy { get; set; }
+    }
+
+    public class ManualCreditReverseRequest
+    {
+        public string FarmId { get; set; } = string.Empty;
+        public string Reason { get; set; } = string.Empty;
+        public string? ReversedBy { get; set; }
+    }
+
+    public class ManualCreditRow
+    {
+        public Guid PaymentGroupId { get; set; }
+        public int PoultryPaymentId { get; set; }
+        public string? PaymentNumber { get; set; }
+        public string Kind { get; set; } = string.Empty;
+        public DateTime? CreditDate { get; set; }
+        public int CustomerId { get; set; }
+        public string? CustomerName { get; set; }
+        public decimal Amount { get; set; }
+        public decimal Used { get; set; }
+        public decimal Refunded { get; set; }
+        public decimal Remaining { get; set; }
+        public string Status { get; set; } = "Posted";
+        public int? PoultryCashAccountId { get; set; }
+        public string? CashAccountName { get; set; }
+        public string? PaymentMethod { get; set; }
+        public string? Reference { get; set; }
+        public string? Reason { get; set; }
+        public string? CreatedBy { get; set; }
+        public DateTime? CreatedAt { get; set; }
+        public DateTime? ReversedAt { get; set; }
+        public string? ReversalReason { get; set; }
+    }
+
     public class CustomerCreditRow
     {
         public int PoultryPaymentId { get; set; }

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PoultryFarmAPIWeb.Business;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Controllers
@@ -186,6 +187,50 @@ namespace PoultryFarmAPIWeb.Controllers
         {
             if (string.IsNullOrWhiteSpace(farmId)) return BadRequest(new { message = "Company ID is required." });
             return Ok(await _svc.GetCustomerRefunds(farmId, customerId));
+        }
+
+        // 363: credit created by hand. Owner / admin only, like Setup: a typed-in
+        // credit could otherwise pay for goods nobody paid for.
+
+        [HttpGet("customer-payments/credit/manual")]
+        public async Task<ActionResult<IEnumerable<ManualCreditRow>>> GetManualCredits([FromQuery] string farmId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest(new { message = "Company ID is required." });
+            return Ok(await _svc.GetManualCredits(farmId));
+        }
+
+        [HttpPost("customer-payments/credit/manual")]
+        [SetupAdminOnly]
+        public async Task<ActionResult> CreateManualCredit([FromBody] ManualCreditRequest r)
+        {
+            if (r is null || string.IsNullOrWhiteSpace(r.FarmId)) return BadRequest(new { message = "Company ID is required." });
+            if (string.IsNullOrWhiteSpace(r.Reason)) return BadRequest(new { message = "Give a reason for the credit." });
+            r.CreatedBy = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? r.CreatedBy;
+            try
+            {
+                return Content(await _svc.CreateManualCredit(r), "application/json");
+            }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001")
+            {
+                return BadRequest(new { message = ex.MessageText });
+            }
+        }
+
+        [HttpPost("customer-payments/credit/manual/{paymentGroupId:guid}/reverse")]
+        [SetupAdminOnly]
+        public async Task<ActionResult> ReverseManualCredit(Guid paymentGroupId, [FromBody] ManualCreditReverseRequest r)
+        {
+            if (r is null || string.IsNullOrWhiteSpace(r.FarmId)) return BadRequest(new { message = "Company ID is required." });
+            if (string.IsNullOrWhiteSpace(r.Reason)) return BadRequest(new { message = "Give a reason for reversing the credit." });
+            r.ReversedBy = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? r.ReversedBy;
+            try
+            {
+                return Ok(new { reversed = await _svc.ReverseManualCredit(paymentGroupId, r) });
+            }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001")
+            {
+                return BadRequest(new { message = ex.MessageText });
+            }
         }
 
         // ------------------------------------------------------ supplier balances

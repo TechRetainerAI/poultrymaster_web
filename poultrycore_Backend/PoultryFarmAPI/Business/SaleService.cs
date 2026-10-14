@@ -321,6 +321,9 @@ namespace PoultryFarmAPIWeb.Business
             var partPay = !request.Paid && request.AmountPaidNow is > 0 ? request.AmountPaidNow.Value : 0m;
             if (partPay > 0 && request.CustomerId is null && string.IsNullOrWhiteSpace(request.CustomerName))
                 throw new SaleRuleException("A part payment needs a customer, so the rest can be owed by someone.");
+            var credit = !request.Paid && request.CustomerCreditAmount is > 0 ? Math.Round(request.CustomerCreditAmount.Value, 2) : 0m;
+            if (credit > 0 && request.CustomerId is null && string.IsNullOrWhiteSpace(request.CustomerName))
+                throw new SaleRuleException("Only a customer's own credit can pay for a sale. Choose the customer.");
             await using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync();
             // One transaction: the sale and its part payment land together (351:
@@ -351,6 +354,8 @@ namespace PoultryFarmAPIWeb.Business
             if (result.SaleId == 0 && result.SaleIds.Length > 0) result.SaleId = result.SaleIds[0];
             if (partPay > 0 && !result.Duplicate)
                 await RecordPartPaymentAsync(conn, tx, request, result, partPay);
+            if (credit > 0 && !result.Duplicate)
+                await ApplyCustomerCreditAsync(conn, tx, request, result, credit);
             await tx.CommitAsync();
             // 351: a Correct Sale re-entry points back at the sale it replaces.
             if (request.CorrectsSaleId is > 0 && result.SaleId > 0 && !result.Duplicate)
@@ -413,6 +418,55 @@ namespace PoultryFarmAPIWeb.Business
             pay.Parameters.AddWithValue("@Note", "Part payment at point of sale");
             pay.Parameters.AddWithValue("@By", request.UserId);
             await pay.ExecuteNonQueryAsync();
+        }
+
+        /// <summary>
+        /// Pay with customer credit at the counter: the customer's held credit
+        /// (money already received, e.g. kept when a sale was reversed) is
+        /// allocated to the new sale(s) in order, each up to what it still owes.
+        /// The same SQL as the Pay dialog's "Use customer credit", so the credit
+        /// rules (customer must match, never more than held) live in one place.
+        /// </summary>
+        private static async Task ApplyCustomerCreditAsync(NpgsqlConnection conn, NpgsqlTransaction tx,
+            SaleGroupRequest request, SaleGroupResult result, decimal amount)
+        {
+            var ids = result.SaleIds.Length > 0 ? result.SaleIds : new[] { result.SaleId };
+            var sales = new List<(int Id, decimal Owed, int? CustomerId)>();
+            using (var q = new NpgsqlCommand(
+                "SELECT saleid, fnpoultrysalebalance(paid, totalamount, amountpaid), customerid " +
+                "FROM sale WHERE farmid = @FarmId AND saleid = ANY(@Ids) ORDER BY saleid",
+                conn, tx))
+            {
+                q.Parameters.AddWithValue("@FarmId", request.FarmId);
+                q.Parameters.AddWithValue("@Ids", ids);
+                using var r = await q.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                    sales.Add((r.GetInt32(0), r.GetDecimal(1), r.IsDBNull(2) ? null : r.GetInt32(2)));
+            }
+
+            var customerId = sales.Select(s => s.CustomerId).FirstOrDefault(c => c is not null);
+            if (customerId is null)
+                throw new SaleRuleException("Only a customer's own credit can pay for a sale. Choose the customer.");
+            if (amount > sales.Sum(s => s.Owed))
+                throw new SaleRuleException("The credit used is more than the sale still owes. Lower it.");
+
+            var left = amount;
+            foreach (var s in sales)
+            {
+                if (left <= 0) break;
+                var apply = Math.Min(left, s.Owed);
+                if (apply <= 0) continue;
+                using var cmd = new NpgsqlCommand(
+                    "SELECT sppoultrycustomercredit_apply(p_farmid => @FarmId::text, p_customerid => @CustomerId::int, " +
+                    "p_saleid => @SaleId::int, p_amount => @Amount::numeric, p_by => @By::text)", conn, tx);
+                cmd.Parameters.AddWithValue("@FarmId", request.FarmId);
+                cmd.Parameters.AddWithValue("@CustomerId", customerId.Value);
+                cmd.Parameters.AddWithValue("@SaleId", s.Id);
+                cmd.Parameters.AddWithValue("@Amount", apply);
+                cmd.Parameters.AddWithValue("@By", request.UserId);
+                await cmd.ExecuteNonQueryAsync();
+                left -= apply;
+            }
         }
 
         /// <summary>

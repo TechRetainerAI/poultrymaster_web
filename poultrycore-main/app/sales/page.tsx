@@ -11,6 +11,7 @@ import { Pagination, PaginationContent, PaginationItem, PaginationLink, Paginati
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { NumberInput } from "@/components/ui/number-input"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -395,6 +396,36 @@ export default function SalesPage() {
   const calculatedSaleTotal = Math.round((firstLineAmount + extraEggLines.reduce((s, l) => s + extraLineTotal(l), 0)) * 100) / 100
   const allLinesAmount = hasOverride ? Math.round(overrideAmount! * 100) / 100 : calculatedSaleTotal
   const isEditingGroup = editingLines.length > 1
+
+  // Pay with customer credit: money the customer already paid and the business
+  // still holds (e.g. kept when a sale was reversed). Allocated to the new sale
+  // in the same transaction -- no new payment, no cash. The rest is paid now,
+  // part paid or owed as usual.
+  const [useCredit, setUseCredit] = useState(false)
+  const [creditAmount, setCreditAmount] = useState<number | undefined>(undefined)
+  const [customerCredit, setCustomerCredit] = useState<{ customerId: number; available: number } | null>(null)
+  const saleCustomerId = useMemo(() => {
+    const name = (formData.customerName ?? "").toString().trim().toLowerCase()
+    if (!name) return null
+    const c = customers.find((x: any) => (x.name ?? x.customerName ?? "").trim().toLowerCase() === name)
+    const id = Number(c?.customerId ?? c?.id)
+    return id > 0 ? id : null
+  }, [customers, formData.customerName])
+  useEffect(() => {
+    if (!isCreateDialogOpen || !saleCustomerId) { setCustomerCredit(null); return }
+    let live = true
+    customerCreditTotal(saleCustomerId)
+      .then((available) => { if (live) setCustomerCredit({ customerId: saleCustomerId, available }) })
+      .catch(() => { if (live) setCustomerCredit(null) })
+    return () => { live = false }
+  }, [isCreateDialogOpen, saleCustomerId])
+  const creditAvailable = customerCredit && customerCredit.customerId === saleCustomerId ? customerCredit.available : 0
+  const creditUsed = useCredit && creditAvailable > 0
+    ? Math.round(Math.max(0, Math.min(Number(creditAmount) || 0, creditAvailable, allLinesAmount)) * 100) / 100
+    : 0
+  /** What is left to pay after the credit: paid now, part paid or owed. */
+  const restAfterCredit = Math.round((allLinesAmount - creditUsed) * 100) / 100
+  const creditCoversAll = creditUsed > 0 && restAfterCredit <= 0.005
   // Editing: the eggs the sale (every line of it) already took are back on
   // the shelf while it is changed, per class.
   const editReturned = useMemo<ReturnedEggs | undefined>(() => {
@@ -665,15 +696,30 @@ export default function SalesPage() {
           toastFormGuide(toast, "Enter the amount the customer paid now.")
           return
         }
-        if (paidNow >= allLinesAmount) {
-          toastFormGuide(toast, "That covers the whole sale. Choose Paid now instead.")
+        if (paidNow >= restAfterCredit) {
+          toastFormGuide(toast, creditUsed > 0
+            ? "With the credit, that covers the whole sale. Choose Paid now instead."
+            : "That covers the whole sale. Choose Paid now instead.")
           return
         }
       }
 
+      if (useCredit && creditAvailable > 0 && creditUsed <= 0) {
+        toastFormGuide(toast, "Enter how much of the customer's credit to use, or untick Use customer credit.")
+        return
+      }
+      if (useCredit && (Number(creditAmount) || 0) > Math.min(creditAvailable, allLinesAmount) + 0.005) {
+        toastFormGuide(toast, `Use at most ${formatCurrency(Math.min(creditAvailable, allLinesAmount), currencyCode)} of credit.`)
+        return
+      }
+      // Credit pays some of it: the sale is saved owed, the credit is allocated
+      // to it, and "Paid now" pays the rest in cash -- one transaction.
+      const restPaidNow = creditUsed > 0 && !partPayment && formData.paid !== false && restAfterCredit > 0
+        ? restAfterCredit : 0
+
       // Several lines (egg sizes and/or other products), or a part payment:
       // one sale number, one payment, all or nothing.
-      if (extraEggLines.length > 0 || partPayment) {
+      if (extraEggLines.length > 0 || partPayment || creditUsed > 0) {
         if (extraEggLines.some((l) => !(l.product ?? "eggs").trim() || extraLineQuantity(l) <= 0 || l.unitPrice <= 0)) {
           toastFormGuide(toast, "Every added line needs a product, a quantity and a price, or remove it.")
           return
@@ -688,10 +734,13 @@ export default function SalesPage() {
           userId,
           saleDate: formData.saleDate!,
           customerName: (formData.customerName ?? "").toString() || null,
-          paymentMethod: (formData.paymentMethod ?? "").toString() || null,
+          paymentMethod: (formData.paymentMethod ?? "").toString() || (creditCoversAll ? "Customer Credit" : null),
           poultryCashAccountId: formData.poultryCashAccountId ?? null,
-          paid: partPayment ? false : (formData.paid ?? true),
-          amountPaidNow: partPayment ? Math.round((Number(partPaidAmount) || 0) * 100) / 100 : null,
+          paid: partPayment || creditUsed > 0 ? false : (formData.paid ?? true),
+          amountPaidNow: partPayment
+            ? Math.round((Number(partPaidAmount) || 0) * 100) / 100
+            : restPaidNow > 0 ? restPaidNow : null,
+          customerCreditAmount: creditUsed > 0 ? creditUsed : null,
           saleDescription: formData.saleDescription || null,
           flockId: formData.flockId || null,
           correctsSaleId: correcting?.saleId ?? null,
@@ -715,14 +764,20 @@ export default function SalesPage() {
         }
         const saleCount = res.data?.saleCount ?? 1
         const groupTotal = Number(res.data?.totalAmount ?? 0)
-        const partNote = partPayment
-          ? ` Paid ${formatCurrency(Number(partPaidAmount) || 0, currencyCode)}, owed ${formatCurrency(Math.max(0, groupTotal - (Number(partPaidAmount) || 0)), currencyCode)}.`
-          : ""
+        const cashNow = partPayment ? Number(partPaidAmount) || 0 : restPaidNow
+        const partNote = [
+          creditUsed > 0 ? ` ${formatCurrency(creditUsed, currencyCode)} paid from customer credit.` : "",
+          partPayment ? ` Paid ${formatCurrency(cashNow, currencyCode)}.` : "",
+          partPayment || (creditUsed > 0 && formData.paid === false && restAfterCredit > 0)
+            ? ` Owed ${formatCurrency(Math.max(0, groupTotal - creditUsed - cashNow), currencyCode)}.` : "",
+        ].join("")
         toast(saleCount > 1
           ? { title: `${saleCount} sales created: ${res.data?.saleGroupNo ?? ""}`, description: `One sale per product, as each product is its own sale.${partNote}` }
           : { title: `Sale ${res.data?.saleGroupNo ?? ""} created`, description: `${extraEggLines.length + 1} line${extraEggLines.length ? "s" : ""}, one sale.${partNote}` })
         const firstId = res.data?.saleId ?? res.data?.saleIds?.[0]
-        await afterCorrectionSaved(firstId, res.data?.saleGroupNo || (firstId ? `#${firstId}` : ""), groupTotal, !partPayment && !!(formData.paid ?? true))
+        // Credit already used in the form: nothing more to offer afterwards.
+        await afterCorrectionSaved(firstId, res.data?.saleGroupNo || (firstId ? `#${firstId}` : ""), groupTotal,
+          creditUsed > 0 || (!partPayment && !!(formData.paid ?? true)))
         setIsCreateDialogOpen(false)
         resetForm()
         loadSales()
@@ -926,6 +981,8 @@ export default function SalesPage() {
     setCrates(isEgg ? Math.floor(firstQty / EGGS_PER_CRATE) : 0)
     setLooseEggs(isEgg ? firstQty % EGGS_PER_CRATE : 0)
     setCorrecting({ saleId: sale.saleId, label: row.lines ? (row.saleGroupNo ?? `#${sale.saleId}`) : `#${sale.saleId}`, creditKept })
+    // The money kept at the reversal pays the corrected sale, from the form.
+    if (creditKept > 0) { setUseCredit(true); setCreditAmount(creditKept) }
     setIsCreateDialogOpen(true)
   }
 
@@ -994,6 +1051,8 @@ export default function SalesPage() {
     setOverrideStock(false)
     setPartPayment(false)
     setPartPaidAmount(undefined)
+    setUseCredit(false)
+    setCreditAmount(undefined)
     setCrates(0)
     setLooseEggs(0)
   }
@@ -1128,7 +1187,7 @@ export default function SalesPage() {
     else if (!customerName) message = "Enter or select who bought from you."
     else if (!Number.isFinite(quantity) || quantity <= 0) message = "Enter how many units were sold — use a number greater than zero."
     else if (!Number.isFinite(unitPrice) || unitPrice <= 0) message = "Enter the price per unit — it must be greater than zero."
-    else if (!paymentMethod) message = "Select how the customer paid (cash, mobile money, bank, etc.)."
+    else if (!paymentMethod && !creditCoversAll) message = "Select how the customer paid (cash, mobile money, bank, etc.)."
     // Selling more than the farm has is refused, not warned about — but the
     // override on the form lifts it, because a real sale that the records have
     // not caught up with still has to be recordable.
@@ -1734,8 +1793,61 @@ export default function SalesPage() {
               <div className="overflow-hidden rounded-xl border border-green-200">
                 <div className="bg-green-600 px-4 py-2 text-sm font-semibold text-white">Payment</div>
               <div className="space-y-3 bg-green-50/40 p-4">
+                {/* Only when this customer holds credit: money they already
+                    paid, kept for them (e.g. from a reversed sale). */}
+                {creditAvailable > 0 && (
+                  <div className={cn("rounded-lg border px-3 py-2.5", useCredit ? "border-blue-300 bg-blue-50" : "border-slate-200 bg-white")}>
+                    <label className="flex cursor-pointer items-start gap-2.5">
+                      <Checkbox
+                        checked={useCredit}
+                        onCheckedChange={(v) => {
+                          const on = v === true
+                          setUseCredit(on)
+                          if (on) setCreditAmount(Math.round(Math.min(creditAvailable, allLinesAmount) * 100) / 100)
+                        }}
+                        className="mt-0.5"
+                      />
+                      <span className="text-sm">
+                        <span className="flex items-center gap-1.5 font-medium text-slate-900">
+                          <Wallet className="h-4 w-4 text-blue-600" /> Use customer credit
+                        </span>
+                        <span className="block text-xs text-slate-600">
+                          {(formData.customerName ?? "").toString()} has{" "}
+                          <b className="tabular-nums text-blue-700">{formatCurrency(creditAvailable, currencyCode)}</b> of credit.
+                          {" "}No new payment is recorded and no cash moves.
+                        </span>
+                      </span>
+                    </label>
+                    {useCredit && (
+                      <div className="mt-2.5 flex flex-wrap items-end gap-4 pl-6">
+                        <div className="space-y-1">
+                          <Label htmlFor="creditAmount" className="text-xs font-medium text-blue-800">Credit to use</Label>
+                          <NumberInput
+                            id="creditAmount"
+                            className="h-9 w-40 bg-white text-right tabular-nums"
+                            step="0.01"
+                            value={creditAmount ?? ""}
+                            onChange={(e) => setCreditAmount(e.target.value ? Number(e.target.value) : undefined)}
+                            placeholder="0.00"
+                          />
+                        </div>
+                        <div className="text-sm text-blue-900">
+                          {creditCoversAll
+                            ? <>Paid in full from credit.</>
+                            : <>Rest to pay: <b className="tabular-nums">{formatCurrency(restAfterCredit, currencyCode)}</b></>}
+                          {(Number(creditAmount) || 0) > Math.min(creditAvailable, allLinesAmount) + 0.005 && (
+                            <span className="ml-2 text-xs text-red-600">
+                              at most {formatCurrency(Math.min(creditAvailable, allLinesAmount), currencyCode)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {!creditCoversAll && (
                 <div>
-                  <Label className="mb-2 block text-sm">Payment status</Label>
+                  <Label className="mb-2 block text-sm">{creditUsed > 0 ? "The rest" : "Payment status"}</Label>
                   {/* Two big choices rather than small radios: the colour says
                       which one is on (green = cash in now, amber = owed). */}
                   <div className="grid grid-cols-3 gap-2 sm:max-w-lg">
@@ -1780,8 +1892,12 @@ export default function SalesPage() {
                     {partPayment
                       ? "Records what the customer paid now as a payment; the rest stays owed on Customer Balances."
                       : formData.paid === false
-                        ? "Records the full amount as owed — record payments later."
-                        : "Records the sale as fully paid and posts a cash-in."}
+                        ? creditUsed > 0
+                          ? `Records the ${formatCurrency(restAfterCredit, currencyCode)} left after the credit as owed — record payments later.`
+                          : "Records the full amount as owed — record payments later."
+                        : creditUsed > 0
+                          ? `Records the ${formatCurrency(restAfterCredit, currencyCode)} left after the credit as paid and posts a cash-in.`
+                          : "Records the sale as fully paid and posts a cash-in."}
                   </p>
                   {partPayment && (
                     <div className="mt-3 flex flex-wrap items-end gap-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
@@ -1799,18 +1915,19 @@ export default function SalesPage() {
                       <div className="text-sm text-blue-900">
                         Still owed:{" "}
                         <b className="tabular-nums">
-                          {formatCurrency(Math.max(0, allLinesAmount - (Number(partPaidAmount) || 0)), currencyCode)}
+                          {formatCurrency(Math.max(0, restAfterCredit - (Number(partPaidAmount) || 0)), currencyCode)}
                         </b>
-                        {(Number(partPaidAmount) || 0) >= allLinesAmount && allLinesAmount > 0 && (
+                        {(Number(partPaidAmount) || 0) >= restAfterCredit && restAfterCredit > 0 && (
                           <span className="ml-2 text-xs text-red-600">covers the whole sale — choose Paid now</span>
                         )}
                       </div>
                     </div>
                   )}
                 </div>
+                )}
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
-                    <Label htmlFor="paymentMethod">Payment method *</Label>
+                    <Label htmlFor="paymentMethod">Payment method{creditCoversAll ? "" : " *"}</Label>
                     <Select value={formData.paymentMethod} onValueChange={(value) => setFormData(prev => ({ ...prev, paymentMethod: value }))}>
                       <SelectTrigger id="paymentMethod" className="bg-white">
                         <SelectValue placeholder="Select payment method" />

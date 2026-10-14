@@ -17,7 +17,7 @@ import {
   Activity, AlertTriangle, ArrowLeftRight, Banknote, BarChart3, Bell, Bird, BookOpen, Box, Boxes,
   Building2, Clock, CreditCard, DollarSign, Egg, Factory, FileText, HelpCircle, History, Hourglass,
   Coins, HandCoins, ListTodo, Package, PackageMinus, Pill, Receipt, Scale, Settings, ShoppingCart, Truck, User, UserCog, Users,
-  Users2, Wallet, Wheat, TrendingUp, Sparkles, ClipboardCheck, CalendarCheck, Flag, Repeat,
+  Users2, Wallet, Wheat, PiggyBank, TrendingUp, Sparkles, ClipboardCheck, CalendarCheck, Flag, Repeat,
 } from "lucide-react"
 import type { UserPermissions } from "@/hooks/use-permissions"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
@@ -229,6 +229,8 @@ export function buildPoultryNavConfig(
           // "Who owes us what" — the collections control centre, so it belongs
           // with the money coming in rather than with the cash accounts.
           { id: "customer-balances", title: "Customer Balances", icon: Users, href: "/customer-balances", visible: money("/customer-balances") },
+          // Money held FOR customers (351): its own page, beside what they owe.
+          { id: "customer-credits", title: "Customer Credits", icon: PiggyBank, href: "/customer-credits", visible: money("/customer-credits") },
         ],
       },
       {

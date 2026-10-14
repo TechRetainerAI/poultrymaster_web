@@ -290,6 +290,13 @@ namespace PoultryFarmAPIWeb.Models
         /// the sale; the rest stays owed. Needs a customer (a walk-in cannot owe).
         /// </summary>
         public decimal? AmountPaidNow { get; set; }
+        /// <summary>
+        /// Pay with customer credit (351): with Paid = false, how much of the
+        /// customer's held credit settles this sale. Allocation only -- no new
+        /// payment, no cash. Applied after any part payment, in the same
+        /// transaction, so the sale never lands with half its credit.
+        /// </summary>
+        public decimal? CustomerCreditAmount { get; set; }
         public List<SaleGroupLine> Lines { get; set; } = new();
     }
 

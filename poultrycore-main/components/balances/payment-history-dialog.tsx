@@ -58,7 +58,13 @@ const SOURCE_LABEL: Record<string, string> = {
   SupplierBalances: "Balances",
   SaleEntry: "Sale",
   PurchaseEntry: "Purchase",
+  // 363: credit added by hand on Customer Credits.
+  OpeningCredit: "Opening credit",
+  Deposit: "Deposit",
+  CreditNote: "Credit note",
 }
+// 363: a credit added by hand is reversed from Customer Credits (owner / admin).
+const MANUAL_CREDIT_SOURCES = new Set(["OpeningCredit", "Deposit", "CreditNote"])
 const sourceLabel = (s?: string | null) => (s ? SOURCE_LABEL[s] ?? s : "—")
 
 // PAY-0001 (migration 240), falling back to the group uuid's first block where
@@ -288,7 +294,7 @@ export function PaymentHistoryDialog({
                         </p>
                       )}
 
-                      {canReverse && !isReversed && reversing !== row.paymentId && (
+                      {canReverse && !isReversed && reversing !== row.paymentId && !MANUAL_CREDIT_SOURCES.has(row.sourceType ?? "") && (
                         <Button
                           variant="outline"
                           size="sm"
@@ -395,7 +401,7 @@ export function PaymentHistoryDialog({
                               {statusBadge(row)}
                             </TableCell>
                             <TableCell className="text-right">
-                              {canReverse && !isReversed && (
+                              {canReverse && !isReversed && !MANUAL_CREDIT_SOURCES.has(row.sourceType ?? "") && (
                                 <Button variant="ghost" size="sm" className="text-slate-600 hover:bg-rose-50 hover:text-rose-700" onClick={() => { setReversing(row.paymentId); setReason("") }}>
                                   <Undo2 className="mr-1.5 h-3.5 w-3.5" /> Reverse
                                 </Button>

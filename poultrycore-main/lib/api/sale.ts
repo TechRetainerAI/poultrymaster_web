@@ -763,6 +763,12 @@ export interface SaleGroupInput {
   requestKey?: string | null
   /** Part payment: with paid = false, what the customer paid now. The rest stays owed. */
   amountPaidNow?: number | null
+  /**
+   * Pay with customer credit: with paid = false, how much of the customer's
+   * held credit settles this sale. Allocation only -- no new payment, no cash.
+   * Applied in the same transaction as the sale.
+   */
+  customerCreditAmount?: number | null
   lines: SaleGroupLineInput[]
 }
 
