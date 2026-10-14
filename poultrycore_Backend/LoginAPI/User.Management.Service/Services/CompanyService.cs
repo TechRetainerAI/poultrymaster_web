@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Identity;
 using User.Management.Data;
@@ -49,6 +50,24 @@ namespace User.Management.Service.Services
                 };
             }
 
+            // Only an account owner creates companies. An employee (IsStaff, even
+            // one flagged admin) would become the new company's OWNER, so it
+            // would sit outside the real owner's account, invisible to them.
+            // IsStaff alone is not trusted to mean "employee": some older owner
+            // accounts carry it, so anyone who already owns a company may.
+            var caller = await _userManager.FindByIdAsync(userId);
+            var ownsACompany = caller != null
+                && (await _dal.GetByUserIdAsync(userId)).Any(c => c.OwnerUserId == userId);
+            if (caller == null || (caller.IsStaff && !ownsACompany))
+            {
+                return new ApiResponse<CompanyResponse>
+                {
+                    IsSuccess = false,
+                    StatusCode = 403,
+                    Message = "Only the account owner can create companies.",
+                };
+            }
+
             var farmId = Guid.NewGuid().ToString();
             var company = await _dal.CreateAsync(farmId, req, userId);
 
@@ -70,6 +89,14 @@ namespace User.Management.Service.Services
             if (string.IsNullOrWhiteSpace(req?.Name))
             {
                 return new ApiResponse<CompanyResponse> { IsSuccess = false, StatusCode = 400, Message = "Company name is required." };
+            }
+
+            // Employees may not rename the company unless flagged admin -- the
+            // same rule the Business Office uses to show the Edit button.
+            var caller = await _userManager.FindByIdAsync(userId);
+            if (caller == null || (caller.IsStaff && !caller.IsAdmin))
+            {
+                return new ApiResponse<CompanyResponse> { IsSuccess = false, StatusCode = 403, Message = "Only the account owner or an admin can edit a company." };
             }
 
             // Only a member of the company may edit it.

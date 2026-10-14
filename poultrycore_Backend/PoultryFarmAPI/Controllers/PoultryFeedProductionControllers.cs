@@ -8,6 +8,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // via the frontend same-origin proxy. Writes auto-audit via the global
     // AuditLogActionFilter. Farm scoping is enforced by @FarmId in every SP.
 
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/Poultry/feed-formulas")]
     public class PoultryFeedFormulaController : ControllerBase

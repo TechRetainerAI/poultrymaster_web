@@ -70,7 +70,7 @@ const VIEWS: { value: LifecycleView; label: string }[] = [
   { value: "Scheduled", label: "Later" },
   { value: "Completed", label: "Completed" },
   { value: "Skipped", label: "Skipped" },
-  { value: "All", label: "Everything" },
+  { value: "All", label: "All" },
 ]
 
 function LifecycleInner() {

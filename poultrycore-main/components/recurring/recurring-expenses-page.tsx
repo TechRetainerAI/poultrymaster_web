@@ -54,7 +54,7 @@ const PAYMENT_METHODS = ["Cash", "MoMo", "Bank", "Card", "Credit"]
 const day = (v?: string | null) => (v ? v.slice(0, 10) : "—")
 const OCC_VIEWS: { value: "Open" | "Posted" | "Skipped" | "All"; label: string }[] = [
   { value: "Open", label: "To review" }, { value: "Posted", label: "Posted" },
-  { value: "Skipped", label: "Skipped" }, { value: "All", label: "Everything" },
+  { value: "Skipped", label: "Skipped" }, { value: "All", label: "All" },
 ]
 
 const OCC_TONE: Record<string, string> = {

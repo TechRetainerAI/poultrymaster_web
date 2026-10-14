@@ -26,10 +26,12 @@ namespace PoultryFarmAPIWeb.Controllers
         { var auth = HotelAuthHelper.VerifyFarmOwnership(User, m.FarmId); if (auth != null) return auth;
           try { return Ok(new { hotelSupplierId = await _svc.InsertAsync(m, UserId) }); } catch (Exception ex) { return BadRequest(ex.Message); } }
 
+        [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
         [HttpPut("suppliers/{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] HotelSupplierModel m)
         { var auth = HotelAuthHelper.VerifyFarmOwnership(User, m.FarmId); if (auth != null) return auth; m.HotelSupplierId = id; await _svc.UpdateAsync(m); return Ok(); }
 
+        [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
         [HttpDelete("suppliers/{id}")]
         public async Task<IActionResult> Delete(int id, [FromQuery] string farmId)
         { var auth = HotelAuthHelper.VerifyFarmOwnership(User, farmId); if (auth != null) return auth; await _svc.DeleteAsync(id, farmId); return Ok(); }

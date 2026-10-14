@@ -20,7 +20,9 @@ import {
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { FormSection, FormField } from "@/components/ui/form-section"
-import { Loader2, Plus, Users2, Pencil, Trash2 } from "lucide-react"
+import { Loader2, Plus, Users2, Pencil, Trash2, KeyRound } from "lucide-react"
+import { useStaffEmployeeLink } from "@/hooks/use-staff-employee-link"
+import { EmployeeBadge } from "@/components/employees/link-badges"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -65,6 +67,16 @@ export default function GenericStaffPage() {
     isActive: true,
     notes: "",
   })
+
+  // Employee link (362): opened from Employees -> prefilled Add staff form.
+  const link = useStaffEmployeeLink({
+    onFromEmployee: (p) => {
+      setForm((f) => ({ ...f, firstName: p.firstName, lastName: p.lastName, phoneNumber: p.phoneNumber ?? "", email: p.email ?? "" }))
+      setOpen(true)
+    },
+  })
+  const makeEmployee = (s: GenericStaff) =>
+    link.makeEmployee(s.genericStaffId, { firstName: s.firstName, lastName: s.lastName, phoneNumber: s.phoneNumber, email: s.email })
 
   const load = async () => {
     setLoading(true)
@@ -121,6 +133,7 @@ export default function GenericStaffPage() {
       })
       if (created) {
         toast({ title: `${created.firstName} ${created.lastName} added.` })
+        await link.linkCreated(created.genericStaffId)
         setOpen(false)
         setForm({
           firstName: "", lastName: "", phoneNumber: "", email: "",
@@ -159,7 +172,7 @@ export default function GenericStaffPage() {
                 </SelectContent>
               </Select>
 
-              <Dialog open={open} onOpenChange={setOpen}>
+              <Dialog open={open} onOpenChange={(o) => { if (o) link.clearPending(); setOpen(o) }}>
                 <DialogTrigger asChild>
                   <Button className="w-full sm:w-auto h-11 sm:h-10"><Plus className="h-4 w-4 mr-1" />Add staff</Button>
                 </DialogTrigger>
@@ -256,6 +269,7 @@ export default function GenericStaffPage() {
                     <>
                       <Badge variant="outline">{s.role}</Badge>
                       <span>· {s.salaryType}</span>
+                      {link.isEmployee(s.genericStaffId) && <EmployeeBadge />}
                     </>
                   )}
                   trailing={(s) => (
@@ -277,6 +291,11 @@ export default function GenericStaffPage() {
                           <Pencil className="h-4 w-4 mr-1" /> Edit
                         </Link>
                       </Button>
+                      {!link.isEmployee(s.genericStaffId) && (
+                        <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => makeEmployee(s)}>
+                          <KeyRound className="h-4 w-4 mr-1" /> Make employee
+                        </Button>
+                      )}
                       <Button size="sm" variant="outline" className="flex-1 h-10 text-red-600 border-red-200" onClick={() => setDeleteTarget(s)}>
                         <Trash2 className="h-4 w-4 mr-1" /> Archive
                       </Button>
@@ -304,6 +323,7 @@ export default function GenericStaffPage() {
                               <Link href={`/generic-staff/${s.genericStaffId}`} className="text-emerald-700 hover:underline">
                                 {s.firstName} {s.lastName}
                               </Link>
+                              {link.isEmployee(s.genericStaffId) && <EmployeeBadge className="ml-2" />}
                             </TableCell>
                             <TableCell><Badge variant="outline">{s.role}</Badge></TableCell>
                             <TableCell>{s.salaryType}</TableCell>
@@ -319,6 +339,9 @@ export default function GenericStaffPage() {
                               <Link href={`/generic-staff/${s.genericStaffId}`}>
                                 <Button size="sm" variant="ghost" title="Edit"><Pencil className="h-4 w-4" /></Button>
                               </Link>
+                              {!link.isEmployee(s.genericStaffId) && (
+                                <Button size="sm" variant="ghost" onClick={() => makeEmployee(s)} title="Make employee (give a login)"><KeyRound className="h-4 w-4" /></Button>
+                              )}
                               <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(s)} title="Archive"><Trash2 className="h-4 w-4 text-red-500" /></Button>
                             </TableCell>
                           </TableRow>
@@ -334,6 +357,8 @@ export default function GenericStaffPage() {
           )}
         </main>
       </div>
+
+      {link.dialog}
 
       <ConfirmDeleteDialog
         open={!!deleteTarget}

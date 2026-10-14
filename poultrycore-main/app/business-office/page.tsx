@@ -34,6 +34,7 @@ function typeStrip(t: string) {
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/use-permissions"
+import { useCanCreateCompany } from "@/hooks/use-setup-access"
 import { BusinessOfficeShell } from "@/components/dashboard/business-office-shell"
 import { MyTasks } from "@/components/business-office/my-tasks"
 import {
@@ -92,6 +93,8 @@ export default function BusinessOfficePage() {
   const user = useAuthStore((s) => s.user)
   const userEmail = user?.email
   const isAdmin = permissions.isAdmin
+  // Account owner only: creating a company makes the caller its owner.
+  const canCreateCompany = useCanCreateCompany()
 
   const [companies, setLocal] = useState<Company[]>([])
   const [loading, setLoading] = useState(true)
@@ -366,7 +369,7 @@ export default function BusinessOfficePage() {
           ) : companies.length === 0 ? (
             <Card><CardContent className="p-10 text-center">
               <Building2 className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-              {isAdmin ? (<><p className="text-slate-600 mb-4">Create your first company to get started.</p><Button onClick={() => setOpen(true)}><Plus className="h-4 w-4 mr-1" /> Create company</Button></>)
+              {canCreateCompany ? (<><p className="text-slate-600 mb-4">Create your first company to get started.</p><Button onClick={() => setOpen(true)}><Plus className="h-4 w-4 mr-1" /> Create company</Button></>)
                 : (<p className="text-slate-600">You don&apos;t currently have access to any company. Contact your Business Office administrator.</p>)}
             </CardContent></Card>
           ) : visible.length === 0 ? (
@@ -420,7 +423,7 @@ export default function BusinessOfficePage() {
         <section>
           <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2">Quick actions</h3>
           <div className="flex flex-wrap gap-2">
-            {isAdmin && <QuickLink onClick={() => setOpen(true)} icon={Plus} label="Create company" />}
+            {canCreateCompany && <QuickLink onClick={() => setOpen(true)} icon={Plus} label="Create company" />}
             {isAdmin && <QuickLink onClick={() => router.push("/business-office/setup?tab=users")} icon={Users} label="Manage users" />}
             <QuickLink onClick={() => router.push("/business-office/companies")} icon={Building2} label="All companies" />
             <QuickLink onClick={() => router.push("/business-office/help")} icon={HelpCircle} label="Help center" />

@@ -39,6 +39,7 @@ namespace PoultryFarmAPIWeb.Controllers
             catch (Exception ex) { return BadRequest(ex.Message); }
         }
 
+        [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
         [HttpPut("customers/{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] HotelCustomerModel m)
         {
@@ -48,6 +49,7 @@ namespace PoultryFarmAPIWeb.Controllers
             return Ok();
         }
 
+        [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
         [HttpDelete("customers/{id}")]
         public async Task<IActionResult> Delete(int id, [FromQuery] string farmId)
         {
