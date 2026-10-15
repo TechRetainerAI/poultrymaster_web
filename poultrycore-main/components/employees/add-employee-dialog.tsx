@@ -7,6 +7,10 @@
 //
 // `boMode` (Business Office): no active company, so the form shows a Company
 // dropdown to choose which company the new employee joins.
+//
+// `prefill` (Staff page "Make employee", migration 362): start from what the
+// staff record already knows; the user adds the login details. onCreated gets
+// the new employee so the caller can link it to that staff record.
 
 import { useEffect, useState } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -18,7 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { UserCog, Loader2, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { createEmployee, sendCredentialsEmail, type CreateEmployeeData } from "@/lib/api/admin"
+import { createEmployee, sendCredentialsEmail, type CreateEmployeeData, type Employee } from "@/lib/api/admin"
 import { getMyCompanies, type Company } from "@/lib/api/companies"
 import { getUserContext } from "@/lib/utils/user-context"
 import { useToast } from "@/hooks/use-toast"
@@ -31,8 +35,15 @@ import {
 } from "@/lib/employees/permissions"
 import { useAuthStore } from "@/lib/store/auth-store"
 
-const blankForm = () => ({
-  userName: "", email: "", password: "", confirmPassword: "", firstName: "", lastName: "", phoneNumber: "",
+export interface EmployeePrefill { firstName: string; lastName: string; phoneNumber?: string | null; email?: string | null }
+
+// "Ama Owusu-Ansah" -> "ama_owusuansah": the username rule is letters, digits, underscores.
+const suggestUserName = (p: EmployeePrefill) =>
+  [p.firstName, p.lastName].map((x) => x.trim().toLowerCase().replace(/[^a-z0-9]/g, "")).filter(Boolean).join("_")
+
+const blankForm = (p?: EmployeePrefill | null) => ({
+  userName: p ? suggestUserName(p) : "", email: p?.email ?? "", password: "", confirmPassword: "",
+  firstName: p?.firstName ?? "", lastName: p?.lastName ?? "", phoneNumber: p?.phoneNumber ?? "",
   isAdmin: false, adminTitle: "", adminPermissions: { ...DEFAULT_ADMIN_PERMISSIONS },
   featurePermissions: { ...DEFAULT_STAFF_FEATURE_PERMISSIONS },
 })
@@ -41,12 +52,14 @@ export function AddEmployeeDialog({
   open,
   onOpenChange,
   boMode = false,
+  prefill,
   onCreated,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   boMode?: boolean
-  onCreated?: () => void
+  prefill?: EmployeePrefill | null
+  onCreated?: (employee: Employee | undefined) => void | Promise<void>
 }) {
   const { toast } = useToast()
   const [createLoading, setCreateLoading] = useState(false)
@@ -68,11 +81,12 @@ export function AddEmployeeDialog({
   // Reset the form each time the dialog opens; load companies in office mode.
   useEffect(() => {
     if (!open) return
-    setCreateForm(blankForm())
+    setCreateForm(blankForm(prefill))
     setCreateError("")
     setShowStaffPermissions(false)
     setBoFarmId("")
     if (boMode) getMyCompanies().then(setBoCompanies).catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- prefill is read once per opening
   }, [open, boMode])
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
@@ -124,7 +138,7 @@ export function AddEmployeeDialog({
         else toast({ title: "Couldn't email credentials", description: r.message || "Email was not sent.", variant: "destructive" })
       }
       onOpenChange(false)
-      onCreated?.()
+      await onCreated?.(result.data)
     } else {
       setCreateError(result.message || "Failed to create employee")
     }
@@ -136,7 +150,11 @@ export function AddEmployeeDialog({
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><UserCog className="w-5 h-5 text-blue-600" /> Add New Employee</DialogTitle>
-          <DialogDescription>Create a staff member or configure an admin with custom permissions</DialogDescription>
+          <DialogDescription>
+            {prefill
+              ? `Give ${prefill.firstName} ${prefill.lastName} a login. Their staff record is linked to it, so they show on both Employees and Staff.`
+              : "Create a staff member or configure an admin with custom permissions"}
+          </DialogDescription>
         </DialogHeader>
         {createError && <Alert variant="destructive"><AlertDescription>{createError}</AlertDescription></Alert>}
         <form onSubmit={handleCreateSubmit} className="space-y-4">

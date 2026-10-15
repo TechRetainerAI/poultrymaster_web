@@ -6,6 +6,7 @@ using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Controllers
 {
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Authorize]
     [Route("api/Restaurant/setup")]
@@ -54,6 +55,7 @@ namespace PoultryFarmAPIWeb.Controllers
             return Ok(list);
         }
 
+        [PoultryFarmAPIWeb.Filters.AllowStaffSetupWrite]
         [HttpPost("suppliers")]
         public async Task<IActionResult> CreateSupplier([FromBody] CreateSupplierRequest req)
         {

@@ -229,21 +229,21 @@ export function ReverseSaleDialog({
                           onValueChange={(v) => setHandling((h) => ({ ...h, [p.key]: v as PaymentAction }))}
                           className="gap-2"
                         >
-                          <label className={cn("flex cursor-pointer gap-2 rounded-md border p-2.5", action === "KeepAsCredit" && "border-blue-400 bg-blue-50/60")}>
-                            <RadioGroupItem value="KeepAsCredit" className="mt-0.5" />
-                            <span className="text-sm">
-                              <span className="font-medium">Keep it as customer credit</span>
-                              <span className="block text-xs text-slate-600">
-                                The money stays received. {money(p.allocated)} becomes credit the customer can use on another sale. The cash account does not change.
-                              </span>
-                            </span>
-                          </label>
                           <label className={cn("flex cursor-pointer gap-2 rounded-md border p-2.5", action === "ReversePayment" && "border-red-300 bg-red-50/60")}>
                             <RadioGroupItem value="ReversePayment" className="mt-0.5" />
                             <span className="text-sm">
                               <span className="font-medium">Reverse the payment</span>
                               <span className="block text-xs text-slate-600">
                                 {p.paymentNumbers ? `Payment ${p.paymentNumbers}` : "The money received"} is reversed. {p.cashAccountName || "Its cash account"} decreases by {money(p.allocated)}, shown in Cash Flow as a payment reversal (not an expense).
+                              </span>
+                            </span>
+                          </label>
+                          <label className={cn("flex cursor-pointer gap-2 rounded-md border p-2.5", action === "KeepAsCredit" && "border-blue-400 bg-blue-50/60")}>
+                            <RadioGroupItem value="KeepAsCredit" className="mt-0.5" />
+                            <span className="text-sm">
+                              <span className="font-medium">Keep it as customer credit</span>
+                              <span className="block text-xs text-slate-600">
+                                The money stays received. {money(p.allocated)} becomes credit the customer can use on another sale. The cash account does not change.
                               </span>
                             </span>
                           </label>

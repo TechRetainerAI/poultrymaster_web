@@ -58,7 +58,9 @@ namespace PoultryFarmAPIWeb.Controllers
             if (await IsFutureDateAsync(model.FarmId, model.Date))
                 return BadRequest("Production date cannot be in the future.");
 
-            var newId = await _service.Insert(model);
+            int newId;
+            try { newId = await _service.Insert(model); }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001") { return BadRequest(new { message = ex.MessageText }); }
             var createdRecord = await _service.GetById(newId, model.UserId, model.FarmId);
             
             if (createdRecord == null)
@@ -82,7 +84,8 @@ namespace PoultryFarmAPIWeb.Controllers
             if (await IsFutureDateAsync(model.FarmId, model.Date))
                 return BadRequest("Production date cannot be in the future.");
 
-            await _service.Update(model);
+            try { await _service.Update(model); }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001") { return BadRequest(new { message = ex.MessageText }); }
             return NoContent();
         }
 
@@ -92,7 +95,8 @@ namespace PoultryFarmAPIWeb.Controllers
             if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(farmId))
                 return BadRequest("UserId and FarmId are required.");
 
-            await _service.Delete(id, userId, farmId);
+            try { await _service.Delete(id, userId, farmId); }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001") { return BadRequest(new { message = ex.MessageText }); }
             return NoContent();
         }
     }

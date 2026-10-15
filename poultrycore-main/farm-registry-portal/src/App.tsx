@@ -11,7 +11,7 @@ import {
 } from "./api"
 import { hasPlatformDirectoryAccess } from "./platform-roles"
 import BillingAdmin, { BILLING_SECTIONS, type Section as BillingSection } from "./BillingAdmin"
-import { CustomersPage, FarmsPage, SettingsPage } from "./pages"
+import { CustomersPage, FarmDetailPanel, FarmsPage, SettingsPage } from "./pages"
 import { ReportsPage } from "./reports"
 import { PlatformDashboard } from "./platform-dashboard"
 import { CustomerIntelligencePage } from "./customer-intelligence"
@@ -698,6 +698,8 @@ export default function App() {
               revenueByOrg={revenue ? new Map(revenue.organizations.map((o) => [o.organizationId, o])) : null}
             />
           ) : (
+            <>
+            {selectedAuditFarmId && <FarmDetailPanel token={token!} farmId={selectedAuditFarmId} />}
             <div className="card">
               <div className="card-toolbar">
                 <h2 className="card-toolbar-title">Platform Activity Audit</h2>
@@ -884,6 +886,7 @@ export default function App() {
                 </table>
               </div>
             </div>
+            </>
           )}
 
           <div className="card">

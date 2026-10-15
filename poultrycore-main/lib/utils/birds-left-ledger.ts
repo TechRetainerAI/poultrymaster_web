@@ -2,6 +2,7 @@ import type { Flock } from "@/lib/api/flock"
 import type { ProductionRecord } from "@/lib/api/production-record"
 import type { Sale } from "@/lib/api/sale"
 import { getBirdsLeftForFlockFromRecords } from "@/lib/utils/production-records"
+import { byproductRole } from "@/lib/poultry/byproducts"
 
 export type BirdsLeftLedgerRow = {
   id: string
@@ -30,6 +31,8 @@ export function isBirdSaleProduct(product: string | null | undefined): boolean {
   const p = (product ?? "").trim().toLowerCase()
   if (!p) return false
   if (p.includes("egg")) return false
+  // 374: Dead Birds left the live count when they died, not when sold.
+  if (byproductRole(product) != null) return false
   return /bird|chicken|broiler|layer|cull|live|poultry|hen|rooster/.test(p)
 }
 

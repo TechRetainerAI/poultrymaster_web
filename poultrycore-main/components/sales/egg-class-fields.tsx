@@ -15,6 +15,7 @@ import { NumberInput } from "@/components/ui/number-input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { EggClass } from "@/lib/api/egg-sorting"
 import { EGGS_PER_CRATE } from "@/lib/production/production-record-calc"
+import { byproductRole } from "@/lib/poultry/byproducts"
 
 /** Select value for Unsorted / General (sent to the API as 0). */
 export const UNSORTED_VALUE = "unsorted"
@@ -89,7 +90,9 @@ export interface ExtraEggLine {
   quantity?: number
 }
 
-export const extraLineIsEggs = (l: ExtraEggLine) => l.product == null || l.product.toLowerCase().includes("egg")
+// 374: Broken Eggs is not an egg line (no size, no crates): it is its own stock.
+export const extraLineIsEggs = (l: ExtraEggLine) =>
+  l.product == null || (l.product.toLowerCase().includes("egg") && byproductRole(l.product) == null)
 
 export const extraLineEggs = (l: ExtraEggLine) => l.crates * EGGS_PER_CRATE + l.loose
 

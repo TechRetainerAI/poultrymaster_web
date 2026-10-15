@@ -3,7 +3,7 @@
 // row actions and a pagination footer.
 
 import { useEffect, useMemo, useState } from "react"
-import { farmApiBase, type FarmSummary } from "./api"
+import { farmApiBase, fetchFarmDetail, setUserTwoFactor, type FarmDetail, type FarmPerson, type FarmSummary } from "./api"
 import { billingConfig, billingGet, billingSend, userIdFromJwt } from "./billing-api"
 
 const PAGE_SIZE = 10
@@ -153,6 +153,147 @@ export function FarmsPage({ farms, onAudit, token, onDeleted }: {
         </table>
       </div>
       <Pager page={page} total={filtered.length} onPage={setPage} />
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------- Farm audit detail
+function fullName(p: FarmPerson): string {
+  const n = `${p.firstName || ""} ${p.lastName || ""}`.trim()
+  return n || p.userName || p.email || "—"
+}
+
+/**
+ * Developer-side audit panel for one farm: farm fields, the owner account and
+ * every employee — each with their two-factor state and a one-click override to
+ * switch 2FA off (e.g. a customer who turned it on and can no longer receive the
+ * OTP email). Shown above the raw audit trail when a farm is selected.
+ */
+export function FarmDetailPanel({ token, farmId }: { token: string; farmId: string }) {
+  const [detail, setDetail] = useState<FarmDetail | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [err, setErr] = useState<string | null>(null)
+  const [busyUser, setBusyUser] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+
+  async function load() {
+    setLoading(true)
+    setErr(null)
+    try {
+      setDetail(await fetchFarmDetail(token, farmId))
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Failed to load farm detail.")
+    } finally {
+      setLoading(false)
+    }
+  }
+  useEffect(() => { void load() }, [token, farmId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function toggle2fa(p: FarmPerson, enabled: boolean) {
+    setNotice(null)
+    setErr(null)
+    setBusyUser(p.userId)
+    try {
+      const result = await setUserTwoFactor(token, p.userId, enabled)
+      setDetail((d) => {
+        if (!d) return d
+        const apply = (x: FarmPerson): FarmPerson => (x.userId === p.userId ? { ...x, twoFactorEnabled: result } : x)
+        return { ...d, owner: d.owner ? apply(d.owner) : d.owner, employees: d.employees.map(apply) }
+      })
+      setNotice(`Two-factor ${result ? "enabled" : "turned off"} for ${p.userName || fullName(p)}.`)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Failed to update 2FA.")
+    } finally {
+      setBusyUser(null)
+    }
+  }
+
+  function Pill({ on }: { on: boolean }) {
+    return <span className={on ? "badge badge-yes" : "badge badge-no"}>{on ? "2FA ON" : "2FA off"}</span>
+  }
+
+  function ToggleBtn({ p }: { p: FarmPerson }) {
+    const busy = busyUser === p.userId
+    return p.twoFactorEnabled ? (
+      <button type="button" className="link-btn link-danger" disabled={busy} onClick={() => void toggle2fa(p, false)}>
+        {busy ? "Saving…" : "Turn off 2FA"}
+      </button>
+    ) : (
+      <button type="button" className="link-btn" disabled={busy} onClick={() => void toggle2fa(p, true)}>
+        {busy ? "Saving…" : "Turn on 2FA"}
+      </button>
+    )
+  }
+
+  return (
+    <div className="card">
+      <div className="card-toolbar">
+        <h2 className="card-toolbar-title">Farm detail</h2>
+        <button type="button" className="primary primary-inline" onClick={() => void load()} disabled={loading}>
+          {loading ? "Loading…" : "Refresh"}
+        </button>
+      </div>
+
+      {err && <div className="error">{err}</div>}
+      {notice && <p className="billing-notice">{notice}</p>}
+
+      {loading && !detail ? (
+        <p className="subtle-help">Loading farm detail…</p>
+      ) : !detail ? (
+        <p className="subtle-help">No detail available.</p>
+      ) : (
+        <>
+          <div className="settings-grid">
+            <div className="setting-tile"><div className="setting-name">Farm</div><div className="setting-desc">{detail.farmName || "Unnamed farm"}</div></div>
+            <div className="setting-tile"><div className="setting-name">Type</div><div className="setting-desc">{detail.type || "—"}</div></div>
+            <div className="setting-tile"><div className="setting-name">Contact email</div><div className="setting-desc">{detail.email || "—"}</div></div>
+            <div className="setting-tile"><div className="setting-name">Phone</div><div className="setting-desc">{detail.phoneNumber || "—"}</div></div>
+            <div className="setting-tile"><div className="setting-name">Farm ID</div><div className="setting-desc mono">{detail.farmId}</div></div>
+          </div>
+
+          <h3 className="card-toolbar-title" style={{ marginTop: 18 }}>Owner</h3>
+          {detail.owner ? (
+            <div className="row-entity" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+              <div className="row-entity">
+                <span className="row-avatar">{initials(fullName(detail.owner))}</span>
+                <div>
+                  <div className="row-name">{fullName(detail.owner)} <span className="mono" style={{ color: "#64748b" }}>@{detail.owner.userName || "—"}</span></div>
+                  <div className="row-sub">{detail.owner.email || "no email on file"}{detail.owner.emailConfirmed ? "" : " · email unconfirmed"}</div>
+                </div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <Pill on={detail.owner.twoFactorEnabled} />
+                <ToggleBtn p={detail.owner} />
+              </div>
+            </div>
+          ) : (
+            <p className="subtle-help">No owner account found for this farm.</p>
+          )}
+
+          <h3 className="card-toolbar-title" style={{ marginTop: 18 }}>Employees ({detail.employees.length})</h3>
+          <div style={{ overflowX: "auto" }}>
+            <table>
+              <thead>
+                <tr><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>2FA</th><th>Actions</th></tr>
+              </thead>
+              <tbody>
+                {detail.employees.length === 0 ? (
+                  <tr><td colSpan={6} style={{ color: "#64748b" }}>No employees under this farm.</td></tr>
+                ) : detail.employees.map((e) => (
+                  <tr key={e.userId}>
+                    <td style={{ fontWeight: 600 }}>{fullName(e)}</td>
+                    <td className="mono">{e.userName || "—"}</td>
+                    <td>{e.email || "—"}{e.emailConfirmed ? "" : <span className="row-sub"> (unconfirmed)</span>}</td>
+                    <td>{e.role}</td>
+                    <td><Pill on={e.twoFactorEnabled} /></td>
+                    <td><ToggleBtn p={e} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </div>
   )
 }

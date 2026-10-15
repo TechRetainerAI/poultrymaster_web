@@ -13,9 +13,21 @@ const item = (over: Partial<ReversalPaymentItem>): ReversalPaymentItem => ({
 })
 
 describe("reversal outcome", () => {
-  it("keeps a sale-generated payment as credit by default: cash unchanged", () => {
+  it("reverses a sale-generated payment by default, even when the server suggests credit", () => {
     const p = { payments: [item({})] }
-    expect(reversalOutcome(p, defaultHandling(p))).toEqual({ creditCreated: 7500, cashOut: 0, cashOutByAccount: [] })
+    expect(reversalOutcome(p, defaultHandling(p))).toEqual({
+      creditCreated: 0, cashOut: 7500, cashOutByAccount: [{ account: "Main Cash", amount: 7500 }],
+    })
+  })
+
+  it("keeps it as credit when chosen: cash unchanged", () => {
+    const p = { payments: [item({})] }
+    expect(reversalOutcome(p, { g1: "KeepAsCredit" })).toEqual({ creditCreated: 7500, cashOut: 0, cashOutByAccount: [] })
+  })
+
+  it("a payment that cannot be reversed opens as credit", () => {
+    const bulk = item({ key: "g2", source: "CustomerBalances", saleGenerated: false, allowed: ["KeepAsCredit"] })
+    expect(defaultHandling({ payments: [bulk] })).toEqual({ g2: "KeepAsCredit" })
   })
 
   it("reverses it when chosen: Money Out on the original account", () => {

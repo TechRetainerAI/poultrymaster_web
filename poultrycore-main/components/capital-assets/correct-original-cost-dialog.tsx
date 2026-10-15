@@ -30,6 +30,8 @@
 // arithmetic, and it earns it by never being persisted.
 // =============================================================================
 
+import { COST_CORRECTION_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
 import { useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -176,9 +178,7 @@ export function CorrectOriginalCostDialog({
 
           <section>
             <Label className="text-sm">Reason <span className="text-red-600">*</span></Label>
-            <Textarea rows={2} value={reason} className="mt-1"
-                      onChange={(e) => setReason(e.target.value)}
-                      placeholder="Original invoice amount was entered incorrectly" />
+            <ReasonSelect options={COST_CORRECTION_REASONS} value={reason} onChange={setReason} />
             <p className="mt-1 text-[11px] text-slate-500">
               Required. It is kept on the {term}&apos;s cost history with your name and the date.
             </p>

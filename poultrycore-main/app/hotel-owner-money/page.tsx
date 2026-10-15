@@ -6,6 +6,8 @@
 // contribution is not a sale and a draw is not an expense: both move cash and
 // show on Cash Flow as financing, neither touches profit (migration 331).
 
+import { REVERSAL_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -515,8 +517,7 @@ export default function HotelOwnerMoneyPage() {
 
               <FormSection title="Why" color="amber" columns={1}>
                 <FormField label="Reason *" hint="Written to the audit trail.">
-                  <Textarea rows={3} value={reason} onChange={(e) => setReason(e.target.value)}
-                            placeholder="Why is this being reversed?" />
+                  <ReasonSelect options={REVERSAL_REASONS} value={reason} onChange={setReason} />
                 </FormField>
               </FormSection>
             </div>

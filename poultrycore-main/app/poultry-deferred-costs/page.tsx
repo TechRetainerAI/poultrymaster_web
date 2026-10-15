@@ -48,6 +48,7 @@ import { useFmt } from "@/lib/currency"
 import { explainLoadFailure } from "@/lib/api/http-error"
 import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/use-permissions"
+import { ManualDeferredCostPanel } from "@/components/poultry/manual-deferred-cost-panel"
 import {
   RECOGNITION_TONE_CLASS, deferredStatusTone,
   REMAINING_DEFERRED_TOOLTIP, RECOGNIZED_COST_TOOLTIP, OPERATIONAL_COST_TOOLTIP,
@@ -285,6 +286,9 @@ function DeferredCostsInner() {
           <div className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
             {DEFERRED_PAGE_INTRO}
           </div>
+
+          {/* 371: cost for stock no purchase covers (e.g. opening stock), recorded as an event. */}
+          <ManualDeferredCostPanel onChanged={() => { void load() }} />
 
           {/* Filters */}
           <Card><CardContent className="p-3">

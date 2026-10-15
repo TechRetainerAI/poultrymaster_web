@@ -1,4 +1,5 @@
 import type { FeatureAccessPermissions } from "@/hooks/use-permissions"
+import { isSetupAdminRoute } from "@/lib/nav/setup-admin-routes"
 
 const HOTEL_ROUTE_ACCESS: Record<string, (f: FeatureAccessPermissions, isAdmin: boolean) => boolean> = {
   // --- Rooms ---------------------------------------------------------------
@@ -80,6 +81,8 @@ export function isHotelNavItemVisible(
   isAdmin: boolean,
 ): boolean {
   if (isAdmin) return true
+  // Setup is admin-only whatever the toggles say (lib/nav/setup-admin-routes).
+  if (isSetupAdminRoute(href)) return false
   const rule = HOTEL_ROUTE_ACCESS[href]
   if (!rule) return true
   return rule(featureAccess, isAdmin)

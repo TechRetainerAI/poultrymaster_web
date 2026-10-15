@@ -7,6 +7,8 @@
  * API: lib/api/restaurant-finance.ts (migration 323).
  */
 
+import { LOAN_REVERSAL_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -758,11 +760,7 @@ export default function RestaurantLoansPage() {
           </DialogHeader>
           <div className="space-y-1.5">
             <Label>Reason <span className="text-rose-500">*</span></Label>
-            <Input
-              className="h-10" placeholder="Why is this being reversed?" autoFocus
-              value={reverseReason}
-              onChange={(e) => setReverseReason(e.target.value)}
-            />
+            <ReasonSelect options={LOAN_REVERSAL_REASONS} value={reverseReason} onChange={setReverseReason} />
           </div>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setReversePayment(null)} disabled={reversing}>Keep it</Button>
@@ -787,11 +785,7 @@ export default function RestaurantLoansPage() {
           </DialogHeader>
           <div className="space-y-1.5">
             <Label>Reason <span className="text-rose-500">*</span></Label>
-            <Input
-              className="h-10" placeholder="Why is this loan being cancelled?" autoFocus
-              value={cancelReason}
-              onChange={(e) => setCancelReason(e.target.value)}
-            />
+            <ReasonSelect options={LOAN_REVERSAL_REASONS} value={cancelReason} onChange={setCancelReason} />
           </div>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setCancelTarget(null)} disabled={cancelling}>Keep loan</Button>

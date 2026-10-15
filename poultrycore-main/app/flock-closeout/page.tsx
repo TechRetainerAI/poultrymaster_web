@@ -16,7 +16,7 @@
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { BarChart3, Flag, Loader2, RefreshCw, Lock } from "lucide-react"
+import { BarChart3, Flag, Loader2, RefreshCw, Lock, Scale } from "lucide-react"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Badge } from "@/components/ui/badge"
@@ -25,6 +25,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { tabCountCls, tabListCls, tabTriggerCls } from "@/lib/ui/tab-styles"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { ListFilters } from "@/components/ui/list-filters"
 import { usePagination } from "@/hooks/use-pagination"
@@ -116,6 +117,7 @@ export default function FlockCloseoutPage() {
 
   const standing = rows.filter((r) => r.status === "Active" || r.status === "Inactive").reduce((a, r) => a + r.finalBirds, 0)
   const closedCount = rows.filter((r) => r.status === "Closed").length
+  const openCount = rows.filter((r) => r.status === "Active" || r.status === "Inactive").length
 
   // Other pages read flocks through a 5-minute cache; a close or reopen must
   // not leave them offering a flock that just changed state.
@@ -162,7 +164,7 @@ export default function FlockCloseoutPage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <Card><CardContent className="p-4">
               <div className="text-xs text-slate-500">Open flocks</div>
-              <div className="text-2xl font-semibold tabular-nums">{n(rows.filter((r) => r.status === "Active" || r.status === "Inactive").length)}</div>
+              <div className="text-2xl font-semibold tabular-nums">{n(openCount)}</div>
             </CardContent></Card>
             <Card><CardContent className="p-4">
               <div className="text-xs text-slate-500">Birds standing in them</div>
@@ -175,10 +177,18 @@ export default function FlockCloseoutPage() {
           </div>
 
           <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
-            <TabsList>
-              <TabsTrigger value="open">Ready to close</TabsTrigger>
-              <TabsTrigger value="closed">Closed</TabsTrigger>
-              <TabsTrigger value="compare">Compare</TabsTrigger>
+            <TabsList className={tabListCls}>
+              <TabsTrigger value="open" className={tabTriggerCls}>
+                <Flag className="h-4 w-4" /> Ready to close
+                <span className={tabCountCls}>{n(openCount)}</span>
+              </TabsTrigger>
+              <TabsTrigger value="closed" className={tabTriggerCls}>
+                <Lock className="h-4 w-4" /> Closed
+                <span className={tabCountCls}>{n(closedCount)}</span>
+              </TabsTrigger>
+              <TabsTrigger value="compare" className={tabTriggerCls}>
+                <Scale className="h-4 w-4" /> Compare
+              </TabsTrigger>
             </TabsList>
 
             {tab !== "compare" && (

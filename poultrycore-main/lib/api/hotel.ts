@@ -762,7 +762,7 @@ export interface HotelDashboardSummary { totalRooms: number; availableRooms: num
 
 // Staff API
 export async function listHotelStaff(): Promise<HotelStaff[]> { return jget<HotelStaff[]>("/Hotel/staff") }
-export async function createHotelStaff(input: { firstName: string; lastName: string; role: string; department: string; salaryAmount: number; email?: string; phone?: string; hireDate?: string }): Promise<HotelStaff> { return jsend<HotelStaff>("/Hotel/staff", "POST", { ...input, farmId: activeFarmId() }) }
+export async function createHotelStaff(input: { firstName: string; lastName: string; role: string; department: string; salaryAmount: number; email?: string; phone?: string; hireDate?: string; skipLogin?: boolean }): Promise<HotelStaff> { return jsend<HotelStaff>("/Hotel/staff", "POST", { ...input, farmId: activeFarmId() }) }
 export async function updateHotelStaff(id: number, input: any): Promise<void> { await jsend<void>(`/Hotel/staff/${id}`, "PUT", { ...input, farmId: activeFarmId() }) }
 export async function deleteHotelStaff(id: number): Promise<void> { const farmId = activeFarmId(); const url = farmApiUrl(`/Hotel/staff/${id}?farmId=${encodeURIComponent(farmId)}`); const res = await fetch(url, { method: "DELETE", headers: getAuthHeaders() }); if (!res.ok) throw new Error(await readApiError(res)) }
 

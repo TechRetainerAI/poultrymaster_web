@@ -190,6 +190,11 @@ const SOURCE_LABELS: Record<string, string> = {
 
   // Poultry only
   PoultrySupplierPayment: "Supplier payments",
+  // 376: a reversed supplier payment keeps its Money Out; the reversal is its
+  // own Money In (cash book: PoultrySupplierPaymentReversal; Cash Flow:
+  // SupplierPaymentReversal).
+  PoultrySupplierPaymentReversal: "Supplier payments reversed",
+  SupplierPaymentReversal: "Supplier payments reversed",
   FeedProduction: "Feed made",
   FeedProductionReversal: "Feed production reversed",
 

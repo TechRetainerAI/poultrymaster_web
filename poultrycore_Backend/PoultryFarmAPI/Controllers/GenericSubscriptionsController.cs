@@ -19,6 +19,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // =========================================================================
     // Business template + module visibility.
     // =========================================================================
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/generic-company/{farmId}")]
     public class GenericBusinessTemplateController : ControllerBase

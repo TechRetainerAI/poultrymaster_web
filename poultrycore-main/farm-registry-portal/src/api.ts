@@ -155,3 +155,56 @@ export async function fetchFarms(token: string): Promise<FarmSummary[]> {
   const data = (await res.json()) as FarmSummary[]
   return Array.isArray(data) ? data : []
 }
+
+export type FarmPerson = {
+  userId: string
+  userName?: string | null
+  email?: string | null
+  firstName?: string | null
+  lastName?: string | null
+  role: string
+  twoFactorEnabled: boolean
+  emailConfirmed: boolean
+}
+
+export type FarmDetail = {
+  farmId: string
+  farmName?: string | null
+  type?: string | null
+  email?: string | null
+  phoneNumber?: string | null
+  owner?: FarmPerson | null
+  employees: FarmPerson[]
+}
+
+/** Farm details + owner account + employees (SystemAdmin / PlatformOwner). Backs the Audit action. */
+export async function fetchFarmDetail(token: string, farmId: string): Promise<FarmDetail> {
+  const base = loginApiBase()
+  const res = await fetch(`${base}/api/System/farms/${encodeURIComponent(farmId)}/detail`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  })
+  if (res.status === 401 || res.status === 403) {
+    throw new Error("Not authorized. Use the developer account (SystemAdmin or PlatformOwner).")
+  }
+  if (!res.ok) {
+    const t = await res.text()
+    throw new Error(t || `Farm detail request failed (${res.status})`)
+  }
+  const data = (await res.json()) as FarmDetail
+  return { ...data, employees: Array.isArray(data.employees) ? data.employees : [] }
+}
+
+/** Platform-admin override: turn two-factor on/off for any account. Returns the resulting state. */
+export async function setUserTwoFactor(token: string, userId: string, enabled: boolean): Promise<boolean> {
+  const base = loginApiBase()
+  const res = await fetch(`${base}/api/System/users/${encodeURIComponent(userId)}/two-factor`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ enabled }),
+  })
+  const data = (await res.json().catch(() => ({}))) as { ok?: boolean; twoFactorEnabled?: boolean; message?: string }
+  if (!res.ok || data.ok === false) {
+    throw new Error(data.message || `Failed to update 2FA (${res.status}).`)
+  }
+  return data.twoFactorEnabled ?? enabled
+}

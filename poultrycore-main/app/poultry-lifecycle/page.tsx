@@ -13,6 +13,7 @@
 // ordinary pages (flock, health records, production, closeout); nothing is
 // executed from here.
 
+import { SKIP_REASONS, TASK_REOPEN_REASONS } from "@/lib/reversal-reasons"
 import { Suspense, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -70,7 +71,7 @@ const VIEWS: { value: LifecycleView; label: string }[] = [
   { value: "Scheduled", label: "Later" },
   { value: "Completed", label: "Completed" },
   { value: "Skipped", label: "Skipped" },
-  { value: "All", label: "Everything" },
+  { value: "All", label: "All" },
 ]
 
 function LifecycleInner() {
@@ -423,6 +424,7 @@ function LifecycleInner() {
         open={skipping != null}
         onOpenChange={(o) => { if (!o) setSkipping(null) }}
         title={skipping ? `Skip "${skipping.title}"?` : "Skip task"}
+        options={SKIP_REASONS}
         description={skipping ? `${skipping.flockName}. The reason is kept in the task's history.` : undefined}
         label="Why is it being skipped?"
         confirmLabel="Skip task"
@@ -438,6 +440,7 @@ function LifecycleInner() {
         open={reopening != null}
         onOpenChange={(o) => { if (!o) setReopening(null) }}
         title={reopening ? `Reopen "${reopening.title}"?` : "Reopen task"}
+        options={TASK_REOPEN_REASONS}
         description="It goes back to the list with its current status. The earlier completion stays in the history."
         label="Note (optional)"
         allowEmpty

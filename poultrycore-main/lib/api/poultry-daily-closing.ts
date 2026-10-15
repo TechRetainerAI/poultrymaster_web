@@ -159,6 +159,21 @@ export interface ClosingHistoryRow {
   eggsProduced: number | null
   missingFlocks: number | null
   hasSnapshot: boolean
+  // 365: figures as closed, or live (isLive) for a day not closed.
+  isLive?: boolean
+  salesCount?: number | null
+  cashSales?: number | null
+  creditSales?: number | null
+  paymentsReceived?: number | null
+  expenses?: number | null
+  openingCash?: number | null
+  closingCash?: number | null
+  cashDifference?: number | null
+  eggsDamaged?: number | null
+  mortality?: number | null
+  feedKg?: number | null
+  blockingCount?: number | null
+  warningCount?: number | null
 }
 
 export type PolicyLevel = "Blocking" | "Warning"

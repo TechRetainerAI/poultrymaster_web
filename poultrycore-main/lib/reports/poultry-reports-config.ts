@@ -69,6 +69,7 @@ export const POULTRY_REPORT_GROUPS: PoultryReportGroup[] = [
     color: "bg-sky-600",
     reports: [
       { slug: "egg-stock-balance", title: "Egg Stock Balance", description: "Egg inventory on hand, in eggs and crates.", icon: Boxes },
+      { slug: "byproduct-inventory", title: "Byproduct Inventory & Disposition", description: "Broken Eggs and Dead Birds: generated, sold, disposed and left, by flock.", icon: Skull },
     ],
   },
   {
@@ -235,6 +236,7 @@ export const POULTRY_REPORT_MENU_GROUPS: PoultryReportMenuGroup[] = [
       // Was a one-report "Inventory" group of its own; eggs on hand is the tail
       // end of production, so it lands here.
       item("egg-stock-balance"),
+      item("byproduct-inventory"),
       item("missing-daily-records"),
     ],
   },

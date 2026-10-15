@@ -16,6 +16,8 @@
 //   Roles      — the normal way access is given
 //   Overrides  — deliberate exceptions, each carrying a reason and an expiry
 //   Effective  — what those two actually add up to, with the source of each grant
+import { PERMISSION_OVERRIDE_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
 import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -602,13 +604,7 @@ export function PeopleView({
 
             <div className="space-y-1.5">
               <Label htmlFor="iam-override-reason">Reason</Label>
-              <Textarea
-                id="iam-override-reason"
-                value={overrideForm.reason}
-                onChange={(e) => setOverrideForm((f) => ({ ...f, reason: e.target.value }))}
-                placeholder="Why this person needs an exception."
-                rows={2}
-              />
+              <ReasonSelect id="iam-override-reason" options={PERMISSION_OVERRIDE_REASONS} value={overrideForm.reason} onChange={(v: string) => setOverrideForm((f) => ({ ...f, reason: v }))} />
               <p className="text-xs text-slate-500">
                 Required. Whoever reviews access next needs to tell a deliberate exception from an accident.
               </p>

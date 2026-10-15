@@ -17,6 +17,8 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
+import { PromptDialog } from "@/components/ui/prompt-dialog"
+import { CANCEL_REASONS } from "@/lib/reversal-reasons"
 import { Loader2, ArrowLeft, CheckCircle2, Wallet, XCircle, Plus, Trash2 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
@@ -208,9 +210,10 @@ export default function GenericPayrollRunDetailPage() {
     } finally { setActionBusy(null) }
   }
 
-  const onCancel = async () => {
-    const reason = prompt("Cancellation reason (optional):") ?? undefined
-    if (reason === null) return
+  // Cancelling asks for a reason picked from a list ("Other" lets them type one).
+  const [cancelOpen, setCancelOpen] = useState(false)
+  const onCancel = () => setCancelOpen(true)
+  const confirmCancel = async (reason: string) => {
     setActionBusy("cancel")
     try {
       await cancelPayrollRun(id, reason || undefined)
@@ -430,6 +433,18 @@ export default function GenericPayrollRunDetailPage() {
           )}
         </main>
       </div>
+
+      <PromptDialog
+        open={cancelOpen}
+        onOpenChange={setCancelOpen}
+        title="Cancel this payroll run?"
+        options={CANCEL_REASONS}
+        label="Reason"
+        confirmLabel="Cancel run"
+        confirmVariant="destructive"
+        singleLine
+        onSubmit={confirmCancel}
+      />
 
       <ConfirmDeleteDialog
         open={deleteItemId !== null}

@@ -122,6 +122,14 @@ namespace PoultryFarmAPIWeb.Business
             }
             resp.Summary = summary;
             resp.Warnings.Add("Feed cost is shown from expenses categorised as \"Feed\"; itemised feed valuation is not tracked.");
+            // 375: byproduct stock and sales, apart from the eggs / live birds.
+            var bpFarm = await ByproductTotalsAsync(f.FarmId, start, end, f.FlockId);
+            if (bpFarm.Count > 0)
+            {
+                summary.BrokenEggsInStock = Bp(bpFarm, "BrokenEggs")?.Closing;
+                summary.DeadBirdsPendingDisposition = Bp(bpFarm, "DeadBirds")?.Closing;
+                summary.ByproductRevenue = bpFarm.Values.Sum(x => x.Revenue);
+            }
             return resp;
         }
 
@@ -187,6 +195,12 @@ namespace PoultryFarmAPIWeb.Business
                 summary.LowestProductionDay = low.Day; summary.LowestProductionDayEggs = low.Eggs;
             }
             resp.Summary = summary;
+            // 375: what became of the broken eggs. Production totals stay as produced.
+            var bpDaily = Bp(await ByproductTotalsAsync(f.FarmId, start, end, f.FlockId), "BrokenEggs");
+            if (bpDaily is not null)
+            {
+                summary.BrokenEggsSold = bpDaily.Sold; summary.BrokenEggsDisposed = bpDaily.Disposed; summary.BrokenEggsRemaining = bpDaily.Closing;
+            }
             return resp;
         }
 
@@ -245,6 +259,13 @@ namespace PoultryFarmAPIWeb.Business
                 BestProducingFlock = produced.OrderByDescending(x => x.TotalEggs).FirstOrDefault()?.FlockName,
                 LowestProducingFlock = produced.OrderBy(x => x.TotalEggs).FirstOrDefault()?.FlockName,
             };
+            // 375
+            var bpFlock = Bp(await ByproductTotalsAsync(f.FarmId, start, end, f.FlockId), "BrokenEggs");
+            if (bpFlock is not null && resp.Summary is not null)
+            {
+                resp.Summary.BrokenEggsGenerated = bpFlock.Generated; resp.Summary.BrokenEggsSold = bpFlock.Sold;
+                resp.Summary.BrokenEggsDisposed = bpFlock.Disposed; resp.Summary.BrokenEggsRemaining = bpFlock.Closing;
+            }
             return resp;
         }
 
@@ -356,6 +377,14 @@ namespace PoultryFarmAPIWeb.Business
                 FlocksWithHighMortality = resp.Rows.Where(x => (x.CumulativeMortalityPercent ?? 0) > 10)
                                                   .Select(x => x.FlockId).Distinct().Count(),
             };
+            // 375: dead bird disposition. Deaths above are unchanged by it.
+            var bpMort = Bp(await ByproductTotalsAsync(f.FarmId, start, end, f.FlockId), "DeadBirds");
+            if (bpMort is not null && resp.Summary is not null)
+            {
+                resp.Summary.DeadBirdsGenerated = bpMort.Generated; resp.Summary.DeadBirdsSold = bpMort.Sold;
+                resp.Summary.DeadBirdsDisposed = bpMort.Disposed; resp.Summary.DeadBirdsRemaining = bpMort.Closing;
+                resp.Warnings.Add("Dead birds are counted from the date the byproduct stock started; deaths recorded before that have no disposition.");
+            }
             return resp;
         }
 
@@ -411,6 +440,9 @@ namespace PoultryFarmAPIWeb.Business
                 BirdVariance = resp.Rows.Sum(x => x.Variance),
             };
             resp.Warnings.Add("Culls, bird sales and transfers are not separately tracked; they are shown as N/A and excluded from the expected count.");
+            // 375: informational only -- dead birds are never live birds on hand.
+            var bpHand = Bp(await ByproductTotalsAsync(f.FarmId, start, end, f.FlockId), "DeadBirds");
+            if (bpHand is not null && resp.Summary is not null) resp.Summary.DeadBirdsPendingDisposition = bpHand.Closing;
             return resp;
         }
 
@@ -663,6 +695,138 @@ namespace PoultryFarmAPIWeb.Business
                 StockValue = null,
             };
             resp.Warnings.Add("Egg stock is reported as a single combined balance: egg grades and selling-price valuation are not tracked through to inventory. \"Produced\" is eggs collected; broken, meaty, soft and lost eggs are deducted in \"Losses/adj.\", along with stock-ledger moves (driver load-outs, deliveries and stock corrections). Eggs sold (sales with an \"egg\" product) are deducted separately.");
+            // 375: Broken Eggs are their own stock: a row of their own, never in the eggs above.
+            var bpEgg = Bp(await ByproductTotalsAsync(f.FarmId, start, end, null), "BrokenEggs");
+            if (bpEgg is not null)
+            {
+                var bClose = (long)Math.Round(bpEgg.Closing);
+                resp.Rows.Add(new PoultryEggStockBalanceReportRow
+                {
+                    ProductGrade = "Broken Eggs (byproduct)",
+                    OpeningStock = (long)Math.Round(bpEgg.Opening),
+                    ProductionAdded = (long)Math.Round(bpEgg.Generated + bpEgg.ManualIn),
+                    SalesRemoved = (long)Math.Round(bpEgg.Sold),
+                    LossesAdjustments = (long)Math.Round(bpEgg.Disposed + bpEgg.InternalUse + bpEgg.ManualOut - bpEgg.Reversals),
+                    CurrentStockEggs = bClose,
+                    CurrentStockCrates = CratesOf(Math.Max(0, bClose)),
+                    LooseEggs = LooseOf(Math.Max(0, bClose)),
+                    AverageSellingPrice = bpEgg.Sold > 0 ? Math.Round(bpEgg.Revenue / bpEgg.Sold, 2) : null,
+                    StockValue = null,
+                    Status = bClose > 0 ? "In stock" : "Empty",
+                });
+                if (resp.Summary is not null) resp.Summary.BrokenEggsInStock = bpEgg.Closing;
+                resp.Warnings.Add("Broken Eggs are a byproduct with their own stock: \"Produced\" is broken eggs recorded (plus manual increases), \"Losses/adj.\" is disposal, internal use and manual decreases net of reversals. They are not part of the egg totals.");
+            }
+            return resp;
+        }
+
+        // =====================================================================
+        // 375. Byproduct Inventory & Disposition
+        // =====================================================================
+        private sealed record ByproductTotals(decimal Opening, decimal Generated, decimal Sold, decimal Disposed, decimal InternalUse,
+                                              decimal ManualIn, decimal ManualOut, decimal Reversals, decimal Closing, decimal Revenue);
+
+        private static ByproductTotals? Bp(Dictionary<string, ByproductTotals> d, string role) => d.TryGetValue(role, out var v) ? v : null;
+
+        private static bool IsBrokenEggs(string? product)
+        {
+            var p = (product ?? "").Trim().ToLowerInvariant();
+            return p == "broken eggs" || p == "broken eggs (system)";
+        }
+
+        /// <summary>
+        /// Per byproduct (BrokenEggs / DeadBirds), for the period and optionally one
+        /// flock. Empty on a database without 375, so the reports still load.
+        /// </summary>
+        private async Task<Dictionary<string, ByproductTotals>> ByproductTotalsAsync(string? farmId, DateTime start, DateTime end, int? flockId)
+        {
+            var d = new Dictionary<string, ByproductTotals>();
+            try
+            {
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand(
+                    "SELECT * FROM sppoultryreport_byproducts(p_farmid => @FarmId::text, p_startdate => @S::date, p_enddate => @E::date, " +
+                    "p_flockid => @F::int, p_role => NULL::text, p_byflock => FALSE)", conn);
+                cmd.Parameters.AddWithValue("@FarmId", farmId ?? "");
+                cmd.Parameters.AddWithValue("@S", start.Date);
+                cmd.Parameters.AddWithValue("@E", end.Date);
+                cmd.Parameters.AddWithValue("@F", (object?)flockId ?? DBNull.Value);
+                await conn.OpenAsync();
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                {
+                    var role = Str(r, "Role") ?? "";
+                    var t = new ByproductTotals(DecOr(r, "Opening"), DecOr(r, "Generated"), DecOr(r, "Sold"), DecOr(r, "Disposed"),
+                        DecOr(r, "InternalUse"), DecOr(r, "ManualIn"), DecOr(r, "ManualOut"), DecOr(r, "Reversals"), DecOr(r, "Closing"), DecOr(r, "Revenue"));
+                    d[role] = d.TryGetValue(role, out var p)
+                        ? new ByproductTotals(p.Opening + t.Opening, p.Generated + t.Generated, p.Sold + t.Sold, p.Disposed + t.Disposed,
+                            p.InternalUse + t.InternalUse, p.ManualIn + t.ManualIn, p.ManualOut + t.ManualOut, p.Reversals + t.Reversals,
+                            p.Closing + t.Closing, p.Revenue + t.Revenue)
+                        : t;
+                }
+            }
+            catch (PostgresException ex) when (ex.SqlState == "42883") { /* before 375 */ }
+            return d;
+        }
+
+        public async Task<PoultryReportResponse<PoultryByproductReportSummary, PoultryByproductReportRow>>
+            GetByproductInventoryAsync(PoultryReportFilterDto f)
+        {
+            var (start, end) = ResolveRange(f);
+            var resp = NewResponse<PoultryByproductReportSummary, PoultryByproductReportRow>("Poultry Byproduct Inventory & Disposition", f, start, end);
+            // The Category filter picks the byproduct.
+            string? role = (f.Category ?? "").Trim().ToLowerInvariant() switch
+            {
+                "broken eggs" => "BrokenEggs",
+                "dead birds" => "DeadBirds",
+                _ => null,
+            };
+
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM sppoultryreport_byproducts(p_farmid => @FarmId::text, p_startdate => @S::date, p_enddate => @E::date, " +
+                "p_flockid => @F::int, p_role => @Role::text, p_byflock => TRUE)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
+            cmd.Parameters.AddWithValue("@S", start);
+            cmd.Parameters.AddWithValue("@E", end);
+            cmd.Parameters.AddWithValue("@F", (object?)f.FlockId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Role", (object?)role ?? DBNull.Value);
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                var flockId = IntN(r, "FlockId");
+                resp.Rows.Add(new PoultryByproductReportRow
+                {
+                    Category = Str(r, "ProductName") ?? "",
+                    Role = Str(r, "Role") ?? "",
+                    FlockId = flockId,
+                    FlockName = flockId is null ? "Pooled / not traced to a flock" : Str(r, "FlockName") ?? $"Flock #{flockId}",
+                    BatchCode = Str(r, "BatchCode"),
+                    Opening = DecOr(r, "Opening"), Generated = DecOr(r, "Generated"), Sold = DecOr(r, "Sold"),
+                    Disposed = DecOr(r, "Disposed"), InternalUse = DecOr(r, "InternalUse"),
+                    ManualIn = DecOr(r, "ManualIn"), ManualOut = DecOr(r, "ManualOut"), Reversals = DecOr(r, "Reversals"),
+                    Closing = DecOr(r, "Closing"), Revenue = DecOr(r, "Revenue"),
+                    AverageSalePrice = DecOr(r, "Sold") > 0 ? Math.Round(DecOr(r, "Revenue") / DecOr(r, "Sold"), 2) : null,
+                });
+            }
+
+            decimal Sum(string rl, Func<PoultryByproductReportRow, decimal> pick) => resp.Rows.Where(x => x.Role == rl).Sum(pick);
+            resp.Summary = new PoultryByproductReportSummary
+            {
+                BrokenEggsOpening = Sum("BrokenEggs", x => x.Opening), BrokenEggsGenerated = Sum("BrokenEggs", x => x.Generated),
+                BrokenEggsSold = Sum("BrokenEggs", x => x.Sold), BrokenEggsDisposed = Sum("BrokenEggs", x => x.Disposed),
+                BrokenEggsClosing = Sum("BrokenEggs", x => x.Closing),
+                DeadBirdsOpening = Sum("DeadBirds", x => x.Opening), DeadBirdsGenerated = Sum("DeadBirds", x => x.Generated),
+                DeadBirdsSold = Sum("DeadBirds", x => x.Sold), DeadBirdsDisposed = Sum("DeadBirds", x => x.Disposed),
+                DeadBirdsClosing = Sum("DeadBirds", x => x.Closing),
+                ByproductRevenue = resp.Rows.Sum(x => x.Revenue),
+            };
+            resp.Warnings.Add("Each row: Opening + Generated + Manual in - Sold - Disposed - Internal use - Manual out +/- Reversals = Closing. Dead birds are never part of the live bird count.");
+            if (f.FlockId is not null)
+                resp.Warnings.Add("Filtered to one flock: stock that cannot be traced to a flock (egg sorting breakage, pooled manual entries) is left out.");
+            else if (resp.Rows.Any(x => x.FlockId is null && (x.Generated != 0 || x.Closing != 0 || x.ManualIn != 0)))
+                resp.Warnings.Add("\"Pooled\" rows are stock not traced to a flock (egg sorting breakage, manual entries without a flock). They are not guessed onto a flock.");
             return resp;
         }
 
@@ -700,7 +864,7 @@ namespace PoultryFarmAPIWeb.Business
                     Date = DateN(r, "Date") ?? start,
                     SaleId = IntOr(r, "SaleId"),
                     Customer = Str(r, "Customer"),
-                    ProductGrade = Str(r, "Size") ?? Str(r, "Product"),
+                    ProductGrade = IsBrokenEggs(Str(r, "Product")) ? "Broken Eggs" : Str(r, "Size") ?? Str(r, "Product"),
                     QuantitySold = DecOr(r, "QuantitySold"),
                     Unit = Str(r, "Size"),
                     EggsEquivalent = null,
@@ -726,10 +890,14 @@ namespace PoultryFarmAPIWeb.Business
             var topCustomer = resp.Rows.Where(x => !string.IsNullOrWhiteSpace(x.Customer))
                 .GroupBy(x => x.Customer!).Select(g => new { g.Key, T = g.Sum(x => x.TotalAmount) })
                 .OrderByDescending(x => x.T).FirstOrDefault()?.Key;
+            // 375: Broken Eggs are sold as their own product -- counted apart from eggs.
+            var brokenRows = resp.Rows.Where(x => x.ProductGrade == "Broken Eggs").ToList();
             resp.Summary = new PoultryEggSalesReportSummary
             {
                 TotalSalesRevenue = resp.Rows.Sum(x => x.TotalAmount),
-                TotalEggsSold = resp.Rows.Sum(x => x.QuantitySold),
+                TotalEggsSold = resp.Rows.Where(x => x.ProductGrade != "Broken Eggs").Sum(x => x.QuantitySold),
+                BrokenEggsSold = brokenRows.Sum(x => x.QuantitySold),
+                BrokenEggsRevenue = brokenRows.Sum(x => x.TotalAmount),
                 TotalCratesSold = 0,
                 TotalPaid = resp.Rows.Sum(x => x.AmountPaid),
                 TotalUnpaid = resp.Rows.Sum(x => x.Balance),
@@ -1648,6 +1816,13 @@ namespace PoultryFarmAPIWeb.Business
                 ProfitPerBird = placedSum > 0 ? SafeDivide(revSum - costSum, placedSum) : null,
             };
             resp.Warnings.Add("Closing date, culls and bird-sales are not tracked. End-of-flock figures cover the flock lifecycle up to the selected end date.");
+            // 375: dead bird disposition over the flocks' lives.
+            var bpEnd = Bp(await ByproductTotalsAsync(f.FarmId, new DateTime(2000, 1, 1), end, f.FlockId), "DeadBirds");
+            if (bpEnd is not null && resp.Summary is not null)
+            {
+                resp.Summary.DeadBirdsGenerated = bpEnd.Generated + bpEnd.Opening; resp.Summary.DeadBirdsSold = bpEnd.Sold;
+                resp.Summary.DeadBirdsDisposed = bpEnd.Disposed; resp.Summary.DeadBirdsRemaining = bpEnd.Closing;
+            }
             return resp;
         }
     }

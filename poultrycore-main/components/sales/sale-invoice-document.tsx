@@ -1,6 +1,7 @@
 "use client"
 
 import { EGGS_PER_CRATE } from "@/lib/production/production-record-calc"
+import { byproductRole } from "@/lib/poultry/byproducts"
 import type { Sale } from "@/lib/api"
 
 export type SaleInvoiceFarmInfo = {
@@ -186,7 +187,7 @@ export function SaleInvoiceDocument({ sale, farm, currencyCode, formatMoney, flo
   const status = owed <= 0 ? "Paid" : paidAmt > 0 ? "Part paid" : "Unpaid"
   const statusClass = owed <= 0 ? "inv-badge-paid" : paidAmt > 0 ? "inv-badge-partial" : "inv-badge-unpaid"
 
-  const isEggs = sale.product?.toLowerCase().includes("egg")
+  const isEggs = sale.product?.toLowerCase().includes("egg") && byproductRole(sale.product) == null
 
   return (
     <>

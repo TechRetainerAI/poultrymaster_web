@@ -10,7 +10,7 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { PageShell } from "@/components/dashboard/page-shell"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { Plus, Pencil, Trash2, Mail, Phone, UserCog, Users, Calendar, LogIn, Search, RefreshCw, Loader2, ChevronDown, ChevronUp, Download } from "lucide-react"
+import { Plus, Pencil, Trash2, Mail, Phone, UserCog, Users, Calendar, LogIn, Search, RefreshCw, Loader2, ChevronDown, ChevronUp, Download, UserPlus } from "lucide-react"
 import { exportTableToPdf, emailTableAsPdf, type PdfExportOptions } from "@/lib/utils/pdf-export"
 import { getEmployees, deleteEmployee, getTodayLogins, type Employee } from "@/lib/api/admin"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -26,6 +26,9 @@ import { formatDateShort, cn } from "@/lib/utils"
 import { AddEmployeeDialog } from "@/components/employees/add-employee-dialog"
 import { EditEmployeeDialog } from "@/components/employees/edit-employee-dialog"
 import { fmtDateTime, fmtInstant } from "@/lib/utils/company-datetime"
+import { StaffBadge } from "@/components/employees/link-badges"
+import { FROM_EMPLOYEE_PARAM, getStaffUserLinks, staffPagePath } from "@/lib/api/staff-user-link"
+import { useAuthStore } from "@/lib/store/auth-store"
 
 export default function EmployeesPage() {
   const router = useRouter()
@@ -57,6 +60,16 @@ export default function EmployeesPage() {
   // avoid a Next.js prerender/Suspense build error.
   const [boMode, setBoMode] = useState(false)
 
+  // Staff link (362): which employees are also on the Staff page, and where
+  // that page is for this company type. None in Business Office mode, where
+  // there is no active company.
+  const activeFarmType = useAuthStore((s) => s.activeFarmType)
+  const [staffUserIds, setStaffUserIds] = useState<Set<string>>(new Set())
+  const staffPage = boMode ? null : staffPagePath(activeFarmType)
+  const addAsStaff = (employeeId: string) => {
+    if (staffPage) router.push(`${staffPage}?${FROM_EMPLOYEE_PARAM}=${encodeURIComponent(employeeId)}`)
+  }
+
   // Edit dialog state — the form itself lives in <EditEmployeeDialog>.
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null)
@@ -82,6 +95,8 @@ export default function EmployeesPage() {
       if (employeesResult.success && employeesResult.data) { setEmployees(employeesResult.data); setCurrentPage(1) }
       else { setError(employeesResult.message || "Failed to load employees") }
       if (todayLoginsResult.success && todayLoginsResult.data) { setTodayLogins(todayLoginsResult.data) }
+      // The Staff badges are extra: the list still works without them.
+      getStaffUserLinks().then((l) => setStaffUserIds(new Set(l.map((x) => x.userId)))).catch(() => {})
     } catch (err) {
       console.error("[v0] Error loading employees:", err)
       setError("Unable to load employees. API may be unavailable.")
@@ -305,7 +320,7 @@ export default function EmployeesPage() {
                             <CollapsibleTrigger asChild>
                               <div className="flex items-start justify-between gap-3 cursor-pointer">
                                 <div className="min-w-0 flex-1">
-                                  <div className="font-semibold text-slate-900">{employee.firstName} {employee.lastName}</div>
+                                  <div className="font-semibold text-slate-900">{employee.firstName} {employee.lastName}{staffUserIds.has(employee.id) && <StaffBadge className="ml-2" />}</div>
                                   <div className="mt-1 flex items-baseline gap-2">
                                     <span className="text-slate-600">@{employee.userName}</span>
                                     <Badge variant={employee.emailConfirmed ? "default" : "secondary"} className={employee.emailConfirmed ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}>
@@ -327,6 +342,11 @@ export default function EmployeesPage() {
                                   <Button variant="outline" size="sm" className="flex-1 h-10" onClick={() => openEditDialog(employee.id)}>
                                     <Pencil className="h-4 w-4 mr-2" /> Edit
                                   </Button>
+                                  {staffPage && !staffUserIds.has(employee.id) && (
+                                    <Button variant="outline" size="sm" className="flex-1 h-10" onClick={() => addAsStaff(employee.id)}>
+                                      <UserPlus className="h-4 w-4 mr-2" /> Add as staff
+                                    </Button>
+                                  )}
                                   <Button variant="outline" size="sm" className="flex-1 h-10 text-red-600 border-red-200 hover:bg-red-50" onClick={() => openDeleteDialog(employee.id)}>
                                     <Trash2 className="h-4 w-4 mr-2" /> Delete
                                   </Button>
@@ -370,7 +390,7 @@ export default function EmployeesPage() {
                       <TableBody>
                         {currentEmployees.map((employee) => (
                           <TableRow key={employee.id} className="hover:bg-slate-50 transition-colors">
-                            <TableCell className={cn("font-medium text-slate-900 bg-white", isMobile && "sticky-col-date")}>{employee.firstName} {employee.lastName}</TableCell>
+                            <TableCell className={cn("font-medium text-slate-900 bg-white", isMobile && "sticky-col-date")}>{employee.firstName} {employee.lastName}{staffUserIds.has(employee.id) && <StaffBadge className="ml-2" />}</TableCell>
                             <TableCell className="text-slate-600 hidden sm:table-cell">@{employee.userName}</TableCell>
                             <TableCell className="text-slate-600 hidden md:table-cell">
                               <div className="flex items-center gap-2"><Mail className="w-4 h-4 text-slate-400" /><span className="truncate max-w-[200px]">{employee.email}</span></div>
@@ -391,6 +411,11 @@ export default function EmployeesPage() {
                                 <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={() => openEditDialog(employee.id)}>
                                   <Pencil className="w-4 h-4" />
                                 </Button>
+                                {staffPage && !staffUserIds.has(employee.id) && (
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50" title="Add as staff (payroll)" onClick={() => addAsStaff(employee.id)}>
+                                    <UserPlus className="w-4 h-4" />
+                                  </Button>
+                                )}
                                 <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => openDeleteDialog(employee.id)}>
                                   <Trash2 className="w-4 h-4" />
                                 </Button>

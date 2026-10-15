@@ -28,6 +28,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // the client calls POST /api/generic-company/setup to attach a profile
     // and seed defaults.
     // =========================================================================
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/generic-company")]
     public class GenericCompanyController : ControllerBase
