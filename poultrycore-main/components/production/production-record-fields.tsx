@@ -140,3 +140,42 @@ export function CalcField({
     </div>
   )
 }
+
+/**
+ * 372: what happens to a record's broken eggs / dead birds. "Keep" puts them into
+ * the Broken Eggs / Dead Birds stock; "Disposed" records them as generated and
+ * disposed at once, so nothing is left in stock. Shown only when there are some.
+ */
+export function DispositionField({
+  count, value, onChange, keepText, disposedText,
+}: {
+  count: number
+  value: "Keep" | "Disposed"
+  onChange: (value: "Keep" | "Disposed") => void
+  keepText: string
+  disposedText: string
+}) {
+  if (count <= 0) return null
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+      <div className="inline-flex overflow-hidden rounded-md border border-slate-300" role="radiogroup">
+        {(["Keep", "Disposed"] as const).map((v) => (
+          <button
+            key={v}
+            type="button"
+            role="radio"
+            aria-checked={value === v}
+            onClick={() => onChange(v)}
+            className={cn(
+              "px-2.5 py-1 font-medium",
+              value === v ? "bg-slate-800 text-white" : "bg-white text-slate-600 hover:bg-slate-50",
+            )}
+          >
+            {v === "Keep" ? "Keep" : "Disposed immediately"}
+          </button>
+        ))}
+      </div>
+      <span>{value === "Keep" ? keepText : disposedText}</span>
+    </div>
+  )
+}

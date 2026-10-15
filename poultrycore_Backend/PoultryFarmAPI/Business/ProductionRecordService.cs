@@ -88,6 +88,44 @@ namespace PoultryFarmAPIWeb.Business
         /// against a database without 249 simply saves the first four picks
         /// instead of failing the whole record.
         /// </summary>
+        /// <summary>
+        /// 372: Keep / Disposed for the record's dead birds and broken eggs, in the
+        /// record's own transaction. Re-posts its byproduct stock. Skipped when the
+        /// caller sent neither (an older client), so the record keeps its choice.
+        /// </summary>
+        private static async Task SetDispositionAsync(NpgsqlConnection conn, string farmId, int recordId, ProductionRecordModel model, NpgsqlTransaction tx)
+        {
+            if (string.IsNullOrWhiteSpace(model.MortalityDisposition) && string.IsNullOrWhiteSpace(model.BrokenEggDisposition)) return;
+            using var cmd = new NpgsqlCommand(
+                "SELECT sppoultryproduction_setdisposition(p_farmid => @FarmId::text, p_recordid => @Id::int, " +
+                "p_mortalitydisposition => @Mort::text, p_brokeneggdisposition => @Broken::text, p_by => @By::text)", conn, tx);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@Id", recordId);
+            cmd.Parameters.AddWithValue("@Mort", (object?)model.MortalityDisposition ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Broken", (object?)model.BrokenEggDisposition ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@By", (object?)model.UserId ?? DBNull.Value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        /// <summary>372: each record's dead-bird / broken-egg choice (only the non-default ones).</summary>
+        private static async Task<Dictionary<int, (string Mort, string Broken)>> GetDispositionsAsync(NpgsqlConnection conn, string farmId)
+        {
+            var map = new Dictionary<int, (string, string)>();
+            try
+            {
+                using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryproduction_dispositions(p_farmid => @FarmId::text)", conn);
+                cmd.Parameters.AddWithValue("@FarmId", farmId);
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                    map[r.GetInt32(0)] = (r.GetString(1), r.GetString(2));
+            }
+            catch (PostgresException ex) when (ex.SqlState == "42883")
+            {
+                // A database without 372: everything is Keep.
+            }
+            return map;
+        }
+
         private static async Task SetExtraPicksAsync(NpgsqlConnection conn, string farmId, int recordId, int fifthPick, int sixthPick, NpgsqlTransaction? tx = null)
         {
             if (!await ProcedureExistsAsync(conn, "spProductionRecord_SetExtraPicks", tx)) return;
@@ -357,8 +395,13 @@ namespace PoultryFarmAPIWeb.Business
                 // six picks from the row, so the order here does not change the
                 // total — it is written this way to read in pick order.
                 await SetExtraPicksAsync(conn, model.FarmId, newId, model.Production5thPick, model.Production6thPick, tx);
+                await SetDispositionAsync(conn, model.FarmId, newId, model, tx);
                 await tx.CommitAsync();
                 return newId;
+            }
+            catch (PostgresException pg) when (pg.SqlState == "P0001")
+            {
+                throw;   // 372: a rule (e.g. byproducts already sold) -- say it as it is.
             }
             catch (Exception ex)
             {
@@ -420,7 +463,12 @@ namespace PoultryFarmAPIWeb.Business
                 await SetFourthPickAsync(conn, model.FarmId, model.Id, model.Production4thPick, tx);
                 // …then the 5th and 6th (migration 249).
                 await SetExtraPicksAsync(conn, model.FarmId, model.Id, model.Production5thPick, model.Production6thPick, tx);
+                await SetDispositionAsync(conn, model.FarmId, model.Id, model, tx);
                 await tx.CommitAsync();
+            }
+            catch (PostgresException pg) when (pg.SqlState == "P0001")
+            {
+                throw;   // 372: a rule (e.g. byproducts already sold) -- say it as it is.
             }
             catch (Exception ex)
             {
@@ -479,6 +527,13 @@ namespace PoultryFarmAPIWeb.Business
                         LostEggs = GetNullableIntIfPresent(reader, "LostEggs")
                     };
                     MapCostingFields(reader, record);
+                    await reader.CloseAsync();
+
+                    // 372: the record's dead-bird / broken-egg choice, so an edit keeps it.
+                    var disp = await GetDispositionsAsync(conn, farmId);
+                    var d = disp.TryGetValue(record.Id, out var v) ? v : ("Keep", "Keep");
+                    record.MortalityDisposition = d.Item1;
+                    record.BrokenEggDisposition = d.Item2;
                     return record;
                 }
 
@@ -550,6 +605,19 @@ namespace PoultryFarmAPIWeb.Business
                 throw new ApplicationException("An error occurred while retrieving production records.", ex);
             }
 
+            // 372: the dead-bird / broken-egg choice of each record.
+            await using (var dconn = new NpgsqlConnection(_connectionString))
+            {
+                await dconn.OpenAsync();
+                var disp = await GetDispositionsAsync(dconn, farmId);
+                foreach (var rec in records)
+                {
+                    var d = disp.TryGetValue(rec.Id, out var v) ? v : ("Keep", "Keep");
+                    rec.MortalityDisposition = d.Item1;
+                    rec.BrokenEggDisposition = d.Item2;
+                }
+            }
+
             return records;
         }
 
@@ -566,6 +634,10 @@ namespace PoultryFarmAPIWeb.Business
 
                 await conn.OpenAsync();
                 await cmd.ExecuteNonQueryAsync();
+            }
+            catch (PostgresException pg) when (pg.SqlState == "P0001")
+            {
+                throw;   // 372: e.g. its broken eggs / dead birds were since sold -- say so.
             }
             catch (Exception ex)
             {

@@ -18,6 +18,8 @@
  * shown live, and "Close this day" is the approval.
  */
 
+import { REOPEN_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
 import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -354,7 +356,7 @@ export default function RestaurantDailyClosingPage() {
             <DialogTitle>Reopen {nice(reopenFor?.closingDate)}?</DialogTitle>
             <DialogDescription>Entries dated this day can be changed again until it is closed once more. The reason is kept on record.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-1.5"><Label>Reason</Label><Input value={reason} onChange={(e) => setReason(e.target.value)} className="h-10" placeholder="e.g. Supplier invoice arrived late" /></div>
+          <div className="space-y-1.5"><Label>Reason</Label><ReasonSelect options={REOPEN_REASONS} value={reason} onChange={setReason} /></div>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setReopenFor(null)}>Cancel</Button>
             <Button className="bg-rose-600 hover:bg-rose-700" disabled={saving || !reason.trim()} onClick={submitReopen}>Reopen</Button>

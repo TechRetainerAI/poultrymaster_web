@@ -12,6 +12,8 @@
  * Closed days are locked and wages cannot be paid on a future date.
  */
 
+import { CANCEL_REASONS, REOPEN_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
 import Link from "next/link"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -525,7 +527,7 @@ export default function RestaurantPayrollPage() {
             ? "The run goes back to Draft so its lines can be corrected. Staff loan repayments it recorded are reversed, and come back when it is approved again."
             : "The run is closed. Any staff loan repayments it recorded are reversed; no money has left for it."}</DialogDescription>
         </DialogHeader>
-        <div className="space-y-1"><Label>Reason{reasonAction?.kind === "reopen" ? " *" : " (optional)"}</Label><Textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} /></div>
+        <div className="space-y-1"><Label>Reason{reasonAction?.kind === "reopen" ? " *" : " (optional)"}</Label><ReasonSelect options={reasonAction?.kind === "reopen" ? REOPEN_REASONS : CANCEL_REASONS} value={reason} onChange={setReason} /></div>
         <DialogFooter><Button variant="outline" onClick={() => { setReasonAction(null); setReason("") }}>Back</Button>
           <Button variant={reasonAction?.kind === "cancel" ? "destructive" : "default"} disabled={saving} onClick={submitReason}>{reasonAction?.kind === "reopen" ? "Reopen" : "Cancel run"}</Button></DialogFooter>
       </DialogContent>

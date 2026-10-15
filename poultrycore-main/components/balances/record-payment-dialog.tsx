@@ -71,6 +71,10 @@ export function RecordPaymentDialog({
   const fmt = useFmt()
   const { toast } = useToast()
   const isCustomer = side === "customer"
+  // 367 / 370: a poultry payment need not be applied in full -- the rest is
+  // kept as the customer's / supplier's credit (applied to nothing = an advance).
+  const allowUnallocated = module === "poultry"
+  const creditWord = isCustomer ? "customer credit" : "supplier credit"
 
   const [documents, setDocuments] = useState<OpenDocumentRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -133,8 +137,9 @@ export function RecordPaymentDialog({
       // account would go negative.
       cashAccountRequired: !isCustomer,
       cashAccountId,
+      allowUnallocated,
     }),
-    [amount, documents, allocation, cashAccountId, isCustomer],
+    [amount, documents, allocation, cashAccountId, isCustomer, allowUnallocated],
   )
 
   // Would this payment overdraw the account? The server blocks it too; catching
@@ -161,7 +166,9 @@ export function RecordPaymentDialog({
     if (singleDocument) {
       setTouched(true)
       const value = Number(raw)
-      setAllocation(!raw || Number.isNaN(value) || value === 0 ? {} : { [docKey(singleDocument)]: value })
+      // 367: paying more than the line owes keeps the rest as credit.
+      const applied = allowUnallocated ? Math.min(value, singleDocument.balance) : value
+      setAllocation(!raw || Number.isNaN(value) || value === 0 ? {} : { [docKey(singleDocument)]: applied })
     }
   }
 
@@ -205,7 +212,8 @@ export function RecordPaymentDialog({
         allocations: documents
           .filter((d) => (allocation[docKey(d)] ?? 0) > 0)
           .map((d) => ({
-            saleId: isCustomer ? d.documentId : undefined,
+            // 369: a customer debt goes as its own document type, never as a sale id.
+            saleId: isCustomer && d.documentType !== "CustomerDebt" ? d.documentId : undefined,
             documentType: d.documentType,
             documentId: d.documentId,
             amount: allocation[docKey(d)],
@@ -321,6 +329,9 @@ export function RecordPaymentDialog({
                 {fmt(balanceAfter(singleDocument, allocation))}
               </span>{" "}
               after this payment
+              {allowUnallocated && validation.unallocated > 0 && (
+                <span className="text-blue-700"> · {fmt(validation.unallocated)} kept as {creditWord}</span>
+              )}
             </span>
           </div>
         ) : (
@@ -339,8 +350,12 @@ export function RecordPaymentDialog({
             <span className="font-medium">{fmt(allocated)}</span>
             <span className="text-slate-400"> / {fmt(Number(amount) || 0)}</span>
             {validation.unallocated !== 0 && (
-              <span className={validation.unallocated > 0 ? "ml-2 text-amber-600" : "ml-2 text-red-600"}>
-                ({validation.unallocated > 0 ? `${fmt(validation.unallocated)} unallocated` : `${fmt(-validation.unallocated)} over`})
+              <span className={validation.unallocated > 0 ? (allowUnallocated ? "ml-2 text-blue-700" : "ml-2 text-amber-600") : "ml-2 text-red-600"}>
+                ({validation.unallocated > 0
+                  ? allowUnallocated
+                    ? `${fmt(validation.unallocated)} kept as ${creditWord}`
+                    : `${fmt(validation.unallocated)} unallocated`
+                  : `${fmt(-validation.unallocated)} over`})
               </span>
             )}
           </div>

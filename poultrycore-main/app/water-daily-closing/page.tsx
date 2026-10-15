@@ -1,5 +1,6 @@
 "use client"
 
+import { REOPEN_REASONS } from "@/lib/reversal-reasons"
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -29,6 +30,8 @@ import {
 } from "@/lib/api/water"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { PromptDialog } from "@/components/ui/prompt-dialog"
+import { ReasonSelect } from "@/components/ui/reason-select"
+import { REJECT_REASONS } from "@/lib/reversal-reasons"
 import { fmtMoney } from "@/lib/currency"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 
@@ -522,11 +525,11 @@ export default function WaterDailyClosingPage() {
             </p>
             <div>
               <Label>Rejection reason</Label>
-              <Textarea
-                rows={4}
+              <ReasonSelect
+                options={REJECT_REASONS}
                 value={rejectDlg?.reason ?? ""}
-                onChange={(e) => setRejectDlg(rejectDlg ? { ...rejectDlg, reason: e.target.value } : null)}
-                placeholder="Why are you rejecting this closing?"
+                onChange={(v) => setRejectDlg(rejectDlg ? { ...rejectDlg, reason: v } : null)}
+                multiline
               />
             </div>
           </div>
@@ -555,6 +558,7 @@ export default function WaterDailyClosingPage() {
         open={!!reopenTarget}
         onOpenChange={(v) => { if (!v) setReopenTarget(null) }}
         title="Reopen this closing?"
+        options={REOPEN_REASONS}
         description={reopenTarget
           ? <>The closing for <span className="font-medium">{fmtDateTime(reopenTarget.closingDate, reopenTarget)}</span> will be marked Reopened and stay in history. After reopening, click <span className="font-medium">Recreate closing</span> on the row to recalculate using current sales, expenses, production, payroll and cash for the same date.</>
           : undefined}

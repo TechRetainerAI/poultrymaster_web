@@ -112,7 +112,7 @@ BEGIN
     IF v_bal1 <> v_bal0 + 250 THEN RAISE EXCEPTION 'FAIL 6a: deposit cash not in (% -> %)', v_bal0, v_bal1; END IF;
     IF fnpoultrycustomer_credit(v_farm, v_cust) <> 750 THEN RAISE EXCEPTION 'FAIL 6b: deposit not credit'; END IF;
     SELECT count(*) INTO v_n FROM sppoultrycashflow_rows(v_farm, (now() - interval '2 days')::date, (now() + interval '2 days')::date) r
-     WHERE r.amount = 250 AND r.description LIKE 'Customer deposit%';
+     WHERE r.amount = 250 AND r.description LIKE 'Customer advance%';   -- 367: shown as an advance
     IF v_n <> 1 THEN RAISE EXCEPTION 'FAIL 6c: deposit not Money In on Cash Flow (% rows)', v_n; END IF;
     PERFORM sppoultrycustomercredit_reverse(v_farm, v_dep, 'entered twice', v_user);
     SELECT currentbalance INTO v_bal1 FROM poultrycashaccounts WHERE poultrycashaccountid = v_acct;
@@ -122,7 +122,7 @@ BEGIN
 
     -- 7. opening credit is not on Cash Flow
     SELECT count(*) INTO v_n FROM sppoultrycashflow_rows(v_farm, (now() - interval '2 days')::date, (now() + interval '2 days')::date) r
-     WHERE r.amount = 500;
+     WHERE r.amount = 500 AND r.description LIKE '%Credit Check 363%';   -- only this check's customer
     IF v_n <> 0 THEN RAISE EXCEPTION 'FAIL 7: opening credit on Cash Flow'; END IF;
     RAISE NOTICE 'ok 7 opening credit is not money received';
 

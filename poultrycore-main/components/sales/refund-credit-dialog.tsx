@@ -5,6 +5,8 @@
 // the one the money came in on. Not an expense, and no stock moves (a pure
 // refund is not a sales return).
 
+import { CUSTOMER_REFUND_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
 import { useEffect, useState } from "react"
 import { HandCoins, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -23,6 +25,10 @@ export interface RefundTarget {
   customerId: number
   customerName: string
   availableCredit: number
+  /** 367: refund out of this one credit (its payment row). Absent = oldest credit first. */
+  poultryPaymentId?: number | null
+  /** e.g. "PAY-0012 · Customer advance", shown on the dialog. */
+  creditLabel?: string | null
 }
 
 interface Props {
@@ -70,6 +76,7 @@ export function RefundCreditDialog({ target, currencyCode, onOpenChange, onRefun
         poultryCashAccountId: Number(accountId),
         paymentMethod: method,
         reason: reason.trim(),
+        poultryPaymentId: target.poultryPaymentId ?? null,
       })
       onRefunded()
     } catch (e: any) {
@@ -89,7 +96,8 @@ export function RefundCreditDialog({ target, currencyCode, onOpenChange, onRefun
         </DialogHeader>
         {target && (
           <div className="space-y-3">
-            <p className="text-sm text-slate-600">Available credit: <span className="font-semibold tabular-nums">{money(target.availableCredit)}</span></p>
+            {target.creditLabel && <p className="text-sm text-slate-600">Credit: <span className="font-medium text-slate-900">{target.creditLabel}</span></p>}
+            <p className="text-sm text-slate-600">Available {target.poultryPaymentId ? "on this credit" : "credit"}: <span className="font-semibold tabular-nums">{money(target.availableCredit)}</span></p>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
                 <Label htmlFor="refund-amount">Amount</Label>
@@ -118,8 +126,7 @@ export function RefundCreditDialog({ target, currencyCode, onOpenChange, onRefun
             </div>
             <div className="space-y-1">
               <Label htmlFor="refund-reason">Reason</Label>
-              <Textarea id="refund-reason" rows={2} value={reason} onChange={(e) => setReason(e.target.value)}
-                        placeholder="e.g. Sale cancelled, customer asked for the money back" />
+              <ReasonSelect id="refund-reason" options={CUSTOMER_REFUND_REASONS} value={reason} onChange={setReason} />
             </div>
             {error && <p className="rounded-md bg-red-50 p-2.5 text-sm text-red-700">{error}</p>}
           </div>

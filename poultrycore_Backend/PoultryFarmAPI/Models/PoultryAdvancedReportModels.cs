@@ -104,6 +104,10 @@ namespace PoultryFarmAPIWeb.Models
         public decimal EstimatedProfit { get; set; }
         public decimal? CashCollected { get; set; }
         public decimal? CustomerReceivables { get; set; }
+        // 375: byproducts (never part of the egg / live-bird figures above)
+        public decimal? BrokenEggsInStock { get; set; }
+        public decimal? DeadBirdsPendingDisposition { get; set; }
+        public decimal? ByproductRevenue { get; set; }
     }
 
     public class PoultryFarmSummaryReportRow
@@ -135,6 +139,10 @@ namespace PoultryFarmAPIWeb.Models
         public long LowestProductionDayEggs { get; set; }
         public long TotalBrokenEggs { get; set; }
         public double? AverageProductionPercent { get; set; }
+        // 375: what became of the broken eggs (production history is unchanged)
+        public decimal? BrokenEggsSold { get; set; }
+        public decimal? BrokenEggsDisposed { get; set; }
+        public decimal? BrokenEggsRemaining { get; set; }
     }
 
     public class PoultryDailyEggProductionReportRow
@@ -167,6 +175,11 @@ namespace PoultryFarmAPIWeb.Models
         public long TotalEggs { get; set; }
         public double AverageEggsPerFlock { get; set; }
         public double? AverageProductionPercent { get; set; }
+        // 375
+        public decimal? BrokenEggsGenerated { get; set; }
+        public decimal? BrokenEggsSold { get; set; }
+        public decimal? BrokenEggsDisposed { get; set; }
+        public decimal? BrokenEggsRemaining { get; set; }
     }
 
     public class PoultryFlockProductionSummaryReportRow
@@ -221,6 +234,11 @@ namespace PoultryFarmAPIWeb.Models
         public int HighestMortalityDayDeaths { get; set; }
         public double? CumulativeMortalityPercent { get; set; }
         public int FlocksWithHighMortality { get; set; }
+        // 375: dead bird disposition -- separate from the live-bird figures
+        public decimal? DeadBirdsGenerated { get; set; }
+        public decimal? DeadBirdsSold { get; set; }
+        public decimal? DeadBirdsDisposed { get; set; }
+        public decimal? DeadBirdsRemaining { get; set; }
     }
 
     public class PoultryMortalityReportRow
@@ -249,6 +267,8 @@ namespace PoultryFarmAPIWeb.Models
         public int TotalCulls { get; set; }
         public int TotalBirdsSoldTransferred { get; set; }
         public int? BirdVariance { get; set; }
+        /// <summary>375: Dead Birds stock -- informational, NEVER part of the live birds.</summary>
+        public decimal? DeadBirdsPendingDisposition { get; set; }
     }
 
     public class PoultryBirdsOnHandReportRow
@@ -361,6 +381,8 @@ namespace PoultryFarmAPIWeb.Models
         public long SaleableEggs { get; set; }
         public long? BrokenRejectedEggs { get; set; }
         public decimal? StockValue { get; set; }
+        /// <summary>375: Broken Eggs byproduct stock, apart from the saleable eggs.</summary>
+        public decimal? BrokenEggsInStock { get; set; }
     }
 
     public class PoultryEggStockBalanceReportRow
@@ -389,6 +411,9 @@ namespace PoultryFarmAPIWeb.Models
         public decimal TotalPaid { get; set; }
         public decimal TotalUnpaid { get; set; }
         public string? TopCustomer { get; set; }
+        // 375: Broken Eggs sold, kept apart from the eggs sold
+        public decimal BrokenEggsSold { get; set; }
+        public decimal BrokenEggsRevenue { get; set; }
     }
 
     public class PoultryEggSalesReportRow
@@ -805,6 +830,48 @@ namespace PoultryFarmAPIWeb.Models
         public double? MortalityPercent { get; set; }
         public decimal? FeedCostPerEgg { get; set; }
         public decimal? ProfitPerBird { get; set; }
+        // 375: dead bird disposition over the flocks' lives
+        public decimal? DeadBirdsGenerated { get; set; }
+        public decimal? DeadBirdsSold { get; set; }
+        public decimal? DeadBirdsDisposed { get; set; }
+        public decimal? DeadBirdsRemaining { get; set; }
+    }
+
+    // ---- 375: Byproduct Inventory & Disposition ---------------------------------
+    public class PoultryByproductReportSummary
+    {
+        public decimal BrokenEggsOpening { get; set; }
+        public decimal BrokenEggsGenerated { get; set; }
+        public decimal BrokenEggsSold { get; set; }
+        public decimal BrokenEggsDisposed { get; set; }
+        public decimal BrokenEggsClosing { get; set; }
+        public decimal DeadBirdsOpening { get; set; }
+        public decimal DeadBirdsGenerated { get; set; }
+        public decimal DeadBirdsSold { get; set; }
+        public decimal DeadBirdsDisposed { get; set; }
+        public decimal DeadBirdsClosing { get; set; }
+        public decimal ByproductRevenue { get; set; }
+    }
+
+    public class PoultryByproductReportRow
+    {
+        /// <summary>The byproduct's name -- doubles as the report's Category filter.</summary>
+        public string Category { get; set; } = string.Empty;
+        public string Role { get; set; } = string.Empty;
+        public int? FlockId { get; set; }
+        public string FlockName { get; set; } = string.Empty;
+        public string? BatchCode { get; set; }
+        public decimal Opening { get; set; }
+        public decimal Generated { get; set; }
+        public decimal Sold { get; set; }
+        public decimal Disposed { get; set; }
+        public decimal InternalUse { get; set; }
+        public decimal ManualIn { get; set; }
+        public decimal ManualOut { get; set; }
+        public decimal Reversals { get; set; }
+        public decimal Closing { get; set; }
+        public decimal Revenue { get; set; }
+        public decimal? AverageSalePrice { get; set; }
     }
 
     public class PoultryEndOfFlockReportRow

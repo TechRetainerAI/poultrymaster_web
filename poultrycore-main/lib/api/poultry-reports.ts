@@ -50,6 +50,7 @@ export type PoultryReportSlug =
   | "feed-inventory-balance"
   | "feed-cost-per-egg"
   | "egg-stock-balance"
+  | "byproduct-inventory"
   | "egg-sales"
   | "customer-balance"
   | "supplier-balance"

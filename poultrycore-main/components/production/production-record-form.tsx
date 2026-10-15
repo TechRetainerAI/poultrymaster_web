@@ -58,7 +58,7 @@ import { PRODUCTION_EGG_GRADE, eggGradeToApi, formatEggGradeLabel, productionEgg
 import { isFinishedFeedCategory } from "@/lib/utils/feed-item-ledger"
 import { useToast } from "@/hooks/use-toast"
 import { toastFormGuide } from "@/lib/utils/validation-toast"
-import { FormSectionCard, CalcField, NumField } from "./production-record-fields"
+import { FormSectionCard, CalcField, NumField, DispositionField } from "./production-record-fields"
 import {
   EGGS_PER_CRATE, birdsLeft as calcBirdsLeft, cratesEquivalent, effectiveFeedKg as calcEffectiveFeedKg,
   eggsExceedBirdsLeft, flockAge as calcFlockAge, netSellableEggs as calcNetSellable, pickTotal, resolveAge,
@@ -173,6 +173,11 @@ export function ProductionRecordForm({
     mortality: "", numBirds: "",
     notes: "", medication: "",
     eggGrade: PRODUCTION_EGG_GRADE,
+    // 372: Keep = into Broken Eggs / Dead Birds stock; Disposed = gone at once.
+    // "" on an edit whose record came back without it (an older API): not sent,
+    // so the saved choice is left as it is.
+    brokenEggDisposition: "Keep" as "Keep" | "Disposed" | "",
+    mortalityDisposition: "Keep" as "Keep" | "Disposed" | "",
   })
 
   // Mark dirty on any user edit. Hydration uses setForm directly so loading a
@@ -464,6 +469,8 @@ export function ProductionRecordForm({
       notes: r0.notes ?? "",
       medication: rec.medication ?? "",
       eggGrade: productionEggGrade(r0.eggGrade),
+      brokenEggDisposition: r0.brokenEggDisposition === "Disposed" ? "Disposed" : r0.brokenEggDisposition === "Keep" ? "Keep" : "",
+      mortalityDisposition: r0.mortalityDisposition === "Disposed" ? "Disposed" : r0.mortalityDisposition === "Keep" ? "Keep" : "",
     })
 
     // Crate boxes reflect the stored egg counts so the breakdown is editable.
@@ -660,6 +667,8 @@ export function ProductionRecordForm({
         production5thPick: parseInt(form.fifth) || 0,
         production6thPick: parseInt(form.sixth) || 0,
         brokenEggs: parseInt(form.brokenEggs) || 0,
+        brokenEggDisposition: form.brokenEggDisposition || undefined,
+        mortalityDisposition: form.mortalityDisposition || undefined,
         meatyEggs: form.meatyEggs === "" ? null : parseInt(form.meatyEggs) || 0,
         softEggs: form.softEggs === "" ? null : parseInt(form.softEggs) || 0,
         lostEggs: form.lostEggs === "" ? null : parseInt(form.lostEggs) || 0,
@@ -875,6 +884,15 @@ export function ProductionRecordForm({
           <NumField label="Lost eggs" value={form.lostEggs} onChange={(v) => patch({ lostEggs: String(v) })} text />
           <CalcField label="Net sellable" value={netSellableEggs.toLocaleString()} tone="good" />
         </div>
+        <div className="mt-3">
+          <DispositionField
+            count={brokenEggs}
+            value={form.brokenEggDisposition || "Keep"}
+            onChange={(v) => patch({ brokenEggDisposition: v })}
+            keepText={`${brokenEggs.toLocaleString()} broken egg${brokenEggs === 1 ? "" : "s"} will be added to Broken Egg stock.`}
+            disposedText={`${brokenEggs.toLocaleString()} broken egg${brokenEggs === 1 ? "" : "s"} recorded and disposed of. Nothing is added to stock.`}
+          />
+        </div>
       </FormSectionCard>
 
       {/* --------------------------------------------- Birds & Age */}
@@ -901,6 +919,15 @@ export function ProductionRecordForm({
               <CalcField label="Age (years)" value={String(ageYears)} />
             </>
           )}
+        </div>
+        <div className="mt-3">
+          <DispositionField
+            count={mortalityNum}
+            value={form.mortalityDisposition || "Keep"}
+            onChange={(v) => patch({ mortalityDisposition: v })}
+            keepText={`${mortalityNum.toLocaleString()} live bird${mortalityNum === 1 ? "" : "s"} removed; kept as Dead Birds stock.`}
+            disposedText={`${mortalityNum.toLocaleString()} live bird${mortalityNum === 1 ? "" : "s"} removed; recorded and disposed of, nothing kept.`}
+          />
         </div>
         <label className="mt-3 flex items-center gap-2 text-sm text-slate-600">
           <input

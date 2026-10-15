@@ -1,5 +1,7 @@
 "use client"
 
+import { STOCK_ADJUSTMENT_REASONS, STOCK_REVERSAL_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
 import { Suspense, useEffect, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -607,7 +609,7 @@ function RestaurantInventoryInner() {
               </div>
             )}
             {adjustType !== "TransferOut" && (
-              <div className="space-y-1.5"><Label>Reason</Label><Input value={adjustReason} onChange={e => setAdjustReason(e.target.value)} placeholder="e.g. Supplier delivery, count correction" className="h-10" /></div>
+              <div className="space-y-1.5"><Label>Reason</Label><ReasonSelect options={STOCK_ADJUSTMENT_REASONS} value={adjustReason} onChange={setAdjustReason} /></div>
             )}
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setAdjustDialogOpen(false)}>Cancel</Button><Button onClick={handleAdjust} className="bg-rose-600 hover:bg-rose-700">Apply</Button></DialogFooter>
@@ -663,7 +665,7 @@ function RestaurantInventoryInner() {
               The stock goes back out and anything paid comes back to its account today. Not possible once any of this stock has been used or a supplier payment was applied.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-1.5"><Label>Reason *</Label><Input value={reverseReason} onChange={(e) => setReverseReason(e.target.value)} placeholder="e.g. Recorded twice" className="h-10" /></div>
+          <div className="space-y-1.5"><Label>Reason *</Label><ReasonSelect options={STOCK_REVERSAL_REASONS} value={reverseReason} onChange={setReverseReason} /></div>
           <DialogFooter><Button variant="outline" onClick={() => setReversing(null)}>Cancel</Button><Button onClick={handleReversePurchase} className="bg-red-600 hover:bg-red-700">Reverse</Button></DialogFooter>
         </DialogContent>
       </Dialog>

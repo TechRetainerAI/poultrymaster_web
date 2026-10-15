@@ -12,6 +12,7 @@
 // Partial sorting, many sessions per pick, and sorting on a later day all work;
 // what is left is always read from the production record, never retyped.
 
+import { STOCK_REVERSAL_REASONS } from "@/lib/reversal-reasons"
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -885,6 +886,7 @@ function EggSortingInner() {
       <ReasonDialog
         open={!!reverseTarget} onOpenChange={(v) => { if (!v) setReverseTarget(null) }} busy={reversing} destructive
         title={`Reverse ${reverseTarget?.sessionNo ?? "this sorting"}?`}
+        options={STOCK_REVERSAL_REASONS}
         description="The sized eggs go back into Unsorted and the picks can be sorted again. The sorting stays in the history, marked Reversed. If any of its sized eggs were already sold or used, reverse those first."
         confirmLabel="Reverse" onConfirm={(r) => void doReverse(r)} />
     </div>

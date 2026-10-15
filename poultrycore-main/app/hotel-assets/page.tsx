@@ -9,6 +9,8 @@
 // backend doesn't have (correct original cost, the "what is due" list) are
 // hidden via HOTEL_ASSETS_CAN; everything else is the same page.
 
+import { ASSET_REVERSAL_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -666,6 +668,7 @@ export default function HotelAssetsPage() {
       open={!!reversingCost}
       onOpenChange={(o) => { if (!o) setReversingCost(null) }}
       title="Reverse this capitalised cost"
+      options={ASSET_REVERSAL_REASONS}
       description={
         "The entry is kept on the record and marked reversed, and the investment's value falls by "
         + gh(reversingCost?.row.amount ?? 0)
@@ -689,6 +692,7 @@ export default function HotelAssetsPage() {
       open={!!reversingDep}
       onOpenChange={(o) => { if (!o) setReversingDep(null) }}
       title="Reverse this depreciation charge"
+      options={ASSET_REVERSAL_REASONS}
       description="The original entry is kept and an opposite one is written beside it, so the history still shows what was charged and when. No cash is affected."
       label="Reason"
       placeholder="Wrong in-service month"
@@ -1302,8 +1306,7 @@ function ReverseDialog({ asset, onClose, onSaved }: {
         </DialogHeader>
         <div className="space-y-2">
           <Label className="text-sm">Reason</Label>
-          <Textarea rows={3} value={reason} onChange={(e) => setReason(e.target.value)}
-                    placeholder="Recorded on the wrong company" />
+          <ReasonSelect options={ASSET_REVERSAL_REASONS} value={reason} onChange={setReason} />
         </div>
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="outline" onClick={onClose}>Cancel</Button>

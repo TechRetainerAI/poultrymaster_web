@@ -20,9 +20,10 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Plus, Eye, Undo2, RotateCcw, ShoppingCart, DollarSign, TrendingUp, Package, FileText, Printer, Loader2, Info, Search, Filter, ChevronDown, ChevronUp, Mail, Wallet, History } from "lucide-react"
 import { getSales, createSale, updateSale, getFlocks, getCustomers, createCustomer, type Sale, type SaleInput, type SaleLine } from "@/lib/api"
+import { getFlockBatches, type FlockBatch } from "@/lib/api/flock-batch"
 import { isFlockClosed } from "@/lib/utils/flock-eligibility"
 import { listPoultryCashAccounts, recordPoultryPayment, type PoultryCashAccount } from "@/lib/api/poultry-finance"
-import { listPoultryProducts, type PoultryProduct } from "@/lib/api/poultry-inventory"
+import { listPoultryProducts, getPoultryByproductSettings, type PoultryProduct, type PoultryByproductSettings } from "@/lib/api/poultry-inventory"
 import { createSaleGroup, getSaleReversal } from "@/lib/api/sale"
 import { ReverseSaleDialog, type ReverseSaleResult } from "@/components/sales/reverse-sale-dialog"
 import { SaleDetailsDialog } from "@/components/sales/sale-details-dialog"
@@ -43,7 +44,8 @@ import {
   type ExtraEggLine,
   type ReturnedEggs,
 } from "@/components/sales/egg-class-fields"
-import { SALE_PRODUCT_OPTIONS, SaleItemRow, SaleItemsHeader, isEggProduct } from "@/components/sales/sale-item-row"
+import { SALE_PRODUCT_OPTIONS, SaleItemRow, SaleItemsHeader, isEggProduct, saleProductOptions } from "@/components/sales/sale-item-row"
+import { byproductRole } from "@/lib/poultry/byproducts"
 import { useToast } from "@/hooks/use-toast"
 import { getUserContext } from "@/lib/utils/user-context"
 import Link from "next/link"
@@ -171,6 +173,11 @@ function toSaleRows(sales: Sale[]): SaleRow[] {
 function saleStockProduct(products: PoultryProduct[], product: string | null | undefined): PoultryProduct | null {
   const name = (product ?? "").trim().toLowerCase()
   if (!name) return null
+  // 374: Broken Eggs / Dead Birds sell out of their own stock.
+  const role = byproductRole(product)
+  if (role) {
+    return products.find((p) => byproductRole(p.name) === role) ?? null
+  }
   if (name.includes("egg")) {
     return products.find((p) => p.isRawEggProduct) ?? products.find((p) => p.name.toLowerCase().includes("egg")) ?? null
   }
@@ -185,7 +192,8 @@ function stockUnitLabel(product: PoultryProduct | null): string {
   if (!product) return "units"
   if (product.isRawEggProduct) return "eggs"
   if (product.isBirdProduct) return "birds"
-  return (product.unit || "units").toLowerCase()
+  const unit = (product.unit || "units").toLowerCase()
+  return unit === "egg" ? "eggs" : unit === "bird" ? "birds" : unit
 }
 
 /**
@@ -272,6 +280,9 @@ export default function SalesPage() {
   const [payNote, setPayNote] = useState("")
   const [paySaving, setPaySaving] = useState(false)
   const [flocks, setFlocks] = useState<any[]>([])
+  // 366: Batch comes before Flock. Both optional -- eggs are often pooled.
+  const [batches, setBatches] = useState<FlockBatch[]>([])
+  const [saleBatchId, setSaleBatchId] = useState(0)
   const [customers, setCustomers] = useState<any[]>([])
   const [cashAccounts, setCashAccounts] = useState<PoultryCashAccount[]>([])
   const [showNewCustomerInput, setShowNewCustomerInput] = useState(false)
@@ -311,7 +322,9 @@ export default function SalesPage() {
     poultryCashAccountId: null,
   })
 
-  const productOptions = ["Fresh Eggs", "Chicken", "Manure", "Other"]
+  // 374: Broken Eggs (on) / Dead Birds (off) are offered per company.
+  const [byproductSettings, setByproductSettings] = useState<PoultryByproductSettings | null>(null)
+  const productOptions = useMemo(() => saleProductOptions(byproductSettings), [byproductSettings])
   const paymentMethodOptions = ["Cash", "Credit Card", "Bank Transfer", "Check", "Mobile Money"]
 
   const [productSelection, setProductSelection] = useState<string | undefined>(undefined)
@@ -363,7 +376,7 @@ export default function SalesPage() {
   const [extraEggLines, setExtraEggLines] = useState<ExtraEggLine[]>([])
 
   // Check if current product is eggs (for crates input)
-  const isEggsProduct = (formData.product ?? "").toLowerCase().includes("egg")
+  const isEggsProduct = isEggProduct(formData.product)
 
   // The class's default price per crate (344), offered when a class is chosen.
   const classPrice = (eggProductId: number | null | undefined): number | undefined => {
@@ -463,7 +476,7 @@ export default function SalesPage() {
     if (editingSale?.flockId === flock.flockId) return false
     const sellsBirds = (p: string | null | undefined) => {
       const name = (p ?? "").toString().trim().toLowerCase()
-      return /bird|chick|cockerel/.test(name) && !name.includes("egg")
+      return /bird|chick|cockerel/.test(name) && !name.includes("egg") && byproductRole(name) == null
     }
     return sellsBirds(formData.product) || extraEggLines.some((l) => !extraLineIsEggs(l) && sellsBirds(l.product))
   }
@@ -482,7 +495,7 @@ export default function SalesPage() {
     const editedIsSameEggStock =
       editingSale != null &&
       isEggsProduct &&
-      (editingSale.product ?? "").toLowerCase().includes("egg") &&
+      isEggProduct(editingSale.product) &&
       (editingSale.eggProductId ?? null) === (formData.eggProductId ?? null)
     const addBack = editedIsSameEggStock ? Number(editingSale?.quantity) || 0 : 0
     return (Number(stockProduct.stockOnHand) || 0) + addBack
@@ -578,6 +591,8 @@ export default function SalesPage() {
       if (result.success && result.data) {
         setFlocks(result.data)
       }
+      const b = await getFlockBatches(userId, farmId).catch(() => null)
+      if (b?.success && b.data) setBatches(b.data)
     }
   }
   
@@ -593,6 +608,8 @@ export default function SalesPage() {
     } catch {
       setPoultryProducts([])
     }
+    // 374: which byproducts this company sells. Unreadable = the defaults.
+    getPoultryByproductSettings().then(setByproductSettings).catch(() => setByproductSettings(null))
     try {
       setEggClasses(await getEggClasses())
     } catch {
@@ -743,6 +760,7 @@ export default function SalesPage() {
           customerCreditAmount: creditUsed > 0 ? creditUsed : null,
           saleDescription: formData.saleDescription || null,
           flockId: formData.flockId || null,
+          batchId: saleBatchId || null,
           correctsSaleId: correcting?.saleId ?? null,
           requestKey: saleRequestKeyRef.current,
           lines: (() => {
@@ -797,6 +815,7 @@ export default function SalesPage() {
         paymentMethod: (formData.paymentMethod ?? "").toString(),
         customerName: (formData.customerName ?? "").toString(),
         flockId: formData.flockId ?? 0,
+        batchId: saleBatchId || null,
         saleDescription: formData.saleDescription ?? "",
         paid: formData.paid ?? true,
         size: formData.size?.trim() ? formData.size.trim() : null,
@@ -943,6 +962,7 @@ export default function SalesPage() {
     const first = row.lines?.[0]
     const firstQty = Number(first?.quantity ?? sale.quantity) || 0
     resetForm()
+    setSaleBatchId(Number(sale.batchId) || batchOfFlock(sale.flockId))
     setFormData({
       saleDate: sale.saleDate.split('T')[0],
       product: sale.product,
@@ -977,7 +997,7 @@ export default function SalesPage() {
     const selection = productOptions.includes(sale.product) ? sale.product : "Other"
     setProductSelection(selection)
     setProductOther(selection === "Other" ? sale.product : "")
-    const isEgg = (sale.product ?? "").toLowerCase().includes("egg")
+    const isEgg = isEggProduct(sale.product)
     setCrates(isEgg ? Math.floor(firstQty / EGGS_PER_CRATE) : 0)
     setLooseEggs(isEgg ? firstQty % EGGS_PER_CRATE : 0)
     setCorrecting({ saleId: sale.saleId, label: row.lines ? (row.saleGroupNo ?? `#${sale.saleId}`) : `#${sale.saleId}`, creditKept })
@@ -1026,6 +1046,7 @@ export default function SalesPage() {
 
   const resetForm = () => {
     saleRequestKeyRef.current = crypto.randomUUID()
+    setSaleBatchId(0)
     setFormData({
       saleDate: new Date().toISOString().split('T')[0],
       product: "Fresh Eggs",
@@ -1105,12 +1126,21 @@ export default function SalesPage() {
         // The quantity is eggs on an egg line and units otherwise, so it does
         // not carry across a switch between the two.
         quantity: egg ? crates * EGGS_PER_CRATE + looseEggs : wasEgg ? 0 : prev.quantity,
+        // 374: a byproduct starts at the price set on its product.
+        unitPrice: byproductPrice(value) ?? prev.unitPrice,
       }
     })
     if (!egg) {
       setCrates(0)
       setLooseEggs(0)
     }
+  }
+
+  /** The Broken Eggs / Dead Birds price set under Products, if any. */
+  const byproductPrice = (product: string): number | null => {
+    const role = byproductRole(product)
+    const p = role ? poultryProducts.find((x) => byproductRole(x.name) === role) : null
+    return p && Number(p.unitPrice) > 0 ? Number(p.unitPrice) : null
   }
 
   const updateSaleLine = (key: string, patch: Partial<ExtraEggLine>) =>
@@ -1485,6 +1515,14 @@ export default function SalesPage() {
   const totalQuantity = useMemo(() => filteredSales.filter((s) => s.status !== "Reversed").reduce((sum, sale) => sum + (sale.quantity || 0), 0), [filteredSales])
   const selectedFlockId = formData.flockId ?? null
   const selectedFlockIdString = selectedFlockId !== null ? selectedFlockId.toString() : ""
+  /** The batch a flock came from (flock.batchid), or 0. */
+  const batchOfFlock = (flockId: number | null | undefined) =>
+    Number(flocks.find((f) => f.flockId === flockId)?.batchId) || 0
+  // A chosen batch narrows the flocks to its own; the flock already on the
+  // form stays listed so an edit can still show it.
+  const shownFlocks = saleBatchId
+    ? flocks.filter((f) => Number(f.batchId) === saleBatchId || f.flockId === selectedFlockId)
+    : flocks
 
   useEffect(() => {
     setCurrentPage(1)
@@ -1557,7 +1595,7 @@ export default function SalesPage() {
               {/* Who bought, when, and from which flock. */}
               <div className="overflow-hidden rounded-xl border border-blue-200">
                 <div className="bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Customer &amp; Date</div>
-              <div className="grid grid-cols-1 gap-3 bg-blue-50/40 p-4 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 bg-blue-50/40 p-4 sm:grid-cols-2 lg:grid-cols-[3fr_2fr_2.5fr_2.5fr]">
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-2">
                     <Label htmlFor="customerName">Customer *</Label>
@@ -1606,6 +1644,11 @@ export default function SalesPage() {
                       }}
                     />
                   )}
+                  {saleCustomerId && creditAvailable > 0 && (
+                    <p className="text-xs font-medium text-emerald-700">
+                      Available customer credit: {formatCurrency(creditAvailable, currencyCode)}
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="saleDate">Sale date *</Label>
@@ -1617,22 +1660,49 @@ export default function SalesPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
+                  <Label htmlFor="batchId">Batch</Label>
+                  <Select
+                    value={String(saleBatchId)}
+                    onValueChange={(value) => {
+                      const b = Number(value) || 0
+                      setSaleBatchId(b)
+                      // A flock from another batch no longer fits: back to All flocks.
+                      if (b && formData.flockId && batchOfFlock(formData.flockId) !== b) {
+                        setFormData(prev => ({ ...prev, flockId: 0 }))
+                      }
+                    }}
+                  >
+                    <SelectTrigger id="batchId">
+                      <SelectValue placeholder="All batches" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">All batches</SelectItem>
+                      {batches.map((b) => (
+                        <SelectItem key={b.batchId} value={String(b.batchId)}>
+                          {b.batchName || b.batchCode || `Batch #${b.batchId}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
                   <Label htmlFor="flockId">Flock</Label>
                   <Select
                     value={selectedFlockIdString}
-                    onValueChange={(value) =>
-                      setFormData(prev => ({
-                        ...prev,
-                        flockId: value ? Number(value) : undefined,
-                      }))
-                    }
+                    onValueChange={(value) => {
+                      const f = value ? Number(value) : 0
+                      setFormData(prev => ({ ...prev, flockId: f }))
+                      // Picking a flock picks its batch too.
+                      const b = batchOfFlock(f)
+                      if (f && b) setSaleBatchId(b)
+                    }}
                   >
                     <SelectTrigger id="flockId">
-                      <SelectValue placeholder="Select a flock" />
+                      <SelectValue placeholder="All flocks" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="0">All flocks</SelectItem>
-                      {flocks.map((flock) => (
+                      {shownFlocks.map((flock) => (
                         <SelectItem
                           key={flock.flockId}
                           value={flock.flockId.toString()}
@@ -1685,6 +1755,7 @@ export default function SalesPage() {
                     unitPrice={Number(formData.unitPrice) || 0}
                     onUnitPriceChange={(n) => setFormData(prev => ({ ...prev, unitPrice: n }))}
                     lineTotal={firstLineAmount}
+                    options={productOptions}
                     onRemove={hasExtraEggLines ? removeFirstSaleLine : undefined}
                     note={
                       <StockCheckNotice
@@ -1706,7 +1777,7 @@ export default function SalesPage() {
                         product={l.product ?? "Fresh Eggs"}
                         onProductChange={(v) => updateSaleLine(l.key, isEggProduct(v)
                           ? { product: v, quantity: undefined }
-                          : { product: v, crates: 0, loose: 0, eggProductId: null })}
+                          : { product: v, crates: 0, loose: 0, eggProductId: null, unitPrice: byproductPrice(v) ?? l.unitPrice })}
                         classes={eggClasses}
                         eggProductId={l.eggProductId}
                         onClassChange={(v) => updateSaleLine(l.key, { eggProductId: v, unitPrice: classPrice(v) ?? l.unitPrice })}
@@ -1719,6 +1790,7 @@ export default function SalesPage() {
                         unitPrice={l.unitPrice}
                         onUnitPriceChange={(n) => updateSaleLine(l.key, { unitPrice: n })}
                         lineTotal={extraLineTotal(l)}
+                        options={productOptions}
                         onRemove={() => setExtraEggLines(prev => prev.filter((x) => x.key !== l.key))}
                         note={st && (
                           <p className={st.short ? "text-rose-700" : undefined}>
@@ -2382,7 +2454,7 @@ export default function SalesPage() {
                           <TableCell>{getFlockLabel(sale.flockId)}</TableCell>
                           <TableCell className="whitespace-nowrap">
                             {sale.quantity}
-                            {sale.product?.toLowerCase().includes("egg") && eggCrateBreakdown(sale.quantity) && (
+                            {isEggProduct(sale.product) && eggCrateBreakdown(sale.quantity) && (
                               // Inline, not `block`: the crate breakdown reads as a
                               // unit of the number it follows, so stacking it made
                               // the row two lines tall for one value.
@@ -2625,7 +2697,7 @@ export default function SalesPage() {
         farmId={getUserContext().farmId}
         currencyCode={currencyCode}
         flockLabel={getFlockLabel}
-        lineLabel={(l) => `${l.product}${(l.product ?? "").toLowerCase().includes("egg") ? ` · ${eggClassLabel(l.eggProductId)} ${eggCrateBreakdown(Number(l.quantity) || 0) ?? l.quantity}` : ` · ${l.quantity}`}`}
+        lineLabel={(l) => `${l.product}${isEggProduct(l.product) ? ` · ${eggClassLabel(l.eggProductId)} ${eggCrateBreakdown(Number(l.quantity) || 0) ?? l.quantity}` : ` · ${l.quantity}`}`}
         canReverse={can("poultry.sales.approve") || can("poultry.sales.delete")}
         onOpenChange={(o) => { if (!o) setViewSale(null) }}
         onSaveNote={saveSaleNote}

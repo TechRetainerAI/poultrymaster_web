@@ -1,5 +1,6 @@
 "use client"
 
+import { REVERSAL_REASONS } from "@/lib/reversal-reasons"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -2462,6 +2463,7 @@ export default function WaterDriverReturnsPage() {
         open={!!reverseTarget}
         onOpenChange={(o) => { if (!o) { setReverseTarget(null); setEditAfterReverse(false) } }}
         title={editAfterReverse ? "Edit reconciled return?" : "Reverse this reconciliation?"}
+        options={REVERSAL_REASONS}
         description={editAfterReverse ? (
           <>
             There's no direct "update return" endpoint — to change a reconciled

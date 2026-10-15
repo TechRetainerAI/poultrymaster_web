@@ -17,6 +17,8 @@
 // feed-per-dozen, and a flock whose opening losses were never broken down has
 // no lifetime mortality rate.
 
+import { FLOCK_REOPEN_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
 import { useEffect, useState, type ComponentType, type ReactNode } from "react"
 import {
   AlertCircle, Bird, CalendarDays, Egg, HeartPulse, History, Loader2, Receipt, RotateCcw, Tag, TrendingUp, Wallet,
@@ -345,7 +347,7 @@ export function FlockLifetimeView({
             </label>
           )}
           <Label className="text-xs">Reason for reopening</Label>
-          <Textarea rows={2} value={reopenReason} onChange={(e) => setReopenReason(e.target.value)} />
+          <ReasonSelect options={FLOCK_REOPEN_REASONS} value={reopenReason} onChange={setReopenReason} />
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => setReopenOpen(false)} disabled={reopening}>Cancel</Button>
             <Button size="sm" onClick={doReopen} disabled={reopening || !reopenReason.trim()}>

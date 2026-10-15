@@ -14,6 +14,8 @@
  *    records the payment, so the order and the card can never disagree.
  */
 
+import { ORDER_REFUND_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
 import { useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -300,7 +302,7 @@ export function RefundDialog({
           </div>
           <div className="space-y-1.5">
             <Label>Reason</Label>
-            <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Wrong dish served" className="h-10" />
+            <ReasonSelect options={ORDER_REFUND_REASONS} value={reason} onChange={setReason} />
           </div>
           {method === "Cash" && <TillPicker shifts={shifts} value={shiftId} onChange={setShiftId} />}
           {problem && order && paid > 0 && <p className="text-xs text-rose-700">{problem}</p>}

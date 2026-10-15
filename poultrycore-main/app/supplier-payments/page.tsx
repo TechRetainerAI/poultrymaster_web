@@ -9,8 +9,11 @@
 
 import { PaymentsLedgerPage } from "@/components/balances/payments-ledger-page"
 import { listPoultryCashAccounts } from "@/lib/api/poultry-finance"
+import { RecordPartyPaymentButton } from "@/components/payments/record-customer-payment-button"
+import { usePermissions } from "@/hooks/use-permissions"
 
 export default function SupplierPaymentsPage() {
+  const { can } = usePermissions()
   return (
     <PaymentsLedgerPage
       module="poultry"
@@ -22,6 +25,8 @@ export default function SupplierPaymentsPage() {
       partyHref={() => "/suppliers"}
       documentHref={(a) => {
         switch (a.documentType) {
+          case "SupplierDebt":
+            return null   // 370: a supplier debt has no page of its own
           case "FlockBatch":
             return `/flock-batch/${a.documentId}`
           case "Expense":
@@ -37,6 +42,10 @@ export default function SupplierPaymentsPage() {
         view: "poultry.supplier-balances.view",
         reverse: "poultry.supplier-payments.reverse",
       }}
+      // 370: a payment not tied to one purchase -- spread over several, kept as credit, or an advance.
+      headerActions={(reload) => can("poultry.supplier-payments.create")
+        ? <RecordPartyPaymentButton side="supplier" onPosted={reload} />
+        : null}
     />
   )
 }

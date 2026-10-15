@@ -352,6 +352,9 @@ namespace PoultryFarmAPIWeb.Business
                        new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true })
                    ?? new SaleGroupResult();
             if (result.SaleId == 0 && result.SaleIds.Length > 0) result.SaleId = result.SaleIds[0];
+            if (!result.Duplicate)
+                await SetBatchAsync(conn, tx, request.FarmId,
+                    result.SaleIds.Length > 0 ? result.SaleIds : new[] { result.SaleId }, request.BatchId);
             if (partPay > 0 && !result.Duplicate)
                 await RecordPartPaymentAsync(conn, tx, request, result, partPay);
             if (credit > 0 && !result.Duplicate)
@@ -361,6 +364,24 @@ namespace PoultryFarmAPIWeb.Business
             if (request.CorrectsSaleId is > 0 && result.SaleId > 0 && !result.Duplicate)
                 await LinkCorrectionAsync(request.FarmId, result.SaleId, request.CorrectsSaleId.Value, request.UserId);
             return result;
+        }
+
+        /// <summary>
+        /// 366: attribute new sale(s) to a batch, in the sale's own transaction.
+        /// The database refuses a batch from another farm, or one that does not
+        /// match the sale's flock (a flock's batch is filled in by the database).
+        /// </summary>
+        private static async Task SetBatchAsync(NpgsqlConnection conn, NpgsqlTransaction tx,
+            string farmId, int[] saleIds, int? batchId)
+        {
+            if (batchId is not > 0 || saleIds.Length == 0) return;
+            using var cmd = new NpgsqlCommand(
+                "SELECT sppoultrysale_setbatch(p_farmid => @FarmId::text, p_saleids => @Ids::int[], p_batchid => @Batch::int)",
+                conn, tx);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@Ids", saleIds);
+            cmd.Parameters.AddWithValue("@Batch", batchId.Value);
+            await cmd.ExecuteNonQueryAsync();
         }
 
         /// <summary>
@@ -505,6 +526,7 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.CommandText = await PgCallText.ForAsync("spSale_Insert", cmd);
                 var result = await cmd.ExecuteScalarAsync();
                 var newId = Convert.ToInt32(result);
+                await SetBatchAsync(conn, tx, model.FarmId, new[] { newId }, model.BatchId);
                 await SetEggClassAsync(conn, model, newId, tx);
                 // Cash first: this is what writes the chosen account onto the
                 // sale row, and the payment below reads the account from there.
@@ -600,6 +622,7 @@ namespace PoultryFarmAPIWeb.Business
                         PaymentMethod = reader.IsDBNull(reader.GetOrdinal("PaymentMethod")) ? null : reader.GetString(reader.GetOrdinal("PaymentMethod")),
                         CustomerName = reader.IsDBNull(reader.GetOrdinal("CustomerName")) ? null : reader.GetString(reader.GetOrdinal("CustomerName")),
                         FlockId = reader.IsDBNull(reader.GetOrdinal("FlockId")) ? null : reader.GetInt32(reader.GetOrdinal("FlockId")),
+                        BatchId = GetNullableInt32IfPresent(reader, "BatchId"),
                         SaleDescription = reader.IsDBNull(reader.GetOrdinal("SaleDescription")) ? null : reader.GetString(reader.GetOrdinal("SaleDescription")),
                         Paid = GetBooleanIfPresent(reader, "Paid", true),
                         Size = GetNullableStringIfPresent(reader, "Size"),
@@ -647,6 +670,7 @@ namespace PoultryFarmAPIWeb.Business
                         PaymentMethod = reader.IsDBNull(reader.GetOrdinal("PaymentMethod")) ? null : reader.GetString(reader.GetOrdinal("PaymentMethod")),
                         CustomerName = reader.IsDBNull(reader.GetOrdinal("CustomerName")) ? null : reader.GetString(reader.GetOrdinal("CustomerName")),
                         FlockId = reader.IsDBNull(reader.GetOrdinal("FlockId")) ? null : reader.GetInt32(reader.GetOrdinal("FlockId")),
+                        BatchId = GetNullableInt32IfPresent(reader, "BatchId"),
                         SaleDescription = reader.IsDBNull(reader.GetOrdinal("SaleDescription")) ? null : reader.GetString(reader.GetOrdinal("SaleDescription")),
                         Paid = GetBooleanIfPresent(reader, "Paid", true),
                         Size = GetNullableStringIfPresent(reader, "Size"),
@@ -839,6 +863,7 @@ namespace PoultryFarmAPIWeb.Business
                         PaymentMethod = reader.IsDBNull(reader.GetOrdinal("PaymentMethod")) ? null : reader.GetString(reader.GetOrdinal("PaymentMethod")),
                         CustomerName = reader.IsDBNull(reader.GetOrdinal("CustomerName")) ? null : reader.GetString(reader.GetOrdinal("CustomerName")),
                         FlockId = reader.IsDBNull(reader.GetOrdinal("FlockId")) ? null : reader.GetInt32(reader.GetOrdinal("FlockId")),
+                        BatchId = GetNullableInt32IfPresent(reader, "BatchId"),
                         SaleDescription = reader.IsDBNull(reader.GetOrdinal("SaleDescription")) ? null : reader.GetString(reader.GetOrdinal("SaleDescription")),
                         Paid = GetBooleanIfPresent(reader, "Paid", true),
                         Size = GetNullableStringIfPresent(reader, "Size"),

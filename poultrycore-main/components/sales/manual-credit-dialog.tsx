@@ -5,9 +5,11 @@
 // The user never types a balance. They say WHERE the money came from, and
 // that decides what else moves:
 //   Opening balance  credit held before the farm used the system -- no cash, no P&L
-//   Deposit          paid in advance, no sale yet -- real cash in to an account
+//   Customer advance paid in advance, no sale yet -- real cash in to an account
 //   Credit note      goodwill credit -- no cash; a cost on Profit & Loss
 
+import { CUSTOMER_CREDIT_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
 import { useEffect, useState } from "react"
 import { Loader2, PiggyBank } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -33,7 +35,7 @@ const KINDS: { value: ManualCreditKind; title: string; body: string }[] = [
   },
   {
     value: "Deposit",
-    title: "Deposit",
+    title: "Customer advance",
     body: "The customer paid in advance, before buying anything. The money goes into the cash account you choose and shows in Cash Flow.",
   },
   {
@@ -148,7 +150,7 @@ export function ManualCreditDialog({ open, currencyCode, onOpenChange, onCreated
               {KINDS.map((k) => (
                 <label key={k.value}
                        className={cn("flex cursor-pointer gap-2.5 rounded-md border p-2.5", kind === k.value ? "border-blue-400 bg-blue-50/60" : "border-slate-200")}>
-                  <input type="radio" name="manual-credit-kind" className="mt-1" checked={kind === k.value} onChange={() => setKind(k.value)} />
+                  <input type="radio" name="manual-credit-kind" className="mt-1" checked={kind === k.value} onChange={() => { setKind(k.value); setReason("") }} />
                   <span className="text-sm">
                     <span className="font-medium text-slate-900">{k.title}</span>
                     <span className="block text-xs text-slate-600">{k.body}</span>
@@ -198,8 +200,7 @@ export function ManualCreditDialog({ open, currencyCode, onOpenChange, onCreated
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="mc-reason">Reason *</Label>
-            <Textarea id="mc-reason" rows={2} value={reason} onChange={(e) => setReason(e.target.value)}
-                      placeholder={kind === "CreditNote" ? "e.g. 2 crates broken on delivery" : kind === "Deposit" ? "e.g. advance for next week's eggs" : "e.g. prepaid balance from the old book"} />
+            <ReasonSelect id="mc-reason" options={CUSTOMER_CREDIT_REASONS[kind]} value={reason} onChange={setReason} />
           </div>
 
           {value > 0 && customerName && (
