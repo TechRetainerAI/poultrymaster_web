@@ -59,6 +59,14 @@ namespace PoultryFarmAPIWeb.Models
         
         // New fields for unified table (shared with EggProduction)
         public int? BrokenEggs { get; set; }
+
+        /// <summary>
+        /// 372: what happens to this record's dead birds -- Keep (into Dead Birds
+        /// stock) or Disposed (generated and disposed at once). Null = unchanged.
+        /// </summary>
+        public string? MortalityDisposition { get; set; }
+        /// <summary>372: the same for its broken eggs (Broken Eggs stock).</summary>
+        public string? BrokenEggDisposition { get; set; }
         public string? Notes { get; set; }
         public int EggCount { get; set; }
 

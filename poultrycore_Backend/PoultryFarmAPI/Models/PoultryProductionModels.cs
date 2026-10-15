@@ -38,6 +38,90 @@ namespace PoultryFarmAPIWeb.Models
         [StringLength(500)] public string? Note { get; set; }
         public DateTime CreatedDate { get; set; }
         public string? CreatedBy { get; set; }
+
+        // 373: provenance of manual movements (and the byproducts they made).
+        public int? BatchId { get; set; }
+        public string? BatchCode { get; set; }
+        public int? FlockId { get; set; }
+        public string? FlockName { get; set; }
+        public DateTime? EffectiveDate { get; set; }
+        public string? Reason { get; set; }
+        public int? ManualMovementId { get; set; }
+        public bool ManualReversal { get; set; }
+    }
+
+    /// <summary>
+    /// 373: one manual stock movement (Stock page). Exactly one of
+    /// PoultryProductId / RawMaterialItemId. Quantity is POSITIVE; the movement
+    /// type gives the direction. Batch / flock are checked by the database.
+    /// </summary>
+    public class PoultryManualMovementRequest
+    {
+        [Required] public string FarmId { get; set; } = string.Empty;
+        public int? PoultryProductId { get; set; }
+        public int? RawMaterialItemId { get; set; }
+        [Required] public string MovementType { get; set; } = "Increase";
+        public decimal Quantity { get; set; }
+        public decimal? UnitCost { get; set; }
+        public int? BatchId { get; set; }
+        public int? FlockId { get; set; }
+        public DateTime? EffectiveDate { get; set; }
+        [Required] public string Reason { get; set; } = string.Empty;
+        /// <summary>Historical Mortality of birds only: Keep / Disposed.</summary>
+        public string? Disposition { get; set; }
+        [StringLength(500)] public string? Note { get; set; }
+        /// <summary>Same key = same movement (a double click posts once).</summary>
+        [StringLength(100)] public string? RequestKey { get; set; }
+        public string? CreatedBy { get; set; }
+    }
+
+    /// <summary>374: whether Broken Eggs / Dead Birds are offered in Add Sale.</summary>
+    public class PoultryByproductSettings
+    {
+        public string FarmId { get; set; } = string.Empty;
+        public bool? BrokenEggsInSales { get; set; }
+        public bool? DeadBirdsInSales { get; set; }
+        public DateTime? CutoverAt { get; set; }
+        public string? UpdatedBy { get; set; }
+    }
+
+    public class PoultryManualMovementReverseRequest
+    {
+        [Required] public string FarmId { get; set; } = string.Empty;
+        [Required] public string Reason { get; set; } = string.Empty;
+        public string? ReversedBy { get; set; }
+    }
+
+    public class PoultryManualMovementModel
+    {
+        public int MovementId { get; set; }
+        public string MovementNo { get; set; } = string.Empty;
+        public string ItemKind { get; set; } = string.Empty;
+        public int? PoultryProductId { get; set; }
+        public int? RawMaterialItemId { get; set; }
+        public string ItemName { get; set; } = string.Empty;
+        public string MovementType { get; set; } = string.Empty;
+        public decimal Quantity { get; set; }
+        public decimal? UnitCost { get; set; }
+        public int? BatchId { get; set; }
+        public string? BatchCode { get; set; }
+        public int? FlockId { get; set; }
+        public string? FlockName { get; set; }
+        public DateTime EffectiveDate { get; set; }
+        public string Reason { get; set; } = string.Empty;
+        public string? Disposition { get; set; }
+        public bool ConvertedToBroken { get; set; }
+        public string? Note { get; set; }
+        public decimal? ItemBefore { get; set; }
+        public decimal? ItemAfter { get; set; }
+        public int? BirdAdjustmentId { get; set; }
+        public int? RawAdjustmentId { get; set; }
+        public string Status { get; set; } = "Posted";
+        public string? CreatedBy { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public DateTime? ReversedAt { get; set; }
+        public string? ReversedBy { get; set; }
+        public string? ReversalReason { get; set; }
     }
 
     /// <summary>

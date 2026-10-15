@@ -12,6 +12,8 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
+import { ReasonSelect } from "@/components/ui/reason-select"
+import type { ReasonOption } from "@/lib/reversal-reasons"
 import type { ClosingCheck, ClosingPolicy, PolicyLevel } from "@/lib/api/poultry-daily-closing"
 import { formatLongDate } from "@/lib/closing/daily-closing"
 
@@ -65,7 +67,7 @@ export function CloseDayDialog({
 }
 
 export function ReasonDialog({
-  open, onOpenChange, title, description, confirmLabel, busy, onConfirm, destructive,
+  open, onOpenChange, title, description, confirmLabel, busy, onConfirm, destructive, options,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
@@ -75,6 +77,8 @@ export function ReasonDialog({
   busy: boolean
   onConfirm: (reason: string) => void
   destructive?: boolean
+  /** Pick the reason from this list; "Other" opens a box to type one. */
+  options?: readonly ReasonOption[]
 }) {
   const [reason, setReason] = useState("")
   useEffect(() => { if (open) setReason("") }, [open])
@@ -89,7 +93,9 @@ export function ReasonDialog({
         </DialogHeader>
         <div className="space-y-1.5">
           <Label htmlFor="reason-text">Reason <span className="text-red-500">*</span></Label>
-          <Textarea id="reason-text" value={reason} onChange={(e) => setReason(e.target.value)} rows={3} autoFocus />
+          {options
+            ? <ReasonSelect id="reason-text" options={options} value={reason} onChange={setReason} multiline />
+            : <Textarea id="reason-text" value={reason} onChange={(e) => setReason(e.target.value)} rows={3} autoFocus />}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>Cancel</Button>

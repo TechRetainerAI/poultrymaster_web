@@ -477,6 +477,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // /water-suppliers page, the Setup tab, and the SupplierSelect dropdown
     // on Expense + RawMaterialPurchase forms.
     // ====================================================================
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/Water/suppliers")]
     public class WaterSupplierController : ControllerBase
@@ -502,6 +503,7 @@ namespace PoultryFarmAPIWeb.Controllers
             return m is null ? NotFound() : Ok(m);
         }
 
+        [PoultryFarmAPIWeb.Filters.AllowStaffSetupWrite]
         [HttpPost]
         public async Task<ActionResult<WaterSupplierModel>> Create([FromBody] WaterSupplierModel m)
         {

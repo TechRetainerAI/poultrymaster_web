@@ -11,7 +11,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Trash2, Edit2, UserCog, Users, Shield, Phone, Mail, CheckCircle2, XCircle, Search } from "lucide-react"
+import { Plus, Trash2, Edit2, UserCog, Users, Shield, Phone, Mail, CheckCircle2, XCircle, Search, KeyRound } from "lucide-react"
+import { useStaffEmployeeLink } from "@/hooks/use-staff-employee-link"
+import { EmployeeBadge } from "@/components/employees/link-badges"
 import { PageSkeleton } from "@/components/restaurant/skeleton-loaders"
 import { Badge } from "@/components/ui/badge"
 import { useAuthStore } from "@/lib/store/auth-store"
@@ -132,7 +134,17 @@ export default function RestaurantStaffPage() {
     } catch { setOwed(new Map()) }
   }
 
+  // Employee link (362): opened from Employees -> prefilled Add staff form.
+  const link = useStaffEmployeeLink({
+    onFromEmployee: (p) => {
+      setEditing(null)
+      setForm({ firstName: p.firstName, lastName: p.lastName, phone: p.phoneNumber ?? "", email: p.email ?? "", role: "Waiter", salaryType: "Monthly", basePay: 0 })
+      setDialogOpen(true)
+    },
+  })
+
   function openDialog(s?: StaffMember) {
+    if (!s) link.clearPending()
     if (s) { setEditing(s); setForm({ firstName: s.firstName, lastName: s.lastName, phone: s.phone, email: s.email, role: s.role, salaryType: s.salaryType, basePay: s.basePay, notes: s.notes }) }
     else { setEditing(null); setForm({ firstName: "", lastName: "", phone: "", role: "Waiter", salaryType: "Monthly", basePay: 0 }) }
     setDialogOpen(true)
@@ -142,7 +154,7 @@ export default function RestaurantStaffPage() {
     if (!form.firstName.trim() || !form.phone.trim()) { toast({ title: "Name and phone required", variant: "destructive" }); return }
     try {
       if (editing) await updateStaff(editing.restaurantStaffId, form)
-      else await createStaff(form)
+      else { const created = await createStaff(form); await link.linkCreated(created?.staffId) }
       toast({ title: editing ? "Staff updated" : "Staff member added" })
       setDialogOpen(false); loadStaff()
     } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
@@ -287,6 +299,7 @@ export default function RestaurantStaffPage() {
                               <h4 className="font-semibold text-gray-900">{s.firstName} {s.lastName}</h4>
                               <Badge className={`text-[10px] h-5 ${roleConfig?.color || "bg-gray-100 text-gray-700"} hover:${roleConfig?.color}`}>{roleConfig?.label || s.role}</Badge>
                               {!s.isActive && <Badge variant="secondary" className="text-[10px] h-4">Inactive</Badge>}
+                              {link.isEmployee(s.restaurantStaffId) && <EmployeeBadge className="text-[10px] h-5" />}
                             </div>
                             <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                               <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{s.phone}</span>
@@ -301,6 +314,12 @@ export default function RestaurantStaffPage() {
                           </div>
                           <div className="flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 sm:transition-opacity">
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openDialog(s)}><Edit2 className="h-3.5 w-3.5" /></Button>
+                            {!link.isEmployee(s.restaurantStaffId) && (
+                              <Button variant="ghost" size="icon" className="h-8 w-8" title="Make employee (give a login)"
+                                onClick={() => link.makeEmployee(s.restaurantStaffId, { firstName: s.firstName, lastName: s.lastName, phoneNumber: s.phone, email: s.email })}>
+                                <KeyRound className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => remove(s.restaurantStaffId)}><Trash2 className="h-3.5 w-3.5 text-red-500" /></Button>
                           </div>
                         </div>
@@ -313,6 +332,8 @@ export default function RestaurantStaffPage() {
           </div>
         </main>
       </div>
+
+      {link.dialog}
 
       {/* Staff Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

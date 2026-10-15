@@ -362,7 +362,7 @@ function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePerm
       { href: "/generic-cash-transfers",     label: "Cash transfers",     icon: Activity },
       { href: "/generic-daily-closings",     label: "Daily Closing",      icon: FileText },
       { href: "/generic-reports",            label: "Reports",            icon: BarChart3 },
-      { href: "/generic-setup",              label: "Setup",              icon: Settings },
+      ...(permissions.isAdmin ? [{ href: "/generic-setup", label: "Setup", icon: Settings }] : []),   // admin-only
       { href: "/profile",                    label: "Account",            icon: User },
       // James 2026-06-02 — Employees and Activity Log removed from the top
       // nav (still in the sidebar). /resources and /settings are poultry-only;

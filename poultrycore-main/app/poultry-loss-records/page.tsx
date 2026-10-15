@@ -1,5 +1,7 @@
 "use client"
 
+import { LOSS_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -223,7 +225,7 @@ export default function PoultryLossRecordsPage() {
             </FormField>
             <FormField label="Quantity"><NumberInput min={0} step="0.001" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) || 0 })} /></FormField>
             <FormField label="Estimated value"><NumberInput min={0} step="0.01" value={form.estimatedValue} onChange={(e) => setForm({ ...form, estimatedValue: Number(e.target.value) || 0 })} /></FormField>
-            <FormField label="Reason" full><Input value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} /></FormField>
+            <FormField label="Reason" full><ReasonSelect options={LOSS_REASONS} value={form.reason} onChange={(v: string) => setForm({ ...form, reason: v })} /></FormField>
           </FormSection>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>

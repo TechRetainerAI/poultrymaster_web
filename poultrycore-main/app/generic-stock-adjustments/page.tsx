@@ -2,6 +2,8 @@
 
 export const dynamic = "force-dynamic"
 
+import { REJECT_REASONS, STOCK_ADJUSTMENT_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
 import { Suspense, useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -203,7 +205,7 @@ function GenericStockAdjustmentsPageInner() {
 
                   <FormSection title="Reason & notes" color="amber" columns={1}>
                     <FormField label="Reason *">
-                      <Input maxLength={500} value={form.reason} onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))} placeholder="e.g. damaged in storage, found extras, stocktake correction" />
+                      <ReasonSelect options={STOCK_ADJUSTMENT_REASONS} value={form.reason} onChange={(v: string) => setForm((f) => ({ ...f, reason: v }))} />
                     </FormField>
                     <FormField label="Notes">
                       <Textarea rows={2} maxLength={1000} value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
@@ -340,6 +342,7 @@ function GenericStockAdjustmentsPageInner() {
         open={rejectTarget != null}
         onOpenChange={(v) => { if (!v) setRejectTarget(null) }}
         title="Reject stock adjustment"
+        options={REJECT_REASONS}
         description={rejectTarget ? `Adjustment #${rejectTarget} will be rejected. Tell the originator why.` : ""}
         label="Rejection reason"
         placeholder="e.g. wrong product, count looks off, missing receipt…"

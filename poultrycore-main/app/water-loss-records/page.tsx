@@ -1,5 +1,7 @@
 "use client"
 
+import { LOSS_REASONS, UNAPPROVE_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -352,7 +354,7 @@ export default function WaterLossRecordsPage() {
 
             <FormSection title="Details" color="slate" columns={1}>
               <FormField label="Reason *">
-                <Textarea value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} />
+                <ReasonSelect options={LOSS_REASONS} value={form.reason} onChange={(v: string) => setForm({ ...form, reason: v })} />
               </FormField>
               <FormField label="Notes">
                 <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
@@ -372,6 +374,7 @@ export default function WaterLossRecordsPage() {
         open={!!unapproveTarget}
         onOpenChange={(o) => { if (!o) setUnapproveTarget(null) }}
         title="Unapprove this loss record?"
+        options={UNAPPROVE_REASONS}
         description={unapproveTarget
           ? <>This will flip <span className="font-medium">{unapproveTarget.lossType}</span> from Approved back to Pending so the record can be edited and approved again. Cash impact (if any) is reversed.</>
           : undefined}

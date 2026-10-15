@@ -8,6 +8,7 @@ import { usePermissions } from "@/hooks/use-permissions"
 import { useGenericModules } from "@/hooks/use-generic-modules"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
 import { filterWaterNavItems } from "@/lib/utils/water-nav-access"
+import { isSetupAdminRoute } from "@/lib/nav/setup-admin-routes"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useAlertsStore } from "@/lib/store/alerts-store"
 import { buildPoultryNavConfig } from "@/lib/nav/poultry-nav-config"
@@ -225,7 +226,7 @@ export function MobileBottomNav() {
   // Per-company-type bar config. The 4 main tabs are the most-used daily flow
   // pages for each company; everything else goes into "More". Colours match
   // the desktop top-nav so the company-type identity is consistent.
-  const config = (() => {
+  const builtConfig = (() => {
     if (activeFarmType === "Water") {
       // Staff Page Access gate, same route -> flag map the sidebar and top nav
       // use (lib/utils/water-nav-access) so all three surfaces agree.
@@ -412,7 +413,7 @@ export function MobileBottomNav() {
             { href: "/generic-reports", label: "Reports", icon: BarChart3 },
           ] as NavItem[] },
           { title: "System", items: [
-            { href: "/generic-setup", label: "Setup",   icon: Settings },
+            ...(permissions.isAdmin ? [{ href: "/generic-setup", label: "Setup", icon: Settings }] : []),   // admin-only
             ...(permissions.isAdmin || permissions.featureAccess.canSeeEmployees
               ? [{ href: "/employees", label: "Users & Permissions", icon: UserCog }] : []),
             { href: "/profile",   label: "Account",   icon: User },
@@ -618,6 +619,18 @@ export function MobileBottomNav() {
       moreGroups: filteredPoultryMore,
     }
   })()
+
+  // Setup pages are admin-only for every company type (lib/nav/setup-admin-
+  // routes). One pass over whatever the per-type branches built, rather than a
+  // gate in each of their hand-written lists.
+  const config = permissions.isAdmin ? builtConfig : {
+    ...builtConfig,
+    mainTabs: builtConfig.mainTabs.filter((t) => !isSetupAdminRoute(t.href)),
+    moreGroups: compactSections(builtConfig.moreGroups.map((sec) => ({
+      ...sec,
+      groups: sec.groups.map((g) => ({ ...g, items: g.items.filter((i) => !isSetupAdminRoute(i.href)) })),
+    }))),
+  }
 
   // The same panel colours the desktop dropdowns use, picked by the company's
   // accent. Defined here rather than inside the sheet so the lookup happens

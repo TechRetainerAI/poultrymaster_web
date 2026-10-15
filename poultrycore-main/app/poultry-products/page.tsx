@@ -24,7 +24,8 @@ import { useFmt } from "@/lib/currency"
 import {
   listPoultryProducts, createPoultryProduct, updatePoultryProduct, deletePoultryProduct,
   getPoultryRecipe, upsertPoultryRecipe, listPoultryRawMaterialItems,
-  ensurePoultryDefaults, addPoultryStockTransaction,
+  ensurePoultryDefaults, postPoultryManualMovement, MANUAL_MOVEMENT_REASONS,
+  getPoultryByproductSettings, setPoultryByproductSettings, type PoultryByproductSettings,
   type PoultryProduct, type PoultryRawMaterialItem, type PoultryRecipeItem,
 } from "@/lib/api/poultry-inventory"
 
@@ -70,24 +71,55 @@ export default function PoultryProductsPage() {
     finally { setLoading(false) }
   }
 
+  // 372: Broken Eggs / Dead Birds are system products. The list does not return
+  // their role, so they are known by the names the database gives them; the
+  // database refuses the change anyway, this only keeps the buttons honest.
+  const isSystemProduct = (p: { name: string }) => p.name === "Broken Eggs" || p.name === "Dead Birds"
+  const editingSystem = editId != null && products.some((p) => p.poultryProductId === editId && isSystemProduct(p))
+  const editingName = products.find((p) => p.poultryProductId === editId)?.name ?? ""
+  // 374: whether each byproduct is offered in Add Sale (Dead Birds off by default).
+  const [byproductSettings, setByproductSettings] = useState<PoultryByproductSettings | null>(null)
+  const [offerInSales, setOfferInSales] = useState(false)
+  const offerKey: "brokenEggsInSales" | "deadBirdsInSales" = editingName === "Dead Birds" ? "deadBirdsInSales" : "brokenEggsInSales"
+
   function openNew() { setEditId(null); setForm({ ...EMPTY }); setOpen(true) }
   function openEdit(p: PoultryProduct) {
     setEditId(p.poultryProductId)
+    if (isSystemProduct(p)) {
+      getPoultryByproductSettings()
+        .then((s) => { setByproductSettings(s); setOfferInSales(p.name === "Dead Birds" ? s.deadBirdsInSales : s.brokenEggsInSales) })
+        .catch(() => { setByproductSettings(null); setOfferInSales(p.name !== "Dead Birds") })
+    }
     setForm({ name: p.name, sku: p.sku ?? "", unit: p.unit ?? "", size: p.size ?? "", unitPrice: p.unitPrice, productType: p.productType, isActive: p.isActive, notes: p.notes ?? "", isRawEggProduct: p.isRawEggProduct, requiresRecipeSetup: p.requiresRecipeSetup })
     setOpen(true)
   }
 
   // Add-stock dialog (doc 7c)
   const [stockProduct, setStockProduct] = useState<PoultryProduct | null>(null)
-  const [stockForm, setStockForm] = useState({ quantity: 0, unitCost: 0, note: "" })
+  // 373: a manual movement like any other -- with a reason and the date it happened.
+  const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}` }
+  const EMPTY_STOCK = { quantity: 0, unitCost: 0, note: "", reason: "", effectiveDate: "" }
+  const [stockForm, setStockForm] = useState(EMPTY_STOCK)
+  const [stockKey, setStockKey] = useState("")
+  const ADD_STOCK_REASONS = MANUAL_MOVEMENT_REASONS.filter((r) => !["Historical Mortality", "Cull", "Opening Bird Count", "Disposal", "Unrecorded Breakage", "Damage", "Loss"].includes(r))
+  function openStock(p: PoultryProduct) {
+    setStockProduct(p); setStockForm({ ...EMPTY_STOCK, effectiveDate: todayStr() })
+    try { setStockKey(crypto.randomUUID()) } catch { setStockKey(`add-${Date.now()}-${Math.random().toString(36).slice(2)}`) }
+  }
   const [stockSaving, setStockSaving] = useState(false)
   async function saveStock() {
     if (!stockProduct) return
     if (stockForm.quantity <= 0) { toast({ title: "Quantity must be greater than 0", variant: "destructive" }); return }
+    if (!stockForm.reason) { toast({ title: "Choose the reason", variant: "destructive" }); return }
+    if (stockForm.reason === "Other" && !stockForm.note.trim()) { toast({ title: "Say what happened", description: "Reason \"Other\" needs a note.", variant: "destructive" }); return }
     setStockSaving(true)
     try {
-      await addPoultryStockTransaction({ poultryProductId: stockProduct.poultryProductId, txnType: "Restock", quantity: stockForm.quantity, unitCost: stockForm.unitCost || null, note: stockForm.note || "Product stock addition" })
-      toast({ title: "Stock added" }); setStockProduct(null); setStockForm({ quantity: 0, unitCost: 0, note: "" }); await load()
+      const res = await postPoultryManualMovement({
+        poultryProductId: stockProduct.poultryProductId, movementType: "Increase", quantity: stockForm.quantity,
+        unitCost: stockForm.unitCost || null, effectiveDate: stockForm.effectiveDate || todayStr(), reason: stockForm.reason,
+        note: stockForm.note.trim() || null, requestKey: stockKey,
+      })
+      toast({ title: `Stock added (${res.movementNo})` }); setStockProduct(null); setStockForm(EMPTY_STOCK); await load()
     } catch (e: any) { toast({ title: "Could not add stock", description: e?.message, variant: "destructive" }) }
     finally { setStockSaving(false) }
   }
@@ -96,6 +128,9 @@ export default function PoultryProductsPage() {
     setSaving(true)
     try {
       if (editId) await updatePoultryProduct(editId, form); else await createPoultryProduct(form)
+      if (editingSystem && (byproductSettings == null || byproductSettings[offerKey] !== offerInSales)) {
+        await setPoultryByproductSettings({ [offerKey]: offerInSales })
+      }
       toast({ title: editId ? "Product updated" : "Product added" }); setOpen(false); await load()
     } catch (e: any) { toast({ title: "Save failed", description: e?.message, variant: "destructive" }) }
     finally { setSaving(false) }
@@ -157,12 +192,12 @@ export default function PoultryProductsPage() {
                         <TableCell>{p.isActive ? <Badge className="bg-green-100 text-green-700">Active</Badge> : <Badge variant="secondary">Inactive</Badge>}</TableCell>
                         <TableCell className="text-right">
                           {/* 359: birds are adjusted per flock / batch on the Stock page */}
-{!(p.isBirdProduct || p.name === "Birds") && <Button variant="ghost" size="sm" onClick={() => setStockProduct(p)} title="Add stock"><Plus className="w-4 h-4 text-emerald-600" /></Button>}
+{!(p.isBirdProduct || p.name === "Birds") && !isSystemProduct(p) && <Button variant="ghost" size="sm" onClick={() => openStock(p)} title="Add stock"><Plus className="w-4 h-4 text-emerald-600" /></Button>}
                           {p.requiresRecipeSetup && !p.isRawEggProduct && (
                             <Button variant="ghost" size="sm" onClick={() => openRecipe(p)} title="Recipe"><ListChecks className="w-4 h-4 text-indigo-600" /></Button>
                           )}
                           <Button variant="ghost" size="sm" onClick={() => openEdit(p)}><Pencil className="w-4 h-4" /></Button>
-                          <Button variant="ghost" size="sm" onClick={() => setDelTarget(p)}><Trash2 className="w-4 h-4 text-red-500" /></Button>
+                          {!isSystemProduct(p) && <Button variant="ghost" size="sm" onClick={() => setDelTarget(p)}><Trash2 className="w-4 h-4 text-red-500" /></Button>}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -178,10 +213,10 @@ export default function PoultryProductsPage() {
                       fields={[["Type", p.productType], ["Unit", p.unit ?? "—"], ["Price", gh(p.unitPrice)], ["In stock", p.stockOnHand.toLocaleString()]]}
                       actions={<>
                         {/* 359: birds are adjusted per flock / batch on the Stock page */}
-{!(p.isBirdProduct || p.name === "Birds") && <Button variant="ghost" size="sm" onClick={() => setStockProduct(p)} title="Add stock"><Plus className="w-4 h-4 text-emerald-600" /></Button>}
+{!(p.isBirdProduct || p.name === "Birds") && !isSystemProduct(p) && <Button variant="ghost" size="sm" onClick={() => openStock(p)} title="Add stock"><Plus className="w-4 h-4 text-emerald-600" /></Button>}
                         {p.requiresRecipeSetup && !p.isRawEggProduct && <Button variant="ghost" size="sm" onClick={() => openRecipe(p)} title="Recipe"><ListChecks className="w-4 h-4 text-indigo-600" /></Button>}
                         <Button variant="ghost" size="sm" onClick={() => openEdit(p)}><Pencil className="w-4 h-4" /></Button>
-                        <Button variant="ghost" size="sm" onClick={() => setDelTarget(p)}><Trash2 className="w-4 h-4 text-red-500" /></Button>
+                        {!isSystemProduct(p) && <Button variant="ghost" size="sm" onClick={() => setDelTarget(p)}><Trash2 className="w-4 h-4 text-red-500" /></Button>}
                       </>} />
                   ))}
               </div></>
@@ -194,8 +229,26 @@ export default function PoultryProductsPage() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editId ? "Edit product" : "New product"}</DialogTitle></DialogHeader>
+          {editingSystem && (
+            <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+              A system product: production records add to its stock. Its name and unit are fixed; you can change its price.
+            </p>
+          )}
+          {editingSystem && (
+            <label className="flex items-start gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm">
+              <input type="checkbox" className="mt-0.5" checked={offerInSales} onChange={(e) => setOfferInSales(e.target.checked)} />
+              <span>
+                <span className="font-medium">Offer in Add Sale</span>
+                <span className="block text-xs text-slate-500">
+                  {editingName === "Dead Birds"
+                    ? "Off for farms that dispose of mortality. The stock is kept either way."
+                    : "Broken eggs can be sold by the egg. The stock is kept either way."}
+                </span>
+              </span>
+            </label>
+          )}
           <FormSection title="Product details" color="blue">
-            <FormField label="Name *"><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></FormField>
+            <FormField label="Name *"><Input value={form.name} disabled={editingSystem} onChange={(e) => setForm({ ...form, name: e.target.value })} /></FormField>
             <FormField label="Type">
               <Select value={form.productType} onValueChange={(v) => setForm({ ...form, productType: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -203,7 +256,7 @@ export default function PoultryProductsPage() {
               </Select>
             </FormField>
             <FormField label="Unit">
-              <Select value={form.unit || ""} onValueChange={(v) => setForm({ ...form, unit: v })}>
+              <Select value={form.unit || ""} disabled={editingSystem} onValueChange={(v) => setForm({ ...form, unit: v })}>
                 <SelectTrigger><SelectValue placeholder="Pick unit" /></SelectTrigger>
                 <SelectContent>{UNITS.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
               </Select>
@@ -212,7 +265,7 @@ export default function PoultryProductsPage() {
             <FormField label="Size" hint="e.g. Small / Medium / Large / Crate"><Input value={form.size} onChange={(e) => setForm({ ...form, size: e.target.value })} /></FormField>
             <FormField label="SKU"><Input value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} /></FormField>
             <FormField label="Is this a raw egg product?">
-              <Select value={form.isRawEggProduct ? "yes" : "no"} onValueChange={(v) => setForm({ ...form, isRawEggProduct: v === "yes", requiresRecipeSetup: v === "yes" ? false : form.requiresRecipeSetup })}>
+              <Select value={form.isRawEggProduct ? "yes" : "no"} disabled={editingSystem} onValueChange={(v) => setForm({ ...form, isRawEggProduct: v === "yes", requiresRecipeSetup: v === "yes" ? false : form.requiresRecipeSetup })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="no">No</SelectItem><SelectItem value="yes">Yes</SelectItem></SelectContent>
               </Select>
@@ -268,7 +321,14 @@ export default function PoultryProductsPage() {
           <FormSection title="Stock addition" color="emerald">
             <FormField label="Quantity *"><NumberInput min={0} step="0.001" value={stockForm.quantity} onChange={(e) => setStockForm({ ...stockForm, quantity: Number(e.target.value) || 0 })} /></FormField>
             <FormField label="Unit cost / value"><NumberInput min={0} step="0.01" value={stockForm.unitCost} onChange={(e) => setStockForm({ ...stockForm, unitCost: Number(e.target.value) || 0 })} /></FormField>
-            <FormField label="Note" full><Input value={stockForm.note} onChange={(e) => setStockForm({ ...stockForm, note: e.target.value })} /></FormField>
+            <FormField label="Reason *">
+              <Select value={stockForm.reason} onValueChange={(v) => setStockForm({ ...stockForm, reason: v })}>
+                <SelectTrigger><SelectValue placeholder="Choose the reason" /></SelectTrigger>
+                <SelectContent>{ADD_STOCK_REASONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
+              </Select>
+            </FormField>
+            <FormField label="Effective date *" hint="When the stock came in."><Input type="date" value={stockForm.effectiveDate} max={todayStr()} onChange={(e) => setStockForm({ ...stockForm, effectiveDate: e.target.value })} /></FormField>
+            <FormField label={stockForm.reason === "Other" ? "Note *" : "Note"} full><Input value={stockForm.note} onChange={(e) => setStockForm({ ...stockForm, note: e.target.value })} /></FormField>
           </FormSection>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setStockProduct(null)}>Cancel</Button>

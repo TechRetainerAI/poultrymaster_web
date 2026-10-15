@@ -10,6 +10,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // Same FarmId-from-query pattern as the existing WaterControllers.cs.
     // =========================================================================
 
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/Water/boreholes")]
     public class WaterBoreholeController : ControllerBase
@@ -61,6 +62,7 @@ namespace PoultryFarmAPIWeb.Controllers
         }
     }
 
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/Water/machines")]
     public class WaterMachineController : ControllerBase
@@ -241,6 +243,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // Production Recipes — per-finished-product bill of materials.
     // Route shape matches the prompt: /products/{productId}/recipe
     // =========================================================================
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/Water/products/{productId:int}/recipe")]
     public class WaterProductionRecipeController : ControllerBase

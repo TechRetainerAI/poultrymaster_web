@@ -16,6 +16,8 @@
 //
 // Views: list (no ?id), new campaign (?new=1), one campaign (?id=).
 
+import { ReasonSelect } from "@/components/ui/reason-select"
+import { CANCEL_REASONS, STOCK_REVERSAL_REASONS, TREATMENT_REASONS } from "@/lib/reversal-reasons"
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -371,7 +373,7 @@ function NewCampaign() {
           </div>
           <div className="space-y-1 sm:col-span-2">
             <Label htmlFor="tc-reason" className="text-xs text-slate-500">Reason</Label>
-            <Input id="tc-reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Vet diagnosis, routine vaccination" />
+            <ReasonSelect id="tc-reason" options={TREATMENT_REASONS} value={reason} onChange={setReason} />
           </div>
           <div className="space-y-1">
             <Label htmlFor="tc-start" className="text-xs text-slate-500">Start date</Label>
@@ -1039,6 +1041,7 @@ function CampaignDetail({ id }: { id: number }) {
       <ReasonDialog
         open={cancelOpen} onOpenChange={setCancelOpen} busy={busy} destructive
         title="Cancel this campaign?"
+        options={CANCEL_REASONS}
         description="No more treatment can be recorded on it. Days already recorded stay recorded — those birds were treated. To take a wrong day back, reverse it under Treatment days."
         confirmLabel="Cancel campaign"
         onConfirm={(r) => void run(() => cancelTreatmentCampaign(id, r), "Campaign cancelled", () => setCancelOpen(false))} />
@@ -1046,6 +1049,7 @@ function CampaignDetail({ id }: { id: number }) {
       <ReasonDialog
         open={!!reverseDay} onOpenChange={(v) => { if (!v) setReverseDay(null) }} busy={busy} destructive
         title="Reverse this treatment day?"
+        options={STOCK_REVERSAL_REASONS}
         description="The medication comes off each flock's production record for that day and goes back into stock. The day stays in the history, marked Reversed, and can be recorded again."
         confirmLabel="Reverse"
         onConfirm={(r) => {

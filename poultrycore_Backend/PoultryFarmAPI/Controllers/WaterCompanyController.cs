@@ -7,6 +7,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // Water Company profile + setup. GET returns 404 when not set up (frontend
     // treats that as "needs setup"). POST /setup is idempotent and also seeds
     // the finance defaults (categories + cash accounts) via the SP.
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/Water/company")]
     public class WaterCompanyController : ControllerBase

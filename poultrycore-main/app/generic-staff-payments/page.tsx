@@ -9,6 +9,8 @@
 // payment made here shows up in expense reports and cash flow exactly like one
 // made through payroll.
 
+import { REVERSAL_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -425,8 +427,7 @@ export default function GenericStaffPaymentsPage() {
               marked reversed, so what happened stays on record.
             </DialogDescription>
           </DialogHeader>
-          <Textarea rows={3} placeholder="Why is it being reversed?"
-            value={reason} onChange={(e) => setReason(e.target.value)} />
+          <ReasonSelect options={REVERSAL_REASONS} value={reason} onChange={setReason} />
           <DialogFooter>
             <Button variant="ghost" onClick={() => setReversing(null)}>Keep it</Button>
             <Button className="bg-red-600 hover:bg-red-700 text-white" onClick={onReverse}>

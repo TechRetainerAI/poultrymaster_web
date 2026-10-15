@@ -12,6 +12,7 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
 import { getPoultryClosingReport } from "@/lib/api/poultry-inventory"
+import { fetchPoultryReport } from "@/lib/api/poultry-reports"
 
 type Row = { label: string; key: string; money?: boolean }
 const SECTIONS: { title: string; color: string; rows: Row[] }[] = [
@@ -67,6 +68,23 @@ const SECTIONS: { title: string; color: string; rows: Row[] }[] = [
     { label: "Driver Collections", key: "DriverCollections", money: true },
     { label: "Delivery Expenses", key: "DeliveryExpenses", money: true },
   ]},
+  // 375: byproduct reconciliation (Byproduct Inventory & Disposition report).
+  // Its own categories: these never change the egg or live-bird figures above.
+  { title: "Broken Egg Byproducts", color: "bg-rose-600", rows: [
+    { label: "Opening", key: "bp_BrokenEggsOpening" },
+    { label: "Generated", key: "bp_BrokenEggsGenerated" },
+    { label: "Sold", key: "bp_BrokenEggsSold" },
+    { label: "Disposed", key: "bp_BrokenEggsDisposed" },
+    { label: "Carried forward", key: "bp_BrokenEggsClosing" },
+  ]},
+  { title: "Mortality / Dead Bird Disposition", color: "bg-stone-600", rows: [
+    { label: "Opening", key: "bp_DeadBirdsOpening" },
+    { label: "Dead birds generated", key: "bp_DeadBirdsGenerated" },
+    { label: "Sold", key: "bp_DeadBirdsSold" },
+    { label: "Disposed", key: "bp_DeadBirdsDisposed" },
+    { label: "Carried forward", key: "bp_DeadBirdsClosing" },
+    { label: "Byproduct sales (both)", key: "bp_ByproductRevenue", money: true },
+  ]},
 ]
 
 // Default to a wide window (3 years back) so the report shows existing data on
@@ -85,7 +103,18 @@ export default function PoultryClosingReportPage() {
 
   async function run() {
     setLoading(true)
-    try { setData(await getPoultryClosingReport(fromDate, toDate)) }
+    try {
+      const [main, bp] = await Promise.all([
+        getPoultryClosingReport(fromDate, toDate),
+        // 375: a database / API without the byproduct report just shows dashes.
+        fetchPoultryReport("byproduct-inventory", { startDate: fromDate, endDate: toDate }).catch(() => null),
+      ])
+      const extra: Record<string, any> = {}
+      for (const [k, v] of Object.entries((bp?.summary ?? {}) as Record<string, unknown>)) {
+        extra[`bp_${k.charAt(0).toUpperCase()}${k.slice(1)}`] = v
+      }
+      setData({ ...(main as Record<string, any>), ...extra })
+    }
     catch (e: any) { toast({ title: "Could not load report", description: e?.message, variant: "destructive" }) }
     finally { setLoading(false) }
   }

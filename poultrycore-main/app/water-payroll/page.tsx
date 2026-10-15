@@ -1,5 +1,6 @@
 "use client"
 
+import { CANCEL_REASONS, REOPEN_REASONS } from "@/lib/reversal-reasons"
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import {
@@ -751,6 +752,7 @@ export default function WaterPayrollPage() {
         open={!!cancelTarget}
         onOpenChange={(v) => { if (!v) setCancelTarget(null) }}
         title="Cancel payroll run"
+        options={CANCEL_REASONS}
         description={cancelTarget ? `Run for ${cancelTarget.periodStart?.split("T")[0]} → ${cancelTarget.periodEnd?.split("T")[0]} will be cancelled.` : ""}
         label="Reason (optional)"
         placeholder="e.g. ran twice, wrong period, replacing with corrected run…"
@@ -764,6 +766,7 @@ export default function WaterPayrollPage() {
         open={!!unapproveTarget}
         onOpenChange={(v) => { if (!v) setUnapproveTarget(null) }}
         title="Reopen payroll run"
+        options={REOPEN_REASONS}
         description={
           unapproveTarget
             ? `Run for ${unapproveTarget.periodStart?.split("T")[0]} → ${unapproveTarget.periodEnd?.split("T")[0]} will be reopened. The linked payroll expense will be reversed${unapproveTarget.status === "Paid" ? " and the cash account refunded" : ""}.`

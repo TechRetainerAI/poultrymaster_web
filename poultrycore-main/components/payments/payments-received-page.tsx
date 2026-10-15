@@ -22,6 +22,8 @@
 // a sale keeps a row; the earlier ones are folded into its trail, which now
 // carries their Reverse action -- nothing is lost with the row.
 
+import { REVERSAL_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
 import { Fragment, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -60,7 +62,13 @@ const SOURCE_LABEL: Record<string, string> = {
   PaymentsPage: "Payments",
   ImportedPayment: "Imported",
   Backfill: "Backfill",
+  // 363: credit added by hand on Customer Credits.
+  OpeningCredit: "Opening credit",
+  Deposit: "Customer advance",
+  CreditNote: "Credit note",
 }
+// 363: a credit added by hand is reversed from Customer Credits (owner / admin).
+const MANUAL_CREDIT_SOURCES = new Set(["OpeningCredit", "Deposit", "CreditNote"])
 const sourceLabel = (s?: string | null) => (s ? SOURCE_LABEL[s] ?? s : "—")
 
 /**
@@ -93,10 +101,12 @@ export interface PaymentsReceivedPageProps {
    * When given, each payment gets a Details action.
    */
   onSaleDetails?: (saleIds: number[], title: string) => void
+  /** 367: extra header actions (Poultry: Record customer payment); reload refreshes the list. */
+  headerActions?: (reload: () => void) => React.ReactNode
 }
 
 export function PaymentsReceivedPage({
-  module, companyType, saleHref, permissions, iconClassName, pagerVariant, onSaleDetails,
+  module, companyType, saleHref, permissions, iconClassName, pagerVariant, onSaleDetails, headerActions,
 }: PaymentsReceivedPageProps) {
   const fmt = useFmt()
   const router = useRouter()
@@ -116,6 +126,7 @@ export function PaymentsReceivedPage({
   const [reverseTarget, setReverseTarget] = useState<PaymentHistoryRow | null>(null)
   const [reason, setReason] = useState("")
   const [reversing, setReversing] = useState(false)
+  const [reverseError, setReverseError] = useState<string | null>(null)
 
   // Filters
   const [search, setSearch] = useState("")
@@ -298,12 +309,8 @@ export function PaymentsReceivedPage({
   }
 
   const doReverse = async () => {
-    if (!reverseTarget) return
-    if (!reason.trim()) {
-      toast({ title: "A reason is required", description: "Say why this payment is being reversed — it is written to the audit trail.", variant: "destructive" })
-      return
-    }
-    setReversing(true)
+    if (!reverseTarget || !reason.trim()) return
+    setReversing(true); setReverseError(null)
     try {
       await reversePayment(module, "customer", reverseTarget.paymentId, reason.trim())
       toast({
@@ -314,7 +321,8 @@ export function PaymentsReceivedPage({
       setReason("")
       await load()
     } catch (e: any) {
-      toast({ title: "Could not reverse payment", description: e?.message ?? String(e), variant: "destructive" })
+      // Kept in the modal so the reason is not lost and they can try again.
+      setReverseError(e?.message ?? String(e))
     } finally {
       setReversing(false)
     }
@@ -488,7 +496,7 @@ export function PaymentsReceivedPage({
                   <TableCell className="text-right">
                     {rev
                       ? <span className="text-xs text-slate-400">Rev.</span>
-                      : canReverse && (
+                      : canReverse && !MANUAL_CREDIT_SOURCES.has(pmt.sourceType ?? "") && (
                           <Button variant="ghost" size="icon" className="h-7 w-7"
                                   onClick={() => { setReverseTarget(pmt); setReason("") }}
                                   aria-label="Reverse payment" title="Reverse payment">
@@ -532,9 +540,12 @@ export function PaymentsReceivedPage({
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <DashboardHeader />
         <main className="flex-1 overflow-auto p-4 md:p-6">
-          <h1 className="mb-1 flex items-center gap-2 text-2xl font-semibold text-slate-900">
-            <Wallet className={cn("h-6 w-6", iconClassName ?? "text-sky-600")} /> Payments received
-          </h1>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <h1 className="mb-1 flex items-center gap-2 text-2xl font-semibold text-slate-900">
+              <Wallet className={cn("h-6 w-6", iconClassName ?? "text-sky-600")} /> Payments received
+            </h1>
+            {headerActions?.(() => { void load() })}
+          </div>
           <p className="mb-4 text-sm text-slate-500">
             One row per payment the customer actually made. A payment spread over several sales is one payment
             here — open it to see how much each sale received. A sale that was part-paid keeps one row too,
@@ -721,7 +732,7 @@ export function PaymentsReceivedPage({
                               <Eye className="mr-1.5 h-3.5 w-3.5" /> Sale details
                             </Button>
                           )}
-                          {canReverse && !isReversed && (
+                          {canReverse && !isReversed && !MANUAL_CREDIT_SOURCES.has(row.sourceType ?? "") && (
                             <Button variant="outline" size="sm" className="mt-2 h-10 w-full bg-white"
                                     onClick={() => { setReverseTarget(row); setReason("") }}>
                               <Undo2 className="mr-1.5 h-3.5 w-3.5" /> Reverse
@@ -781,7 +792,7 @@ export function PaymentsReceivedPage({
                                             lives here. */}
                                         {(pmt.status ?? "Posted") === "Reversed"
                                           ? <div className="mt-1.5 text-[11px] text-slate-400">Reversed</div>
-                                          : canReverse && (
+                                          : canReverse && !MANUAL_CREDIT_SOURCES.has(pmt.sourceType ?? "") && (
                                               <Button variant="outline" size="sm" className="mt-2 h-8 w-full bg-white"
                                                       onClick={() => { setReverseTarget(pmt); setReason("") }}>
                                                 <Undo2 className="mr-1.5 h-3.5 w-3.5" /> Reverse
@@ -952,7 +963,7 @@ export function PaymentsReceivedPage({
                                       <Eye className="h-3.5 w-3.5" />
                                     </Button>
                                   )}
-                                  {canReverse && !isReversed && (
+                                  {canReverse && !isReversed && !MANUAL_CREDIT_SOURCES.has(row.sourceType ?? "") && (
                                     <Button variant="ghost" size="icon" className="h-8 w-8"
                                             onClick={() => { setReverseTarget(row); setReason("") }}
                                             aria-label="Reverse payment" title="Reverse payment">
@@ -1005,12 +1016,15 @@ export function PaymentsReceivedPage({
       {/* Reversal names every sale it will touch, because a bulk payment puts
           money back onto several balances at once and that is not obvious from
           the row. */}
-      <Dialog open={!!reverseTarget} onOpenChange={(o) => { if (!o) { setReverseTarget(null); setReason("") } }}>
-        <DialogContent className="w-[95vw] max-w-lg p-4 sm:p-6">
+      <Dialog open={!!reverseTarget} onOpenChange={(o) => { if (!o && !reversing) { setReverseTarget(null); setReason(""); setReverseError(null) } }}>
+        <DialogContent className="w-[95vw] max-w-md p-4 sm:p-6">
           <DialogHeader>
-            <DialogTitle>Reverse payment</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Undo2 className="h-5 w-5 text-red-600" /> Reverse {reverseTarget?.paymentNumber ?? "this payment"}?
+            </DialogTitle>
             <DialogDescription>
-              This reverses the whole payment and restores the balance on every sale it was applied to.
+              The balance goes back onto every sale it was applied to and the cash movement is undone. The payment
+              stays in the history, marked Reversed.
             </DialogDescription>
           </DialogHeader>
 
@@ -1037,27 +1051,20 @@ export function PaymentsReceivedPage({
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="reverse-reason">Why is this being reversed?</Label>
-                <Input
-                  id="reverse-reason"
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                  placeholder="e.g. entered twice"
-                />
+              <div className="space-y-1">
+                <Label htmlFor="reverse-reason">Reason *</Label>
+                <ReasonSelect id="reverse-reason" options={REVERSAL_REASONS} value={reason} onChange={setReason} />
               </div>
-              <p className="text-xs text-slate-500">
-                The payment is kept and marked reversed, never deleted.
-              </p>
+              {reverseError && <p className="rounded-md bg-red-50 p-2.5 text-red-700">{reverseError}</p>}
             </div>
           )}
 
           <DialogFooter className="flex-col gap-2 sm:flex-row">
-            <Button variant="ghost" className="h-10 w-full sm:h-9 sm:w-auto"
-                    onClick={() => { setReverseTarget(null); setReason("") }}>
+            <Button variant="outline" className="h-10 w-full sm:h-9 sm:w-auto" disabled={reversing}
+                    onClick={() => { setReverseTarget(null); setReason(""); setReverseError(null) }}>
               Cancel
             </Button>
-            <Button variant="destructive" className="h-10 w-full sm:h-9 sm:w-auto" disabled={reversing} onClick={doReverse}>
+            <Button className="h-10 w-full bg-red-600 hover:bg-red-700 sm:h-9 sm:w-auto" disabled={reversing || !reason.trim()} onClick={doReverse}>
               {reversing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Reverse payment
             </Button>

@@ -8,6 +8,8 @@
 // of the class they used, reversals, adjustments. One running balance per
 // class. Hidden for a farm that has never set up sizes (it has one class).
 
+import { EGG_ADJUSTMENT_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { Loader2, PackageMinus } from "lucide-react"
@@ -285,7 +287,7 @@ export function EggClassLedger() {
             </div>
             <div className="space-y-1">
               <Label htmlFor="adj-reason" className="text-xs text-slate-500">Reason *</Label>
-              <Textarea id="adj-reason" rows={2} value={adjReason} onChange={(e) => setAdjReason(e.target.value)} placeholder="e.g. tray dropped in the store" />
+              <ReasonSelect id="adj-reason" options={EGG_ADJUSTMENT_REASONS} value={adjReason} onChange={setAdjReason} />
             </div>
           </div>
           <DialogFooter>

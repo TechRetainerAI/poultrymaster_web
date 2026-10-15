@@ -1,4 +1,6 @@
 "use client"
+import { STOCK_REVERSAL_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
 import { useEffect, useRef, useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -195,7 +197,7 @@ export default function HotelInventoryPage() {
         <Dialog open={!!reverseTarget} onOpenChange={(o) => { if (!o) setReverseTarget(null) }}>
           <DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>Reverse purchase</DialogTitle></DialogHeader>
             <p className="text-sm text-slate-600">PO-{reverseTarget?.purchaseId} · {reverseTarget?.itemName}. The stock goes back out and any cash paid comes back today.</p>
-            <div><Label>Why is this being reversed? *</Label><Input value={reverseReason} onChange={(e) => setReverseReason(e.target.value)} placeholder="e.g. entered twice" /></div>
+            <div><Label>Why is this being reversed? *</Label><ReasonSelect options={STOCK_REVERSAL_REASONS} value={reverseReason} onChange={setReverseReason} /></div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setReverseTarget(null)}>Cancel</Button>
               <Button className="bg-red-600 hover:bg-red-700" disabled={reversing || !reverseReason.trim()} onClick={async () => {

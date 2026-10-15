@@ -2,6 +2,30 @@ import { getAuthHeaders } from './config'
 
 // Doc §4a-4c: attach feed/medication consumption + costing to a create/update
 // payload. All optional — omitted/null when the user didn't pick feed/medication.
+/**
+ * The sentence to show when the API refuses a save -- never the raw response.
+ *
+ * A refusal arrives either as a 400 with { message } (e.g. 372's byproduct
+ * guard) or as a 500 from GlobalExceptionMiddleware wrapping a database RAISE
+ * ({ errorType: "SqlException", sqlState: "P0001" / "P0010", message }). Both
+ * carry a message written for the user ("… already has a production record for
+ * 15 Oct 2026. Edit that record instead …"). Any other failure -- a crash, an
+ * HTML error page, a non-JSON body -- gets the plain fallback.
+ */
+function refusalMessage(status: number, errorText: string, fallback: string): string {
+  let body: any = null
+  try { body = JSON.parse(errorText) } catch {}
+  const message = typeof body?.message === "string" ? body.message.trim() : ""
+  if (message) {
+    // A RAISE from our own functions (SQLSTATE class P0) is written for the user.
+    const raised = typeof body?.sqlState === "string" && body.sqlState.startsWith("P0")
+    if (status === 400 || raised) return message
+  }
+  // A plain-text 400 is the API's own wording; anything else is not for the user.
+  if (status === 400 && errorText && !body && !errorText.trim().startsWith("<")) return errorText.trim()
+  return fallback
+}
+
 function attachCosting(payload: any, record: ProductionRecordInput) {
   payload.specificFeedUsedId = record.specificFeedUsedId ?? null
   payload.specificFeedUsedName = record.specificFeedUsedName ?? null
@@ -41,6 +65,9 @@ export interface ProductionFeedLine {
   totalFeedCost?: number | null
 }
 
+/** 372: what happens to a record's dead birds / broken eggs. */
+export type ByproductDisposition = "Keep" | "Disposed"
+
 export interface ProductionRecord {
   id: number
   farmId: string
@@ -65,6 +92,9 @@ export interface ProductionRecord {
   production5thPick?: number
   production6thPick?: number
   brokenEggs: number
+  /** 372: Keep (into Dead Birds / Broken Eggs stock) or Disposed immediately. */
+  mortalityDisposition?: ByproductDisposition
+  brokenEggDisposition?: ByproductDisposition
   totalProduction: number
   /** Free-text notes for the production entry. */
   notes?: string | null
@@ -121,6 +151,9 @@ export interface ProductionRecordInput {
   production5thPick?: number
   production6thPick?: number
   brokenEggs: number
+  /** 372: Keep (into Dead Birds / Broken Eggs stock) or Disposed immediately. */
+  mortalityDisposition?: ByproductDisposition
+  brokenEggDisposition?: ByproductDisposition
   totalProduction: number
   /** Free-text notes for the production entry. */
   notes?: string | null
@@ -175,6 +208,8 @@ export function productionRecordToInput(record: ProductionRecord, updatedBy: str
     production5thPick: record.production5thPick,
     production6thPick: record.production6thPick,
     brokenEggs: record.brokenEggs,
+    mortalityDisposition: record.mortalityDisposition,
+    brokenEggDisposition: record.brokenEggDisposition,
     totalProduction: record.totalProduction,
     notes: record.notes ?? null,
     flockId: record.flockId ?? null,
@@ -406,6 +441,8 @@ export async function createProductionRecord(record: ProductionRecordInput) {
     payload.softEggs = record.softEggs ?? null
     payload.lostEggs = record.lostEggs ?? null
     payload.notes = record.notes ?? null
+    if (record.mortalityDisposition) payload.mortalityDisposition = record.mortalityDisposition
+    if (record.brokenEggDisposition) payload.brokenEggDisposition = record.brokenEggDisposition
     attachCosting(payload, record)
 
     const response = await fetch(url, {
@@ -424,7 +461,7 @@ export async function createProductionRecord(record: ProductionRecordInput) {
       // All data operations must go through backend for proper validation and security
       return {
         success: false,
-        message: errorText || "Failed to create production record. Backend validation required.",
+        message: refusalMessage(response.status, errorText, "Could not save the production record. Please check the details and try again."),
       }
     }
 
@@ -491,6 +528,8 @@ export async function updateProductionRecord(id: number, record: ProductionRecor
     if (Object.prototype.hasOwnProperty.call(record, "softEggs")) payload.softEggs = record.softEggs ?? null
     if (Object.prototype.hasOwnProperty.call(record, "lostEggs")) payload.lostEggs = record.lostEggs ?? null
     if (Object.prototype.hasOwnProperty.call(record, "notes")) payload.notes = record.notes ?? null
+    if (record.mortalityDisposition) payload.mortalityDisposition = record.mortalityDisposition
+    if (record.brokenEggDisposition) payload.brokenEggDisposition = record.brokenEggDisposition
     attachCosting(payload, record)
 
     const response = await fetch(url, {
@@ -507,7 +546,7 @@ export async function updateProductionRecord(id: number, record: ProductionRecor
       console.error("[v0] Production record update error:", errorText)
       return {
         success: false,
-        message: "Failed to update production record",
+        message: refusalMessage(response.status, errorText, "Could not save the changes to this production record. Please try again."),
       }
     }
 
@@ -569,9 +608,10 @@ export async function deleteProductionRecord(id: number, userId: string, farmId:
     if (!response.ok) {
       const errorText = await response.text()
       console.error("[v0] Production record delete error:", errorText)
+      // 372: a refusal (e.g. its broken eggs / dead birds were already used) comes back as { message }.
       return {
         success: false,
-        message: "Failed to delete production record",
+        message: refusalMessage(response.status, errorText, "Could not delete this production record. Please try again."),
       }
     }
 

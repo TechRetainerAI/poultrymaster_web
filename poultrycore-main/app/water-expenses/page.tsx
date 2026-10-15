@@ -1,5 +1,6 @@
 "use client"
 
+import { CANCEL_REASONS } from "@/lib/reversal-reasons"
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -752,6 +753,7 @@ export default function WaterExpensesPage() {
         open={!!cancelTarget}
         onOpenChange={(v) => { if (!v) setCancelTarget(null) }}
         title="Cancel expense"
+        options={CANCEL_REASONS}
         description={cancelTarget ? `Expense #${cancelTarget.waterExpenseId} will be moved to Cancelled. Optionally tell the team why.` : ""}
         label="Reason (optional)"
         placeholder="e.g. duplicate entry, wrong amount, supplier refunded…"

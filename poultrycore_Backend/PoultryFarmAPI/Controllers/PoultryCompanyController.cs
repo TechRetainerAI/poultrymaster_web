@@ -10,6 +10,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // accounts via sppoultryfinance_seeddefaults. Unlike Water there are no
     // expense categories to seed: poultry expenses use the shared Expense table
     // with a free-text Category.
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/Poultry/company")]
     public class PoultryCompanyController : ControllerBase

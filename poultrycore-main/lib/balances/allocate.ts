@@ -103,7 +103,16 @@ export function validateAllocations(
   amount: number,
   documents: AllocatableDocument[],
   allocation: AllocationMap,
-  options: { cashAccountRequired?: boolean; cashAccountId?: number | null } = {},
+  options: {
+    cashAccountRequired?: boolean
+    cashAccountId?: number | null
+    /**
+     * 367 (poultry customers): the payment need not be applied in full. What is
+     * left is kept as the customer's credit, so it needs a cash account to land
+     * in; over-allocating is still refused.
+     */
+    allowUnallocated?: boolean
+  } = {},
 ): AllocationValidation {
   const problems: AllocationProblem[] = []
   const overAllocated: Record<string, number> = {}
@@ -142,7 +151,19 @@ export function validateAllocations(
     problems.push({ key: null, message: "Enter a payment amount greater than 0." })
   }
 
-  if (allocatedPesewas === 0 && amountPesewas > 0) {
+  if (options.allowUnallocated && amountPesewas > 0) {
+    if (allocatedPesewas > amountPesewas) {
+      problems.push({
+        key: null,
+        message: `Applied amounts exceed the payment by ${fromPesewas(allocatedPesewas - amountPesewas).toFixed(2)}.`,
+      })
+    } else if (allocatedPesewas < amountPesewas && !options.cashAccountId) {
+      problems.push({
+        key: null,
+        message: "Choose the cash account: the part not applied is kept as credit.",
+      })
+    }
+  } else if (allocatedPesewas === 0 && amountPesewas > 0) {
     problems.push({ key: null, message: "Apply this payment to at least one line." })
   } else if (amountPesewas > 0 && allocatedPesewas !== amountPesewas) {
     // The one rule people trip over, so name both numbers rather than saying

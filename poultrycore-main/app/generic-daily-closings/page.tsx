@@ -1,5 +1,7 @@
 "use client"
 
+import { CASH_DIFFERENCE_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -167,7 +169,7 @@ export default function GenericDailyClosingsPage() {
                   </div>
                   <div className="md:col-span-2">
                     <Label>Reason for any cash difference</Label>
-                    <Textarea rows={2} value={form.differenceReason} onChange={(e) => setForm((f) => ({ ...f, differenceReason: e.target.value }))} maxLength={500} />
+                    <ReasonSelect options={CASH_DIFFERENCE_REASONS} value={form.differenceReason} onChange={(v: string) => setForm((f) => ({ ...f, differenceReason: v }))} />
                   </div>
                 </div>
                 <DialogFooter>

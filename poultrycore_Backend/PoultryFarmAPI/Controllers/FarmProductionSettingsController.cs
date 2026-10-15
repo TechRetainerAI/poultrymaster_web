@@ -4,6 +4,7 @@ using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Controllers
 {
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/[controller]")]
     public class FarmProductionSettingsController : ControllerBase
