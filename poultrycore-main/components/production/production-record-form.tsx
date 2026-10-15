@@ -628,6 +628,12 @@ export function ProductionRecordForm({
         const msg = "Birds left cannot be negative. Check your deaths and number of birds."
         setError(msg); toastFormGuide(toast, msg, "Double-check numbers"); setSaving(false); return
       }
+      // The box clamps as you type, but the picks can be lowered afterwards.
+      const broken = parseInt(form.brokenEggs) || 0
+      if (broken > total) {
+        const msg = `Broken eggs (${broken.toLocaleString()}) cannot be more than the eggs picked (${total.toLocaleString()}).`
+        setError(msg); toastFormGuide(toast, msg, "Double-check numbers"); setSaving(false); return
+      }
       if (!form.flockId) {
         const msg = "Choose which flock this production entry is for."
         setError(msg); toastFormGuide(toast, msg); setSaving(false); return
@@ -847,7 +853,7 @@ export function ProductionRecordForm({
                   the input rather than the whole cell. */}
               <div className="whitespace-nowrap text-xs font-medium text-slate-700 sm:pb-2.5">{p.label}</div>
               <NumField label="Crates" value={p.crates} onChange={p.setC} />
-              <NumField label="Loose eggs" value={p.loose} onChange={p.setL} />
+              <NumField label="Loose eggs" value={p.loose} onChange={p.setL} max={EGGS_PER_CRATE - 1} />
               <CalcField label="Total eggs" value={p.total.toLocaleString()} />
             </div>
           ))}
@@ -878,7 +884,7 @@ export function ProductionRecordForm({
         icon={AlertTriangle}
       >
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          <NumField label="Broken eggs" value={form.brokenEggs} onChange={(v) => patch({ brokenEggs: String(v) })} text />
+          <NumField label="Broken eggs" value={form.brokenEggs} onChange={(v) => patch({ brokenEggs: String(v) })} text max={total} />
           <NumField label="Meaty eggs" value={form.meatyEggs} onChange={(v) => patch({ meatyEggs: String(v) })} text />
           <NumField label="Soft eggs" value={form.softEggs} onChange={(v) => patch({ softEggs: String(v) })} text />
           <NumField label="Lost eggs" value={form.lostEggs} onChange={(v) => patch({ lostEggs: String(v) })} text />

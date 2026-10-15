@@ -82,13 +82,15 @@ export function FormSectionCard({
  * meaty / soft / lost eggs, which are nullable columns.
  */
 export function NumField({
-  label, value, onChange, text = false, min = 0, disabled,
+  label, value, onChange, text = false, min = 0, max, disabled,
 }: {
   label: string
   value: number | string
   onChange: (value: number | string) => void
   text?: boolean
   min?: number
+  /** Typing past this is clamped back to it, so the box can never hold more. */
+  max?: number
   disabled?: boolean
 }) {
   return (
@@ -97,12 +99,14 @@ export function NumField({
       <Input
         type="number"
         min={min}
+        max={max}
         inputMode="numeric"
         disabled={disabled}
         className="h-9 tabular-nums"
         value={text ? (value as string) : String(value ?? 0)}
         onChange={(e) => {
-          const raw = e.target.value
+          let raw = e.target.value
+          if (max !== undefined && raw !== "" && Number(raw) > max) raw = String(max)
           onChange(text ? raw : Number(raw) || 0)
         }}
       />
