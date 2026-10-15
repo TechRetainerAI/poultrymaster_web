@@ -16,6 +16,7 @@
  * links here from its "Owes" column).
  */
 
+import { CANCEL_REASONS, LOAN_REVERSAL_REASONS } from "@/lib/reversal-reasons"
 import Link from "next/link"
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -831,6 +832,7 @@ function HotelEmployeeLoansInner() {
             open={!!cancelTarget}
             onOpenChange={(v) => { if (!v) setCancelTarget(null) }}
             title={`Cancel ${cancelTarget?.loanNumber ?? "loan"}?`}
+            options={CANCEL_REASONS}
             description="The draft is closed. No money has moved, so nothing else changes."
             label="Reason (optional)"
             allowEmpty
@@ -851,6 +853,7 @@ function HotelEmployeeLoansInner() {
             open={!!reverseTarget}
             onOpenChange={(v) => { if (!v) setReverseTarget(null) }}
             title={`Reverse ${reverseTarget?.loanNumber ?? "loan"}?`}
+            options={LOAN_REVERSAL_REASONS}
             description={reverseTarget ? `Use this when the loan was a mistake. ${fmt(reverseTarget.principalAmount)} goes back into ${reverseTarget.cashAccountName ?? "the account it came from"}. Any repayments must be reversed first.` : ""}
             label="Reason"
             confirmLabel="Reverse loan"
@@ -870,6 +873,7 @@ function HotelEmployeeLoansInner() {
             open={!!reverseRepTarget}
             onOpenChange={(v) => { if (!v) setReverseRepTarget(null) }}
             title="Reverse this repayment?"
+            options={LOAN_REVERSAL_REASONS}
             description={reverseRepTarget ? `${fmt(reverseRepTarget.amount)} goes back out of ${reverseRepTarget.cashAccountName ?? "its cash account"} and is owed again.` : ""}
             label="Reason"
             confirmLabel="Reverse repayment"

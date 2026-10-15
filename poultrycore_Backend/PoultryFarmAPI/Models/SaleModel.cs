@@ -20,6 +20,12 @@
         /// </summary>
         public int? CustomerId { get; set; }
         public int? FlockId { get; set; }
+        /// <summary>
+        /// 366: the bird batch the sale is attributed to. Optional. A flock
+        /// implies its own batch (set by the database); this is for a sale
+        /// attributed to a batch without one flock.
+        /// </summary>
+        public int? BatchId { get; set; }
         public string? SaleDescription { get; set; }
         public bool Paid { get; set; } = true;
         /// <summary>Running total of payments recorded against this sale (migration 145).</summary>
@@ -109,6 +115,88 @@
         public DateTime? RefundDate { get; set; }
         public string Reason { get; set; } = string.Empty;
         public string? CreatedBy { get; set; }
+        /// <summary>367: refund out of this one credit (a payment row). Null = oldest credit first.</summary>
+        public int? PoultryPaymentId { get; set; }
+    }
+
+    /// <summary>
+    /// 369: a customer debt -- what a customer owes WITHOUT a sale (owed before
+    /// the system, historical, external, migration, adjustment). No sale, no
+    /// revenue, no stock, no cash. Paid through the ordinary customer payment.
+    /// </summary>
+    public class CustomerDebtRequest
+    {
+        public string FarmId { get; set; } = string.Empty;
+        public int CustomerId { get; set; }
+        public decimal Amount { get; set; }
+        public DateTime? DebtDate { get; set; }
+        /// <summary>OpeningBalance | HistoricalDebt | Adjustment | Migration | ExternalTransaction | Other</summary>
+        public string EntryType { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public string? Reference { get; set; }
+        public string? Notes { get; set; }
+        public string? CreatedBy { get; set; }
+    }
+
+    public class CustomerDebtReverseRequest
+    {
+        public string FarmId { get; set; } = string.Empty;
+        public string Reason { get; set; } = string.Empty;
+        public string? ReversedBy { get; set; }
+    }
+
+    public class CustomerDebtRow
+    {
+        public int DebtId { get; set; }
+        public string DebtNumber { get; set; } = string.Empty;
+        public int CustomerId { get; set; }
+        public string? CustomerName { get; set; }
+        public decimal Amount { get; set; }
+        public decimal Paid { get; set; }
+        public decimal Balance { get; set; }
+        public DateTime? DebtDate { get; set; }
+        public string EntryType { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public string? Reference { get; set; }
+        public string? Notes { get; set; }
+        public string Status { get; set; } = "Posted";
+        public string? CreatedBy { get; set; }
+        public DateTime? CreatedAt { get; set; }
+        public string? ReversedBy { get; set; }
+        public DateTime? ReversedAt { get; set; }
+        public string? ReversalReason { get; set; }
+    }
+
+    /// <summary>367: reverse a refund entered by mistake (or money returned).</summary>
+    public class CustomerRefundReverseRequest
+    {
+        public string FarmId { get; set; } = string.Empty;
+        public string Reason { get; set; } = string.Empty;
+        public string? ReversedBy { get; set; }
+    }
+
+    /// <summary>367: one credit event -- a payment row that holds or held customer credit.</summary>
+    public class CustomerCreditEventRow
+    {
+        public int PoultryPaymentId { get; set; }
+        public Guid? PaymentGroupId { get; set; }
+        public string? PaymentNumber { get; set; }
+        public DateTime? CreditDate { get; set; }
+        public int CustomerId { get; set; }
+        public string? CustomerName { get; set; }
+        public string Source { get; set; } = string.Empty;
+        public string? SourceType { get; set; }
+        public int? SaleId { get; set; }
+        public string? SaleGroupNo { get; set; }
+        public string? Reference { get; set; }
+        public decimal OriginalAmount { get; set; }
+        public decimal Applied { get; set; }
+        public decimal Refunded { get; set; }
+        public decimal Available { get; set; }
+        public string Status { get; set; } = string.Empty;
+        /// <summary>Added by hand (opening credit, advance, credit note): reversed from Customer Credits.</summary>
+        public bool IsManual { get; set; }
+        public int? PoultryCashAccountId { get; set; }
     }
 
     /// <summary>
@@ -203,5 +291,9 @@
         public string? CreatedBy { get; set; }
         public DateTime CreatedAt { get; set; }
         public string? PaymentNumbers { get; set; }
+        public DateTime? ReversedAt { get; set; }
+        public string? ReversedBy { get; set; }
+        public string? ReversalReason { get; set; }
+        public DateTime? ReversalDate { get; set; }
     }
 }

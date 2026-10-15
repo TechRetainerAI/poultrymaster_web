@@ -8,6 +8,8 @@
 // Nothing here happens on a schedule — there is no scheduler anywhere in this
 // codebase — so raising them is a button, and this page is where you press it.
 
+import { CANCEL_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -574,8 +576,7 @@ export default function GenericRecurringExpensesPage() {
               Expenses already raised stay exactly as they are. This only stops future ones.
             </DialogDescription>
           </DialogHeader>
-          <Textarea rows={3} placeholder="Why is it being cancelled?"
-            value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} />
+          <ReasonSelect options={CANCEL_REASONS} value={cancelReason} onChange={setCancelReason} />
           <DialogFooter>
             <Button variant="ghost" onClick={() => setCancelling(null)}>Keep it</Button>
             <Button className="bg-red-600 hover:bg-red-700 text-white"

@@ -47,6 +47,39 @@ export interface CustomerRefundRow {
   createdBy: string | null
   createdAt: string
   paymentNumbers: string | null
+  /** 367: a reversed refund keeps its row; the money went back in on reversalDate. */
+  reversedAt?: string | null
+  reversedBy?: string | null
+  reversalReason?: string | null
+  reversalDate?: string | null
+}
+
+/**
+ * 367: one credit event -- a payment row that holds or held credit.
+ * originalAmount - applied - refunded = available (derived on the server).
+ */
+export interface CustomerCreditEvent {
+  poultryPaymentId: number
+  paymentGroupId: string | null
+  paymentNumber: string | null
+  creditDate: string | null
+  customerId: number
+  customerName: string | null
+  /** Where it came from, ready to show: Customer advance, Sale reversal - payment kept, ... */
+  source: string
+  sourceType: string | null
+  saleId: number | null
+  saleGroupNo: string | null
+  reference: string | null
+  originalAmount: number
+  applied: number
+  refunded: number
+  available: number
+  /** Available | Partly used | Used | Refunded */
+  status: string
+  /** Added by hand (opening credit, advance, credit note): reversed from this page. */
+  isManual: boolean
+  poultryCashAccountId: number | null
 }
 
 function farm(): string {
@@ -78,6 +111,13 @@ export async function customerCreditTotal(customerId: number): Promise<number> {
   return Math.round(rows.reduce((t, r) => t + (Number(r.unapplied) || 0), 0) * 100) / 100
 }
 
+/** 367: every credit event, newest first; one customer, or all. */
+export function listCustomerCreditEvents(customerId?: number): Promise<CustomerCreditEvent[]> {
+  const q = new URLSearchParams({ farmId: farm() })
+  if (customerId) q.set("customerId", String(customerId))
+  return call(`Poultry/customer-payments/credit/events?${q.toString()}`)
+}
+
 export function applyCustomerCredit(customerId: number, saleId: number, amount: number): Promise<{ applied: number }> {
   const farmId = farm()
   return call(`Poultry/customer-payments/apply-credit?farmId=${encodeURIComponent(farmId)}`, {
@@ -93,6 +133,8 @@ export interface CustomerRefundInput {
   paymentMethod?: string | null
   refundDate?: string | null
   reason: string
+  /** 367: refund out of this one credit. Left out = the oldest credit first. */
+  poultryPaymentId?: number | null
 }
 
 export function recordCustomerRefund(input: CustomerRefundInput): Promise<{ refundId: number }> {
@@ -100,6 +142,18 @@ export function recordCustomerRefund(input: CustomerRefundInput): Promise<{ refu
   return call(`Poultry/customer-payments/refunds?farmId=${encodeURIComponent(farmId)}`, {
     method: "POST",
     body: JSON.stringify({ ...input, farmId }),
+  })
+}
+
+/**
+ * 367: reverse a refund entered by mistake (or whose money came back). The money
+ * goes back into the account it left from and the credit comes back. Owner / admin.
+ */
+export function reverseCustomerRefund(refundId: number, reason: string): Promise<{ refundId: number }> {
+  const farmId = farm()
+  return call(`Poultry/customer-payments/refunds/${refundId}/reverse?farmId=${encodeURIComponent(farmId)}`, {
+    method: "POST",
+    body: JSON.stringify({ farmId, reason }),
   })
 }
 
@@ -113,14 +167,14 @@ export function listCustomerRefunds(customerId?: number): Promise<CustomerRefund
 // Credit created by hand, owner / admin only. Each kind says where the money
 // came from -- there is no "set the balance":
 //   OpeningCredit  held before the farm used the system. No cash, no P&L.
-//   Deposit        paid in advance, no sale yet. Real cash in to an account.
+//   Deposit        "Customer advance" (367): paid in advance, no sale yet. Real cash in.
 //   CreditNote     goodwill credit. No cash; a cost on Profit & Loss.
 
 export type ManualCreditKind = "OpeningCredit" | "Deposit" | "CreditNote"
 
 export const MANUAL_CREDIT_KIND_LABEL: Record<ManualCreditKind, string> = {
   OpeningCredit: "Opening balance",
-  Deposit: "Deposit",
+  Deposit: "Customer advance",
   CreditNote: "Credit note",
 }
 

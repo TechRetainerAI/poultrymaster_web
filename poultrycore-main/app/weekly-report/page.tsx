@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import { flockCountsTowardBirdTotals } from "@/lib/utils/flock-eligibility"
+import { byproductRole } from "@/lib/poultry/byproducts"
 
 const EGGS_PER_CRATE = 30
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const
@@ -78,7 +79,7 @@ function deriveMonthOptions(records: { date: string }[], sales: { saleDate: stri
 }
 
 const isEggSale = (product: string | null | undefined) =>
-  (product ?? "").toLowerCase().includes("egg")
+  (product ?? "").toLowerCase().includes("egg") && byproductRole(product) == null
 
 /**
  * Amount still owed on a sale. Mirrors `saleOwed` on the Sales page: `amountPaid`

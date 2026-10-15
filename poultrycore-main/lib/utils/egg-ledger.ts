@@ -3,6 +3,7 @@ import type { Sale } from "@/lib/api/sale"
 import type { Flock } from "@/lib/api/flock"
 import { resolveEggProductionFlockName } from "@/lib/utils/resolve-egg-flock-name"
 import { formatEggGradeLabel } from "@/lib/constants/egg-grade"
+import { byproductRole } from "@/lib/poultry/byproducts"
 
 export interface EggLedgerRow {
   sortKey: string
@@ -28,7 +29,8 @@ export interface EggLedgerRow {
 
 export function isEggSaleProduct(product: string | undefined | null): boolean {
   if (!product?.trim()) return false
-  return product.trim().toLowerCase().includes("egg")
+  // 374: a Broken Eggs sale comes out of Broken Eggs, not the egg stock.
+  return product.trim().toLowerCase().includes("egg") && byproductRole(product) == null
 }
 
 /**

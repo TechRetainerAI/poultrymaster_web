@@ -20,6 +20,8 @@
 // transfer, leaving the mistake and the correction looking like two deliberate
 // movements.
 
+import { REVERSAL_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -510,8 +512,7 @@ export default function PoultryCashTransfersPage() {
 
               <FormSection title="Why" color="amber" columns={1}>
                 <FormField label="Reason *" hint="Written to the audit trail.">
-                  <Textarea rows={3} value={reason} onChange={(e) => setReason(e.target.value)}
-                            placeholder="Why is this being reversed?" />
+                  <ReasonSelect options={REVERSAL_REASONS} value={reason} onChange={setReason} />
                 </FormField>
               </FormSection>
             </div>

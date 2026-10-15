@@ -15,6 +15,7 @@
 // The date is the COMPANY's business date (useBusinessDate / the server), never
 // the browser's. ?date=yyyy-MM-dd opens a specific day.
 
+import { REJECT_REASONS, REOPEN_REASONS } from "@/lib/reversal-reasons"
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
@@ -537,10 +538,12 @@ function PoultryDailyClosingInner() {
         warnings={readiness?.warnings ?? []} busy={busy} onConfirm={(n) => void doClose(n)} />
       <ReasonDialog open={reopenOpen} onOpenChange={setReopenOpen} busy={busy}
         title={`Reopen ${formatLongDate(businessDate)}?`}
+        options={REOPEN_REASONS}
         description="The day will be open for correction. Its closing, who closed it and this reason stay in the history."
         confirmLabel="Reopen Day" onConfirm={(r) => void doReopen(r)} />
       <ReasonDialog open={rejectOpen} onOpenChange={setRejectOpen} busy={busy} destructive
         title="Reject this submission?" description="The person who submitted it will see your reason."
+        options={REJECT_REASONS}
         confirmLabel="Reject" onConfirm={(r) => void doReject(r)} />
       <ClosingPolicyDialog open={policyOpen} onOpenChange={setPolicyOpen} policy={policy} busy={busy}
         onSave={(p) => void doSavePolicy(p)} />

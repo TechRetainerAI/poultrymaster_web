@@ -1,5 +1,7 @@
 "use client"
 
+import { CANCEL_REASONS, REOPEN_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -719,7 +721,7 @@ export default function PoultryPayrollPage() {
             <DialogDescription>{reasonDlg.kind === "unapprove" ? "Reverses the linked expense and any cash-out, and returns the run to Reopened." : "Cancels this run and removes any linked expense."}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <FormField label={reasonDlg.kind === "unapprove" ? "Reason *" : "Reason"}><Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why?" /></FormField>
+            <FormField label={reasonDlg.kind === "unapprove" ? "Reason *" : "Reason"}><ReasonSelect options={reasonDlg.kind === "unapprove" ? REOPEN_REASONS : CANCEL_REASONS} value={reason} onChange={setReason} /></FormField>
             <div className="flex gap-3 justify-end pt-2">
               <Button variant="ghost" onClick={() => { setReasonDlg({ open: false }); setReason("") }}>Back</Button>
               <Button onClick={confirmReason}>{reasonDlg.kind === "unapprove" ? "Reopen" : "Cancel run"}</Button>

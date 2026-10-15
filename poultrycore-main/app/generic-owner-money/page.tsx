@@ -7,6 +7,8 @@
 // reaches the P&L: profit stays a statement about the business, not about how
 // the owner funds it. Both move cash, and that is all they do.
 
+import { REVERSAL_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -420,8 +422,7 @@ export default function GenericOwnerMoneyPage() {
               reversed.
             </DialogDescription>
           </DialogHeader>
-          <Textarea rows={3} placeholder="Why is it being reversed?"
-            value={reason} onChange={(e) => setReason(e.target.value)} />
+          <ReasonSelect options={REVERSAL_REASONS} value={reason} onChange={setReason} />
           <DialogFooter>
             <Button variant="ghost" onClick={() => setReversing(null)}>Keep it</Button>
             <Button className="bg-red-600 hover:bg-red-700 text-white" onClick={onReverse}>

@@ -277,6 +277,8 @@ namespace PoultryFarmAPIWeb.Models
         public bool Paid { get; set; }
         public string? SaleDescription { get; set; }
         public int? FlockId { get; set; }
+        /// <summary>366: optional batch attribution; the database checks the flock belongs to it.</summary>
+        public int? BatchId { get; set; }
         /// <summary>351: the reversed sale this one corrects, if it is a Correct Sale re-entry.</summary>
         public int? CorrectsSaleId { get; set; }
         /// <summary>

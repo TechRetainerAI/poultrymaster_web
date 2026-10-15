@@ -36,7 +36,7 @@ const SOURCE_LABEL: Record<string, string> = {
   Counter: "Counter",
   // 363: credit added by hand on Customer Credits.
   OpeningCredit: "Opening credit",
-  Deposit: "Deposit",
+  Deposit: "Customer advance",
   CreditNote: "Credit note",
 }
 // A Sale line has no source worth printing \u2014 it IS the source.

@@ -12,6 +12,7 @@
 //
 // ?receive=1 opens the Receive Purchase form straight away (nav deep link).
 
+import { STOCK_REVERSAL_REASONS } from "@/lib/reversal-reasons"
 import { Suspense, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -322,6 +323,7 @@ function PurchaseReceiptsInner() {
         open={reversing != null}
         onOpenChange={(o) => { if (!o) setReversing(null) }}
         title={reversing ? `Reverse ${reversing.receiptNumber}?` : "Reverse receipt"}
+        options={STOCK_REVERSAL_REASONS}
         description={
           <span>
             The stock comes back out, any payment made on this receipt is reversed and its cash returns to the account,

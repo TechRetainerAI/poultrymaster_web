@@ -12,6 +12,8 @@
 // allocation opens underneath as its own small stack -- the pattern used by the
 // list pages -- so a phone never has to scroll a table sideways inside a modal.
 
+import { REVERSAL_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
 import { Fragment, useEffect, useState } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -60,7 +62,7 @@ const SOURCE_LABEL: Record<string, string> = {
   PurchaseEntry: "Purchase",
   // 363: credit added by hand on Customer Credits.
   OpeningCredit: "Opening credit",
-  Deposit: "Deposit",
+  Deposit: "Customer advance",
   CreditNote: "Credit note",
 }
 // 363: a credit added by hand is reversed from Customer Credits (owner / admin).
@@ -83,8 +85,12 @@ export function PaymentHistoryDialog({
   const [loading, setLoading] = useState(false)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [allocations, setAllocations] = useState<Record<string, PaymentAllocationRow[]>>({})
-  const [reversing, setReversing] = useState<string | null>(null)
+  // The payment being reversed, in its own modal (the same shape as reversing a customer debt).
+  const [reversing, setReversing] = useState<PaymentHistoryRow | null>(null)
   const [reason, setReason] = useState("")
+  const [reverseBusy, setReverseBusy] = useState(false)
+  const [reverseError, setReverseError] = useState<string | null>(null)
+  const openReverse = (row: PaymentHistoryRow) => { setReversing(row); setReason(""); setReverseError(null) }
 
   const load = async () => {
     setLoading(true)
@@ -126,11 +132,10 @@ export function PaymentHistoryDialog({
     }
   }
 
-  const doReverse = async (row: PaymentHistoryRow) => {
-    if (!reason.trim()) {
-      toast({ title: "A reason is required", description: "Say why this payment is being reversed — it is written to the audit trail.", variant: "destructive" })
-      return
-    }
+  const doReverse = async () => {
+    const row = reversing
+    if (!row || !reason.trim()) return
+    setReverseBusy(true); setReverseError(null)
     try {
       await reversePayment(module, side, row.paymentId, reason.trim())
       toast({ title: "Payment reversed", description: `${fmt(row.totalAmount)} put back on the balance.` })
@@ -139,7 +144,10 @@ export function PaymentHistoryDialog({
       await load()
       onReversed()
     } catch (e: any) {
-      toast({ title: "Could not reverse payment", description: e?.message ?? String(e), variant: "destructive" })
+      // Kept in the modal so the reason is not lost and they can try again.
+      setReverseError(e?.message ?? String(e))
+    } finally {
+      setReverseBusy(false)
     }
   }
 
@@ -151,37 +159,6 @@ export function PaymentHistoryDialog({
     (row.status ?? "Posted") === "Reversed"
       ? <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700">Reversed</Badge>
       : <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">Posted</Badge>
-
-  // The reversal form, written once and rendered in both layouts so the wording
-  // and the guard on the reason cannot drift apart. Stacked on a phone, one row
-  // from `sm` up.
-  const reverseForm = (row: PaymentHistoryRow) => (
-    <>
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
-        <div className="space-y-1.5 sm:min-w-[18rem] sm:flex-1">
-          <Label htmlFor={`reason-${row.paymentId}`}>Why is this being reversed?</Label>
-          <Input
-            id={`reason-${row.paymentId}`}
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder="e.g. entered twice"
-          />
-        </div>
-        <div className="flex gap-2">
-          <Button size="sm" variant="destructive" className="h-10 flex-1 sm:h-9 sm:flex-none" onClick={() => doReverse(row)}>
-            Reverse payment
-          </Button>
-          <Button size="sm" variant="ghost" className="h-10 flex-1 sm:h-9 sm:flex-none" onClick={() => setReversing(null)}>
-            Cancel
-          </Button>
-        </div>
-      </div>
-      <p className="mt-2 text-xs text-slate-500">
-        The balance goes back onto the {side === "customer" ? "sales" : "purchases"} it was applied to and the
-        cash movement is undone. The payment is kept and marked reversed, never deleted.
-      </p>
-    </>
-  )
 
   // The allocation behind one payment, as a stack. Six numeric columns do not
   // survive a phone, but the before/applied/after trio is the whole point of
@@ -213,6 +190,7 @@ export function PaymentHistoryDialog({
   )
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* Wide enough that NOTHING here scrolls sideways. Two tables have to fit,
           not one: the ten-column payment list, and the six-column allocation
@@ -294,19 +272,15 @@ export function PaymentHistoryDialog({
                         </p>
                       )}
 
-                      {canReverse && !isReversed && reversing !== row.paymentId && !MANUAL_CREDIT_SOURCES.has(row.sourceType ?? "") && (
+                      {canReverse && !isReversed && !MANUAL_CREDIT_SOURCES.has(row.sourceType ?? "") && (
                         <Button
                           variant="outline"
                           size="sm"
                           className="mt-2 h-10 w-full bg-white"
-                          onClick={() => { setReversing(row.paymentId); setReason("") }}
+                          onClick={() => openReverse(row)}
                         >
                           <Undo2 className="mr-1.5 h-3.5 w-3.5" /> Reverse
                         </Button>
-                      )}
-
-                      {reversing === row.paymentId && (
-                        <div className="mt-2 rounded-md bg-amber-50 p-3">{reverseForm(row)}</div>
                       )}
 
                       {isOpen && (
@@ -402,7 +376,7 @@ export function PaymentHistoryDialog({
                             </TableCell>
                             <TableCell className="text-right">
                               {canReverse && !isReversed && !MANUAL_CREDIT_SOURCES.has(row.sourceType ?? "") && (
-                                <Button variant="ghost" size="sm" className="text-slate-600 hover:bg-rose-50 hover:text-rose-700" onClick={() => { setReversing(row.paymentId); setReason("") }}>
+                                <Button variant="ghost" size="sm" className="text-slate-600 hover:bg-rose-50 hover:text-rose-700" onClick={() => openReverse(row)}>
                                   <Undo2 className="mr-1.5 h-3.5 w-3.5" /> Reverse
                                 </Button>
                               )}
@@ -416,13 +390,6 @@ export function PaymentHistoryDialog({
                                 Reversed{row.reversedBy ? ` by ${row.reversedBy}` : ""}
                                 {row.reversedAt ? ` on ${fmtInstant(row.reversedAt)}` : ""}: {row.reversalReason}
                               </TableCell>
-                            </TableRow>
-                          )}
-
-                          {reversing === row.paymentId && (
-                            <TableRow className="bg-amber-50">
-                              <TableCell />
-                              <TableCell colSpan={9} className="py-3">{reverseForm(row)}</TableCell>
                             </TableRow>
                           )}
 
@@ -513,5 +480,34 @@ export function PaymentHistoryDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <Dialog open={!!reversing} onOpenChange={(o) => { if (!o && !reverseBusy) setReversing(null) }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Undo2 className="h-5 w-5 text-red-600" /> Reverse {reversing?.paymentNumber ?? "this payment"}?
+          </DialogTitle>
+          <DialogDescription>
+            {reversing && `${fmt(reversing.totalAmount)} ${side === "customer" ? "from" : "to"} ${reversing.partyName ?? partyName ?? (side === "customer" ? "the customer" : "the supplier")}. `}
+            The balance goes back onto the {side === "customer" ? "sales" : "purchases"} it was applied to and the cash
+            movement is undone. The payment stays in the history, marked Reversed.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 text-sm">
+          <div className="space-y-1">
+            <Label htmlFor="ph-reverse-reason">Reason *</Label>
+            <ReasonSelect id="ph-reverse-reason" options={REVERSAL_REASONS} value={reason} onChange={setReason} />
+          </div>
+          {reverseError && <p className="rounded-md bg-red-50 p-2.5 text-red-700">{reverseError}</p>}
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setReversing(null)} disabled={reverseBusy}>Cancel</Button>
+          <Button className="bg-red-600 hover:bg-red-700" onClick={doReverse} disabled={reverseBusy || !reason.trim()}>
+            {reverseBusy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Reverse payment
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   )
 }

@@ -32,6 +32,8 @@ import { PageSkeleton } from "@/components/restaurant/skeleton-loaders"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { reportPendingCount } from "@/lib/utils/online-order-alerts"
 import { useToast } from "@/hooks/use-toast"
+import { ReasonSelect } from "@/components/ui/reason-select"
+import { ORDER_REJECT_REASONS } from "@/lib/reversal-reasons"
 import {
   listPendingOnlineOrders, acceptOnlineOrder, rejectOnlineOrder,
   type PendingOnlineOrder,
@@ -270,12 +272,8 @@ export default function RestaurantPendingOrdersPage() {
               so say something they can act on.
             </DialogDescription>
           </DialogHeader>
-          <textarea
-            value={rejectReason}
-            onChange={(e) => setRejectReason(e.target.value)}
-            placeholder="e.g. Sorry, the kitchen has closed for the evening."
-            className="w-full min-h-[90px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2"
-          />
+          <ReasonSelect options={ORDER_REJECT_REASONS} value={rejectReason} onChange={setRejectReason}
+            otherPlaceholder="e.g. Sorry, the kitchen has closed for the evening." multiline />
           <DialogFooter>
             <Button variant="outline" onClick={() => setRejecting(null)}>Cancel</Button>
             <Button

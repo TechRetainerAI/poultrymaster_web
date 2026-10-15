@@ -94,7 +94,9 @@ export function isFinancialNavItemVisible(
   if (href === "/customer-balances" || href === "/customer-credits") {
     return isAdmin || f.canViewFinancial || f.canEnterSales || f.canViewCustomers
   }
-  if (href === "/supplier-balances") {
+  // Supplier Credits (370) is the other half of the supplier ledger -- money
+  // a supplier holds for us -- so it reads to the same people.
+  if (href === "/supplier-balances" || href === "/supplier-credits") {
     return isAdmin || f.canViewFinancial || f.canEnterExpenses || f.canViewCustomers
   }
   // Supplier Payments is the same audience as Supplier Balances -- it is the

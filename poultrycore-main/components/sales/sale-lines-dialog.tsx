@@ -22,6 +22,7 @@ import { getSale, type Sale, type SaleLine } from "@/lib/api/sale"
 import { getEggClasses, type EggClass } from "@/lib/api/egg-sorting"
 import { EGGS_PER_CRATE } from "@/lib/production/production-record-calc"
 import { useEggsPerCrate } from "@/hooks/use-eggs-per-crate"
+import { byproductRole } from "@/lib/poultry/byproducts"
 
 interface Props {
   /** The sales to show; null closes the dialog. */
@@ -33,7 +34,7 @@ interface Props {
   onOpenSale?: (saleId: number) => void
 }
 
-const isEgg = (product: string | null | undefined) => (product ?? "").toLowerCase().includes("egg")
+const isEgg = (product: string | null | undefined) => (product ?? "").toLowerCase().includes("egg") && byproductRole(product) == null
 
 /** "10 crates + 5 pcs" for eggs; the plain number otherwise. */
 export function saleLineQuantityLabel(line: Pick<SaleLine, "product" | "quantity">): string {

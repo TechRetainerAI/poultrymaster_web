@@ -249,3 +249,33 @@ describe("formatDocumentAge", () => {
     expect(formatDocumentAge(-3)).toBe("0d")
   })
 })
+
+// 367: a poultry customer payment may keep what is not applied as credit.
+describe("validateAllocations with allowUnallocated", () => {
+  it("accepts a payment above what is applied when a cash account is chosen", () => {
+    const v = validateAllocations(1000, SALES, { "Sale:1": 200 }, { allowUnallocated: true, cashAccountId: 3 })
+    expect(v.ok).toBe(true)
+    expect(v.unallocated).toBe(800)
+  })
+
+  it("accepts a payment applied to nothing (an advance) with a cash account", () => {
+    const v = validateAllocations(500, SALES, {}, { allowUnallocated: true, cashAccountId: 3 })
+    expect(v.ok).toBe(true)
+  })
+
+  it("needs a cash account for the part kept as credit", () => {
+    const v = validateAllocations(500, SALES, { "Sale:1": 200 }, { allowUnallocated: true })
+    expect(v.ok).toBe(false)
+    expect(v.problems.some((p) => p.message.includes("cash account"))).toBe(true)
+  })
+
+  it("still refuses applying more than the payment", () => {
+    const v = validateAllocations(100, SALES, { "Sale:1": 200 }, { allowUnallocated: true, cashAccountId: 3 })
+    expect(v.ok).toBe(false)
+  })
+
+  it("does not need a cash account when everything is applied", () => {
+    const v = validateAllocations(200, SALES, { "Sale:1": 200 }, { allowUnallocated: true })
+    expect(v.ok).toBe(true)
+  })
+})

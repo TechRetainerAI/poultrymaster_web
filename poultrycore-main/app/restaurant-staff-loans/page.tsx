@@ -17,6 +17,8 @@
  * ?staffId=<id> opens the page filtered to one staff member (the Staff page links here).
  */
 
+import { CANCEL_REASONS, LOAN_REVERSAL_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
 import Link from "next/link"
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -620,7 +622,7 @@ function StaffLoansInner() {
             {reasonAction?.kind === "reverseRepayment" && reasonAction.repayment && `${fmt(reasonAction.repayment.amount)} goes back out of ${reasonAction.repayment.cashAccountName ?? "its account"}, dated today, and is owed again.`}
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-1"><Label>Reason{reasonAction?.kind === "cancel" ? " (optional)" : " *"}</Label><Textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} /></div>
+        <div className="space-y-1"><Label>Reason{reasonAction?.kind === "cancel" ? " (optional)" : " *"}</Label><ReasonSelect options={reasonAction?.kind === "cancel" ? CANCEL_REASONS : LOAN_REVERSAL_REASONS} value={reason} onChange={setReason} /></div>
         <DialogFooter><Button variant="outline" onClick={() => { setReasonAction(null); setReason("") }}>Back</Button><Button variant="destructive" disabled={saving} onClick={submitReason}>Confirm</Button></DialogFooter>
       </DialogContent>
     </Dialog>

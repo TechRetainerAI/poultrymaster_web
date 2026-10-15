@@ -7,6 +7,8 @@
 // button on the Billing Runs page, which is why "next bill" here is a promise
 // about what that button will do rather than a countdown.
 
+import { SUBSCRIPTION_CANCEL_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
 import { useEffect, useMemo, useState } from "react"
 import { useGenericModules } from "@/hooks/use-generic-modules"
 import Link from "next/link"
@@ -622,12 +624,7 @@ export default function GenericSubscriptionsPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Textarea
-              rows={3}
-              placeholder="Why is it being cancelled?"
-              value={cancelReason}
-              onChange={(e) => setCancelReason(e.target.value)}
-            />
+            <ReasonSelect options={SUBSCRIPTION_CANCEL_REASONS} value={cancelReason} onChange={setCancelReason} />
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setCancelling(null)}>
