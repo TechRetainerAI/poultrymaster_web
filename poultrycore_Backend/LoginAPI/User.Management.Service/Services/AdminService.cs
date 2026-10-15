@@ -411,6 +411,85 @@ namespace User.Management.Service.Services
             }
         }
 
+        public async Task<FarmDetail> GetFarmDetailAsync(string farmId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId))
+                throw new Exception("farmId is required.");
+
+            var wanted = farmId.Trim();
+
+            try
+            {
+                // Farm record (name/type/contact) from dbo.Farms, matched case-insensitively.
+                var dalFarms = await _subscriptionDal.GetFarmsAsync();
+                var farmRow = dalFarms.FirstOrDefault(f =>
+                    string.Equals(f.FarmId?.Trim(), wanted, StringComparison.OrdinalIgnoreCase));
+
+                // Everyone whose primary FarmId is this farm (owner + staff).
+                var people = await _userManager.Users
+                    .AsNoTracking()
+                    .Where(u => u.FarmId != null && u.FarmId.Trim().ToLower() == wanted.ToLower())
+                    .ToListAsync();
+
+                FarmPerson ToPerson(ApplicationUser u, string role) => new FarmPerson
+                {
+                    UserId = u.Id,
+                    UserName = u.UserName,
+                    Email = u.Email,
+                    FirstName = u.FirstName,
+                    LastName = u.LastName,
+                    Role = role,
+                    TwoFactorEnabled = u.TwoFactorEnabled,
+                    EmailConfirmed = u.EmailConfirmed,
+                };
+
+                // Owner = the non-staff account on the farm (the registrant). Legacy
+                // data may have no such row, in which case Owner stays null.
+                var ownerUser = people.FirstOrDefault(u => !u.IsStaff);
+                var employees = people
+                    .Where(u => u.IsStaff)
+                    .OrderBy(u => u.FirstName)
+                    .ThenBy(u => u.LastName)
+                    .Select(u => ToPerson(u, "Staff"))
+                    .ToList();
+
+                return new FarmDetail
+                {
+                    FarmId = wanted,
+                    FarmName = !string.IsNullOrWhiteSpace(farmRow?.Name)
+                        ? farmRow!.Name
+                        : (people.Select(p => p.FarmName).FirstOrDefault(n => !string.IsNullOrWhiteSpace(n)) ?? wanted),
+                    Type = string.IsNullOrWhiteSpace(farmRow?.Type) ? null : farmRow!.Type,
+                    Email = string.IsNullOrWhiteSpace(farmRow?.Email) ? ownerUser?.Email : farmRow!.Email,
+                    PhoneNumber = string.IsNullOrWhiteSpace(farmRow?.PhoneNumber) ? ownerUser?.PhoneNumber : farmRow!.PhoneNumber,
+                    Owner = ownerUser == null ? null : ToPerson(ownerUser, "Owner"),
+                    Employees = employees,
+                };
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Error loading farm detail for {farmId}: {ex.Message}", ex);
+            }
+        }
+
+        public async Task<bool> SetUserTwoFactorAsync(string userId, bool enabled)
+        {
+            if (string.IsNullOrWhiteSpace(userId))
+                throw new Exception("userId is required.");
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null) throw new Exception("User not found.");
+
+            // SetTwoFactorEnabledAsync also refreshes the security stamp, which
+            // invalidates any in-flight OTP/2FA state for the account.
+            var res = await _userManager.SetTwoFactorEnabledAsync(user, enabled);
+            if (!res.Succeeded)
+                throw new Exception("Failed to update two-factor setting: " +
+                    string.Join(", ", res.Errors.Select(e => e.Description)));
+
+            return enabled;
+        }
+
         // ---- Doc 3 §6-7: organization employees + company access (UserFarms) ----
 
         public async Task<List<ApplicationUser>> GetOrganizationEmployeesAsync(string ownerUserId)
