@@ -439,6 +439,15 @@ export default function SalesPage() {
   /** What is left to pay after the credit: paid now, part paid or owed. */
   const restAfterCredit = Math.round((allLinesAmount - creditUsed) * 100) / 100
   const creditCoversAll = creditUsed > 0 && restAfterCredit <= 0.005
+  // Pay later: nothing is received now, so there is no payment method or cash
+  // account to ask for. The sale still keeps the default account behind the
+  // scenes -- a later Pay on the sale is received into the sale's account.
+  const payLater = formData.paid === false && !partPayment
+  const noMoneyNow = creditCoversAll || payLater
+  // What the sale stores as its method: never a cash method for money not received.
+  const saleMethodToStore = creditCoversAll ? "Customer Credit"
+    : payLater ? "Pay later"
+    : (formData.paymentMethod ?? "").toString() || null
   // Editing: the eggs the sale (every line of it) already took are back on
   // the shelf while it is changed, per class.
   const editReturned = useMemo<ReturnedEggs | undefined>(() => {
@@ -689,7 +698,7 @@ export default function SalesPage() {
       
       if (!validateSaleForm()) return
 
-      if (!formData.poultryCashAccountId) {
+      if (!noMoneyNow && !formData.poultryCashAccountId) {
         toast({
           title: "Cash account required",
           description: "Choose which cash account this sale is received into.",
@@ -751,7 +760,7 @@ export default function SalesPage() {
           userId,
           saleDate: formData.saleDate!,
           customerName: (formData.customerName ?? "").toString() || null,
-          paymentMethod: (formData.paymentMethod ?? "").toString() || (creditCoversAll ? "Customer Credit" : null),
+          paymentMethod: saleMethodToStore,
           poultryCashAccountId: formData.poultryCashAccountId ?? null,
           paid: partPayment || creditUsed > 0 ? false : (formData.paid ?? true),
           amountPaidNow: partPayment
@@ -812,7 +821,7 @@ export default function SalesPage() {
         quantity,
         unitPrice,
         totalAmount,
-        paymentMethod: (formData.paymentMethod ?? "").toString(),
+        paymentMethod: saleMethodToStore ?? "",
         customerName: (formData.customerName ?? "").toString(),
         flockId: formData.flockId ?? 0,
         batchId: saleBatchId || null,
@@ -1217,7 +1226,7 @@ export default function SalesPage() {
     else if (!customerName) message = "Enter or select who bought from you."
     else if (!Number.isFinite(quantity) || quantity <= 0) message = "Enter how many units were sold — use a number greater than zero."
     else if (!Number.isFinite(unitPrice) || unitPrice <= 0) message = "Enter the price per unit — it must be greater than zero."
-    else if (!paymentMethod && !creditCoversAll) message = "Select how the customer paid (cash, mobile money, bank, etc.)."
+    else if (!paymentMethod && !noMoneyNow) message = "Select how the customer paid (cash, mobile money, bank, etc.)."
     // Selling more than the farm has is refused, not warned about — but the
     // override on the form lifts it, because a real sale that the records have
     // not caught up with still has to be recordable.
@@ -1997,9 +2006,15 @@ export default function SalesPage() {
                   )}
                 </div>
                 )}
+                {noMoneyNow ? (
+                  <p className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
+                    No money is received now, so there is no payment method or cash account to choose.
+                    {payLater && " When the customer pays, record it from Customer Balances or Payments Received."}
+                  </p>
+                ) : (
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
-                    <Label htmlFor="paymentMethod">Payment method{creditCoversAll ? "" : " *"}</Label>
+                    <Label htmlFor="paymentMethod">Payment method *</Label>
                     <Select value={formData.paymentMethod} onValueChange={(value) => setFormData(prev => ({ ...prev, paymentMethod: value }))}>
                       <SelectTrigger id="paymentMethod" className="bg-white">
                         <SelectValue placeholder="Select payment method" />
@@ -2032,6 +2047,7 @@ export default function SalesPage() {
                     </Select>
                   </div>
                 </div>
+                )}
               </div>
               </div>
 
