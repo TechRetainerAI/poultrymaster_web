@@ -383,7 +383,7 @@ namespace PoultryFarmAPIWeb.Business
             {
                 resp.Summary.DeadBirdsGenerated = bpMort.Generated; resp.Summary.DeadBirdsSold = bpMort.Sold;
                 resp.Summary.DeadBirdsDisposed = bpMort.Disposed; resp.Summary.DeadBirdsRemaining = bpMort.Closing;
-                resp.Warnings.Add("Dead birds are counted from the date the byproduct stock started; deaths recorded before that have no disposition.");
+                resp.Warnings.Add("Deaths recorded before Dead Birds were tracked count as already disposed.");   // 381
             }
             return resp;
         }

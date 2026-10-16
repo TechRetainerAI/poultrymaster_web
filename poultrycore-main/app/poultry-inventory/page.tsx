@@ -40,6 +40,7 @@ import { RecalculateStockButton } from "@/components/poultry/recalculate-stock-b
 import { SetProductStockButton } from "@/components/inventory/set-product-stock-button"
 import { ReconcileProductStockButton } from "@/components/inventory/reconcile-product-stock-button"
 import { exportTableToPdf, emailTableAsPdf, type PdfExportOptions } from "@/lib/utils/pdf-export"
+import { byproductRole } from "@/lib/poultry/byproducts"
 
 type Tone = "ok" | "low" | "out" | "inactive"
 
@@ -69,6 +70,10 @@ const ToneBadge = ({ tone, label }: { tone: Tone; label: string }) =>
 
 // Details link routes to the right tracker, filtered by the item.
 function productLink(p: PoultryProduct): { href: string; label: string } {
+  // Byproducts have their own trackers (never the egg / live-bird ones).
+  const role = byproductRole(p.name)
+  if (role === "BrokenEggs") return { href: "/broken-eggs-tracker", label: "Broken Eggs Tracker" }
+  if (role === "DeadBirds") return { href: "/dead-birds-tracker", label: "Dead Birds Tracker" }
   if (p.isRawEggProduct) return { href: `/egg-tracker?inventoryItemId=${p.poultryProductId}`, label: "Egg Tracker" }
   if (p.isBirdProduct) return { href: `/birds-left-tracker?inventoryItemId=${p.poultryProductId}`, label: "Birds Tracker" }
   return { href: `/poultry-stock?productId=${p.poultryProductId}`, label: "View Stock" }
