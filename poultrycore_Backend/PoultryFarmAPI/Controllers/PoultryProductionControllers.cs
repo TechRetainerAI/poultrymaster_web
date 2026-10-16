@@ -136,6 +136,20 @@ namespace PoultryFarmAPIWeb.Controllers
         public async Task<ActionResult<PoultryByproductSettings>> GetByproductSettings([FromQuery] string farmId)
             => string.IsNullOrWhiteSpace(farmId) ? BadRequest("Company ID is required.") : Ok(await _svc.GetByproductSettingsAsync(farmId));
 
+        // Broken Eggs / Dead Birds trackers: on hand, the period by flock, every movement.
+        [HttpGet("byproduct-tracker")]
+        public async Task<ActionResult<PoultryByproductTrackerResponse>> GetByproductTracker(
+            [FromQuery] string farmId, [FromQuery] string role, [FromQuery] DateTime? fromDate, [FromQuery] DateTime? toDate, [FromQuery] int? flockId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            if (role != "BrokenEggs" && role != "DeadBirds") return BadRequest(new { message = "role must be BrokenEggs or DeadBirds." });
+            var to = (toDate ?? DateTime.UtcNow).Date;
+            var from = (fromDate ?? to.AddDays(-29)).Date;
+            if (from > to) return BadRequest(new { message = "The start date is after the end date." });
+            try { return Ok(await _svc.GetByproductTrackerAsync(farmId, role, from, to, flockId)); }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001") { return BadRequest(new { message = ex.MessageText }); }
+        }
+
         [HttpPut("byproduct-settings")]
         [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
         public async Task<IActionResult> SetByproductSettings([FromBody] PoultryByproductSettings s)

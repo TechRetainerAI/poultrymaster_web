@@ -45,6 +45,7 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/use-permissions"
+import { PaymentPLBadge, PaymentPLToggle } from "@/components/balances/payment-pl-control"
 import { useFmt } from "@/lib/currency"
 import { cn } from "@/lib/utils"
 import {
@@ -688,6 +689,7 @@ export function PaymentsReceivedPage({
                                   {fmt(row.totalAmount)}
                                 </span>
                                 {statusBadge(row)}
+                                {module === "poultry" && <PaymentPLBadge row={row} side="customer" />}
                               </div>
                               <div className="mt-0.5 truncate text-sm text-slate-600">{row.partyName ?? "Walk-in"}</div>
                               <div className="mt-1 text-xs text-slate-500">
@@ -737,6 +739,9 @@ export function PaymentsReceivedPage({
                                     onClick={() => { setReverseTarget(row); setReason("") }}>
                               <Undo2 className="mr-1.5 h-3.5 w-3.5" /> Reverse
                             </Button>
+                          )}
+                          {module === "poultry" && (
+                            <PaymentPLToggle row={row} side="customer" onChanged={() => { void load() }} className="mt-2 h-10 w-full" />
                           )}
 
                           {/* A sale paid more than once opens its trail instead
@@ -954,8 +959,14 @@ export function PaymentsReceivedPage({
                                     {sourceLabel(row.sourceType)}
                                   </span>
                                 </TableCell>
-                                <TableCell>{statusBadge(row)}</TableCell>
+                                <TableCell>
+                                  {statusBadge(row)}
+                                  {module === "poultry" && <PaymentPLBadge row={row} side="customer" className="mt-1 block w-fit" />}
+                                </TableCell>
                                 <TableCell className="whitespace-nowrap! text-right">
+                                  {module === "poultry" && (
+                                    <PaymentPLToggle row={row} side="customer" onChanged={() => { void load() }} className="mr-1" />
+                                  )}
                                   {onSaleDetails && (
                                     <Button variant="ghost" size="icon" className="h-8 w-8"
                                             onClick={() => void showSaleDetails(row)}

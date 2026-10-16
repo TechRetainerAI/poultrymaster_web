@@ -149,6 +149,10 @@ export interface RecordPaymentRequest {
   sourceType?: string | null
   createdBy?: string | null
   allocations: PaymentAllocationInput[]
+  /** Poultry (382): keep the part paid on a debt off Profit & Loss. Owner / admin only. */
+  excludeFromPL?: boolean
+  /** Poultry (383): the part not applied to anything paid a debt from before the system. */
+  remainderAsOldDebt?: boolean
 }
 
 export interface PaymentHistoryRow {
@@ -193,6 +197,14 @@ export interface PaymentHistoryRow {
   balanceBefore?: number | null
   amountApplied?: number | null
   balanceAfter?: number | null
+  /**
+   * Poultry (382): what the payment puts on Profit & Loss -- the part paid on
+   * debts (revenue for a customer, operating expense for a supplier). 0 when it
+   * only paid sales / purchases (already on P&L through them) or is reversed.
+   */
+  plAmount?: number
+  /** Poultry (382): the owner / an admin kept it off Profit & Loss. */
+  excludedFromPL?: boolean
 }
 
 export interface PaymentAllocationRow {
@@ -392,6 +404,20 @@ export async function recordPayment(
     body,
   )
   return String(res?.paymentId ?? "")
+}
+
+/** Poultry (382): keep a debt payment off Profit & Loss, or put it back. Owner / admin only. */
+export async function setPaymentPLExclusion(
+  side: BalanceSide,
+  paymentId: string,
+  exclude: boolean,
+): Promise<void> {
+  const farmId = activeFarmId()
+  await jsend<unknown>(
+    `${prefix("poultry", farmId)}/${paymentsPath(side)}/${encodeURIComponent(paymentId)}/pl-exclusion`,
+    "POST",
+    { farmId, exclude },
+  )
 }
 
 export async function reversePayment(

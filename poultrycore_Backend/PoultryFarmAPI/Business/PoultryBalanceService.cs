@@ -54,6 +54,9 @@ namespace PoultryFarmAPIWeb.Business
         Task<int> RecordSupplierPayment(RecordPaymentRequest r);
         Task<int> ReverseSupplierPayment(string farmId, int paymentId, string? reason, string? reversedBy);
         Task<List<PaymentHistoryRow>> GetSupplierPayments(string farmId, int? supplierId, string? documentType, int? documentId, DateTime? from, DateTime? to);
+        // 382: debt payments on Profit & Loss.
+        Task SetCustomerPaymentPLExclusion(string farmId, Guid paymentGroupId, bool exclude, string? by);
+        Task SetSupplierPaymentPLExclusion(string farmId, int paymentId, bool exclude, string? by);
         Task<List<PaymentAllocationRow>> GetSupplierPaymentAllocations(string farmId, int paymentId);
         Task<List<StatementLine>> GetSupplierStatement(string farmId, int supplierId, DateTime? from, DateTime? to);
 
@@ -344,7 +347,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             using var conn = new NpgsqlConnection(_connectionString);
             using var cmd = new NpgsqlCommand(
-                "SELECT sppoultrycustomerpayment_record(p_farmid => @FarmId::text, p_customerid => @PartyId::int, p_amount => @Amount::numeric, p_allocations => @Allocations::jsonb, p_paymentmethod => @PaymentMethod::text, p_paymentdate => @PaymentDate::timestamp, p_cashaccountid => @CashAccountId::int, p_reference => @Reference::text, p_note => @Notes::text, p_sourcetype => @SourceType::text, p_createdby => @CreatedBy::text)", conn);
+                // 383: Record customer payment -- the rest pays a debt from before the system.
+                (r.RemainderAsOldDebt ? "SELECT sppoultrycustomerpayment_recordolddebt(" : "SELECT sppoultrycustomerpayment_record(") + "p_farmid => @FarmId::text, p_customerid => @PartyId::int, p_amount => @Amount::numeric, p_allocations => @Allocations::jsonb, p_paymentmethod => @PaymentMethod::text, p_paymentdate => @PaymentDate::timestamp, p_cashaccountid => @CashAccountId::int, p_reference => @Reference::text, p_note => @Notes::text, p_sourcetype => @SourceType::text, p_createdby => @CreatedBy::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
             cmd.Parameters.AddWithValue("@PartyId", Db(r.PartyId));
             cmd.Parameters.AddWithValue("@Amount", r.Amount);
@@ -358,15 +362,32 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@CreatedBy", Db(r.CreatedBy));
 
             await conn.OpenAsync();
+            await using var tx = await conn.BeginTransactionAsync();
+            cmd.Transaction = tx;
             var result = await cmd.ExecuteScalarAsync();
-            return result?.ToString() ?? string.Empty;
+            var groupId = result?.ToString() ?? string.Empty;
+
+            // 382: kept off Profit & Loss from the start -- only matters when part of it paid a debt.
+            if (r.ExcludeFromPL && Guid.TryParse(groupId, out var g))
+            {
+                using var ex = new NpgsqlCommand(
+                    "SELECT sppoultrypayment_setplexclusion(p_farmid => @FarmId::text, p_paymentgroupid => @G::uuid, p_exclude => TRUE, p_by => @By::text) " +
+                    "WHERE fnpoultrypayment_plamount(@FarmId::text, @G::uuid) > 0", conn, tx);
+                ex.Parameters.AddWithValue("@FarmId", r.FarmId);
+                ex.Parameters.AddWithValue("@G", g);
+                ex.Parameters.AddWithValue("@By", Db(r.CreatedBy));
+                await ex.ExecuteNonQueryAsync();
+            }
+            await tx.CommitAsync();
+            return groupId;
         }
 
         public async Task<int> RecordSupplierPayment(RecordPaymentRequest r)
         {
             using var conn = new NpgsqlConnection(_connectionString);
             using var cmd = new NpgsqlCommand(
-                "SELECT sppoultrysupplierpayment_record(p_farmid => @FarmId::text, p_supplierid => @PartyId::int, p_amount => @Amount::numeric, p_allocations => @Allocations::jsonb, p_paymentmethod => @PaymentMethod::text, p_paymentdate => @PaymentDate::timestamp, p_cashaccountid => @CashAccountId::int, p_reference => @Reference::text, p_notes => @Notes::text, p_sourcetype => @SourceType::text, p_createdby => @CreatedBy::text)", conn);
+                // 383: Record supplier payment -- the rest pays a debt from before the system.
+                (r.RemainderAsOldDebt ? "SELECT sppoultrysupplierpayment_recordolddebt(" : "SELECT sppoultrysupplierpayment_record(") + "p_farmid => @FarmId::text, p_supplierid => @PartyId::int, p_amount => @Amount::numeric, p_allocations => @Allocations::jsonb, p_paymentmethod => @PaymentMethod::text, p_paymentdate => @PaymentDate::timestamp, p_cashaccountid => @CashAccountId::int, p_reference => @Reference::text, p_notes => @Notes::text, p_sourcetype => @SourceType::text, p_createdby => @CreatedBy::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
             cmd.Parameters.AddWithValue("@PartyId", Db(r.PartyId));
             cmd.Parameters.AddWithValue("@Amount", r.Amount);
@@ -380,7 +401,76 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@CreatedBy", Db(r.CreatedBy));
 
             await conn.OpenAsync();
-            return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            await using var tx = await conn.BeginTransactionAsync();
+            cmd.Transaction = tx;
+            var id = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+
+            // 382: kept off Profit & Loss from the start -- only matters when part of it paid a supplier debt.
+            if (r.ExcludeFromPL)
+            {
+                using var ex = new NpgsqlCommand(
+                    "SELECT sppoultrysupplierpayment_setplexclusion(p_farmid => @FarmId::text, p_paymentid => @Id::int, p_exclude => TRUE, p_by => @By::text) " +
+                    "WHERE fnpoultrysupplierpayment_plamount(@FarmId::text, @Id::int) > 0", conn, tx);
+                ex.Parameters.AddWithValue("@FarmId", r.FarmId);
+                ex.Parameters.AddWithValue("@Id", id);
+                ex.Parameters.AddWithValue("@By", Db(r.CreatedBy));
+                await ex.ExecuteNonQueryAsync();
+            }
+            await tx.CommitAsync();
+            return id;
+        }
+
+        // 382: a debt payment is on Profit & Loss unless the owner / an admin excludes it.
+        public async Task SetCustomerPaymentPLExclusion(string farmId, Guid paymentGroupId, bool exclude, string? by)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand(
+                "SELECT sppoultrypayment_setplexclusion(p_farmid => @FarmId::text, p_paymentgroupid => @G::uuid, p_exclude => @Ex::boolean, p_by => @By::text)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@G", paymentGroupId);
+            cmd.Parameters.AddWithValue("@Ex", exclude);
+            cmd.Parameters.AddWithValue("@By", Db(by));
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task SetSupplierPaymentPLExclusion(string farmId, int paymentId, bool exclude, string? by)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand(
+                "SELECT sppoultrysupplierpayment_setplexclusion(p_farmid => @FarmId::text, p_paymentid => @Id::int, p_exclude => @Ex::boolean, p_by => @By::text)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@Id", paymentId);
+            cmd.Parameters.AddWithValue("@Ex", exclude);
+            cmd.Parameters.AddWithValue("@By", Db(by));
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // 382: what each listed payment puts on Profit & Loss, and whether it was excluded.
+        private async Task<List<PaymentHistoryRow>> WithPL(List<PaymentHistoryRow> rows, string farmId, bool supplierSide)
+        {
+            var ids = rows.Select(x => x.PaymentId).Where(x => !string.IsNullOrEmpty(x)).Distinct().ToArray();
+            if (ids.Length == 0) return rows;
+            var sql = supplierSide
+                ? "SELECT sp.poultrysupplierpaymentid::text, fnpoultrysupplierpayment_plamount(sp.farmid, sp.poultrysupplierpaymentid), sp.excludefrompl " +
+                  "FROM poultrysupplierpayments sp WHERE sp.farmid = @FarmId::text AND sp.poultrysupplierpaymentid::text = ANY(@Ids)"
+                : "SELECT pp.paymentgroupid::text, " +
+                  "COALESCE(SUM(pp.amount) FILTER (WHERE pp.debtid IS NOT NULL AND COALESCE(pp.status, 'Posted') = 'Posted'), 0), bool_or(pp.excludefrompl) " +
+                  "FROM poultrypayments pp WHERE pp.farmid = @FarmId::text AND pp.paymentgroupid::text = ANY(@Ids) GROUP BY pp.paymentgroupid";
+            var pl = new Dictionary<string, (decimal amount, bool excluded)>(StringComparer.OrdinalIgnoreCase);
+            using (var conn = new NpgsqlConnection(_connectionString))
+            using (var cmd = new NpgsqlCommand(sql, conn))
+            {
+                cmd.Parameters.AddWithValue("@FarmId", farmId);
+                cmd.Parameters.AddWithValue("@Ids", ids);
+                await conn.OpenAsync();
+                using var rd = await cmd.ExecuteReaderAsync();
+                while (await rd.ReadAsync()) pl[rd.GetString(0)] = (rd.GetDecimal(1), !rd.IsDBNull(2) && rd.GetBoolean(2));
+            }
+            foreach (var row in rows)
+                if (pl.TryGetValue(row.PaymentId, out var v)) { row.PLAmount = v.amount; row.ExcludedFromPL = v.excluded; }
+            return rows;
         }
 
         public async Task<int> ReverseCustomerPayment(string farmId, Guid paymentGroupId, string? reason, string? reversedBy)
@@ -393,7 +483,20 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@Reason", Db(reason));
             cmd.Parameters.AddWithValue("@ReversedBy", Db(reversedBy));
             await conn.OpenAsync();
-            return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            await using var tx = await conn.BeginTransactionAsync();
+            cmd.Transaction = tx;
+            var count = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            // 383: a debt recorded only because this payment paid it is reversed with it.
+            using (var rel = new NpgsqlCommand(
+                "SELECT sppoultrypayment_releaseolddebts(p_farmid => @FarmId::text, p_paymentgroupid => @PaymentId::uuid, p_by => @ReversedBy::text)", conn, tx))
+            {
+                rel.Parameters.AddWithValue("@FarmId", farmId);
+                rel.Parameters.AddWithValue("@PaymentId", paymentGroupId);
+                rel.Parameters.AddWithValue("@ReversedBy", Db(reversedBy));
+                await rel.ExecuteScalarAsync();
+            }
+            await tx.CommitAsync();
+            return count;
         }
 
         public async Task<int> ReverseSupplierPayment(string farmId, int paymentId, string? reason, string? reversedBy)
@@ -406,10 +509,23 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@Reason", Db(reason));
             cmd.Parameters.AddWithValue("@ReversedBy", Db(reversedBy));
             await conn.OpenAsync();
-            return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            await using var tx = await conn.BeginTransactionAsync();
+            cmd.Transaction = tx;
+            var count = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            // 383: a debt recorded only because this payment paid it is reversed with it.
+            using (var rel = new NpgsqlCommand(
+                "SELECT sppoultrysupplierpayment_releaseolddebts(p_farmid => @FarmId::text, p_paymentid => @PaymentId::int, p_by => @ReversedBy::text)", conn, tx))
+            {
+                rel.Parameters.AddWithValue("@FarmId", farmId);
+                rel.Parameters.AddWithValue("@PaymentId", paymentId);
+                rel.Parameters.AddWithValue("@ReversedBy", Db(reversedBy));
+                await rel.ExecuteScalarAsync();
+            }
+            await tx.CommitAsync();
+            return count;
         }
 
-        public Task<List<PaymentHistoryRow>> GetCustomerPayments(string farmId, int? customerId, int? saleId, DateTime? from, DateTime? to) => Query(
+        public async Task<List<PaymentHistoryRow>> GetCustomerPayments(string farmId, int? customerId, int? saleId, DateTime? from, DateTime? to) => await WithPL(await Query(
             "SELECT * FROM sppoultrycustomerpayment_history(p_farmid => @FarmId::text, p_customerid => @PartyId::int, p_saleid => @DocumentId::int, p_from => @From::date, p_to => @To::date)",
             cmd =>
             {
@@ -451,9 +567,9 @@ namespace PoultryFarmAPIWeb.Business
                 BalanceBefore = DecN(r, "balancebefore"),
                 AmountApplied = DecN(r, "amountapplied"),
                 BalanceAfter = DecN(r, "balanceafter"),
-            });
+            }), farmId, supplierSide: false);
 
-        public Task<List<PaymentHistoryRow>> GetSupplierPayments(string farmId, int? supplierId, string? documentType, int? documentId, DateTime? from, DateTime? to) => Query(
+        public async Task<List<PaymentHistoryRow>> GetSupplierPayments(string farmId, int? supplierId, string? documentType, int? documentId, DateTime? from, DateTime? to) => await WithPL(await Query(
             "SELECT * FROM sppoultrysupplierpayment_history(p_farmid => @FarmId::text, p_supplierid => @PartyId::int, p_documenttype => @DocumentType::text, p_documentid => @DocumentId::int, p_from => @From::date, p_to => @To::date)",
             cmd =>
             {
@@ -484,7 +600,7 @@ namespace PoultryFarmAPIWeb.Business
                 ReversedBy = Str(r, "reversedby"),
                 ReversedAt = DateN(r, "reversedat"),
                 ReversalReason = Str(r, "reversalreason"),
-            });
+            }), farmId, supplierSide: true);
 
         public Task<List<PaymentAllocationRow>> GetCustomerPaymentAllocations(string farmId, Guid paymentGroupId) => Query(
             "SELECT * FROM sppoultrycustomerpayment_allocations(p_farmid => @FarmId::text, p_paymentgroupid => @PaymentId::uuid)",

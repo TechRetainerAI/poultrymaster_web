@@ -660,6 +660,52 @@ export const getPoultryByproductSettings = () =>
 export const setPoultryByproductSettings = (input: { brokenEggsInSales?: boolean; deadBirdsInSales?: boolean }) =>
   jsend<PoultryByproductSettings>(`/Poultry/stock/byproduct-settings`, "PUT", { ...input, farmId: activeFarmId() })
 
+// Broken Eggs / Dead Birds trackers: on hand now, the period by flock (pooled
+// entries on a row with no flock), and every movement in the period.
+export type ByproductRole = "BrokenEggs" | "DeadBirds"
+export type ByproductMovementCategory = "Generated" | "Sold" | "Disposed" | "InternalUse" | "ManualIn" | "ManualOut" | "Reversal"
+export interface ByproductTrackerFlockRow {
+  flockId: number | null
+  flockName: string | null
+  batchCode: string | null
+  opening: number
+  generated: number
+  sold: number
+  disposed: number
+  internalUse: number
+  manualIn: number
+  manualOut: number
+  reversals: number
+  closing: number
+  revenue: number
+}
+export interface ByproductTrackerMovement {
+  txnId: number
+  date: string
+  category: ByproductMovementCategory | string
+  txnType: string
+  quantity: number
+  flockId: number | null
+  flockName: string | null
+  batchCode: string | null
+  saleId: number | null
+  revenue: number
+  manualMovementId: number | null
+  movementNo: string | null
+  note: string | null
+}
+export interface ByproductTracker {
+  role: ByproductRole
+  onHand: number
+  flocks: ByproductTrackerFlockRow[]
+  movements: ByproductTrackerMovement[]
+}
+export const getByproductTracker = (role: ByproductRole, opts: { fromDate: string; toDate: string; flockId?: number | null }) => {
+  const q = new URLSearchParams({ farmId: activeFarmId(), role, fromDate: opts.fromDate, toDate: opts.toDate })
+  if (opts.flockId) q.set("flockId", String(opts.flockId))
+  return jget<ByproductTracker>(`/Poultry/stock/byproduct-tracker?${q.toString()}`)
+}
+
 export const reversePoultryManualMovement = (movementId: number, reason: string) =>
   jsend<{ movementId: number; movementNo: string; status: string }>(`/Poultry/stock/manual-movements/${movementId}/reverse`, "POST", { farmId: activeFarmId(), reason, reversedBy: activeUserId() })
 

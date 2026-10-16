@@ -17,7 +17,7 @@ import {
   Activity, AlertTriangle, ArrowLeftRight, Banknote, BarChart3, Bell, Bird, BookOpen, Box, Boxes,
   Building2, Clock, CreditCard, DollarSign, Egg, Factory, FileText, HelpCircle, History, Hourglass,
   Coins, HandCoins, ListTodo, Package, PackageMinus, Pill, Receipt, Scale, Settings, ShoppingCart, Truck, User, UserCog, Users,
-  Users2, Wallet, Wheat, PiggyBank, TrendingUp, Sparkles, ClipboardCheck, CalendarCheck, Flag, Repeat,
+  Users2, Wallet, Wheat, PiggyBank, TrendingUp, Sparkles, ClipboardCheck, CalendarCheck, Flag, Repeat, Skull,
 } from "lucide-react"
 import type { UserPermissions } from "@/hooks/use-permissions"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
@@ -329,9 +329,12 @@ export function buildPoultryNavConfig(
         // consulted far less often than the three above it.
         items: [
           { id: "egg-tracker",        title: "Egg tracker",        icon: BarChart3, href: "/egg-tracker" },
+          // Byproduct stock: never part of the egg or live-bird figures.
+          { id: "broken-eggs-tracker", title: "Broken eggs tracker", icon: Egg,      href: "/broken-eggs-tracker" },
           { id: "feed-tracker",       title: "Feed tracker",       icon: Wheat,     href: "/feed-tracker" },
           { id: "feed-inventory-tracker", title: "Feed inventory tracker", icon: History, href: "/feed-inventory-tracker" },
           { id: "birds-left",         title: "Birds tracker",      icon: Bird,      href: "/birds-left-tracker" },
+          { id: "dead-birds-tracker", title: "Dead birds tracker", icon: Skull,     href: "/dead-birds-tracker" },
           { id: "medication-tracker", title: "Medication tracker", icon: Pill,      href: "/medication-tracker" },
           { id: "weekly-report",      title: "Analytical Report",  icon: FileText,  href: "/weekly-report" },
           { id: "feed-ingredient-tracker", title: "Ingredients only tracker", icon: Wheat, href: "/feed-ingredient-tracker" },

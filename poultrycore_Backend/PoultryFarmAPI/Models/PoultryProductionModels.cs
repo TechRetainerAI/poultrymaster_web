@@ -85,6 +85,53 @@ namespace PoultryFarmAPIWeb.Models
         public string? UpdatedBy { get; set; }
     }
 
+    /// <summary>
+    /// Broken Eggs / Dead Birds tracker: stock on hand now, the period by flock
+    /// (pooled entries on a row with no flock) and every movement in the period.
+    /// Built on the same functions as the Byproduct Inventory report (375).
+    /// </summary>
+    public class PoultryByproductTrackerResponse
+    {
+        public string Role { get; set; } = string.Empty;
+        public decimal OnHand { get; set; }
+        public List<PoultryByproductTrackerFlockRow> Flocks { get; set; } = new();
+        public List<PoultryByproductTrackerMovement> Movements { get; set; } = new();
+    }
+
+    public class PoultryByproductTrackerFlockRow
+    {
+        public int? FlockId { get; set; }
+        public string? FlockName { get; set; }
+        public string? BatchCode { get; set; }
+        public decimal Opening { get; set; }
+        public decimal Generated { get; set; }
+        public decimal Sold { get; set; }
+        public decimal Disposed { get; set; }
+        public decimal InternalUse { get; set; }
+        public decimal ManualIn { get; set; }
+        public decimal ManualOut { get; set; }
+        public decimal Reversals { get; set; }
+        public decimal Closing { get; set; }
+        public decimal Revenue { get; set; }
+    }
+
+    public class PoultryByproductTrackerMovement
+    {
+        public int TxnId { get; set; }
+        public DateTime Date { get; set; }
+        public string Category { get; set; } = string.Empty;
+        public string TxnType { get; set; } = string.Empty;
+        public decimal Quantity { get; set; }
+        public int? FlockId { get; set; }
+        public string? FlockName { get; set; }
+        public string? BatchCode { get; set; }
+        public int? SaleId { get; set; }
+        public decimal Revenue { get; set; }
+        public int? ManualMovementId { get; set; }
+        public string? MovementNo { get; set; }
+        public string? Note { get; set; }
+    }
+
     public class PoultryManualMovementReverseRequest
     {
         [Required] public string FarmId { get; set; } = string.Empty;
