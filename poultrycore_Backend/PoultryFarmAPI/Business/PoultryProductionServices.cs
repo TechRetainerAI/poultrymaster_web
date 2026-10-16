@@ -153,6 +153,8 @@ namespace PoultryFarmAPIWeb.Business
         // 374: Broken Eggs / Dead Birds in Add Sale.
         Task<PoultryByproductSettings> GetByproductSettingsAsync(string farmId);
         Task SetByproductSettingsAsync(PoultryByproductSettings s);
+        // Broken Eggs / Dead Birds trackers.
+        Task<PoultryByproductTrackerResponse> GetByproductTrackerAsync(string farmId, string role, DateTime from, DateTime to, int? flockId);
     }
     public class PoultryStockService : IPoultryStockService
     {
@@ -277,6 +279,52 @@ namespace PoultryFarmAPIWeb.Business
                 s.BrokenEggsInSales = r.Bool("BrokenEggsInSales"); s.DeadBirdsInSales = r.Bool("DeadBirdsInSales"); s.CutoverAt = r.DateN("CutoverAt");
             }
             return s;
+        }
+
+        public async Task<PoultryByproductTrackerResponse> GetByproductTrackerAsync(string farmId, string role, DateTime from, DateTime to, int? flockId)
+        {
+            var res = new PoultryByproductTrackerResponse { Role = role };
+            using var c = new NpgsqlConnection(_cs);
+            await c.OpenAsync();
+
+            using (var cmd = new NpgsqlCommand("SELECT fnpoultry_byproductonhand(@FarmId::text, @Role::text)", c))
+            {
+                cmd.Parameters.AddWithValue("@FarmId", farmId); cmd.Parameters.AddWithValue("@Role", role);
+                res.OnHand = Convert.ToDecimal(await cmd.ExecuteScalarAsync() ?? 0m);
+            }
+
+            using (var cmd = new NpgsqlCommand(
+                "SELECT * FROM sppoultryreport_byproducts(p_farmid => @FarmId::text, p_startdate => @S::date, p_enddate => @E::date, " +
+                "p_flockid => @Flock::int, p_role => @Role::text, p_byflock => TRUE)", c))
+            {
+                cmd.Parameters.AddWithValue("@FarmId", farmId); cmd.Parameters.AddWithValue("@S", from.Date); cmd.Parameters.AddWithValue("@E", to.Date);
+                cmd.Parameters.AddWithValue("@Flock", (object?)flockId ?? DBNull.Value); cmd.Parameters.AddWithValue("@Role", role);
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync()) res.Flocks.Add(new PoultryByproductTrackerFlockRow
+                {
+                    FlockId = r.IntN("flockid"), FlockName = r.StrN("flockname"), BatchCode = r.StrN("batchcode"),
+                    Opening = r.Dec("opening"), Generated = r.Dec("generated"), Sold = r.Dec("sold"), Disposed = r.Dec("disposed"),
+                    InternalUse = r.Dec("internaluse"), ManualIn = r.Dec("manualin"), ManualOut = r.Dec("manualout"),
+                    Reversals = r.Dec("reversals"), Closing = r.Dec("closing"), Revenue = r.Dec("revenue"),
+                });
+            }
+
+            using (var cmd = new NpgsqlCommand(
+                "SELECT * FROM sppoultryreport_byproductmovements(p_farmid => @FarmId::text, p_startdate => @S::date, p_enddate => @E::date, " +
+                "p_flockid => @Flock::int, p_role => @Role::text) ORDER BY bdate, txnid", c))
+            {
+                cmd.Parameters.AddWithValue("@FarmId", farmId); cmd.Parameters.AddWithValue("@S", from.Date); cmd.Parameters.AddWithValue("@E", to.Date);
+                cmd.Parameters.AddWithValue("@Flock", (object?)flockId ?? DBNull.Value); cmd.Parameters.AddWithValue("@Role", role);
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync()) res.Movements.Add(new PoultryByproductTrackerMovement
+                {
+                    TxnId = r.Int("txnid"), Date = r.Date("bdate"), Category = r.StrN("category") ?? "", TxnType = r.StrN("txntype") ?? "",
+                    Quantity = r.Dec("quantity"), FlockId = r.IntN("flockid"), FlockName = r.StrN("flockname"), BatchCode = r.StrN("batchcode"),
+                    SaleId = r.IntN("saleid"), Revenue = r.DecN("revenue") ?? 0m, ManualMovementId = r.IntN("manualmovementid"),
+                    MovementNo = r.StrN("movementno"), Note = r.StrN("note"),
+                });
+            }
+            return res;
         }
 
         public async Task SetByproductSettingsAsync(PoultryByproductSettings s)
