@@ -26,9 +26,11 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Checkbox } from "@/components/ui/checkbox"
 import { AlertTriangle, Loader2, Wand2, X } from "lucide-react"
 import { useFmt } from "@/lib/currency"
 import { useToast } from "@/hooks/use-toast"
+import { usePermissions } from "@/hooks/use-permissions"
 import {
   autoAllocateOldestFirst, balanceAfter, docKey, totalAllocated, totalOpenBalance,
   validateAllocations, type AllocationMap,
@@ -62,11 +64,17 @@ interface Props {
    * where this dialog is opened from everywhere except the Expenses page.
    */
   sourceType?: string
+  /**
+   * 383 (poultry: Record customer / supplier payment): money not applied to
+   * anything paid something owed from before the system -- recorded as that debt
+   * and paid now, so it is on Profit & Loss -- unless the user keeps it as credit.
+   */
+  remainderAsOldDebt?: boolean
   onPosted: () => void
 }
 
 export function RecordPaymentDialog({
-  open, onOpenChange, module, side, party, singleDocument = null, cashAccounts, sourceType, onPosted,
+  open, onOpenChange, module, side, party, singleDocument = null, cashAccounts, sourceType, remainderAsOldDebt = false, onPosted,
 }: Props) {
   const fmt = useFmt()
   const { toast } = useToast()
@@ -75,6 +83,7 @@ export function RecordPaymentDialog({
   // kept as the customer's / supplier's credit (applied to nothing = an advance).
   const allowUnallocated = module === "poultry"
   const creditWord = isCustomer ? "customer credit" : "supplier credit"
+  const { isAdmin } = usePermissions()
 
   const [documents, setDocuments] = useState<OpenDocumentRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -88,6 +97,10 @@ export function RecordPaymentDialog({
   const [notes, setNotes] = useState("")
   const [allocation, setAllocation] = useState<AllocationMap>({})
   const [touched, setTouched] = useState(false)
+  // 382: money on a debt is on Profit & Loss unless the owner / an admin says not.
+  const [countOnPL, setCountOnPL] = useState(true)
+  // 383: the leftover is an old debt by default; the user can keep it as credit instead.
+  const [keepAsCredit, setKeepAsCredit] = useState(false)
 
   // Load the lines this payment can be spread over. A single-document payment
   // still goes through the grid, so the two modes cannot drift apart.
@@ -95,6 +108,8 @@ export function RecordPaymentDialog({
     if (!open || !party) return
     let cancelled = false
     setTouched(false)
+    setCountOnPL(true)
+    setKeepAsCredit(false)
 
     if (singleDocument) {
       setDocuments([singleDocument])
@@ -127,6 +142,12 @@ export function RecordPaymentDialog({
   const openTotal = useMemo(() => totalOpenBalance(documents), [documents])
   const allocated = useMemo(() => totalAllocated(allocation), [allocation])
 
+  // 382: the part paid on debts recorded by hand -- the only part that is new to
+  // Profit & Loss (a sale or purchase is already on it).
+  const recordedDebtAllocated = useMemo(() => module !== "poultry" ? 0 : documents
+    .filter((d) => d.documentType === "CustomerDebt" || d.documentType === "SupplierDebt")
+    .reduce((t, d) => t + (allocation[docKey(d)] ?? 0), 0), [module, documents, allocation])
+
   const selectedAccount = cashAccounts.find((a) => a.id === cashAccountId) ?? null
 
   const validation = useMemo(
@@ -141,6 +162,12 @@ export function RecordPaymentDialog({
     }),
     [amount, documents, allocation, cashAccountId, isCustomer, allowUnallocated],
   )
+
+  // 383: what is left over pays an old debt, unless kept as credit.
+  const oldDebt = remainderAsOldDebt && allowUnallocated && !keepAsCredit && validation.unallocated > 0
+    ? validation.unallocated : 0
+  const debtAllocated = recordedDebtAllocated + oldDebt
+  const leftoverWord = oldDebt > 0 ? (isCustomer ? "old customer debt" : "old supplier debt") : creditWord
 
   // Would this payment overdraw the account? The server blocks it too; catching
   // it here saves a round trip and names the account.
@@ -218,6 +245,8 @@ export function RecordPaymentDialog({
             documentId: d.documentId,
             amount: allocation[docKey(d)],
           })),
+        excludeFromPL: debtAllocated > 0 && !countOnPL,
+        remainderAsOldDebt: oldDebt > 0,
       })
       toast({
         title: isCustomer ? "Payment received" : "Payment recorded",
@@ -330,7 +359,7 @@ export function RecordPaymentDialog({
               </span>{" "}
               after this payment
               {allowUnallocated && validation.unallocated > 0 && (
-                <span className="text-blue-700"> · {fmt(validation.unallocated)} kept as {creditWord}</span>
+                <span className="text-blue-700"> · {fmt(validation.unallocated)} {oldDebt > 0 ? "pays an" : "kept as"} {leftoverWord}</span>
               )}
             </span>
           </div>
@@ -353,7 +382,7 @@ export function RecordPaymentDialog({
               <span className={validation.unallocated > 0 ? (allowUnallocated ? "ml-2 text-blue-700" : "ml-2 text-amber-600") : "ml-2 text-red-600"}>
                 ({validation.unallocated > 0
                   ? allowUnallocated
-                    ? `${fmt(validation.unallocated)} kept as ${creditWord}`
+                    ? `${fmt(validation.unallocated)} ${oldDebt > 0 ? "pays an" : "kept as"} ${leftoverWord}`
                     : `${fmt(validation.unallocated)} unallocated`
                   : `${fmt(-validation.unallocated)} over`})
               </span>
@@ -427,6 +456,40 @@ export function RecordPaymentDialog({
           )}
         </div>
         </>
+        )}
+
+        {remainderAsOldDebt && allowUnallocated && validation.unallocated > 0 && (
+          <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+            <p>
+              {fmt(validation.unallocated)} is not applied to anything listed.{" "}
+              {keepAsCredit
+                ? `It will be kept as ${creditWord} (an advance) -- not on Profit & Loss until it is used.`
+                : `It will be recorded as ${isCustomer ? "a debt the customer owed" : "a debt we owed the supplier"} from before the system, paid now.`}
+            </p>
+            <label className="mt-1.5 flex items-center gap-2 text-xs">
+              <Checkbox checked={keepAsCredit} onCheckedChange={(v) => setKeepAsCredit(v === true)} />
+              Keep it as {creditWord} (an advance) instead
+            </label>
+          </div>
+        )}
+
+        {debtAllocated > 0 && (
+          <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+            {isAdmin ? (
+              <label className="flex items-start gap-2">
+                <Checkbox className="mt-0.5" checked={countOnPL} onCheckedChange={(v) => setCountOnPL(v === true)} />
+                <span>
+                  Count the {fmt(debtAllocated)} paid on debts on Profit &amp; Loss as{" "}
+                  {isCustomer ? "revenue" : "an operating expense"}.
+                  <span className="block text-xs text-emerald-800/80">
+                    Untick to keep it off Profit &amp; Loss. You can change this later from the payments list.
+                  </span>
+                </span>
+              </label>
+            ) : (
+              <>The {fmt(debtAllocated)} paid on debts goes on Profit &amp; Loss as {isCustomer ? "revenue" : "an operating expense"}.</>
+            )}
+          </div>
         )}
 
         {touched && (blockingProblems.length > 0 || overdraws) && (

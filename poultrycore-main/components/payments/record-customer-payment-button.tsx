@@ -115,6 +115,8 @@ export function RecordPartyPaymentButton({ side, onPosted }: { side: "customer" 
         party={party}
         cashAccounts={cashAccounts}
         sourceType={isCustomer ? "PaymentsPage" : "SupplierPayments"}
+        // 383: money not applied to anything paid an old debt -- on Profit & Loss.
+        remainderAsOldDebt
         onPosted={() => { setParty(null); onPosted() }}
       />
     </>

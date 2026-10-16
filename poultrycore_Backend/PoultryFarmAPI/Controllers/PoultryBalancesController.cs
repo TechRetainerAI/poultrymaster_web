@@ -88,6 +88,7 @@ namespace PoultryFarmAPIWeb.Controllers
             // 367: a payment need not be applied in full -- what is left is kept
             // as the customer's credit, and a payment with no sale is an advance.
             // The database needs a cash account for that part.
+            if (r.ExcludeFromPL && !await CanSetPL()) return PLForbidden();
             try
             {
                 var groupId = await _svc.RecordCustomerPayment(r);
@@ -106,6 +107,34 @@ namespace PoultryFarmAPIWeb.Controllers
             var count = await _svc.ReverseCustomerPayment(r.FarmId, paymentId, r.Reason, r.ReversedBy);
             return Ok(new { reversedAllocations = count });
         }
+
+        // 382: a payment on a customer debt is revenue unless the owner / an admin excludes it.
+        [HttpPost("customer-payments/{paymentId:guid}/pl-exclusion")]
+        [SetupAdminOnly]
+        public async Task<ActionResult> SetCustomerPaymentPLExclusion(Guid paymentId, [FromBody] PLExclusionRequest r)
+        {
+            if (string.IsNullOrWhiteSpace(r.FarmId)) return BadRequest("Company ID is required.");
+            try
+            {
+                await _svc.SetCustomerPaymentPLExclusion(r.FarmId, paymentId, r.Exclude, Me());
+                return Ok(new { paymentId, excludedFromPL = r.Exclude });
+            }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001")
+            {
+                return BadRequest(new { message = ex.MessageText });
+            }
+        }
+
+        private async Task<bool> CanSetPL()
+        {
+            var me = Me();
+            return !string.IsNullOrWhiteSpace(me) && await SetupAdminOnlyAttribute.IsSetupAdminAsync(HttpContext, me);
+        }
+
+        private ObjectResult PLForbidden() => StatusCode(403, new
+        {
+            message = "Only the account owner or an admin can keep a payment off Profit & Loss.",
+        });
 
         [HttpGet("customer-payments")]
         public async Task<ActionResult<IEnumerable<PaymentHistoryRow>>> GetCustomerPayments(
@@ -346,6 +375,7 @@ namespace PoultryFarmAPIWeb.Controllers
             if (string.IsNullOrWhiteSpace(r.FarmId)) return BadRequest("Company ID is required.");
             // 370: a payment need not be applied in full -- the rest is the
             // supplier's credit, and a payment applied to nothing is an advance.
+            if (r.ExcludeFromPL && !await CanSetPL()) return PLForbidden();
             try
             {
                 var id = await _svc.RecordSupplierPayment(r);
@@ -475,6 +505,16 @@ namespace PoultryFarmAPIWeb.Controllers
             var count = await _svc.ReverseSupplierPayment(r.FarmId, paymentId, r.Reason, r.ReversedBy);
             return Ok(new { reversedAllocations = count });
         }
+
+        // 382: a payment on a supplier debt is an operating expense unless the owner / an admin excludes it.
+        [HttpPost("supplier-payments/{paymentId:int}/pl-exclusion")]
+        [SetupAdminOnly]
+        public Task<ActionResult> SetSupplierPaymentPLExclusion(int paymentId, [FromBody] PLExclusionRequest r)
+            => Run(async () =>
+            {
+                await _svc.SetSupplierPaymentPLExclusion(r.FarmId, paymentId, r.Exclude, Me());
+                return new { paymentId, excludedFromPL = r.Exclude };
+            });
 
         [HttpGet("supplier-payments")]
         public async Task<ActionResult<IEnumerable<PaymentHistoryRow>>> GetSupplierPayments(

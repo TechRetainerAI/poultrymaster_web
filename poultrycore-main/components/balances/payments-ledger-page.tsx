@@ -53,6 +53,7 @@ import {
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/use-permissions"
+import { PaymentPLBadge, PaymentPLToggle } from "@/components/balances/payment-pl-control"
 import { useFmt } from "@/lib/currency"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { exportTableToPdf } from "@/lib/utils/pdf-export"
@@ -514,12 +515,16 @@ export function PaymentsLedgerPage({
                     {isReversed
                       ? <Badge variant="outline" className="text-slate-500">Reversed</Badge>
                       : <Badge variant="secondary">Posted</Badge>}
+                    {module === "poultry" && <PaymentPLBadge row={row} side="supplier" className="mt-1 block w-fit" />}
                   </TableCell>
                   <TableCell className="text-right whitespace-nowrap">
                     {!multi && a && documentHref(a) && (
                       <Button variant="ghost" size="sm" onClick={() => router.push(documentHref(a)!)} title="Open the item this paid">
                         <ExternalLink className="h-3.5 w-3.5" />
                       </Button>
+                    )}
+                    {module === "poultry" && (
+                      <PaymentPLToggle row={row} side="supplier" onChanged={() => { void load() }} className="mr-1" />
                     )}
                     {canReverse && !isReversed && (
                       <Button variant="ghost" size="sm" onClick={() => openReverse(row)}>
@@ -851,11 +856,14 @@ export function PaymentsLedgerPage({
                       accent: "violet",
                     },
                   ]}
-                  trailing={(r) =>
-                    r.status === "Reversed"
-                      ? <Badge variant="outline" className="text-slate-500">Reversed</Badge>
-                      : <Badge variant="secondary">Posted</Badge>
-                  }
+                  trailing={(r) => (
+                    <span className="flex flex-col items-end gap-1">
+                      {r.status === "Reversed"
+                        ? <Badge variant="outline" className="text-slate-500">Reversed</Badge>
+                        : <Badge variant="secondary">Posted</Badge>}
+                      {module === "poultry" && <PaymentPLBadge row={r} side="supplier" />}
+                    </span>
+                  )}
                   details={(r) => {
                     const a = soleAllocation(r)
                     const multi = r.allocationCount > 1
@@ -872,16 +880,21 @@ export function PaymentsLedgerPage({
                       { label: "Paid by", value: r.createdBy ?? "—" },
                     ]
                   }}
-                  actions={(r) =>
-                    canReverse && r.status === "Posted" ? (
-                      <Button
-                        size="sm" variant="outline" className="h-10 flex-1"
-                        onClick={() => openReverse(r)}
-                      >
-                        <Undo2 className="mr-1.5 h-3.5 w-3.5" /> Reverse
-                      </Button>
-                    ) : null
-                  }
+                  actions={(r) => (
+                    <>
+                      {canReverse && r.status === "Posted" && (
+                        <Button
+                          size="sm" variant="outline" className="h-10 flex-1"
+                          onClick={() => openReverse(r)}
+                        >
+                          <Undo2 className="mr-1.5 h-3.5 w-3.5" /> Reverse
+                        </Button>
+                      )}
+                      {module === "poultry" && (
+                        <PaymentPLToggle row={r} side="supplier" onChanged={() => { void load() }} className="h-10 flex-1" />
+                      )}
+                    </>
+                  )}
                   emptyState={
                     <div className="p-8 text-center text-slate-500">
                       No supplier payments match these filters.

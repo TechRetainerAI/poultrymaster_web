@@ -127,6 +127,20 @@ namespace PoultryFarmAPIWeb.Models
         public string? SourceType { get; set; }
         public string? CreatedBy { get; set; }
         public List<PaymentAllocationInput> Allocations { get; set; } = new();
+        /// <summary>382 (poultry): keep the part paid on a debt off Profit &amp; Loss.
+        /// Owner / admin only; ignored when nothing is paid on a debt.</summary>
+        public bool ExcludeFromPL { get; set; }
+        /// <summary>383 (poultry, Record customer / supplier payment): the part not applied
+        /// to anything paid a debt from before the system -- recorded as that debt and
+        /// paid in the same step (on Profit &amp; Loss), instead of kept as credit.</summary>
+        public bool RemainderAsOldDebt { get; set; }
+    }
+
+    /// <summary>382: exclude a poultry debt payment from Profit &amp; Loss, or include it again.</summary>
+    public class PLExclusionRequest
+    {
+        public string FarmId { get; set; } = string.Empty;
+        public bool Exclude { get; set; }
     }
 
     public class ReversePaymentRequest
@@ -183,6 +197,12 @@ namespace PoultryFarmAPIWeb.Models
         /// tables show beside the date (migration 304). For a grouped payment this
         /// is the earliest row in the group. Null on a database predating it.</summary>
         public DateTime? CreatedAt { get; set; }
+
+        /// <summary>382 (poultry): what this payment puts on Profit &amp; Loss -- the part
+        /// paid on debts (0 when it only paid sales / purchases, or is reversed).</summary>
+        public decimal PLAmount { get; set; }
+        /// <summary>382 (poultry): the owner / an admin kept it off Profit &amp; Loss.</summary>
+        public bool ExcludedFromPL { get; set; }
 }
 
     public class PaymentAllocationRow
