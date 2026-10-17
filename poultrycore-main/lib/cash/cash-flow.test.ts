@@ -142,6 +142,8 @@ describe("flowLabel", () => {
     expect(flowLabel("Sale", null).label).toBe("Sales")
     expect(flowLabel("RawMaterialPurchase", null).label).toBe("Raw materials")
     expect(flowLabel("PoultrySupplierPayment", null).label).toBe("Supplier payments")
+    expect(flowLabel("PoultrySupplierPaymentReversal", null).label).toBe("Supplier payments reversed")
+    expect(flowLabel("SupplierPaymentReversal", null).label).toBe("Supplier payments reversed")
   })
 
   it("names what the money modules post (253/254)", () => {

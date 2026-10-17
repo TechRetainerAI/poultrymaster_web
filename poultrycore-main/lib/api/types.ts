@@ -79,6 +79,8 @@ export interface Sale {
   /** Link to the customer (migration 223); null for a walk-in. */
   customerId?: number | null
   flockId: number
+  /** 366: optional batch attribution (a flock implies its batch). */
+  batchId?: number | null
   saleDescription: string
   paid?: boolean
   /** Running total of payments recorded against this sale (migration 145). */
@@ -120,6 +122,8 @@ export interface SaleInput {
   paymentMethod: string
   customerName: string
   flockId: number
+  /** 366: optional batch attribution (a flock implies its batch). */
+  batchId?: number | null
   saleDescription: string
   paid?: boolean
   /** Running total of payments recorded against this sale (migration 145). */

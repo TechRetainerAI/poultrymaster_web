@@ -145,6 +145,16 @@ namespace PoultryFarmAPIWeb.Business
         Task<List<PoultryBirdAdjustmentOption>> GetBirdAdjustmentOptionsAsync(string farmId);
         Task<List<PoultryBirdAdjustmentModel>> GetBirdAdjustmentsAsync(string farmId);
         Task<int> PostBirdAdjustmentAsync(PoultryBirdAdjustmentRequest m);
+        // 373: manual stock movements (batch / flock / date / reason, reversible).
+        Task<string> PreviewManualMovementAsync(string farmId, int? productId, int? rawItemId, int? batchId, int? flockId);
+        Task<string> PostManualMovementAsync(PoultryManualMovementRequest m);
+        Task<string> ReverseManualMovementAsync(int movementId, PoultryManualMovementReverseRequest m);
+        Task<List<PoultryManualMovementModel>> GetManualMovementsAsync(string farmId);
+        // 374: Broken Eggs / Dead Birds in Add Sale.
+        Task<PoultryByproductSettings> GetByproductSettingsAsync(string farmId);
+        Task SetByproductSettingsAsync(PoultryByproductSettings s);
+        // Broken Eggs / Dead Birds trackers.
+        Task<PoultryByproductTrackerResponse> GetByproductTrackerAsync(string farmId, string role, DateTime from, DateTime to, int? flockId);
     }
     public class PoultryStockService : IPoultryStockService
     {
@@ -161,6 +171,9 @@ namespace PoultryFarmAPIWeb.Business
                 PoultryProductId = r.Int("PoultryProductId"), ProductName = r.StrN("ProductName"), TxnType = r.Str("TxnType"),
                 Quantity = r.Dec("Quantity"), UnitCost = r.DecN("UnitCost"), RelatedId = r.IntN("RelatedId"),
                 Note = r.StrN("Note"), CreatedDate = r.Date("CreatedDate"), CreatedBy = r.StrN("CreatedBy"),
+                BatchId = r.IntN("BatchId"), BatchCode = r.StrN("BatchCode"), FlockId = r.IntN("FlockId"), FlockName = r.StrN("FlockName"),
+                EffectiveDate = r.DateN("EffectiveDate"), Reason = r.StrN("Reason"),
+                ManualMovementId = r.IntN("ManualMovementId"), ManualReversal = r.Bool("ManualReversal"),
             });
             return list;
         }
@@ -214,6 +227,136 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@Quantity", m.Quantity); cmd.Parameters.AddWithValue("@Note", (object?)m.Note ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@By", (object?)m.CreatedBy ?? DBNull.Value);
             await c.OpenAsync(); return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        }
+
+        public async Task<string> PreviewManualMovementAsync(string farmId, int? productId, int? rawItemId, int? batchId, int? flockId)
+        {
+            using var c = new NpgsqlConnection(_cs); using var cmd = new NpgsqlCommand(
+                "SELECT sppoultrymanualmovement_preview(p_farmid => @FarmId::text, p_poultryproductid => @P::int, " +
+                "p_rawmaterialitemid => @R::int, p_batchid => @B::int, p_flockid => @F::int)::text", c);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@P", (object?)productId ?? DBNull.Value); cmd.Parameters.AddWithValue("@R", (object?)rawItemId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@B", (object?)batchId ?? DBNull.Value); cmd.Parameters.AddWithValue("@F", (object?)flockId ?? DBNull.Value);
+            await c.OpenAsync(); return (string?)await cmd.ExecuteScalarAsync() ?? "{}";
+        }
+
+        public async Task<string> PostManualMovementAsync(PoultryManualMovementRequest m)
+        {
+            using var c = new NpgsqlConnection(_cs); using var cmd = new NpgsqlCommand(
+                "SELECT sppoultrymanualmovement_post(p_farmid => @FarmId::text, p_poultryproductid => @P::int, p_rawmaterialitemid => @R::int, " +
+                "p_movementtype => @Type::text, p_quantity => @Qty::numeric, p_unitcost => @Cost::numeric, p_batchid => @B::int, p_flockid => @F::int, " +
+                "p_effectivedate => @Date::date, p_reason => @Reason::text, p_disposition => @Disp::text, p_note => @Note::text, " +
+                "p_requestkey => @Key::text, p_by => @By::text)::text", c);
+            cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
+            cmd.Parameters.AddWithValue("@P", (object?)m.PoultryProductId ?? DBNull.Value); cmd.Parameters.AddWithValue("@R", (object?)m.RawMaterialItemId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Type", m.MovementType ?? string.Empty); cmd.Parameters.AddWithValue("@Qty", m.Quantity);
+            cmd.Parameters.AddWithValue("@Cost", (object?)m.UnitCost ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@B", (object?)m.BatchId ?? DBNull.Value); cmd.Parameters.AddWithValue("@F", (object?)m.FlockId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Date", m.EffectiveDate.HasValue ? m.EffectiveDate.Value.Date : DBNull.Value);
+            cmd.Parameters.AddWithValue("@Reason", m.Reason ?? string.Empty); cmd.Parameters.AddWithValue("@Disp", (object?)m.Disposition ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Note", (object?)m.Note ?? DBNull.Value); cmd.Parameters.AddWithValue("@Key", (object?)m.RequestKey ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@By", (object?)m.CreatedBy ?? DBNull.Value);
+            await c.OpenAsync(); return (string?)await cmd.ExecuteScalarAsync() ?? "{}";
+        }
+
+        public async Task<string> ReverseManualMovementAsync(int movementId, PoultryManualMovementReverseRequest m)
+        {
+            using var c = new NpgsqlConnection(_cs); using var cmd = new NpgsqlCommand(
+                "SELECT sppoultrymanualmovement_reverse(p_farmid => @FarmId::text, p_movementid => @Id::int, p_reason => @Reason::text, p_by => @By::text)::text", c);
+            cmd.Parameters.AddWithValue("@FarmId", m.FarmId); cmd.Parameters.AddWithValue("@Id", movementId);
+            cmd.Parameters.AddWithValue("@Reason", m.Reason ?? string.Empty); cmd.Parameters.AddWithValue("@By", (object?)m.ReversedBy ?? DBNull.Value);
+            await c.OpenAsync(); return (string?)await cmd.ExecuteScalarAsync() ?? "{}";
+        }
+
+        public async Task<PoultryByproductSettings> GetByproductSettingsAsync(string farmId)
+        {
+            using var c = new NpgsqlConnection(_cs); using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrybyproductsettings_get(p_farmid => @FarmId::text)", c);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await c.OpenAsync(); using var r = await cmd.ExecuteReaderAsync();
+            var s = new PoultryByproductSettings { FarmId = farmId, BrokenEggsInSales = true, DeadBirdsInSales = false };
+            if (await r.ReadAsync())
+            {
+                s.BrokenEggsInSales = r.Bool("BrokenEggsInSales"); s.DeadBirdsInSales = r.Bool("DeadBirdsInSales"); s.CutoverAt = r.DateN("CutoverAt");
+            }
+            return s;
+        }
+
+        public async Task<PoultryByproductTrackerResponse> GetByproductTrackerAsync(string farmId, string role, DateTime from, DateTime to, int? flockId)
+        {
+            var res = new PoultryByproductTrackerResponse { Role = role };
+            using var c = new NpgsqlConnection(_cs);
+            await c.OpenAsync();
+
+            using (var cmd = new NpgsqlCommand("SELECT fnpoultry_byproductonhand(@FarmId::text, @Role::text)", c))
+            {
+                cmd.Parameters.AddWithValue("@FarmId", farmId); cmd.Parameters.AddWithValue("@Role", role);
+                res.OnHand = Convert.ToDecimal(await cmd.ExecuteScalarAsync() ?? 0m);
+            }
+
+            using (var cmd = new NpgsqlCommand(
+                "SELECT * FROM sppoultryreport_byproducts(p_farmid => @FarmId::text, p_startdate => @S::date, p_enddate => @E::date, " +
+                "p_flockid => @Flock::int, p_role => @Role::text, p_byflock => TRUE)", c))
+            {
+                cmd.Parameters.AddWithValue("@FarmId", farmId); cmd.Parameters.AddWithValue("@S", from.Date); cmd.Parameters.AddWithValue("@E", to.Date);
+                cmd.Parameters.AddWithValue("@Flock", (object?)flockId ?? DBNull.Value); cmd.Parameters.AddWithValue("@Role", role);
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync()) res.Flocks.Add(new PoultryByproductTrackerFlockRow
+                {
+                    FlockId = r.IntN("flockid"), FlockName = r.StrN("flockname"), BatchCode = r.StrN("batchcode"),
+                    Opening = r.Dec("opening"), Generated = r.Dec("generated"), Sold = r.Dec("sold"), Disposed = r.Dec("disposed"),
+                    InternalUse = r.Dec("internaluse"), ManualIn = r.Dec("manualin"), ManualOut = r.Dec("manualout"),
+                    Reversals = r.Dec("reversals"), Closing = r.Dec("closing"), Revenue = r.Dec("revenue"),
+                });
+            }
+
+            using (var cmd = new NpgsqlCommand(
+                "SELECT * FROM sppoultryreport_byproductmovements(p_farmid => @FarmId::text, p_startdate => @S::date, p_enddate => @E::date, " +
+                "p_flockid => @Flock::int, p_role => @Role::text) ORDER BY bdate, txnid", c))
+            {
+                cmd.Parameters.AddWithValue("@FarmId", farmId); cmd.Parameters.AddWithValue("@S", from.Date); cmd.Parameters.AddWithValue("@E", to.Date);
+                cmd.Parameters.AddWithValue("@Flock", (object?)flockId ?? DBNull.Value); cmd.Parameters.AddWithValue("@Role", role);
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync()) res.Movements.Add(new PoultryByproductTrackerMovement
+                {
+                    TxnId = r.Int("txnid"), Date = r.Date("bdate"), Category = r.StrN("category") ?? "", TxnType = r.StrN("txntype") ?? "",
+                    Quantity = r.Dec("quantity"), FlockId = r.IntN("flockid"), FlockName = r.StrN("flockname"), BatchCode = r.StrN("batchcode"),
+                    SaleId = r.IntN("saleid"), Revenue = r.DecN("revenue") ?? 0m, ManualMovementId = r.IntN("manualmovementid"),
+                    MovementNo = r.StrN("movementno"), Note = r.StrN("note"),
+                });
+            }
+            return res;
+        }
+
+        public async Task SetByproductSettingsAsync(PoultryByproductSettings s)
+        {
+            using var c = new NpgsqlConnection(_cs); using var cmd = new NpgsqlCommand(
+                "SELECT sppoultrybyproductsettings_set(p_farmid => @FarmId::text, p_brokeneggsinsales => @B::boolean, p_deadbirdsinsales => @D::boolean, p_by => @By::text)", c);
+            cmd.Parameters.AddWithValue("@FarmId", s.FarmId);
+            cmd.Parameters.AddWithValue("@B", (object?)s.BrokenEggsInSales ?? DBNull.Value); cmd.Parameters.AddWithValue("@D", (object?)s.DeadBirdsInSales ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@By", (object?)s.UpdatedBy ?? DBNull.Value);
+            await c.OpenAsync(); await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task<List<PoultryManualMovementModel>> GetManualMovementsAsync(string farmId)
+        {
+            var list = new List<PoultryManualMovementModel>();
+            using var c = new NpgsqlConnection(_cs); using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrymanualmovement_list(p_farmid => @FarmId::text)", c);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await c.OpenAsync(); using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync()) list.Add(new PoultryManualMovementModel
+            {
+                MovementId = r.Int("MovementId"), MovementNo = r.Str("MovementNo"), ItemKind = r.Str("ItemKind"),
+                PoultryProductId = r.IntN("PoultryProductId"), RawMaterialItemId = r.IntN("RawMaterialItemId"),
+                ItemName = r.Str("ItemName"), MovementType = r.Str("MovementType"), Quantity = r.Dec("Quantity"), UnitCost = r.DecN("UnitCost"),
+                BatchId = r.IntN("BatchId"), BatchCode = r.StrN("BatchCode"), FlockId = r.IntN("FlockId"), FlockName = r.StrN("FlockName"),
+                EffectiveDate = r.Date("EffectiveDate"), Reason = r.Str("Reason"), Disposition = r.StrN("Disposition"),
+                ConvertedToBroken = r.Bool("ConvertedToBroken"), Note = r.StrN("Note"),
+                ItemBefore = r.DecN("ItemBefore"), ItemAfter = r.DecN("ItemAfter"),
+                BirdAdjustmentId = r.IntN("BirdAdjustmentId"), RawAdjustmentId = r.IntN("RawAdjustmentId"),
+                Status = r.Str("Status"), CreatedBy = r.StrN("CreatedBy"), CreatedAt = r.Date("CreatedAt"),
+                ReversedAt = r.DateN("ReversedAt"), ReversedBy = r.StrN("ReversedBy"), ReversalReason = r.StrN("ReversalReason"),
+            });
+            return list;
         }
     }
 

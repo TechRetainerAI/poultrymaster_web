@@ -204,6 +204,9 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
       { label: "Estimated profit", value: (s, c) => c.money(s.estimatedProfit), accent: (s) => profitAccent(s.estimatedProfit) },
       { label: "Cash collected", value: (s, c) => c.money(s.cashCollected) },
       { label: "Customer receivables", value: (s, c) => c.money(s.customerReceivables) },
+      { label: "Broken eggs in stock", value: (s, c) => c.num(s.brokenEggsInStock), note: "Byproduct stock at the end date, not saleable eggs" },
+      { label: "Dead birds pending disposition", value: (s, c) => c.num(s.deadBirdsPendingDisposition), note: "Not live birds" },
+      { label: "Byproduct sales", value: (s, c) => c.money(s.byproductRevenue) },
     ],
     columns: [
       { header: "Flock", cell: (r, c) => c.text(r.flockName) },
@@ -233,6 +236,8 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
       { label: "Lowest day", value: (s, c) => `${c.date(s.lowestProductionDay)} (${c.num(s.lowestProductionDayEggs)})` },
       { label: "Total broken eggs", value: (s, c) => c.num(s.totalBrokenEggs), accent: "rose" },
       { label: "Avg production %", value: (s, c) => c.pct(s.averageProductionPercent) },
+      { label: "Broken eggs sold / disposed", value: (s, c) => `${c.num(s.brokenEggsSold)} / ${c.num(s.brokenEggsDisposed)}` },
+      { label: "Broken eggs remaining", value: (s, c) => c.num(s.brokenEggsRemaining), note: "Byproduct stock at the end date" },
     ],
     columns: [
       { header: "Date", cell: (r, c) => c.date(r.date) },
@@ -267,6 +272,9 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
       { label: "Total eggs", value: (s, c) => c.num(s.totalEggs), accent: "green" },
       { label: "Avg eggs / flock", value: (s, c) => c.num(s.averageEggsPerFlock) },
       { label: "Avg production %", value: (s, c) => c.pct(s.averageProductionPercent) },
+      { label: "Broken eggs generated", value: (s, c) => c.num(s.brokenEggsGenerated), accent: "rose" },
+      { label: "Broken eggs sold / disposed", value: (s, c) => `${c.num(s.brokenEggsSold)} / ${c.num(s.brokenEggsDisposed)}` },
+      { label: "Broken eggs remaining", value: (s, c) => c.num(s.brokenEggsRemaining), note: "Byproduct stock at the end date" },
     ],
     // Totals row: the flock-by-flock columns that genuinely add up.
     //
@@ -326,6 +334,9 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
       { label: "Highest mortality day", value: (s, c) => `${c.date(s.highestMortalityDay)} (${c.num(s.highestMortalityDayDeaths)})` },
       { label: "Cumulative mortality %", value: (s, c) => c.pct(s.cumulativeMortalityPercent), accent: "rose" },
       { label: "Flocks with high mortality", value: (s, c) => c.num(s.flocksWithHighMortality) },
+      { label: "Dead birds sold", value: (s, c) => c.num(s.deadBirdsSold) },
+      { label: "Dead birds disposed", value: (s, c) => c.num(s.deadBirdsDisposed) },
+      { label: "Dead birds remaining", value: (s, c) => c.num(s.deadBirdsRemaining), note: "Awaiting disposition at the end date" },
     ],
     columns: [
       { header: "Date", cell: (r, c) => c.date(r.date) },
@@ -352,6 +363,7 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
       { label: "Total culls", value: (s, c) => c.num(s.totalCulls) },
       { label: "Sold / transferred out", value: (s, c) => c.num(s.totalBirdsSoldTransferred) },
       { label: "Bird variance", value: (s, c) => c.num(s.birdVariance) },
+      { label: "Dead birds pending disposition", value: (s, c) => c.num(s.deadBirdsPendingDisposition), note: "Shown for information: never part of the live birds" },
     ],
     columns: [
       { header: "Flock", cell: (r, c) => c.text(r.flockName) },
@@ -459,6 +471,7 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
       { label: "Saleable eggs", value: (s, c) => c.num(s.saleableEggs) },
       { label: "Broken / rejected", value: (s, c) => c.num(s.brokenRejectedEggs), accent: "rose" },
       { label: "Stock value", value: (s, c) => c.money(s.stockValue) },
+      { label: "Broken eggs in stock", value: (s, c) => c.num(s.brokenEggsInStock), note: "A byproduct: not in the egg totals" },
     ],
     columns: [
       { header: "Product / grade", cell: (r, c) => c.text(r.productGrade) },
@@ -470,6 +483,39 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
       { header: "Crates", align: "right", cell: (r, c) => c.num(r.currentStockCrates) },
       { header: "Loose", align: "right", cell: (r, c) => c.num(r.looseEggs) },
       { header: "Status", cell: (r, c) => c.text(r.status), badge: true },
+    ],
+  },
+
+  // 375 -----------------------------------------------------------------------
+  "byproduct-inventory": {
+    slug: "byproduct-inventory",
+    title: "Byproduct Inventory & Disposition",
+    description: "Broken Eggs and Dead Birds: what was generated, sold, disposed and is left, by flock. Pick the byproduct with the Category filter.",
+    filters: { flock: true, category: true },
+    cards: [
+      { label: "Broken eggs generated", value: (s, c) => c.num(s.brokenEggsGenerated), accent: "rose" },
+      { label: "Broken eggs sold / disposed", value: (s, c) => `${c.num(s.brokenEggsSold)} / ${c.num(s.brokenEggsDisposed)}` },
+      { label: "Broken eggs on hand", value: (s, c) => c.num(s.brokenEggsClosing), accent: "green", note: "At the end date" },
+      { label: "Dead birds generated", value: (s, c) => c.num(s.deadBirdsGenerated), accent: "rose" },
+      { label: "Dead birds sold / disposed", value: (s, c) => `${c.num(s.deadBirdsSold)} / ${c.num(s.deadBirdsDisposed)}` },
+      { label: "Dead birds pending", value: (s, c) => c.num(s.deadBirdsClosing), note: "At the end date; never live birds" },
+      { label: "Byproduct sales", value: (s, c) => c.money(s.byproductRevenue), accent: "green" },
+    ],
+    columns: [
+      { header: "Byproduct", cell: (r, c) => c.text(r.category) },
+      { header: "Flock", cell: (r, c) => c.text(r.flockName) },
+      { header: "Batch", cell: (r, c) => c.text(r.batchCode) },
+      { header: "Opening", align: "right", cell: (r, c) => c.num(r.opening), total: sumOf("opening") },
+      { header: "Generated", align: "right", cell: (r, c) => c.num(r.generated), total: sumOf("generated") },
+      { header: "Manual in", align: "right", cell: (r, c) => c.num(r.manualIn), total: sumOf("manualIn") },
+      { header: "Sold", align: "right", cell: (r, c) => c.num(r.sold), total: sumOf("sold") },
+      { header: "Disposed", align: "right", cell: (r, c) => c.num(r.disposed), total: sumOf("disposed") },
+      { header: "Internal use", align: "right", cell: (r, c) => c.num(r.internalUse), total: sumOf("internalUse") },
+      { header: "Manual out", align: "right", cell: (r, c) => c.num(r.manualOut), total: sumOf("manualOut") },
+      { header: "Reversals", align: "right", cell: (r, c) => c.num(r.reversals), total: sumOf("reversals") },
+      { header: "Closing", align: "right", cell: (r, c) => c.num(r.closing), total: sumOf("closing") },
+      { header: "Sales revenue", align: "right", cell: (r, c) => c.money(r.revenue), total: sumOf("revenue", (n, c) => c.money(n)) },
+      { header: "Avg price", align: "right", cell: (r, c) => c.money(r.averageSalePrice) },
     ],
   },
 
@@ -485,6 +531,8 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
       { label: "Paid in period", value: (s, c) => c.money(s.totalPaid), accent: "green" },
       { label: "Unpaid in period", value: (s, c) => c.money(s.totalUnpaid), accent: "rose" },
       { label: "Top customer", value: (s, c) => c.text(s.topCustomer) },
+      { label: "Broken eggs sold", value: (s, c) => c.num(s.brokenEggsSold), note: "Not in eggs sold" },
+      { label: "Broken egg revenue", value: (s, c) => c.money(s.brokenEggsRevenue), note: "Included in total sales revenue" },
     ],
     columns: [
       { header: "Date", cell: (r, c) => c.date(r.date) },
@@ -944,6 +992,8 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
       { label: "Mortality %", value: (s, c) => c.pct(s.mortalityPercent), accent: "rose" },
       { label: "Feed cost / egg", value: (s, c) => c.money(s.feedCostPerEgg) },
       { label: "Profit / bird", value: (s, c) => c.money(s.profitPerBird) },
+      { label: "Dead birds sold / disposed", value: (s, c) => `${c.num(s.deadBirdsSold)} / ${c.num(s.deadBirdsDisposed)}` },
+      { label: "Dead birds unresolved", value: (s, c) => c.num(s.deadBirdsRemaining), note: "Live-bird closeout is unaffected" },
     ],
     columns: [
       { header: "Flock", cell: (r, c) => c.text(r.flockName) },

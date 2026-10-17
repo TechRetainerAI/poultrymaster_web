@@ -8,6 +8,7 @@
 // rebuilds it from the ledger without moving any money. Money only ever moves
 // through a posting (transfer, adjustment, reconciliation) — migration 331.
 
+import { CASH_COUNT_REVERSAL_REASONS } from "@/lib/reversal-reasons"
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -646,6 +647,7 @@ export default function HotelCashAccountsPage() {
         open={reverseAdj != null}
         onOpenChange={(o) => { if (!o) setReverseAdj(null) }}
         title="Reverse this adjustment?"
+        options={CASH_COUNT_REVERSAL_REASONS}
         description="An opposite transaction is posted and the original is kept."
         label="Reason for reversal"
         placeholder="Why is this adjustment being reversed?"

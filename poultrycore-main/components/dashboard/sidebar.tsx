@@ -381,10 +381,13 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   ]
   const genericAdminItems = [
     { href: "/generic-reports",  label: "Reports",  icon: BarChart3 },
-    { href: "/generic-setup",    label: "Setup",    icon: Settings },
     // Setup is the company PROFILE; Settings is how the company works --
-    // which modules it has and what they default to (251).
-    { href: "/generic-settings", label: "Settings", icon: Cog },
+    // which modules it has and what they default to (251). Both admin-only
+    // (lib/nav/setup-admin-routes).
+    ...(permissions.isAdmin ? [
+      { href: "/generic-setup",    label: "Setup",    icon: Settings },
+      { href: "/generic-settings", label: "Settings", icon: Cog },
+    ] : []),
   ]
 
   // Hotel company nav items (shown when activeFarmType === "Hotel")

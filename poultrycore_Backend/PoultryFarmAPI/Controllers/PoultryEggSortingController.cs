@@ -39,6 +39,7 @@ namespace PoultryFarmAPIWeb.Controllers
         public async Task<ActionResult<EggSortingSettings>> GetSettings([FromQuery] string farmId)
             => string.IsNullOrWhiteSpace(farmId) ? BadRequest("Company ID is required.") : Ok(await _svc.GetSettingsAsync(farmId));
 
+        [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
         [HttpPut("settings")]
         public async Task<IActionResult> SaveSettings([FromBody] EggSortingSettingsRequest req)
         {
@@ -53,6 +54,7 @@ namespace PoultryFarmAPIWeb.Controllers
             => string.IsNullOrWhiteSpace(farmId) ? BadRequest("Company ID is required.")
                 : Ok(await _svc.GetClassesAsync(farmId, includeInactive, ensure, Actor()));
 
+        [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
         [HttpPut("sizes")]
         public async Task<IActionResult> SaveSize([FromBody] EggSizeSaveRequest req)
         {
@@ -61,6 +63,7 @@ namespace PoultryFarmAPIWeb.Controllers
         }
 
         /// <summary>Default selling price per crate for one size (344). Null clears it.</summary>
+        [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
         [HttpPut("sizes/{id:int}/price")]
         public async Task<IActionResult> SetSizePrice(int id, [FromBody] EggSizePriceRequest req)
         {

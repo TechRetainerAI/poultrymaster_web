@@ -4,6 +4,7 @@ using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Controllers
 {
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/Water/drivers")]
     public class WaterDriverController : ControllerBase
@@ -81,6 +82,7 @@ namespace PoultryFarmAPIWeb.Controllers
         public string? RolesCsv { get; set; }
     }
 
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/Water/vehicles")]
     public class WaterVehicleController : ControllerBase
@@ -124,6 +126,7 @@ namespace PoultryFarmAPIWeb.Controllers
         }
     }
 
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/Water/routes")]
     public class WaterRouteController : ControllerBase

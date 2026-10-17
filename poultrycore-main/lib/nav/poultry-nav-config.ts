@@ -17,12 +17,13 @@ import {
   Activity, AlertTriangle, ArrowLeftRight, Banknote, BarChart3, Bell, Bird, BookOpen, Box, Boxes,
   Building2, Clock, CreditCard, DollarSign, Egg, Factory, FileText, HelpCircle, History, Hourglass,
   Coins, HandCoins, ListTodo, Package, PackageMinus, Pill, Receipt, Scale, Settings, ShoppingCart, Truck, User, UserCog, Users,
-  Users2, Wallet, Wheat, TrendingUp, Sparkles, ClipboardCheck, CalendarCheck, Flag, Repeat,
+  Users2, Wallet, Wheat, PiggyBank, TrendingUp, Sparkles, ClipboardCheck, CalendarCheck, Flag, Repeat, Skull,
 } from "lucide-react"
 import type { UserPermissions } from "@/hooks/use-permissions"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
 import type { MegaMenuGroup, NavGroup, NavItem } from "./nav-model"
 import { resolveQuickLinks } from "./quick-links"
+import { isSetupAdminRoute } from "@/lib/nav/setup-admin-routes"
 
 export interface PoultryNavDeps {
   permissions: UserPermissions
@@ -228,6 +229,8 @@ export function buildPoultryNavConfig(
           // "Who owes us what" — the collections control centre, so it belongs
           // with the money coming in rather than with the cash accounts.
           { id: "customer-balances", title: "Customer Balances", icon: Users, href: "/customer-balances", visible: money("/customer-balances") },
+          // Money held FOR customers (351): its own page, beside what they owe.
+          { id: "customer-credits", title: "Customer Credits", icon: PiggyBank, href: "/customer-credits", visible: money("/customer-credits") },
         ],
       },
       {
@@ -240,6 +243,7 @@ export function buildPoultryNavConfig(
           // the two Sales rows.
           { id: "supplier-payments", title: "Supplier Payments", icon: Receipt, href: "/supplier-payments", visible: money("/supplier-payments") },
           { id: "supplier-balances", title: "Supplier Balances", icon: Truck, href: "/supplier-balances", visible: money("/supplier-balances") },
+          { id: "supplier-credits", title: "Supplier Credits", icon: Wallet, href: "/supplier-credits", visible: money("/supplier-credits") },
           // Moved here from Operations > Inventory & Health. Stock the farm
           // consumes itself is money going out in kind -- it belongs with the
           // outflows it is, rather than with the stock counts it is measured
@@ -325,9 +329,12 @@ export function buildPoultryNavConfig(
         // consulted far less often than the three above it.
         items: [
           { id: "egg-tracker",        title: "Egg tracker",        icon: BarChart3, href: "/egg-tracker" },
+          // Byproduct stock: never part of the egg or live-bird figures.
+          { id: "broken-eggs-tracker", title: "Broken eggs tracker", icon: Egg,      href: "/broken-eggs-tracker" },
           { id: "feed-tracker",       title: "Feed tracker",       icon: Wheat,     href: "/feed-tracker" },
           { id: "feed-inventory-tracker", title: "Feed inventory tracker", icon: History, href: "/feed-inventory-tracker" },
           { id: "birds-left",         title: "Birds tracker",      icon: Bird,      href: "/birds-left-tracker" },
+          { id: "dead-birds-tracker", title: "Dead birds tracker", icon: Skull,     href: "/dead-birds-tracker" },
           { id: "medication-tracker", title: "Medication tracker", icon: Pill,      href: "/medication-tracker" },
           { id: "weekly-report",      title: "Analytical Report",  icon: FileText,  href: "/weekly-report" },
           { id: "feed-ingredient-tracker", title: "Ingredients only tracker", icon: Wheat, href: "/feed-ingredient-tracker" },
@@ -497,6 +504,19 @@ export function buildPoultryNavConfig(
         ],
       },
     ],
+  }
+
+  // Setup pages are admin-only whatever the toggles say -- hide them in every
+  // panel they appear in (Setup, Tools, System) for an ordinary employee.
+  // Before the quick links below, so a pinned Setup page is dropped too.
+  // See lib/nav/setup-admin-routes.ts.
+  if (!isAdmin) {
+    for (const section of Object.values(config)) {
+      if (!Array.isArray(section)) continue
+      for (const group of section as MegaMenuGroup[]) {
+        group.items = group.items.map((i) => (isSetupAdminRoute(i.href) ? { ...i, visible: false } : i))
+      }
+    }
   }
 
   // LAST, over the finished config. resolveQuickLinks resolves the stored

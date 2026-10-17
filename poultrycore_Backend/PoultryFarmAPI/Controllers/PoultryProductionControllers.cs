@@ -7,6 +7,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // Poultry products / stock / recipes / batches / losses / daily-closing controllers.
     // Additive; routes under /api/Poultry/*. Mirrors the Water production controllers.
 
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/Poultry/products")]
     public class PoultryProductController : ControllerBase
@@ -31,10 +32,12 @@ namespace PoultryFarmAPIWeb.Controllers
         { if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required."); await _svc.DeleteAsync(id, farmId); return NoContent(); }
 
         // Idempotently create the default egg finished-product for a farm (backfill / on-load).
+        [PoultryFarmAPIWeb.Filters.AllowStaffSetupWrite]
         [HttpPost("ensure-default-egg")] public async Task<IActionResult> EnsureDefaultEgg([FromQuery] string farmId)
         { if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required."); var id = await _svc.EnsureDefaultEggAsync(farmId); return Ok(new { poultryProductId = id }); }
 
         // Ensure both default poultry products (Eggs + Birds) exist for a farm.
+        [PoultryFarmAPIWeb.Filters.AllowStaffSetupWrite]
         [HttpPost("ensure-defaults")] public async Task<IActionResult> EnsureDefaults([FromQuery] string farmId)
         {
             if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
@@ -51,6 +54,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
         // Set a finished product's stock to a physical count (writes a correcting
         // Adjust transaction for the difference).
+        [PoultryFarmAPIWeb.Filters.AllowStaffSetupWrite]
         [HttpPost("{id:int}/set-stock")] public async Task<ActionResult<object>> SetStock(int id, [FromBody] ProductSetStockRequest body)
         {
             if (body is null || string.IsNullOrWhiteSpace(body.FarmId)) return BadRequest("Company ID is required.");
@@ -101,6 +105,69 @@ namespace PoultryFarmAPIWeb.Controllers
             if (m.BatchId <= 0) return BadRequest(new { message = "Choose the batch." });
             if (m.Quantity == 0) return BadRequest(new { message = "Enter how many birds to adjust." });
             try { var id = await _svc.PostBirdAdjustmentAsync(m); return Ok(new { birdAdjustmentId = id }); }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001") { return BadRequest(new { message = ex.MessageText }); }
+        }
+
+        // 373: manual stock movements -- batch / flock / effective date / reason,
+        // reversed by appending the opposite. The database checks every link.
+        [HttpGet("manual-movements")] public async Task<ActionResult<IEnumerable<PoultryManualMovementModel>>> GetManualMovements([FromQuery] string farmId)
+            => string.IsNullOrWhiteSpace(farmId) ? BadRequest("Company ID is required.") : Ok(await _svc.GetManualMovementsAsync(farmId));
+
+        [HttpGet("manual-movements/preview")]
+        public async Task<IActionResult> PreviewManualMovement([FromQuery] string farmId, [FromQuery] int? productId, [FromQuery] int? rawItemId, [FromQuery] int? batchId, [FromQuery] int? flockId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            try { return Content(await _svc.PreviewManualMovementAsync(farmId, productId, rawItemId, batchId, flockId), "application/json"); }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001") { return BadRequest(new { message = ex.MessageText }); }
+        }
+
+        [HttpPost("manual-movements")]
+        public async Task<IActionResult> PostManualMovement([FromBody] PoultryManualMovementRequest m)
+        {
+            if (m is null || string.IsNullOrWhiteSpace(m.FarmId)) return BadRequest(new { message = "Company ID is required." });
+            m.CreatedBy = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? m.CreatedBy;
+            try { return Content(await _svc.PostManualMovementAsync(m), "application/json"); }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001") { return BadRequest(new { message = ex.MessageText }); }
+        }
+
+        // 374: whether Broken Eggs / Dead Birds are offered in Add Sale. Anyone who
+        // sells reads it; only an owner / admin changes it.
+        [HttpGet("byproduct-settings")]
+        public async Task<ActionResult<PoultryByproductSettings>> GetByproductSettings([FromQuery] string farmId)
+            => string.IsNullOrWhiteSpace(farmId) ? BadRequest("Company ID is required.") : Ok(await _svc.GetByproductSettingsAsync(farmId));
+
+        // Broken Eggs / Dead Birds trackers: on hand, the period by flock, every movement.
+        [HttpGet("byproduct-tracker")]
+        public async Task<ActionResult<PoultryByproductTrackerResponse>> GetByproductTracker(
+            [FromQuery] string farmId, [FromQuery] string role, [FromQuery] DateTime? fromDate, [FromQuery] DateTime? toDate, [FromQuery] int? flockId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            if (role != "BrokenEggs" && role != "DeadBirds") return BadRequest(new { message = "role must be BrokenEggs or DeadBirds." });
+            var to = (toDate ?? DateTime.UtcNow).Date;
+            var from = (fromDate ?? to.AddDays(-29)).Date;
+            if (from > to) return BadRequest(new { message = "The start date is after the end date." });
+            try { return Ok(await _svc.GetByproductTrackerAsync(farmId, role, from, to, flockId)); }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001") { return BadRequest(new { message = ex.MessageText }); }
+        }
+
+        [HttpPut("byproduct-settings")]
+        [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
+        public async Task<IActionResult> SetByproductSettings([FromBody] PoultryByproductSettings s)
+        {
+            if (s is null || string.IsNullOrWhiteSpace(s.FarmId)) return BadRequest(new { message = "Company ID is required." });
+            s.UpdatedBy = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? s.UpdatedBy;
+            await _svc.SetByproductSettingsAsync(s);
+            return Ok(await _svc.GetByproductSettingsAsync(s.FarmId));
+        }
+
+        [HttpPost("manual-movements/{movementId:int}/reverse")]
+        [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
+        public async Task<IActionResult> ReverseManualMovement(int movementId, [FromBody] PoultryManualMovementReverseRequest m)
+        {
+            if (m is null || string.IsNullOrWhiteSpace(m.FarmId)) return BadRequest(new { message = "Company ID is required." });
+            if (string.IsNullOrWhiteSpace(m.Reason)) return BadRequest(new { message = "Say why this movement is being reversed." });
+            m.ReversedBy = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? m.ReversedBy;
+            try { return Content(await _svc.ReverseManualMovementAsync(movementId, m), "application/json"); }
             catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001") { return BadRequest(new { message = ex.MessageText }); }
         }
     }

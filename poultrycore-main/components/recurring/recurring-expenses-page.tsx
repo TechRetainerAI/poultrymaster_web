@@ -13,6 +13,7 @@
 // that module's. In Water, Generic and Hotel the expense then waits for
 // approval there, exactly like one typed in by hand.
 
+import { END_REASONS, SKIP_REASONS } from "@/lib/reversal-reasons"
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import {
@@ -54,7 +55,7 @@ const PAYMENT_METHODS = ["Cash", "MoMo", "Bank", "Card", "Credit"]
 const day = (v?: string | null) => (v ? v.slice(0, 10) : "—")
 const OCC_VIEWS: { value: "Open" | "Posted" | "Skipped" | "All"; label: string }[] = [
   { value: "Open", label: "To review" }, { value: "Posted", label: "Posted" },
-  { value: "Skipped", label: "Skipped" }, { value: "All", label: "Everything" },
+  { value: "Skipped", label: "Skipped" }, { value: "All", label: "All" },
 ]
 
 const OCC_TONE: Record<string, string> = {
@@ -382,6 +383,7 @@ export default function RecurringExpensesPage() {
       <PromptDialog
         open={skipping != null} onOpenChange={(o) => { if (!o) setSkipping(null) }}
         title={skipping ? `Skip ${skipping.templateName} (${day(skipping.scheduledDate)})?` : "Skip"}
+        options={SKIP_REASONS}
         description="Nothing is recorded for this period. You can restore it later."
         label="Why?" confirmLabel="Skip"
         onSubmit={async (reason) => {
@@ -393,6 +395,7 @@ export default function RecurringExpensesPage() {
       <PromptDialog
         open={ending != null} onOpenChange={(o) => { if (!o) setEnding(null) }}
         title={ending ? `End "${ending.name}"?` : "End"}
+        options={END_REASONS}
         description="No more drafts will be raised. Drafts already waiting stay for review, and posted expenses are not touched."
         label="Reason (optional)" allowEmpty confirmLabel="End it" confirmVariant="destructive"
         onSubmit={async (reason) => {

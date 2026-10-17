@@ -277,6 +277,8 @@ namespace PoultryFarmAPIWeb.Models
         public bool Paid { get; set; }
         public string? SaleDescription { get; set; }
         public int? FlockId { get; set; }
+        /// <summary>366: optional batch attribution; the database checks the flock belongs to it.</summary>
+        public int? BatchId { get; set; }
         /// <summary>351: the reversed sale this one corrects, if it is a Correct Sale re-entry.</summary>
         public int? CorrectsSaleId { get; set; }
         /// <summary>
@@ -290,6 +292,13 @@ namespace PoultryFarmAPIWeb.Models
         /// the sale; the rest stays owed. Needs a customer (a walk-in cannot owe).
         /// </summary>
         public decimal? AmountPaidNow { get; set; }
+        /// <summary>
+        /// Pay with customer credit (351): with Paid = false, how much of the
+        /// customer's held credit settles this sale. Allocation only -- no new
+        /// payment, no cash. Applied after any part payment, in the same
+        /// transaction, so the sale never lands with half its credit.
+        /// </summary>
+        public decimal? CustomerCreditAmount { get; set; }
         public List<SaleGroupLine> Lines { get; set; } = new();
     }
 

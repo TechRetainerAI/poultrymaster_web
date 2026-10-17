@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { getMyCompanies, switchCompany, type Company } from "@/lib/api/companies"
 import { useToast } from "@/hooks/use-toast"
+import { useCanCreateCompany } from "@/hooks/use-setup-access"
 
 // Icon + colour are driven by the company TYPE (never the name, never a Poultry
 // fallback). Unknown type → a neutral building icon.
@@ -28,6 +29,8 @@ function typeColor(type?: string | null) {
 
 export function CompanySwitcher({ fullWidth = false }: { fullWidth?: boolean } = {}) {
   const router = useRouter()
+  // Account owner only -- an employee creating a company would become its owner.
+  const canCreateCompany = useCanCreateCompany()
   const { toast } = useToast()
   const triggerRef = useRef<HTMLButtonElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
@@ -203,7 +206,7 @@ export function CompanySwitcher({ fullWidth = false }: { fullWidth?: boolean } =
             )
           })}
 
-          <div className="mt-1 border-t border-slate-800 px-1 py-1">
+          {canCreateCompany && <div className="mt-1 border-t border-slate-800 px-1 py-1">
             <button
               type="button"
               onClick={() => { setOpen(false); router.push("/companies") }}
@@ -212,7 +215,7 @@ export function CompanySwitcher({ fullWidth = false }: { fullWidth?: boolean } =
               <Plus className="h-4 w-4 text-emerald-300" />
               Create new company
             </button>
-          </div>
+          </div>}
         </div>,
         document.body
       )}

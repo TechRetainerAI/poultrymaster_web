@@ -13,6 +13,8 @@
 // Payment truth: returning with ?billing=success only names a reference to
 // VERIFY with the provider; the redirect itself never marks anything paid.
 
+import { MARKET_CHANGE_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
 import { useCallback, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Inter } from "next/font/google"
@@ -1025,11 +1027,7 @@ export function BillingPanel() {
               </div>
             )}
 
-            <Input
-              placeholder="Reason (e.g. business relocated)"
-              value={marketReason}
-              onChange={(e) => setMarketReason(e.target.value)}
-            />
+            <ReasonSelect options={MARKET_CHANGE_REASONS} value={marketReason} onChange={setMarketReason} />
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setMarketOpen(false)}>Close</Button>
               <Button

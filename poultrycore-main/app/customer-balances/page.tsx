@@ -12,6 +12,7 @@ import { BalancesPage } from "@/components/balances/balances-page"
 import { SaleLinesDialog } from "@/components/sales/sale-lines-dialog"
 import { listPoultryCashAccounts } from "@/lib/api/poultry-finance"
 import { CustomerCreditPanel } from "@/components/sales/customer-credit-panel"
+import { RecordCustomerDebtButton, ReverseCustomerDebtButton } from "@/components/balances/customer-debts-panel"
 
 export default function CustomerBalancesPage() {
   const router = useRouter()
@@ -23,8 +24,17 @@ export default function CustomerBalancesPage() {
       module="poultry"
       side="customer"
       companyType="Poultry"
-      // 351: money held for customers, beside (never netted into) what they owe.
-      afterSummary={<CustomerCreditPanel />}
+      // 369: debts recorded by hand (owed without a sale). An open debt already
+      // shows in the table below among the customer's open items, so there is
+      // no separate debts table: recording is a header button, reversing is on
+      // the debt's row. Both reload the balances.
+      headerActions={(reload) => <RecordCustomerDebtButton onChanged={reload} />}
+      documentActions={(doc, party, compact, reload) => (
+        <ReverseCustomerDebtButton doc={doc} partyName={party.partyName} compact={compact} onChanged={reload} />
+      )}
+      // 351: money held for customers, beside (never netted into) what they
+      // owe -- under the balances table.
+      afterTable={<CustomerCreditPanel />}
       loadCashAccounts={async () => {
         const accounts = await listPoultryCashAccounts()
         return accounts
@@ -39,8 +49,9 @@ export default function CustomerBalancesPage() {
       partyHref={(customerId) => `/customers/${customerId}`}
       // The Sales page is a list with its own filters rather than a per-sale
       // route, so deep-link into it with the sale highlighted.
-      documentHref={(doc) => `/sales?saleId=${doc.documentId}`}
-      onDocumentDetails={(doc) => setDetailSaleId(doc.documentId)}
+      // 369: a customer debt is not a sale -- no sale page and no sale lines.
+      documentHref={(doc) => doc.documentType === "CustomerDebt" ? null : `/sales?saleId=${doc.documentId}`}
+      onDocumentDetails={(doc) => { if (doc.documentType !== "CustomerDebt") setDetailSaleId(doc.documentId) }}
       permissions={{
         view: "poultry.customer-balances.view",
         pay: "poultry.customer-payments.create",

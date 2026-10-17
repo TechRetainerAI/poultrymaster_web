@@ -32,6 +32,8 @@
 // pulled down whole (sections 70-72). That is also why the count under the
 // table is the SERVER's count, not `rows.length`.
 
+import { CANCEL_REASONS, LOAN_REVERSAL_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
 import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -673,8 +675,7 @@ export default function WaterEmployeeLoansPage() {
           </DialogHeader>
           <div className="space-y-2">
             <Label>Reason</Label>
-            <Textarea value={reason} onChange={(e) => setReason(e.target.value)}
-                      placeholder="Why is this being undone?" />
+            <ReasonSelect options={!reversingRepayment && reversingLoan?.status === "Draft" ? CANCEL_REASONS : LOAN_REVERSAL_REASONS} value={reason} onChange={setReason} />
           </div>
           <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
             <Button variant="outline"

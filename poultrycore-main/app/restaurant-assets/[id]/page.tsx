@@ -5,6 +5,8 @@
 // and where each amount came from. The depreciation history reads like a
 // statement, with the book value as at each row.
 
+import { ASSET_REVERSAL_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
 import { useCallback, useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
@@ -287,7 +289,7 @@ export default function RestaurantAssetDetailPage() {
             corrected amount as an adjustment if one is needed.
           </DialogDescription>
         </DialogHeader>
-        <Textarea rows={3} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Wrong in-service month" />
+        <ReasonSelect options={ASSET_REVERSAL_REASONS} value={reason} onChange={setReason} />
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="outline" onClick={() => setReversing(null)}>Cancel</Button>
           <Button variant="destructive" onClick={doReverse} disabled={saving}>

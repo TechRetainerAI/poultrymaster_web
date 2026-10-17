@@ -44,6 +44,19 @@ namespace User.Management.Service.Services
         /// </summary>
         Task<int> GetFarmCountAsync();
 
+        /// <summary>
+        /// Platform-admin audit view of a single farm: farm details, the owner
+        /// account and the staff/employees under it (with each person's 2FA state).
+        /// </summary>
+        Task<FarmDetail> GetFarmDetailAsync(string farmId);
+
+        /// <summary>
+        /// Turn two-factor authentication on/off for any account (platform-admin
+        /// override, e.g. a customer who locked themselves out of OTP email).
+        /// Returns the resulting TwoFactorEnabled value. Throws if the user is missing.
+        /// </summary>
+        Task<bool> SetUserTwoFactorAsync(string userId, bool enabled);
+
         // ---- Doc 3 §6-7: organization employees + company access (UserFarms) ----
 
         /// <summary>

@@ -41,6 +41,8 @@ import {
   MobileFilterSheetHeader,
 } from "@/components/dashboard/mobile-filters"
 import { toLocalDateKey } from "@/lib/utils/date-key"
+import { PeriodSelect } from "@/components/ui/period-select"
+import { rangeToPeriod, type DateRange, type PeriodKey } from "@/lib/date-ranges"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
@@ -178,6 +180,16 @@ export default function ProductionRecordsPage() {
   const [draftFlockId, setDraftFlockId] = useState<string>("ALL")
   const [draftMonth, setDraftMonth] = useState<string>("ALL")
   const [draftYear, setDraftYear] = useState<string>("ALL")
+
+  // Period presets drive the From/To boxes. No dates at all is this page's
+  // unfiltered default, so it reads as All Time (and picking All Time clears
+  // the dates rather than writing a 2000-01-01 floor); hand-picked dates fall
+  // back to Custom via rangeToPeriod.
+  const periodOf = (from: string, to: string): PeriodKey => (!from && !to ? "allTime" : rangeToPeriod(from, to))
+  const applyPeriod = (p: PeriodKey, rg: DateRange | null, setFrom: (v: string) => void, setTo: (v: string) => void) => {
+    if (p === "allTime") { setFrom(""); setTo("") }
+    else if (rg) { setFrom(rg.from); setTo(rg.to) }
+  }
 
   const hasActiveFilters = search || dateFrom || dateTo || selectedBatchId !== "ALL" || selectedFlockId !== "ALL" || selectedMonth !== "ALL" || selectedYear !== "ALL"
   const hasDraftChanges =
@@ -807,6 +819,12 @@ export default function ProductionRecordsPage() {
                       <MobileFilterSheetBody>
                         <div className="space-y-3">
                           <p className="text-sm font-medium text-slate-700">Date range</p>
+                          <PeriodSelect
+                            label={null}
+                            className="h-12 w-full text-base"
+                            value={periodOf(draftDateFrom, draftDateTo)}
+                            onChange={(p, rg) => applyPeriod(p, rg, setDraftDateFrom, setDraftDateTo)}
+                          />
                           <div className="flex flex-col gap-4">
                             <div className="min-w-0 space-y-2">
                               <label htmlFor="prod-filter-from" className="text-xs font-medium text-slate-500">
@@ -958,6 +976,12 @@ export default function ProductionRecordsPage() {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <Input placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
                 </div>
+                <PeriodSelect
+                  label={null}
+                  className="w-[160px]"
+                  value={periodOf(dateFrom, dateTo)}
+                  onChange={(p, rg) => applyPeriod(p, rg, setDateFrom, setDateTo)}
+                />
                 <Input type="date" placeholder="From" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-[140px]" />
                 <Input type="date" placeholder="To" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-[140px]" />
                 <Select value={selectedBatchId} onValueChange={handleBatchChange}>

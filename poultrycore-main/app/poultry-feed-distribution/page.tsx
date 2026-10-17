@@ -13,6 +13,7 @@
 // the farmer. Suggestions come from the farm's own rate (g/bird/day) or, only
 // when chosen, each flock's recent average — never from a built-in figure.
 
+import { STOCK_REVERSAL_REASONS } from "@/lib/reversal-reasons"
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -608,6 +609,7 @@ function FeedDistributionInner() {
       <ReasonDialog
         open={!!reverseDoc} onOpenChange={(v) => { if (!v) setReverseDoc(null) }} busy={reversing} destructive
         title="Reverse this feed distribution?"
+        options={STOCK_REVERSAL_REASONS}
         description="The feed comes off each flock's production record and goes back into stock. The distribution stays in the history, marked Reversed."
         confirmLabel="Reverse" onConfirm={(r) => void doReverse(r)} />
     </div>

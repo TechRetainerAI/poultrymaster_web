@@ -23,6 +23,29 @@ namespace PoultryFarmAPIWeb.Business
         Task<decimal> ApplyCustomerCredit(CustomerCreditApplyRequest r);
         Task<int> RecordCustomerRefund(CustomerRefundRequest r);
         Task<List<CustomerRefundRow>> GetCustomerRefunds(string farmId, int? customerId);
+        Task<string> CreateManualCredit(ManualCreditRequest r);
+        Task<int> ReverseManualCredit(Guid paymentGroupId, ManualCreditReverseRequest r);
+        Task<List<ManualCreditRow>> GetManualCredits(string farmId);
+        Task<List<CustomerCreditEventRow>> GetCustomerCreditEvents(string farmId, int? customerId);
+        Task<int> ReverseCustomerRefund(int refundId, CustomerRefundReverseRequest r);
+        Task<string> CreateCustomerDebt(CustomerDebtRequest r);
+        Task<int> ReverseCustomerDebt(int debtId, CustomerDebtReverseRequest r);
+        Task<List<CustomerDebtRow>> GetCustomerDebts(string farmId, int? customerId);
+
+        // 370: supplier credit, advances, refunds and debt.
+        Task<List<SupplierCreditSummaryRow>> GetSupplierCreditSummary(string farmId);
+        Task<List<SupplierCreditEventRow>> GetSupplierCreditEvents(string farmId, int? supplierId);
+        Task<List<SupplierCreditApplicationRow>> GetSupplierCreditApplications(string farmId, int? supplierId);
+        Task<int> CreateSupplierCredit(SupplierCreditCreateRequest r);
+        Task<int> ReverseSupplierCredit(int paymentId, SupplierReasonRequest r);
+        Task<int> ApplySupplierCredit(SupplierCreditApplyRequest r);
+        Task<int> UnapplySupplierCredit(int allocationId, SupplierReasonRequest r);
+        Task<int> RecordSupplierRefund(SupplierRefundRequest r);
+        Task<int> ReverseSupplierRefund(int refundId, SupplierReasonRequest r);
+        Task<List<SupplierRefundRow>> GetSupplierRefunds(string farmId, int? supplierId);
+        Task<string> CreateSupplierDebt(SupplierDebtRequest r);
+        Task<int> ReverseSupplierDebt(int debtId, SupplierReasonRequest r);
+        Task<List<SupplierDebtRow>> GetSupplierDebts(string farmId, int? supplierId);
 
         // Supplier side
         Task<List<PartyBalanceRow>> GetSupplierBalances(BalanceQuery q);
@@ -31,6 +54,9 @@ namespace PoultryFarmAPIWeb.Business
         Task<int> RecordSupplierPayment(RecordPaymentRequest r);
         Task<int> ReverseSupplierPayment(string farmId, int paymentId, string? reason, string? reversedBy);
         Task<List<PaymentHistoryRow>> GetSupplierPayments(string farmId, int? supplierId, string? documentType, int? documentId, DateTime? from, DateTime? to);
+        // 382: debt payments on Profit & Loss.
+        Task SetCustomerPaymentPLExclusion(string farmId, Guid paymentGroupId, bool exclude, string? by);
+        Task SetSupplierPaymentPLExclusion(string farmId, int paymentId, bool exclude, string? by);
         Task<List<PaymentAllocationRow>> GetSupplierPaymentAllocations(string farmId, int paymentId);
         Task<List<StatementLine>> GetSupplierStatement(string farmId, int supplierId, DateTime? from, DateTime? to);
 
@@ -137,11 +163,18 @@ namespace PoultryFarmAPIWeb.Business
                     ["documentid"] = a.DocumentId,
                     ["amount"] = a.Amount,
                 }
-                : new Dictionary<string, object?>
-                {
-                    ["saleid"] = a.SaleId != 0 ? a.SaleId : a.DocumentId,
-                    ["amount"] = a.Amount,
-                });
+                // 369: a customer debt is paid like a sale, as {debtid, amount}.
+                : string.Equals(a.DocumentType, CustomerDebtDocumentType, StringComparison.OrdinalIgnoreCase)
+                    ? new Dictionary<string, object?>
+                    {
+                        ["debtid"] = a.DocumentId,
+                        ["amount"] = a.Amount,
+                    }
+                    : new Dictionary<string, object?>
+                    {
+                        ["saleid"] = a.SaleId != 0 ? a.SaleId : a.DocumentId,
+                        ["amount"] = a.Amount,
+                    });
             return JsonSerializer.Serialize(rows);
         }
 
@@ -207,7 +240,53 @@ namespace PoultryFarmAPIWeb.Business
         public Task<BalanceSummary> GetSupplierSummary(string farmId) =>
             Summary("SELECT * FROM sppoultrysupplierbalancesummary(p_farmid => @FarmId::text)", farmId, true);
 
-        public Task<List<OpenDocumentRow>> GetOpenSales(string farmId, int customerId, DateTime? from, DateTime? to, string? status) => Query(
+        /// <summary>369: the document type of a customer debt in open items and allocations.</summary>
+        public const string CustomerDebtDocumentType = "CustomerDebt";
+
+        /// <summary>A customer's open sales, then (369) their open debts -- both payable in one payment.</summary>
+        public async Task<List<OpenDocumentRow>> GetOpenSales(string farmId, int customerId, DateTime? from, DateTime? to, string? status)
+        {
+            var sales = await GetOpenSaleRows(farmId, customerId, from, to, status);
+            var debts = await Query(
+                "SELECT * FROM sppoultrycustomeropendebts(p_farmid => @FarmId::text, p_customerid => @PartyId::int)",
+                cmd =>
+                {
+                    cmd.Parameters.AddWithValue("@FarmId", farmId);
+                    cmd.Parameters.AddWithValue("@PartyId", customerId);
+                },
+                r => new OpenDocumentRow
+                {
+                    DocumentType = CustomerDebtDocumentType,
+                    DocumentId = Int(r, "debtid"),
+                    Reference = Str(r, "debtnumber"),
+                    DocumentDate = r.GetDateTime(r.GetOrdinal("debtdate")),
+                    Label = "Customer debt",
+                    Description = Str(r, "description"),
+                    TotalAmount = Dec(r, "amount"),
+                    AmountPaid = Dec(r, "paid"),
+                    Balance = Dec(r, "balance"),
+                    DueDate = DateN(r, "duedate"),
+                    AgeDays = Int(r, "agedays"),
+                    Status = Str(r, "status") ?? string.Empty,
+                    IsOverdue = Bool(r, "isoverdue"),
+                    CashAccountId = null,
+                });
+            // The same filters as the sales list (date window, status).
+            debts = debts.Where(d =>
+                (from is null || d.DocumentDate.Date >= from.Value.Date) &&
+                (to is null || d.DocumentDate.Date <= to.Value.Date) &&
+                (status ?? BalanceStatusFilters.All) switch
+                {
+                    "Partial" => d.AmountPaid > 0,
+                    "Unpaid" => d.AmountPaid == 0,
+                    "Overdue" => d.IsOverdue,
+                    _ => true,
+                }).ToList();
+            sales.AddRange(debts);
+            return sales.OrderBy(d => d.DocumentDate).ThenBy(d => d.DocumentId).ToList();
+        }
+
+        private Task<List<OpenDocumentRow>> GetOpenSaleRows(string farmId, int customerId, DateTime? from, DateTime? to, string? status) => Query(
             "SELECT * FROM sppoultrycustomeropensales(p_farmid => @FarmId::text, p_customerid => @PartyId::int, p_from => @From::date, p_to => @To::date, p_status => @Status::text)",
             cmd =>
             {
@@ -268,7 +347,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             using var conn = new NpgsqlConnection(_connectionString);
             using var cmd = new NpgsqlCommand(
-                "SELECT sppoultrycustomerpayment_record(p_farmid => @FarmId::text, p_customerid => @PartyId::int, p_amount => @Amount::numeric, p_allocations => @Allocations::jsonb, p_paymentmethod => @PaymentMethod::text, p_paymentdate => @PaymentDate::timestamp, p_cashaccountid => @CashAccountId::int, p_reference => @Reference::text, p_note => @Notes::text, p_sourcetype => @SourceType::text, p_createdby => @CreatedBy::text)", conn);
+                // 383: Record customer payment -- the rest pays a debt from before the system.
+                (r.RemainderAsOldDebt ? "SELECT sppoultrycustomerpayment_recordolddebt(" : "SELECT sppoultrycustomerpayment_record(") + "p_farmid => @FarmId::text, p_customerid => @PartyId::int, p_amount => @Amount::numeric, p_allocations => @Allocations::jsonb, p_paymentmethod => @PaymentMethod::text, p_paymentdate => @PaymentDate::timestamp, p_cashaccountid => @CashAccountId::int, p_reference => @Reference::text, p_note => @Notes::text, p_sourcetype => @SourceType::text, p_createdby => @CreatedBy::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
             cmd.Parameters.AddWithValue("@PartyId", Db(r.PartyId));
             cmd.Parameters.AddWithValue("@Amount", r.Amount);
@@ -282,15 +362,32 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@CreatedBy", Db(r.CreatedBy));
 
             await conn.OpenAsync();
+            await using var tx = await conn.BeginTransactionAsync();
+            cmd.Transaction = tx;
             var result = await cmd.ExecuteScalarAsync();
-            return result?.ToString() ?? string.Empty;
+            var groupId = result?.ToString() ?? string.Empty;
+
+            // 382: kept off Profit & Loss from the start -- only matters when part of it paid a debt.
+            if (r.ExcludeFromPL && Guid.TryParse(groupId, out var g))
+            {
+                using var ex = new NpgsqlCommand(
+                    "SELECT sppoultrypayment_setplexclusion(p_farmid => @FarmId::text, p_paymentgroupid => @G::uuid, p_exclude => TRUE, p_by => @By::text) " +
+                    "WHERE fnpoultrypayment_plamount(@FarmId::text, @G::uuid) > 0", conn, tx);
+                ex.Parameters.AddWithValue("@FarmId", r.FarmId);
+                ex.Parameters.AddWithValue("@G", g);
+                ex.Parameters.AddWithValue("@By", Db(r.CreatedBy));
+                await ex.ExecuteNonQueryAsync();
+            }
+            await tx.CommitAsync();
+            return groupId;
         }
 
         public async Task<int> RecordSupplierPayment(RecordPaymentRequest r)
         {
             using var conn = new NpgsqlConnection(_connectionString);
             using var cmd = new NpgsqlCommand(
-                "SELECT sppoultrysupplierpayment_record(p_farmid => @FarmId::text, p_supplierid => @PartyId::int, p_amount => @Amount::numeric, p_allocations => @Allocations::jsonb, p_paymentmethod => @PaymentMethod::text, p_paymentdate => @PaymentDate::timestamp, p_cashaccountid => @CashAccountId::int, p_reference => @Reference::text, p_notes => @Notes::text, p_sourcetype => @SourceType::text, p_createdby => @CreatedBy::text)", conn);
+                // 383: Record supplier payment -- the rest pays a debt from before the system.
+                (r.RemainderAsOldDebt ? "SELECT sppoultrysupplierpayment_recordolddebt(" : "SELECT sppoultrysupplierpayment_record(") + "p_farmid => @FarmId::text, p_supplierid => @PartyId::int, p_amount => @Amount::numeric, p_allocations => @Allocations::jsonb, p_paymentmethod => @PaymentMethod::text, p_paymentdate => @PaymentDate::timestamp, p_cashaccountid => @CashAccountId::int, p_reference => @Reference::text, p_notes => @Notes::text, p_sourcetype => @SourceType::text, p_createdby => @CreatedBy::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
             cmd.Parameters.AddWithValue("@PartyId", Db(r.PartyId));
             cmd.Parameters.AddWithValue("@Amount", r.Amount);
@@ -304,7 +401,76 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@CreatedBy", Db(r.CreatedBy));
 
             await conn.OpenAsync();
-            return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            await using var tx = await conn.BeginTransactionAsync();
+            cmd.Transaction = tx;
+            var id = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+
+            // 382: kept off Profit & Loss from the start -- only matters when part of it paid a supplier debt.
+            if (r.ExcludeFromPL)
+            {
+                using var ex = new NpgsqlCommand(
+                    "SELECT sppoultrysupplierpayment_setplexclusion(p_farmid => @FarmId::text, p_paymentid => @Id::int, p_exclude => TRUE, p_by => @By::text) " +
+                    "WHERE fnpoultrysupplierpayment_plamount(@FarmId::text, @Id::int) > 0", conn, tx);
+                ex.Parameters.AddWithValue("@FarmId", r.FarmId);
+                ex.Parameters.AddWithValue("@Id", id);
+                ex.Parameters.AddWithValue("@By", Db(r.CreatedBy));
+                await ex.ExecuteNonQueryAsync();
+            }
+            await tx.CommitAsync();
+            return id;
+        }
+
+        // 382: a debt payment is on Profit & Loss unless the owner / an admin excludes it.
+        public async Task SetCustomerPaymentPLExclusion(string farmId, Guid paymentGroupId, bool exclude, string? by)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand(
+                "SELECT sppoultrypayment_setplexclusion(p_farmid => @FarmId::text, p_paymentgroupid => @G::uuid, p_exclude => @Ex::boolean, p_by => @By::text)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@G", paymentGroupId);
+            cmd.Parameters.AddWithValue("@Ex", exclude);
+            cmd.Parameters.AddWithValue("@By", Db(by));
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task SetSupplierPaymentPLExclusion(string farmId, int paymentId, bool exclude, string? by)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand(
+                "SELECT sppoultrysupplierpayment_setplexclusion(p_farmid => @FarmId::text, p_paymentid => @Id::int, p_exclude => @Ex::boolean, p_by => @By::text)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@Id", paymentId);
+            cmd.Parameters.AddWithValue("@Ex", exclude);
+            cmd.Parameters.AddWithValue("@By", Db(by));
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // 382: what each listed payment puts on Profit & Loss, and whether it was excluded.
+        private async Task<List<PaymentHistoryRow>> WithPL(List<PaymentHistoryRow> rows, string farmId, bool supplierSide)
+        {
+            var ids = rows.Select(x => x.PaymentId).Where(x => !string.IsNullOrEmpty(x)).Distinct().ToArray();
+            if (ids.Length == 0) return rows;
+            var sql = supplierSide
+                ? "SELECT sp.poultrysupplierpaymentid::text, fnpoultrysupplierpayment_plamount(sp.farmid, sp.poultrysupplierpaymentid), sp.excludefrompl " +
+                  "FROM poultrysupplierpayments sp WHERE sp.farmid = @FarmId::text AND sp.poultrysupplierpaymentid::text = ANY(@Ids)"
+                : "SELECT pp.paymentgroupid::text, " +
+                  "COALESCE(SUM(pp.amount) FILTER (WHERE pp.debtid IS NOT NULL AND COALESCE(pp.status, 'Posted') = 'Posted'), 0), bool_or(pp.excludefrompl) " +
+                  "FROM poultrypayments pp WHERE pp.farmid = @FarmId::text AND pp.paymentgroupid::text = ANY(@Ids) GROUP BY pp.paymentgroupid";
+            var pl = new Dictionary<string, (decimal amount, bool excluded)>(StringComparer.OrdinalIgnoreCase);
+            using (var conn = new NpgsqlConnection(_connectionString))
+            using (var cmd = new NpgsqlCommand(sql, conn))
+            {
+                cmd.Parameters.AddWithValue("@FarmId", farmId);
+                cmd.Parameters.AddWithValue("@Ids", ids);
+                await conn.OpenAsync();
+                using var rd = await cmd.ExecuteReaderAsync();
+                while (await rd.ReadAsync()) pl[rd.GetString(0)] = (rd.GetDecimal(1), !rd.IsDBNull(2) && rd.GetBoolean(2));
+            }
+            foreach (var row in rows)
+                if (pl.TryGetValue(row.PaymentId, out var v)) { row.PLAmount = v.amount; row.ExcludedFromPL = v.excluded; }
+            return rows;
         }
 
         public async Task<int> ReverseCustomerPayment(string farmId, Guid paymentGroupId, string? reason, string? reversedBy)
@@ -317,7 +483,20 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@Reason", Db(reason));
             cmd.Parameters.AddWithValue("@ReversedBy", Db(reversedBy));
             await conn.OpenAsync();
-            return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            await using var tx = await conn.BeginTransactionAsync();
+            cmd.Transaction = tx;
+            var count = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            // 383: a debt recorded only because this payment paid it is reversed with it.
+            using (var rel = new NpgsqlCommand(
+                "SELECT sppoultrypayment_releaseolddebts(p_farmid => @FarmId::text, p_paymentgroupid => @PaymentId::uuid, p_by => @ReversedBy::text)", conn, tx))
+            {
+                rel.Parameters.AddWithValue("@FarmId", farmId);
+                rel.Parameters.AddWithValue("@PaymentId", paymentGroupId);
+                rel.Parameters.AddWithValue("@ReversedBy", Db(reversedBy));
+                await rel.ExecuteScalarAsync();
+            }
+            await tx.CommitAsync();
+            return count;
         }
 
         public async Task<int> ReverseSupplierPayment(string farmId, int paymentId, string? reason, string? reversedBy)
@@ -330,10 +509,23 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@Reason", Db(reason));
             cmd.Parameters.AddWithValue("@ReversedBy", Db(reversedBy));
             await conn.OpenAsync();
-            return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            await using var tx = await conn.BeginTransactionAsync();
+            cmd.Transaction = tx;
+            var count = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            // 383: a debt recorded only because this payment paid it is reversed with it.
+            using (var rel = new NpgsqlCommand(
+                "SELECT sppoultrysupplierpayment_releaseolddebts(p_farmid => @FarmId::text, p_paymentid => @PaymentId::int, p_by => @ReversedBy::text)", conn, tx))
+            {
+                rel.Parameters.AddWithValue("@FarmId", farmId);
+                rel.Parameters.AddWithValue("@PaymentId", paymentId);
+                rel.Parameters.AddWithValue("@ReversedBy", Db(reversedBy));
+                await rel.ExecuteScalarAsync();
+            }
+            await tx.CommitAsync();
+            return count;
         }
 
-        public Task<List<PaymentHistoryRow>> GetCustomerPayments(string farmId, int? customerId, int? saleId, DateTime? from, DateTime? to) => Query(
+        public async Task<List<PaymentHistoryRow>> GetCustomerPayments(string farmId, int? customerId, int? saleId, DateTime? from, DateTime? to) => await WithPL(await Query(
             "SELECT * FROM sppoultrycustomerpayment_history(p_farmid => @FarmId::text, p_customerid => @PartyId::int, p_saleid => @DocumentId::int, p_from => @From::date, p_to => @To::date)",
             cmd =>
             {
@@ -375,9 +567,9 @@ namespace PoultryFarmAPIWeb.Business
                 BalanceBefore = DecN(r, "balancebefore"),
                 AmountApplied = DecN(r, "amountapplied"),
                 BalanceAfter = DecN(r, "balanceafter"),
-            });
+            }), farmId, supplierSide: false);
 
-        public Task<List<PaymentHistoryRow>> GetSupplierPayments(string farmId, int? supplierId, string? documentType, int? documentId, DateTime? from, DateTime? to) => Query(
+        public async Task<List<PaymentHistoryRow>> GetSupplierPayments(string farmId, int? supplierId, string? documentType, int? documentId, DateTime? from, DateTime? to) => await WithPL(await Query(
             "SELECT * FROM sppoultrysupplierpayment_history(p_farmid => @FarmId::text, p_supplierid => @PartyId::int, p_documenttype => @DocumentType::text, p_documentid => @DocumentId::int, p_from => @From::date, p_to => @To::date)",
             cmd =>
             {
@@ -408,7 +600,7 @@ namespace PoultryFarmAPIWeb.Business
                 ReversedBy = Str(r, "reversedby"),
                 ReversedAt = DateN(r, "reversedat"),
                 ReversalReason = Str(r, "reversalreason"),
-            });
+            }), farmId, supplierSide: true);
 
         public Task<List<PaymentAllocationRow>> GetCustomerPaymentAllocations(string farmId, Guid paymentGroupId) => Query(
             "SELECT * FROM sppoultrycustomerpayment_allocations(p_farmid => @FarmId::text, p_paymentgroupid => @PaymentId::uuid)",
@@ -420,9 +612,10 @@ namespace PoultryFarmAPIWeb.Business
             r => new PaymentAllocationRow
             {
                 AllocationId = Int(r, "allocationid"),
-                DocumentType = "Sale",
-                DocumentId = Int(r, "saleid"),
-                Reference = "S" + Int(r, "saleid"),
+                // 369: a line with no sale paid a customer debt; its label is "Debt CD-00001".
+                DocumentType = IntN(r, "saleid") is null ? CustomerDebtDocumentType : "Sale",
+                DocumentId = IntN(r, "saleid") ?? 0,
+                Reference = IntN(r, "saleid") is int sid ? "S" + sid : Str(r, "product"),
                 DocumentDate = DateN(r, "saledate"),
                 Label = Str(r, "product"),
                 DocumentTotal = Dec(r, "saletotal"),
@@ -554,8 +747,10 @@ namespace PoultryFarmAPIWeb.Business
             using var cmd = new NpgsqlCommand(
                 "SELECT sppoultrycustomerrefund_record(p_farmid => @FarmId::text, p_customerid => @CustomerId::int, " +
                 "p_amount => @Amount::numeric, p_cashaccountid => @Account::int, p_paymentmethod => @Method::text, " +
-                "p_refunddate => @Date::date, p_reason => @Reason::text, p_by => @By::text)", conn);
+                "p_refunddate => @Date::date, p_reason => @Reason::text, p_by => @By::text, " +
+                "p_paymentid => @PaymentId::int)", conn);
             cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
+            cmd.Parameters.AddWithValue("@PaymentId", (object?)r.PoultryPaymentId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@CustomerId", r.CustomerId);
             cmd.Parameters.AddWithValue("@Amount", r.Amount);
             cmd.Parameters.AddWithValue("@Account", r.PoultryCashAccountId);
@@ -590,6 +785,433 @@ namespace PoultryFarmAPIWeb.Business
                 CreatedBy = Str(r, "createdby"),
                 CreatedAt = DateN(r, "createdat") ?? DateTime.MinValue,
                 PaymentNumbers = Str(r, "paymentnumbers"),
+                ReversedAt = DateN(r, "reversedat"),
+                ReversedBy = Str(r, "reversedby"),
+                ReversalReason = Str(r, "reversalreason"),
+                ReversalDate = DateN(r, "reversaldate"),
+            });
+
+        /// <summary>
+        /// 367: the refund stays (Reversed); the money goes back into the account
+        /// it left from and the credit comes back. Owner / admin only.
+        /// </summary>
+        public async Task<int> ReverseCustomerRefund(int refundId, CustomerRefundReverseRequest r)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand(
+                "SELECT sppoultrycustomerrefund_reverse(p_farmid => @FarmId::text, p_refundid => @Refund::int, " +
+                "p_reason => @Reason::text, p_by => @By::text)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
+            cmd.Parameters.AddWithValue("@Refund", refundId);
+            cmd.Parameters.AddWithValue("@Reason", r.Reason ?? string.Empty);
+            cmd.Parameters.AddWithValue("@By", Db(r.ReversedBy));
+            await conn.OpenAsync();
+            return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        }
+
+        /// <summary>369: record what a customer owes without a sale. No cash, no revenue.</summary>
+        public async Task<string> CreateCustomerDebt(CustomerDebtRequest r)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand(
+                "SELECT sppoultrycustomerdebt_create(p_farmid => @FarmId::text, p_customerid => @CustomerId::int, " +
+                "p_amount => @Amount::numeric, p_debtdate => @Date::date, p_entrytype => @Type::text, " +
+                "p_description => @Description::text, p_reference => @Reference::text, p_notes => @Notes::text, " +
+                "p_by => @By::text)::text", conn);
+            cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
+            cmd.Parameters.AddWithValue("@CustomerId", r.CustomerId);
+            cmd.Parameters.AddWithValue("@Amount", r.Amount);
+            cmd.Parameters.AddWithValue("@Date", DbDate(r.DebtDate));
+            cmd.Parameters.AddWithValue("@Type", r.EntryType ?? string.Empty);
+            cmd.Parameters.AddWithValue("@Description", r.Description ?? string.Empty);
+            cmd.Parameters.AddWithValue("@Reference", Db(r.Reference));
+            cmd.Parameters.AddWithValue("@Notes", Db(r.Notes));
+            cmd.Parameters.AddWithValue("@By", Db(r.CreatedBy));
+            await conn.OpenAsync();
+            return (string?)await cmd.ExecuteScalarAsync() ?? "{}";
+        }
+
+        /// <summary>369: refused while any payment is applied to the debt.</summary>
+        public async Task<int> ReverseCustomerDebt(int debtId, CustomerDebtReverseRequest r)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand(
+                "SELECT sppoultrycustomerdebt_reverse(p_farmid => @FarmId::text, p_debtid => @Debt::int, " +
+                "p_reason => @Reason::text, p_by => @By::text)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
+            cmd.Parameters.AddWithValue("@Debt", debtId);
+            cmd.Parameters.AddWithValue("@Reason", r.Reason ?? string.Empty);
+            cmd.Parameters.AddWithValue("@By", Db(r.ReversedBy));
+            await conn.OpenAsync();
+            return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        }
+
+        public Task<List<CustomerDebtRow>> GetCustomerDebts(string farmId, int? customerId) => Query(
+            "SELECT * FROM sppoultrycustomerdebt_list(p_farmid => @FarmId::text, p_customerid => @CustomerId::int)",
+            cmd =>
+            {
+                cmd.Parameters.AddWithValue("@FarmId", farmId);
+                cmd.Parameters.AddWithValue("@CustomerId", (object?)customerId ?? DBNull.Value);
+            },
+            r => new CustomerDebtRow
+            {
+                DebtId = Int(r, "debtid"),
+                DebtNumber = Str(r, "debtnumber") ?? string.Empty,
+                CustomerId = Int(r, "customerid"),
+                CustomerName = Str(r, "customername"),
+                Amount = Dec(r, "amount"),
+                Paid = Dec(r, "paid"),
+                Balance = Dec(r, "balance"),
+                DebtDate = DateN(r, "debtdate"),
+                EntryType = Str(r, "entrytype") ?? string.Empty,
+                Description = Str(r, "description") ?? string.Empty,
+                Reference = Str(r, "reference"),
+                Notes = Str(r, "notes"),
+                Status = Str(r, "status") ?? "Posted",
+                CreatedBy = Str(r, "createdby"),
+                CreatedAt = DateN(r, "createdat"),
+                ReversedBy = Str(r, "reversedby"),
+                ReversedAt = DateN(r, "reversedat"),
+                ReversalReason = Str(r, "reversalreason"),
+            });
+
+        // ------------------------------------------------------- 370 supplier credit
+
+        private async Task<int> ScalarInt(string sql, Action<NpgsqlCommand> bind)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand(sql, conn);
+            bind(cmd);
+            await conn.OpenAsync();
+            return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        }
+
+        public Task<List<SupplierCreditSummaryRow>> GetSupplierCreditSummary(string farmId) => Query(
+            "SELECT * FROM sppoultrysuppliercredit_summary(p_farmid => @FarmId::text)",
+            cmd => cmd.Parameters.AddWithValue("@FarmId", farmId),
+            r => new SupplierCreditSummaryRow
+            {
+                SupplierId = Int(r, "supplierid"),
+                SupplierName = Str(r, "suppliername") ?? string.Empty,
+                AvailableCredit = Dec(r, "availablecredit"),
+                CreditCount = Int(r, "creditcount"),
+                Owed = Dec(r, "owed"),
+            });
+
+        public Task<List<SupplierCreditEventRow>> GetSupplierCreditEvents(string farmId, int? supplierId) => Query(
+            "SELECT * FROM sppoultrysuppliercredit_events(p_farmid => @FarmId::text, p_supplierid => @SupplierId::int)",
+            cmd =>
+            {
+                cmd.Parameters.AddWithValue("@FarmId", farmId);
+                cmd.Parameters.AddWithValue("@SupplierId", (object?)supplierId ?? DBNull.Value);
+            },
+            r => new SupplierCreditEventRow
+            {
+                PoultrySupplierPaymentId = Int(r, "poultrysupplierpaymentid"),
+                CreditNumber = Str(r, "creditnumber") ?? string.Empty,
+                CreditDate = DateN(r, "creditdate"),
+                SupplierId = Int(r, "supplierid"),
+                SupplierName = Str(r, "suppliername"),
+                Source = Str(r, "source") ?? string.Empty,
+                SourceType = Str(r, "sourcetype"),
+                Reference = Str(r, "reference"),
+                Notes = Str(r, "notes"),
+                OriginalAmount = Dec(r, "originalamount"),
+                Applied = Dec(r, "applied"),
+                Refunded = Dec(r, "refunded"),
+                Available = Dec(r, "available"),
+                Status = Str(r, "status") ?? string.Empty,
+                IsManual = Bool(r, "ismanual"),
+                PoultryCashAccountId = IntN(r, "poultrycashaccountid"),
+                AccountName = Str(r, "accountname"),
+            });
+
+        public Task<List<SupplierCreditApplicationRow>> GetSupplierCreditApplications(string farmId, int? supplierId) => Query(
+            "SELECT * FROM sppoultrysuppliercredit_applications(p_farmid => @FarmId::text, p_supplierid => @SupplierId::int)",
+            cmd =>
+            {
+                cmd.Parameters.AddWithValue("@FarmId", farmId);
+                cmd.Parameters.AddWithValue("@SupplierId", (object?)supplierId ?? DBNull.Value);
+            },
+            r => new SupplierCreditApplicationRow
+            {
+                AllocationId = Int(r, "allocationid"),
+                PoultrySupplierPaymentId = Int(r, "poultrysupplierpaymentid"),
+                CreditNumber = Str(r, "creditnumber") ?? string.Empty,
+                SupplierId = Int(r, "supplierid"),
+                SupplierName = Str(r, "suppliername"),
+                DocumentType = Str(r, "documenttype") ?? string.Empty,
+                DocumentId = Int(r, "documentid"),
+                Reference = Str(r, "reference"),
+                Label = Str(r, "label"),
+                Amount = Dec(r, "amount"),
+                AppliedDate = DateN(r, "applieddate"),
+                Status = Str(r, "status") ?? "Posted",
+                CreatedBy = Str(r, "createdby"),
+                ReversedAt = DateN(r, "reversedat"),
+                ReversalReason = Str(r, "reversalreason"),
+            });
+
+        public Task<int> CreateSupplierCredit(SupplierCreditCreateRequest r) => ScalarInt(
+            "SELECT sppoultrysuppliercredit_create(p_farmid => @FarmId::text, p_supplierid => @SupplierId::int, " +
+            "p_kind => @Kind::text, p_amount => @Amount::numeric, p_date => @Date::timestamp, " +
+            "p_reference => @Reference::text, p_reason => @Reason::text, p_by => @By::text)",
+            cmd =>
+            {
+                cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
+                cmd.Parameters.AddWithValue("@SupplierId", r.SupplierId);
+                cmd.Parameters.AddWithValue("@Kind", r.Kind ?? string.Empty);
+                cmd.Parameters.AddWithValue("@Amount", r.Amount);
+                cmd.Parameters.AddWithValue("@Date", r.CreditDate.HasValue ? r.CreditDate.Value : DBNull.Value);
+                cmd.Parameters.AddWithValue("@Reference", Db(r.Reference));
+                cmd.Parameters.AddWithValue("@Reason", r.Reason ?? string.Empty);
+                cmd.Parameters.AddWithValue("@By", Db(r.CreatedBy));
+            });
+
+        public Task<int> ReverseSupplierCredit(int paymentId, SupplierReasonRequest r) => ScalarInt(
+            "SELECT sppoultrysuppliercredit_reverse(p_farmid => @FarmId::text, p_paymentid => @Id::int, p_reason => @Reason::text, p_by => @By::text)",
+            cmd =>
+            {
+                cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
+                cmd.Parameters.AddWithValue("@Id", paymentId);
+                cmd.Parameters.AddWithValue("@Reason", r.Reason ?? string.Empty);
+                cmd.Parameters.AddWithValue("@By", Db(r.By));
+            });
+
+        public Task<int> ApplySupplierCredit(SupplierCreditApplyRequest r) => ScalarInt(
+            "SELECT sppoultrysuppliercredit_apply(p_farmid => @FarmId::text, p_paymentid => @Id::int, " +
+            "p_documenttype => @Type::text, p_documentid => @Doc::int, p_amount => @Amount::numeric, p_by => @By::text)",
+            cmd =>
+            {
+                cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
+                cmd.Parameters.AddWithValue("@Id", r.PoultrySupplierPaymentId);
+                cmd.Parameters.AddWithValue("@Type", r.DocumentType ?? string.Empty);
+                cmd.Parameters.AddWithValue("@Doc", r.DocumentId);
+                cmd.Parameters.AddWithValue("@Amount", r.Amount);
+                cmd.Parameters.AddWithValue("@By", Db(r.CreatedBy));
+            });
+
+        public Task<int> UnapplySupplierCredit(int allocationId, SupplierReasonRequest r) => ScalarInt(
+            "SELECT sppoultrysuppliercredit_unapply(p_farmid => @FarmId::text, p_allocationid => @Id::int, p_reason => @Reason::text, p_by => @By::text)",
+            cmd =>
+            {
+                cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
+                cmd.Parameters.AddWithValue("@Id", allocationId);
+                cmd.Parameters.AddWithValue("@Reason", r.Reason ?? string.Empty);
+                cmd.Parameters.AddWithValue("@By", Db(r.By));
+            });
+
+        public Task<int> RecordSupplierRefund(SupplierRefundRequest r) => ScalarInt(
+            "SELECT sppoultrysupplierrefund_record(p_farmid => @FarmId::text, p_paymentid => @Id::int, p_amount => @Amount::numeric, " +
+            "p_cashaccountid => @Account::int, p_paymentmethod => @Method::text, p_refunddate => @Date::date, " +
+            "p_reason => @Reason::text, p_by => @By::text)",
+            cmd =>
+            {
+                cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
+                cmd.Parameters.AddWithValue("@Id", r.PoultrySupplierPaymentId);
+                cmd.Parameters.AddWithValue("@Amount", r.Amount);
+                cmd.Parameters.AddWithValue("@Account", r.PoultryCashAccountId);
+                cmd.Parameters.AddWithValue("@Method", Db(r.PaymentMethod));
+                cmd.Parameters.AddWithValue("@Date", DbDate(r.RefundDate));
+                cmd.Parameters.AddWithValue("@Reason", r.Reason ?? string.Empty);
+                cmd.Parameters.AddWithValue("@By", Db(r.CreatedBy));
+            });
+
+        public Task<int> ReverseSupplierRefund(int refundId, SupplierReasonRequest r) => ScalarInt(
+            "SELECT sppoultrysupplierrefund_reverse(p_farmid => @FarmId::text, p_refundid => @Id::int, p_reason => @Reason::text, p_by => @By::text)",
+            cmd =>
+            {
+                cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
+                cmd.Parameters.AddWithValue("@Id", refundId);
+                cmd.Parameters.AddWithValue("@Reason", r.Reason ?? string.Empty);
+                cmd.Parameters.AddWithValue("@By", Db(r.By));
+            });
+
+        public Task<List<SupplierRefundRow>> GetSupplierRefunds(string farmId, int? supplierId) => Query(
+            "SELECT * FROM sppoultrysupplierrefund_list(p_farmid => @FarmId::text, p_supplierid => @SupplierId::int)",
+            cmd =>
+            {
+                cmd.Parameters.AddWithValue("@FarmId", farmId);
+                cmd.Parameters.AddWithValue("@SupplierId", (object?)supplierId ?? DBNull.Value);
+            },
+            r => new SupplierRefundRow
+            {
+                RefundId = Int(r, "refundid"),
+                RefundNumber = Str(r, "refundnumber") ?? string.Empty,
+                SupplierId = Int(r, "supplierid"),
+                SupplierName = Str(r, "suppliername"),
+                Amount = Dec(r, "amount"),
+                RefundDate = DateN(r, "refunddate"),
+                PoultryCashAccountId = Int(r, "poultrycashaccountid"),
+                AccountName = Str(r, "accountname"),
+                PaymentMethod = Str(r, "paymentmethod"),
+                Reason = Str(r, "reason") ?? string.Empty,
+                Status = Str(r, "status") ?? "Posted",
+                CreatedBy = Str(r, "createdby"),
+                CreatedAt = DateN(r, "createdat"),
+                CreditNumbers = Str(r, "creditnumbers"),
+                ReversedAt = DateN(r, "reversedat"),
+                ReversedBy = Str(r, "reversedby"),
+                ReversalReason = Str(r, "reversalreason"),
+                ReversalDate = DateN(r, "reversaldate"),
+            });
+
+        public async Task<string> CreateSupplierDebt(SupplierDebtRequest r)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand(
+                "SELECT sppoultrysupplierdebt_create(p_farmid => @FarmId::text, p_supplierid => @SupplierId::int, " +
+                "p_amount => @Amount::numeric, p_debtdate => @Date::date, p_entrytype => @Type::text, " +
+                "p_description => @Description::text, p_reference => @Reference::text, p_notes => @Notes::text, " +
+                "p_by => @By::text)::text", conn);
+            cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
+            cmd.Parameters.AddWithValue("@SupplierId", r.SupplierId);
+            cmd.Parameters.AddWithValue("@Amount", r.Amount);
+            cmd.Parameters.AddWithValue("@Date", DbDate(r.DebtDate));
+            cmd.Parameters.AddWithValue("@Type", r.EntryType ?? string.Empty);
+            cmd.Parameters.AddWithValue("@Description", r.Description ?? string.Empty);
+            cmd.Parameters.AddWithValue("@Reference", Db(r.Reference));
+            cmd.Parameters.AddWithValue("@Notes", Db(r.Notes));
+            cmd.Parameters.AddWithValue("@By", Db(r.CreatedBy));
+            await conn.OpenAsync();
+            return (string?)await cmd.ExecuteScalarAsync() ?? "{}";
+        }
+
+        public Task<int> ReverseSupplierDebt(int debtId, SupplierReasonRequest r) => ScalarInt(
+            "SELECT sppoultrysupplierdebt_reverse(p_farmid => @FarmId::text, p_debtid => @Id::int, p_reason => @Reason::text, p_by => @By::text)",
+            cmd =>
+            {
+                cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
+                cmd.Parameters.AddWithValue("@Id", debtId);
+                cmd.Parameters.AddWithValue("@Reason", r.Reason ?? string.Empty);
+                cmd.Parameters.AddWithValue("@By", Db(r.By));
+            });
+
+        public Task<List<SupplierDebtRow>> GetSupplierDebts(string farmId, int? supplierId) => Query(
+            "SELECT * FROM sppoultrysupplierdebt_list(p_farmid => @FarmId::text, p_supplierid => @SupplierId::int)",
+            cmd =>
+            {
+                cmd.Parameters.AddWithValue("@FarmId", farmId);
+                cmd.Parameters.AddWithValue("@SupplierId", (object?)supplierId ?? DBNull.Value);
+            },
+            r => new SupplierDebtRow
+            {
+                DebtId = Int(r, "debtid"),
+                DebtNumber = Str(r, "debtnumber") ?? string.Empty,
+                SupplierId = Int(r, "supplierid"),
+                SupplierName = Str(r, "suppliername"),
+                Amount = Dec(r, "amount"),
+                Paid = Dec(r, "paid"),
+                Balance = Dec(r, "balance"),
+                DebtDate = DateN(r, "debtdate"),
+                EntryType = Str(r, "entrytype") ?? string.Empty,
+                Description = Str(r, "description") ?? string.Empty,
+                Reference = Str(r, "reference"),
+                Notes = Str(r, "notes"),
+                Status = Str(r, "status") ?? "Posted",
+                CreatedBy = Str(r, "createdby"),
+                CreatedAt = DateN(r, "createdat"),
+                ReversedBy = Str(r, "reversedby"),
+                ReversedAt = DateN(r, "reversedat"),
+                ReversalReason = Str(r, "reversalreason"),
+            });
+
+        /// <summary>367: every credit event, with Original / Applied / Refunded / Available.</summary>
+        public Task<List<CustomerCreditEventRow>> GetCustomerCreditEvents(string farmId, int? customerId) => Query(
+            "SELECT * FROM sppoultrycustomercredit_events(p_farmid => @FarmId::text, p_customerid => @CustomerId::int)",
+            cmd =>
+            {
+                cmd.Parameters.AddWithValue("@FarmId", farmId);
+                cmd.Parameters.AddWithValue("@CustomerId", (object?)customerId ?? DBNull.Value);
+            },
+            r => new CustomerCreditEventRow
+            {
+                PoultryPaymentId = Int(r, "poultrypaymentid"),
+                PaymentGroupId = Guid.TryParse(GuidN(r, "paymentgroupid"), out var g) ? g : null,
+                PaymentNumber = Str(r, "paymentnumber"),
+                CreditDate = DateN(r, "creditdate"),
+                CustomerId = Int(r, "customerid"),
+                CustomerName = Str(r, "customername"),
+                Source = Str(r, "source") ?? string.Empty,
+                SourceType = Str(r, "sourcetype"),
+                SaleId = IntN(r, "saleid"),
+                SaleGroupNo = Str(r, "salegroupno"),
+                Reference = Str(r, "reference"),
+                OriginalAmount = Dec(r, "originalamount"),
+                Applied = Dec(r, "applied"),
+                Refunded = Dec(r, "refunded"),
+                Available = Dec(r, "available"),
+                Status = Str(r, "status") ?? string.Empty,
+                IsManual = Bool(r, "ismanual"),
+                PoultryCashAccountId = IntN(r, "poultrycashaccountid"),
+            });
+
+        // ------------------------------------------------- 363 manual credit
+
+        /// <summary>Opening credit / credit note: no cash. Deposit: one CashIn on its account.</summary>
+        public async Task<string> CreateManualCredit(ManualCreditRequest r)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand(
+                "SELECT sppoultrycustomercredit_create(p_farmid => @FarmId::text, p_customerid => @CustomerId::int, " +
+                "p_kind => @Kind::text, p_amount => @Amount::numeric, p_date => @Date::timestamp, " +
+                "p_cashaccountid => @Account::int, p_paymentmethod => @Method::text, p_reference => @Reference::text, " +
+                "p_reason => @Reason::text, p_by => @By::text)::text", conn);
+            cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
+            cmd.Parameters.AddWithValue("@CustomerId", r.CustomerId);
+            cmd.Parameters.AddWithValue("@Kind", r.Kind ?? string.Empty);
+            cmd.Parameters.AddWithValue("@Amount", r.Amount);
+            cmd.Parameters.AddWithValue("@Date", r.CreditDate.HasValue ? r.CreditDate.Value : DBNull.Value);
+            cmd.Parameters.AddWithValue("@Account", Db(r.PoultryCashAccountId));
+            cmd.Parameters.AddWithValue("@Method", Db(r.PaymentMethod));
+            cmd.Parameters.AddWithValue("@Reference", Db(r.Reference));
+            cmd.Parameters.AddWithValue("@Reason", r.Reason ?? string.Empty);
+            cmd.Parameters.AddWithValue("@By", Db(r.CreatedBy));
+            await conn.OpenAsync();
+            return (string?)await cmd.ExecuteScalarAsync() ?? "{}";
+        }
+
+        /// <summary>Releases what was used on sales; a deposit's cash goes back out.</summary>
+        public async Task<int> ReverseManualCredit(Guid paymentGroupId, ManualCreditReverseRequest r)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand(
+                "SELECT sppoultrycustomercredit_reverse(p_farmid => @FarmId::text, p_paymentgroupid => @Group::uuid, " +
+                "p_reason => @Reason::text, p_by => @By::text)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
+            cmd.Parameters.AddWithValue("@Group", paymentGroupId);
+            cmd.Parameters.AddWithValue("@Reason", r.Reason ?? string.Empty);
+            cmd.Parameters.AddWithValue("@By", Db(r.ReversedBy));
+            await conn.OpenAsync();
+            return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        }
+
+        public Task<List<ManualCreditRow>> GetManualCredits(string farmId) => Query(
+            "SELECT * FROM sppoultrycustomercredit_manuallist(p_farmid => @FarmId::text)",
+            cmd => cmd.Parameters.AddWithValue("@FarmId", farmId),
+            r => new ManualCreditRow
+            {
+                PaymentGroupId = Guid.TryParse(GuidN(r, "paymentgroupid"), out var g) ? g : Guid.Empty,
+                PoultryPaymentId = Int(r, "poultrypaymentid"),
+                PaymentNumber = Str(r, "paymentnumber"),
+                Kind = Str(r, "kind") ?? string.Empty,
+                CreditDate = DateN(r, "creditdate"),
+                CustomerId = Int(r, "customerid"),
+                CustomerName = Str(r, "customername"),
+                Amount = Dec(r, "amount"),
+                Used = Dec(r, "used"),
+                Refunded = Dec(r, "refunded"),
+                Remaining = Dec(r, "remaining"),
+                Status = Str(r, "status") ?? "Posted",
+                PoultryCashAccountId = IntN(r, "poultrycashaccountid"),
+                CashAccountName = Str(r, "cashaccountname"),
+                PaymentMethod = Str(r, "paymentmethod"),
+                Reference = Str(r, "reference"),
+                Reason = Str(r, "reason"),
+                CreatedBy = Str(r, "createdby"),
+                CreatedAt = DateN(r, "createdat"),
+                ReversedAt = DateN(r, "reversedat"),
+                ReversalReason = Str(r, "reversalreason"),
             });
 
         // ----------------------------------------------------------------- audit
