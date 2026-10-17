@@ -12,6 +12,7 @@ import '../production/egg_sorting_screen.dart';
 import '../production/feed_production_screen.dart';
 import '../production/production_records_screen.dart';
 import '../purchase/flock_batches_screen.dart';
+import '../purchase_receipts_screen.dart';
 import '../purchase/raw_materials_screen.dart';
 import '../expenses/deferred_costs_screen.dart';
 import '../expenses/expenses_screen.dart';
@@ -110,6 +111,10 @@ Widget? moneyScreenForHref(String href, Session session, Company company) {
   final raw = rawMaterialsScreenForHref(href, session, company);
   if (raw != null) return raw;
   if (uri.path == '/expenses' && uri.query.isNotEmpty) return expensesScreenForHref(href, session, company);
+  // Supply Purchases' "Receive Invoice" opens the page with the receive form up.
+  if (uri.path == '/poultry-purchase-receipts' && uri.query.isNotEmpty) {
+    return PurchaseReceiptsScreen(session: session, company: company, openReceive: uri.queryParameters['receive'] == '1');
+  }
   if (uri.path == '/poultry-cash-reconciliation') {
     return ReconciliationScreen(session: session, company: company, accountId: int.tryParse(uri.queryParameters['accountId'] ?? ''));
   }

@@ -219,13 +219,19 @@ class AppSelect<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = context.tokens;
+    // Flutter asserts (the red screen) when the value matches no option, or
+    // more than one. The web's Select just shows an empty box and keeps the
+    // value, so do the same: a saved value outside the list, such as the
+    // database's default feed type "General Feed", shows empty instead of
+    // crashing.
+    final shown = items.where((i) => i.value == value).length == 1 ? value : null;
     return DropdownButtonFormField<T>(
       // initialValue is read once, when the field is first built. Keying on
       // the value (and on how many options there are) rebuilds the field
       // whenever either changes, so a value set in code — a prefill, an
       // option list that arrives late, one choice switching another — shows.
       key: ValueKey('$value|${items.length}'),
-      initialValue: value,
+      initialValue: shown,
       isExpanded: true,
       validator: validator,
       onChanged: enabled ? onChanged : null,

@@ -209,6 +209,23 @@ void main() {
     expect((b['id'], b['production12PM'], b['eggGrade'], b['medication']), (11, 31, 'Large', 'Vitamins'));
   });
 
+  testWidgets('edit: a feed type outside the list ("General Feed", the database default) no longer crashes', (tester) async {
+    final a = api()
+      ..gets['/api/ProductionRecord/11'] = rec1
+      ..gets['/api/FeedUsage'] = [
+        {'feedUsageId': 1, 'flockId': 7, 'usageDate': '2026-10-05T00:00:00', 'feedType': 'General Feed', 'quantityKg': 0},
+      ];
+    await open(tester, ProductionRecordsScreen(session: await sessionFor(a), company: company), size: phone);
+    await tap(tester, find.text('Edit'));
+    expect(tester.takeException(), isNull, reason: 'no red dropdown assertion');
+    expect(find.text('Feed type'), findsOneWidget);
+    // As on the web, the box shows empty and the saved value is kept on Update.
+    await tester.tap(find.text('Update Production Record'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(a.writes.last.url.path, '/api/ProductionRecord/11');
+  });
+
   testWidgets('egg grade is read-only: Mixed on a new record, an older record keeps its own', (tester) async {
     final a = api()..gets['/api/ProductionRecord/11'] = rec1;
     final s = await sessionFor(a);

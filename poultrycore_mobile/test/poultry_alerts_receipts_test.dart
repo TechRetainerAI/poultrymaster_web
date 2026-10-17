@@ -9,6 +9,7 @@ import 'package:poultrycore_mobile/pages/poultry/flock_alerts_logic.dart';
 import 'package:poultrycore_mobile/pages/poultry/flock_alerts_screen.dart';
 import 'package:poultrycore_mobile/pages/poultry/purchase_receipt_logic.dart';
 import 'package:poultrycore_mobile/pages/poultry/purchase_receipts_screen.dart';
+import 'package:poultrycore_mobile/pages/poultry/money/money_routes.dart';
 
 import 'support/harness.dart';
 
@@ -307,6 +308,19 @@ void main() {
         {'poultryRawMaterialItemId': 5, 'quantity': 10, 'unitCost': 50, 'productionUnit': 'kg', 'productionUnitsPerPurchaseUnit': 50, 'notes': null},
       ]);
       expect(find.textContaining('Received as PR-0004'), findsOneWidget);
+      // As on the web, the saved receipt opens straight away.
+      expect(find.byType(AlertDialog), findsOneWidget, reason: 'the receipt dialog opens after saving');
+      expect(find.text('PR-0003'), findsWidgets);
+      expect(find.text('Expensed as paid'), findsOneWidget);
+      expect(find.text('Reverse receipt'), findsOneWidget);
+    });
+
+    testWidgets("Supply Purchases' Receive Invoice link opens the native form", (tester) async {
+      final api = api0();
+      final screen = moneyScreenForHref('/poultry-purchase-receipts?receive=1', await sessionFor(api), adminCompany);
+      expect(screen, isA<PurchaseReceiptsScreen>());
+      await open(tester, screen!, size: phone);
+      expect(find.byType(ReceivePurchaseScreen), findsOneWidget, reason: 'the receive form is open');
     });
   });
 }
