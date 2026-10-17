@@ -55,7 +55,8 @@ namespace PoultryFarmAPIWeb.Filters
             }
         }
 
-        private static async Task<bool> IsSetupAdminAsync(HttpContext http, string userId)
+        // 382: also used by actions that are open to staff but have an owner / admin option.
+        internal static async Task<bool> IsSetupAdminAsync(HttpContext http, string userId)
         {
             if (http.Items.TryGetValue(CacheKey, out var cached) && cached is bool b) return b;
 
