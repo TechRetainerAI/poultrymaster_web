@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 
@@ -10,6 +11,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Poultry/drivers")]
+    [RequireCompanyType("Poultry")]
     public class PoultryDriversController : ControllerBase
     {
         private readonly IPoultryDriverDistributionService _svc;
@@ -43,6 +45,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Poultry/vehicles")]
+    [RequireCompanyType("Poultry")]
     public class PoultryVehiclesController : ControllerBase
     {
         private readonly IPoultryDriverDistributionService _svc;
@@ -66,6 +69,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Poultry/routes")]
+    [RequireCompanyType("Poultry")]
     public class PoultryRoutesController : ControllerBase
     {
         private readonly IPoultryDriverDistributionService _svc;
@@ -89,6 +93,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Poultry/vehicle-loadings")]
+    [RequireCompanyType("Poultry")]
     public class PoultryVehicleLoadingsController : ControllerBase
     {
         private readonly IPoultryDriverDistributionService _svc;
@@ -122,6 +127,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Poultry/driver-returns")]
+    [RequireCompanyType("Poultry")]
     public class PoultryDriverReturnsController : ControllerBase
     {
         private readonly IPoultryDriverDistributionService _svc;
@@ -170,6 +176,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Poultry/driver-shortages")]
+    [RequireCompanyType("Poultry")]
     public class PoultryDriverShortagesController : ControllerBase
     {
         private readonly IPoultryDriverDistributionService _svc;
@@ -189,6 +196,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Poultry/driver-delivery-expenses")]
+    [RequireCompanyType("Poultry")]
     public class PoultryDriverDeliveryExpensesController : ControllerBase
     {
         private readonly IPoultryDriverDistributionService _svc;
@@ -201,6 +209,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Poultry/reports")]
+    [RequireCompanyType("Poultry")]
     public class PoultryDriverReportsController : ControllerBase
     {
         private readonly IPoultryDriverDistributionService _svc;

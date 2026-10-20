@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using Npgsql;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
@@ -22,6 +23,7 @@ namespace PoultryFarmAPIWeb.Controllers
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
+    [RequireCompanyType("Poultry")]
     public class PoultryFarmSetupController : ControllerBase
     {
         private readonly IFarmSetupService _setupService;

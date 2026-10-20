@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using Npgsql;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
@@ -32,6 +33,7 @@ namespace PoultryFarmAPIWeb.Controllers
     /// </summary>
     [ApiController]
     [Route("api/Poultry/purchase-receipts")]
+    [RequireCompanyType("Poultry")]
     public class PoultryPurchaseReceiptController : ControllerBase
     {
         private readonly IPoultryPurchaseReceiptService _svc;

@@ -21,6 +21,7 @@
 // than allowed to become an opaque 500.
 
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 
@@ -28,6 +29,7 @@ namespace PoultryFarmAPIWeb.Controllers
 {
     [ApiController]
     [Route("api/Water/assets")]
+    [RequireCompanyType("Water")]
     public class WaterAssetsController : ControllerBase
     {
         private readonly IWaterCapitalAssetService _svc;
@@ -191,6 +193,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Water/asset-depreciation")]
+    [RequireCompanyType("Water")]
     public class WaterAssetDepreciationController : ControllerBase
     {
         private readonly IWaterCapitalAssetService _svc;

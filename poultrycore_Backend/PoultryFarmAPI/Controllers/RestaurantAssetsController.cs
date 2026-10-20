@@ -23,6 +23,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [Authorize]
     [RestaurantBusinessRuleFilter]
     [Route("api/Restaurant/assets")]
+    [RequireCompanyType("Restaurant")]
     public class RestaurantAssetsController : ControllerBase
     {
         private readonly IRestaurantCapitalAssetService _svc;
@@ -103,6 +104,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [Authorize]
     [RestaurantBusinessRuleFilter]
     [Route("api/Restaurant/asset-depreciation")]
+    [RequireCompanyType("Restaurant")]
     public class RestaurantAssetDepreciationController : ControllerBase
     {
         private readonly IRestaurantCapitalAssetService _svc;

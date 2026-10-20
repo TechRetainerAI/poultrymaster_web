@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 
@@ -9,6 +10,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // =========================================================================
     [ApiController]
     [Route("api/generic-company/{farmId}/daily-closings")]
+    [RequireCompanyType("Generic")]
     public class GenericDailyClosingController : ControllerBase
     {
         private readonly IGenericDailyClosingService _svc;
@@ -100,6 +102,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // =========================================================================
     [ApiController]
     [Route("api/generic-company/{farmId}/reports")]
+    [RequireCompanyType("Generic")]
     public class GenericReportController : ControllerBase
     {
         private readonly IGenericReportService _reports;

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 
@@ -9,6 +10,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // the finance defaults (categories + cash accounts) via the SP.
     [ApiController]
     [Route("api/Water/company")]
+    [RequireCompanyType("Water")]
     public class WaterCompanyController : ControllerBase
     {
         private readonly IWaterCompanyService _svc;

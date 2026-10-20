@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 
@@ -9,6 +10,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Poultry/raw-material-items")]
+    [RequireCompanyType("Poultry")]
     public class PoultryRawMaterialItemController : ControllerBase
     {
         private readonly IPoultryRawMaterialItemService _svc;
@@ -71,6 +73,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Poultry/raw-material-adjustments")]
+    [RequireCompanyType("Poultry")]
     public class PoultryRawMaterialAdjustmentController : ControllerBase
     {
         private readonly IPoultryRawMaterialItemService _svc;
@@ -83,6 +86,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Poultry/raw-material-purchases")]
+    [RequireCompanyType("Poultry")]
     public class PoultryRawMaterialPurchaseController : ControllerBase
     {
         private readonly IPoultryRawMaterialPurchaseService _svc;
@@ -127,6 +131,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Poultry/raw-material-usage")]
+    [RequireCompanyType("Poultry")]
     public class PoultryRawMaterialUsageController : ControllerBase
     {
         private readonly IPoultryRawMaterialUsageService _svc;

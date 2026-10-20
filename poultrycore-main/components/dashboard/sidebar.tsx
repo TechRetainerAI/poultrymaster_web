@@ -79,7 +79,7 @@ import { useQuickLinkHrefs } from "@/lib/store/quick-links-store"
 import { QuickLinksDialog } from "@/components/dashboard/quick-links-dialog"
 import { navPathActive, type MegaMenuGroup, type NavGroup } from "@/lib/nav/nav-model"
 import { SidebarFlyoutMenu } from "@/components/dashboard/nav/sidebar-flyout-menu"
-import { POULTRY_REPORT_NAV_GROUPS, WATER_REPORT_NAV_GROUPS } from "@/lib/nav/report-nav-adapters"
+import { POULTRY_REPORT_NAV_GROUPS, WATER_REPORT_NAV_GROUPS, HOTEL_REPORT_NAV_GROUPS, RESTAURANT_REPORT_NAV_GROUPS } from "@/lib/nav/report-nav-adapters"
 
 /** A titled, collapsible block of sidebar rows. */
 type SidebarGroup = { key: string; title: string; items: SidebarItem[] }
@@ -391,64 +391,9 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const gateHotel = <T extends { href: string }>(items: T[]) =>
     filterHotelNavItems(items, permissions.featureAccess, permissions.isAdmin)
 
-  const hotelQuickLinkItems = gateHotel([
-    { href: "/hotel-daily-closing", label: "Daily Closing", icon: FileText },
-    { href: "/hotel-night-audit",   label: "Night Audit",   icon: Shield },
-    { href: "/hotel-bookings",      label: "Bookings",      icon: Boxes },
-    { href: "/hotel-check-in",      label: "Check-in",      icon: Activity },
-  ])
-  const hotelFrontDeskItems = gateHotel([
-    { href: "/hotel-bookings",     label: "Bookings",      icon: Boxes },
-    { href: "/hotel-availability", label: "Availability",  icon: Activity },
-    { href: "/hotel-check-in",     label: "Check-in",      icon: Activity },
-    { href: "/hotel-check-out",    label: "Check-out",     icon: Activity },
-    { href: "/hotel-guests",       label: "Guests",        icon: Users },
-    { href: "/hotel-guest-folio",  label: "Guest Folio",   icon: FileText },
-    // From the old Finance list, beside the folio it is issued from; matches
-    // Operations > Front Desk in lib/nav/hotel-nav-config.ts.
-    { href: "/hotel-invoices",     label: "Invoices",      icon: FileText },
-    { href: "/hotel-stay-history", label: "Stay History",  icon: FileText },
-  ])
-  const hotelGuestServicesItems = gateHotel([
-    { href: "/hotel-communications",  label: "Guest Log",    icon: FileText },
-    { href: "/hotel-guest-requests",  label: "Requests",     icon: Activity },
-    { href: "/hotel-lost-found",      label: "Lost & Found", icon: Boxes },
-  ])
-  const hotelRoomsItems = gateHotel([
-    { href: "/hotel-rooms",                  label: "Room Inventory",  icon: Building2 },
-    { href: "/hotel-housekeeping",           label: "Housekeeping",    icon: Activity },
-    { href: "/hotel-housekeeping-schedule",  label: "HK Schedule",     icon: Activity },
-    { href: "/hotel-room-service",           label: "Room Service",    icon: ShoppingCart },
-  ])
-  const hotelRestaurantItems = gateHotel([
-    { href: "/hotel-restaurant",        label: "POS / Orders", icon: ShoppingCart },
-    { href: "/hotel-restaurant-tables", label: "Tables",       icon: Boxes },
-    { href: "/hotel-menu",              label: "Menu",         icon: FileText },
-    { href: "/hotel-kitchen",           label: "Kitchen",      icon: Activity },
-  ])
-  // The old flat "Finance" list is gone: its rows are now the three Sales,
-  // Expenses & Money groups read from hotelNav.salesMoney (see the render
-  // below), plus Invoices in Front Desk and Customers / Customer Payments /
-  // Suppliers in Setup > Finance. Payroll and Employee Loans & Advances left
-  // People for the Expenses column, where Poultry has them.
-  const hotelPeopleItems = gateHotel([
-    { href: "/hotel-staff",           label: "Staff",            icon: UserCog },
-  ])
-  const hotelInventoryItems = gateHotel([
-    { href: "/hotel-inventory",   label: "Supplies",     icon: Boxes },
-    { href: "/hotel-maintenance", label: "Maintenance",  icon: Wrench },
-    // Shift Handover moved here from Reports: it is a shift-operations record,
-    // not a report, and Reports should list reports and nothing else.
-    { href: "/hotel-shift-handover", label: "Shift Handover", icon: FileText },
-  ])
+  // Kept as a gate and inlineLead for the mobile drawer's Reports section.
   const hotelReportsItems = gateHotel([
-    { href: "/hotel-reports",        label: "All Reports",    icon: BarChart3 },
-  ])
-  const hotelAdminItems = gateHotel([
-    { href: "/hotel-company-setup", label: "Company Setup", icon: Building2 },
-    // "Hotel Setup", not "Setup": inside a group now titled Setup, a row also
-    // called Setup read as a loop. Matches lib/nav/hotel-nav-config.ts.
-    { href: "/hotel-setup", label: "Hotel Setup", icon: Settings },
+    { href: "/hotel-reports", label: "All Reports", icon: BarChart3 },
   ])
 
   // Restaurant company nav items (shown when activeFarmType === "Restaurant")
@@ -456,68 +401,10 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const gateRestaurant = <T extends { href: string }>(items: T[]) =>
     filterRestaurantNavItems(items, permissions.featureAccess, permissions.isAdmin)
 
-  const restaurantOrdersItems = gateRestaurant([
-    { href: "/restaurant-pos",    label: "POS / New Order", icon: ShoppingCart },
-    // Guest QR orders wait here for staff to accept them before the kitchen sees
-    // them. The top-nav menu has always listed this; the sidebar did not, which
-    // left the rail with no route at all to the screen where online orders are
-    // accepted.
-    // A workload count, not a notification: it stays until the orders are
-    // actually accepted or rejected, and is deliberately NOT cleared by opening
-    // the screen the way the All Orders count is.
-    { href: "/restaurant-pending-orders", label: "New Guest Orders", icon: Inbox,
-      badge: pendingOnline || undefined, alertOnBadge: true },
-    // `|| undefined` rather than passing 0: the sidebar guards its pill with
-    // `{badge && badge > 0 && ...}`, and a leading `0 &&` short-circuits to the
-    // NUMBER 0 — which React happily renders as a visible "0". Handing it
-    // undefined instead means nothing is drawn when there is nothing to report.
-    // The same latent bug affects the shared Alerts row; see the note in
-    // plan/plan.md rather than a change here, which would touch four other modules.
-    { href: "/restaurant-orders", label: "All Orders",      icon: FileText,
-      badge: unseenOnline || undefined, alertOnBadge: true },
-  ])
-  const restaurantKitchenItems = gateRestaurant([
-    { href: "/restaurant-kds",    label: "Kitchen Display", icon: Activity },
-  ])
-  const restaurantDiningItems = gateRestaurant([
-    { href: "/restaurant-floor-plan",   label: "Restaurant Areas",      icon: Building2 },
-    { href: "/restaurant-reservations", label: "Reservations & Waitlist", icon: CalendarDays },
-  ])
-  const restaurantDeliveryOnlineItems = gateRestaurant([
-    { href: "/restaurant-online-orders", label: "Online Settings",     icon: ShoppingBag },
-    { href: "/restaurant-delivery",      label: "Drivers & Dispatch",  icon: Truck },
-  ])
-  // Reports used to sit in this list, between Ingredients and Customers. That
-  // put the profit-and-loss screen inside a group headed "Inventory", while the
-  // top nav gave Reports a menu of its own -- the two navigations disagreed
-  // about where reporting lives. It now has its own group below, matching the
-  // top nav, and is gated on canViewReports in restaurant-nav-access.ts.
-  // Inventory, Money, Expenses and Growth are separate groups, in the same
-  // order and with the same items as the top nav (lib/nav/restaurant-nav-config.ts):
-  // Money is where cash sits and moves; Expenses is what the restaurant spends on.
-  const restaurantInventoryItems = gateRestaurant([
-    { href: "/restaurant-inventory", label: "Ingredients & Stock", icon: Boxes },
-  ])
-  // Money and Expenses are no longer hand-written here: they are the three
-  // Sales, Expenses & Money groups read from restaurantNav.salesMoney, and
-  // Tills & Shifts / Daily Closing moved to Quick Links -- the same rows, in
-  // the same order, as the top nav.
-  const restaurantGrowthItems = gateRestaurant([
-    { href: "/restaurant-crm",           label: "Customers & CRM",    icon: Users },
-    { href: "/restaurant-loyalty",       label: "Loyalty & Rewards",  icon: CreditCard },
-    { href: "/restaurant-events",        label: "Events & Catering",  icon: CalendarDays },
-    { href: "/restaurant-gift-cards",    label: "Gift Cards",         icon: CreditCard },
-    { href: "/restaurant-notifications", label: "Notifications",      icon: Bell },
-  ])
-  // Its own group, mirroring the top nav's Reports mega-menu. The rail links to
-  // the catalog; the 24 individual reports live under it.
+  // The rail links to the catalog; the 24 individual reports live under it.
+  // Kept as a gate and inlineLead for the mobile drawer's Reports section.
   const restaurantReportsItems = gateRestaurant([
     { href: "/restaurant-reports", label: "Reports", icon: BarChart3 },
-  ])
-  const restaurantMenuSetupItems = gateRestaurant([
-    { href: "/restaurant-menu",   label: "Menu Items",      icon: UtensilsCrossed },
-    { href: "/restaurant-staff",  label: "Staff",           icon: UserCog },
-    { href: "/restaurant-setup",  label: "Restaurant Setup", icon: Settings },
   ])
 
   // System — was a flat, unlabelled block at the bottom of the rail; now a real
@@ -533,11 +420,10 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const waterNav = isWater
     ? buildWaterNavConfig({ permissions, onOpenAlerts: openAlerts, alertCount: alerts.length, quickLinkHrefs })
     : null
-  // Hotel and Restaurant read their rail's config for the Sales, Expenses &
-  // Money groups (and Restaurant's Quick Links), so those rows cannot drift
-  // from the top nav. The rest of both lists is still hand-written below.
+  // Hotel and Restaurant are fully generated from their nav configs, the same
+  // way Poultry and Water are, so the sidebar and top nav cannot drift apart.
   const hotelNav = isHotel ? buildHotelNavConfig({ permissions }) : null
-  const restaurantNav = isRestaurant ? buildRestaurantNavConfig({}, permissions) : null
+  const restaurantNav = isRestaurant ? buildRestaurantNavConfig({ unseenOnlineOrders: unseenOnline, pendingGuestOrders: pendingOnline }, permissions) : null
 
   // Reports is a menu on the rail, not a config section: its contents come from
   // lib/reports/*-reports-config.ts and run to dozens of rows, which would bury
@@ -929,66 +815,85 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
           </>
         ) : isHotel ? (
           <>
-            {renderGroup("Quick Links", hotelQuickLinkItems, "hotelQuickLinks")}
-            <div className="border-t border-slate-800 mx-2" />
-            {renderGroup("Front Desk", hotelFrontDeskItems, "hotelFrontDesk")}
-            <div className="border-t border-slate-800 mx-2" />
-            {renderGroup("Guest Services", hotelGuestServicesItems, "hotelGuestServices")}
-            <div className="border-t border-slate-800 mx-2" />
-            {renderGroup("Rooms", hotelRoomsItems, "hotelRooms")}
-            <div className="border-t border-slate-800 mx-2" />
-            {renderGroup("Restaurant & Bar", hotelRestaurantItems, "hotelRestaurant")}
-            <div className="border-t border-slate-800 mx-2" />
-            {/* Three adjacent groups with no divider between them, so they
-                still read as the one "Sales, Expenses & Money" menu -- the
-                same treatment as Poultry's below. */}
-            {renderGroups(fromMegaMenu(hotelNav!.salesMoney, "hotelMoney"))}
-            <div className="border-t border-slate-800 mx-2" />
-            {renderGroup("People", hotelPeopleItems, "hotelPeople")}
-            <div className="border-t border-slate-800 mx-2" />
-            {renderGroup("Inventory", hotelInventoryItems, "hotelInventory")}
-            <div className="border-t border-slate-800 mx-2" />
-            {renderGroup("Reports", hotelReportsItems, "hotelReports")}
-            <div className="border-t border-slate-800 mx-2" />
-            {renderGroup("Setup", hotelAdminItems, "hotelAdmin")}
-            {renderGroups(fromMegaMenu(hotelNav!.setup.filter((g) => g.key === "finance"), "hotelSetup", "Setup · "))}
+            {renderMenu("Quick Links", Star, [{
+              key: "quick",
+              label: "Quick Links",
+              items: hotelNav!.quickLinks.items.map((i) => ({ id: i.href, title: i.label, icon: i.icon, href: i.href })),
+            }], "menu:hotelQuickLinks", {
+              blurb: "The pages you open most days.", columns: 1,
+            })}
+
+            <div className="space-y-1">
+              {renderMenu("Operations", Factory, hotelNav!.operations, "menu:hotelOps", {
+                blurb: "Front desk, guest services, rooms and housekeeping.",
+                columns: 3,
+              })}
+              {renderMenu("Restaurant & Bar", UtensilsCrossed, hotelNav!.restaurant, "menu:hotelRestaurant", {
+                blurb: "Orders, menu, kitchen and tables.",
+                columns: 1,
+              })}
+              {renderMenu("Sales, Expenses & Money", Wallet, hotelNav!.salesMoney, "menu:hotelMoney", {
+                blurb: "Sales, expenses, payments, payroll, cash and financial activity.",
+                columns: 3,
+              })}
+              {hotelReportsItems.length > 0 && renderMenu("Reports", BarChart3, HOTEL_REPORT_NAV_GROUPS, "menu:hotelReports", {
+                blurb: "Occupancy, revenue, housekeeping and operational reports.",
+                columns: 3,
+                viewAll: { href: "/hotel-reports", label: "View all reports →" },
+                activeHrefs: ["/hotel-reports"],
+              }, [{ key: "hotelReports:all", title: "All reports", items: hotelReportsItems }])}
+              {renderMenu("Setup", Settings, hotelNav!.setup, "menu:hotelSetup", {
+                blurb: "Hotel configuration, staff, finance and facilities.",
+                columns: 2,
+              })}
+            </div>
           </>
         ) : isRestaurant ? (
           <>
-            {renderGroup("Quick Links", fromNavGroup(restaurantNav!.quickLinks), "restaurantQuickLinks")}
-            <div className="border-t border-slate-800 mx-2" />
-            {renderGroup("Orders", restaurantOrdersItems, "restaurantOrders")}
-            <div className="border-t border-slate-800 mx-2" />
-            {renderGroup("Kitchen", restaurantKitchenItems, "restaurantKitchen")}
-            <div className="border-t border-slate-800 mx-2" />
-            {renderGroup("Dining", restaurantDiningItems, "restaurantDining")}
-            <div className="border-t border-slate-800 mx-2" />
-            {renderGroup("Delivery & Online", restaurantDeliveryOnlineItems, "restaurantDeliveryOnline")}
-            <div className="border-t border-slate-800 mx-2" />
-            {renderGroup("Inventory", restaurantInventoryItems, "restaurantInventory")}
-            {/* Three adjacent groups, no divider between them: the one
-                "Sales, Expenses & Money" menu. Empty groups are dropped by
-                fromMegaMenu, and the divider goes with them. */}
-            {fromMegaMenu(restaurantNav!.salesMoney, "restaurantMoney").length > 0 && (
-              <>
-                <div className="border-t border-slate-800 mx-2" />
-                {renderGroups(fromMegaMenu(restaurantNav!.salesMoney, "restaurantMoney"))}
-              </>
-            )}
-            {restaurantGrowthItems.length > 0 && (
-              <>
-                <div className="border-t border-slate-800 mx-2" />
-                {renderGroup("Growth", restaurantGrowthItems, "restaurantGrowth")}
-              </>
-            )}
-            {restaurantReportsItems.length > 0 && (
-              <>
-                <div className="border-t border-slate-800 mx-2" />
-                {renderGroup("Reports", restaurantReportsItems, "restaurantReports")}
-              </>
-            )}
-            <div className="border-t border-slate-800 mx-2" />
-            {renderGroup("Menu & Setup", restaurantMenuSetupItems, "restaurantMenuSetup")}
+            {renderMenu("Quick Links", Star, [{
+              key: "quick",
+              label: "Quick Links",
+              items: restaurantNav!.quickLinks.items.map((i) => ({ id: i.href, title: i.label, icon: i.icon, href: i.href })),
+            }], "menu:restaurantQuickLinks", {
+              blurb: "The pages you open most days.", columns: 1,
+            })}
+
+            <div className="space-y-1">
+              {renderMenu("Orders & Kitchen", ShoppingCart, restaurantNav!.ordersKitchen, "menu:restaurantOrders", {
+                blurb: "Take orders, manage the kitchen display.",
+                columns: 2,
+              })}
+              {renderMenu("Dining", Building2, restaurantNav!.dining, "menu:restaurantDining", {
+                blurb: "Floor plan, reservations and waitlist.",
+                columns: 1,
+              })}
+              {renderMenu("Delivery & Online", Truck, restaurantNav!.deliveryOnline, "menu:restaurantDelivery", {
+                blurb: "Online ordering, QR codes and delivery dispatch.",
+                columns: 2,
+              })}
+              {renderMenu("Inventory", Boxes, restaurantNav!.inventoryReports, "menu:restaurantInventory", {
+                blurb: "Ingredients, stock and purchases.",
+                columns: 1,
+              })}
+              {renderMenu("Sales, Expenses & Money", Wallet, restaurantNav!.salesMoney, "menu:restaurantMoney", {
+                blurb: "Sales, expenses, payments, payroll, cash and financial activity.",
+                columns: 3,
+              })}
+              {renderMenu("Growth", Users, restaurantNav!.growth, "menu:restaurantGrowth", {
+                blurb: "Customers, loyalty, events, gift cards and notifications.",
+                columns: 2,
+              })}
+              {restaurantReportsItems.length > 0 && renderMenu("Reports", BarChart3, RESTAURANT_REPORT_NAV_GROUPS, "menu:restaurantReports", {
+                blurb: "Sales, inventory, financial and operational reports.",
+                columns: 3,
+                viewAll: { href: "/restaurant-reports", label: "View all reports →" },
+                activeHrefs: ["/restaurant-reports"],
+              }, [{ key: "restaurantReports:all", title: "All reports", items: restaurantReportsItems }])}
+              {renderMenu("Setup", Settings, restaurantNav!.setup, "menu:restaurantSetup", {
+                blurb: "Menu items, staff, restaurant configuration and suppliers.",
+                columns: 2,
+              })}
+            </div>
           </>
         ) : isGeneric ? (
           <>
@@ -1121,6 +1026,22 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
               items: i === 0 ? [{ id: "account", title: "Account", icon: User, href: "/profile" }, ...g.items] : g.items,
             })), "menu:waterSystem", {
               blurb: "Alerts, activity, help, terms.", columns: 1,
+            })
+          : hotelNav
+          // Hotel: System menu from the nav config.
+          ? renderMenu("System", User, hotelNav.system.map((g, i) => ({
+              ...g,
+              items: i === 0 ? [{ id: "account", title: "Account", icon: User, href: "/profile" }, ...g.items] : g.items,
+            })), "menu:hotelSystem", {
+              blurb: "Account, companies, billing.", columns: 1,
+            })
+          : restaurantNav
+          // Restaurant: System menu from the nav config.
+          ? renderMenu("System", User, restaurantNav.system.map((g, i) => ({
+              ...g,
+              items: i === 0 ? [{ id: "account", title: "Account", icon: User, href: "/profile" }, ...g.items] : g.items,
+            })), "menu:restaurantSystem", {
+              blurb: "Account, companies, billing.", columns: 1,
             })
           : renderGroup("System", systemItems, "system")}
       </nav>

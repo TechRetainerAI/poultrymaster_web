@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 
@@ -12,6 +13,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // with a free-text Category.
     [ApiController]
     [Route("api/Poultry/company")]
+    [RequireCompanyType("Poultry")]
     public class PoultryCompanyController : ControllerBase
     {
         private readonly IPoultryCompanyService _svc;

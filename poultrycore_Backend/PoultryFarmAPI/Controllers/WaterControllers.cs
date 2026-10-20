@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 
@@ -9,6 +10,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // =========================================================================
     [ApiController]
     [Route("api/Water/products")]
+    [RequireCompanyType("Water")]
     public class WaterProductController : ControllerBase
     {
         private readonly IWaterProductService _svc;
@@ -82,6 +84,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // =========================================================================
     [ApiController]
     [Route("api/Water/customers")]
+    [RequireCompanyType("Water")]
     public class WaterCustomerController : ControllerBase
     {
         private readonly IWaterCustomerService _svc;
@@ -151,6 +154,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // =========================================================================
     [ApiController]
     [Route("api/Water/stock")]
+    [RequireCompanyType("Water")]
     public class WaterStockController : ControllerBase
     {
         private readonly IWaterStockService _svc;
@@ -181,6 +185,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // =========================================================================
     [ApiController]
     [Route("api/Water/sales")]
+    [RequireCompanyType("Water")]
     public class WaterSaleController : ControllerBase
     {
         private readonly IWaterSaleService _svc;
@@ -236,6 +241,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // =========================================================================
     [ApiController]
     [Route("api/Water/payments")]
+    [RequireCompanyType("Water")]
     public class WaterPaymentController : ControllerBase
     {
         private readonly IWaterPaymentService _svc;
@@ -270,6 +276,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // =========================================================================
     [ApiController]
     [Route("api/Water/dashboard")]
+    [RequireCompanyType("Water")]
     public class WaterDashboardController : ControllerBase
     {
         private readonly IWaterDashboardService _svc;

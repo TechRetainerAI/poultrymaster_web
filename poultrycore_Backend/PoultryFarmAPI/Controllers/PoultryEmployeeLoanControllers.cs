@@ -10,6 +10,7 @@
 // anything being wired up (spec section 79).
 
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 
@@ -17,6 +18,7 @@ namespace PoultryFarmAPIWeb.Controllers
 {
     [ApiController]
     [Route("api/Poultry/employee-loans")]
+    [RequireCompanyType("Poultry")]
     public class PoultryEmployeeLoanController : ControllerBase
     {
         private readonly IPoultryEmployeeLoanService _svc;
@@ -188,6 +190,7 @@ namespace PoultryFarmAPIWeb.Controllers
     /// </summary>
     [ApiController]
     [Route("api/Poultry/payroll-deductions")]
+    [RequireCompanyType("Poultry")]
     public class PoultryPayrollDeductionController : ControllerBase
     {
         private readonly IPoultryEmployeeLoanService _svc;

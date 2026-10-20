@@ -6,6 +6,7 @@
 // that could "correct" it here would be a second source of truth.
 
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 
@@ -13,6 +14,7 @@ namespace PoultryFarmAPIWeb.Controllers
 {
     [ApiController]
     [Route("api/Poultry/inventory-valuation")]
+    [RequireCompanyType("Poultry")]
     public class PoultryInventoryValuationController : ControllerBase
     {
         private readonly IPoultryInventoryValuationService _svc;

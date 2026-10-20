@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization; using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business; using PoultryFarmAPIWeb.Helpers; using PoultryFarmAPIWeb.Models;
 using System.ComponentModel.DataAnnotations;
 
@@ -8,6 +9,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // Loyalty Controller
     // =========================================================================
     [ApiController][Authorize][Route("api/Restaurant/loyalty")]
+    [RequireCompanyType("Restaurant")]
     public class RestaurantLoyaltyController : ControllerBase
     {
         private readonly IRestaurantLoyaltyService _svc;
@@ -52,6 +54,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // Notification Controller
     // =========================================================================
     [ApiController][Authorize][Route("api/Restaurant/notifications")]
+    [RequireCompanyType("Restaurant")]
     public class RestaurantNotificationController : ControllerBase
     {
         private readonly IRestaurantNotificationService _svc;
@@ -82,6 +85,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // Event Controller
     // =========================================================================
     [ApiController][Authorize][Route("api/Restaurant/events")]
+    [RequireCompanyType("Restaurant")]
     public class RestaurantEventController : ControllerBase
     {
         private readonly IRestaurantEventService _svc;
@@ -109,6 +113,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // Gift Card Controller
     // =========================================================================
     [ApiController][Authorize][PoultryFarmAPIWeb.Filters.RestaurantBusinessRuleFilter][Route("api/Restaurant/gift-cards")]
+    [RequireCompanyType("Restaurant")]
     public class RestaurantGiftCardController : ControllerBase
     {
         private readonly IRestaurantGiftCardService _svc;
@@ -152,6 +157,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // Expense Controller
     // =========================================================================
     [ApiController][Authorize][PoultryFarmAPIWeb.Filters.RestaurantBusinessRuleFilter][Route("api/Restaurant/expenses")]
+    [RequireCompanyType("Restaurant")]
     public class RestaurantExpenseController : ControllerBase
     {
         private readonly IRestaurantExpenseService _svc;
@@ -201,6 +207,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // Restaurant Staff Controller
     // =========================================================================
     [ApiController][Authorize][Route("api/Restaurant/staff")]
+    [RequireCompanyType("Restaurant")]
     public class RestaurantStaffController : ControllerBase
     {
         private readonly IRestaurantStaffService _svc;

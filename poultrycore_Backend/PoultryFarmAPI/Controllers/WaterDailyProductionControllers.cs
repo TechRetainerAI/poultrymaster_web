@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 
@@ -14,6 +15,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // =========================================================================
     [ApiController]
     [Route("api/Water/daily-productions")]
+    [RequireCompanyType("Water")]
     public class WaterDailyProductionController : ControllerBase
     {
         private readonly IWaterDailyProductionService _svc;

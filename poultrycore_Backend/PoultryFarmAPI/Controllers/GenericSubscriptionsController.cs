@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 
@@ -21,6 +22,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // =========================================================================
     [ApiController]
     [Route("api/generic-company/{farmId}")]
+    [RequireCompanyType("Generic")]
     public class GenericBusinessTemplateController : ControllerBase
     {
         private readonly IGenericBusinessTemplateService _svc;
@@ -124,6 +126,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // =========================================================================
     [ApiController]
     [Route("api/generic-company/{farmId}")]
+    [RequireCompanyType("Generic")]
     public class GenericSubscriptionsController : ControllerBase
     {
         private readonly IGenericSubscriptionService _svc;
@@ -210,6 +213,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // =========================================================================
     [ApiController]
     [Route("api/generic-company/{farmId}/billing-runs")]
+    [RequireCompanyType("Generic")]
     public class GenericBillingRunsController : ControllerBase
     {
         private readonly IGenericBillingService _svc;
@@ -275,6 +279,7 @@ namespace PoultryFarmAPIWeb.Controllers
     /// </summary>
     [ApiController]
     [Route("api/generic-company/{farmId}/invoices")]
+    [RequireCompanyType("Generic")]
     public class GenericInvoicesController : ControllerBase
     {
         private readonly IGenericBillingService _svc;
