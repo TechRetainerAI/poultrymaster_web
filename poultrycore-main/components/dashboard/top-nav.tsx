@@ -254,12 +254,13 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
              gutter out and was 2rem short):
                32 panel padding + 32 gutter + 2x16 grid gaps
                + per column: 16 px-2 + 16 icon + 8 gap + ~7.6px per character
-             Sales "Customer Balances" 17ch=129 -> 169px; Expenses "Capital
-             Investments/Assets" 26ch=198 -> 238px; Money "Cash Transfers" /
-             "Reconciliation" 14ch=106 -> 146px. 96 + 169 + 238 + 146 = 649px,
-             so 41rem = 656px. Rows `truncate`, so err wide.
-             (Was 35rem when Expenses topped out at "Supplier Payments".) */
-          columns={3} widthRem={41} layout="grid" fitColumns
+             Sales "Customer Balances" 17ch=129 -> 169px; Expenses "Supplier
+             Credits & Advances" 27ch=205 -> 245px; Money "Cash Transfers" /
+             "Reconciliation" 14ch=106 -> 146px. 96 + 169 + 245 + 146 = 656px,
+             so 42rem = 672px. Rows `truncate`, so err wide.
+             (Was 35rem when Expenses topped out at "Supplier Payments", 41rem
+             at "Capital Investments/Assets".) */
+          columns={3} widthRem={42} layout="grid" fitColumns
         />
 
         {/* Trackers is a menu, not a destination — there is no landing page,
