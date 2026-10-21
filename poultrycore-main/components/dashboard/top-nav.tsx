@@ -254,12 +254,13 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
              gutter out and was 2rem short):
                32 panel padding + 32 gutter + 2x16 grid gaps
                + per column: 16 px-2 + 16 icon + 8 gap + ~7.6px per character
-             Sales "Customer Balances" 17ch=129 -> 169px; Expenses "Capital
-             Investments/Assets" 26ch=198 -> 238px; Money "Cash Transfers" /
-             "Reconciliation" 14ch=106 -> 146px. 96 + 169 + 238 + 146 = 649px,
-             so 41rem = 656px. Rows `truncate`, so err wide.
-             (Was 35rem when Expenses topped out at "Supplier Payments".) */
-          columns={3} widthRem={41} layout="grid" fitColumns
+             Sales "Customer Balances" 17ch=129 -> 169px; Expenses "Supplier
+             Credits & Advances" 27ch=205 -> 245px; Money "Cash Transfers" /
+             "Reconciliation" 14ch=106 -> 146px. 96 + 169 + 245 + 146 = 656px,
+             so 42rem = 672px. Rows `truncate`, so err wide.
+             (Was 35rem when Expenses topped out at "Supplier Payments", 41rem
+             at "Capital Investments/Assets".) */
+          columns={3} widthRem={42} layout="grid" fitColumns
         />
 
         {/* Trackers is a menu, not a destination — there is no landing page,
@@ -406,7 +407,7 @@ function HotelTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
 
   return (
     <div className="hidden lg:block bg-violet-600 border-b border-violet-700">
-      <div className="flex items-center gap-1 px-4 pt-1.5 pb-2.5 nav-rail-scroll">
+      <div className="flex items-center gap-1 px-4 pt-1.5 pb-2.5">
         <NavLink item={{ href: "/hotel-dashboard", label: "Dashboard", icon: Home }} accent="violet" />
         <div className="h-5 w-px bg-white/30 mx-1" />
 
@@ -415,19 +416,15 @@ function HotelTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
         <NavMegaMenu
           label="Operations" icon={Factory}
           title="Operations"
-          blurb="Front desk, rooms and housekeeping."
+          blurb="Front desk, guest services, rooms and housekeeping."
           groups={nav.operations}
-          columns={2} widthRem={32} layout="grid" accent="violet"
+          columns={3} widthRem={40} layout="grid" accent="violet"
         />
 
         <NavMegaMenu
-          /* The Poultry menu, copied word for word: same name, same blurb, same
-             three columns and the same width (see the width note on the Poultry
-             call below -- 41rem fits "Capital Investments/Assets" and the
-             columns still to come). Only the accent is Hotel's own. */
-          label="Sales, Expenses & Money" icon={Wallet}
+          label="Finance" icon={Wallet}
           title="Sales, Expenses & Money"
-          blurb="Orders, collections, expenses, cash flow and payroll."
+          blurb="Sales, expenses, payments, payroll, cash and financial activity."
           groups={nav.salesMoney}
           columns={3} widthRem={41} layout="grid" fitColumns accent="violet"
         />
@@ -447,21 +444,13 @@ function HotelTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
           viewAll={{ href: "/hotel-reports", label: "View all reports →" }}
           triggerActiveHrefs={["/hotel-reports"]}
           groups={HOTEL_REPORT_NAV_GROUPS}
-          // Same fix as the restaurant Reports menu, and for the same reason.
-          // The default layout is CSS multi-column; this panel has a definite
-          // height (`max-h-[70vh]`) and `overflow-x-hidden`, so content that
-          // overflows creates FURTHER columns sideways and they are clipped away
-          // rather than scrolled to. Hotel already had five groups against four
-          // column boxes, which silently hid Housekeeping & Inventory; adding
-          // Revenue Management makes six. A grid wraps to a second ROW instead,
-          // so six groups land as two clean rows of three and nothing is lost.
           layout="grid" columns={3} widthRem={46} accent="violet"
         />
 
         <NavMegaMenu
           label="Setup" icon={Settings}
           title="Setup"
-          blurb="Hotel configuration, staff and facilities."
+          blurb="Hotel configuration, staff, finance and facilities."
           groups={nav.setup}
           columns={2} widthRem={26.5} layout="grid" accent="violet"
         />
@@ -493,57 +482,35 @@ function RestaurantTopNav({ permissions }: { permissions: ReturnType<typeof useP
 
   return (
     <div className="hidden lg:block bg-rose-600 border-b border-rose-700">
-      <div className="flex items-center gap-1 px-4 pt-1.5 pb-2.5 nav-rail-scroll">
+      <div className="flex items-center gap-1 px-4 pt-1.5 pb-2.5">
         <NavLink item={{ href: "/restaurant-dashboard", label: "Dashboard", icon: Home }} accent="rose" />
         <div className="h-5 w-px bg-white/30 mx-1" />
-        <NavLink item={{ href: "/restaurant-pos", label: "POS", icon: ShoppingCart }} accent="rose" />
-        <div className="h-5 w-px bg-white/30 mx-1" />
 
-        {/* Where Tills & Shifts and Daily Closing live now: Poultry keeps Daily
-            Closing in Quick Links, and neither has a row in the reference
-            Sales, Expenses & Money menu. */}
         <NavDropdown group={nav.quickLinks} accent="rose" />
 
+        {/* Orders + Kitchen + Dining merged into one panel so the rail stays
+            on one line without a scrollbar. POS is the first row inside. */}
         <NavMegaMenu
-          label="Orders & Kitchen" icon={Activity}
-          title="Orders & Kitchen"
-          blurb="Place orders, track preparation and manage the kitchen display."
-          groups={nav.ordersKitchen}
-          columns={2} widthRem={28} layout="grid" accent="rose"
+          label="Orders" icon={ShoppingCart}
+          title="Orders & Dining"
+          blurb="Place orders, manage the kitchen, floor plan and reservations."
+          groups={[...nav.ordersKitchen, ...nav.dining]}
+          columns={3} widthRem={40} layout="grid" accent="rose"
+        />
+
+        {/* Delivery & Online + Inventory merged into Operations. */}
+        <NavMegaMenu
+          label="Operations" icon={Factory}
+          title="Operations"
+          blurb="Online ordering, delivery dispatch, ingredients and stock."
+          groups={[...nav.deliveryOnline, ...nav.inventoryReports]}
+          columns={3} widthRem={38} layout="grid" accent="rose"
         />
 
         <NavMegaMenu
-          label="Dining" icon={Building2}
-          title="Dining"
-          blurb="Floor plan, table management, reservations and waitlist."
-          groups={nav.dining}
-          columns={2} widthRem={28} layout="grid" accent="rose"
-        />
-
-        <NavMegaMenu
-          label="Delivery & Online" icon={Truck}
-          title="Delivery & Online Ordering"
-          blurb="Online ordering, QR table ordering, delivery drivers and dispatch."
-          groups={nav.deliveryOnline}
-          columns={2} widthRem={30} layout="grid" accent="rose"
-        />
-
-        <NavMegaMenu
-          label="Inventory" icon={Package}
-          title="Inventory"
-          blurb="Ingredients and stock levels."
-          groups={nav.inventoryReports}
-          columns={1} widthRem={18} layout="grid" accent="rose"
-        />
-
-        <NavMegaMenu
-          /* The Poultry menu, copied word for word: same name, same blurb, same
-             three columns and the same width (see the width note on the Poultry
-             call below). Replaces the separate Money and Expenses menus. Only
-             the accent is the Restaurant's own. */
-          label="Sales, Expenses & Money" icon={Wallet}
+          label="Finance" icon={Wallet}
           title="Sales, Expenses & Money"
-          blurb="Orders, collections, expenses, cash flow and payroll."
+          blurb="Sales, expenses, payments, payroll, cash and financial activity."
           groups={nav.salesMoney}
           columns={3} widthRem={41} layout="grid" fitColumns accent="rose"
         />
@@ -555,22 +522,6 @@ function RestaurantTopNav({ permissions }: { permissions: ReturnType<typeof useP
           viewAll={{ href: "/restaurant-reports", label: "View all reports →" }}
           triggerActiveHrefs={["/restaurant-reports"]}
           groups={RESTAURANT_REPORT_NAV_GROUPS}
-          // layout="grid", NOT the default multi-column, and 3 columns for 5
-          // groups.
-          //
-          // The default layout is CSS multi-column, and this panel has a
-          // definite height (`max-h-[70vh]`). When multi-column content exceeds
-          // a definite height it does not wrap to a new row -- it creates
-          // FURTHER columns in the inline direction. The panel also sets
-          // `overflow-x-hidden`, so those extra columns are clipped rather than
-          // scrolled to. With four column boxes and five groups, the fifth
-          // group (Guests & Channels) was created off the right edge and then
-          // clipped out of existence: present in the DOM, unreachable on screen.
-          //
-          // A grid wraps to a second ROW instead, so every group stays visible.
-          // Three columns rather than five keeps the panel at ~46rem, which
-          // fits a 1366px laptop with room to spare; five would need ~72rem and
-          // would start colliding with the viewport clamp.
           layout="grid" columns={3} widthRem={46} accent="rose"
         />
 
@@ -587,7 +538,7 @@ function RestaurantTopNav({ permissions }: { permissions: ReturnType<typeof useP
           title="Menu & Setup"
           blurb="Menu items, staff management, and restaurant configuration."
           groups={nav.setup}
-          columns={1} widthRem={18} layout="grid" accent="rose"
+          columns={2} widthRem={26} layout="grid" accent="rose"
         />
 
         <div className="ml-auto flex items-center gap-1">

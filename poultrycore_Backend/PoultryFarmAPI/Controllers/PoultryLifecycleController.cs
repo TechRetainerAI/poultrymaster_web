@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using Npgsql;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
@@ -27,6 +28,7 @@ namespace PoultryFarmAPIWeb.Controllers
     /// </summary>
     [ApiController]
     [Route("api/Poultry/lifecycle")]
+    [RequireCompanyType("Poultry")]
     public class PoultryLifecycleController : ControllerBase
     {
         private readonly IPoultryLifecycleService _svc;

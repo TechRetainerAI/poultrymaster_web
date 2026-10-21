@@ -12,6 +12,7 @@ import 'package:poultrycore_mobile/pages/poultry/inventory/health_records_screen
 import 'package:poultrycore_mobile/pages/poultry/inventory/inventory_screen.dart';
 import 'package:poultrycore_mobile/pages/poultry/inventory/loss_records_screen.dart';
 import 'package:poultrycore_mobile/pages/poultry/inventory/stock_movements_screen.dart';
+import 'package:poultrycore_mobile/pages/poultry/poultry_extras.dart';
 
 import 'support/harness.dart';
 
@@ -174,13 +175,132 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('Pick an item'), findsOneWidget);
     clearToasts(tester);
+    a
+      ..gets['/api/Poultry/stock/manual-movements/preview'] = {
+        'isBirds': false, 'systemRole': null, 'isEgg': false, 'itemOnHand': 10, 'farmLiveBirds': 0, 'deadBirdsOnHand': 0,
+        'brokenEggsOnHand': 0, 'businessDate': '2099-12-31',
+      }
+      ..writeAnswers['/api/Poultry/stock/manual-movements'] = {'movementId': 4, 'movementNo': 'MSM-00004', 'repeated': false};
     await choose(tester, 'Pick a finished product, raw material or supply', 'Maize — FeedIngredient', within: _dialog);
     await choose(tester, 'Increase', 'Damage/Loss', within: _dialog);
+    await choose(tester, 'Choose the reason', 'Loss', within: _dialog);
     await tester.enterText(find.descendant(of: _dialog, matching: find.byType(TextField)).first, '3');
+    await tester.pumpAndSettle();
+    expect(find.text('Maize on hand'), findsOneWidget);
+    expect(find.text('10 → 7', findRichText: true), findsOneWidget);
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
-    final b = lastBody(a, '/api/Poultry/raw-material-items/5/adjust');
-    expect((b['quantity'], b['movementType'], b['note']), (-3, 'Damage/Loss', 'Manual stock adjustment'));
+    final b = lastBody(a, '/api/Poultry/stock/manual-movements');
+    expect((b['rawMaterialItemId'], b['poultryProductId'], b['movementType'], b['quantity'], b['reason'], b['batchId']),
+        (5, null, 'Damage/Loss', 3, 'Loss', null));
+    expect(b['effectiveDate'], isNotEmpty);
+    expect(b['requestKey'], isNotEmpty);
+  });
+
+  test('Products: Add stock is not offered on Birds (adjusted per flock on the Stock page)', () {
+    final addStock = poultryRecordExtras['poultry-products']!.firstWhere((x) => x.label == 'Add stock');
+    expect(addStock.when!(Map<String, dynamic>.from(birds)), isFalse);
+    expect(addStock.when!(Map<String, dynamic>.from(eggs)), isTrue);
+    expect(moveTone('Bird Adjustment').$2, const Color(0xFF6D28D9));
+    expect(moveTone('Something new').$1, isNot(const Color(0xFFF3F4F6)), reason: 'dark on grey, readable');
+  });
+
+  testWidgets('stock movements: Birds need the batch and the flock; the count before and after', (tester) async {
+    final a = api()
+      ..gets['/api/Poultry/stock/birds/options'] = [
+        {'batchId': 1, 'batchCode': 'B-001', 'batchName': 'Layers', 'batchBirds': 520, 'unplacedBirds': 20, 'flockId': 7, 'flockName': 'Pen 1',
+          'liveBirds': 480, 'lastCountDate': '2026-10-05T00:00:00', 'hasProductionRecord': true, 'isClosed': false},
+        {'batchId': 1, 'batchCode': 'B-001', 'batchName': 'Layers', 'batchBirds': 520, 'unplacedBirds': 20, 'flockId': 8, 'flockName': 'Old pen',
+          'liveBirds': 0, 'hasProductionRecord': true, 'isClosed': true},
+      ]
+      ..gets['/api/Poultry/stock/manual-movements/preview'] = {
+        'isBirds': true, 'systemRole': null, 'isEgg': false, 'itemOnHand': null, 'flockLiveBirds': 480, 'unplacedBirds': 20,
+        'farmLiveBirds': 480, 'deadBirdsOnHand': 2, 'brokenEggsOnHand': 0, 'businessDate': '2099-12-31',
+      }
+      ..writeAnswers['/api/Poultry/stock/manual-movements'] = {'movementId': 5, 'movementNo': 'MSM-00005', 'repeated': false};
+    await open(tester, StockMovementsScreen(session: await sessionFor(a), company: company), size: phone);
+    await tap(tester, find.text('New movement'));
+    await choose(tester, 'Pick a finished product, raw material or supply', 'Birds', within: _dialog);
+    expect(find.text('Unit cost / value'), findsNothing, reason: 'birds have no unit cost');
+    expect(find.text('Birds are counted per flock.'), findsOneWidget);
+    await tester.enterText(find.descendant(of: _dialog, matching: find.byType(TextField)).first, '5');
+    await tester.pump();
+    await choose(tester, 'Increase', 'Damage/Loss', within: _dialog);
+    await choose(tester, 'Choose the reason', 'Historical Mortality', within: _dialog);
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Choose the batch'), findsWidgets);
+    clearToasts(tester);
+    await choose(tester, 'Choose the batch', 'B-001 — Layers', within: _dialog);
+    await choose(tester, 'Choose the flock', 'Pen 1 · 480 birds', within: _dialog);
+    expect(find.text('480 → 475', findRichText: true), findsWidgets, reason: 'the flock and the farm');
+    expect(find.text('2 → 7', findRichText: true), findsOneWidget, reason: 'kept as Dead Birds');
+    await choose(tester, 'Keep in Dead Bird inventory', 'Already disposed', within: _dialog);
+    expect(find.text('2 → 2', findRichText: true), findsOneWidget);
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    final b = lastBody(a, '/api/Poultry/stock/manual-movements');
+    expect((b['poultryProductId'], b['batchId'], b['flockId'], b['movementType'], b['quantity'], b['reason'], b['disposition'], b['unitCost']),
+        (2, 1, 7, 'Damage/Loss', 5, 'Historical Mortality', 'Disposed', null));
+    expect(a.writes.where((w) => w.url.path == '/api/Poultry/stock/birds/adjustments'), isEmpty);
+  });
+
+  testWidgets('stock movements: a closed flock cannot be picked; the unplaced birds can', (tester) async {
+    final a = api()
+      ..gets['/api/Poultry/stock/birds/options'] = [
+        {'batchId': 1, 'batchCode': 'B-001', 'batchName': '', 'unplacedBirds': 20, 'flockId': 8, 'flockName': 'Old pen',
+          'liveBirds': 0, 'hasProductionRecord': true, 'isClosed': true},
+      ]
+      ..gets['/api/Poultry/stock/manual-movements/preview'] = {
+        'isBirds': true, 'systemRole': null, 'isEgg': false, 'flockLiveBirds': null, 'unplacedBirds': 20, 'farmLiveBirds': 0,
+        'deadBirdsOnHand': 0, 'brokenEggsOnHand': 0, 'businessDate': '2099-12-31',
+      };
+    await open(tester, StockMovementsScreen(session: await sessionFor(a), company: company), size: phone);
+    await tap(tester, find.text('New movement'));
+    await choose(tester, 'Pick a finished product, raw material or supply', 'Birds', within: _dialog);
+    await choose(tester, 'Choose the batch', 'B-001', within: _dialog);
+    await tester.tap(find.descendant(of: _dialog, matching: find.text('Choose the flock')));
+    await tester.pumpAndSettle();
+    final closed = tester.widget<DropdownMenuItem<String>>(
+        find.ancestor(of: find.text('Old pen · closed').last, matching: find.byType(DropdownMenuItem<String>)));
+    expect(closed.enabled, isFalse);
+    await tester.tap(find.text('Not placed in a flock · 20 birds').last);
+    await tester.pumpAndSettle();
+    await choose(tester, 'Increase', 'Decrease', within: _dialog);
+    await choose(tester, 'Choose the reason', 'Cull', within: _dialog);
+    await tester.enterText(find.descendant(of: _dialog, matching: find.byType(TextField)).first, '25');
+    await tester.pumpAndSettle();
+    expect(find.text('Batch B-001 birds not in a flock'), findsOneWidget);
+    expect(find.text('20 → -5', findRichText: true), findsOneWidget);
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(find.text('Not enough stock — Batch B-001 birds not in a flock: only 20.'), findsOneWidget);
+    expect(a.writes, isEmpty);
+  });
+
+  testWidgets('stock movements: a manual movement shows its number, batch / flock and reason, and reverses', (tester) async {
+    final a = api()
+      ..gets['/api/Poultry/stock/transactions'] = [
+        {'poultryStockTransactionId': 3, 'createdDate': '2026-10-05T08:00:00', 'productName': 'Eggs', 'txnType': 'Damage/Loss', 'quantity': -10,
+          'manualMovementId': 3, 'reason': 'Damage', 'batchCode': 'B-001', 'flockName': 'Pen 1'},
+      ]
+      ..gets['/api/Poultry/stock/manual-movements'] = [
+        {'movementId': 3, 'movementNo': 'MSM-00003', 'status': 'Posted', 'itemKind': 'Product', 'itemName': 'Eggs', 'quantity': -10,
+          'reason': 'Damage', 'effectiveDate': '2026-10-05', 'batchCode': 'B-001', 'flockName': 'Pen 1'},
+      ];
+    await open(tester, StockMovementsScreen(session: await sessionFor(a), company: company), size: phone);
+    await see(tester, find.textContaining('Manual movement MSM-00003', findRichText: true));
+    expect(find.textContaining('B-001 / Pen 1', findRichText: true), findsOneWidget);
+    await choose(tester, 'All reasons', 'Damage');
+    await choose(tester, 'All batches / flocks', 'B-001 / Pen 1');
+    await see(tester, find.byTooltip('Reverse MSM-00003'));
+    await tester.tap(find.byTooltip('Reverse MSM-00003'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('The opposite is posted today'), findsOneWidget);
+    await choose(tester, 'Select a reason', 'Wrong quantity', within: find.byType(AlertDialog));
+    await tester.tap(find.widgetWithText(FilledButton, 'Reverse'));
+    await tester.pumpAndSettle();
+    expect(lastBody(a, '/api/Poultry/stock/manual-movements/3/reverse')['reason'], 'Wrong quantity');
   });
 
   testWidgets('health records: tabs, filter dropdowns, create with type, edit keeps the type', (tester) async {

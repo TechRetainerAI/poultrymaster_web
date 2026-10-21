@@ -13,6 +13,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using Npgsql;
 using PoultryFarmAPIWeb.Business;
 
@@ -21,6 +22,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [Authorize]
     [ApiController]
     [Route("api/Poultry/flock-alerts")]
+    [RequireCompanyType("Poultry")]
     public class PoultryFlockAlertsController : ControllerBase
     {
         private readonly IPoultryFlockAnomalyService _svc;

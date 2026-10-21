@@ -10,11 +10,13 @@ import '../../../state/session.dart';
 import '../../../widgets/module_sidebar.dart';
 import '../../shared/business_dates.dart';
 import '../../shared/company_clock.dart';
+import '../../shared/iam_permissions.dart';
 import '../money/money_widgets.dart';
 import '../reports/report_export.dart';
 import '../reports/report_format.dart';
 import '../reports/report_routes.dart' show openAppHref;
-import '../sales/balances_logic.dart' show BalanceRail, pageSlice;
+import '../sales/balances_logic.dart' show BalanceRail, BalanceSide, pageSlice;
+import '../sales/credit_widgets.dart' show showReverseWithReason;
 import '../sales/balances_widgets.dart';
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../trackers/tracker_widgets.dart';
@@ -107,8 +109,7 @@ class _SupplierPaymentsScreenState extends State<SupplierPaymentsScreen> {
   bool _loading = true;
   final Map<String, List<Map>> _allocations = {};
   final Set<String> _inflight = {};
-  String? _expanded, _reversing;
-  final _reason = TextEditingController();
+  String? _expanded;
   final _search = TextEditingController(), _min = TextEditingController(), _max = TextEditingController();
   final _f = SupplierPaymentFilters();
   String _period = 'all', _from = '', _to = '';
@@ -125,6 +126,12 @@ class _SupplierPaymentsScreenState extends State<SupplierPaymentsScreen> {
   /// no permission flags, so the Staff role is the one left out.
   bool get _canReverse => (widget.company.role ?? '').toLowerCase() != 'staff';
 
+  /// 370: Record supplier payment (poultry.supplier-payments.create).
+  bool _canRecord = false;
+
+  /// 370: a supplier debt has no page of its own.
+  bool _hasPage(Map a) => _rail.isRestaurant ? _rail.supplierDocumentHref(a).isNotEmpty : _rail.isWater || a['documentType'] != 'SupplierDebt';
+
   @override
   void initState() {
     super.initState();
@@ -136,11 +143,20 @@ class _SupplierPaymentsScreenState extends State<SupplierPaymentsScreen> {
     });
     _loadAccounts();
     _load();
+    if (_rail.isPoultry) {
+      canDo(widget.session, widget.company, 'poultry.supplier-payments.create').then((v) {
+        if (mounted) setState(() => _canRecord = v);
+      });
+    }
+  }
+
+  Future<void> _recordPayment() async {
+    if (await recordPartyPayment(context, session: widget.session, company: widget.company, side: BalanceSide.supplier)) _load();
   }
 
   @override
   void dispose() {
-    for (final c in [_reason, _search, _min, _max]) {
+    for (final c in [_search, _min, _max]) {
       c.dispose();
     }
     super.dispose();
@@ -169,10 +185,10 @@ class _SupplierPaymentsScreenState extends State<SupplierPaymentsScreen> {
 
   Future<void> _loadAccounts() async {
     try {
-      final res = await _api.get('${_rail.api}/cash-accounts', query: {'farmId': _farmId});
+      final res = await _api.get(_rail.cashAccountsPath, query: {'farmId': _farmId});
       if (mounted) {
         setState(() => _accounts = [
-              for (final a in rowsOf(res)) {'id': tIntOrNull(a[_rail.cashAccountIdKey]), 'name': tStr(a['accountName'])},
+              for (final a in rowsOf(res)) {'id': tIntOrNull(a[_rail.cashAccountIdKey]), 'name': tStr(a[_rail.cashAccountNameKey])},
             ]);
       }
     } on ApiException {
@@ -218,25 +234,29 @@ class _SupplierPaymentsScreenState extends State<SupplierPaymentsScreen> {
     return a != null && a.length == 1 ? a.first : null;
   }
 
+  /// The payment being reversed, in its own window with a reason from the list
+  /// (the same shape as reversing a customer debt). An error stays in it.
   Future<void> _doReverse(Map r) async {
-    if (_reason.text.trim().isEmpty) {
-      return trackerToast(context, 'A reason is required',
-          description: 'Say why this payment is being reversed — it is written to the audit trail.', error: true);
-    }
-    try {
-      await _api.post('${_rail.api}/supplier-payments/${Uri.encodeComponent(tStr(r['paymentId']))}/reverse',
-          body: {'farmId': _farmId, 'reason': _reason.text.trim(), 'reversedBy': widget.session.tokens.userId});
-      if (!mounted) return;
-      trackerToast(context, 'Payment reversed', description: '${_fmt(tNum(r['totalAmount']))} put back on the balance.');
-      setState(() {
-        _reversing = null;
-        _reason.clear();
-      });
-      await _load();
-    } on ApiException catch (e) {
-      if (mounted) trackerToast(context, 'Could not reverse payment', description: e.message, error: true);
-    }
+    final n = tIntOrNull(r['allocationCount']) ?? 0;
+    final ok = await showReverseWithReason(
+      context,
+      title: 'Reverse ${tStr(r['paymentNumber']).isEmpty ? 'this payment' : tStr(r['paymentNumber'])}?',
+      description: '${_fmt(tNum(r['totalAmount']))} to ${tStr(r['partyName']).isEmpty ? 'the supplier' : tStr(r['partyName'])}. '
+          '${n == 0 ? 'It was not applied to any purchase, so only the cash movement is undone. ' : 'The balance is restored on ${n == 1 ? 'the item' : 'all $n items'} it paid and the cash movement is undone. '}'
+          'The payment stays in the history, marked Reversed.',
+      body: const [],
+      action: 'Reverse payment',
+      onConfirm: (reason) => _api.post('${_rail.api}/supplier-payments/${Uri.encodeComponent(tStr(r['paymentId']))}/reverse',
+          body: {'farmId': _farmId, 'reason': reason, 'reversedBy': widget.session.tokens.userId}),
+    );
+    if (!ok || !mounted) return;
+    trackerToast(context, 'Payment reversed', description: '${_fmt(tNum(r['totalAmount']))} put back on the balance.');
+    await _load();
   }
+
+  Widget? _plToggle(Map r) => !_rail.isPoultry
+      ? null
+      : paymentPLToggle(context, session: widget.session, company: widget.company, row: r, side: BalanceSide.supplier, onChanged: _load);
 
   void _reset() {
     setState(() {
@@ -324,32 +344,6 @@ class _SupplierPaymentsScreenState extends State<SupplierPaymentsScreen> {
       ? const TBadge('Reversed', bg: Colors.white, fg: TColors.slate500, border: TColors.slate300)
       : const TBadge('Posted', bg: TColors.slate100, fg: TColors.slate800);
 
-  /// The reversal box: on the web it sits under the table row; on the phone it
-  /// sits in the card it belongs to.
-  Widget _reverseBox(Map r) {
-    final n = tIntOrNull(r['allocationCount']) ?? 0;
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: TColors.amber50, borderRadius: BorderRadius.circular(8)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        FilterLabel('Why is this being reversed?', AppInput(controller: _reason, hintText: 'e.g. paid the wrong supplier')),
-        const SizedBox(height: 8),
-        Wrap(spacing: 8, children: [
-          FilledButton(
-            onPressed: () => _doReverse(r),
-            style: FilledButton.styleFrom(backgroundColor: TColors.red600, foregroundColor: Colors.white),
-            child: const Text('Reverse payment'),
-          ),
-          TextButton(onPressed: () => setState(() => _reversing = null), child: const Text('Cancel')),
-        ]),
-        const SizedBox(height: 6),
-        Text(
-          'This reverses the whole payment and restores the balance on${n == 1 ? ' the item' : ' all $n items'} it was applied to. The cash movement is undone. The payment is kept and marked reversed, never deleted.',
-          style: const TextStyle(fontSize: 12, color: TColors.slate500),
-        ),
-      ]),
-    );
-  }
 
   Widget _allocationTable(Map r) {
     final allocs = _allocations[tStr(r['paymentId'])];
@@ -386,11 +380,13 @@ class _SupplierPaymentsScreenState extends State<SupplierPaymentsScreen> {
               Align(alignment: Alignment.centerRight, child: Text(_fmt(tNum(a['amountApplied'])), style: const TextStyle(fontWeight: FontWeight.w500))),
               Align(alignment: Alignment.centerRight, child: Text(_fmt(tNum(a['balanceAfter'])))),
               Align(alignment: Alignment.centerLeft, child: _statusBadge(a)),
-              IconButton(
-                tooltip: 'Open the item this paid',
-                onPressed: () => _href(supplierDocumentHref(a, _rail), payableTypeLabel(a['documentType'])),
-                icon: const Icon(Icons.open_in_new, size: 16),
-              ),
+              _hasPage(a)
+                  ? IconButton(
+                      tooltip: 'Open the item this paid',
+                      onPressed: () => _href(supplierDocumentHref(a, _rail), payableTypeLabel(a['documentType'])),
+                      icon: const Icon(Icons.open_in_new, size: 16),
+                    )
+                  : const SizedBox.shrink(),
             ],
         ],
       ),
@@ -401,7 +397,7 @@ class _SupplierPaymentsScreenState extends State<SupplierPaymentsScreen> {
   }
 
   Widget _table(List<Map> items) {
-    final extras = [for (final r in items) if (_expanded == tStr(r['paymentId']) || _reversing == tStr(r['paymentId'])) r];
+    final extras = [for (final r in items) if (_expanded == tStr(r['paymentId'])) r];
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       TrackerTable(
         columns: const [
@@ -453,9 +449,13 @@ class _SupplierPaymentsScreenState extends State<SupplierPaymentsScreen> {
                 Text(tStr(r['paymentMethod']).isEmpty ? '—' : tStr(r['paymentMethod']), style: grey),
                 Text(_accountName(r['cashAccountId']), style: grey),
                 Text(tStr(r['reference']).isEmpty ? '—' : tStr(r['reference']), style: grey),
-                Align(alignment: Alignment.centerLeft, child: _statusBadge(r)),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Wrap(spacing: 4, runSpacing: 4, children: [_statusBadge(r), if (_rail.isPoultry) paymentPLBadge(r)]),
+                ),
                 Wrap(alignment: WrapAlignment.end, children: [
-                  if (!multi && a != null)
+                  ?_plToggle(r),
+                  if (!multi && a != null && _hasPage(a))
                     IconButton(
                       tooltip: 'Open the item this paid',
                       onPressed: () => _href(supplierDocumentHref(a, _rail), payableTypeLabel(a['documentType'])),
@@ -463,10 +463,7 @@ class _SupplierPaymentsScreenState extends State<SupplierPaymentsScreen> {
                     ),
                   if (_canReverse && !reversed)
                     TextButton.icon(
-                      onPressed: () => setState(() {
-                        _reversing = id;
-                        _reason.clear();
-                      }),
+                      onPressed: () => _doReverse(r),
                       icon: const Icon(Icons.undo, size: 14),
                       label: const Text('Reverse'),
                     ),
@@ -478,7 +475,6 @@ class _SupplierPaymentsScreenState extends State<SupplierPaymentsScreen> {
       for (final r in extras) ...[
         const SizedBox(height: 10),
         Text('SPAY-${tStr(r['paymentId'])}', style: const TextStyle(fontWeight: FontWeight.w600)),
-        if (_reversing == tStr(r['paymentId'])) ...[const SizedBox(height: 6), _reverseBox(r)],
         if (_expanded == tStr(r['paymentId'])) ...[const SizedBox(height: 6), _allocationTable(r)],
       ],
     ]);
@@ -641,6 +637,18 @@ class _SupplierPaymentsScreenState extends State<SupplierPaymentsScreen> {
               SizedBox(width: 8),
               Expanded(child: Text('Supplier Payments', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TColors.slate900))),
             ]),
+            if (_canRecord) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(backgroundColor: TColors.amber600),
+                  onPressed: _recordPayment,
+                  icon: const Icon(Icons.payments_outlined, size: 16),
+                  label: const Text('Record supplier payment'),
+                ),
+              ),
+            ],
             const SizedBox(height: 4),
             const Text('Track payments made to suppliers and apply them to unpaid or partially paid purchases and expenses.',
                 style: TextStyle(fontSize: 13, color: TColors.slate500)),
@@ -683,7 +691,13 @@ class _SupplierPaymentsScreenState extends State<SupplierPaymentsScreen> {
                 keyOf: (r) => tStr(r['paymentId']),
                 primary: (r) => 'SPAY-${tStr(r['paymentId'])}',
                 secondary: (r) => '${tStr(r['partyName']).isEmpty ? 'No supplier' : tStr(r['partyName'])} · ${fmtDateTime(r['paymentDate'], r, _offset)}',
-                trailing: (r) => Padding(padding: const EdgeInsets.only(left: 6), child: _statusBadge(r)),
+                trailing: (r) => Padding(
+                  padding: const EdgeInsets.only(left: 6),
+                  child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [
+                    _statusBadge(r),
+                    if (_rail.isPoultry && paymentOnPL(r)) ...[const SizedBox(height: 4), paymentPLBadge(r)],
+                  ]),
+                ),
                 highlights: (r) {
                   final n = tIntOrNull(r['allocationCount']) ?? 0;
                   return [
@@ -707,17 +721,14 @@ class _SupplierPaymentsScreenState extends State<SupplierPaymentsScreen> {
                     ('Paid by', tStr(r['createdBy']).isEmpty ? '—' : tStr(r['createdBy'])),
                   ];
                 },
-                extra: (r) => _reversing == tStr(r['paymentId']) ? _reverseBox(r) : const SizedBox.shrink(),
                 actions: (r) => [
-                  if (_canReverse && tStr(r['status']) == 'Posted' && _reversing != tStr(r['paymentId']))
+                  if (_canReverse && tStr(r['status']) == 'Posted')
                     OutlinedButton.icon(
-                      onPressed: () => setState(() {
-                        _reversing = tStr(r['paymentId']);
-                        _reason.clear();
-                      }),
+                      onPressed: () => _doReverse(r),
                       icon: const Icon(Icons.undo, size: 15),
                       label: const Text('Reverse'),
                     ),
+                  ?_plToggle(r),
                 ],
                 table: _table,
                 pager: CompactPager(

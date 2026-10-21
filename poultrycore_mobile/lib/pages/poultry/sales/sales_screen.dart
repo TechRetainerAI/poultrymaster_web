@@ -14,6 +14,7 @@ import '../trackers/tracker_logic.dart'
 import '../trackers/tracker_widgets.dart';
 import 'sale_dialogs.dart';
 import 'sale_form_screen.dart';
+import 'sale_reversal.dart';
 import 'sales_logic.dart';
 
 /// Poultry → Sales, Expenses & Money → Sales → Sales, as `app/sales/page.tsx`
@@ -33,7 +34,17 @@ class SalesScreen extends StatefulWidget {
 
 class _SalesScreenState extends State<SalesScreen> {
   List<Map> _sales = [], _flocks = [], _customers = [], _accounts = [], _products = [];
+
+  /// Egg classes (341): Unsorted / General plus the farm's sizes.
+  List<Map> _classes = [];
+
+  /// The farm's eggs per crate (344).
+  int _epc = 30;
   bool _loading = true;
+
+  /// "All": a reversed sale stays in the list (struck through, never totalled)
+  /// so it never looks deleted.
+  String _status = 'All';
   FarmMoney _money = const FarmMoney();
 
   final _search = TextEditingController();
@@ -51,8 +62,11 @@ class _SalesScreenState extends State<SalesScreen> {
   String? get _userId => widget.session.tokens.userId;
 
   /// Staff are deny-by-default on the web; the phone has no permission flags,
-  /// so reversing is offered to everyone but staff.
+  /// so reversing (a sale or a payment) is offered to everyone but staff.
   bool get _canReverse => (widget.company.role ?? '').toLowerCase() != 'staff';
+
+  /// Edit & repost: a reversed sale that was not corrected yet.
+  bool _canRepost(Map row) => isReversedSale(row) && tIntOrNull(row['correctedBySaleId']) == null;
 
   @override
   void initState() {
@@ -84,7 +98,7 @@ class _SalesScreenState extends State<SalesScreen> {
     }
     setState(() => _loading = true);
     try {
-      final res = await _api.get('/api/Sale', query: _uq);
+      final res = await _api.get('/api/Sale', query: {..._uq, 'includeReversed': 'true'});
       if (mounted) setState(() => _sales = rowsOf(res));
     } on ApiException catch (e) {
       if (mounted) trackerToast(context, 'Error', description: e.message.isNotEmpty ? e.message : 'Failed to load sales', error: true);
@@ -128,6 +142,20 @@ class _SalesScreenState extends State<SalesScreen> {
     } on ApiException {
       if (mounted) setState(() => _products = []);
     }
+    try {
+      final res = await _api.get('/api/Poultry/egg-sorting/classes', query: {'farmId': _farmId, 'includeInactive': 'false', 'ensure': 'false'});
+      if (mounted) setState(() => _classes = rowsOf(res));
+    } on ApiException {
+      // Before migration 341: no classes, sales stay Unsorted.
+      if (mounted) setState(() => _classes = []);
+    }
+    try {
+      final res = await _api.get('/api/Poultry/egg-sorting/settings', query: {'farmId': _farmId});
+      final n = res is Map ? tIntOrNull(res['eggsPerCrate']) : null;
+      if (mounted && n != null && n > 0) setState(() => _epc = n);
+    } on ApiException {
+      // Before 344 or offline: keep 30.
+    }
   }
 
   // ------------------------------------------------------------ derived
@@ -139,9 +167,11 @@ class _SalesScreenState extends State<SalesScreen> {
     return f != null ? '${f['name']}' : '#$fid';
   }
 
+  List<Map> get _rows => toSaleRows(_sales);
+
   List<Map> get _filtered {
     final q = _search.text.trim().toLowerCase();
-    return _sales.where((s) {
+    return _rows.where((s) {
       if (_focusSaleId != null) return tIntOrNull(s['saleId']) == _focusSaleId;
       if (q.isNotEmpty) {
         final c = tStr(s['customerName']).toLowerCase().contains(q);
@@ -151,6 +181,7 @@ class _SalesScreenState extends State<SalesScreen> {
       final k = localDateKey(s['saleDate']);
       if (_dateFrom.isNotEmpty && k.compareTo(_dateFrom) < 0) return false;
       if (_dateTo.isNotEmpty && k.compareTo(_dateTo) > 0) return false;
+      if (!matchesStatusFilter(s, paymentStatusOf(s), _status)) return false;
       return true;
     }).toList();
   }
@@ -167,6 +198,7 @@ class _SalesScreenState extends State<SalesScreen> {
       });
 
   void _clearFilters() => setState(() {
+        _status = 'Active';
         _search.clear();
         _dateFrom = '';
         _dateTo = '';
@@ -175,8 +207,8 @@ class _SalesScreenState extends State<SalesScreen> {
 
   // ------------------------------------------------------------ actions
 
-  Future<void> _openForm([Map? sale]) async {
-    final saved = await Navigator.of(context).push<bool>(MaterialPageRoute(
+  Future<void> _openForm({SaleCorrection? correcting}) async {
+    final saved = await Navigator.of(context).push<SaleSaved>(MaterialPageRoute(
       builder: (_) => SaleFormScreen(
         session: widget.session,
         company: widget.company,
@@ -184,58 +216,61 @@ class _SalesScreenState extends State<SalesScreen> {
         customers: _customers,
         cashAccounts: _accounts,
         products: _products,
-        editing: sale,
+        eggClasses: _classes,
+        eggsPerCrate: _epc,
+        correcting: correcting,
       ),
     ));
-    if (saved == true) {
-      _loadSales();
-      _loadProducts();
+    if (saved == null) return;
+    await _afterCorrectionSaved(saved, correcting);
+    _loadSales();
+    _loadProducts();
+  }
+
+  /// After a corrected sale is saved on credit: offer the customer's credit.
+  Future<void> _afterCorrectionSaved(SaleSaved saved, SaleCorrection? fix) async {
+    if (fix == null || saved.saleId == null || saved.paidNow) return;
+    final name = saved.customerName.trim().toLowerCase();
+    final customer = _customers.where((c) => tStr(c['name'] ?? c['customerName']).trim().toLowerCase() == name).firstOrNull;
+    final customerId = tIntOrNull(customer?['customerId'] ?? customer?['id']);
+    if (customerId == null) return;
+    try {
+      final credit = await customerCreditTotal(widget.session, widget.company, customerId);
+      if (credit > 0 && mounted) {
+        await _applyCredit(ApplyCreditTarget(
+          customerId: customerId,
+          customerName: saved.customerName,
+          saleId: saved.saleId!,
+          saleLabel: saved.label,
+          outstanding: saved.total,
+        ));
+      }
+    } on ApiException {
+      // The credit can still be applied from the sale's Pay dialog.
     }
   }
 
-  Future<void> _delete(Map sale) async {
-    var deleting = false;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, set) => AlertDialog(
-          title: const Text('Delete Sale'),
-          content: const Text('Are you sure you want to delete this sale? This action cannot be undone.'),
-          actions: [
-            TextButton(onPressed: deleting ? null : () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-            FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: TColors.red600),
-              onPressed: deleting
-                  ? null
-                  : () async {
-                      set(() => deleting = true);
-                      try {
-                        await _api.delete('/api/Sale/${sale['saleId']}?userId=${Uri.encodeQueryComponent(_userId ?? '')}'
-                            '&farmId=${Uri.encodeQueryComponent(_farmId)}');
-                        if (ctx.mounted) Navigator.pop(ctx, true);
-                      } on ApiException catch (e) {
-                        if (ctx.mounted) Navigator.pop(ctx, false);
-                        if (mounted) {
-                          trackerToast(context, 'Delete failed',
-                              description: e.message.isNotEmpty ? e.message : 'Failed to delete sale', error: true);
-                        }
-                      }
-                    },
-              child: Text(deleting ? 'Deleting...' : 'Delete'),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (ok == true && mounted) {
-      trackerToast(context, 'Sale deleted', description: 'The sale record has been successfully deleted.');
-      _loadSales();
-      _loadProducts();
-    }
+  Future<void> _applyCredit(ApplyCreditTarget target) async {
+    final amount = await showApplyCredit(context, session: widget.session, company: widget.company, target: target);
+    if (amount == null || !mounted) return;
+    trackerToast(context, 'Credit applied',
+        description: '${_money(amount)} of customer credit settled ${target.saleLabel}. No new cash was recorded.');
+    _loadSales();
   }
 
   Future<void> _pay(Map sale) async {
-    if (await showRecordPayment(context, session: widget.session, company: widget.company, sale: sale)) _loadSales();
+    final outcome = await showRecordPayment(context, session: widget.session, company: widget.company, sale: sale);
+    if (outcome == PayOutcome.paid) {
+      _loadSales();
+    } else if (outcome == PayOutcome.useCredit && mounted) {
+      await _applyCredit(ApplyCreditTarget(
+        customerId: tIntOrNull(sale['customerId']) ?? 0,
+        customerName: tStr(sale['customerName']),
+        saleId: tIntOrNull(sale['saleId']) ?? 0,
+        saleLabel: tStr(sale['saleGroupNo']).isNotEmpty ? tStr(sale['saleGroupNo']) : '#${sale['saleId']}',
+        outstanding: saleOwed(sale),
+      ));
+    }
   }
 
   void _history(Map sale) => showPaymentHistory(context,
@@ -247,18 +282,123 @@ class _SalesScreenState extends State<SalesScreen> {
       canReverse: _canReverse,
       onReversed: _loadSales);
 
-  void _invoice(Map sale) => Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => SaleInvoiceScreen(
-          sale: sale,
-          farmName: widget.company.name.isNotEmpty ? widget.company.name : 'Farm Name',
-          money: _money,
-          flockLabel: _flockLabel(sale['flockId']),
-        ),
-      ));
+  void _invoice(Map sale) {
+    final multi = multiLines(sale);
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => SaleInvoiceScreen(
+        sale: sale,
+        farmName: widget.company.name.isNotEmpty ? widget.company.name : 'Farm Name',
+        money: _money,
+        flockLabel: _flockLabel(sale['flockId']),
+        invoiceNo: multi.isNotEmpty ? tStr(sale['saleGroupNo']) : null,
+        eggsPerCrate: _epc,
+        // Every sale prints its lines, a one-line sale too, so the egg size is
+        // always on the invoice.
+        lines: [
+          for (final l in saleLinesOf(multi.isNotEmpty ? sale : {...sale, 'lines': null}))
+            InvoiceLine(
+              label: isEggProductName(l['product']) ? eggClassLabel(_classes, l['eggProductId']) : tStr(l['size']),
+              quantity: tNum(l['quantity']),
+              unitPrice: tNum(l['unitPrice']),
+              totalAmount: tNum(l['totalAmount']),
+            ),
+        ],
+      ),
+    ));
+  }
+
+  String _lineLabel(Map l) {
+    final q = SaleInvoiceScreen.jsQty(tNum(l['quantity']));
+    if (!isEggProductName(l['product'])) return '${l['product']} · $q';
+    return '${l['product']} · ${eggClassLabel(_classes, l['eggProductId'])} ${eggCrateBreakdown(tNum(l['quantity']), eggsPerCrate: _epc) ?? q}';
+  }
+
+  /// 351: view a sale (read-only), and the two ways to fix one.
+  Future<void> _view(Map row) async {
+    final action = await Navigator.of(context).push<SaleDetailsAction>(MaterialPageRoute(
+      builder: (_) => SaleDetailsScreen(
+        session: widget.session,
+        company: widget.company,
+        sale: row,
+        flockLabel: _flockLabel(row['flockId']),
+        lineLabel: _lineLabel,
+        canReverse: _canReverse,
+        canRepost: _canRepost(row),
+        onNoteSaved: (_) => _loadSales(),
+      ),
+    ));
+    if (!mounted || action == null) return;
+    switch (action) {
+      case SaleInvoiceAction():
+        _invoice(row);
+      case SaleReverseAction(:final mode):
+        await _reverse(row, mode);
+      case SaleRepostAction():
+        await _repost(row);
+      case SaleShowAction(:final saleId):
+        final other = _rows.where((g) => tIntOrNull(g['saleId']) == saleId).firstOrNull;
+        if (other != null) {
+          setState(() => _status = 'All');
+          await _view(other);
+        }
+    }
+  }
+
+  Future<void> _reverse(Map row, String mode) async {
+    final label = saleLabel(row);
+    final result = await Navigator.of(context).push<SaleReversed>(MaterialPageRoute(
+      builder: (_) => ReverseSaleScreen(
+        session: widget.session,
+        company: widget.company,
+        saleId: tIntOrNull(row['saleId']) ?? 0,
+        saleLabel: label,
+        mode: mode,
+      ),
+    ));
+    if (result == null || !mounted) return;
+    final credit = result.creditCreated, cashOut = result.cashReversed;
+    trackerToast(context, 'Sale $label reversed',
+        description: [
+          'Revenue and stock undone.',
+          if (credit > 0) '${_money(credit)} kept as customer credit.',
+          if (cashOut > 0) '${_money(cashOut)} paid back out of cash.',
+        ].join(' '));
+    _loadSales();
+    _loadProducts();
+    if (mode == 'correct') await _openForm(correcting: SaleCorrection(sale: row, creditKept: credit));
+  }
+
+  /// Edit & repost: enter a reversed, not yet corrected sale again, pre-filled
+  /// and linked to it. The reversed sale itself is never changed.
+  Future<void> _repost(Map row) async {
+    num credit = 0;
+    try {
+      final r = await _api.get('/api/Sale/${row['saleId']}/reversal', query: {'farmId': _farmId});
+      if (r is Map) {
+        final fixedBy = tIntOrNull(r['correctionSaleId']);
+        if (fixedBy != null && fixedBy != 0) {
+          if (mounted) trackerToast(context, 'Already reposted', description: 'This sale was already corrected by #$fixedBy.');
+          _loadSales();
+          return;
+        }
+        credit = tNum(r['creditCreated']);
+      }
+      // Credit kept at the reversal may have been used or refunded since.
+      final cid = tIntOrNull(row['customerId']);
+      if (credit > 0 && cid != null && cid != 0) {
+        final now = await customerCreditTotal(widget.session, widget.company, cid);
+        if (now < credit) credit = now;
+      }
+    } on ApiException {
+      // Open the form anyway; the credit offer re-checks after saving.
+    }
+    if (mounted) await _openForm(correcting: SaleCorrection(sale: row, creditKept: credit));
+  }
 
   ReportDocument _pdfDoc(List<Map> rows) {
-    final total = rows.fold<num>(0, (s, x) => s + tNum(x['totalAmount']));
-    final qty = rows.fold<num>(0, (s, x) => s + tNum(x['quantity']));
+    final counted = rows.where((x) => !isReversedSale(x));
+    final total = counted.fold<num>(0, (s, x) => s + tNum(x['totalAmount']));
+    final qty = counted.fold<num>(0, (s, x) => s + tNum(x['quantity']));
     final period =
         _dateFrom.isNotEmpty || _dateTo.isNotEmpty ? 'Period: ${_dateFrom.isEmpty ? '—' : _dateFrom} to ${_dateTo.isEmpty ? '—' : _dateTo}' : 'Period: All time';
     return ReportDocument(
@@ -358,6 +498,17 @@ class _SalesScreenState extends State<SalesScreen> {
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               const Text('Filters', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
               const SizedBox(height: 14),
+              const Text('Status', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: TColors.slate700)),
+              const SizedBox(height: 6),
+              AppSelect<String>(
+                value: _status,
+                items: [for (final (v, l) in saleStatusFilters) AppSelectItem(value: v, label: l)],
+                onChanged: (v) {
+                  setState(() => _status = v ?? _status);
+                  set(() {});
+                },
+              ),
+              const SizedBox(height: 14),
               const Text('Date range', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: TColors.slate700)),
               const SizedBox(height: 10),
               FilterLabel('Start date', FilterDate(value: from, hint: 'Start date', onChanged: (v) => set(() => from = v))),
@@ -437,8 +588,10 @@ class _SalesScreenState extends State<SalesScreen> {
     final page = _page.clamp(1, totalPages);
     final start = (page - 1) * _perPage;
     final pageRows = sorted.sublist(start.clamp(0, sorted.length), (start + _perPage).clamp(0, sorted.length));
-    final totalSales = filtered.fold<num>(0, (s, x) => s + tNum(x['totalAmount']));
-    final totalQty = filtered.fold<num>(0, (s, x) => s + tNum(x['quantity']));
+    // A reversed sale is not a sale: it is listed (Reversed / All) but never totalled.
+    final counted = filtered.where((x) => !isReversedSale(x));
+    final totalSales = counted.fold<num>(0, (s, x) => s + tNum(x['totalAmount']));
+    final totalQty = counted.fold<num>(0, (s, x) => s + tNum(x['quantity']));
     final activeCount = [_search.text, _dateFrom, _dateTo].where((v) => v.isNotEmpty).length;
 
     return Scaffold(
@@ -621,7 +774,7 @@ class _SalesScreenState extends State<SalesScreen> {
         SizedBox(width: w, child: card('Total Sales', Icons.attach_money, _money(total), '$count transactions')),
         SizedBox(
           width: w,
-          child: card('Total Quantity', Icons.inventory_2_outlined, loc(qty), eggCrateBreakdown(qty, long: true) ?? '—'),
+          child: card('Total Quantity', Icons.inventory_2_outlined, loc(qty), eggCrateBreakdown(qty, long: true, eggsPerCrate: _epc) ?? '—'),
         ),
         SizedBox(
           width: w,
@@ -632,6 +785,10 @@ class _SalesScreenState extends State<SalesScreen> {
   }
 
   Widget _statusBadge(Map s) {
+    if (isReversedSale(s)) {
+      final by = tIntOrNull(s['correctedBySaleId']);
+      return TBadge('Reversed${by != null && by != 0 ? ' · corrected by #$by' : ''}', bg: TColors.red100, fg: TColors.red700);
+    }
     final st = paymentStatusOf(s);
     final (bg, fg) = switch (st) {
       'Paid' => (TColors.emerald100, TColors.emerald700),
@@ -659,19 +816,22 @@ class _SalesScreenState extends State<SalesScreen> {
           icon: Icon(icon, size: 16),
           label: Text(label),
         );
+    final reversed = isReversedSale(s);
+    final lines = multiLines(s);
     final actions = <Widget>[
-      if (owed > 0) action('Pay', Icons.account_balance_wallet_outlined, () => _pay(s), fg: TColors.emerald700, border: TColors.emerald200),
-      action('Edit', Icons.edit_outlined, () => _openForm(s)),
+      if (!reversed && owed > 0) action('Pay', Icons.account_balance_wallet_outlined, () => _pay(s), fg: TColors.emerald700, border: TColors.emerald200),
+      action('View', Icons.visibility_outlined, () => _view(s)),
       action('Invoice', Icons.description_outlined, () => _invoice(s)),
       action('Payments', Icons.history, () => _history(s)),
-      action('Delete', Icons.delete_outline, () => _delete(s), fg: TColors.red600, border: TColors.red200),
+      if (!reversed) action('Reverse', Icons.undo, () => _reverse(s, 'reverse'), fg: TColors.red600, border: TColors.red200),
+      if (_canRepost(s)) action('Edit & repost', Icons.restart_alt, () => _repost(s), fg: const Color(0xFF1D4ED8), border: TColors.blue200),
     ];
     return _SaleCard(
       key: ValueKey('sale-${s['saleId']}'),
       striped: striped,
       header: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Wrap(spacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
-          Text('#${s['saleId']}', style: const TextStyle(fontSize: 12, color: TColors.slate500)),
+          Text(saleLabel(s), style: const TextStyle(fontSize: 12, color: TColors.slate500)),
           Text(trackerDate(s['saleDate']), style: const TextStyle(fontWeight: FontWeight.w600, color: TColors.slate900)),
           const Text('•', style: TextStyle(color: TColors.slate500)),
           Text(tStr(s['customerName']), overflow: TextOverflow.ellipsis, style: const TextStyle(color: TColors.slate600)),
@@ -682,6 +842,10 @@ class _SalesScreenState extends State<SalesScreen> {
               style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: TColors.emerald600)),
           Text(tStr(s['product']), style: const TextStyle(fontSize: 12, color: TColors.slate500)),
         ]),
+        if (lines.isNotEmpty) ...[
+          const SizedBox(height: 2),
+          Text(lineSummary(_classes, lines, _epc), style: const TextStyle(fontSize: 12, color: TColors.slate500)),
+        ],
       ]),
       details: [
         Row(children: [
@@ -733,41 +897,64 @@ class _SalesScreenState extends State<SalesScreen> {
         TCol('Balance', sortKey: 'balance', width: 110),
         TCol('Method', sortKey: 'paymentMethod', width: 120),
         TCol('Status', sortKey: 'paymentStatus', width: 90),
-        TCol('Actions', width: 220),
+        TCol('Actions', width: 230),
       ],
       rows: [
-        for (final s in rows)
-          [
-            cellText('#${s['saleId']}', color: TColors.slate500),
-            cellText(trackerDate(s['saleDate'])),
-            cellText(tStr(s['product'])),
-            cellText(tStr(s['customerName'])),
-            cellText(_flockLabel(s['flockId'])),
-            Text.rich(TextSpan(children: [
-              TextSpan(text: SaleInvoiceScreen.jsQty(tNum(s['quantity']))),
-              if (isEggProductName(s['product']) && eggCrateBreakdown(tNum(s['quantity'])) != null)
-                TextSpan(
-                    text: ' (${eggCrateBreakdown(tNum(s['quantity']))})',
-                    style: const TextStyle(fontSize: 12, color: TColors.slate500)),
-            ])),
-            cellText(_money(tNum(s['unitPrice']))),
-            cellText(_money(tNum(s['totalAmount'])), bold: true),
-            cellText(_money(salePaid(s)), color: TColors.emerald700),
-            cellText(_money(saleOwed(s)), color: saleOwed(s) > 0 ? TColors.amber700 : TColors.slate400, bold: saleOwed(s) > 0),
-            TBadge(tStr(s['paymentMethod']), bg: Colors.white, fg: TColors.slate800, border: TColors.slate200),
-            _statusBadge(s),
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              if (saleOwed(s) > 0)
-                icon('Record payment · ${_money(saleOwed(s))} owed', Icons.account_balance_wallet_outlined, () => _pay(s),
-                    color: TColors.emerald700),
-              icon('Payment history', Icons.history, () => _history(s)),
-              icon('Edit sale', Icons.edit_outlined, () => _openForm(s)),
-              icon('Delete sale', Icons.delete_outline, () => _delete(s)),
-              icon('View invoice', Icons.description_outlined, () => _invoice(s)),
-            ]),
-          ],
+        for (final s in rows) _tableRow(s, icon),
       ],
     );
+  }
+
+  /// One table row; a reversed sale is struck through and greyed, its Status
+  /// and Actions are not.
+  List<Widget> _tableRow(Map s, IconButton Function(String, IconData, VoidCallback, {Color? color}) icon) {
+    final reversed = isReversedSale(s);
+    final lines = multiLines(s);
+    const strike = TextStyle(decoration: TextDecoration.lineThrough, color: TColors.slate400);
+    Widget t(Widget w) => reversed ? DefaultTextStyle.merge(style: strike, child: w) : w;
+    Widget cell(String text, {Color? color, bool bold = false}) => reversed ? Text(text, style: strike) : cellText(text, color: color, bold: bold);
+    final qty = tNum(s['quantity']);
+    final crates = eggCrateBreakdown(qty, eggsPerCrate: _epc);
+    return [
+      lines.isNotEmpty
+          ? t(Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+              Text(tStr(s['saleGroupNo']), style: const TextStyle(fontWeight: FontWeight.w500, color: TColors.slate700)),
+              Text('${lines.length} egg lines', style: const TextStyle(fontSize: 12, color: TColors.slate500)),
+            ]))
+          : cell('#${s['saleId']}', color: TColors.slate500),
+      cell(trackerDate(s['saleDate'])),
+      t(Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        Text(tStr(s['product'])),
+        if (lines.isNotEmpty) Text(lineSummary(_classes, lines, _epc), style: const TextStyle(fontSize: 12, color: TColors.slate500)),
+      ])),
+      cell(tStr(s['customerName'])),
+      cell(_flockLabel(s['flockId'])),
+      t(Text.rich(TextSpan(children: [
+        TextSpan(text: SaleInvoiceScreen.jsQty(qty)),
+        if (isEggProductName(s['product']) && crates != null)
+          TextSpan(text: ' ($crates)', style: const TextStyle(fontSize: 12, color: TColors.slate500)),
+      ]))),
+      t(Text.rich(TextSpan(children: [
+        TextSpan(text: _money(tNum(s['unitPrice']))),
+        if (lines.isNotEmpty) const TextSpan(text: ' avg', style: TextStyle(fontSize: 12, color: TColors.slate500)),
+      ]))),
+      cell(_money(tNum(s['totalAmount'])), bold: true),
+      cell(_money(salePaid(s)), color: TColors.emerald700),
+      cell(_money(saleOwed(s)), color: saleOwed(s) > 0 ? TColors.amber700 : TColors.slate400, bold: saleOwed(s) > 0),
+      t(TBadge(tStr(s['paymentMethod']), bg: Colors.white, fg: TColors.slate800, border: TColors.slate200)),
+      _statusBadge(s),
+      Row(mainAxisSize: MainAxisSize.min, children: [
+        if (!reversed && saleOwed(s) > 0)
+          icon('Record payment · ${_money(saleOwed(s))} owed', Icons.account_balance_wallet_outlined, () => _pay(s), color: TColors.emerald700),
+        // Always offered, including on a settled sale.
+        icon('Payment history', Icons.history, () => _history(s)),
+        icon('View sale · correct or reverse it', Icons.visibility_outlined, () => _view(s)),
+        if (!reversed) icon('Reverse sale', Icons.undo, () => _reverse(s, 'reverse'), color: TColors.red600),
+        if (_canRepost(s))
+          icon('Edit & repost -- enter it again, fixed, as a new sale', Icons.restart_alt, () => _repost(s), color: const Color(0xFF1D4ED8)),
+        icon('View invoice', Icons.description_outlined, () => _invoice(s)),
+      ]),
+    ];
   }
 
   Widget _pagination(int total, int page, int totalPages, int start) {

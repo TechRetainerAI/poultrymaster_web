@@ -9,7 +9,7 @@ namespace PoultryFarmAPIWeb.Controllers
 {
     // Business-rule refusals from the database ("the repayment is more than Ama
     // still owes") come back as 400 with that sentence, via HotelBusinessRuleFilter.
-    [ApiController][Authorize][Route("api/Hotel")][HotelBusinessRuleFilter]
+    [ApiController][Authorize][Route("api/Hotel")][HotelBusinessRuleFilter][RequireCompanyType("Hotel")]
     public class HotelEmployeeLoanController : ControllerBase
     {
         private readonly IHotelEmployeeLoanService _svc;

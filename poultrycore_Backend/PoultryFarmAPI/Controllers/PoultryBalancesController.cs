@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Models;
@@ -33,6 +34,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [Authorize]
     [ApiController]
     [Route("api/Poultry")]
+    [RequireCompanyType("Poultry")]
     public class PoultryBalancesController : ControllerBase
     {
         private readonly IPoultryBalanceService _svc;

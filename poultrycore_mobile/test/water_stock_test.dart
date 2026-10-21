@@ -173,7 +173,7 @@ void main() {
     expect(find.text('1,200'), findsOneWidget, reason: 'sachets = bags × 30');
     await tap(tester, find.text('Raw materials'));
     await see(tester, find.text('Sachet film'));
-    expect(find.text('Manage raw materials'), findsOneWidget);
+    expect(find.text('Inventory & supply purchases'), findsOneWidget);
 
     await tap(tester, find.text('Set product stock'));
     final count = find.descendant(of: find.byType(Dialog), matching: find.byType(TextFormField));

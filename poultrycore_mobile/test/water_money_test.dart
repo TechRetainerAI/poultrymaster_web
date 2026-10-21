@@ -128,7 +128,7 @@ void main() {
 
       await tap(tester, find.widgetWithText(OutlinedButton, 'Reverse'));
       expect(find.text('#4 · Contribution'), findsOneWidget);
-      await enter(tester, 'Reason *', 'Was a loan');
+      await reasonOther(tester, 'Was a loan');
       await tapIn(tester, inDialog(find.widgetWithText(FilledButton, 'Reverse')));
       expect(a.writes.last.url.path, '/api/Water/owner-money/4/reverse');
       expect(a.lastBody('/api/Water/owner-money/4/reverse'), {'reason': 'Was a loan'});
@@ -205,7 +205,7 @@ void main() {
       // Reverse from the history table.
       await tap(tester, find.widgetWithText(OutlinedButton, 'Reverse'));
       expect(find.text('Reverse Repayment'), findsOneWidget);
-      await enterIn(tester, 'Reason *', 'Bank bounced it');
+      await reasonOther(tester, 'Bank bounced it');
       await tapIn(tester, inDialog(find.widgetWithText(FilledButton, 'Reverse')));
       expect(a.writes.last.url.path, '/api/Water/loan-payments/11/reverse');
     });

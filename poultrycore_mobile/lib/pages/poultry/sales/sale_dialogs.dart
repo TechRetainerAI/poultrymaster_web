@@ -18,17 +18,21 @@ import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, loc;
 import '../trackers/tracker_widgets.dart';
 import 'sales_logic.dart';
 import 'balances_logic.dart' show BalanceSide;
+import 'credit_widgets.dart' show showReverseWithReason;
 
 // ------------------------------------------------------------------ record payment
 
-/// "Record payment" against one sale. Returns true when a payment was posted.
-Future<bool> showRecordPayment(BuildContext context, {required Session session, required Company company, required Map sale}) async {
-  final ok = await showDialog<bool>(
-    context: context,
-    builder: (_) => _RecordPaymentDialog(session: session, company: company, sale: sale),
-  );
-  return ok == true;
-}
+/// What the Record payment dialog ended with.
+enum PayOutcome { paid, useCredit }
+
+/// "Record payment" against one sale: [PayOutcome.paid] when a payment was
+/// posted, [PayOutcome.useCredit] when "Use customer credit" was chosen (the
+/// page then opens Apply customer credit), null when cancelled.
+Future<PayOutcome?> showRecordPayment(BuildContext context, {required Session session, required Company company, required Map sale}) =>
+    showDialog<PayOutcome>(
+      context: context,
+      builder: (_) => _RecordPaymentDialog(session: session, company: company, sale: sale),
+    );
 
 class _RecordPaymentDialog extends StatefulWidget {
   const _RecordPaymentDialog({required this.session, required this.company, required this.sale});
@@ -71,8 +75,9 @@ class _RecordPaymentDialogState extends State<_RecordPaymentDialog> {
         'createdBy': widget.session.tokens.userId,
       });
       if (!mounted) return;
-      trackerToast(context, 'Payment recorded', description: '${amount.toStringAsFixed(2)} received for sale #${s['saleId']}.');
-      Navigator.pop(context, true);
+      // 358: a multi-line sale is ONE sale -- one payment, one allocation.
+      trackerToast(context, 'Payment recorded', description: '${amount.toStringAsFixed(2)} received for sale ${saleLabel(s)}.');
+      Navigator.pop(context, PayOutcome.paid);
     } on ApiException catch (e) {
       if (mounted) {
         setState(() => _saving = false);
@@ -114,7 +119,7 @@ class _RecordPaymentDialogState extends State<_RecordPaymentDialog> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Column(children: [
-                line('Sale', '#${s['saleId']} · ${customer.isEmpty ? 'Walk-in' : customer}'),
+                line('Sale', '${saleLabel(s)} · ${customer.isEmpty ? 'Walk-in' : customer}'),
                 line('Total', tNum(s['totalAmount']).toStringAsFixed(2)),
                 line('Owed', saleOwed(s).toStringAsFixed(2), color: TColors.amber700, bold: true),
               ]),
@@ -144,7 +149,14 @@ class _RecordPaymentDialogState extends State<_RecordPaymentDialog> {
         ),
       ),
       actions: [
-        OutlinedButton(onPressed: _saving ? null : () => Navigator.pop(context, false), child: const Text('Cancel')),
+        // 351: settle from money the customer already paid and is held as
+        // credit -- an allocation, so no second Money In.
+        if (tIntOrNull(s['customerId']) != null && tIntOrNull(s['customerId']) != 0)
+          OutlinedButton(
+            onPressed: _saving ? null : () => Navigator.pop(context, PayOutcome.useCredit),
+            child: const Text('Use customer credit'),
+          ),
+        OutlinedButton(onPressed: _saving ? null : () => Navigator.pop(context), child: const Text('Cancel')),
         FilledButton(
           style: FilledButton.styleFrom(backgroundColor: TColors.emerald600),
           onPressed: _saving ? null : _record,
@@ -162,7 +174,14 @@ const _sourceLabel = {
   'SupplierBalances': 'Balances',
   'SaleEntry': 'Sale',
   'PurchaseEntry': 'Purchase',
+  // 363: credit added by hand on Customer Credits.
+  'OpeningCredit': 'Opening credit',
+  'Deposit': 'Customer advance',
+  'CreditNote': 'Credit note',
 };
+
+/// 363: a credit added by hand is reversed from Customer Credits (owner / admin).
+const _manualCreditSources = {'OpeningCredit', 'Deposit', 'CreditNote'};
 
 String _paymentRef(Map row) {
   final n = tStr(row['paymentNumber']).trim();
@@ -251,8 +270,6 @@ class _PaymentHistoryState extends State<_PaymentHistory> {
   bool _loading = true;
   String? _expanded;
   final Map<String, List<Map>> _allocations = {};
-  String? _reversing;
-  final _reason = TextEditingController();
 
   ApiClient get _api => widget.session.farmClient;
   String get _farmId => widget.company.farmId;
@@ -261,12 +278,6 @@ class _PaymentHistoryState extends State<_PaymentHistory> {
   void initState() {
     super.initState();
     _load();
-  }
-
-  @override
-  void dispose() {
-    _reason.dispose();
-    super.dispose();
   }
 
   Future<void> _load() async {
@@ -300,30 +311,33 @@ class _PaymentHistoryState extends State<_PaymentHistory> {
     }
   }
 
+  /// The payment being reversed, in its own window with a reason from the list
+  /// (the same shape as reversing a customer debt). An error stays in the
+  /// window so the reason is not lost.
   Future<void> _reverse(Map row) async {
-    if (_reason.text.trim().isEmpty) {
-      trackerToast(context, 'A reason is required',
-          description: 'Say why this payment is being reversed — it is written to the audit trail.', error: true);
-      return;
-    }
     final money = await FarmMoney.load(widget.session, widget.company);
-    try {
-      await _api.post('${widget.api}/${widget.side.paymentsPath}/${Uri.encodeComponent(tStr(row['paymentId']))}/reverse', body: {
-        'farmId': _farmId,
-        'reason': _reason.text.trim(),
-        'reversedBy': widget.session.tokens.userId,
-      });
-      if (!mounted) return;
-      trackerToast(context, 'Payment reversed', description: '${money(tNum(row['totalAmount']))} put back on the balance.');
-      setState(() {
-        _reversing = null;
-        _reason.clear();
-      });
-      await _load();
-      widget.onReversed();
-    } on ApiException catch (e) {
-      if (mounted) trackerToast(context, 'Could not reverse payment', description: e.message, error: true);
-    }
+    if (!mounted) return;
+    final customer = widget.side.isCustomer;
+    final who = tStr(row['partyName']).isNotEmpty
+        ? tStr(row['partyName'])
+        : ((widget.partyName ?? '').isNotEmpty ? widget.partyName! : (customer ? 'the customer' : 'the supplier'));
+    final ok = await showReverseWithReason(
+      context,
+      title: 'Reverse ${tStr(row['paymentNumber']).isEmpty ? 'this payment' : tStr(row['paymentNumber'])}?',
+      description: '${money(tNum(row['totalAmount']))} ${customer ? 'from' : 'to'} $who. '
+          'The balance goes back onto the ${customer ? 'sales' : 'purchases'} it was applied to and the cash '
+          'movement is undone. The payment stays in the history, marked Reversed.',
+      body: const [],
+      action: 'Reverse payment',
+      onConfirm: (reason) => _api.post(
+        '${widget.api}/${widget.side.paymentsPath}/${Uri.encodeComponent(tStr(row['paymentId']))}/reverse',
+        body: {'farmId': _farmId, 'reason': reason, 'reversedBy': widget.session.tokens.userId},
+      ),
+    );
+    if (!ok || !mounted) return;
+    trackerToast(context, 'Payment reversed', description: '${money(tNum(row['totalAmount']))} put back on the balance.');
+    await _load();
+    widget.onReversed();
   }
 
   @override
@@ -432,42 +446,13 @@ class _PaymentHistoryState extends State<_PaymentHistory> {
                 '${tStr(row['reversedAt']).isNotEmpty ? ' on ${_shortDate(row['reversedAt'])}' : ''}: ${row['reversalReason']}',
                 style: sm),
           ],
-          if (widget.canReverse && !reversed && _reversing != id) ...[
+          if (widget.canReverse && !reversed && !_manualCreditSources.contains(tStr(row['sourceType']))) ...[
             const SizedBox(height: 8),
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(backgroundColor: Colors.white, minimumSize: const Size.fromHeight(40)),
-              onPressed: () => setState(() {
-                _reversing = id;
-                _reason.clear();
-              }),
+              onPressed: () => _reverse(row),
               icon: const Icon(Icons.undo, size: 16),
               label: const Text('Reverse'),
-            ),
-          ],
-          if (_reversing == id) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: TColors.amber50, borderRadius: BorderRadius.circular(8)),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                FilterLabel('Why is this being reversed?', AppInput(controller: _reason, hintText: 'e.g. entered twice')),
-                const SizedBox(height: 8),
-                Row(children: [
-                  Expanded(
-                    child: FilledButton(
-                      style: FilledButton.styleFrom(backgroundColor: TColors.red600),
-                      onPressed: () => _reverse(row),
-                      child: const Text('Reverse payment'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(child: TextButton(onPressed: () => setState(() => _reversing = null), child: const Text('Cancel'))),
-                ]),
-                const SizedBox(height: 8),
-                Text(
-                    'The balance goes back onto the ${widget.side.isCustomer ? 'sales' : 'purchases'} it was applied to and the cash movement is undone. The payment is kept and marked reversed, never deleted.',
-                    style: const TextStyle(fontSize: 12, color: TColors.slate500)),
-              ]),
             ),
           ],
           if (open) ...[
@@ -533,11 +518,26 @@ String _invoiceDate(Object? d) {
 
 /// The "Sale invoice" dialog: the tax invoice and its Print invoice button.
 class SaleInvoiceScreen extends StatelessWidget {
-  const SaleInvoiceScreen({super.key, required this.sale, required this.farmName, required this.money, required this.flockLabel});
+  const SaleInvoiceScreen(
+      {super.key, required this.sale, required this.farmName, required this.money, required this.flockLabel, this.lines, this.invoiceNo, this.eggsPerCrate = 30});
   final Map sale;
   final String farmName;
   final FarmMoney money;
   final String flockLabel;
+
+  /// One invoice row per line (every sale prints its lines, so the egg size is
+  /// always on the invoice); absent = the sale as one row.
+  final List<InvoiceLine>? lines;
+
+  /// Shown instead of INV-…, e.g. the SG number of a multi-line sale.
+  final String? invoiceNo;
+  final int eggsPerCrate;
+
+  String get _inv => (invoiceNo ?? '').isNotEmpty ? invoiceNo! : saleInvoiceNumber(sale['saleId']);
+
+  List<InvoiceLine> get _rows => (lines?.isNotEmpty ?? false)
+      ? lines!
+      : [InvoiceLine(label: '', quantity: tNum(sale['quantity']), unitPrice: tNum(sale['unitPrice']), totalAmount: _figures.total)];
 
   static const _accent = Color(0xFF0D4A42);
   static const _accentSoft = Color(0xFFE9F5F2);
@@ -553,9 +553,9 @@ class SaleInvoiceScreen extends StatelessWidget {
 
   Future<void> _print() async {
     final f = _figures;
-    final inv = saleInvoiceNumber(sale['saleId']);
+    final inv = _inv;
     final isEggs = isEggProductName(sale['product']);
-    final qty = tNum(sale['quantity']);
+    final epc = eggsPerCrate;
     final l = ReportExport.latin;
     final doc = pw.Document();
     const accent = PdfColor.fromInt(0xFF0D4A42);
@@ -606,15 +606,16 @@ class SaleInvoiceScreen extends StatelessWidget {
               for (final h in ['DESCRIPTION', 'QTY', 'UNIT PRICE', 'AMOUNT'])
                 pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text(h, textAlign: h == 'DESCRIPTION' ? pw.TextAlign.left : pw.TextAlign.right, style: pw.TextStyle(fontSize: 7, color: accent, fontWeight: pw.FontWeight.bold))),
             ]),
-            pw.TableRow(children: [
-              pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                pw.Text(l(tStr(sale['product'])), style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                if (isEggs && qty > 0) pw.Text('${(qty / 30).floor()} crates + ${(qty % 30).toInt()} loose', style: const pw.TextStyle(fontSize: 8, color: muted)),
-              ])),
-              pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text(jsQty(qty), textAlign: pw.TextAlign.right)),
-              pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text(l(money(tNum(sale['unitPrice']))), textAlign: pw.TextAlign.right)),
-              pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text(l(money(f.total)), textAlign: pw.TextAlign.right, style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
-            ]),
+            for (final ln in _rows)
+              pw.TableRow(children: [
+                pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                  pw.Text(l('${tStr(sale['product'])}${ln.label.isNotEmpty ? ' — ${ln.label}' : ''}'), style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                  if (isEggs && ln.quantity > 0) pw.Text('${(ln.quantity / epc).floor()} crates + ${(ln.quantity % epc).toInt()} loose', style: const pw.TextStyle(fontSize: 8, color: muted)),
+                ])),
+                pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text(jsQty(ln.quantity), textAlign: pw.TextAlign.right)),
+                pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text(l(money(ln.unitPrice)), textAlign: pw.TextAlign.right)),
+                pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text(l(money(ln.totalAmount)), textAlign: pw.TextAlign.right, style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
+              ]),
           ],
         ),
         pw.SizedBox(height: 16),
@@ -647,9 +648,8 @@ class SaleInvoiceScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final f = _figures;
-    final inv = saleInvoiceNumber(sale['saleId']);
+    final inv = _inv;
     final isEggs = isEggProductName(sale['product']);
-    final qty = tNum(sale['quantity']);
     final (badgeBg, badgeFg, badgeBorder) = f.owed <= 0
         ? (const Color(0xFFECFDF5), const Color(0xFF047857), const Color(0xFFA7F3D0))
         : f.paid > 0
@@ -731,23 +731,27 @@ class SaleInvoiceScreen extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.fromLTRB(18, 16, 18, 20),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  Container(
-                    decoration: BoxDecoration(border: Border.all(color: _line), borderRadius: BorderRadius.circular(10)),
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(tStr(sale['product']), style: const TextStyle(fontWeight: FontWeight.w600)),
-                          if (isEggs && qty > 0)
-                            Text('${(qty / 30).floor()} crates + ${(qty % 30).toInt()} loose',
-                                style: const TextStyle(fontSize: 12, color: _muted)),
-                        ]),
-                      ),
-                      numRow('Qty', jsQty(qty)),
-                      numRow('Unit price', money(tNum(sale['unitPrice']))),
-                      numRow('Amount', money(f.total), strong: true),
-                    ]),
-                  ),
+                  for (final ln in _rows) ...[
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      decoration: BoxDecoration(border: Border.all(color: _line), borderRadius: BorderRadius.circular(10)),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text('${tStr(sale['product'])}${ln.label.isNotEmpty ? ' — ${ln.label}' : ''}',
+                                style: const TextStyle(fontWeight: FontWeight.w600)),
+                            if (isEggs && ln.quantity > 0)
+                              Text('${(ln.quantity / eggsPerCrate).floor()} crates + ${(ln.quantity % eggsPerCrate).toInt()} loose',
+                                  style: const TextStyle(fontSize: 12, color: _muted)),
+                          ]),
+                        ),
+                        numRow('Qty', jsQty(ln.quantity)),
+                        numRow('Unit price', money(ln.unitPrice)),
+                        numRow('Amount', money(ln.totalAmount), strong: true),
+                      ]),
+                    ),
+                  ],
                   const SizedBox(height: 18),
                   // What's owed first on a phone, as the web's mobile layout.
                   Row(children: [
@@ -805,6 +809,13 @@ class SaleInvoiceScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+/// One invoice row (SaleInvoiceLine).
+class InvoiceLine {
+  const InvoiceLine({required this.label, required this.quantity, required this.unitPrice, required this.totalAmount});
+  final String label;
+  final num quantity, unitPrice, totalAmount;
 }
 
 /// A count as the web prints it (toLocaleString).

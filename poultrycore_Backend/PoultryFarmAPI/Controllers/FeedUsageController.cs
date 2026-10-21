@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using Microsoft.Extensions.Logging;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
@@ -7,6 +8,7 @@ namespace PoultryFarmAPIWeb.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [RequireCompanyType("Poultry")]
     public class FeedUsageController : ControllerBase
     {
         private readonly IFeedUsageService _feedUsageService;

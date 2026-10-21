@@ -5,6 +5,9 @@ import '../../design/tokens.dart';
 import '../../design/ui/buttons.dart';
 import '../../models/company.dart';
 import '../../state/session.dart';
+import '../poultry/poultry_links.dart';
+import '../poultry/sales/balances_logic.dart' show pageSlice;
+import '../poultry/sales/balances_widgets.dart' show CompactPager;
 import '../web_page_screen.dart';
 import 'business_dates.dart';
 
@@ -23,7 +26,12 @@ class FarmCompletenessCard extends StatefulWidget {
     this.businessDate,
     this.defaultExpanded = false,
     this.onReport,
+    this.compact = false,
   });
+
+  /// The web's `compact`: the summary only, with "Complete Missing
+  /// Production" leading to the full page (Farm Alerts uses it).
+  final bool compact;
 
   final Session session;
   final Company company;
@@ -90,7 +98,7 @@ String itemActionHref(Map i, String businessDate) {
 }
 
 String itemActionLabel(Map i) {
-  if (i['state'] == 'Missing' && _int(i['daysOutstanding']) > 1) return 'Record ${_int(i['daysOutstanding'])} days';
+  if (i['state'] == 'Missing' && _int(i['daysOutstanding']) > 1) return 'Record batch(${_int(i['daysOutstanding'])})';
   if (i['state'] != 'AwaitingPosting') return 'Record';
   return i['relatedRecordStatus'] == 'Draft' ? 'Finish batch' : 'Post batch';
 }
@@ -127,10 +135,13 @@ class _FarmCompletenessCardState extends State<FarmCompletenessCard> {
   bool _hidden = false;
   bool _failed = false;
   bool _refreshing = false;
-  late bool _expanded = widget.defaultExpanded;
   String _view = 'flock';
   List? _earlier;
-  final Set<String> _openRows = {};
+
+  /// Every flock's missing days are open by default; this holds the rows the
+  /// user has CLOSED.
+  final Set<String> _closedRows = {};
+  int _page = 1, _pageSize = 10;
 
   ApiClient get _client => widget.session.farmClient;
 
@@ -147,8 +158,8 @@ class _FarmCompletenessCardState extends State<FarmCompletenessCard> {
       setState(() {
         _report = null;
         _earlier = null;
-        _openRows.clear();
-        _expanded = widget.defaultExpanded;
+        _closedRows.clear();
+        _page = 1;
       });
       _load(false);
     }
@@ -168,7 +179,7 @@ class _FarmCompletenessCardState extends State<FarmCompletenessCard> {
         _failed = false;
       });
       widget.onReport?.call(report);
-      _loadEarlier(report);
+      if (!widget.compact) _loadEarlier(report);
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -184,14 +195,16 @@ class _FarmCompletenessCardState extends State<FarmCompletenessCard> {
     }
   }
 
-  Map<String, dynamic>? get _production {
+  Map<String, dynamic>? _check(String key) {
     final checks = _report?['checks'];
     if (checks is! List) return null;
     for (final c in checks) {
-      if (c is Map && c['key'] == productionCheckKey) return Map<String, dynamic>.from(c);
+      if (c is Map && c['key'] == key) return Map<String, dynamic>.from(c);
     }
     return null;
   }
+
+  Map<String, dynamic>? get _production => _check(productionCheckKey);
 
   Future<void> _loadEarlier(Map report) async {
     final p = _production;
@@ -210,9 +223,152 @@ class _FarmCompletenessCardState extends State<FarmCompletenessCard> {
     }
   }
 
+  void _toggleRow(String k) => setState(() {
+        if (!_closedRows.remove(k)) _closedRows.add(k);
+      });
+
+  /// A flock missing the shown day.
+  Widget _dayRow(Map<String, dynamic> i, String businessDate) {
+    final k = 'flock-${i['subjectId']}';
+    return _FlockRow(
+      title: '${i['label'] ?? ''}',
+      awaiting: i['state'] == 'AwaitingPosting',
+      batch: i['groupLabel'],
+      house: i['locationLabel'],
+      last: i['lastCompletedDate'] == null ? 'never' : formatShortDate(i['lastCompletedDate']),
+      daysLabel: _daysOutstanding(i['daysOutstanding']),
+      severity: i['severity'],
+      actionLabel: itemActionLabel(i),
+      open: !_closedRows.contains(k),
+      onToggle: () => _toggleRow(k),
+      onAction: () => _openWeb('Record production', itemActionHref(i, businessDate)),
+      details: _FlockMissingDates(
+        key: ValueKey('$businessDate-$k'),
+        session: widget.session,
+        company: widget.company,
+        flockId: _int(i['subjectId']),
+        businessDate: businessDate,
+        onOpen: _openWeb,
+      ),
+    );
+  }
+
+  /// A flock complete on the shown day whose gaps are earlier days.
+  Widget _earlierRow(Map<String, dynamic> f, String businessDate) {
+    final k = 'earlier-${f['flockId']}';
+    final n = f['missingDays'] as int;
+    return _FlockRow(
+      title: '${f['flockName']}',
+      batch: f['batchName'],
+      house: f['houseName'],
+      last: formatShortDate(businessDate),
+      daysLabel: '${_daysOutstanding(n)} earlier',
+      severity: 'Critical',
+      actionLabel: n > 1 ? 'Record batch($n)' : 'Record',
+      open: !_closedRows.contains(k),
+      onToggle: () => _toggleRow(k),
+      onAction: () => _openWeb(
+        'Record production',
+        n > 1 ? flockStepThroughHref(f['flockId'], businessDate) : missingDateHref(f['flockId'], '${f['latestMissing']}'),
+      ),
+      details: _FlockMissingDates(
+        key: ValueKey('$businessDate-$k'),
+        session: widget.session,
+        company: widget.company,
+        flockId: f['flockId'] as int,
+        businessDate: businessDate,
+        onOpen: _openWeb,
+      ),
+    );
+  }
+
   void _openWeb(String label, String href) => Navigator.of(context).push(MaterialPageRoute(
         builder: (_) => WebPageScreen(label: label, href: href, company: widget.company, session: widget.session),
       ));
+
+  /// The full page's summary: the severity badge, then Today / Missing /
+  /// Earlier days / Unsorted eggs as tiles, then the notes under them.
+  Widget _fullSummary({
+    required String sevLabel,
+    required Color sevBg,
+    required Color sevFg,
+    required bool isToday,
+    required String businessDate,
+    required Map p,
+    required int missing,
+    required int backlogDates,
+    required int backlogFlockDays,
+    required int awaiting,
+    required int duplicates,
+    required Map? unsorted,
+    required TextStyle Function([double]) muted,
+  }) {
+    final unsortedItems = [for (final i in (unsorted?['items'] as List? ?? const [])) if (i is Map) i];
+    final oldest = unsortedItems.fold<int>(0, (m, i) => _int(i['daysOutstanding']) > m ? _int(i['daysOutstanding']) : m);
+    final showUnsorted = unsorted != null && _int(unsorted['outstandingCount']) > 0;
+    final tiles = <Widget>[
+      _Tile(
+        tone: missing > 0 ? _TileTone.amber : _TileTone.emerald,
+        label: isToday ? 'Today' : formatShortDate(businessDate),
+        value: '${_int(p['completedCount'])} / ${_int(p['expectedCount'])} recorded',
+        sub: const Text('flocks recorded'),
+      ),
+      _Tile(
+        tone: missing > 0 ? _TileTone.rose : _TileTone.emerald,
+        label: isToday ? 'Missing today' : 'Missing this day',
+        value: '$missing',
+        sub: Text(missing > 0 ? 'production record${missing == 1 ? '' : 's'}' : 'nothing missing'),
+      ),
+      _Tile(
+        tone: backlogFlockDays > 0 ? _TileTone.rose : _TileTone.emerald,
+        label: 'Earlier days',
+        value: '$backlogFlockDays',
+        sub: Text(backlogFlockDays > 0 ? 'missing across $backlogDates day${backlogDates == 1 ? '' : 's'}' : 'all caught up'),
+      ),
+      if (showUnsorted)
+        _Tile(
+          tone: _TileTone.sky,
+          label: 'Unsorted eggs',
+          value: fmtNum(_int((unsorted['counters'] as Map?)?['eggs']), 0),
+          sub: Wrap(children: [
+            if (oldest >= 1) Text('oldest $oldest day${oldest == 1 ? '' : 's'} old · '),
+            InkWell(
+              onTap: () => openPoultryHref(context, widget.session, widget.company, '/poultry-egg-sorting', label: 'Egg Sorting'),
+              child: const Text('Sort eggs', style: TextStyle(fontWeight: FontWeight.w600, decoration: TextDecoration.underline)),
+            ),
+          ]),
+        ),
+    ];
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const SizedBox(height: 4),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(color: sevBg, borderRadius: BorderRadius.circular(999)),
+        child: Text(sevLabel, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: sevFg)),
+      ),
+      const SizedBox(height: 8),
+      // Two to a row (the card sits in an IntrinsicHeight, so no LayoutBuilder).
+      for (var i = 0; i < tiles.length; i += 2) ...[
+        if (i > 0) const SizedBox(height: 8),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(child: tiles[i]),
+          const SizedBox(width: 8),
+          Expanded(child: i + 1 < tiles.length ? tiles[i + 1] : const SizedBox.shrink()),
+        ]),
+      ],
+      const SizedBox(height: 8),
+      if (missing == 0 && backlogDates == 0)
+        const Text('✓ All expected flock production has been recorded.', style: TextStyle(fontSize: 13, color: Color(0xFF047857)))
+      else if (backlogDates == 0 && '${p['severityReason'] ?? ''}'.isNotEmpty)
+        Text('${p['severityReason']}', style: muted(12)),
+      if (awaiting > 0)
+        Text('$awaiting of these ${awaiting == 1 ? 'is' : 'are'} in a batch production entry that has not been posted yet.',
+            style: muted(12)),
+      if (duplicates > 0)
+        Text('$duplicates flock${duplicates == 1 ? ' has' : 's have'} more than one production record for this day.',
+            style: const TextStyle(fontSize: 12, color: Color(0xFFB45309))),
+    ]);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -241,7 +397,7 @@ class _FarmCompletenessCardState extends State<FarmCompletenessCard> {
         child: Row(children: [
           SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
           SizedBox(width: 8),
-          Text("Checking today's farm activity…"),
+          Flexible(child: Text("Checking today's farm activity…")),
         ]),
       );
     }
@@ -260,12 +416,18 @@ class _FarmCompletenessCardState extends State<FarmCompletenessCard> {
     final backlogFlockDays = _int(counters['backlogFlockDays']);
     final hasWork = missing > 0 || backlogDates > 0;
     final items = [for (final i in (p['items'] as List? ?? const [])) if (i is Map) Map<String, dynamic>.from(i)];
-    final completeHref = batchEntryHref(businessDate, [
-      for (final i in items) if (i['subjectType'] == 'flock' && i['state'] == 'Missing') _int(i['subjectId']),
-    ]);
+    // 344: shown only when the farm sorts and earlier days' eggs are waiting.
+    final unsorted = _check('poultry.eggs.unsorted');
+    // The By flock list as one list, paged: flocks missing the day, then
+    // flocks whose only gaps are earlier days.
     final earlierFlocks = _earlier == null
         ? const <Map<String, dynamic>>[]
         : flocksWithEarlierGaps(_earlier!, {for (final i in items) _int(i['subjectId'])});
+    final flockRows = <(bool, Map<String, dynamic>)>[
+      for (final i in items) (true, i),
+      for (final f in earlierFlocks) (false, f),
+    ];
+    final pageRows = pageSlice(flockRows, _page, _pageSize);
     final notApplicable = p['status'] == 'NotApplicable';
     TextStyle muted([double size = 13]) => TextStyle(fontSize: size, color: tokens.mutedForeground);
 
@@ -290,10 +452,31 @@ class _FarmCompletenessCardState extends State<FarmCompletenessCard> {
             const SizedBox(width: 10),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(title, style: muted(11.5).copyWith(fontWeight: FontWeight.w600, letterSpacing: .6)),
+                Text(title,
+                    style: widget.compact
+                        ? muted(11.5).copyWith(fontWeight: FontWeight.w600, letterSpacing: .6)
+                        : TextStyle(fontSize: 13, fontWeight: FontWeight.w600, letterSpacing: .6, color: tokens.cardForeground)),
                 const SizedBox(height: 4),
                 if (notApplicable)
                   Text('No active flocks are expected to report production.', style: muted())
+                else if (!widget.compact)
+                  // Full page: one coloured tile per figure, so today, earlier
+                  // days and unsorted eggs read as separate things to do.
+                  _fullSummary(
+                    sevLabel: sevLabel,
+                    sevBg: sevBg,
+                    sevFg: sevFg,
+                    isToday: isToday,
+                    businessDate: businessDate,
+                    p: p,
+                    missing: missing,
+                    backlogDates: backlogDates,
+                    backlogFlockDays: backlogFlockDays,
+                    awaiting: awaiting,
+                    duplicates: duplicates,
+                    unsorted: unsorted,
+                    muted: muted,
+                  )
                 else ...[
                   Wrap(spacing: 12, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
                     Text.rich(TextSpan(style: muted(), children: [
@@ -346,37 +529,54 @@ class _FarmCompletenessCardState extends State<FarmCompletenessCard> {
                       '$duplicates flock${duplicates == 1 ? ' has' : 's have'} more than one production record for this day.',
                       style: const TextStyle(fontSize: 12, color: Color(0xFFB45309)),
                     ),
+                  if (unsorted != null && _int(unsorted['outstandingCount']) > 0)
+                    // Egg sorting (344): earlier days' eggs still unsorted.
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Wrap(crossAxisAlignment: WrapCrossAlignment.center, spacing: 4, children: [
+                        Text(
+                          '${unsorted['severityReason'] ?? '${fmtNum(_int((unsorted['counters'] as Map?)?['eggs']), 0)} eggs from earlier days are still unsorted.'}',
+                          style: const TextStyle(fontSize: 12, color: Color(0xFFB45309)),
+                        ),
+                        InkWell(
+                          onTap: () => openPoultryHref(context, widget.session, widget.company, '/poultry-egg-sorting', label: 'Egg Sorting'),
+                          child: const Text('Sort eggs',
+                              style: TextStyle(
+                                  fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFFB45309), decoration: TextDecoration.underline)),
+                        ),
+                      ]),
+                    ),
                 ],
               ]),
             ),
           ]),
           const SizedBox(height: 10),
-          Wrap(spacing: 8, runSpacing: 8, children: [
-            IconButton(
-              tooltip: 'Refresh farm completeness',
-              onPressed: _refreshing ? null : () => _load(true),
-              icon: _refreshing
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.refresh, size: 20),
+          // The web hid "Show missing" and "Complete … Production" on the full
+          // page: the list is always open and each flock's Record does the job.
+          // The compact card (Farm Alerts) keeps its button, which only leads
+          // to the full page.
+          if (!widget.compact)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: IconButton(
+                tooltip: 'Refresh farm completeness',
+                onPressed: _refreshing ? null : () => _load(true),
+                icon: _refreshing
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.refresh, size: 20),
+              ),
+            )
+          else if (hasWork)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: const Color(0xFFD97706), foregroundColor: Colors.white),
+                onPressed: () => openPoultryHref(context, widget.session, widget.company, '/poultry-farm-completeness',
+                    label: 'Farm Completeness'),
+                child: const Text('Complete Missing Production'),
+              ),
             ),
-            if (hasWork)
-              AppButton(
-                label: _expanded ? 'Hide missing' : 'Show missing',
-                icon: _expanded ? Icons.expand_less : Icons.expand_more,
-                variant: AppButtonVariant.outline,
-                size: AppButtonSize.sm,
-                onPressed: () => setState(() => _expanded = !_expanded),
-              ),
-            if (completeHref != null)
-              FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: const Color(0xFFD97706)),
-                onPressed: () => _openWeb('Batch Production Entry', completeHref),
-                child: Text(backlogDates > 0
-                    ? 'Complete ${isToday ? "Today's" : "This Day's"} Production'
-                    : 'Complete Missing Production'),
-              ),
-          ]),
-          if (_expanded && hasWork) ...[
+          if (!widget.compact && hasWork) ...[
             const SizedBox(height: 10),
             Align(
               alignment: Alignment.centerLeft,
@@ -394,65 +594,33 @@ class _FarmCompletenessCardState extends State<FarmCompletenessCard> {
             if (_view == 'date')
               _MissingByDate(session: widget.session, company: widget.company, businessDate: businessDate, onOpen: _openWeb)
             else ...[
-              for (final i in items) ...[
-                _FlockRow(
-                  title: '${i['label'] ?? ''}',
-                  awaiting: i['state'] == 'AwaitingPosting',
-                  batch: i['groupLabel'],
-                  house: i['locationLabel'],
-                  last: i['lastCompletedDate'] == null ? 'Never' : formatShortDate(i['lastCompletedDate']),
-                  daysLabel: _daysOutstanding(i['daysOutstanding']),
-                  severity: i['severity'],
-                  actionLabel: itemActionLabel(i),
-                  open: _openRows.contains('flock-${i['subjectId']}'),
-                  onToggle: () => setState(() {
-                    final k = 'flock-${i['subjectId']}';
-                    if (!_openRows.remove(k)) _openRows.add(k);
-                  }),
-                  onAction: () => _openWeb('Record production', itemActionHref(i, businessDate)),
-                  details: _FlockMissingDates(
-                    session: widget.session,
-                    company: widget.company,
-                    flockId: _int(i['subjectId']),
-                    businessDate: businessDate,
-                    onOpen: _openWeb,
-                  ),
-                ),
-              ],
+              for (var idx = 0; idx < pageRows.length; idx++)
+                if (pageRows[idx].$1)
+                  _dayRow(pageRows[idx].$2, businessDate)
+                else
+                  Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                    // "Earlier days missing" heads the earlier-only flocks, and
+                    // is repeated at the top of a page that starts with them.
+                    if (missing > 0 && (idx == 0 || pageRows[idx - 1].$1))
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(4, 8, 4, 4),
+                        child: Text('EARLIER DAYS MISSING', style: muted(11.5).copyWith(fontWeight: FontWeight.w600, letterSpacing: .6)),
+                      ),
+                    _earlierRow(pageRows[idx].$2, businessDate),
+                  ]),
+              // Flocks complete on this day with earlier missing days, still loading.
               if (backlogDates > 0 && _earlier == null)
                 Padding(padding: const EdgeInsets.all(8), child: Text('Loading flocks with earlier missing days…', style: muted(12))),
-              if (earlierFlocks.isNotEmpty && missing > 0)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(4, 8, 4, 4),
-                  child: Text('EARLIER DAYS MISSING', style: muted(11.5).copyWith(fontWeight: FontWeight.w600, letterSpacing: .6)),
-                ),
-              for (final f in earlierFlocks)
-                _FlockRow(
-                  title: '${f['flockName']}',
-                  batch: f['batchName'],
-                  house: f['houseName'],
-                  last: formatShortDate(businessDate),
-                  daysLabel: '${_daysOutstanding(f['missingDays'])} earlier',
-                  severity: 'Critical',
-                  actionLabel: (f['missingDays'] as int) > 1 ? 'Record ${f['missingDays']} days' : 'Record',
-                  open: _openRows.contains('earlier-${f['flockId']}'),
-                  onToggle: () => setState(() {
-                    final k = 'earlier-${f['flockId']}';
-                    if (!_openRows.remove(k)) _openRows.add(k);
+              if (flockRows.isNotEmpty)
+                CompactPager(
+                  total: flockRows.length,
+                  page: _page,
+                  pageSize: _pageSize,
+                  onPage: (p) => setState(() => _page = p),
+                  onPageSize: (n) => setState(() {
+                    _pageSize = n;
+                    _page = 1;
                   }),
-                  onAction: () => _openWeb(
-                    'Record production',
-                    (f['missingDays'] as int) > 1
-                        ? flockStepThroughHref(f['flockId'], businessDate)
-                        : missingDateHref(f['flockId'], '${f['latestMissing']}'),
-                  ),
-                  details: _FlockMissingDates(
-                    session: widget.session,
-                    company: widget.company,
-                    flockId: f['flockId'] as int,
-                    businessDate: businessDate,
-                    onOpen: _openWeb,
-                  ),
                 ),
             ],
           ],
@@ -521,7 +689,6 @@ class _FlockRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = context.tokens;
     final (_, bg, fg, _) = severityStyle(severity);
-    String d(Object? v) => v == null || '$v'.isEmpty ? '—' : '$v';
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       decoration: BoxDecoration(
@@ -549,19 +716,30 @@ class _FlockRow extends StatelessWidget {
                     ),
                 ]),
                 const SizedBox(height: 4),
-                Text('Batch: ${d(batch)} · House/Pen: ${d(house)}',
-                    style: TextStyle(fontSize: 12, color: tokens.mutedForeground)),
-                Text('Last production: $last', style: TextStyle(fontSize: 12, color: tokens.mutedForeground)),
-                const SizedBox(height: 6),
-                Row(children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
-                    child: Text(daysLabel, style: TextStyle(fontSize: 12, color: fg)),
+                // Phone: batch, house and last production under the name.
+                Padding(
+                  padding: const EdgeInsets.only(left: 22),
+                  child: Text(
+                    '${[batch, house].where((v) => v != null && '$v'.isNotEmpty).join(' · ').ifEmpty('—')} · last $last',
+                    style: TextStyle(fontSize: 12, color: tokens.mutedForeground),
                   ),
-                  const Spacer(),
-                  AppButton(label: actionLabel, variant: AppButtonVariant.outline, size: AppButtonSize.sm, onPressed: onAction),
-                ]),
+                ),
+                const SizedBox(height: 6),
+                // Wraps rather than overflowing on a narrow phone.
+                Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
+                      child: Text(daysLabel, style: TextStyle(fontSize: 12, color: fg)),
+                    ),
+                    AppButton(label: actionLabel, variant: AppButtonVariant.outline, size: AppButtonSize.sm, onPressed: onAction),
+                  ],
+                ),
               ]),
             ),
           ),
@@ -575,6 +753,7 @@ class _FlockRow extends StatelessWidget {
 /// FlockMissingDateRows: one flock's missing days, 30 then 90 back.
 class _FlockMissingDates extends StatefulWidget {
   const _FlockMissingDates({
+    super.key,
     required this.session,
     required this.company,
     required this.flockId,
@@ -704,6 +883,7 @@ class _MissingByDateState extends State<_MissingByDate> {
   Map? _data;
   String? _error;
   final Set<String> _open = {};
+  int _page = 1, _pageSize = 10;
 
   @override
   void initState() {
@@ -762,7 +942,7 @@ class _MissingByDateState extends State<_MissingByDate> {
     final window = _int(data['windowDays']);
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       if (groups.isEmpty) Text('No missing production in the last $window days.', style: TextStyle(color: tokens.mutedForeground)),
-      for (final g in groups) ...[
+      for (final g in pageSlice(groups, _page, _pageSize)) ...[
         Builder(builder: (context) {
           final date = g['date'] as String;
           final missing = g['missing'] as List<Map>;
@@ -788,10 +968,10 @@ class _MissingByDateState extends State<_MissingByDate> {
                       Text(daysAgoLabel(date, data['businessDate']), style: small),
                     ]),
                     const SizedBox(height: 4),
-                    Text('Flocks missing: ${missing.isEmpty ? '—' : missing.length}', style: small),
+                    Text('Flocks: ${missing.isEmpty ? '—' : missing.length}', style: small),
+                    // Phone: the unposted batches sit under the date.
                     if (batches.isNotEmpty)
                       Wrap(spacing: 8, children: [
-                        Text('In an unposted batch:', style: small),
                         for (final b in batches)
                           InkWell(
                             onTap: () => widget.onOpen(
@@ -841,6 +1021,17 @@ class _MissingByDateState extends State<_MissingByDate> {
           );
         }),
       ],
+      if (groups.isNotEmpty)
+        CompactPager(
+          total: groups.length,
+          page: _page,
+          pageSize: _pageSize,
+          onPage: (p) => setState(() => _page = p),
+          onPageSize: (n) => setState(() {
+            _pageSize = n;
+            _page = 1;
+          }),
+        ),
       Wrap(crossAxisAlignment: WrapCrossAlignment.center, spacing: 8, children: [
         Text('Last $window days.', style: small),
         if (window < 90)
@@ -861,4 +1052,37 @@ class _MissingByDateState extends State<_MissingByDate> {
 
 extension on String {
   String ifEmpty(String other) => isEmpty ? other : this;
+}
+
+enum _TileTone { emerald, amber, rose, sky }
+
+/// One figure on the full-page summary: label, big number, a line under it.
+class _Tile extends StatelessWidget {
+  const _Tile({required this.tone, required this.label, required this.value, required this.sub});
+  final _TileTone tone;
+  final String label;
+  final String value;
+  final Widget sub;
+
+  @override
+  Widget build(BuildContext context) {
+    final (border, bg, fg) = switch (tone) {
+      _TileTone.emerald => (const Color(0xFFA7F3D0), const Color(0xFFECFDF5), const Color(0xFF047857)),
+      _TileTone.amber => (const Color(0xFFFDE68A), const Color(0xFFFFFBEB), const Color(0xFFB45309)),
+      _TileTone.rose => (const Color(0xFFFECDD3), const Color(0xFFFFF1F2), const Color(0xFFBE123C)),
+      _TileTone.sky => (const Color(0xFFBAE6FD), const Color(0xFFF0F9FF), const Color(0xFF0369A1)),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(color: bg, border: Border.all(color: border), borderRadius: BorderRadius.circular(8)),
+      child: DefaultTextStyle.merge(
+        style: TextStyle(color: fg),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label.toUpperCase(), style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: .4, color: fg.withValues(alpha: .8))),
+          Text(value, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700)),
+          DefaultTextStyle.merge(style: const TextStyle(fontSize: 12), child: sub),
+        ]),
+      ),
+    );
+  }
 }

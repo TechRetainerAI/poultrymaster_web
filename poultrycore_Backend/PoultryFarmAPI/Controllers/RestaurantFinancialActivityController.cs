@@ -4,6 +4,7 @@
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Helpers;
 
@@ -12,6 +13,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [ApiController]
     [Authorize]
     [Route("api/Restaurant/financial-activity")]
+    [RequireCompanyType("Restaurant")]
     public class RestaurantFinancialActivityController : ControllerBase
     {
         private readonly IRestaurantFinancialActivityService _svc;

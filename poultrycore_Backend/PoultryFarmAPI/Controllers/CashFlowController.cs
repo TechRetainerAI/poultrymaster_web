@@ -3,12 +3,14 @@
 
 using Microsoft.AspNetCore.Mvc;
 using PoultryFarmAPIWeb.Business;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Controllers
 {
     [ApiController]
     [Route("api/Poultry/cash-flow")]
+    [RequireCompanyType("Poultry")]
     public class PoultryCashFlowController : ControllerBase
     {
         private readonly ICashFlowService _svc;
@@ -22,6 +24,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Water/cash-flow")]
+    [RequireCompanyType("Water")]
     public class WaterCashFlowController : ControllerBase
     {
         private readonly ICashFlowService _svc;
@@ -35,6 +38,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Hotel/cash-flow")]
+    [RequireCompanyType("Hotel")]
     public class HotelCashFlowController : ControllerBase
     {
         private readonly ICashFlowService _svc;
@@ -48,6 +52,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Restaurant/cash-flow")]
+    [RequireCompanyType("Restaurant")]
     public class RestaurantCashFlowController : ControllerBase
     {
         private readonly ICashFlowService _svc;

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using PoultryFarmAPIWeb.Business;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Controllers
@@ -17,6 +18,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // =========================================================================
     [ApiController]
     [Route("api/Water/internal-usage")]
+    [RequireCompanyType("Water")]
     public class WaterInternalUsageController : ControllerBase
     {
         private readonly IWaterInternalUsageService _svc;
@@ -130,6 +132,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // =========================================================================
     [ApiController]
     [Route("api/Poultry/internal-usage")]
+    [RequireCompanyType("Poultry")]
     public class PoultryInternalUsageController : ControllerBase
     {
         private readonly IPoultryInternalUsageService _svc;
@@ -240,6 +243,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // =========================================================================
     [ApiController]
     [Route("api/generic-company/internal-usage")]
+    [RequireCompanyType("Generic")]
     public class GenericInternalUsageController : ControllerBase
     {
         private readonly IGenericInternalUsageService _svc;

@@ -11,6 +11,7 @@ import '../../../design/ui/inputs.dart';
 import '../../../models/company.dart';
 import '../../../state/session.dart';
 import '../../shared/business_dates.dart';
+import '../../shared/reason_select.dart' show ReasonSelect, reversalReasons;
 import '../reports/report_export.dart';
 import '../reports/report_format.dart';
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
@@ -255,36 +256,33 @@ class ReversePaymentDialog extends StatefulWidget {
 }
 
 class _ReversePaymentDialogState extends State<ReversePaymentDialog> {
-  final _reason = TextEditingController();
+  String _reason = '';
   bool _busy = false;
-
-  @override
-  void dispose() {
-    _reason.dispose();
-    super.dispose();
-  }
+  String? _error;
 
   Future<void> _reverse() async {
     final t = widget.target;
-    if (_reason.text.trim().isEmpty) {
-      trackerToast(context, 'A reason is required',
-          description: 'Say why this payment is being reversed — it is written to the audit trail.', error: true);
-      return;
-    }
-    setState(() => _busy = true);
+    if (_reason.trim().isEmpty) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
     try {
       await widget.session.farmClient.post(
           '${widget.api}/customer-payments/${Uri.encodeComponent(tStr(t['paymentId']))}/reverse',
-          body: {'farmId': widget.company.farmId, 'reason': _reason.text.trim(), 'reversedBy': widget.session.tokens.userId});
+          body: {'farmId': widget.company.farmId, 'reason': _reason.trim(), 'reversedBy': widget.session.tokens.userId});
       if (!mounted) return;
       final n = tIntOrNull(t['allocationCount']) ?? 0;
       trackerToast(context, 'Payment reversed',
           description: '${widget.fmt(tNum(t['totalAmount']))} put back on $n sale${n == 1 ? '' : 's'}.');
       Navigator.pop(context, true);
     } on ApiException catch (e) {
+      // Kept in the window so the reason is not lost and they can try again.
       if (mounted) {
-        setState(() => _busy = false);
-        trackerToast(context, 'Could not reverse payment', description: e.message, error: true);
+        setState(() {
+          _busy = false;
+          _error = e.message;
+        });
       }
     }
   }
@@ -293,12 +291,17 @@ class _ReversePaymentDialogState extends State<ReversePaymentDialog> {
   Widget build(BuildContext context) {
     final t = widget.target;
     return AlertDialog(
-      title: const Text('Reverse payment'),
+      title: Row(children: [
+        const Icon(Icons.undo, color: TColors.red600),
+        const SizedBox(width: 8),
+        Flexible(child: Text('Reverse ${tStr(t['paymentNumber']).isEmpty ? 'this payment' : tStr(t['paymentNumber'])}?')),
+      ]),
       scrollable: true,
       content: SizedBox(
         width: 440,
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          const Text('This reverses the whole payment and restores the balance on every sale it was applied to.',
+          const Text(
+              'The balance goes back onto every sale it was applied to and the cash movement is undone. The payment stays in the history, marked Reversed.',
               style: TextStyle(fontSize: 13, color: TColors.slate500)),
           const SizedBox(height: 12),
           Container(
@@ -321,19 +324,221 @@ class _ReversePaymentDialogState extends State<ReversePaymentDialog> {
             ]),
           ),
           const SizedBox(height: 12),
-          FilterLabel('Why is this being reversed?', AppInput(controller: _reason, hintText: 'e.g. entered twice')),
-          const SizedBox(height: 8),
-          const Text('The payment is kept and marked reversed, never deleted.', style: TextStyle(fontSize: 12, color: TColors.slate500)),
+          FilterLabel('Reason *', ReasonSelect(options: reversalReasons, value: _reason, onChanged: (v) => setState(() => _reason = v))),
+          if (_error != null) ...[const SizedBox(height: 10), TrackerBanner.error(_error!)],
         ]),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+        OutlinedButton(onPressed: _busy ? null : () => Navigator.pop(context, false), child: const Text('Cancel')),
         FilledButton(
           style: FilledButton.styleFrom(backgroundColor: TColors.red600),
-          onPressed: _busy ? null : _reverse,
+          onPressed: _busy || _reason.trim().isEmpty ? null : _reverse,
           child: _busy
               ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
               : const Text('Reverse payment'),
+        ),
+      ],
+    );
+  }
+}
+
+// ------------------------------------------------------------------ P&L (382)
+
+/// Poultry (382): money paid on a debt recorded by hand goes on Profit & Loss
+/// (a customer's as revenue, ours to a supplier as an operating expense). Only
+/// that part is new to P&L, so the badge and the toggle show only when the
+/// payment has some (`plAmount > 0`) and is not reversed.
+bool paymentOnPL(Map row) => tNum(row['plAmount']) > 0 && (row['status'] ?? 'Posted') != 'Reversed';
+
+/// "On P&L" / "Not on P&L" -- nothing for a payment with no debt in it.
+Widget paymentPLBadge(Map row) {
+  if (!paymentOnPL(row)) return const SizedBox.shrink();
+  return row['excludedFromPL'] == true
+      ? const TBadge('Not on P&L', bg: Colors.white, fg: TColors.slate500, border: TColors.slate300)
+      : const TBadge('On P&L', bg: TColors.emerald50, fg: TColors.emerald800, border: TColors.emerald300);
+}
+
+/// Exclude from P&L / Include in P&L, with a confirmation. Owner / admin only
+/// (usePermissions().isAdmin: anyone who is not plain staff). Null when the
+/// button does not show.
+Widget? paymentPLToggle(BuildContext context,
+    {required Session session, required Company company, required Map row, required BalanceSide side, required VoidCallback onChanged}) {
+  if ((company.role ?? '').toLowerCase() == 'staff' || !paymentOnPL(row)) return null;
+  final exclude = row['excludedFromPL'] != true;
+  return OutlinedButton(
+    style: OutlinedButton.styleFrom(backgroundColor: Colors.white),
+    onPressed: () async {
+      final fmt = await FarmMoney.load(session, company);
+      if (!context.mounted) return;
+      final what = side.isCustomer ? 'revenue' : 'an operating expense';
+      final ref = tStr(row['paymentNumber']).isNotEmpty ? tStr(row['paymentNumber']) : 'payment #${tStr(row['paymentId'])}';
+      final amount = fmt(tNum(row['plAmount']));
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => _PLConfirm(
+          title: exclude ? 'Keep this payment off Profit & Loss?' : 'Put this payment back on Profit & Loss?',
+          body: exclude
+              ? '$amount of $ref was paid on debts and counts as $what. Excluding it takes it off Profit & Loss; the payment, the debt and the cash are not changed.'
+              : '$amount of $ref will count as $what on Profit & Loss again, on the payment date.',
+          action: exclude ? 'Exclude from P&L' : 'Include in P&L',
+          run: () => session.farmClient.post(
+            '/api/Poultry/${side.paymentsPath}/${Uri.encodeComponent(tStr(row['paymentId']))}/pl-exclusion',
+            body: {'farmId': company.farmId, 'exclude': exclude},
+          ),
+        ),
+      );
+      if (ok != true || !context.mounted) return;
+      trackerToast(context, exclude ? 'Kept off Profit & Loss' : 'Back on Profit & Loss', description: '$ref · $amount');
+      onChanged();
+    },
+    child: Text(exclude ? 'Exclude from P&L' : 'Include in P&L'),
+  );
+}
+
+class _PLConfirm extends StatefulWidget {
+  const _PLConfirm({required this.title, required this.body, required this.action, required this.run});
+  final String title, body, action;
+  final Future<Object?> Function() run;
+  @override
+  State<_PLConfirm> createState() => _PLConfirmState();
+}
+
+class _PLConfirmState extends State<_PLConfirm> {
+  bool _busy = false;
+
+  Future<void> _go() async {
+    setState(() => _busy = true);
+    try {
+      await widget.run();
+      if (mounted) Navigator.pop(context, true);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      trackerToast(context, 'Could not change Profit & Loss', description: e.message, error: true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => PopScope(
+        canPop: !_busy,
+        child: AlertDialog(
+          scrollable: true,
+          title: Text(widget.title),
+          content: SizedBox(width: 420, child: Text(widget.body, style: const TextStyle(fontSize: 13, color: TColors.slate600))),
+          actions: [
+            OutlinedButton(onPressed: _busy ? null : () => Navigator.pop(context, false), child: const Text('Cancel')),
+            FilledButton(onPressed: _busy ? null : _go, child: Text(widget.action)),
+          ],
+        ),
+      );
+}
+
+// ------------------------------------------------------------------ record customer / supplier payment
+
+/// Record customer payment (Payments Received, 367) / Record supplier payment
+/// (Supplier Payments, 370), poultry: pick who, then the ordinary payment form
+/// on their open items. What is not applied pays an old debt from before the
+/// system (383) unless the user keeps it as credit; applied to nothing it is an
+/// advance. Returns true when a payment was posted.
+Future<bool> recordPartyPayment(BuildContext context, {required Session session, required Company company, required BalanceSide side}) async {
+  final picked = await showDialog<(int, String, List<Map>)>(
+    context: context,
+    builder: (_) => _PickParty(session: session, company: company, side: side),
+  );
+  if (picked == null || !context.mounted) return false;
+  final (id, name, accounts) = picked;
+  final ok = await Navigator.of(context).push<bool>(MaterialPageRoute(
+    builder: (_) => RecordPaymentScreen(
+      session: session,
+      company: company,
+      party: {'partyId': id, 'partyName': name},
+      cashAccounts: accounts,
+      side: side,
+      sourceType: side.isCustomer ? 'PaymentsPage' : 'SupplierPayments',
+      remainderAsOldDebt: true,
+    ),
+  ));
+  return ok == true;
+}
+
+class _PickParty extends StatefulWidget {
+  const _PickParty({required this.session, required this.company, required this.side});
+  final Session session;
+  final Company company;
+  final BalanceSide side;
+  @override
+  State<_PickParty> createState() => _PickPartyState();
+}
+
+class _PickPartyState extends State<_PickParty> {
+  List<(int, String)> _people = [];
+  List<Map> _accounts = [];
+  int? _id;
+
+  bool get _customer => widget.side.isCustomer;
+
+  @override
+  void initState() {
+    super.initState();
+    final api = widget.session.farmClient;
+    final idKey = _customer ? 'customerId' : 'supplierId';
+    api.get(_customer ? '/api/Customer' : '/api/Supplier', query: {'userId': widget.session.tokens.userId ?? '', 'farmId': widget.company.farmId}).then((res) {
+      final list = <(int, String)>[
+        for (final c in rowsOf(res))
+          if ((tIntOrNull(c[idKey] ?? (_customer ? c['id'] : null)) ?? 0) > 0 && tStr(c['name'] ?? (_customer ? c['customerName'] : null)).isNotEmpty)
+            (tIntOrNull(c[idKey] ?? (_customer ? c['id'] : null))!, tStr(c['name'] ?? (_customer ? c['customerName'] : null))),
+      ]..sort((a, b) => a.$2.compareTo(b.$2));
+      if (mounted) setState(() => _people = list);
+    }).catchError((Object _) {});
+    api.get('/api/Poultry/cash-accounts', query: {'farmId': widget.company.farmId}).then((res) {
+      final list = [
+        for (final a in rowsOf(res))
+          if (a['isActive'] == true)
+            {
+              'id': tIntOrNull(a['poultryCashAccountId']),
+              'name': tStr(a['accountName']),
+              'currentBalance': a['currentBalance'],
+              'allowNegativeBalance': a['allowNegativeBalance'],
+            },
+      ];
+      if (mounted) setState(() => _accounts = list);
+    }).catchError((Object _) {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final word = _customer ? 'customer' : 'supplier';
+    return AlertDialog(
+      scrollable: true,
+      title: Text('Record $word payment'),
+      content: SizedBox(
+        width: 420,
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text(
+            _customer
+                ? 'Choose who paid. You can then apply the money to their open sales; whatever is not applied is kept as their credit.'
+                : 'Choose who you paid. You can then apply the money to what you owe them; whatever is not applied is kept as supplier credit.',
+            style: const TextStyle(fontSize: 13, color: TColors.slate500),
+          ),
+          const SizedBox(height: 12),
+          FilterLabel(
+            _customer ? 'Customer *' : 'Supplier *',
+            AppSelect<int>(
+              value: _id,
+              hintText: _people.isNotEmpty ? 'Choose the $word' : 'Loading…',
+              items: [for (final (id, name) in _people) AppSelectItem(value: id, label: name)],
+              onChanged: (v) => setState(() => _id = v),
+            ),
+          ),
+        ]),
+      ),
+      actions: [
+        OutlinedButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        FilledButton(
+          onPressed: _id == null
+              ? null
+              : () => Navigator.pop(context, (_id!, _people.firstWhere((p) => p.$1 == _id).$2, _accounts)),
+          child: const Text('Next'),
         ),
       ],
     );
@@ -355,12 +560,18 @@ class RecordPaymentScreen extends StatefulWidget {
     this.side = BalanceSide.customer,
     this.sourceType,
     this.api = '/api/Poultry',
+    this.remainderAsOldDebt = false,
   });
   final Session session;
   final Company company;
   final Map party;
   final Map? single;
   final BalanceSide side;
+
+  /// 383 (poultry: Record customer / supplier payment on Payments Received):
+  /// money not applied to anything paid something owed from before the system,
+  /// unless the user keeps it as credit.
+  final bool remainderAsOldDebt;
 
   /// The module's route prefix (BalanceRail.api).
   final String api;
@@ -389,6 +600,27 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
   final Map<String, TextEditingController> _lineCtl = {};
   bool _touched = false;
   FarmMoney _fmt = const FarmMoney();
+
+  /// 382: money on a debt is on Profit & Loss unless the owner / an admin says not.
+  bool _countOnPL = true;
+
+  /// 383: the leftover is an old debt by default; the user can keep it as credit.
+  bool _keepAsCredit = false;
+
+  /// 367 / 370: a poultry payment need not be applied in full -- the rest is
+  /// kept as the customer's / supplier's credit (applied to nothing = an advance).
+  bool get _allowUnallocated => widget.api == '/api/Poultry';
+  String get _creditWord => widget.side.isCustomer ? 'customer credit' : 'supplier credit';
+
+  /// usePermissions().isAdmin: anyone who is not plain staff.
+  bool get _isAdmin => (widget.company.role ?? '').toLowerCase() != 'staff';
+
+  /// 382: the part paid on debts recorded by hand -- the only part new to P&L.
+  num get _recordedDebtAllocated => !_allowUnallocated
+      ? 0
+      : _docs
+          .where((d) => d['documentType'] == 'CustomerDebt' || d['documentType'] == 'SupplierDebt')
+          .fold<num>(0, (t, d) => t + (_alloc[docKey(d)] ?? 0));
 
   @override
   void initState() {
@@ -448,6 +680,19 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
 
   static String _plain(num v) => v == v.roundToDouble() ? v.toInt().toString() : v.toString();
 
+  /// Single-document mode has no grid to edit, so the one line tracks the amount.
+  void _changeAmount(String raw) {
+    setState(() {
+      final s = widget.single;
+      if (s == null) return;
+      _touched = true;
+      final v = num.tryParse(raw);
+      // 367: paying more than the line owes keeps the rest as credit.
+      final applied = _allowUnallocated && v != null && v > tNum(s['balance']) ? tNum(s['balance']) : v;
+      _alloc = raw.isEmpty || v == null || v == 0 ? {} : {docKey(s): applied!};
+    });
+  }
+
   void _setLine(Map d, String raw) {
     setState(() {
       _touched = true;
@@ -460,7 +705,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
     });
   }
 
-  Future<void> _submit(AllocationValidation v) async {
+  Future<void> _submit(AllocationValidation v, {required num debtAllocated, required num oldDebt}) async {
     setState(() => _touched = true);
     if (!v.ok || _overdraws) return;
     setState(() => _posting = true);
@@ -479,7 +724,8 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
           for (final d in _docs)
             if ((_alloc[docKey(d)] ?? 0) > 0)
               {
-                'saleId': side.isCustomer ? tIntOrNull(d['documentId']) : null,
+                // 369: a customer debt goes as its own document type, never as a sale id.
+                'saleId': side.isCustomer && d['documentType'] != 'CustomerDebt' ? tIntOrNull(d['documentId']) : null,
                 'documentType': d['documentType'],
                 'documentId': tIntOrNull(d['documentId']),
                 'amount': _alloc[docKey(d)],
@@ -487,6 +733,8 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
         ],
         'farmId': widget.company.farmId,
         'createdBy': widget.session.tokens.userId,
+        'excludeFromPL': debtAllocated > 0 && !_countOnPL,
+        'remainderAsOldDebt': oldDebt > 0,
       });
       if (!mounted) return;
       trackerToast(context, side.isCustomer ? 'Payment received' : 'Payment recorded',
@@ -506,9 +754,18 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
     final amount = num.tryParse(_amount.text) ?? 0;
     // Customer payments credit the sale's own account, so it is optional there;
     // a supplier payment has to name the account the money left.
-    final v = validateAllocations(amount, _docs, _alloc, cashAccountRequired: widget.side.cashAccountRequired, cashAccountId: _account);
+    final v = validateAllocations(amount, _docs, _alloc,
+        cashAccountRequired: widget.side.cashAccountRequired, cashAccountId: _account, allowUnallocated: _allowUnallocated);
+    // 383: what is left over pays an old debt, unless kept as credit.
+    final oldDebt = widget.remainderAsOldDebt && _allowUnallocated && !_keepAsCredit && v.unallocated > 0 ? v.unallocated : 0;
+    final debtAllocated = _recordedDebtAllocated + oldDebt;
+    final leftoverWord = oldDebt > 0 ? (widget.side.isCustomer ? 'old customer debt' : 'old supplier debt') : _creditWord;
+    final leftoverLine = '${_fmt(v.unallocated)} ${oldDebt > 0 ? 'pays an' : 'kept as'} $leftoverWord';
     final overdraws = _overdraws;
     final allocated = totalAllocated(_alloc);
+    // With the grid hidden, a line problem (e.g. paying more than the balance)
+    // has nowhere else to show, so every problem goes in the alert.
+    final blocking = s != null ? [for (final p in v.problems) p.$2] : v.blocking;
     final money = TextInputType.numberWithOptions(decimal: true);
     final moneyFmt = [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))];
 
@@ -530,7 +787,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
               hintText: '0.00',
               keyboardType: money,
               inputFormatters: moneyFmt,
-              onChanged: (_) => setState(() {}),
+              onChanged: _changeAmount,
             ),
           ),
           const SizedBox(height: 10),
@@ -571,6 +828,32 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
           const SizedBox(height: 10),
           FilterLabel('Notes', AppInput(controller: _notes, hintText: 'Optional', minLines: 1, maxLines: 4)),
           const SizedBox(height: 12),
+          if (s != null)
+            // Single-document mode: nothing to choose, so a summary line stands
+            // in for the table. It still posts as a one-line allocation.
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(color: TColors.slate50, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text.rich(TextSpan(children: [
+                  const TextSpan(text: 'Applies to '),
+                  TextSpan(text: '${s['reference'] ?? s['documentId']}', style: const TextStyle(fontWeight: FontWeight.w500, color: TColors.slate900)),
+                  if (tStr(s['label']).isNotEmpty) TextSpan(text: ' · ${s['label']}'),
+                ]), style: const TextStyle(fontSize: 13, color: TColors.slate500)),
+                const SizedBox(height: 2),
+                Text.rich(TextSpan(children: [
+                  TextSpan(text: 'Balance ${_fmt(tNum(s['balance']))} → '),
+                  TextSpan(
+                    text: _fmt(balanceAfterAllocation(s, _alloc)),
+                    style: TextStyle(fontWeight: FontWeight.w500, color: balanceAfterAllocation(s, _alloc) < 0 ? TColors.red600 : TColors.slate900),
+                  ),
+                  const TextSpan(text: ' after this payment'),
+                  if (_allowUnallocated && v.unallocated > 0)
+                    TextSpan(text: ' · $leftoverLine', style: const TextStyle(color: Color(0xFF1D4ED8))),
+                ]), style: const TextStyle(fontSize: 13, color: TColors.slate500)),
+              ]),
+            )
+          else ...[
           const Divider(height: 1),
           const SizedBox(height: 10),
           Wrap(spacing: 8, runSpacing: 6, children: [
@@ -602,8 +885,11 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
             TextSpan(text: ' / ${_fmt(amount)}', style: const TextStyle(color: TColors.slate400)),
             if (v.unallocated != 0)
               TextSpan(
-                text: v.unallocated > 0 ? '  (${_fmt(v.unallocated)} unallocated)' : '  (${_fmt(-v.unallocated)} over)',
-                style: TextStyle(color: v.unallocated > 0 ? TColors.amber600 : TColors.red600),
+                text: v.unallocated > 0
+                    ? (_allowUnallocated ? '  ($leftoverLine)' : '  (${_fmt(v.unallocated)} unallocated)')
+                    : '  (${_fmt(-v.unallocated)} over)',
+                style: TextStyle(
+                    color: v.unallocated > 0 ? (_allowUnallocated ? const Color(0xFF1D4ED8) : TColors.amber600) : TColors.red600),
               ),
           ]), style: const TextStyle(fontSize: 13)),
           const SizedBox(height: 10),
@@ -618,13 +904,86 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
                       )
                     : Column(children: [for (final d in _docs) _line(d, v, money, moneyFmt)]),
           ),
-          if (_touched && (v.blocking.isNotEmpty || overdraws)) ...[
+          ],
+          if (widget.remainderAsOldDebt && _allowUnallocated && v.unallocated > 0) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEFF6FF),
+                border: Border.all(color: TColors.blue200),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Text(
+                  '${_fmt(v.unallocated)} is not applied to anything listed. '
+                  '${_keepAsCredit ? 'It will be kept as $_creditWord (an advance) -- not on Profit & Loss until it is used.' : 'It will be recorded as ${widget.side.isCustomer ? 'a debt the customer owed' : 'a debt we owed the supplier'} from before the system, paid now.'}',
+                  style: const TextStyle(fontSize: 13, color: TColors.blue900),
+                ),
+                const SizedBox(height: 6),
+                InkWell(
+                  onTap: () => setState(() => _keepAsCredit = !_keepAsCredit),
+                  child: Row(children: [
+                    SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: Checkbox(value: _keepAsCredit, onChanged: (x) => setState(() => _keepAsCredit = x == true)),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text('Keep it as $_creditWord (an advance) instead', style: const TextStyle(fontSize: 12, color: TColors.blue900)),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+          ],
+          if (debtAllocated > 0) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: TColors.emerald50,
+                border: Border.all(color: TColors.emerald200),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: _isAdmin
+                  ? InkWell(
+                      onTap: () => setState(() => _countOnPL = !_countOnPL),
+                      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: Checkbox(value: _countOnPL, onChanged: (x) => setState(() => _countOnPL = x == true)),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text(
+                              'Count the ${_fmt(debtAllocated)} paid on debts on Profit & Loss as ${widget.side.isCustomer ? 'revenue' : 'an operating expense'}.',
+                              style: const TextStyle(fontSize: 13, color: TColors.emerald900),
+                            ),
+                            const Text(
+                              'Untick to keep it off Profit & Loss. You can change this later from the payments list.',
+                              style: TextStyle(fontSize: 12, color: TColors.emerald800),
+                            ),
+                          ]),
+                        ),
+                      ]),
+                    )
+                  : Text(
+                      'The ${_fmt(debtAllocated)} paid on debts goes on Profit & Loss as ${widget.side.isCustomer ? 'revenue' : 'an operating expense'}.',
+                      style: const TextStyle(fontSize: 13, color: TColors.emerald900),
+                    ),
+            ),
+          ],
+          if (_touched && (blocking.isNotEmpty || overdraws)) ...[
             const SizedBox(height: 12),
             TrackerBanner.error('', spans: [
-              for (var i = 0; i < v.blocking.length; i++) TextSpan(text: '${i > 0 ? '\n' : ''}• ${v.blocking[i]}'),
+              for (var i = 0; i < blocking.length; i++) TextSpan(text: '${i > 0 ? '\n' : ''}• ${blocking[i]}'),
               if (overdraws)
                 TextSpan(
-                    text: '${v.blocking.isNotEmpty ? '\n' : ''}• ${_acc?['name']} holds ${_fmt(tNum(_acc?['currentBalance']))} — this payment would overdraw it.'),
+                    text: '${blocking.isNotEmpty ? '\n' : ''}• ${_acc?['name']} holds ${_fmt(tNum(_acc?['currentBalance']))} — this payment would overdraw it.'),
             ]),
           ],
           const SizedBox(height: 16),
@@ -640,7 +999,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
             Expanded(
               child: FilledButton(
                 style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(44)),
-                onPressed: _posting || _loading || !v.ok ? null : () => _submit(v),
+                onPressed: _posting || _loading || !v.ok ? null : () => _submit(v, debtAllocated: debtAllocated, oldDebt: oldDebt),
                 child: _posting
                     ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                     : Text(widget.side.isCustomer ? 'Receive payment' : 'Record payment'),

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using Npgsql;
 using PoultryFarmAPIWeb.Helpers;
 using PoultryFarmAPIWeb.Models;
@@ -24,6 +25,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [ApiController]
     [Authorize]
     [Route("api/Hotel/reports")]
+    [RequireCompanyType("Hotel")]
     public class HotelReportController : ControllerBase
     {
         private readonly string _cs;

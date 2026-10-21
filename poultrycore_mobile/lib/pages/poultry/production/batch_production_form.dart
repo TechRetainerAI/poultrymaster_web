@@ -89,7 +89,7 @@ class BatchProductionRecordFormState extends State<BatchProductionRecordForm> {
   final _nameFocus = FocusNode();
   late List<int> _selected = [...?_missing?.flockIds];
   late String _date = (!_edit ? widget.prefill?.date : null) ?? isoDay(DateTime.now().toUtc());
-  String _eggGrade = eggGradeNone, _feedType = '';
+  String _eggGrade = productionEggGradeValue, _feedType = '';
   final _crates = List<num>.filled(6, 0), _loose = List<num>.filled(6, 0);
   final _broken = TextEditingController(), _meaty = TextEditingController(), _soft = TextEditingController(), _lost = TextEditingController();
   final _feedKg = TextEditingController(), _medication = TextEditingController(), _deaths = TextEditingController();
@@ -216,7 +216,7 @@ class BatchProductionRecordFormState extends State<BatchProductionRecordForm> {
     _deaths.text = _numStr(r['deaths']);
     _birdsLeft.text = _numStr(r['birdsLeft']);
     _notes.text = tStr(r['notes']);
-    _eggGrade = eggGradeFromApi(r['eggGrade']);
+    _eggGrade = productionEggGrade(r['eggGrade']);
     final feeds = listOf(r, 'feeds'), meds = listOf(r, 'medications');
     _feedLines = feeds.isNotEmpty ? [for (final f in feeds) ConsumptionLine(tStr(f['itemId']), _numStr(f['qty']))] : [ConsumptionLine()];
     _medLines = meds.isNotEmpty ? [for (final m in meds) ConsumptionLine(tStr(m['itemId']), _numStr(m['qty']))] : [ConsumptionLine()];
@@ -546,11 +546,9 @@ class BatchProductionRecordFormState extends State<BatchProductionRecordForm> {
             ]),
             Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               _label('Egg grade'),
-              AppSelect<String>(
-                value: _eggGrade,
-                items: [for (final (v, l) in eggGradeOptions) AppSelectItem(value: v, label: l)],
-                onChanged: (v) => _set(() => _eggGrade = v ?? eggGradeNone),
-              ),
+              // Automatic since egg sorting: the day's collection is mixed sizes;
+              // sizes are recorded in Egg Sorting. An older record keeps its grade.
+              EggGradeReadout(grade: _eggGrade),
             ]),
           ]),
           if (_selectionType == 'CustomBatch')
@@ -597,7 +595,7 @@ class BatchProductionRecordFormState extends State<BatchProductionRecordForm> {
       const SizedBox(height: 14),
       ProdSection(
         title: 'Egg Production',
-        description: 'Total = crates × 30 + loose eggs. These are BATCH totals, split across flocks at allocation.',
+        description: 'Total = crates × $eggsPerCrate + loose eggs. These are BATCH totals, split across flocks at allocation.',
         badge: '${loc(total)} eggs',
         accent: ProdAccent.amber,
         icon: Icons.egg_outlined,

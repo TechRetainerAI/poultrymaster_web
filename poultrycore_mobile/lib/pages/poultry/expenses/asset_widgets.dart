@@ -8,6 +8,7 @@ import '../reports/report_format.dart';
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../trackers/tracker_widgets.dart';
 import 'asset_logic.dart';
+import '../../shared/reason_select.dart';
 
 /// The pieces shared by the register and the investment page:
 /// `components/capital-assets/asset-details-panel.tsx`,
@@ -527,7 +528,15 @@ class CostDetailDialog extends StatelessWidget {
           ],
           const SizedBox(height: 12),
           sectionLabel('The record behind it'),
-          c[rail.expenseIdKey] != null
+          // Restaurant: CostRecordRow, the cash ledger in place of an expense.
+          rail.isRestaurant
+              ? row(
+                  'Cash ledger',
+                  tNum(c['amountPaid']) != 0
+                      ? t('Capital investment payment${tStr(c['cashAccountName']).isNotEmpty ? ' — ${tStr(c['cashAccountName'])}' : ''}. Not an expense.')
+                      : t('No cash moved for this entry.', color: TColors.slate500),
+                )
+              : c[rail.expenseIdKey] != null
               ? row(
                   'Expense',
                   InkWell(
@@ -538,7 +547,9 @@ class CostDetailDialog extends StatelessWidget {
                 )
               : row('Expense', t('None — nothing was paid or owed for this entry.', color: TColors.slate500)),
           if (tStr(c['expenseCategory']).isNotEmpty) row('Filed under', t(tStr(c['expenseCategory']))),
-          if (c['expenseAmount'] != null) row(correction ? 'Document now reads' : 'Document total', t(fmt(tNum(c['expenseAmount'])))),
+          // Restaurant reads documentAmount where Poultry reads expenseAmount.
+          if (c[rail.isRestaurant ? 'documentAmount' : 'expenseAmount'] != null)
+            row(correction ? 'Document now reads' : 'Document total', t(fmt(tNum(c[rail.isRestaurant ? 'documentAmount' : 'expenseAmount'])))),
           row('Recorded by', t(tStr(c['createdBy']).isEmpty ? '—' : tStr(c['createdBy']))),
           row('Recorded', t(tStr(c['createdAt']).isEmpty ? '—' : dt(c['createdAt']))),
           if (tStr(c['status']) != 'Posted') ...[
@@ -706,7 +717,7 @@ class _CorrectOriginalCostDialogState extends State<CorrectOriginalCostDialog> {
                 color: p != null && p.difference < 0 ? TColors.red600 : null),
             const SizedBox(height: 10),
             FilterLabel('Reason *',
-                AppInput(controller: _reason, minLines: 2, maxLines: 4, hintText: 'Original invoice amount was entered incorrectly', onChanged: (_) => setState(() {}))),
+                ReasonSelectField(controller: _reason, options: costCorrectionReasons, onChanged: (_) => setState(() {}))),
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text(_r.t("Required. It is kept on the investment's cost history with your name and the date."),
@@ -784,9 +795,14 @@ class ReasonTextPrompt extends StatefulWidget {
     required this.confirmLabel,
     required this.onSubmit,
     this.label = 'Reason',
+    this.options,
   });
   final String title, description, placeholder, confirmLabel, label;
   final Future<void> Function(String reason) onSubmit;
+
+  /// PromptDialog `options`: the reason is picked from this list; "Other"
+  /// opens the text box.
+  final List<String>? options;
 
   @override
   State<ReasonTextPrompt> createState() => _ReasonTextPromptState();
@@ -796,6 +812,7 @@ class _ReasonTextPromptState extends State<ReasonTextPrompt> {
   final _text = TextEditingController();
   String? _error;
   bool _busy = false;
+  String _choice = '';
 
   @override
   void dispose() {
@@ -804,8 +821,9 @@ class _ReasonTextPromptState extends State<ReasonTextPrompt> {
   }
 
   Future<void> _go() async {
-    final t = _text.text.trim();
-    if (t.isEmpty) return setState(() => _error = '${widget.label} is required.');
+    final r = promptReasonValue(widget.options, _choice, _text.text, label: widget.label);
+    if (r.error != null) return setState(() => _error = r.error);
+    final t = r.value!;
     setState(() {
       _busy = true;
       _error = null;
@@ -830,7 +848,25 @@ class _ReasonTextPromptState extends State<ReasonTextPrompt> {
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Text(widget.description, style: const TextStyle(fontSize: 13, color: TColors.slate500)),
               const SizedBox(height: 12),
-              FilterLabel(widget.label, AppInput(controller: _text, autofocus: true, minLines: 4, maxLines: 6, hintText: widget.placeholder)),
+              if (widget.options != null)
+                FilterLabel(
+                  widget.label,
+                  AppSelect<String>(
+                    value: _choice.isEmpty ? null : _choice,
+                    hintText: 'Select a reason',
+                    items: [for (final o in widget.options!) AppSelectItem(value: o, label: o)],
+                    onChanged: (v) => setState(() {
+                      _choice = v ?? '';
+                      _error = null;
+                    }),
+                  ),
+                ),
+              if (widget.options == null)
+                FilterLabel(widget.label, AppInput(controller: _text, autofocus: true, minLines: 4, maxLines: 6, hintText: widget.placeholder))
+              else if (_choice == 'Other') ...[
+                const SizedBox(height: 8),
+                AppInput(controller: _text, autofocus: true, minLines: 4, maxLines: 6, hintText: 'Say what happened'),
+              ],
               if (_error != null) ...[
                 const SizedBox(height: 6),
                 Text(_error!, style: const TextStyle(fontSize: 13, color: Color(0xFFBE123C))),

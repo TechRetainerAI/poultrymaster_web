@@ -208,6 +208,10 @@ const _sourceLabels = {
   'LegacyAdjustment': 'Cash adjustment',
   'ExpensePayment': 'Bills paid later',
   'PoultrySupplierPayment': 'Supplier payments',
+  // 376: a reversed supplier payment keeps its Money Out; the reversal is its
+  // own Money In (cash book and Cash Flow name it differently).
+  'PoultrySupplierPaymentReversal': 'Supplier payments reversed',
+  'SupplierPaymentReversal': 'Supplier payments reversed',
   'FeedProduction': 'Feed made',
   'FeedProductionReversal': 'Feed production reversed',
   'CustomerPayment': 'Customer payments',

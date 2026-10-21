@@ -7,6 +7,7 @@ import '../../design/ui/form_section.dart';
 import '../../design/ui/inputs.dart';
 import '../../models/company.dart';
 import '../../state/session.dart';
+import 'staff_employee_link.dart' show EmployeePrefill, suggestUserName;
 
 /// Users & Permissions → Add / Edit employee, as the web's
 /// `components/employees/add-employee-dialog.tsx` and `edit-employee-dialog.tsx`.
@@ -20,11 +21,18 @@ class EmployeeFormScreen extends StatefulWidget {
     required this.session,
     required this.company,
     this.existing,
+    this.prefill,
+    this.onCreated,
   });
 
   final Session session;
   final Company company;
   final Map<String, dynamic>? existing;
+
+  /// Staff "Make employee" (362): start from the staff record; the user adds
+  /// the login details. [onCreated] gets the new login's id to link it.
+  final EmployeePrefill? prefill;
+  final Future<void> Function(String? userId)? onCreated;
 
   @override
   State<EmployeeFormScreen> createState() => _EmployeeFormScreenState();
@@ -162,6 +170,14 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
       _seed(row);
       _loadFull();
     }
+    final p = widget.prefill;
+    if (row == null && p != null) {
+      _first.text = p.firstName;
+      _last.text = p.lastName;
+      _phone.text = p.phoneNumber;
+      _email.text = p.email;
+      _user.text = suggestUserName(p);
+    }
   }
 
   /// The list row lacks the permission maps; the web reads the single
@@ -274,7 +290,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
         messenger.showSnackBar(const SnackBar(content: Text('Employee updated successfully.')));
         return;
       }
-      await client.post('/api/Admin/employees', body: {
+      final created = await client.post('/api/Admin/employees', body: {
         ...common,
         'UserName': _user.text.trim(),
         'Password': _password.text,
@@ -282,6 +298,8 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
         'FarmName': widget.company.name,
       });
       messenger.showSnackBar(const SnackBar(content: Text('Employee created successfully.')));
+      final data = created is Map && created['data'] is Map ? created['data'] : created;
+      await widget.onCreated?.call(data is Map ? data['id']?.toString() : null);
       // The web emails the new login details straight after creating.
       final to = _email.text.trim();
       try {
@@ -328,8 +346,10 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
             Text(
               _editing
                   ? 'Update employee profile and access permissions'
-                  : 'Create a staff member or configure an admin with custom permissions',
-              maxLines: 1,
+                  : widget.prefill != null
+                      ? 'Give ${widget.prefill!.firstName} ${widget.prefill!.lastName} a login. Their staff record is linked to it, so they show on both Employees and Staff.'
+                      : 'Create a staff member or configure an admin with custom permissions',
+              maxLines: widget.prefill != null ? 3 : 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(fontSize: 11.5, color: tokens.mutedForeground),
             ),

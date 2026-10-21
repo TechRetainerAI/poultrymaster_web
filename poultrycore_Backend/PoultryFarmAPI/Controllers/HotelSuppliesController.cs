@@ -21,7 +21,7 @@ namespace PoultryFarmAPIWeb.Controllers
     public class HotelSupplyCostModeRequest { public string FarmId { get; set; } = ""; public string Category { get; set; } = ""; public string CostMode { get; set; } = ""; }
     public class HotelInternalUseRequest : HotelInternalUseInput { public string FarmId { get; set; } = ""; }
 
-    [ApiController][Authorize][Route("api/Hotel")][HotelBusinessRuleFilter]
+    [ApiController][Authorize][Route("api/Hotel")][HotelBusinessRuleFilter][RequireCompanyType("Hotel")]
     public class HotelSuppliesController : ControllerBase
     {
         private readonly IHotelSuppliesService _svc;

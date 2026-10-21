@@ -89,7 +89,7 @@ class RecordApi {
     return [for (final r in rows) if (r is Map) Map<String, dynamic>.from(r)];
   }
 
-  Future<void> create(Map<String, dynamic> body) =>
+  Future<dynamic> create(Map<String, dynamic> body) =>
       _client.post(_path, body: _withFarm(body));
 
   Future<void> update(Object id, Map<String, dynamic> body) =>

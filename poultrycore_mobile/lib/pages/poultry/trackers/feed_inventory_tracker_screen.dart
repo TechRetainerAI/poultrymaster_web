@@ -194,7 +194,7 @@ class _FeedInventoryTrackerScreenState extends State<FeedInventoryTrackerScreen>
   }
 
   Widget _rawMaterialsLink(String text, {Color color = TColors.amber900}) => InkWell(
-        onTap: () => openAppHref(context, widget.session, widget.company, '/poultry-raw-materials',
+        onTap: () => openAppHref(context, widget.session, widget.company, '/poultry-supply-purchases',
             label: 'Raw Materials & Supplies'),
         child: Text(text,
             style:

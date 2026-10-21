@@ -23,7 +23,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     // Deposits move Front Desk cash through sphoteldeposit_record (327); its refusals
     // come back as 400 with the sentence (HotelBusinessRuleFilter).
-    [ApiController][Authorize][Route("api/Hotel")][HotelBusinessRuleFilter]
+    [ApiController][Authorize][Route("api/Hotel")][HotelBusinessRuleFilter][RequireCompanyType("Hotel")]
     public class HotelGuestServicesController : ControllerBase
     {
         private readonly string _cs;

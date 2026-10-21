@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 
@@ -11,6 +12,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/Poultry/feed-formulas")]
+    [RequireCompanyType("Poultry")]
     public class PoultryFeedFormulaController : ControllerBase
     {
         private readonly IPoultryFeedFormulaService _svc;
@@ -45,6 +47,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Poultry/feed-production")]
+    [RequireCompanyType("Poultry")]
     public class PoultryFeedProductionBatchController : ControllerBase
     {
         private readonly IPoultryFeedProductionBatchService _svc;

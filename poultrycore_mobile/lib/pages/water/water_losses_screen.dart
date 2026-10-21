@@ -16,6 +16,7 @@ import '../poultry/trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../poultry/trackers/tracker_widgets.dart';
 import '../shared/business_dates.dart';
 import '../shared/company_clock.dart';
+import '../shared/reason_select.dart' show ReasonSelectField, lossReasons, unapproveReasons;
 import 'water_production_screen.dart' show WaterProductionDetailScreen;
 import 'water_raw_materials_screen.dart' show filterWaterRows, numText;
 
@@ -134,6 +135,7 @@ class _WaterLossRecordsScreenState extends State<WaterLossRecordsScreen> {
         description:
             'This will flip ${tStr(l['lossType'])} from Approved back to Pending so the record can be edited and approved again. Cash impact (if any) is reversed.',
         label: 'Reason for unapproving',
+        options: unapproveReasons,
         placeholder: 'e.g. corrected reason / wrong quantity',
         confirmLabel: 'Unapprove',
         onSubmit: (reason) async {
@@ -430,7 +432,7 @@ class _LossDialogState extends State<_LossDialog> {
             ]),
             const SizedBox(height: 12),
             formSection('Details', TColors.slate600, [
-              FilterLabel('Reason *', AppInput(controller: _reason, minLines: 3, maxLines: 6)),
+              FilterLabel('Reason *', ReasonSelectField(controller: _reason, options: lossReasons)),
               FilterLabel('Notes', AppInput(controller: _notes, minLines: 3, maxLines: 6)),
             ]),
           ]),

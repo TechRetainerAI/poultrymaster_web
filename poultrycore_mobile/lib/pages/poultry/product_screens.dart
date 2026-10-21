@@ -14,6 +14,23 @@ import '../lookup_loader.dart';
 /// recipe (bill of materials), and "Add stock".
 
 const _productTypes = ['FinishedGood', 'RawMaterial', 'PackagingMaterial', 'Other'];
+
+/// 372: Broken Eggs / Dead Birds are system products. The list does not return
+/// their role, so they are known by the names the database gives them; the
+/// database refuses the change anyway, this only keeps the buttons honest.
+bool isSystemProduct(Map row) => row['name'] == 'Broken Eggs' || row['name'] == 'Dead Birds';
+
+/// 373: Add stock's reasons -- the manual movement reasons that can add stock
+/// to an ordinary product.
+const addStockReasons = [
+  'Opening Inventory', 'Historical Production', 'Stock Count Correction', 'Historical Sale / Use',
+  'Transfer Adjustment', 'Migration', 'Data Correction', 'Other',
+];
+
+String _todayStr() {
+  final d = DateTime.now();
+  return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+}
 const _units = [
   'Bag', 'Crate', 'Tray', 'Dozen', 'Egg', 'Piece', 'Kilogram', 'Carton', 'Box', 'Pack', 'Unit', 'Other',
 ];
@@ -64,7 +81,13 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   bool _needsRecipe = true;
   bool _saving = false;
 
+  /// 374: whether this byproduct is offered in Add Sale (Dead Birds off by default).
+  Map? _byproductSettings;
+  bool _offerInSales = false;
+
   Map<String, dynamic>? get _row => widget.existing;
+  bool get _system => _row != null && isSystemProduct(_row!);
+  String get _offerKey => _row?['name'] == 'Dead Birds' ? 'deadBirdsInSales' : 'brokenEggsInSales';
 
   @override
   void initState() {
@@ -79,6 +102,16 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     _unit = '${r['unit'] ?? ''}';
     _rawEgg = r['isRawEggProduct'] == true;
     _needsRecipe = r['requiresRecipeSetup'] != false;
+    if (_system) {
+      _offerInSales = r['name'] != 'Dead Birds';
+      widget.session.farmClient.get('/api/Poultry/stock/byproduct-settings', query: {'farmId': widget.company.farmId}).then((s) {
+        if (!mounted || s is! Map) return;
+        setState(() {
+          _byproductSettings = s;
+          _offerInSales = s[_offerKey] == true;
+        });
+      }).catchError((Object _) {});
+    }
   }
 
   @override
@@ -119,6 +152,9 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       } else {
         await client.post('/api/Poultry/products', body: body);
       }
+      if (_system && (_byproductSettings == null || (_byproductSettings![_offerKey] == true) != _offerInSales)) {
+        await client.put('/api/Poultry/stock/byproduct-settings', body: {_offerKey: _offerInSales, 'farmId': widget.company.farmId});
+      }
       if (!mounted) return;
       Navigator.of(context).pop(true);
       messenger.showSnackBar(SnackBar(content: Text(r != null ? 'Product updated' : 'Product added')));
@@ -135,8 +171,40 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(14, 14, 14, 28),
         children: [
+          if (_system) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Text(
+                'A system product: production records add to its stock. Its name and unit are fixed; you can change its price.',
+                style: TextStyle(fontSize: 12, color: Color(0xFF475569)),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              decoration: BoxDecoration(border: Border.all(color: const Color(0xFFE2E8F0)), borderRadius: BorderRadius.circular(6)),
+              child: CheckboxListTile(
+                value: _offerInSales,
+                onChanged: (v) => setState(() => _offerInSales = v == true),
+                controlAffinity: ListTileControlAffinity.leading,
+                dense: true,
+                title: const Text('Offer in Add Sale', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                subtitle: Text(
+                  _row?['name'] == 'Dead Birds'
+                      ? 'Off for farms that dispose of mortality. The stock is kept either way.'
+                      : 'Broken eggs can be sold by the egg. The stock is kept either way.',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+          ],
           FormSection(title: 'Product details', color: SectionColor.blue, children: [
-            AppField(label: 'Name', required: true, child: AppInput(controller: _name)),
+            AppField(label: 'Name', required: true, child: AppInput(controller: _name, enabled: !_system)),
             AppField(
               label: 'Type',
               child: AppSelect<String>(
@@ -150,6 +218,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
               child: AppSelect<String>(
                 // A unit saved before this list existed still shows.
                 value: _unit.isEmpty ? null : _unit,
+                enabled: !_system,
                 hintText: 'Pick unit',
                 items: [
                   for (final u in {..._units, if (_unit.isNotEmpty) _unit}) AppSelectItem(value: u, label: u),
@@ -165,6 +234,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
               label: 'Is this a raw egg product?',
               child: AppSelect<String>(
                 value: _rawEgg ? 'yes' : 'no',
+                enabled: !_system,
                 items: const [AppSelectItem(value: 'no', label: 'No'), AppSelectItem(value: 'yes', label: 'Yes')],
                 onChanged: (v) => setState(() {
                   _rawEgg = v == 'yes';
@@ -390,7 +460,8 @@ class _ProductRecipeScreenState extends State<ProductRecipeScreen> {
   }
 }
 
-/// "Add stock — {product}": a Restock stock transaction.
+/// "Add stock — {product}": 373, a manual movement like any other -- with a
+/// reason and the date it happened.
 class ProductStockScreen extends StatefulWidget {
   const ProductStockScreen({super.key, required this.session, required this.company, required this.product});
   final Session session;
@@ -406,6 +477,8 @@ class _ProductStockScreenState extends State<ProductStockScreen> {
   final _cost = TextEditingController(text: '0');
   final _note = TextEditingController();
   bool _saving = false;
+  String _reason = '', _date = _todayStr();
+  final String _key = 'add-${DateTime.now().microsecondsSinceEpoch}';
 
   @override
   void dispose() {
@@ -422,20 +495,32 @@ class _ProductStockScreenState extends State<ProductStockScreen> {
       messenger.showSnackBar(const SnackBar(content: Text('Quantity must be greater than 0')));
       return;
     }
+    if (_reason.isEmpty) {
+      messenger.showSnackBar(const SnackBar(content: Text('Choose the reason')));
+      return;
+    }
+    if (_reason == 'Other' && _note.text.trim().isEmpty) {
+      messenger.showSnackBar(const SnackBar(content: Text('Say what happened — Reason "Other" needs a note.')));
+      return;
+    }
     final cost = double.tryParse(_cost.text.trim()) ?? 0;
     setState(() => _saving = true);
     try {
-      await widget.session.farmClient.post('/api/Poultry/stock/transactions', body: {
-        'farmId': widget.company.farmId,
+      final res = await widget.session.farmClient.post('/api/Poultry/stock/manual-movements', body: {
         'poultryProductId': widget.product['poultryProductId'],
-        'txnType': 'Restock',
+        'movementType': 'Increase',
         'quantity': qty,
         'unitCost': cost == 0 ? null : cost,
-        'note': _note.text.trim().isEmpty ? 'Product stock addition' : _note.text.trim(),
+        'effectiveDate': _date.isEmpty ? _todayStr() : _date,
+        'reason': _reason,
+        'note': _note.text.trim().isEmpty ? null : _note.text.trim(),
+        'requestKey': _key,
+        'farmId': widget.company.farmId,
+        'createdBy': widget.session.tokens.userId,
       });
       if (!mounted) return;
       Navigator.of(context).pop(true);
-      messenger.showSnackBar(const SnackBar(content: Text('Stock added')));
+      messenger.showSnackBar(SnackBar(content: Text('Stock added (${res is Map ? res['movementNo'] ?? '' : ''})')));
     } on ApiException catch (e) {
       if (mounted) setState(() => _saving = false);
       messenger.showSnackBar(SnackBar(content: Text('Could not add stock. ${e.message}')));
@@ -454,7 +539,29 @@ class _ProductStockScreenState extends State<ProductStockScreen> {
                 child: AppNumberInput(controller: _qty, allowDecimal: true)),
             AppField(label: 'Unit cost / value',
                 child: AppNumberInput(controller: _cost, allowDecimal: true)),
-            AppField(label: 'Note', full: true, child: AppInput(controller: _note)),
+            AppField(
+              label: 'Reason',
+              required: true,
+              child: AppSelect<String>(
+                value: _reason.isEmpty ? null : _reason,
+                hintText: 'Choose the reason',
+                items: [for (final r in addStockReasons) AppSelectItem(value: r, label: r)],
+                onChanged: (v) => setState(() => _reason = v ?? ''),
+              ),
+            ),
+            AppField(
+              label: 'Effective date',
+              required: true,
+              hint: 'When the stock came in.',
+              child: AppDateField(
+                value: DateTime.tryParse(_date),
+                lastDate: DateTime.now(),
+                onChanged: (d) => setState(() => _date = d == null
+                    ? ''
+                    : '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}'),
+              ),
+            ),
+            AppField(label: _reason == 'Other' ? 'Note *' : 'Note', full: true, child: AppInput(controller: _note)),
           ]),
           const SizedBox(height: 18),
           _footer(context, label: 'Add stock', busy: _saving, onSave: _save),

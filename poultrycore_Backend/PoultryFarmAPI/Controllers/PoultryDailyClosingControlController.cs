@@ -17,6 +17,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using Npgsql;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
@@ -26,6 +27,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [Authorize]
     [ApiController]
     [Route("api/Poultry/daily-closings")]
+    [RequireCompanyType("Poultry")]
     public class PoultryDailyClosingControlController : ControllerBase
     {
         public const string CloseRight = "poultry.daily-closing.approve";

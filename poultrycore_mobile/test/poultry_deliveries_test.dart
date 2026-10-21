@@ -155,7 +155,7 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Reverse'));
     await tester.pumpAndSettle();
     expect(find.text('Reason for reversal is required.'), findsOneWidget);
-    await tester.enterText(find.byType(TextField).last, 'late MoMo');
+    await reasonOther(tester, 'late MoMo');
     await tester.tap(find.widgetWithText(FilledButton, 'Reverse'));
     await tester.pumpAndSettle();
     expect(wrote(a, '/api/Poultry/driver-returns/21/reverse'), isTrue);

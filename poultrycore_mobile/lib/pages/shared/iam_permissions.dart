@@ -10,7 +10,11 @@ import '../../state/session.dart';
 ///
 /// Both calls failing is the web's "endpoint unavailable" case: no IAM grants,
 /// not enforced, so an admin still qualifies and nobody else does.
-Future<bool> canDo(Session session, Company company, String key) async {
+Future<bool> canDo(Session session, Company company, String key) async =>
+    (await canDoAll(session, company, [key])).contains(key);
+
+/// [canDo] for several keys over one pair of reads: the keys held.
+Future<Set<String>> canDoAll(Session session, Company company, List<String> keys) async {
   final c = session.farmClient;
   Object? status;
   Object? effective;
@@ -25,8 +29,11 @@ Future<bool> canDo(Session session, Company company, String key) async {
     effective = null;
   }
   final enforced = status is Map && status['enforced'] == true;
-  if (!enforced && company.isAdmin) return true;
+  if (!enforced && company.isAdmin) return keys.toSet();
   final grants = effective is Map ? effective['grants'] : null;
-  if (grants is! List) return false;
-  return grants.any((g) => g is Map && g['permissionKey'] == key);
+  if (grants is! List) return {};
+  return {
+    for (final k in keys)
+      if (grants.any((g) => g is Map && g['permissionKey'] == k)) k,
+  };
 }

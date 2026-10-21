@@ -16,6 +16,7 @@ import '../trackers/tracker_logic.dart' show tNum, tStr;
 import '../trackers/tracker_widgets.dart';
 import 'money_widgets.dart';
 import '../reports/money_reports.dart' show MoneyRail, poultryMoneyRail;
+import '../../shared/reason_select.dart';
 
 /// Poultry → Money → Cash Transfers, as `app/poultry-cash-transfers/page.tsx`:
 /// money moved between the farm's own accounts. It is the same money in a
@@ -620,7 +621,7 @@ class _ReverseTransferDialogState extends State<ReverseTransferDialog> {
             ]),
             const SizedBox(height: 12),
             formSection('Why', TColors.amber600, [
-              FilterLabel('Reason *', AppInput(controller: _reason, hintText: 'Why is this being reversed?', minLines: 3, maxLines: 5)),
+              FilterLabel('Reason *', ReasonSelectField(controller: _reason, options: reversalReasons)),
               const Text('Written to the audit trail.', style: TextStyle(fontSize: 11, color: TColors.slate500)),
             ]),
           ]),

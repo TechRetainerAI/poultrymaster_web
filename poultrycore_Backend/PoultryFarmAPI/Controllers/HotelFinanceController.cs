@@ -21,7 +21,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // (sphotelpayment_record, sphotelexpense_approve/_cancel, sphotelinvoice_generate),
     // each in one transaction with its ledger row. Their refusals are P0001 and come
     // back as 400 with the sentence (HotelBusinessRuleFilter) -- never swallowed.
-    [ApiController][Authorize][Route("api/Hotel")][HotelBusinessRuleFilter]
+    [ApiController][Authorize][Route("api/Hotel")][HotelBusinessRuleFilter][RequireCompanyType("Hotel")]
     public class HotelFinanceController : ControllerBase
     {
         private readonly string _cs;

@@ -12,6 +12,7 @@ import '../trackers/tracker_widgets.dart';
 import 'asset_logic.dart';
 import 'asset_widgets.dart';
 import 'assets_screen.dart';
+import '../../shared/reason_select.dart';
 
 /// One capital investment, as `app/poultry-assets/[id]/page.tsx`: General,
 /// Financial and Source & audit, the cost history and the depreciation
@@ -370,10 +371,5 @@ class _ReasonBox extends StatelessWidget {
   const _ReasonBox({required this.controller});
   final TextEditingController controller;
   @override
-  Widget build(BuildContext context) => TextFormField(
-        controller: controller,
-        minLines: 3,
-        maxLines: 5,
-        decoration: const InputDecoration(hintText: 'Wrong in-service month', border: OutlineInputBorder()),
-      );
+  Widget build(BuildContext context) => ReasonSelectField(controller: controller, options: assetReversalReasons);
 }

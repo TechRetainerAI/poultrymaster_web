@@ -109,17 +109,61 @@ void main() {
 
       expect(find.text("TODAY'S FARM COMPLETENESS"), findsOneWidget);
       expect(find.textContaining('3 / 4 recorded', findRichText: true), findsOneWidget);
-      expect(find.text('Record 2 days'), findsOneWidget);
+      // The full page's tiles (the compact card keeps the one-line summary).
+      expect(find.text('TODAY'), findsOneWidget);
+      expect(find.text('flocks recorded'), findsOneWidget);
+      expect(find.text('MISSING TODAY'), findsOneWidget);
+      expect(find.text('production record'), findsOneWidget);
+      expect(find.text('EARLIER DAYS'), findsOneWidget);
+      expect(find.text('all caught up'), findsOneWidget);
+      expect(find.text('Record batch(2)'), findsOneWidget);
       expect(find.text('Next day'), findsNothing);
+      expect(find.textContaining('B-001 · Pen 1 · last '), findsOneWidget);
+      // Hidden on the web's full page: the list is always open.
+      expect(find.text('Show missing'), findsNothing);
+      expect(find.text('Hide missing'), findsNothing);
+      expect(find.text('Complete Missing Production'), findsNothing);
 
-      await tester.tap(find.text('Flock A'));
-      await tester.pumpAndSettle();
+      // Each flock's missing days are open by default; tapping closes them.
       expect(find.text('↳ Thu, Oct 1'), findsOneWidget);
       expect(find.text('1 missing day in the last 30 days.'), findsOneWidget);
+      await tester.tap(find.text('Flock A'));
+      await tester.pumpAndSettle();
+      expect(find.text('↳ Thu, Oct 1'), findsNothing);
 
       await tester.tap(find.text('By date'));
       await tester.pumpAndSettle();
       expect(find.text('Record batch (1)'), findsOneWidget);
+    });
+
+    testWidgets('earlier-only flocks under their heading, and the unsorted-eggs note (344)', (tester) async {
+      final r = report('2026-10-02', backlog: 1);
+      ((r['checks'] as List)).add({
+        'key': 'poultry.eggs.unsorted', 'status': 'Incomplete', 'outstandingCount': 1, 'severityReason': null,
+        'counters': {'eggs': 1200},
+        'items': [{'daysOutstanding': 3}],
+      });
+      final api = FakeApi()
+        ..gets['/api/ActivityChecks'] = r
+        ..gets['/api/ActivityChecks/production/missing-by-date'] = {
+          'businessDate': '2026-10-02', 'windowDays': 30,
+          'entries': [
+            {'date': '2026-09-29T00:00:00', 'flockId': 9, 'flockName': 'Flock Z', 'batchName': 'B-009', 'houseName': 'Pen 9'},
+            {'date': '2026-09-28T00:00:00', 'flockId': 9, 'flockName': 'Flock Z', 'batchName': 'B-009', 'houseName': 'Pen 9'},
+          ],
+        };
+      await open(tester, FarmCompletenessScreen(session: await sessionFor(api), company: company), size: phone);
+
+      // The full page shows it as the Unsorted eggs tile.
+      expect(find.text('UNSORTED EGGS'), findsOneWidget);
+      expect(find.text('1,200'), findsOneWidget);
+      expect(find.text('oldest 3 days old · '), findsOneWidget);
+      expect(find.text('Sort eggs'), findsOneWidget);
+      expect(find.text('missing across 1 day'), findsOneWidget, reason: 'Earlier days tile');
+      await tester.scrollUntilVisible(find.text('Flock Z'), 200, scrollable: find.byType(Scrollable).first);
+      expect(find.text('EARLIER DAYS MISSING'), findsOneWidget);
+      expect(find.text('2 days earlier'), findsOneWidget);
+      expect(find.text('Record batch(2)'), findsNWidgets(2));
     });
 
     testWidgets('the previous day is asked for by date; today is left to the server', (tester) async {
@@ -257,7 +301,7 @@ void main() {
       expect(find.text('Reverse this feed distribution?'), findsOneWidget);
       final confirm = find.widgetWithText(FilledButton, 'Reverse');
       expect(tester.widget<FilledButton>(confirm).onPressed, isNull, reason: 'a reason is required');
-      await tester.enterText(find.byType(TextField).last, 'Wrong pen');
+      await reasonOther(tester, 'Wrong pen');
       await tester.pump();
       await tester.tap(confirm);
       await tester.pumpAndSettle();

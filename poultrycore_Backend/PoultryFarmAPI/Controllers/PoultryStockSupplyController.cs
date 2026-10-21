@@ -5,6 +5,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using Npgsql;
 using PoultryFarmAPIWeb.Business;
 
@@ -13,6 +14,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [Authorize]
     [ApiController]
     [Route("api/Poultry/stock-supply")]
+    [RequireCompanyType("Poultry")]
     public class PoultryStockSupplyController : ControllerBase
     {
         private readonly IPoultryStockSupplyService _svc;

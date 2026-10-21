@@ -12,8 +12,9 @@ namespace PoultryFarmAPIWeb.Business
         /// <summary>Fast path for enforcement: does this user hold this key in this company?</summary>
         Task<bool> HasPermissionAsync(string userId, string? farmId, string permissionKey);
         /// <summary>
-        /// "poultry" | "water" | "generic" for a farm, or null if unknown. Used to
-        /// resolve the shared controllers' module at request time.
+        /// "poultry" | "water" | "generic" | "hotel" | "restaurant" for a farm,
+        /// or null if unknown. Used to resolve the shared controllers' module and
+        /// enforce company-type restrictions at request time.
         /// </summary>
         Task<string?> GetModuleForFarmAsync(string? farmId);
         Task<List<IamRoleModel>> GetRolesAsync(string? ownerUserId);
@@ -280,6 +281,8 @@ namespace PoultryFarmAPIWeb.Business
                     "poultry" => "poultry",
                     "water" => "water",
                     "generic" => "generic",
+                    "hotel" => "hotel",
+                    "restaurant" => "restaurant",
                     _ => null,
                 };
             }

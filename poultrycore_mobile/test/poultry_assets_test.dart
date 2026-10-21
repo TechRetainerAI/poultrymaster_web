@@ -270,7 +270,7 @@ void main() {
     await tapIn(tester, inDialog(find.widgetWithText(FilledButton, 'Reverse')));
     expect(find.textContaining('A reason is required'), findsOneWidget);
     clearToasts(tester);
-    await enterIn(tester, 'Reason', 'Wrong company');
+    await reasonOther(tester, 'Wrong company');
     await tapIn(tester, inDialog(find.widgetWithText(FilledButton, 'Reverse')));
     expect(body(a, '/api/Poultry/assets/1/reverse'), {'farmId': 'farm-1', 'reason': 'Wrong company', 'createdBy': 'user-1'});
   });
@@ -291,7 +291,7 @@ void main() {
     expect(find.textContaining('12 month(s) of depreciation have already been posted'), findsOneWidget);
     expect(tester.widget<FilledButton>(inDialog(find.widgetWithText(FilledButton, 'Record correction'))).onPressed, isNull,
         reason: 'a reason is required');
-    await enterIn(tester, 'Reason *', 'Invoice was 4,000');
+    await reasonOther(tester, 'Invoice was 4,000');
     await tester.pumpAndSettle();
     await tapIn(tester, inDialog(find.widgetWithText(FilledButton, 'Record correction')));
     final k = body(a, '/api/Poultry/assets/2/original-cost', 'PUT');
@@ -306,7 +306,7 @@ void main() {
     expect(find.textContaining("the investment's value falls by GHC 2,000.00"), findsOneWidget);
     await tapIn(tester, inDialog(find.widgetWithText(FilledButton, 'Reverse cost')));
     expect(find.text('Reason is required.'), findsOneWidget);
-    await tester.enterText(inDialog(find.byType(TextFormField)), 'Wrong investment');
+    await reasonOther(tester, 'Wrong investment');
     await tapIn(tester, inDialog(find.widgetWithText(FilledButton, 'Reverse cost')));
     final d = a.writes.lastWhere((w) => w.method == 'DELETE');
     expect(d.url.path, '/api/Poultry/assets/1/costs/12');
@@ -334,7 +334,7 @@ void main() {
     await tapIn(tester, inDialog(find.widgetWithText(FilledButton, 'Reverse')));
     expect(find.textContaining('A reason is required'), findsOneWidget);
     clearToasts(tester);
-    await tester.enterText(inDialog(find.byType(TextFormField)), 'Wrong month');
+    await reasonOther(tester, 'Wrong month');
     await tapIn(tester, inDialog(find.widgetWithText(FilledButton, 'Reverse')));
     expect(body(a, '/api/Poultry/asset-depreciation/31/reverse')['reason'], 'Wrong month');
     expect(find.textContaining('Depreciation reversed'), findsOneWidget);

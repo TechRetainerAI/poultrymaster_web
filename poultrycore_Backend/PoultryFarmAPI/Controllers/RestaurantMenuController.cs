@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Helpers;
 using PoultryFarmAPIWeb.Models;
@@ -11,6 +12,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [ApiController]
     [Authorize]
     [Route("api/Restaurant/menu")]
+    [RequireCompanyType("Restaurant")]
     public class RestaurantMenuController : ControllerBase
     {
         private readonly IRestaurantMenuService _svc;

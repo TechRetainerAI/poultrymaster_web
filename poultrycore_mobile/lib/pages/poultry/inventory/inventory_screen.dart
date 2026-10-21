@@ -17,6 +17,7 @@ import '../reports/report_format.dart';
 import '../reports/report_routes.dart' show openAppHref;
 import '../sales/balances_logic.dart' show pageSlice;
 import '../sales/balances_widgets.dart' show CompactPager;
+import '../sales/sales_logic.dart' show byproductRole;
 import '../trackers/tracker_logic.dart' show tNum, tStr, loc, feedItemKind;
 import '../trackers/tracker_widgets.dart';
 import 'stock_dialogs.dart';
@@ -47,6 +48,10 @@ String? crateEquivalent(num eggs) {
 
 ({String href, String label}) productLink(Map p) {
   final id = tStr(p['poultryProductId']);
+  // Byproducts have their own trackers (never the egg / live-bird ones).
+  final role = byproductRole(p['name']);
+  if (role == 'BrokenEggs') return (href: '/broken-eggs-tracker', label: 'Broken Eggs Tracker');
+  if (role == 'DeadBirds') return (href: '/dead-birds-tracker', label: 'Dead Birds Tracker');
   if (p['isRawEggProduct'] == true) return (href: '/egg-tracker?inventoryItemId=$id', label: 'Egg Tracker');
   if (p['isBirdProduct'] == true) return (href: '/birds-left-tracker?inventoryItemId=$id', label: 'Birds Tracker');
   return (href: '/poultry-stock?productId=$id', label: 'View Stock');
@@ -530,7 +535,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
         padding: EdgeInsets.zero,
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           _tabHeader('Feed ingredients, medication, vaccines. Stock updated by purchases + production usage.', 'Manage raw materials',
-              '/poultry-raw-materials', 'Raw Materials'),
+              '/poultry-supply-purchases', 'Raw Materials'),
           if (_loading)
             _empty('Loading…')
           else if (rows.isEmpty)

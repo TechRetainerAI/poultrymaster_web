@@ -171,11 +171,15 @@ void main() {
       await tester.tap(find.text('Reverse').first);
       await tester.pump(const Duration(milliseconds: 500));
       expect(find.text('Loading the sales it covers…'), findsOneWidget);
-      expect(find.text('This reverses the whole payment and restores the balance on every sale it was applied to.'), findsOneWidget);
-      await tester.tap(find.widgetWithText(FilledButton, 'Reverse payment'));
+      expect(find.textContaining('The balance goes back onto every sale it was applied to'), findsOneWidget);
+      final confirm = find.widgetWithText(FilledButton, 'Reverse payment');
+      expect(tester.widget<FilledButton>(confirm).onPressed, isNull, reason: 'a reason is required');
+      // The reason comes from the list; Other opens a box for its own words.
+      await tester.tap(find.text('Select a reason'));
       await tester.pump(const Duration(milliseconds: 500));
-      expect(a.writes, isEmpty);
-      await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextFormField)), 'wrong customer');
+      await tester.tap(find.text('Other').last);
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextFormField)).last, 'wrong customer');
       await tester.pump();
       await tester.tap(find.widgetWithText(FilledButton, 'Reverse payment'));
       await tester.pumpAndSettle();
@@ -276,6 +280,192 @@ void main() {
       await tapSeen(tester, find.text('All payments'));
       expect(find.text('Payment history'), findsOneWidget);
       expect(lastQuery(a, '/api/Poultry/customer-payments'), {'farmId': 'farm-1'});
+    });
+
+    testWidgets('one sale: no allocation grid, the balance it leaves, the rest kept as credit', (tester) async {
+      final a = api();
+      await open(tester, CustomerBalancesScreen(session: await sessionFor(a), company: company), size: phone);
+      await tapSeen(tester, find.text('Show 2 open sales'));
+      await tapSeen(tester, find.text('Receive payment'));
+      expect(find.text('Auto-allocate oldest first'), findsNothing);
+      expect(find.text('Applies to S7 · Fresh Eggs', findRichText: true), findsOneWidget);
+      expect(find.text('Balance GHC 50.00 → GHC 0.00 after this payment', findRichText: true), findsOneWidget);
+      await enter(tester, 'Payment amount', '60');
+      await tester.pumpAndSettle();
+      // 367 (poultry): more than the line owes is allowed; the rest is kept as credit.
+      expect(find.textContaining('Balance GHC 50.00 → GHC 0.00 after this payment · GHC 10.00 kept as customer credit', findRichText: true),
+          findsOneWidget);
+      await tapSeen(tester, find.widgetWithText(FilledButton, 'Receive payment'));
+      final body = a.lastBody('/api/Poultry/customer-payments');
+      expect(body['amount'], 60);
+      expect([for (final x in body['allocations'] as List) (x as Map)['amount']], [50]);
+    });
+
+    testWidgets('customer credit: shown beside the balances, refunded from an account', (tester) async {
+      final a = api()
+        ..gets['/api/Poultry/customer-payments/credit'] = [
+          {'customerId': 2, 'customerName': 'Kofi', 'availableCredit': 80, 'paymentCount': 1, 'outstanding': 50},
+        ];
+      await open(tester, CustomerBalancesScreen(session: await sessionFor(a), company: company), size: phone);
+      await see(tester, find.text('GHC 80.00 held'));
+      expect(find.text('Credit GHC 80.00 · Owes GHC 50.00', findRichText: true), findsOneWidget);
+      await tapSeen(tester, find.text('Refund'));
+      expect(find.text('Refund customer credit'), findsOneWidget);
+      expect(find.text('Main Cash Account · GHC 900.00'), findsOneWidget, reason: 'the first account');
+      final refund = find.widgetWithText(FilledButton, 'Refund');
+      expect(tester.widget<FilledButton>(refund).onPressed, isNull, reason: 'a reason is required');
+      await tester.tap(find.descendant(of: find.byType(AlertDialog), matching: find.text('Cash')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Mobile Money').last);
+      await tester.pumpAndSettle();
+      // The reason is a dropdown now (reason-select.tsx); "Order cancelled" is listed.
+      await tester.tap(find.text('Select a reason').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Order cancelled').last);
+      await tester.pumpAndSettle();
+      await tester.tap(refund);
+      await tester.pumpAndSettle();
+      final body = a.lastBody('/api/Poultry/customer-payments/refunds');
+      expect((body['customerId'], body['amount'], body['poultryCashAccountId'], body['paymentMethod'], body['reason']),
+          (2, 80, 5, 'Mobile Money', 'Order cancelled'));
+      expect(find.text('Refund recorded — Paid back to Kofi. It shows in Cash Flow as a customer refund.'), findsOneWidget);
+    });
+
+    testWidgets('an open sale’s Details: its lines, and the way to the Sales page', (tester) async {
+      final a = api()
+        ..gets['/api/Sale/7'] = {
+          'saleId': 7, 'saleGroupNo': 'SG-00007', 'saleDate': '2026-09-28T00:00:00', 'customerName': 'Ama', 'product': 'Fresh Eggs',
+          'totalAmount': 200, 'amountPaid': 150, 'status': 'Posted',
+          'lines': [
+            {'lineNo': 1, 'product': 'Fresh Eggs', 'eggProductId': 11, 'quantity': 305, 'unitPrice': 40, 'totalAmount': 120},
+            {'lineNo': 2, 'product': 'Manure', 'size': null, 'quantity': 4, 'unitPrice': 20, 'totalAmount': 80},
+          ],
+        }
+        ..gets['/api/Poultry/egg-sorting/classes'] = [
+          {'poultryProductId': 11, 'name': 'Large', 'classKind': 'Size', 'isActive': true, 'onHand': 0},
+        ];
+      await open(tester, CustomerBalancesScreen(session: await sessionFor(a), company: company), size: phone);
+      await tapSeen(tester, find.text('Show 2 open sales'));
+      await tapSeen(tester, find.text('Details'));
+      expect(find.text('Sale SG-00007'), findsOneWidget);
+      expect(find.text('Quantity: 10 crates + 5 pcs (305 eggs)'), findsOneWidget);
+      expect(find.text('Size / class: Large'), findsOneWidget);
+      expect(find.text('Size / class: —'), findsOneWidget);
+      expect(find.text('GHC 50.00'), findsOneWidget, reason: 'balance');
+      await tapSeen(tester, find.text('Open on Sales page'));
+      expect(tester.widget<SalesScreen>(find.byType(SalesScreen)).focusSaleId, 7);
+    });
+  });
+
+  testWidgets('Payments received: Sale details lists every sale a payment paid', (tester) async {
+    final a = api()
+      ..gets['/api/Sale/4'] = {'saleId': 4, 'product': 'Fresh Eggs', 'quantity': 60, 'unitPrice': 100, 'totalAmount': 200, 'amountPaid': 200, 'status': 'Posted'}
+      ..gets['/api/Sale/5'] = {'saleId': 5, 'product': 'Manure', 'quantity': 3, 'unitPrice': 50, 'totalAmount': 150, 'amountPaid': 100, 'status': 'Posted'};
+    await open(tester, PaymentsReceivedScreen(session: await sessionFor(a), company: company), size: phone);
+    await tapSeen(tester, find.byKey(const ValueKey('sale-details-p2')));
+    expect(find.text('Payment PAY-0002'), findsOneWidget);
+    expect(find.text('Sale #4'), findsOneWidget);
+    expect(find.text('Sale #5'), findsOneWidget);
+    expect(find.text('What was sold on these sales, line by line.'), findsOneWidget);
+  });
+
+  group('Customer Balances debts (369)', () {
+    FakeApi debtApi() => api()
+      ..gets['/api/Customer'] = [{'customerId': 1, 'name': 'Ama'}, {'customerId': 2, 'name': 'Kofi'}]
+      ..gets['/api/Poultry/customer-balances/2/open-sales'] = [
+        {'documentType': 'CustomerDebt', 'documentId': 9, 'reference': 'CD-0001', 'label': 'Opening balance', 'totalAmount': 50,
+          'amountPaid': 0, 'balance': 50, 'status': 'Open', 'documentDate': '2026-09-01T00:00:00'},
+      ];
+
+    testWidgets('record a debt from the header', (tester) async {
+      final a = debtApi();
+      await open(tester, CustomerBalancesScreen(session: await sessionFor(a), company: company), size: phone);
+      await tapSeen(tester, find.text('Record customer debt'));
+      Future<void> shown(String t) async {
+        await tester.ensureVisible(find.text(t).last);
+        await tester.pumpAndSettle();
+      }
+      await shown('Choose the customer');
+      await pick(tester, 'Choose the customer', 'Kofi');
+      await shown('Amount owed *');
+      await enter(tester, 'Amount owed *', '80');
+      await shown('Opening balance');
+      await pick(tester, 'Opening balance', 'Historical sale / debt');
+      await shown('Description *');
+      await enter(tester, 'Description *', 'Eggs before the system');
+      await shown('Record debt');
+      await tester.tap(find.widgetWithText(FilledButton, 'Record debt'));
+      await tester.pumpAndSettle();
+      final body = a.lastBody('/api/Poultry/customer-debts');
+      expect((body['customerId'], body['amount'], body['entryType'], body['description']), (2, 80, 'HistoricalDebt', 'Eggs before the system'));
+    });
+
+    testWidgets('a debt row: Reverse debt, no History; paid on with Count on P&L', (tester) async {
+      final a = debtApi();
+      await open(tester, CustomerBalancesScreen(session: await sessionFor(a), company: company), size: phone);
+      await tapSeen(tester, find.text('Show 1 open sale'));
+      final row = find.ancestor(of: find.text('CD-0001'), matching: find.byType(InkWell)).first;
+      expect(find.descendant(of: row, matching: find.text('History')), findsNothing);
+      await tapSeen(tester, find.descendant(of: row, matching: find.text('Reverse debt')));
+      expect(find.text('Reverse CD-0001?'), findsOneWidget);
+      await pick(tester, 'Select a reason', 'Wrong amount');
+      await tester.tap(find.widgetWithText(FilledButton, 'Reverse debt'));
+      await tester.pumpAndSettle();
+      expect(a.lastBody('/api/Poultry/customer-debts/9/reverse')['reason'], 'Wrong amount');
+
+      await tapSeen(tester, find.text('Show 1 open sale'));
+      await tapSeen(tester, find.descendant(of: find.ancestor(of: find.text('CD-0001'), matching: find.byType(InkWell)).first,
+          matching: find.text('Receive payment')));
+      await see(tester, find.textContaining('paid on debts on Profit & Loss'));
+      await tester.tap(find.textContaining('paid on debts on Profit & Loss'));
+      await tester.pumpAndSettle();
+      await tapSeen(tester, find.widgetWithText(FilledButton, 'Receive payment'));
+      final body = a.lastBody('/api/Poultry/customer-payments');
+      expect(body['excludeFromPL'], isTrue);
+      final alloc = (body['allocations'] as List).single as Map;
+      expect((alloc['saleId'], alloc['documentType'], alloc['documentId'], alloc['amount']), (null, 'CustomerDebt', 9, 50));
+    });
+  });
+
+  group('Payments received: P&L (382) and Record customer payment (367 / 383)', () {
+    FakeApi plApi() => api()
+      ..gets['/api/Poultry/customer-payments'] = [
+        {'paymentId': 'p9', 'paymentNumber': 'PAY-0009', 'paymentDate': '2026-10-05T10:00:00', 'totalAmount': 80, 'paymentMethod': 'Cash',
+          'allocationCount': 1, 'sourceType': 'PaymentsPage', 'status': 'Posted', 'plAmount': 80, 'excludedFromPL': false, 'partyName': 'Ama'},
+      ]
+      ..gets['/api/Customer'] = [{'customerId': 1, 'name': 'Ama'}, {'customerId': 2, 'name': 'Kofi'}]
+      ..gets['/api/Poultry/customer-balances/2/open-sales'] = [];
+
+    testWidgets('On P&L badge; Exclude from P&L asks, then posts', (tester) async {
+      final a = plApi();
+      await open(tester, PaymentsReceivedScreen(session: await sessionFor(a), company: adminCompany), size: phone);
+      await see(tester, find.text('On P&L'));
+      expect(find.text('On P&L'), findsOneWidget);
+      await tapSeen(tester, find.widgetWithText(OutlinedButton, 'Exclude from P&L'));
+      expect(find.text('Keep this payment off Profit & Loss?'), findsOneWidget);
+      await tester.tap(find.widgetWithText(FilledButton, 'Exclude from P&L'));
+      await tester.pumpAndSettle();
+      expect(a.lastBody('/api/Poultry/customer-payments/p9/pl-exclusion'), {'farmId': 'farm-1', 'exclude': true});
+    });
+
+    testWidgets('Record customer payment: applied to nothing pays an old debt, on P&L', (tester) async {
+      final a = plApi();
+      await open(tester, PaymentsReceivedScreen(session: await sessionFor(a), company: adminCompany), size: phone);
+      await tapSeen(tester, find.text('Record customer payment'));
+      await pick(tester, 'Choose the customer', 'Kofi');
+      await tester.tap(find.widgetWithText(FilledButton, 'Next'));
+      await tester.pumpAndSettle();
+      await enter(tester, 'Payment amount', '40');
+      await tester.pumpAndSettle();
+      await see(tester, find.text('Select account'));
+      await pick(tester, 'Select account', 'Main Cash Account · GHC 900.00');
+      await see(tester, find.textContaining('a debt the customer owed from before the system'));
+      expect(find.textContaining('Count the GHC 40.00 paid on debts on Profit & Loss'), findsOneWidget);
+      await tapSeen(tester, find.widgetWithText(FilledButton, 'Receive payment'));
+      final body = a.lastBody('/api/Poultry/customer-payments');
+      expect((body['partyId'], body['amount'], body['sourceType'], body['remainderAsOldDebt'], body['excludeFromPL'], body['cashAccountId']),
+          (2, 40, 'PaymentsPage', true, false, 5));
+      expect(body['allocations'], isEmpty);
     });
   });
 }

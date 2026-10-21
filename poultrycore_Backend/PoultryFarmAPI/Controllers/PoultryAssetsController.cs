@@ -12,6 +12,7 @@
 // delete through ResolveAction with no extra wiring.
 
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 
@@ -19,6 +20,7 @@ namespace PoultryFarmAPIWeb.Controllers
 {
     [ApiController]
     [Route("api/Poultry/assets")]
+    [RequireCompanyType("Poultry")]
     public class PoultryAssetsController : ControllerBase
     {
         private readonly IPoultryCapitalAssetService _svc;
@@ -178,6 +180,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Poultry/asset-depreciation")]
+    [RequireCompanyType("Poultry")]
     public class PoultryAssetDepreciationController : ControllerBase
     {
         private readonly IPoultryCapitalAssetService _svc;

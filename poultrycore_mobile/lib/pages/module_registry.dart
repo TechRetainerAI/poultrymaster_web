@@ -6,9 +6,11 @@ import 'poultry/poultry_extras.dart';
 import 'poultry/poultry_forms.dart';
 import 'poultry/reports/report_routes.dart';
 import 'poultry/trackers/tracker_routes.dart';
+import 'restaurant/reports/restaurant_report_routes.dart';
 import 'restaurant/restaurant_extras.dart';
 import 'restaurant/restaurant_forms.dart';
 import 'shared/shared_forms.dart';
+import 'shared/staff_employee_link.dart';
 import 'water/water_extras.dart';
 import 'water/reports/water_report_routes.dart';
 import 'water/water_forms.dart';
@@ -35,18 +37,23 @@ final Map<String, List<ListExtra>> listExtras = {
   ...waterListExtras,
   ...restaurantListExtras,
 };
+/// Merged per key, so a page keeps its own buttons (Staff → Attendance) beside
+/// the shared ones (Staff → Make employee).
 final Map<String, List<RecordExtra>> recordExtras = {
-  ...poultryRecordExtras,
-  ...waterRecordExtras,
-  ...restaurantRecordExtras,
-};
+  for (final m in [poultryRecordExtras, waterRecordExtras, restaurantRecordExtras, staffLinkRecordExtras])
+    for (final MapEntry(:key, :value) in m.entries) key: value,
+}..updateAll((key, _) => [
+    for (final m in [poultryRecordExtras, waterRecordExtras, restaurantRecordExtras, staffLinkRecordExtras]) ...?m[key],
+  ]);
 final Map<String, List<ListFilter>> listFilters = {
   ...poultryListFilters,
   ...waterListFilters,
   ...restaurantListFilters,
 };
-final Map<String, DeleteGuard> deleteGuards = {...waterDeleteGuards, ...restaurantDeleteGuards};
+final Map<String, DeleteGuard> deleteGuards = {...waterDeleteGuards, ...restaurantDeleteGuards, ...poultryDeleteGuards};
 final Map<String, BeforeLoad> beforeLoad = {...poultryBeforeLoad};
+final Map<String, RowEnrich> rowEnrich = {...staffLinkRowEnrich};
+final Map<String, RowBadge> rowBadges = {...staffLinkRowBadges};
 
 /// Routes that are screens of their own, keyed by web href.
 final Map<String, PageScreenBuilder> pageScreens = {
@@ -56,6 +63,8 @@ final Map<String, PageScreenBuilder> pageScreens = {
   ...poultryTrackerScreens,
   ...waterPageScreens,
   ...waterReportScreens,
+  ...restaurantPageScreens,
+  ...restaurantReportScreens,
 };
 
 /// The form for a spec: the curated one when there is one, else the extracted.

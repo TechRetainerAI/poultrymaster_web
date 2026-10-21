@@ -31,6 +31,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [Authorize]
     [RestaurantBusinessRuleFilter]
     [Route("api/Restaurant")]
+    [RequireCompanyType("Restaurant")]
     public class RestaurantCustomerBalancesController : ControllerBase
     {
         private readonly IRestaurantCustomerBalanceService _svc;

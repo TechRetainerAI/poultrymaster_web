@@ -266,7 +266,7 @@ void main() {
     expect(find.textContaining('Say why'), findsOneWidget);
     expect(a.writes, isEmpty);
     clearToasts(tester);
-    await enterIn(tester, 'Reason *', 'Bank bounced it');
+    await reasonOther(tester, 'Bank bounced it');
     await tapIn(tester, go);
     final w = a.writes.single;
     expect(w.url.path, '/api/Poultry/loan-payments/11/reverse');

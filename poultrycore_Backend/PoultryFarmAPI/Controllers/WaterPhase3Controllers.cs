@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 
@@ -6,6 +7,7 @@ namespace PoultryFarmAPIWeb.Controllers
 {
     [ApiController]
     [Route("api/Water/raw-material-items")]
+    [RequireCompanyType("Water")]
     public class WaterRawMaterialItemController : ControllerBase
     {
         private readonly IWaterRawMaterialItemService _svc;
@@ -74,6 +76,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Water/raw-material-adjustments")]
+    [RequireCompanyType("Water")]
     public class WaterRawMaterialAdjustmentController : ControllerBase
     {
         private readonly IWaterRawMaterialItemService _svc;
@@ -86,6 +89,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Water/raw-material-purchases")]
+    [RequireCompanyType("Water")]
     public class WaterRawMaterialPurchaseController : ControllerBase
     {
         private readonly IWaterRawMaterialPurchaseService _svc;
@@ -141,6 +145,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Water/raw-material-usage")]
+    [RequireCompanyType("Water")]
     public class WaterRawMaterialUsageController : ControllerBase
     {
         private readonly IWaterRawMaterialUsageService _svc;
@@ -161,6 +166,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Water/loss-records")]
+    [RequireCompanyType("Water")]
     public class WaterLossRecordController : ControllerBase
     {
         private readonly IWaterLossRecordService _svc;
@@ -213,6 +219,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Water/daily-closings")]
+    [RequireCompanyType("Water")]
     public class WaterDailyClosingController : ControllerBase
     {
         private readonly IWaterDailyClosingService _svc;
@@ -350,6 +357,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Water/reports")]
+    [RequireCompanyType("Water")]
     public class WaterReportController : ControllerBase
     {
         private readonly IWaterReportService _svc;
@@ -433,6 +441,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/Water/farm-settings")]
+    [RequireCompanyType("Water")]
     public class WaterFarmSettingsController : ControllerBase
     {
         private readonly IWaterFarmSettingsService _svc;

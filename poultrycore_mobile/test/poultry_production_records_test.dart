@@ -99,6 +99,19 @@ void main() {
     expect(resolveAge(true, (weeks: 1, days: 7), years: '1'), (weeks: 52, days: 365));
     expect(formatProductionAge(rec1), '0 yr 12 wk 3 d (87 days)');
     expect(eggGradeFromApi('p3'), 'Large');
+    // Egg grade is automatic since egg sorting: Mixed, an older grade kept.
+    expect(productionEggGrade(null), 'Mixed');
+    expect(productionEggGrade('p3'), 'Large');
+    expect(productionEggGrade('nonsense'), 'Mixed');
+    final st = sortingStatusByRecord([
+      {'productionRecordId': 11, 'recordSorted': 70, 'recordLeft': 30},
+      {'productionRecordId': 11, 'recordSorted': 70, 'recordLeft': 30},
+      {'productionRecordId': 12, 'recordSorted': 0, 'recordLeft': 0},
+      {'productionRecordId': 13, 'recordSorted': 0, 'recordLeft': 40},
+    ]);
+    expect((st[11]!.status, st[11]!.left), ('Partial', 30));
+    expect(st[12]!.status, 'Complete');
+    expect(st[13]!.status, 'NotStarted');
     expect(const PickSettings(fourth: '18:00').labels.fourth, '4th Pick (6:00 PM)');
 
     // 30 kg across two lots of 25 kg: 25 at 10/kg then 5 at 12/kg.
@@ -137,6 +150,8 @@ void main() {
     expect(find.text('1'), findsWidgets, reason: 'active filter badge');
 
     await tap(tester, find.text('Filters'));
+    await tester.ensureVisible(find.text('Clear all'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Clear all'));
     await tester.pumpAndSettle();
     await tap(tester, find.text('View table format'));
@@ -165,6 +180,14 @@ void main() {
     expect(find.text('65 eggs'), findsOneWidget);
     await enter(tester, 'Broken eggs', '3');
     await enter(tester, 'Deaths', '1');
+    // 372: Keep / Disposed for the broken eggs and the dead birds.
+    expect(find.text('3 broken eggs will be added to Broken Egg stock.'), findsOneWidget);
+    expect(find.text('1 live bird removed; kept as Dead Birds stock.'), findsOneWidget);
+    await tester.ensureVisible(find.text('Disposed immediately').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Disposed immediately').first);
+    await tester.pumpAndSettle();
+    expect(find.text('3 broken eggs recorded and disposed of. Nothing is added to stock.'), findsOneWidget);
     await choose(tester, 'None', 'Layer mash (Kilogram) · 40 in stock · FIFO', within: find.byType(Dialog));
     await enter(tester, 'Consumed', '30');
     expect(find.text('310.00'), findsWidgets);
@@ -174,8 +197,9 @@ void main() {
     await tester.pumpAndSettle();
     final b = jsonDecode(a.writes.lastWhere((w) => w.url.path == '/api/ProductionRecord').body) as Map;
     expect((b['FlockId'], b['production9AM'], b['totalProduction'], b['brokenEggs']), (7, 65, 65, 3));
+    expect((b['brokenEggDisposition'], b['mortalityDisposition']), ('Disposed', 'Keep'));
     expect((b['noOfBirds'], b['mortality'], b['noOfBirdsLeft'], b['feedKg'], b['medication']), (118, 1, 117, 30, 'None'));
-    expect((b['meatyEggs'], b['eggGrade'], b['totalCostOfProduction']), (null, null, 310));
+    expect((b['meatyEggs'], b['eggGrade'], b['totalCostOfProduction']), (null, 'Mixed', 310), reason: 'egg grade is automatic since egg sorting');
     final feed = (b['feeds'] as List).single as Map;
     expect((feed['specificFeedUsedId'], feed['totalFeedConsumed'], feed['totalFeedCost']), (5, 30, 310));
     expect(b['medications'], isEmpty, reason: 'no quantity on the medication line');
@@ -194,6 +218,67 @@ void main() {
     expect((w.method, w.url.path), ('PUT', '/api/ProductionRecord/11'));
     final b = jsonDecode(w.body) as Map;
     expect((b['id'], b['production12PM'], b['eggGrade'], b['medication']), (11, 31, 'Large', 'Vitamins'));
+    // A record from an older API has no disposition: none is sent, so the saved choice stays.
+    expect(b.containsKey('brokenEggDisposition'), isFalse);
+  });
+
+  testWidgets('edit: a feed type outside the list ("General Feed", the database default) no longer crashes', (tester) async {
+    final a = api()
+      ..gets['/api/ProductionRecord/11'] = rec1
+      ..gets['/api/FeedUsage'] = [
+        {'feedUsageId': 1, 'flockId': 7, 'usageDate': '2026-10-05T00:00:00', 'feedType': 'General Feed', 'quantityKg': 0},
+      ];
+    await open(tester, ProductionRecordsScreen(session: await sessionFor(a), company: company), size: phone);
+    await tap(tester, find.text('Edit'));
+    expect(tester.takeException(), isNull, reason: 'no red dropdown assertion');
+    expect(find.text('Feed type'), findsOneWidget);
+    // As on the web, the box shows empty and the saved value is kept on Update.
+    await tester.tap(find.text('Update Production Record'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(a.writes.last.url.path, '/api/ProductionRecord/11');
+  });
+
+  testWidgets('egg grade is read-only: Mixed on a new record, an older record keeps its own', (tester) async {
+    final a = api()..gets['/api/ProductionRecord/11'] = rec1;
+    final s = await sessionFor(a);
+    await open(tester, productionScreenForHref('/production-records/new?flockId=8&date=2026-10-06', s, company)!, size: phone);
+    await see(tester, find.text('Set automatically. Sizes are recorded when the eggs are sorted.'));
+    expect(find.text('Mixed grades'), findsOneWidget);
+    expect(find.text('Total = crates × 30 + loose eggs'), findsOneWidget);
+
+    await open(tester, productionScreenForHref('/production-records/11?returnTo=/poultry-egg-sorting', s, company)!, size: phone);
+    expect(find.text('Back to Egg Sorting'), findsOneWidget);
+    expect(find.text('Close'), findsNothing);
+    await see(tester, find.text('Recorded before egg sorting; kept as it was.'));
+    expect(find.text('Large'), findsOneWidget);
+    await open(tester, productionScreenForHref('/production-records/11?returnTo=//evil.example', s, company)!, size: phone);
+    expect(find.text('Close'), findsOneWidget, reason: 'only same-site paths');
+  });
+
+  testWidgets('the farm\'s eggs per crate and the sorting chip in the table', (tester) async {
+    final a = api()
+      ..gets['/api/Poultry/egg-sorting/settings'] = {'enableEggSorting': true, 'eggsPerCrate': 25}
+      ..gets['/api/Poultry/egg-sorting/picks'] = [
+        {'productionRecordId': 11, 'recordSorted': 70, 'recordLeft': 30},
+        {'productionRecordId': 12, 'recordSorted': 30, 'recordLeft': 0},
+      ];
+    addTearDown(() => setEggsPerCrate(30));
+    await open(tester, ProductionRecordsScreen(session: await sessionFor(a), company: company), size: phone);
+    expect(eggsPerCrate, 25);
+    expect(a.requests.lastWhere((r) => r.url.path == '/api/Poultry/egg-sorting/picks').url.queryParameters['fromDate'], isNotNull);
+    await tap(tester, find.text('View table format'));
+    await see(tester, find.text('30 unsorted'));
+    expect(find.text('30 unsorted'), findsOneWidget);
+    expect(find.text('Sorted'), findsOneWidget);
+  });
+
+  testWidgets('no chip when the farm does not sort', (tester) async {
+    final a = api()..gets['/api/Poultry/egg-sorting/settings'] = {'enableEggSorting': false};
+    await open(tester, ProductionRecordsScreen(session: await sessionFor(a), company: company), size: phone);
+    await tap(tester, find.text('View table format'));
+    expect(find.text('Sort eggs'), findsNothing);
+    expect(a.requests.where((r) => r.url.path == '/api/Poultry/egg-sorting/picks'), isEmpty);
   });
 
   testWidgets('the full page opens from a link', (tester) async {

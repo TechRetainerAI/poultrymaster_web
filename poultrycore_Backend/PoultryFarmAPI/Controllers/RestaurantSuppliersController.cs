@@ -25,6 +25,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [Authorize]
     [RestaurantBusinessRuleFilter]
     [Route("api/Restaurant")]
+    [RequireCompanyType("Restaurant")]
     public class RestaurantBalancesController : ControllerBase
     {
         private readonly IRestaurantSupplierService _svc;
@@ -106,6 +107,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [Authorize]
     [RestaurantBusinessRuleFilter]
     [Route("api/Restaurant/purchases")]
+    [RequireCompanyType("Restaurant")]
     public class RestaurantPurchasesController : ControllerBase
     {
         private readonly IRestaurantSupplierService _svc;
@@ -143,6 +145,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [Authorize]
     [RestaurantBusinessRuleFilter]
     [Route("api/Restaurant/deferred-inventory-costs")]
+    [RequireCompanyType("Restaurant")]
     public class RestaurantDeferredInventoryCostController : ControllerBase
     {
         private readonly IRestaurantSupplierService _svc;

@@ -4,6 +4,7 @@ import '../../api/api_client.dart';
 import '../../models/company.dart';
 import '../../state/session.dart';
 import 'business_dates.dart';
+import 'reason_select.dart';
 
 /// The web's ReasonDialog (`components/closing/daily-closing-dialogs.tsx`):
 /// a required reason before a reversal, rejection or reopen. Completes with
@@ -14,6 +15,7 @@ Future<String?> showReasonDialog(
   required String description,
   required String confirmLabel,
   bool destructive = false,
+  List<String>? options,
 }) {
   return showDialog<String>(
     context: context,
@@ -22,6 +24,7 @@ Future<String?> showReasonDialog(
       description: description,
       confirmLabel: confirmLabel,
       destructive: destructive,
+      options: options,
     ),
   );
 }
@@ -32,11 +35,15 @@ class _ReasonDialog extends StatefulWidget {
     required this.description,
     required this.confirmLabel,
     required this.destructive,
+    this.options,
   });
   final String title;
   final String description;
   final String confirmLabel;
   final bool destructive;
+
+  /// Pick the reason from this list; "Other" opens a box to type one.
+  final List<String>? options;
 
   @override
   State<_ReasonDialog> createState() => _ReasonDialogState();
@@ -44,6 +51,9 @@ class _ReasonDialog extends StatefulWidget {
 
 class _ReasonDialogState extends State<_ReasonDialog> {
   final _reason = TextEditingController();
+  String _picked = '';
+
+  String get _value => widget.options != null ? _picked.trim() : _reason.text.trim();
 
   @override
   void dispose() {
@@ -53,7 +63,7 @@ class _ReasonDialogState extends State<_ReasonDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final ok = _reason.text.trim().isNotEmpty;
+    final ok = _value.isNotEmpty;
     return AlertDialog(
       title: Text(widget.title),
       content: Column(
@@ -66,14 +76,17 @@ class _ReasonDialogState extends State<_ReasonDialog> {
             TextSpan(text: '*', style: TextStyle(color: Colors.red)),
           ])),
           const SizedBox(height: 4),
-          TextField(
-            controller: _reason,
-            autofocus: true,
-            minLines: 3,
-            maxLines: 3,
-            decoration: const InputDecoration(border: OutlineInputBorder()),
-            onChanged: (_) => setState(() {}),
-          ),
+          if (widget.options != null)
+            ReasonSelect(options: widget.options!, value: _picked, multiline: true, onChanged: (v) => setState(() => _picked = v))
+          else
+            TextField(
+              controller: _reason,
+              autofocus: true,
+              minLines: 3,
+              maxLines: 3,
+              decoration: const InputDecoration(border: OutlineInputBorder()),
+              onChanged: (_) => setState(() {}),
+            ),
         ],
       ),
       actions: [
@@ -82,7 +95,7 @@ class _ReasonDialogState extends State<_ReasonDialog> {
           style: widget.destructive
               ? FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error)
               : null,
-          onPressed: ok ? () => Navigator.of(context).pop(_reason.text.trim()) : null,
+          onPressed: ok ? () => Navigator.of(context).pop(_value) : null,
           child: Text(widget.confirmLabel),
         ),
       ],

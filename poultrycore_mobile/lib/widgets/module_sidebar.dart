@@ -5,6 +5,7 @@ import '../models/company.dart';
 import '../pages/list_screen.dart';
 import '../pages/module_registry.dart';
 import '../pages/registry.dart';
+import '../pages/shared/setup_admin_routes.dart';
 import '../pages/web_nav.dart';
 import '../pages/web_page_screen.dart';
 import '../state/session.dart';
@@ -123,6 +124,8 @@ void openNavLink(
   Session session,
   Company company,
 ) {
+  // SetupAccessGuard: an ordinary employee does not get a Setup page.
+  if (isSetupAdminRoute(link.href) && !canOpenSetup(company)) return;
   final screen = pageScreens[link.href];
   if (screen != null) {
     nav.push(MaterialPageRoute(builder: (_) => screen(session, company)));
@@ -153,6 +156,11 @@ const Map<String, IconData> _iconByHref = {
   '/production-records': Icons.description_outlined,
   '/batch-production-records': Icons.widgets_outlined,
   '/egg-production': Icons.egg_outlined,
+  '/poultry-egg-sorting': Icons.egg_outlined,
+  '/poultry-supply-purchases': Icons.inventory_outlined,
+  '/poultry-supply-purchases?purchase=1': Icons.shopping_cart_outlined,
+  '/recurring-expenses': Icons.repeat,
+  '/water-recurring-expenses': Icons.repeat,
   '/feed-usage': Icons.inventory_2_outlined,
   '/poultry-feed-production': Icons.factory_outlined,
   '/poultry-inventory': Icons.widgets_outlined,
@@ -167,12 +175,14 @@ const Map<String, IconData> _iconByHref = {
   '/sales': Icons.shopping_cart_outlined,
   '/poultry-payments': Icons.account_balance_wallet_outlined,
   '/customer-balances': Icons.people_outline,
+  '/customer-credits': Icons.savings_outlined,
   '/expenses': Icons.attach_money,
   '/poultry-internal-use': Icons.inventory_outlined,
   '/poultry-payroll': Icons.payments_outlined,
   '/poultry-employee-loans': Icons.volunteer_activism_outlined,
   '/supplier-payments': Icons.receipt_long_outlined,
   '/supplier-balances': Icons.local_shipping_outlined,
+  '/supplier-credits': Icons.account_balance_wallet_outlined,
   '/poultry-deferred-costs': Icons.hourglass_empty,
   '/poultry-assets': Icons.business_outlined,
   '/cash-flow': Icons.account_balance_wallet_outlined,
@@ -188,15 +198,24 @@ const Map<String, IconData> _iconByHref = {
   '/feed-tracker': Icons.grass,
   '/feed-inventory-tracker': Icons.history,
   '/birds-left-tracker': Icons.flutter_dash,
+  '/broken-eggs-tracker': Icons.egg_outlined,
+  '/dead-birds-tracker': Icons.heart_broken_outlined,
   '/medication-tracker': Icons.medication_outlined,
   '/weekly-report': Icons.description_outlined,
   '/feed-ingredient-tracker': Icons.grass,
   '/reports': Icons.bar_chart,
   '/poultry/reports': Icons.menu_book_outlined,
   '/poultry-farm-setup': Icons.auto_awesome_outlined,
+  '/flock-closeout': Icons.flag_outlined,
+  '/poultry-lifecycle': Icons.event_available_outlined,
   '/poultry-farm-completeness': Icons.fact_check_outlined,
   '/poultry-feed-distribution': Icons.grass,
   '/poultry-days-of-supply': Icons.inventory_2_outlined,
+  '/poultry-restock-forecast': Icons.inventory_2_outlined,
+  '/poultry-treatment-campaigns': Icons.medication_outlined,
+  '/poultry-flock-alerts': Icons.monitor_heart_outlined,
+  '/poultry-alerts': Icons.notifications_outlined,
+  '/poultry-purchase-receipts': Icons.receipt_long_outlined,
   '/poultry-setup': Icons.settings_outlined,
   '/poultry-company-setup': Icons.settings_outlined,
   '/poultry-financial-settings': Icons.toll_outlined,
@@ -226,6 +245,7 @@ const Map<String, IconData> _iconByHref = {
   '/water-maintenance': Icons.build_outlined,
   '/water-stock': Icons.widgets_outlined,
   '/water-inventory': Icons.widgets_outlined,
+  '/water-supply-purchases': Icons.inventory_outlined,
   '/water-raw-materials': Icons.inventory_outlined,
   '/water-loss-records': Icons.warning_amber_outlined,
   '/water-production-losses': Icons.warning_amber_outlined,
@@ -282,6 +302,7 @@ const Map<String, IconData> _iconByHref = {
   '/restaurant-inventory': Icons.widgets_outlined,
   '/restaurant-payments': Icons.account_balance_wallet_outlined,
   '/restaurant-customer-balances': Icons.people_outline,
+  '/restaurant-recurring-expenses': Icons.repeat,
   '/restaurant-internal-use': Icons.inventory_outlined,
   '/restaurant-payroll': Icons.payments_outlined,
   '/restaurant-staff-loans': Icons.volunteer_activism_outlined,
@@ -382,7 +403,8 @@ class _PoultrySidebarState extends State<_PoultrySidebar> {
   final _closedSubs = <String>{};
 
   /// The generated nav, with the default Quick Links.
-  late final List<NavGroup> _base = webNavGroups[PageRegistry.moduleOf(widget.company.type)] ?? const [];
+  late final List<NavGroup> _base =
+      gateSetupLinks(webNavGroups[PageRegistry.moduleOf(widget.company.type)] ?? const [], widget.company);
 
   /// The user's stored Quick Links (318). Null = never customised, so the
   /// defaults stand; an empty list = they cleared the bar.

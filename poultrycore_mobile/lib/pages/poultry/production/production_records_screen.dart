@@ -17,6 +17,8 @@ import '../../shared/business_dates.dart';
 import '../../shared/company_clock.dart';
 import '../reports/dashboard_screen.dart' show latestRecordForFlock, birdsLeftFromRecord, sumLatestBirdsLeftByFlock;
 import '../reports/report_export.dart';
+import '../reports/report_format.dart' show periodGroups, periodToRange, rangeToPeriod;
+import '../reports/report_routes.dart' show openAppHref;
 import '../money/money_widgets.dart' show twoUp;
 import '../sales/sales_logic.dart' show pageNumbers, salePageSizes;
 import '../trackers/tracker_logic.dart'
@@ -82,6 +84,10 @@ class ProductionRecordsScreen extends StatefulWidget {
 
 class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
   List<Map> _records = [], _flocks = [], _batches = [];
+
+  /// Egg Sorting Workspace (341-343): per-record sorting status, only when the
+  /// farm sorts — a status chip and a link, never the sorting grid itself.
+  Map<int, ({String status, num left})> _sorting = {};
   bool _loading = true, _table = false, _emailing = false;
   String _error = '';
   final _search = TextEditingController();
@@ -145,6 +151,53 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
       if (r[1] != null) _batches = r[1]!;
       _loading = false;
     });
+    _loadSortingStatus();
+  }
+
+  /// Last 120 days is plenty for "what still needs sorting"; older records show no chip.
+  Future<void> _loadSortingStatus() async {
+    try {
+      final settings = await _api.get('/api/Poultry/egg-sorting/settings', query: {'farmId': widget.company.farmId});
+      if (settings is Map) {
+        final n = tIntOrNull(settings['eggsPerCrate']);
+        if (n != null && n > 0) setEggsPerCrate(n);
+      }
+      if (settings is! Map || settings['enableEggSorting'] != true) {
+        if (mounted) setState(() => _sorting = {});
+        return;
+      }
+      final from = DateTime.now().subtract(const Duration(days: 120)).toUtc().toIso8601String().substring(0, 10);
+      final picks = rowsOf(await _api.get('/api/Poultry/egg-sorting/picks', query: {'farmId': widget.company.farmId, 'fromDate': from}));
+      if (mounted) setState(() => _sorting = sortingStatusByRecord(picks));
+    } on ApiException {
+      // Before 341, or no access: no chip.
+      if (mounted) setState(() => _sorting = {});
+    }
+  }
+
+  Widget _sortingChip(Map r) {
+    final st = _sorting[tIntOrNull(r['id'])];
+    if (st == null) return const SizedBox.shrink();
+    final (bg, fg) = switch (st.status) {
+      'Complete' => (TColors.emerald100, TColors.emerald800),
+      'Partial' => (TColors.amber100, TColors.amber800),
+      _ => (TColors.slate100, TColors.slate700),
+    };
+    return Tooltip(
+      message: st.left > 0 ? '${loc(st.left)} eggs not sorted yet — sort eggs' : 'All eggs sorted',
+      child: InkWell(
+        onTap: () => openAppHref(context, widget.session, widget.company, '/poultry-egg-sorting?record=${r['id']}', label: 'Egg Sorting'),
+        child: Container(
+          margin: const EdgeInsets.only(top: 10, left: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(4)),
+          child: Text(
+            st.status == 'Complete' ? 'Sorted' : st.status == 'Partial' ? '${loc(st.left)} unsorted' : 'Sort eggs',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: fg),
+          ),
+        ),
+      ),
+    );
   }
 
   Map<int, int?> get _batchOfFlock => {for (final f in _flocks) tIntOrNull(f['flockId']) ?? 0: tIntOrNull(f['batchId'])};
@@ -219,8 +272,9 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
                             _load();
                           } on ApiException catch (e) {
                             if (mounted) {
+                              // 372: a refusal (e.g. its broken eggs / dead birds were already used) is a sentence.
                               trackerToast(context, 'Delete failed',
-                                  description: e.message.isNotEmpty ? e.message : 'Something went wrong. Please try again.', error: true);
+                                  description: productionRefusal(e, 'Could not delete this production record. Please try again.'), error: true);
                             }
                           }
                           if (ctx.mounted) Navigator.pop(ctx);
@@ -385,6 +439,26 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
               const SizedBox(height: 14),
               const Text('Date range', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: TColors.slate700)),
               const SizedBox(height: 10),
+              // Period presets drive the dates. No dates is this page's
+              // unfiltered default, so it reads as All Time (and picking All
+              // Time clears them); hand-picked dates read as Custom.
+              AppSelect<String>(
+                value: from.isEmpty && to.isEmpty ? 'allTime' : rangeToPeriod(from, to),
+                items: [for (final (_, opts) in periodGroups) for (final (k, l) in opts) AppSelectItem(value: k, label: l)],
+                onChanged: (p) => set(() {
+                  if (p == 'allTime') {
+                    from = '';
+                    to = '';
+                  } else if (p != null) {
+                    final r = periodToRange(p);
+                    if (r != null) {
+                      from = r.from;
+                      to = r.to;
+                    }
+                  }
+                }),
+              ),
+              const SizedBox(height: 12),
               FilterLabel('Start date', FilterDate(value: from, hint: 'Start date', onChanged: (v) => set(() => from = v))),
               const SizedBox(height: 12),
               FilterLabel('End date', FilterDate(value: to, hint: 'End date', onChanged: (v) => set(() => to = v))),
@@ -811,7 +885,7 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
       const TCol('Deaths', sortKey: 'mortality', right: true, width: 80),
       const TCol('Left', sortKey: 'left', right: true, width: 80),
       const TCol('Meds', sortKey: 'medication', width: 110),
-      const TCol('Actions', width: 180),
+      const TCol('Actions', width: 240),
     ];
     return TrackerTable(
       sort: _sort,
@@ -845,6 +919,7 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
               TextButton(onPressed: () => _openForm(r), child: const Text('Edit')),
               if (_canDelete)
                 TextButton(style: TextButton.styleFrom(foregroundColor: TColors.red600), onPressed: () => _delete(r), child: const Text('Delete')),
+              _sortingChip(r),
             ]),
           ],
         if (filtered.isNotEmpty)

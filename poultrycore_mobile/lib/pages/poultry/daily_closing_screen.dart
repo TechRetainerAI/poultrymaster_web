@@ -13,6 +13,7 @@ import '../shared/business_dates.dart';
 import '../shared/company_clock.dart';
 import '../shared/iam_permissions.dart';
 import '../shared/reason_dialog.dart';
+import '../shared/reason_select.dart' show reopenReasons, rejectReasons;
 import 'poultry_links.dart';
 
 /// Poultry → Tools → Daily Closing, as `app/poultry-daily-closing/page.tsx`
@@ -98,11 +99,14 @@ String? closingActionHref(Object? action, Object? businessDate) {
     case 'cash-count':
       return '/poultry-cash-reconciliation';
     case 'inventory':
-      return '/poultry-raw-materials';
+      return '/poultry-supply-purchases';
     case 'customer-balances':
       return date != null ? '/sales?date=$date' : '/customer-balances';
     case 'driver-returns':
       return date != null ? '/poultry-driver-returns?date=$date' : '/poultry-driver-returns';
+    // 343: the day's eggs not yet sorted (only when the farm sorts).
+    case 'egg-sorting':
+      return '/poultry-egg-sorting';
     case 'previous-day':
       final prev = date != null ? shiftBusinessDate(date, -1) : null;
       return prev != null ? '/poultry-daily-closing?date=$prev' : null;
@@ -314,6 +318,7 @@ class _DailyClosingScreenState extends State<DailyClosingScreen> with SingleTick
       title: 'Reopen ${formatLongDate(businessDate)}?',
       description: 'The day will be open for correction. Its closing, who closed it and this reason stay in the history.',
       confirmLabel: 'Reopen Day',
+      options: reopenReasons,
     );
     if (reason == null) return;
     await _run(
@@ -330,6 +335,7 @@ class _DailyClosingScreenState extends State<DailyClosingScreen> with SingleTick
       description: 'The person who submitted it will see your reason.',
       confirmLabel: 'Reject',
       destructive: true,
+      options: rejectReasons,
     );
     if (reason == null) return;
     await _run(
@@ -425,7 +431,19 @@ class _DailyClosingScreenState extends State<DailyClosingScreen> with SingleTick
         leading: lead.leading,
         leadingWidth: lead.width,
         title: const Text('Daily Closing'),
-        bottom: TabBar(controller: _tabs, tabs: const [Tab(text: 'Day'), Tab(text: 'Previous closings')]),
+        actions: [
+          // On the page header, so it is there on both tabs.
+          if (_mayClose) TextButton.icon(onPressed: _openPolicy, icon: const Icon(Icons.tune, size: 18), label: const Text('Policy')),
+        ],
+        bottom: TabBar(
+          controller: _tabs,
+          // Tapping the Day tab always comes back to today: a past day opened
+          // from Previous closings used to stick.
+          onTap: (i) {
+            if (i == 0 && _tabs.previousIndex == 1) _choose(null);
+          },
+          tabs: const [Tab(text: 'Day'), Tab(text: 'Previous closings')],
+        ),
       ),
       body: TabBarView(controller: _tabs, children: [_dayTab(), _historyTab()]),
     );
@@ -473,14 +491,6 @@ class _DailyClosingScreenState extends State<DailyClosingScreen> with SingleTick
           busy: _loading,
           onPressed: _loading ? null : _load,
         ),
-        if (_mayClose)
-          AppButton(
-            label: 'Policy',
-            icon: Icons.tune,
-            variant: AppButtonVariant.outline,
-            size: AppButtonSize.sm,
-            onPressed: _openPolicy,
-          ),
       ]),
     ]);
   }
@@ -518,12 +528,8 @@ class _DailyClosingScreenState extends State<DailyClosingScreen> with SingleTick
             ]),
           if (_error != null) _ErrorCard(_error!),
           if (live != null) ...[
-            if (isClosed && record != null && atClose != null) ...[
-              _ClosedSummary(record: record, atClose: atClose, instant: instant),
-              const SizedBox(height: 12),
-            ],
-            if (changes.isNotEmpty) ...[_ChangesSinceClosing(changes: changes), const SizedBox(height: 12)],
             // ----------------------------------------- status + actions
+            // The web's side panel: on a phone it comes first, before the figures.
             AppCard(
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 Text(formatLongDate(businessDate).toUpperCase(),
@@ -584,10 +590,16 @@ class _DailyClosingScreenState extends State<DailyClosingScreen> with SingleTick
                 const SizedBox(height: 12),
                 Text('CLOSING CHECKLIST${isClosed ? ' (CURRENT)' : ''}',
                     style: TextStyle(fontSize: 11.5, letterSpacing: .6, fontWeight: FontWeight.w600, color: tokens.mutedForeground)),
-                _Checklist(checks: checklist, businessDate: businessDate, onOpen: _follow),
+                const SizedBox(height: 6),
+                _Checklist(checks: checklist, businessDate: businessDate, onOpen: _follow, stack: true),
               ]),
             ),
             const SizedBox(height: 12),
+            if (isClosed && record != null && atClose != null) ...[
+              _ClosedSummary(record: record, atClose: atClose, instant: instant),
+              const SizedBox(height: 12),
+            ],
+            if (changes.isNotEmpty) ...[_ChangesSinceClosing(changes: changes), const SizedBox(height: 12)],
             // ------------------------------------------------- sections
             if (isClosed && atClose != null) ...[
               Wrap(spacing: 8, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
@@ -647,7 +659,7 @@ class _DailyClosingScreenState extends State<DailyClosingScreen> with SingleTick
               const SizedBox(height: 8),
             ],
           const SizedBox(height: 4),
-          Text('Figures are as each day was closed. Days closed before this version show their status only.',
+          Text('A closed day shows its figures as closed. Any other day shows its figures as they are now (marked live). Tap a day to open it.',
               style: TextStyle(fontSize: 12, color: tokens.mutedForeground)),
         ],
       ),
@@ -857,8 +869,80 @@ class _Sections extends StatelessWidget {
 }
 
 /// CLOSING CHECKLIST: blocking first, then warnings, then complete (server order).
+/// The checklist's three boxes (CHECK_COLUMNS): Must fix / Warnings / Complete.
+const _checkColumns = [
+  ('Blocking', 'Must fix', 'Nothing blocking.', Color(0x80FFF1F2), Color(0xFFFECDD3), _rose700),
+  ('Warning', 'Warnings', 'No warnings.', Color(0x80FFFBEB), Color(0xFFFDE68A), _amber800),
+  ('Complete', 'Complete', 'Nothing complete yet.', Color(0x66ECFDF5), Color(0xFFA7F3D0), _emerald700),
+];
+
+/// CLOSING CHECKLIST — blocking, warnings, complete, each in its own box (server
+/// order within each). [stack] is the page's status panel: Complete is folded
+/// away so the alerts stay short.
 class _Checklist extends StatelessWidget {
-  const _Checklist({required this.checks, required this.businessDate, required this.onOpen});
+  const _Checklist({required this.checks, required this.businessDate, required this.onOpen, this.stack = false});
+  final List<Map<String, dynamic>> checks;
+  final String businessDate;
+  final void Function(String href, String label) onOpen;
+  final bool stack;
+
+  @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        for (final (i, (status, title, empty, bg, border, head)) in _checkColumns.indexed) ...[
+          if (i > 0) const SizedBox(height: 10),
+          () {
+            final items = [for (final c in checks) if (c['status'] == status) c];
+            final header = Text('${title.toUpperCase()} (${items.length})',
+                style: TextStyle(fontSize: 11.5, letterSpacing: .6, fontWeight: FontWeight.w600, color: head));
+            final box = BoxDecoration(color: bg, border: Border.all(color: border), borderRadius: BorderRadius.circular(8));
+            if (stack && status == 'Complete') {
+              // A Material, not a coloured box, so the tile's ripple shows.
+              return Material(
+                color: bg,
+                clipBehavior: Clip.antiAlias,
+                shape: RoundedRectangleBorder(side: BorderSide(color: border), borderRadius: BorderRadius.circular(8)),
+                child: Theme(
+                  data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                  child: ExpansionTile(
+                    tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+                    childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                    title: header,
+                    children: [
+                      for (final c in items)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            const Icon(Icons.check_circle_outline, size: 16, color: Color(0xFF059669)),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text('${c['title'] ?? ''}', style: const TextStyle(fontSize: 14, color: Color(0xFF475569)))),
+                          ]),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            }
+            return Container(
+              padding: const EdgeInsets.all(12),
+              decoration: box,
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                header,
+                if (items.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(empty, style: const TextStyle(fontSize: 14, color: Color(0xFF64748B))),
+                  )
+                else
+                  _ChecklistRows(checks: items, businessDate: businessDate, onOpen: onOpen),
+              ]),
+            );
+          }(),
+        ],
+      ]);
+}
+
+class _ChecklistRows extends StatelessWidget {
+  const _ChecklistRows({required this.checks, required this.businessDate, required this.onOpen});
   final List<Map<String, dynamic>> checks;
   final String businessDate;
   final void Function(String href, String label) onOpen;
@@ -885,20 +969,18 @@ class _Checklist extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text.rich(TextSpan(
-                    text: '${c['title'] ?? ''}',
+                  Text(
+                    '${c['title'] ?? ''}',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: status == 'Complete' ? FontWeight.w400 : FontWeight.w500,
                       color: status == 'Complete' ? tokens.mutedForeground : tokens.cardForeground,
                     ),
-                    children: [
-                      TextSpan(
-                        text: '  ${(sectionLabels[c['section']] ?? '${c['section'] ?? ''}').toUpperCase()}',
-                        style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w400, letterSpacing: .4, color: _slate400),
-                      ),
-                    ],
-                  )),
+                  ),
+                  Text(
+                    (sectionLabels[c['section']] ?? '${c['section'] ?? ''}').toUpperCase(),
+                    style: const TextStyle(fontSize: 10.5, letterSpacing: .4, color: _slate400),
+                  ),
                   if ('${c['description'] ?? ''}'.isNotEmpty)
                     Text('${c['description']}', style: TextStyle(fontSize: 12, color: tokens.mutedForeground)),
                 ]),
@@ -1124,6 +1206,19 @@ class _HistoryCard extends StatelessWidget {
             ]),
           ),
         );
+    String money(Object? v) => v != null ? _money(v) : '—';
+    String num0(Object? v, [int digits = 0]) => v != null ? fmtNum(_n(v), digits) : '—';
+    String checksText(Map h) {
+      final b = h['blockingCount'];
+      final w = h['warningCount'] ?? h['warningsAtClose'];
+      if (b == null && w == null) return '—';
+      final parts = [
+        if (_n(b) > 0) '${_n(b)} blocking',
+        if (_n(w) > 0) '${_n(w)} warning${_n(w) == 1 ? '' : 's'}',
+      ];
+      return parts.isEmpty ? 'All complete' : parts.join(' · ');
+    }
+
     Widget detail(String k, String v) => Padding(
           padding: const EdgeInsets.only(top: 3),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1157,14 +1252,31 @@ class _HistoryCard extends StatelessWidget {
           ),
         ]),
         const SizedBox(height: 8),
+        // A missing figure is a dash, never 0.
         Row(children: [
-          tile('Sales', h['revenue'] != null ? _money(h['revenue']) : '—', _emerald700),
+          tile('Sales', money(h['revenue']), _emerald700),
           const SizedBox(width: 8),
-          tile('Net cash', net != null ? _money(net) : '—', _n(net) < 0 ? _rose700 : const Color(0xFF1D4ED8)),
+          tile('Credit sales', money(h['creditSales']), _n(h['creditSales']) > 0 ? _rose700 : const Color(0xFF475569)),
+        ]),
+        const SizedBox(height: 8),
+        Row(children: [
+          tile('Expenses', money(h['expenses']), _amber800),
+          const SizedBox(width: 8),
+          tile('Net cash', money(net), _n(net) < 0 ? _rose700 : const Color(0xFF1D4ED8)),
         ]),
         const SizedBox(height: 6),
-        detail('Warnings at closing', '${h['warningsAtClose'] ?? '—'}'),
-        detail('Eggs produced', h['eggsProduced'] != null ? _qty(h['eggsProduced']) : '—'),
+        detail('Sales recorded', h['salesCount'] != null ? '${h['salesCount']}' : '—'),
+        detail('Cash sales', money(h['cashSales'])),
+        detail('Payments received', money(h['paymentsReceived'])),
+        detail('Money in / out', '${money(h['moneyIn'])} / ${money(h['moneyOut'])}'),
+        detail('Opening → closing cash', '${money(h['openingCash'])} → ${money(h['closingCash'])}'),
+        detail('Cash difference', money(h['cashDifference'])),
+        detail('Eggs produced', num0(h['eggsProduced'])),
+        detail('Damaged eggs', num0(h['eggsDamaged'])),
+        detail('Mortality', num0(h['mortality'])),
+        detail('Feed used', h['feedKg'] != null ? '${num0(h['feedKg'], 2)} kg' : '—'),
+        detail('Checks', checksText(h)),
+        detail('Closed by', h['closedBy'] != null ? '${h['closedBy']}${h['closedAtUtc'] != null ? ' · ${instant(h['closedAtUtc'])}' : ''}' : '—'),
         detail(
           'Reopened',
           reopen > 0 ? '${_qty(reopen)}×${'${h['lastReopenReason'] ?? ''}'.isNotEmpty ? ' — ${h['lastReopenReason']}' : ''}' : '—',

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 
@@ -6,6 +7,7 @@ namespace PoultryFarmAPIWeb.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [RequireCompanyType("Poultry")]
     public class HealthController : ControllerBase
     {
         private const int MaxAttachmentBytes = 4 * 1024 * 1024;

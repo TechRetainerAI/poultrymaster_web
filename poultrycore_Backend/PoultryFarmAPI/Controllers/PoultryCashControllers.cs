@@ -3,6 +3,7 @@
 // string, matching the Water convention the frontend already expects.
 
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 
@@ -13,6 +14,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // ====================================================================
     [ApiController]
     [Route("api/Poultry/cash-accounts")]
+    [RequireCompanyType("Poultry")]
     public class PoultryCashAccountController : ControllerBase
     {
         private readonly IPoultryCashAccountService _svc;
@@ -99,6 +101,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // poultry.cash-reconciliation.approve without any special-casing.
     [ApiController]
     [Route("api/Poultry/cash-reconciliations")]
+    [RequireCompanyType("Poultry")]
     public class PoultryCashReconciliationController : ControllerBase
     {
         private readonly IPoultryCashReconciliationService _svc;
@@ -209,6 +212,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // ====================================================================
     [ApiController]
     [Route("api/Poultry/cash-transfers")]
+    [RequireCompanyType("Poultry")]
     public class PoultryCashTransferController : ControllerBase
     {
         private readonly IPoultryCashTransferService _svc;
@@ -284,6 +288,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // writes the record and exactly one cash row.
     [ApiController]
     [Route("api/Poultry/owner-money")]
+    [RequireCompanyType("Poultry")]
     public class PoultryOwnerMoneyController : ControllerBase
     {
         private readonly IPoultryOwnerMoneyService _svc;
@@ -338,6 +343,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // enforced in the SPs; nothing here can route around them.
     [ApiController]
     [Route("api/Poultry/loans")]
+    [RequireCompanyType("Poultry")]
     public class PoultryLoanController : ControllerBase
     {
         private readonly IPoultryLoanService _svc;
@@ -440,6 +446,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Poultry/loan-payments")]
+    [RequireCompanyType("Poultry")]
     public class PoultryLoanPaymentController : ControllerBase
     {
         private readonly IPoultryLoanService _svc;

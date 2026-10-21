@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Helpers;
 using PoultryFarmAPIWeb.Models;
@@ -9,6 +10,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // Migration 329: the stock functions now refuse (a delivery through Adjust,
     // deleting an item with purchases) -- P0001 comes back as 400, not 500.
     [ApiController][Authorize][PoultryFarmAPIWeb.Filters.RestaurantBusinessRuleFilter][Route("api/Restaurant/inventory")]
+    [RequireCompanyType("Restaurant")]
     public class RestaurantInventoryController : ControllerBase
     {
         private readonly IRestaurantInventoryService _svc;

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using Npgsql;
 using PoultryFarmAPIWeb.Helpers;
 using System.Security.Cryptography;
@@ -16,7 +17,7 @@ namespace PoultryFarmAPIWeb.Controllers
     public class CreateMaintenanceReq { public string FarmId { get; set; } = ""; public int? HotelRoomId { get; set; } public string AssetDescription { get; set; } = "General"; public string IssueDescription { get; set; } = ""; public string Priority { get; set; } = "Normal"; public decimal EstimatedCost { get; set; } }
     public class CreateClosingRequest { public string FarmId { get; set; } = ""; public string? ClosingDate { get; set; } public string? Notes { get; set; } }
 
-    [ApiController][Authorize][Route("api/Hotel")]
+    [ApiController][Authorize][Route("api/Hotel")][RequireCompanyType("Hotel")]
     public class HotelOperationsController : ControllerBase
     {
         private readonly string _cs;

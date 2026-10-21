@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using Microsoft.Extensions.Logging;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
@@ -8,6 +9,7 @@ namespace PoultryFarmAPIWeb.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [RequireCompanyType("Poultry")]
     public class EggProductionController : ControllerBase
     {
         private readonly IEggProductionService _eggProductionService;

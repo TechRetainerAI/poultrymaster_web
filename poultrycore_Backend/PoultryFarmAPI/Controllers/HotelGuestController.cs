@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using Npgsql;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Helpers;
@@ -7,7 +8,7 @@ using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Controllers
 {
-    [ApiController][Authorize][Route("api/Hotel/guests")]
+    [ApiController][Authorize][Route("api/Hotel/guests")][RequireCompanyType("Hotel")]
     public class HotelGuestController : ControllerBase
     {
         private readonly IHotelGuestService _svc;
@@ -64,7 +65,7 @@ namespace PoultryFarmAPIWeb.Controllers
         }
     }
 
-    [ApiController][Authorize][Route("api/Hotel/bookings")]
+    [ApiController][Authorize][Route("api/Hotel/bookings")][RequireCompanyType("Hotel")]
     public class HotelBookingController : ControllerBase
     {
         private readonly IHotelBookingService _svc;

@@ -20,11 +20,14 @@ enum Accent { emerald, blue, violet, amber, rose, slate }
     };
 
 class Highlight {
-  const Highlight(this.label, this.value, {this.accent = Accent.slate, this.wide = false});
+  const Highlight(this.label, this.value, {this.accent = Accent.slate, this.wide = false, this.strike = false});
   final String label;
   final String value;
   final Accent accent;
   final bool wide;
+
+  /// The web's line-through on a reversed record's figure.
+  final bool strike;
 }
 
 /// MobileCardList: one collapsible card per item (open by default), striped
@@ -199,7 +202,9 @@ class _CardState<T> extends State<_Card<T>> {
                           decoration: BoxDecoration(color: bg, border: Border.all(color: border), borderRadius: BorderRadius.circular(8)),
                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                             Text(h.label.toUpperCase(), style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: lc)),
-                            Text(h.value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: vc)),
+                            Text(h.value,
+                                style: TextStyle(
+                                    fontSize: 18, fontWeight: FontWeight.w800, color: vc, decoration: h.strike ? TextDecoration.lineThrough : null)),
                           ]),
                         );
                       }),
@@ -279,10 +284,19 @@ class InfoTile extends StatelessWidget {
 }
 
 /// Two tiles per row, as the pages' grid-cols-2 on a phone.
-Widget twoUp(List<Widget> tiles) => LayoutBuilder(builder: (context, c) {
-      final w = (c.maxWidth - 8) / 2;
-      return Wrap(spacing: 8, runSpacing: 8, children: [for (final t in tiles) SizedBox(width: w, child: t)]);
-    });
+// Rows of Expanded pairs, not a LayoutBuilder: a LayoutBuilder can't report
+// its size, and AlertDialog measures its content first, so inside a dialog the
+// whole dialog drew as nothing on a phone (the receipt dialog, 2026-10-15).
+Widget twoUp(List<Widget> tiles) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      for (var i = 0; i < tiles.length; i += 2) ...[
+        if (i > 0) const SizedBox(height: 8),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(child: tiles[i]),
+          const SizedBox(width: 8),
+          Expanded(child: i + 1 < tiles.length ? tiles[i + 1] : const SizedBox.shrink()),
+        ]),
+      ],
+    ]);
 
 /// The Money pages' Stat card: uppercase label, the figure, an optional hint,
 /// each on one line.

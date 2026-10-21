@@ -13,6 +13,7 @@
 // Money page -- and neither owns it.
 
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 
@@ -20,6 +21,7 @@ namespace PoultryFarmAPIWeb.Controllers
 {
     [ApiController]
     [Route("api/Water/profit-loss")]
+    [RequireCompanyType("Water")]
     public class WaterProfitLossController : ControllerBase
     {
         private readonly IWaterProfitLossService _svc;

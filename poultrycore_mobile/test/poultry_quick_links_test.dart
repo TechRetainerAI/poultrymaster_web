@@ -17,7 +17,7 @@ import 'support/harness.dart';
 final _groups = webNavGroups['poultry']!;
 
 const _defaults = [
-  'Production Records', 'Egg sorting', 'Raw Materials', 'Sales', 'Payments received', 'Customer Balances', 'Expenses', 'Cash Flow',
+  'Production Records', 'Egg sorting', 'Supply Purchases', 'Sales', 'Payments received', 'Customer Balances', 'Expenses', 'Cash Flow',
   'Profit & Loss', 'Daily Closing',
 ];
 
@@ -41,7 +41,8 @@ void main() {
     expect([for (final l in defaultQuickLinks(_groups)) l.label], _defaults);
     final cat = quickLinkCatalogue(_groups);
     expect(cat.first.group, 'Shortcuts');
-    expect(cat.where((c) => c.link.href == '/egg-production').single.link.label, 'Egg sorting', reason: 'first occurrence wins');
+    expect(cat.where((c) => c.link.href == '/poultry-egg-sorting').single.link.label, 'Egg sorting', reason: 'first occurrence wins');
+    expect(cat.any((c) => c.link.href == '/egg-production'), isFalse, reason: 'the legacy page is hidden from the menus');
     expect(cat.any((c) => c.group.startsWith('Reports') || c.group.startsWith('System') || c.group.startsWith('Tools')), isFalse);
     expect(cat.any((c) => c.group == 'Operations · Production' && c.link.href == '/feed-usage'), isTrue);
     expect(resolveQuickLinks(_groups, null).length, 10);

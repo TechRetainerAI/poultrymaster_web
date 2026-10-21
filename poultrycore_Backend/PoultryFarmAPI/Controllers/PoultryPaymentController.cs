@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 
@@ -20,6 +21,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [Authorize]
     [ApiController]
     [Route("api/Poultry/payments")]
+    [RequireCompanyType("Poultry")]
     public class PoultryPaymentController : ControllerBase
     {
         private readonly IPoultryPaymentService _svc;

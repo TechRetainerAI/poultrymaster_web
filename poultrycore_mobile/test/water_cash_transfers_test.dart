@@ -171,7 +171,7 @@ void main() {
     await tapIn(tester, go);
     expect(find.textContaining('Say why'), findsOneWidget);
     clearToasts(tester);
-    await enterIn(tester, 'Reason *', 'Typed twice');
+    await reasonOther(tester, 'Typed twice');
     await tapIn(tester, go);
     final w = a.writes.single;
     expect(w.url.path, '/api/Water/cash-transfers/1/reverse');

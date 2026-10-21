@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Helpers;
 
@@ -12,6 +13,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [ApiController]
     [Authorize]
     [Route("api/Restaurant/custom-options")]
+    [RequireCompanyType("Restaurant")]
     public class RestaurantCustomOptionController : ControllerBase
     {
         private readonly IRestaurantCustomOptionService _svc;

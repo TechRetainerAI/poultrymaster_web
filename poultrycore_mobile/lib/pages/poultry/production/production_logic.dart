@@ -8,7 +8,28 @@ import '../../../models/company.dart';
 import '../../../state/session.dart';
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 
-const eggsPerCrate = 30;
+/// Eggs in one crate for the active farm (migration 344): 30 until the farm's
+/// setting loads, then whatever the farm uses. A mutable top-level, read at use
+/// time, so `crates * eggsPerCrate` follows the setting everywhere.
+int eggsPerCrate = 30;
+
+/// Set the active farm's crate size (1..100). Ignored when out of range.
+void setEggsPerCrate(int n) {
+  if (n < 1 || n > 100) return;
+  eggsPerCrate = n;
+}
+
+/// EggsPerCrateLoader: the Poultry farm's setting; on failure the value stays.
+Future<void> loadEggsPerCrate(Session session, Company company) async {
+  if (company.type != CompanyType.poultry) return;
+  try {
+    final res = await session.farmClient.get('/api/Poultry/egg-sorting/settings', query: {'farmId': company.farmId});
+    final n = res is Map ? tIntOrNull(res['eggsPerCrate']) : null;
+    setEggsPerCrate(n == null || n <= 0 ? 30 : n);
+  } on ApiException {
+    // Before 344 or offline: keep the current value.
+  }
+}
 
 // ------------------------------------------------------------ pick settings
 
@@ -112,6 +133,35 @@ String eggGradeFromApi(Object? value) {
 }
 
 String? eggGradeToApi(String v) => v.isEmpty || v == eggGradeNone ? null : v.trim();
+
+/// The grade every production record carries since the Egg Sorting Workspace:
+/// one record is a flock's whole day, a mix of sizes.
+const productionEggGradeValue = 'Mixed';
+
+/// productionEggGrade: an older record's specific grade is kept; anything else
+/// (a new record, or one with no grade) is Mixed.
+String productionEggGrade(Object? existing) {
+  final g = eggGradeFromApi(existing);
+  return g == eggGradeNone ? productionEggGradeValue : g;
+}
+
+/// The production records list's sorting chip (341-343): per record, its
+/// status and the eggs still unsorted, from the egg-sorting picks.
+Map<int, ({String status, num left})> sortingStatusByRecord(List<Map> picks) {
+  final out = <int, ({String status, num left})>{};
+  for (final r in picks) {
+    final id = tIntOrNull(r['productionRecordId']);
+    if (id == null || out.containsKey(id)) continue;
+    final sorted = tNum(r['recordSorted']), left = tNum(r['recordLeft']);
+    final status = left <= 0 && sorted > 0
+        ? 'Complete'
+        : sorted > 0
+            ? 'Partial'
+            : (left <= 0 ? 'Complete' : 'NotStarted');
+    out[id] = (status: status, left: left);
+  }
+  return out;
+}
 
 // ------------------------------------------------------------ production-record-calc
 
@@ -319,3 +369,20 @@ num? eggPercent(Map r) {
 }
 
 String monthKey(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}';
+
+/// The sentence to show when the API refuses a save or a delete -- never the
+/// raw response. A refusal is a 400 with {message} (e.g. 372's byproduct guard)
+/// or a 500 wrapping a database RAISE (sqlState P0…); both carry a message
+/// written for the user. Anything else gets [fallback].
+String productionRefusal(Object e, String fallback) {
+  if (e is! ApiException) return fallback;
+  final body = e.body;
+  final message = body is Map ? '${body['message'] ?? ''}'.trim() : '';
+  if (message.isNotEmpty) {
+    final raised = body is Map && '${body['sqlState'] ?? ''}'.startsWith('P0');
+    if (e.statusCode == 400 || raised) return message;
+  }
+  // A plain-text 400 is the API's own wording; anything else is not for the user.
+  if (e.statusCode == 400 && body == null && e.message.trim().isNotEmpty && !e.message.trim().startsWith('<')) return e.message.trim();
+  return fallback;
+}

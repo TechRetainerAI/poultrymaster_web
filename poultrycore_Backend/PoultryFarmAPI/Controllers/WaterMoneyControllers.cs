@@ -10,6 +10,7 @@
 // convention the frontend already expects.
 
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 
@@ -23,6 +24,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // writes the record and exactly one cash row.
     [ApiController]
     [Route("api/Water/owner-money")]
+    [RequireCompanyType("Water")]
     public class WaterOwnerMoneyController : ControllerBase
     {
         private readonly IWaterOwnerMoneyService _svc;
@@ -77,6 +79,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // enforced in the SPs; nothing here can route around them.
     [ApiController]
     [Route("api/Water/loans")]
+    [RequireCompanyType("Water")]
     public class WaterLoanController : ControllerBase
     {
         private readonly IWaterLoanService _svc;
@@ -179,6 +182,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Water/loan-payments")]
+    [RequireCompanyType("Water")]
     public class WaterLoanPaymentController : ControllerBase
     {
         private readonly IWaterLoanService _svc;

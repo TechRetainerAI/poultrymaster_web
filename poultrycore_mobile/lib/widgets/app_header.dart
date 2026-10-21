@@ -13,7 +13,15 @@ class WebAppHeader extends StatelessWidget implements PreferredSizeWidget {
     required this.onMenu,
     this.onAvatar,
     this.showLogoTile = true,
+    this.onAlerts,
+    this.alertCount,
   });
+
+  /// Poultry's Farm Alerts bell (the web header's): shown when set.
+  final VoidCallback? onAlerts;
+
+  /// The bell's badge; nothing shown while unknown or zero.
+  final int? alertCount;
 
   final VoidCallback onMenu;
   final VoidCallback? onAvatar;
@@ -66,6 +74,28 @@ class WebAppHeader extends StatelessWidget implements PreferredSizeWidget {
         ],
       ),
       actions: [
+        if (onAlerts != null)
+          IconButton(
+            tooltip: (alertCount ?? 0) > 0 ? 'Farm Alerts — $alertCount need attention' : 'Farm Alerts',
+            onPressed: onAlerts,
+            icon: Stack(clipBehavior: Clip.none, children: [
+              const Icon(Icons.notifications_outlined, color: Colors.white, size: 21),
+              if ((alertCount ?? 0) > 0)
+                Positioned(
+                  right: -6,
+                  top: -6,
+                  child: Container(
+                    constraints: const BoxConstraints(minWidth: 18),
+                    height: 18,
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(color: const Color(0xFFDC2626), borderRadius: BorderRadius.circular(999)),
+                    child: Text(alertCount! > 99 ? '99+' : '$alertCount',
+                        style: const TextStyle(fontSize: 10, color: Colors.white)),
+                  ),
+                ),
+            ]),
+          ),
         IconButton(
           icon: const Icon(Icons.chat_bubble_outline, color: Colors.white, size: 20),
           onPressed: () {},

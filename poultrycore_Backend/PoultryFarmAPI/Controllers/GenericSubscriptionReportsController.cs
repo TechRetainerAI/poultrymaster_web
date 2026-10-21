@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 
@@ -21,6 +22,7 @@ namespace PoultryFarmAPIWeb.Controllers
     /// </summary>
     [ApiController]
     [Route("api/generic-company/{farmId}/reports")]
+    [RequireCompanyType("Generic")]
     public class GenericSubscriptionReportsController : ControllerBase
     {
         private readonly IGenericSubscriptionReportService _reports;

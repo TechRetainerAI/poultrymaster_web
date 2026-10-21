@@ -294,21 +294,6 @@ class _ReportTableState extends State<ReportTable> {
     return _desc ? s.reversed.toList() : s;
   }
 
-  List<(int?, int)> _pageNumbers(int total, int page) {
-    // (page, key); null = ellipsis.
-    final List<int?> p;
-    if (total <= 7) {
-      p = [for (var i = 1; i <= total; i++) i];
-    } else if (page <= 3) {
-      p = [1, 2, 3, 4, null, total];
-    } else if (page >= total - 2) {
-      p = [1, null, total - 3, total - 2, total - 1, total];
-    } else {
-      p = [1, null, page - 1, page, page + 1, null, total];
-    }
-    return [for (final (i, x) in p.indexed) (x, i)];
-  }
-
   Widget _cell(int ci, String v, {bool bold = false, List<String>? row}) {
     final col = widget.columns[ci];
     if (col.badge && !bold) return ReportStatusBadge(v);
@@ -451,21 +436,12 @@ class _ReportTableState extends State<ReportTable> {
             icon: const Icon(Icons.chevron_left, size: 18),
             label: const Text('Previous'),
           ),
-          for (final (p, k) in _pageNumbers(pages, page))
-            p == null
-                ? Padding(key: ValueKey('e$k'), padding: const EdgeInsets.symmetric(horizontal: 4), child: const Text('…'))
-                : SizedBox(
-                    key: ValueKey('p$p'),
-                    width: 36,
-                    height: 36,
-                    child: p == page
-                        ? OutlinedButton(onPressed: null, style: OutlinedButton.styleFrom(padding: EdgeInsets.zero), child: Text('$p'))
-                        : TextButton(
-                            onPressed: () => setState(() => _page = p),
-                            style: TextButton.styleFrom(padding: EdgeInsets.zero),
-                            child: Text('$p'),
-                          ),
-                  ),
+          // DataPagination on a phone: "3 / 12" between the arrows -- the numbered
+          // buttons are desktop-only (they pushed a phone page sideways).
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Text('$page / $pages', style: const TextStyle(fontSize: 14, color: slate600)),
+          ),
           TextButton(
             onPressed: page == pages ? null : () => setState(() => _page = page + 1),
             child: const Row(mainAxisSize: MainAxisSize.min, children: [Text('Next'), Icon(Icons.chevron_right, size: 18)]),

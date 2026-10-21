@@ -8,6 +8,7 @@
 // convention the frontend already expects.
 
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 
@@ -16,6 +17,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/Water/financial-settings")]
+    [RequireCompanyType("Water")]
     public class WaterFinancialSettingsController : ControllerBase
     {
         private readonly IWaterFinancialSettingsService _svc;

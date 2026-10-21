@@ -113,9 +113,11 @@ void main() {
       await _see(tester, find.text('Total — 12 flocks'));
       expect(find.text('12,000'), findsOneWidget, reason: 'birds placed summed');
       expect(find.text('Showing 1–10 of 12'), findsOneWidget);
-      await tester.tap(find.text('2').last);
+      expect(find.text('1 / 2'), findsOneWidget, reason: 'phone pager: page / pages, no numbered buttons');
+      await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();
       expect(find.text('Showing 11–12 of 12'), findsOneWidget);
+      expect(find.text('2 / 2'), findsOneWidget);
 
       // Sort by Total eggs, descending: Flock 12 first.
       await tester.drag(_list, const Offset(0, 6000));
@@ -275,10 +277,10 @@ void main() {
     });
   });
 
-  testWidgets('catalogue: four sections, 35 reports, opens a native report', (tester) async {
+  testWidgets('catalogue: four sections, 36 reports, opens a native report', (tester) async {
     final api = FakeApi()..gets['/api/poultry/reports/mortality'] = {'summary': {}, 'rows': []};
     await open(tester, PoultryReportsCatalogScreen(session: await sessionFor(api), company: company), size: phone);
-    expect(find.text('35 reports in 4 sections — each with its own filters, summary cards and PDF export.'), findsOneWidget);
+    expect(find.text('36 reports in 4 sections — each with its own filters, summary cards and PDF export.'), findsOneWidget);
     await _see(tester, find.text('Mortality'));
     await tester.tap(find.text('Mortality'));
     await tester.pumpAndSettle();

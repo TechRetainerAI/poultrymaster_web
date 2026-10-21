@@ -4,6 +4,12 @@ import '../shared/billing_screen.dart';
 import '../shared/help_screen.dart';
 import '../shared/resources_screen.dart';
 import '../shared/terms_screen.dart';
+import 'flock_closeout_screen.dart';
+import 'flock_lifecycle_screen.dart';
+import 'treatment_campaigns_screen.dart';
+import 'flock_alerts_screen.dart';
+import 'farm_alerts_screen.dart';
+import 'purchase_receipts_screen.dart';
 import 'reports/profit_loss_screen.dart';
 import 'money/financial_activity_screen.dart';
 import 'money/cash_flow_screen.dart';
@@ -14,6 +20,7 @@ import 'money/cash_transfers_screen.dart';
 import 'money/reconciliation_screen.dart';
 import 'expenses/assets_screen.dart';
 import 'expenses/deferred_costs_screen.dart';
+import 'expenses/supplier_credits_screen.dart';
 import 'expenses/supplier_payments_screen.dart';
 import 'expenses/employee_loans_screen.dart';
 import 'expenses/payroll_screen.dart';
@@ -32,7 +39,10 @@ import 'inventory/inventory_screen.dart';
 import 'inventory/loss_records_screen.dart';
 import 'inventory/stock_movements_screen.dart';
 import 'expenses/internal_use_screen.dart';
+import 'expenses/recurring_expenses_screen.dart';
+import 'egg_sorting/egg_sorting_screens.dart';
 import 'sales/customer_balances_screen.dart';
+import 'sales/customer_credits_screen.dart';
 import 'sales/balances_logic.dart' show BalanceSide;
 import 'sales/payments_received_screen.dart';
 import 'sales/sales_screen.dart';
@@ -272,14 +282,28 @@ const Map<String, PageScreenBuilder> poultryPageScreens = {
   '/poultry-company-setup': _companySetup,
   '/poultry-financial-settings': _financialSettings,
   '/poultry-setup': _farmSetup,
+  // The old address still opens it, as the web redirects it.
   '/poultry-days-of-supply': _daysOfSupply,
+  '/poultry-restock-forecast': _daysOfSupply,
+  '/poultry-treatment-campaigns': _treatmentCampaigns,
+  '/poultry-flock-alerts': _flockAlerts,
+  '/poultry-alerts': _farmAlerts,
+  '/poultry-purchase-receipts': _purchaseReceipts,
+  '/recurring-expenses': _recurringExpenses,
+  '/poultry-egg-sorting': _eggSortingWorkspace,
+  // app/egg-sorting redirects to the workspace.
+  '/egg-sorting': _eggSortingWorkspace,
+  '/poultry-egg-sorting-settings': _eggSortingSettings,
   '/poultry-farm-completeness': _farmCompleteness,
   '/poultry-feed-distribution': _feedDistribution,
   '/poultry-daily-closing': _dailyClosing,
   '/poultry-farm-setup': _initialFarmSetup,
+  '/flock-closeout': _flockCloseout,
+  '/poultry-lifecycle': _flockLifecycle,
   '/sales': _sales,
   '/poultry-payments': _payments,
   '/customer-balances': _balances,
+  '/customer-credits': _customerCredits,
   '/cash-flow': _cashFlow,
   '/poultry-financial-activity': _financialActivity,
   '/poultry-profit-loss': _profitLoss,
@@ -291,6 +315,7 @@ const Map<String, PageScreenBuilder> poultryPageScreens = {
   '/poultry-assets': _assets,
   '/poultry-deferred-costs': _deferredCosts,
   '/supplier-balances': _supplierBalances,
+  '/supplier-credits': _supplierCredits,
   '/supplier-payments': _supplierPayments,
   '/poultry-employee-loans': _employeeLoans,
   '/poultry-payroll': _payroll,
@@ -300,7 +325,9 @@ const Map<String, PageScreenBuilder> poultryPageScreens = {
   '/poultry-driver-report': _driverReport,
   '/flock-batch': _flockBatches,
   '/poultry-raw-materials': _rawMaterials,
+  '/poultry-supply-purchases': _rawMaterials,
   '/poultry-raw-materials?purchase=1': _recordPurchase,
+  '/poultry-supply-purchases?purchase=1': _recordPurchase,
   '/poultry-inventory': _inventory,
   '/poultry-stock': _stockMovements,
   '/health': _health,
@@ -311,6 +338,10 @@ const Map<String, PageScreenBuilder> poultryPageScreens = {
   '/feed-usage': _feedUsage,
   '/poultry-feed-production': _feedProduction,
 };
+
+Widget _flockCloseout(Session s, Company c) => FlockCloseoutScreen(session: s, company: c);
+
+Widget _flockLifecycle(Session s, Company c) => FlockLifecycleScreen(session: s, company: c);
 
 Widget _profitLoss(Session s, Company c) => ProfitLossScreen(session: s, company: c, page: true);
 
@@ -371,6 +402,8 @@ Widget _cashFlow(Session s, Company c) => CashFlowScreen(session: s, company: c)
 Widget _sales(Session s, Company c) => SalesScreen(session: s, company: c);
 Widget _payments(Session s, Company c) => PaymentsReceivedScreen(session: s, company: c);
 Widget _balances(Session s, Company c) => CustomerBalancesScreen(session: s, company: c);
+Widget _customerCredits(Session s, Company c) => CustomerCreditsScreen(session: s, company: c);
+Widget _supplierCredits(Session s, Company c) => SupplierCreditsScreen(session: s, company: c);
 
 Widget _initialFarmSetup(Session s, Company c) => InitialFarmSetupScreen(session: s, company: c);
 
@@ -380,6 +413,17 @@ Widget _farmCompleteness(Session s, Company c) => FarmCompletenessScreen(session
 Widget _feedDistribution(Session s, Company c) => FeedDistributionScreen(session: s, company: c);
 
 Widget _daysOfSupply(Session s, Company c) => DaysOfSupplyScreen(session: s, company: c);
+
+Widget _treatmentCampaigns(Session s, Company c) => TreatmentCampaignsScreen(session: s, company: c);
+
+Widget _flockAlerts(Session s, Company c) => FlockAlertsScreen(session: s, company: c);
+
+Widget _farmAlerts(Session s, Company c) => FarmAlertsScreen(session: s, company: c);
+
+Widget _purchaseReceipts(Session s, Company c) => PurchaseReceiptsScreen(session: s, company: c);
+Widget _recurringExpenses(Session s, Company c) => RecurringExpensesScreen(session: s, company: c);
+Widget _eggSortingWorkspace(Session s, Company c) => EggSortingWorkspaceScreen(session: s, company: c);
+Widget _eggSortingSettings(Session s, Company c) => EggSortingSettingsScreen(session: s, company: c);
 
 Widget _farmSetup(Session s, Company c) => FarmSetupScreen(session: s, company: c);
 

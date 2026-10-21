@@ -580,9 +580,9 @@ class _WaterRawMaterialsScreenState extends State<WaterRawMaterialsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final lead = sidebarLeading(context, widget.session, widget.company, href: '/water-raw-materials');
+    final lead = sidebarLeading(context, widget.session, widget.company, href: '/water-supply-purchases');
     return Scaffold(
-      appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: const Text('Raw materials')),
+      appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: const Text('Inventory & supply purchases')),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
@@ -591,7 +591,7 @@ class _WaterRawMaterialsScreenState extends State<WaterRawMaterialsScreen> {
             const Row(children: [
               Icon(Icons.inbox_outlined, color: Color(0xFF0284C7)),
               SizedBox(width: 8),
-              Flexible(child: Text('Raw materials', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TColors.slate900))),
+              Flexible(child: Text('Inventory & supply purchases', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TColors.slate900))),
             ]),
             const SizedBox(height: 10),
             Wrap(spacing: 8, runSpacing: 8, children: [
@@ -1022,7 +1022,7 @@ class _PurchaseDialogState extends State<_PurchaseDialog> {
         content: SizedBox(
           width: 640,
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            const Text('Log a Raw Materials & Supplies purchase to update stock and create the linked expense.',
+            const Text('Log an inventory & supply purchase to update stock and create the linked expense.',
                 style: TextStyle(fontSize: 13, color: TColors.slate500)),
             const SizedBox(height: 12),
             formSection('Item, Supplier & Date', const Color(0xFF4F46E5), [

@@ -12,6 +12,7 @@ import '../lookup_loader.dart';
 import '../shared/business_dates.dart';
 import '../shared/reason_dialog.dart';
 import '../web_page_screen.dart';
+import '../shared/reason_select.dart' show stockReversalReasons;
 
 /// Poultry → Tools → Distribute Feed, as `app/poultry-feed-distribution/page.tsx`
 /// with the rules of `lib/production/feed-distribution.ts`: one feed to many
@@ -344,6 +345,7 @@ class _FeedDistributionScreenState extends State<FeedDistributionScreen> with Si
     final reason = await showReasonDialog(
       context,
       title: 'Reverse this feed distribution?',
+      options: stockReversalReasons,
       description: "The feed comes off each flock's production record and goes back into stock. The distribution "
           'stays in the history, marked Reversed.',
       confirmLabel: 'Reverse',

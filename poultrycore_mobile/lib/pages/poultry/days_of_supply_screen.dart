@@ -11,7 +11,8 @@ import '../lookup_loader.dart';
 import '../shared/business_dates.dart';
 import '../web_page_screen.dart';
 
-/// Poultry → Tools → Days of Supply, as `app/poultry-days-of-supply/page.tsx`
+/// Poultry → Tools → Inventory Restock Forecast (formerly "Days of Supply"), as
+/// `app/poultry-restock-forecast/page.tsx`
 /// with the wording of `lib/inventory/days-of-supply.ts`: every raw material,
 /// its stock, how much is actually used per day, how long that lasts and an
 /// estimated stock-out date, worst first. GET `/Poultry/stock-supply`.
@@ -25,10 +26,32 @@ class DaysOfSupplyScreen extends StatefulWidget {
 }
 
 const _lookbacks = [7, 14, 30];
-const _actionable = {'Negative', 'OutOfStock', 'Critical', 'Warning'};
+
+/// restockHref: the normal purchase dialog with the item already chosen —
+/// nothing is bought automatically. Opens the web page in-app.
+void openRestock(BuildContext context, Session session, Company company, Map r) {
+  Navigator.of(context).push(MaterialPageRoute(
+    builder: (_) => WebPageScreen(
+      label: 'Restock ${r['itemName'] ?? ''}',
+      href: '/poultry-supply-purchases?purchase=1&itemId=${r['poultryRawMaterialItemId']}',
+      company: company,
+      session: session,
+    ),
+  ));
+}
+const supplyActionable = {'Negative', 'OutOfStock', 'Critical', 'Warning'};
+
+/// sortBySeverity, in place: worst first, then soonest out, then by name.
+void sortBySeverity(List<Map> rows) => rows.sort((a, b) {
+      final s = (_n(a['severityRank']) ?? 0).compareTo(_n(b['severityRank']) ?? 0);
+      if (s != 0) return s;
+      final d = (_n(a['daysOfSupply']) ?? double.maxFinite).compareTo(_n(b['daysOfSupply']) ?? double.maxFinite);
+      if (d != 0) return d;
+      return '${a['itemName']}'.compareTo('${b['itemName']}');
+    });
 
 /// supplyStatusStyle: (label, background, foreground).
-(String, Color, Color) _statusStyle(String s) => switch (s) {
+(String, Color, Color) supplyStatusStyle(String s) => switch (s) {
       'Negative' => ('Negative stock', const Color(0xFFFFE4E6), const Color(0xFFBE123C)),
       'OutOfStock' => ('Out of stock', const Color(0xFFFFE4E6), const Color(0xFFBE123C)),
       'Critical' => ('Critical', const Color(0xFFFFE4E6), const Color(0xFFBE123C)),
@@ -40,14 +63,14 @@ const _actionable = {'Negative', 'OutOfStock', 'Critical', 'Warning'};
 
 num? _n(Object? v) => v is num ? v : num.tryParse('${v ?? ''}');
 
-String _qty(Object? n, Object? unit, [int digits = 1]) {
+String supplyQty(Object? n, Object? unit, [int digits = 1]) {
   final s = fmtNum(_n(n), digits);
   final u = '${unit ?? ''}';
   return s == '—' ? s : '$s${u.isNotEmpty ? ' $u' : ''}';
 }
 
 /// daysText.
-String _days(Map r) => switch ('${r['status']}') {
+String supplyDaysText(Map r) => switch ('${r['status']}') {
       'Negative' => 'Stock is below zero — correct the count',
       'OutOfStock' => 'Out of stock',
       'InsufficientHistory' => 'Not enough history yet',
@@ -60,7 +83,7 @@ String _days(Map r) => switch ('${r['status']}') {
     };
 
 /// stockoutText.
-String? _stockout(Map r) {
+String? supplyStockoutText(Map r) {
   if (r['status'] == 'Negative') return null;
   final d = toBusinessDate(r['estimatedStockout']);
   return d == null ? null : 'Estimated stock-out: ${formatShortDate(d)}';
@@ -78,8 +101,8 @@ String _explain(Map r) {
     return 'Nothing used from ${formatShortDate(r['windowFrom'])} to ${formatShortDate(r['windowTo'])}.';
   }
   final over = windowDays < lookback ? '$windowDays days (since it was first stocked)' : 'the last $windowDays days';
-  return '${_qty(r['consumedQty'], unit)} used over $over, ${formatShortDate(r['windowFrom'])}–${formatShortDate(r['windowTo'])}: '
-      'about ${_qty(r['avgDailyUsage'], unit, 2)} a day.';
+  return '${supplyQty(r['consumedQty'], unit)} used over $over, ${formatShortDate(r['windowFrom'])}–${formatShortDate(r['windowTo'])}: '
+      'about ${supplyQty(r['avgDailyUsage'], unit, 2)} a day.';
 }
 
 /// purchaseUnitEquivalent: "≈ 3.2 Bag" when stock is kept in kg but bought in bags.
@@ -116,14 +139,7 @@ class _DaysOfSupplyScreenState extends State<DaysOfSupplyScreen> {
         for (final r in LookupLoader.rowsIn(res))
           if (r is Map) Map<String, dynamic>.from(r),
       ];
-      // sortBySeverity
-      rows.sort((a, b) {
-        final s = (_n(a['severityRank']) ?? 0).compareTo(_n(b['severityRank']) ?? 0);
-        if (s != 0) return s;
-        final d = (_n(a['daysOfSupply']) ?? double.maxFinite).compareTo(_n(b['daysOfSupply']) ?? double.maxFinite);
-        if (d != 0) return d;
-        return '${a['itemName']}'.compareTo('${b['itemName']}');
-      });
+      sortBySeverity(rows);
       if (mounted) setState(() => _rows = rows);
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message.isNotEmpty ? e.message : 'Could not load stock levels.');
@@ -152,33 +168,22 @@ class _DaysOfSupplyScreenState extends State<DaysOfSupplyScreen> {
     }
   }
 
-  void _restock(Map r) {
-    // The normal purchase dialog with the item already chosen, as the web's
-    // restockHref — nothing is bought automatically.
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => WebPageScreen(
-        label: 'Restock ${r['itemName'] ?? ''}',
-        href: '/poultry-raw-materials?purchase=1&itemId=${r['poultryRawMaterialItemId']}',
-        company: widget.company,
-        session: widget.session,
-      ),
-    ));
-  }
+  void _restock(Map r) => openRestock(context, widget.session, widget.company, r);
 
   @override
   Widget build(BuildContext context) {
     final tokens = context.tokens;
-    final lead = sidebarLeading(context, widget.session, widget.company, href: '/poultry-days-of-supply');
+    final lead = sidebarLeading(context, widget.session, widget.company, href: '/poultry-restock-forecast');
     final rows = _rows;
     final first = rows?.firstOrNull;
     final shown = [for (final r in rows ?? const <Map<String, dynamic>>[]) if (_showAll || r['status'] != 'NoRecentUsage') r];
     final hiddenIdle = (rows?.length ?? 0) - shown.length;
     final anyExpected = (rows ?? const []).any((r) => r['expectedDailyUsage'] != null);
-    final urgent = (rows ?? const []).where((r) => _actionable.contains(r['status'])).length;
+    final urgent = (rows ?? const []).where((r) => supplyActionable.contains(r['status'])).length;
     final activeLookback = _lookback ?? _n(first?['lookbackDays'])?.toInt();
 
     return Scaffold(
-      appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: const Text('Days of Supply')),
+      appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: const Text('Inventory Restock Forecast')),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
@@ -285,8 +290,8 @@ class _SupplyCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = context.tokens;
     final r = row;
-    final (label, bg, fg) = _statusStyle('${r['status']}');
-    final out = _stockout(r);
+    final (label, bg, fg) = supplyStatusStyle('${r['status']}');
+    final out = supplyStockoutText(r);
     final bags = _bags(r);
     final unit = r['unitOfMeasure'];
     final negative = (_n(r['currentQuantity']) ?? 0) < 0;
@@ -314,12 +319,12 @@ class _SupplyCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(_explain(r), style: TextStyle(fontSize: 12, color: tokens.mutedForeground)),
           const SizedBox(height: 6),
-          line('Current stock', _qty(r['currentQuantity'], unit), color: negative ? const Color(0xFFBE123C) : null),
+          line('Current stock', supplyQty(r['currentQuantity'], unit), color: negative ? const Color(0xFFBE123C) : null),
           if (bags != null) line('', bags),
           if (r['belowReorder'] == true) line('', 'At or below reorder level', color: const Color(0xFFB45309)),
-          line('Avg daily use', _qty(r['avgDailyUsage'], unit, 2)),
-          if (showExpected) line('Expected (feed rate)', _qty(r['expectedDailyUsage'], unit, 2)),
-          line('Days remaining', _days(r)),
+          line('Avg daily use', supplyQty(r['avgDailyUsage'], unit, 2)),
+          if (showExpected) line('Expected (feed rate)', supplyQty(r['expectedDailyUsage'], unit, 2)),
+          line('Days remaining', supplyDaysText(r)),
           if (out != null) line('', out),
           const SizedBox(height: 8),
           Align(
@@ -327,7 +332,7 @@ class _SupplyCard extends StatelessWidget {
             child: AppButton(
               label: 'Restock',
               size: AppButtonSize.sm,
-              variant: _actionable.contains(r['status']) ? AppButtonVariant.primary : AppButtonVariant.outline,
+              variant: supplyActionable.contains(r['status']) ? AppButtonVariant.primary : AppButtonVariant.outline,
               onPressed: onRestock,
             ),
           ),

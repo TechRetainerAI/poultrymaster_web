@@ -69,9 +69,13 @@ void main() {
 
   testWidgets('an open day: sections, checklist, close with warnings and notes', (tester) async {
     final api = closingApi();
-    await open(tester, DailyClosingScreen(session: await sessionFor(api), company: adminCompany), size: phone);
+    // Phone width, tall enough that the figures under the checklist are built.
+    await open(tester, DailyClosingScreen(session: await sessionFor(api), company: adminCompany), size: const Size(360, 3000));
 
     expect(find.text('Not closed'), findsNWidgets(2), reason: 'the day, and the Previous day tile');
+    expect(find.text('MUST FIX (0)'), findsOneWidget);
+    expect(find.text('Nothing blocking.'), findsOneWidget);
+    expect(find.text('WARNINGS (1)'), findsOneWidget);
     expect(find.text('0 blocking · 1 warning · 1 complete'), findsOneWidget);
     expect(find.text('2 / 3 expected'), findsOneWidget);
     expect(find.text('GHC 500.00'), findsOneWidget);
@@ -106,6 +110,8 @@ void main() {
     expect(find.text('Resolve'), findsOneWidget);
     expect(closingActionHref('missing-production', '2026-10-02'), '/poultry-farm-completeness?date=2026-10-02');
     expect(closingActionHref('previous-day', '2026-10-01'), '/poultry-daily-closing?date=2026-09-30');
+    expect(closingActionHref('inventory', '2026-10-01'), '/poultry-supply-purchases');
+    expect(closingActionHref('egg-sorting', '2026-10-01'), '/poultry-egg-sorting');
     expect(closingActionHref('mystery', '2026-10-01'), isNull);
 
     await tester.tap(find.text('Review'));
@@ -142,13 +148,16 @@ void main() {
 
     await tester.tap(find.text('Reject'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField).last, 'Counts wrong');
-    await tester.pump();
+    // REJECT_REASONS, with Other to type one.
+    await tester.tap(find.text('Select a reason'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Figures do not match').last);
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Reject'));
     await tester.pumpAndSettle();
     final reject = api.writes.last;
     expect(reject.url.path, '/api/Poultry/daily-closings/7/reject');
-    expect(reject.url.queryParameters['reason'], 'Counts wrong');
+    expect(reject.url.queryParameters['reason'], 'Figures do not match');
   });
 
   testWidgets('a closed day: summary, changes since closing, toggle, snapshot, reopen', (tester) async {
@@ -167,7 +176,7 @@ void main() {
       ],
     })
       ..gets['/api/Poultry/daily-closings/events/3/snapshot'] = workspace('2026-10-02', revenue: 500);
-    await open(tester, DailyClosingScreen(session: await sessionFor(api), company: adminCompany), size: phone);
+    await open(tester, DailyClosingScreen(session: await sessionFor(api), company: adminCompany), size: const Size(360, 3000));
 
     expect(find.text('closed 2 times'), findsOneWidget);
     expect(find.text('Closed by ama · 2 Oct 2026, 13:00 · “ok”'), findsOneWidget);
@@ -194,7 +203,12 @@ void main() {
     await tester.tap(find.text('Reopen Day'));
     await tester.pumpAndSettle();
     expect(find.text('Reopen October 2, 2026?'), findsOneWidget);
-    await tester.enterText(find.byType(TextField).last, 'Late sale');
+    // REOPEN_REASONS; Other opens a box for the user's own words.
+    await tester.tap(find.text('Select a reason'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Other').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)).last, 'Late sale');
     await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, 'Reopen Day'));
     await tester.pumpAndSettle();
@@ -254,6 +268,8 @@ void main() {
     expect(find.text('3,400'), findsOneWidget);
     expect(find.text('1× — typo'), findsOneWidget);
 
+    await tester.ensureVisible(find.text('Open day'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Open day'));
     await tester.pumpAndSettle();
     expect(api.requests.lastWhere((r) => r.url.path.endsWith('/day')).url.queryParameters['businessDate'], '2026-09-30');
