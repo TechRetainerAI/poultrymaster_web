@@ -17,6 +17,7 @@ import '../trackers/tracker_widgets.dart';
 import 'loan_repayment_dialog.dart';
 import 'money_widgets.dart';
 import '../reports/money_reports.dart' show MoneyRail, poultryMoneyRail;
+import '../../shared/reason_select.dart';
 
 /// Poultry → Money → Loans (Financing), as `app/poultry-loans/page.tsx`: who
 /// lent the farm money, what is still owed, and what each repayment was made
@@ -950,7 +951,7 @@ class _ReverseRepaymentDialogState extends State<ReverseRepaymentDialog> {
             ]),
             const SizedBox(height: 12),
             formSection('Why', TColors.amber600, [
-              FilterLabel('Reason *', AppInput(controller: _reason, hintText: 'Why is this being reversed?', minLines: 3, maxLines: 5)),
+              FilterLabel('Reason *', ReasonSelectField(controller: _reason, options: loanReversalReasons)),
               const Text('Written to the audit trail.', style: TextStyle(fontSize: 11, color: TColors.slate500)),
             ]),
           ]),

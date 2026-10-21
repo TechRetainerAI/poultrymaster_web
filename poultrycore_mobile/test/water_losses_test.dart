@@ -94,12 +94,12 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Unapprove'));
     await tester.pumpAndSettle();
     expect(find.text('Reason for unapproving is required.'), findsOneWidget);
-    await tester.enterText(inDialog(find.byType(TextFormField)), 'wrong quantity');
+    await reasonPick(tester, 'Wrong quantity');
     await tester.tap(find.widgetWithText(FilledButton, 'Unapprove'));
     await tester.pumpAndSettle();
     final w = a.writes.last;
     expect((w.url.path, w.url.queryParameters['unapprovedBy']), ('/api/Water/loss-records/2/unapprove', 'user-1'));
-    expect(jsonDecode(w.body), {'reason': 'wrong quantity'});
+    expect(jsonDecode(w.body), {'reason': 'Wrong quantity'});
     expect(find.textContaining('Loss unapproved — now editable'), findsOneWidget);
     clearToasts(tester);
 
@@ -119,7 +119,7 @@ void main() {
     expect(find.textContaining('Reason required'), findsOneWidget);
     clearToasts(tester);
     await enterIn(tester, 'Bags', '2');
-    await enterIn(tester, 'Reason *', 'Dropped');
+    await reasonOther(tester, 'Dropped');
     await tapIn(tester, inDialog(find.text('Record')));
     final b = jsonDecode(a.writes.last.body) as Map;
     expect((b['lossType'], b['quantityBags'], b['quantitySachets'], b['estimatedValue'], b['waterProductId'], b['reason']),
@@ -129,7 +129,8 @@ void main() {
 
     await tap(tester, find.widgetWithText(OutlinedButton, 'Edit'));
     expect(find.text('Edit loss record'), findsOneWidget);
-    await enterIn(tester, 'Reason *', 'Heat wave');
+    // 'Heat' is not in LOSS_REASONS, so the form opens on Other with it typed.
+    await reasonOther(tester, 'Heat wave');
     await tapIn(tester, inDialog(find.text('Save changes')));
     final w = a.writes.last;
     expect((w.method, w.url.path), ('PUT', '/api/Water/loss-records/1'));

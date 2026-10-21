@@ -556,6 +556,23 @@ const closingCategorySections = <(String, Color, List<(String, String, bool)>)>[
     ('Driver Collections', 'DriverCollections', true),
     ('Delivery Expenses', 'DeliveryExpenses', true),
   ]),
+  // 375: byproduct reconciliation (Byproduct Inventory & Disposition report).
+  // Its own categories: these never change the egg or live-bird figures above.
+  ('Broken Egg Byproducts', Color(0xFFE11D48), [
+    ('Opening', 'bp_BrokenEggsOpening', false),
+    ('Generated', 'bp_BrokenEggsGenerated', false),
+    ('Sold', 'bp_BrokenEggsSold', false),
+    ('Disposed', 'bp_BrokenEggsDisposed', false),
+    ('Carried forward', 'bp_BrokenEggsClosing', false),
+  ]),
+  ('Mortality / Dead Bird Disposition', Color(0xFF57534E), [
+    ('Opening', 'bp_DeadBirdsOpening', false),
+    ('Dead birds generated', 'bp_DeadBirdsGenerated', false),
+    ('Sold', 'bp_DeadBirdsSold', false),
+    ('Disposed', 'bp_DeadBirdsDisposed', false),
+    ('Carried forward', 'bp_DeadBirdsClosing', false),
+    ('Byproduct sales (both)', 'bp_ByproductRevenue', true),
+  ]),
 ];
 
 /// /poultry-closing-report: the period's totals in six coloured sections.
@@ -588,9 +605,25 @@ class _ClosingByCategoryScreenState extends State<ClosingByCategoryScreen> {
   Future<void> _run() async {
     setState(() => _loading = true);
     try {
-      final r = await widget.session.farmClient
-          .get('/api/Poultry/closing-report', query: {'farmId': widget.company.farmId, 'fromDate': _from, 'toDate': _to});
-      if (mounted) setState(() => _data = r is Map ? r : null);
+      final client = widget.session.farmClient;
+      final res = await Future.wait([
+        client.get('/api/Poultry/closing-report', query: {'farmId': widget.company.farmId, 'fromDate': _from, 'toDate': _to}),
+        // 375: a database / API without the byproduct report just shows dashes.
+        client.get('/api/poultry/reports/byproduct-inventory', query: {
+          'userId': widget.session.tokens.userId ?? '',
+          'farmId': widget.company.farmId,
+          'startDate': _from,
+          'endDate': _to,
+        }).catchError((Object _) => null),
+      ]);
+      final main = res[0], bp = res[1];
+      final extra = <String, Object?>{};
+      final summary = bp is Map && bp['summary'] is Map ? bp['summary'] as Map : const {};
+      summary.forEach((k, v) {
+        final key = '$k';
+        if (key.isNotEmpty) extra['bp_${key[0].toUpperCase()}${key.substring(1)}'] = v;
+      });
+      if (mounted) setState(() => _data = main is Map ? {...main, ...extra} : (extra.isEmpty ? null : extra));
     } on ApiException catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not load report. ${e.message}')));
     } finally {

@@ -89,6 +89,10 @@ class ApiClient {
   Future<dynamic> put(String path, {Object? body, Map<String, dynamic>? query}) => _write(() => _http
       .put(_uri(path, query), headers: _headers(), body: body == null ? null : jsonEncode(body)));
 
+  /// PATCH, e.g. a menu item's availability (Restaurant "86").
+  Future<dynamic> patch(String path, {Object? body, Map<String, dynamic>? query}) => _write(() => _http
+      .patch(_uri(path, query), headers: _headers(), body: body == null ? null : jsonEncode(body)));
+
   /// [body] for the endpoints that read one on DELETE (a reversal's reason).
   Future<dynamic> delete(String path, {Object? body, Map<String, dynamic>? query}) =>
       _write(() => _http.delete(_uri(path, query), headers: _headers(), body: body == null ? null : jsonEncode(body)));

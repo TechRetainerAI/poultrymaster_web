@@ -28,6 +28,8 @@ class FormScreen extends StatefulWidget {
     this.session,
     this.spec,
     this.existing,
+    this.initial,
+    this.onCreated,
   });
 
   final FormDef def;
@@ -40,6 +42,14 @@ class FormScreen extends StatefulWidget {
 
   /// When editing, the record being changed.
   final Map<String, dynamic>? existing;
+
+  /// A new record started from known values, by field name (Staff opened from
+  /// an employee). Overrides the field's own initial.
+  final Map<String, String>? initial;
+
+  /// Runs after a create succeeds, with the API's answer, before the screen
+  /// closes (Staff: link the new row to the employee it came from).
+  final Future<void> Function(dynamic created)? onCreated;
 
   @override
   State<FormScreen> createState() => _FormScreenState();
@@ -104,7 +114,7 @@ class _FormScreenState extends State<FormScreen> {
   void _applyInitials() {
     for (final s in widget.def.sections) {
       for (final f in s.fields) {
-        final v = f.initial;
+        final v = widget.initial?[f.name] ?? f.initial;
         if (v == null) continue;
         final id = _id(s, f);
         switch (f.kind) {
@@ -239,7 +249,8 @@ class _FormScreenState extends State<FormScreen> {
         if (v != null) body[k] = v;
       }
       if (id == null) {
-        await api.create(body);
+        final created = await api.create(body);
+        await widget.onCreated?.call(created);
       } else {
         await api.update(id, body);
       }

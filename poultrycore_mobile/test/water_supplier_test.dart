@@ -112,8 +112,8 @@ void main() {
       expect((r.api, r.supplierPaymentsHref, r.suppliersHref, r.cashAccountIdKey, r.balancesHref(BalanceSide.supplier)),
           ('/api/Water', '/water-supplier-payments', '/water-suppliers', 'waterCashAccountId', '/water-supplier-balances'));
       for (final t in ['RawMaterialPurchase', 'FlockBatch', 'Expense']) {
-        expect(r.supplierDocumentHref({'documentType': t, 'documentId': 9}), '/water-raw-materials?tab=purchases&purchaseId=9', reason: t);
-        expect(r.supplierBalanceDocHref({'documentType': t, 'documentId': 9}), '/water-raw-materials?tab=purchases&purchaseId=9', reason: t);
+        expect(r.supplierDocumentHref({'documentType': t, 'documentId': 9}), '/water-supply-purchases?tab=purchases&purchaseId=9', reason: t);
+        expect(r.supplierBalanceDocHref({'documentType': t, 'documentId': 9}), '/water-supply-purchases?tab=purchases&purchaseId=9', reason: t);
       }
       const p = BalanceRail.poultry;
       expect((p.supplierPaymentsHref, p.suppliersHref, p.cashAccountIdKey), ('/supplier-payments', '/suppliers', 'poultryCashAccountId'));
@@ -125,7 +125,7 @@ void main() {
     test('the ledger: labels, links and every filter', () {
       expect(payableTypeLabel('AssetCost'), 'Capital investment');
       expect(supplierSourceLabel('ExpenseEntry'), 'Expense entry');
-      expect(supplierDocumentHref({'documentType': 'Expense', 'documentId': 9}, BalanceRail.water), '/water-raw-materials?tab=purchases&purchaseId=9');
+      expect(supplierDocumentHref({'documentType': 'Expense', 'documentId': 9}, BalanceRail.water), '/water-supply-purchases?tab=purchases&purchaseId=9');
       final rows = [for (final r in paymentsApi().gets['/api/Water/supplier-payments'] as List) r as Map];
       List<Object?> ids(SupplierPaymentFilters f, [Map<String, List<Map>> a = const {}]) =>
           [for (final r in filterSupplierPayments(rows, f, a)) r['paymentId']];
@@ -205,13 +205,16 @@ void main() {
     await see(tester, find.text('2 items'));
 
     await tap(tester, find.widgetWithText(OutlinedButton, 'Reverse'));
-    await see(tester, find.text('Reverse payment'));
-    await tester.tap(find.text('Reverse payment'));
+    // Its own window, with the reason from the list.
+    final confirm = find.widgetWithText(FilledButton, 'Reverse payment');
+    expect(tester.widget<FilledButton>(confirm).onPressed, isNull, reason: 'a reason is required');
+    await tester.tap(find.text('Select a reason'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('A reason is required'), findsOneWidget);
-    await tester.enterText(find.descendant(of: find.ancestor(of: find.text('Why is this being reversed?'), matching: find.byType(Column)).first,
-        matching: find.byType(TextFormField)), 'Paid the wrong supplier');
-    await tester.tap(find.text('Reverse payment'));
+    await tester.tap(find.text('Other').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextFormField)).last, 'Paid the wrong supplier');
+    await tester.pumpAndSettle();
+    await tester.tap(confirm);
     await tester.pumpAndSettle();
     final w = a.writes.single;
     expect(w.url.path, '/api/Water/supplier-payments/17/reverse');

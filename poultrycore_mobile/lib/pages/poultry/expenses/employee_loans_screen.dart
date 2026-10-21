@@ -13,6 +13,7 @@ import '../reports/report_routes.dart' show openAppHref;
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../trackers/tracker_widgets.dart';
 import '../reports/money_reports.dart' show MoneyRail, poultryMoneyRail;
+import '../../shared/reason_select.dart';
 
 /// Poultry → Expenses → Employee Loans & Advances, as `app/poultry-employee-loans/page.tsx`:
 /// money advanced to staff and what has come back. An advance is not an
@@ -242,6 +243,7 @@ class _EmployeeLoansScreenState extends State<EmployeeLoansScreen> {
       context: context,
       builder: (ctx) => _UndoDialog(
         title: repayment != null ? 'Reverse this repayment' : draft ? 'Cancel this advance' : 'Reverse this advance',
+        options: repayment == null && draft ? cancelReasons : loanReversalReasons,
         description: repayment != null
             ? 'The repayment stays on the record, marked reversed, and what the worker owes goes back up. Any cash that came in goes back out.'
             : draft
@@ -1011,9 +1013,12 @@ class LoanDetailDialog extends StatelessWidget {
 
 /// The reason prompt behind Cancel / Reverse (one dialog for all three).
 class _UndoDialog extends StatefulWidget {
-  const _UndoDialog({required this.title, required this.description, required this.onUndo});
+  const _UndoDialog({required this.title, required this.description, required this.onUndo, required this.options});
   final String title, description;
   final Future<bool> Function(String? reason) onUndo;
+
+  /// CANCEL_REASONS for a draft advance, LOAN_REVERSAL_REASONS otherwise.
+  final List<String> options;
 
   @override
   State<_UndoDialog> createState() => _UndoDialogState();
@@ -1042,7 +1047,7 @@ class _UndoDialogState extends State<_UndoDialog> {
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Text(widget.description, style: const TextStyle(fontSize: 13, color: TColors.slate500)),
             const SizedBox(height: 12),
-            FilterLabel('Reason', AppInput(controller: _reason, hintText: 'Why is this being undone?', minLines: 2, maxLines: 4)),
+            FilterLabel('Reason', ReasonSelectField(controller: _reason, options: widget.options)),
           ]),
         ),
         actions: [

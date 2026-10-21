@@ -18,6 +18,7 @@ import '../trackers/tracker_widgets.dart';
 import 'asset_detail_screen.dart';
 import 'asset_logic.dart';
 import 'asset_widgets.dart';
+import '../../shared/reason_select.dart';
 
 /// Poultry → Expenses → Capital Investments/Assets, as `app/poultry-assets/page.tsx`:
 /// the register of long-term investments, their cost, depreciation and book value.
@@ -118,7 +119,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
         _api.get('${_r.api}/assets/categories', query: q),
         _api.get('${_r.api}/assets/summary', query: q),
         soft('${_r.api}/asset-depreciation/due'),
-        soft('${_r.api}/cash-accounts'),
+        soft(_r.cashAccountsPath),
         if (_r.isWater) soft('${_r.api}/suppliers'),
       ]);
       if (!mounted) return;
@@ -205,6 +206,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
         description:
             _r.t("The entry is kept on the record and marked reversed, and the investment's value falls by ${_gh(tNum(row['amount']))}. Any cash paid is returned and any balance owed is closed. Nothing is charged to profit."),
         placeholder: _r.t('Entered against the wrong investment'),
+        options: assetReversalReasons,
         confirmLabel: 'Reverse cost',
         onSubmit: (reason) => _assetsApi.reverseCost(assetId, tIntOrNull(row[_r.costIdKey]) ?? 0, reason),
       ),
@@ -223,6 +225,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
         description:
             'The original entry is kept and an opposite one is written beside it, so the history still shows what was charged and when. No cash is affected.',
         placeholder: 'Wrong in-service month',
+        options: assetReversalReasons,
         confirmLabel: 'Reverse charge',
         onSubmit: (reason) => _assetsApi.reverseDepreciation(tIntOrNull(row[_r.depreciationIdKey]) ?? 0, reason),
       ),
@@ -432,7 +435,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
         sort: _sort,
         onSort: onSort,
         emptyText: total == 0
-            ? (_r.isWater ? 'No assets recorded. A borehole, a sachet machine or a delivery truck belongs here rather than on the Expenses page.' : _r.t('No capital investments recorded. A poultry house, a vehicle or a feed mixer belongs here rather than on the Expenses page.'))
+            ? (_r.isWater ? 'No assets recorded. A borehole, a sachet machine or a delivery truck belongs here rather than on the Expenses page.' : _r.emptyText)
             : null,
         columns: [
           const TCol('', width: 36),
@@ -628,7 +631,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
                 child: Text(
-                  _r.isWater ? 'No assets recorded. A borehole, a sachet machine or a delivery truck belongs here rather than on the Expenses page.' : _r.t('No capital investments recorded. A poultry house, a vehicle or a feed mixer belongs here rather than on the Expenses page.'),
+                  _r.isWater ? 'No assets recorded. A borehole, a sachet machine or a delivery truck belongs here rather than on the Expenses page.' : _r.emptyText,
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 13, color: TColors.slate500),
                 ),
@@ -719,7 +722,7 @@ Widget _dateField(String value, ValueChanged<String> on, {bool enabled = true, b
 AppSelect<String> _accountSelect(AssetRail r, List<Map> accounts, String value, ValueChanged<String> on) => AppSelect<String>(
       value: value.isEmpty ? null : value,
       hintText: 'Cash account',
-      items: [for (final a in accounts) AppSelectItem(value: tStr(a[r.cashAccountIdKey]), label: tStr(a['accountName']))],
+      items: [for (final a in accounts) AppSelectItem(value: tStr(a[r.cashAccountIdKey]), label: tStr(a[r.cashAccountNameKey]))],
       onChanged: (v) => on(v ?? ''),
     );
 
@@ -837,7 +840,7 @@ class _NewAssetDialogState extends State<NewAssetDialog> {
             ),
             const SizedBox(height: 12),
             formSection('What it is', _blue, [
-              FilterLabel(_r.t('Investment name'), AppInput(controller: _name, hintText: _r.isWater ? 'Borehole 2' : 'Poultry House 4')),
+              FilterLabel(_r.t('Investment name'), AppInput(controller: _name, hintText: _r.namePlaceholder)),
               FilterLabel(
                 'Category',
                 AppSelect<String>(
@@ -1186,7 +1189,7 @@ class _AddAssetCostDialogState extends State<AddAssetCostDialog> {
           width: 580,
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Text(
-              '${_r.isWater ? 'Drilling, the pump, casing, wiring' : 'Cement, roofing, labour'} — real extra money spent on this ${_r.t('investment')}, added to what it is worth. It currently stands at ${fmt(tNum(a['totalCapitalizedCost']))}'
+              '${_r.costExamples} — real extra money spent on this ${_r.t('investment')}, added to what it is worth. It currently stands at ${fmt(tNum(a['totalCapitalizedCost']))}'
               '${tNum(a['additionalCost']) > 0 ? ' (${fmt(tNum(a['acquisitionCost']))} acquired, ${fmt(tNum(a['additionalCost']))} added since).' : '.'}'
               ' To fix a wrong amount rather than record a new one, use Correct original cost instead.',
               style: const TextStyle(fontSize: 13, color: TColors.slate500),
@@ -1236,7 +1239,7 @@ class _AddAssetCostDialogState extends State<AddAssetCostDialog> {
               formSection('Cost', _blue, [
                 FilterLabel('Date', _dateField(_date, (v) => setState(() => _date = v), clearable: true)),
                 FilterLabel('Amount', _num(_amount, () => setState(() {}))),
-                FilterLabel('What it was for', AppInput(controller: _desc, hintText: _r.isWater ? 'Submersible pump' : 'Roofing sheets')),
+                FilterLabel('What it was for', AppInput(controller: _desc, hintText: _r.costPlaceholder)),
                 FilterLabel('Cost type', AppInput(controller: _type, hintText: 'Materials / Labour')),
                 if (_r.isWater)
                   _supplierField(widget.suppliers, _supplierId, (v) => setState(() => _supplierId = v))
@@ -1413,7 +1416,7 @@ class _ReverseAssetDialogState extends State<ReverseAssetDialog> {
                 style: TextStyle(fontSize: 13, color: TColors.slate500),
               ),
               const SizedBox(height: 12),
-              FilterLabel('Reason', AppInput(controller: _reason, minLines: 3, maxLines: 5, hintText: 'Recorded on the wrong company')),
+              FilterLabel('Reason', ReasonSelectField(controller: _reason, options: assetReversalReasons)),
             ]),
           ),
           actions: [

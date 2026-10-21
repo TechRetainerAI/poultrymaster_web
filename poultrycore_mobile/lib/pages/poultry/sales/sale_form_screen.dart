@@ -11,6 +11,7 @@ import '../../shared/business_dates.dart';
 import '../reports/report_format.dart';
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../trackers/tracker_widgets.dart';
+import 'sale_reversal.dart' show customerCreditTotal;
 import 'sales_logic.dart';
 
 export 'sales_logic.dart' show defaultCashAccountId;
@@ -90,7 +91,19 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
   final _override = TextEditingController();
   final _partPaid = TextEditingController();
   final _desc = TextEditingController();
+  final _creditCtl = TextEditingController();
   FarmMoney _money = const FarmMoney();
+
+  /// 366: the bird batches (Batch comes before Flock; both optional).
+  List<Map> _batches = [];
+
+  /// 374: which byproducts this company sells; null = the defaults.
+  Map? _byproductSettings;
+  List<String> get _options => saleProductOptionsFor(_byproductSettings);
+
+  /// The customer whose credit [f.creditAvailable] holds, so a late answer for
+  /// another customer is ignored.
+  int? _creditFor;
 
   List<Map> get _classes => widget.eggClasses;
   int get _epc => widget.eggsPerCrate;
@@ -103,7 +116,9 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
     });
     final fix = widget.correcting;
     if (fix != null) {
-      f = SaleForm.correctionOf(fix.sale, creditKept: fix.creditKept, defaultAccount: defaultCashAccountId(widget.cashAccounts), eggsPerCrate: _epc);
+      f = SaleForm.correctionOf(fix.sale,
+          creditKept: fix.creditKept, defaultAccount: defaultCashAccountId(widget.cashAccounts), eggsPerCrate: _epc, flocks: widget.flocks);
+      if (f.creditAmount != null) _creditCtl.text = _jsNum(f.creditAmount!);
       final names = [for (final c in widget.customers) tStr(c['name'])];
       if (f.customerName.isNotEmpty && !names.contains(f.customerName)) {
         f.showNewCustomerInput = true;
@@ -118,11 +133,49 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
       if (p != null) f.first.unitPrice = p;
     }
     _desc.text = f.saleDescription;
+    final api = widget.session.farmClient;
+    api.get('/api/MainFlockBatch', query: {'userId': widget.session.tokens.userId ?? '', 'farmId': widget.company.farmId}).then((res) {
+      if (mounted) setState(() => _batches = rowsOf(res));
+    }).catchError((Object _) {});
+    // Unreadable = the defaults.
+    api.get('/api/Poultry/stock/byproduct-settings', query: {'farmId': widget.company.farmId}).then((res) {
+      if (mounted) setState(() => _byproductSettings = res is Map ? res : null);
+    }).catchError((Object _) {});
+    _loadCredit();
+  }
+
+  /// The chosen customer's id, matched by name as the web does.
+  int? get _saleCustomerId {
+    final name = f.customerName.trim().toLowerCase();
+    if (name.isEmpty) return null;
+    final c = widget.customers.where((x) => tStr(x['name'] ?? x['customerName']).trim().toLowerCase() == name).firstOrNull;
+    final id = tIntOrNull(c?['customerId'] ?? c?['id']) ?? 0;
+    return id > 0 ? id : null;
+  }
+
+  /// What the chosen customer holds as credit (0 when none or unreadable).
+  void _loadCredit() {
+    final id = _saleCustomerId;
+    _creditFor = id;
+    if (id == null) {
+      f.creditAvailable = 0;
+      return;
+    }
+    customerCreditTotal(widget.session, widget.company, id).then((c) {
+      if (mounted && _creditFor == id) setState(() => f.creditAvailable = c);
+    }).catchError((Object _) {
+      if (mounted && _creditFor == id) setState(() => f.creditAvailable = 0);
+    });
+  }
+
+  String _batchLabel(Map b) {
+    final n = tStr(b['batchName']).isNotEmpty ? tStr(b['batchName']) : tStr(b['batchCode']);
+    return n.isNotEmpty ? n : 'Batch #${tStr(b['batchId'])}';
   }
 
   @override
   void dispose() {
-    for (final c in [..._ctl.values, _otherCustomer, _override, _partPaid, _desc]) {
+    for (final c in [..._ctl.values, _otherCustomer, _override, _partPaid, _desc, _creditCtl]) {
       c.dispose();
     }
     super.dispose();
@@ -155,12 +208,14 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
     final sp = f.firstStockProduct(widget.products);
     final msg = f.validate(available: f.firstAvailable(widget.products), stockUnits: stockUnitLabel(sp));
     if (msg != null) return _toast(msg);
-    if (f.cashAccountId == null) {
+    if (!f.noMoneyNow && f.cashAccountId == null) {
       trackerToast(context, 'Cash account required', description: 'Choose which cash account this sale is received into.', error: true);
       return;
     }
     final part = f.validatePart();
     if (part != null) return _toast(part);
+    final credit = f.validateCredit(_money.call);
+    if (credit != null) return _toast(credit);
     if (f.postsAsGroup) {
       final g = f.validateGroup(_classes, widget.products);
       if (g != null) return _toast(g);
@@ -187,8 +242,14 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
       final saleCount = tIntOrNull(data['saleCount']) ?? 1;
       final groupNo = tStr(data['saleGroupNo']);
       final groupTotal = tNum(data['totalAmount']);
-      final paidNow = f.partPaidAmount ?? 0;
-      final partNote = f.partPayment ? ' Paid ${_money(paidNow)}, owed ${_money(max<num>(0, groupTotal - paidNow))}.' : '';
+      final creditUsed = f.creditUsed;
+      final cashNow = f.partPayment ? (f.partPaidAmount ?? 0) : f.restPaidNow;
+      final partNote = [
+        if (creditUsed > 0) ' ${_money(creditUsed)} paid from customer credit.',
+        if (f.partPayment) ' Paid ${_money(cashNow)}.',
+        if (f.partPayment || (creditUsed > 0 && !f.paid && f.restAfterCredit > 0))
+          ' Owed ${_money(max<num>(0, groupTotal - creditUsed - cashNow))}.',
+      ].join();
       if (!mounted) return null;
       if (saleCount > 1) {
         trackerToast(context, '$saleCount sales created: $groupNo', description: 'One sale per product, as each product is its own sale.$partNote');
@@ -202,7 +263,8 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
         saleId: firstId,
         label: groupNo.isNotEmpty ? groupNo : (firstId != null ? '#$firstId' : ''),
         total: groupTotal,
-        paidNow: !f.partPayment && f.paid,
+        // Credit already used in the form: nothing more to offer afterwards.
+        paidNow: f.creditUsed > 0 || (!f.partPayment && f.paid),
         customerName: f.customerName,
       );
     } on ApiException catch (e) {
@@ -433,12 +495,12 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
                             color: TColors.slate500,
                             AppSelect<String>(
                               key: ValueKey('${l.key}:product'),
-                              value: l.selectValue,
-                              items: [for (final o in saleProductOptions) AppSelectItem(value: o, label: o)],
+                              value: l.selectValueIn(_options),
+                              items: [for (final o in _options) AppSelectItem(value: o, label: o)],
                               onChanged: (v) {
                                 if (v == null) return;
                                 setState(() {
-                                  f.setProduct(l, v == 'Other' ? '' : v, _classes);
+                                  f.setProduct(l, v == 'Other' ? '' : v, _classes, widget.products);
                                   _sync(l);
                                 });
                               },
@@ -453,14 +515,14 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
                           ),
                       ],
                     ),
-                    if (l.selectValue == 'Other') ...[
+                    if (l.selectValueIn(_options) == 'Other') ...[
                       const SizedBox(height: 8),
                       AppInput(
                         key: ValueKey('${l.key}:other'),
                         initialValue: l.product,
                         hintText: 'Product name',
                         onChanged: (v) => setState(() {
-                          f.setProduct(l, v, _classes);
+                          f.setProduct(l, v, _classes, widget.products);
                           _sync(l);
                         }),
                       ),
@@ -650,6 +712,83 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
     ),
   );
 
+  /// Use customer credit: a tick, the amount and what is left to pay.
+  Widget _creditBox() {
+    final over = (f.creditAmount ?? 0) > f.creditCap + 0.005;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: f.useCredit ? const Color(0xFFEFF6FF) : Colors.white,
+        border: Border.all(color: f.useCredit ? TColors.blue300 : TColors.slate200),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _checkLine(
+            f.useCredit,
+            (on) => setState(() {
+              f.useCredit = on;
+              if (on) {
+                f.creditAmount = (f.creditCap * 100).round() / 100;
+                _creditCtl.text = _jsNum(f.creditAmount!);
+              }
+            }),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(children: [
+                  Icon(Icons.account_balance_wallet_outlined, size: 16, color: TColors.blue600),
+                  SizedBox(width: 6),
+                  Flexible(
+                    child: Text('Use customer credit', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: TColors.slate900)),
+                  ),
+                ]),
+                Text.rich(
+                  TextSpan(children: [
+                    TextSpan(text: '${f.customerName} has '),
+                    TextSpan(text: _money(f.creditAvailable), style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF1D4ED8))),
+                    const TextSpan(text: ' of credit. No new payment is recorded and no cash moves.'),
+                  ]),
+                  style: const TextStyle(fontSize: 12, color: TColors.slate600),
+                ),
+              ],
+            ),
+          ),
+          if (f.useCredit) ...[
+            const SizedBox(height: 10),
+            Padding(
+              padding: const EdgeInsets.only(left: 30),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _label(
+                    'Credit to use',
+                    color: const Color(0xFF1E40AF),
+                    _num(_creditCtl, (v) => setState(() => f.creditAmount = v.isEmpty ? null : num.tryParse(v)), decimal: true, hint: '0.00'),
+                  ),
+                  const SizedBox(height: 6),
+                  Text.rich(
+                    TextSpan(children: [
+                      if (f.creditCoversAll)
+                        const TextSpan(text: 'Paid in full from credit.')
+                      else ...[
+                        const TextSpan(text: 'Rest to pay: '),
+                        TextSpan(text: _money(f.restAfterCredit), style: const TextStyle(fontWeight: FontWeight.w700)),
+                      ],
+                      if (over) TextSpan(text: '  at most ${_money(f.creditCap)}', style: const TextStyle(fontSize: 12, color: TColors.red600)),
+                    ]),
+                    style: const TextStyle(fontSize: 13, color: TColors.blue900),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final fix = widget.correcting;
@@ -752,6 +891,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
                         f.otherCustomerName = '';
                         f.customerName = v ?? '';
                       }
+                      _loadCredit();
                     }),
                   ),
                   if (f.showNewCustomerInput) ...[
@@ -762,7 +902,15 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
                       onChanged: (v) => setState(() {
                         f.otherCustomerName = v;
                         f.customerName = v;
+                        _loadCredit();
                       }),
+                    ),
+                  ],
+                  if (_saleCustomerId != null && f.creditAvailable > 0) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      'Available customer credit: ${_money(f.creditAvailable)}',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: TColors.emerald700),
                     ),
                   ],
                 ],
@@ -773,20 +921,45 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
               AppDateField(value: businessDateAsDateTime(f.saleDate), onChanged: (d) => setState(() => f.saleDate = d == null ? '' : isoDay(d))),
             ),
             _label(
+              'Batch',
+              AppSelect<int>(
+                value: f.batchId == 0 || _batches.any((b) => tIntOrNull(b['batchId']) == f.batchId) ? f.batchId : null,
+                hintText: 'All batches',
+                items: [
+                  const AppSelectItem(value: 0, label: 'All batches'),
+                  for (final b in _batches)
+                    if (tIntOrNull(b['batchId']) != null) AppSelectItem(value: tIntOrNull(b['batchId'])!, label: _batchLabel(b)),
+                ],
+                onChanged: (v) => setState(() {
+                  f.batchId = v ?? 0;
+                  // A flock from another batch no longer fits: back to All flocks.
+                  if (f.batchId != 0 && (f.flockId ?? 0) != 0 && batchOfFlock(widget.flocks, f.flockId) != f.batchId) f.flockId = 0;
+                }),
+              ),
+            ),
+            _label(
               'Flock',
               AppSelect<int?>(
                 value: f.flockId,
-                hintText: 'Select a flock',
+                hintText: 'All flocks',
                 items: [
                   const AppSelectItem<int?>(value: 0, label: 'All flocks'),
+                  // A chosen batch narrows the flocks to its own; the flock
+                  // already on the form stays listed.
                   for (final fl in widget.flocks)
+                    if (f.batchId == 0 || tIntOrNull(fl['batchId']) == f.batchId || tIntOrNull(fl['flockId']) == f.flockId)
                     AppSelectItem<int?>(
                       value: tIntOrNull(fl['flockId']),
                       label: '${fl['name']} (${fl['quantity']} birds)${isFlockClosed(fl) ? ' · Closed' : ''}',
                       enabled: !closedFlockBlocksSale(fl, f.first.product, null, otherProducts),
                     ),
                 ],
-                onChanged: (v) => setState(() => f.flockId = v),
+                onChanged: (v) => setState(() {
+                  f.flockId = v ?? 0;
+                  // Picking a flock picks its batch too.
+                  final b = batchOfFlock(widget.flocks, f.flockId);
+                  if ((f.flockId ?? 0) != 0 && b != 0) f.batchId = b;
+                }),
               ),
             ),
           ]),
@@ -895,10 +1068,14 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
           ),
           const SizedBox(height: 16),
           _section('Payment', const Color(0xFF16A34A), const Color(0x66F0FDF4), const Color(0xFFBBF7D0), [
+            // Only when this customer holds credit: money they already paid,
+            // kept for them (e.g. from a reversed sale).
+            if (f.creditAvailable > 0) _creditBox(),
+            if (!f.creditCoversAll)
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('Payment status', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                Text(f.creditUsed > 0 ? 'The rest' : 'Payment status', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -938,8 +1115,12 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
                   f.partPayment
                       ? 'Records what the customer paid now as a payment; the rest stays owed on Customer Balances.'
                       : !f.paid
-                      ? 'Records the full amount as owed — record payments later.'
-                      : 'Records the sale as fully paid and posts a cash-in.',
+                      ? (f.creditUsed > 0
+                          ? 'Records the ${_money(f.restAfterCredit)} left after the credit as owed — record payments later.'
+                          : 'Records the full amount as owed — record payments later.')
+                      : (f.creditUsed > 0
+                          ? 'Records the ${_money(f.restAfterCredit)} left after the credit as paid and posts a cash-in.'
+                          : 'Records the sale as fully paid and posts a cash-in.'),
                   color: TColors.slate600,
                 ),
                 if (f.partPayment) ...[
@@ -965,10 +1146,10 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
                             children: [
                               const TextSpan(text: 'Still owed: '),
                               TextSpan(
-                                text: _money(max<num>(0, total - partPaid)),
+                                text: _money(max<num>(0, f.restAfterCredit - partPaid)),
                                 style: const TextStyle(fontWeight: FontWeight.w700),
                               ),
-                              if (partPaid >= total && total > 0)
+                              if (partPaid >= f.restAfterCredit && f.restAfterCredit > 0)
                                 const TextSpan(
                                   text: '  covers the whole sale — choose Paid now',
                                   style: TextStyle(fontSize: 12, color: TColors.red600),
@@ -983,6 +1164,21 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
                 ],
               ],
             ),
+            if (f.noMoneyNow)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: TColors.slate200),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: _small(
+                  'No money is received now, so there is no payment method or cash account to choose.'
+                  '${f.payLater ? ' When the customer pays, record it from Customer Balances or Payments Received.' : ''}',
+                  color: TColors.slate600,
+                ),
+              ),
+            if (!f.noMoneyNow)
             _label(
               'Payment method *',
               AppSelect<String>(
@@ -992,6 +1188,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
                 onChanged: (v) => setState(() => f.paymentMethod = v ?? ''),
               ),
             ),
+            if (!f.noMoneyNow)
             _label(
               'Receive into cash account *',
               AppSelect<int?>(

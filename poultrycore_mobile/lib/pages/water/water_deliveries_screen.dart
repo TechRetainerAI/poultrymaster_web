@@ -17,6 +17,7 @@ import '../poultry/trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../poultry/trackers/tracker_widgets.dart';
 import '../shared/business_dates.dart';
 import '../shared/company_clock.dart';
+import '../shared/reason_select.dart' show reversalReasons;
 import 'water_driver_return_screen.dart';
 import 'water_raw_materials_screen.dart' show filterWaterRows;
 
@@ -283,6 +284,7 @@ class _WaterDeliveriesScreenState extends State<WaterDeliveriesScreen> {
             ? "There's no direct \"update return\" endpoint — to change a reconciled return we first reverse the current reconciliation (undoing the linked sales, payments, inventory movements, customer balance updates, and shortage/overage records), then re-open the Record Return dialog pre-filled with your existing data so you can change what you need. Saving re-records and re-approves."
             : 'This will undo the linked sales, payments, inventory movements, customer balance updates, and shortage/overage records created by this reconciliation. You can then edit and reconcile the delivery again.',
         label: edit ? 'Reason for edit' : 'Reason for reversal',
+        options: reversalReasons,
         placeholder: 'e.g. wrong customer assigned / late MoMo correction',
         confirmLabel: edit ? 'Reverse & edit' : 'Reverse',
         onSubmit: (reason) async {

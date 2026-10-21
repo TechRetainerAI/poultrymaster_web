@@ -65,8 +65,12 @@ class CashAdjustmentDialog extends StatefulWidget {
     required this.fmtMoney,
     required this.onSubmit,
     this.editing,
+    this.allowedTypes,
   });
   final List<AdjustableAccount> accounts;
+
+  /// `allowedTypes`: only these types are offered (Restaurant: owner money and loans).
+  final List<String>? allowedTypes;
   final String Function(num) fmtMoney;
   final CashAdjustmentSeed? editing;
   final Future<void> Function(AdjustmentInput input) onSubmit;
@@ -248,7 +252,10 @@ class _CashAdjustmentDialogState extends State<CashAdjustmentDialog> {
                 AppSelect<String>(
                   value: _type.isEmpty ? null : _type,
                   hintText: 'What kind of adjustment?',
-                  items: [for (final (v, l) in adjustmentTypes) AppSelectItem(value: v, label: l)],
+                  items: [
+                    for (final (v, l) in adjustmentTypes)
+                      if (widget.allowedTypes == null || widget.allowedTypes!.contains(v)) AppSelectItem(value: v, label: l),
+                  ],
                   onChanged: (v) => setState(() => _type = v ?? ''),
                 ),
               ),

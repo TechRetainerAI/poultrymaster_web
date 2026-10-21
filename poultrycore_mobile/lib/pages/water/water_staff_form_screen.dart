@@ -8,6 +8,7 @@ import '../../design/ui/inputs.dart';
 import '../../models/company.dart';
 import '../../state/session.dart';
 import '../lookup_loader.dart';
+import '../shared/staff_employee_link.dart' show EmployeePrefill;
 
 /// Water → Setup → People → Staff → New / Edit, as the web's dialog in
 /// `app/water-staff/page.tsx`.
@@ -24,11 +25,18 @@ class WaterStaffFormScreen extends StatefulWidget {
     required this.session,
     required this.company,
     this.existing,
+    this.prefill,
+    this.onCreated,
   });
 
   final Session session;
   final Company company;
   final Map<String, dynamic>? existing;
+
+  /// Employee link (362): New staff opened from Employees starts from that
+  /// person, and [onCreated] links the saved row to their login.
+  final EmployeePrefill? prefill;
+  final Future<void> Function(dynamic created)? onCreated;
 
   @override
   State<WaterStaffFormScreen> createState() => _WaterStaffFormScreenState();
@@ -81,6 +89,13 @@ class _WaterStaffFormScreenState extends State<WaterStaffFormScreen> {
       _isActive = r['isActive'] != false;
       _vehicleId = s('assignedWaterVehicleId') == '0' ? '' : s('assignedWaterVehicleId');
       _notes.text = s('notes');
+    }
+    final p = widget.prefill;
+    if (r == null && p != null) {
+      _first.text = p.firstName;
+      _last.text = p.lastName;
+      _phone.text = p.phoneNumber;
+      _email.text = p.email;
     }
     _load();
   }
@@ -172,7 +187,8 @@ class _WaterStaffFormScreenState extends State<WaterStaffFormScreen> {
         final id = _row!['waterStaffId'];
         await client.put('/api/Water/staff/$id', body: {...body, 'waterStaffId': id});
       } else {
-        await client.post('/api/Water/staff', body: body);
+        final created = await client.post('/api/Water/staff', body: body);
+        await widget.onCreated?.call(created);
       }
     } on ApiException catch (e) {
       if (!mounted) return;

@@ -185,7 +185,8 @@ void main() {
     await tap(tester, find.text('Reconciled (1)'));
     await tap(tester, find.widgetWithText(OutlinedButton, 'Reverse'));
     expect(find.text('Reverse this reconciliation?'), findsOneWidget);
-    await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextFormField)), 'late MoMo');
+    // REVERSAL_REASONS: Other + the typed text.
+    await reasonOther(tester, 'late MoMo');
     await tester.tap(find.widgetWithText(FilledButton, 'Reverse'));
     await tester.pumpAndSettle();
     final r = a.writes.last;

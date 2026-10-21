@@ -17,6 +17,7 @@ import '../production/production_logic.dart' show eggsPerCrate;
 import '../reports/report_routes.dart' show openAppHref;
 import 'tracker_logic.dart';
 import 'tracker_widgets.dart';
+import '../../shared/reason_select.dart';
 
 /// "962 cr + 10" (crates are display only); "10 eggs" under one crate.
 String cratesText(num eggs, [int? perCrate]) {
@@ -526,13 +527,7 @@ class _EggAdjustDialogState extends State<_EggAdjustDialog> {
               const SizedBox(height: 10),
               FilterLabel(
                 'Reason *',
-                AppInput(
-                  controller: _reason,
-                  minLines: 2,
-                  maxLines: 4,
-                  hintText: 'e.g. tray dropped in the store',
-                  onChanged: (_) => setState(() {}),
-                ),
+                ReasonSelectField(controller: _reason, options: eggAdjustmentReasons, onChanged: (_) => setState(() {})),
               ),
             ],
           ),

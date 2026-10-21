@@ -17,6 +17,15 @@ import '../sales/balances_logic.dart' show pageSlice;
 import '../sales/balances_widgets.dart';
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../trackers/tracker_widgets.dart';
+import 'manual_deferred_cost_panel.dart';
+
+/// A Restaurant purchase in this page's names: purchaseId and unit.
+Map restaurantDeferredPurchase(Map p) => {...p, 'poultryRawMaterialPurchaseId': p['purchaseId'], 'productionUnit': p['unit'], 'isLotProduced': false};
+
+/// A Restaurant draw in this page's names; it never links to an expense.
+Map restaurantDeferredDraw(Map x) => {...x, 'productionUnit': x['unit'], 'expenseId': null};
+
+Map restaurantDeferredResponse(Map r) => {...r, 'purchases': [for (final p in rowsOf(r['purchases'])) restaurantDeferredPurchase(p)]};
 
 /// Poultry → Expenses → Deferred inventory cost, as `app/poultry-deferred-costs/page.tsx`:
 /// purchases whose cost reaches Profit & Loss as the stock is used.
@@ -122,9 +131,14 @@ String deferredCsv(List<Map> rows) {
 }
 
 class DeferredCostsScreen extends StatefulWidget {
-  const DeferredCostsScreen({super.key, required this.session, required this.company, this.itemId, this.scope});
+  const DeferredCostsScreen({super.key, required this.session, required this.company, this.itemId, this.scope, this.restaurant = false});
   final Session session;
   final Company company;
+
+  /// `app/restaurant-deferred-costs` (migration 329): this page on /Restaurant,
+  /// with no manual-cost panel, no produced lots and no expense links. Its rows
+  /// (purchaseId, unit) are read into this page's own names on load.
+  final bool restaurant;
 
   /// `?itemId=` and `?scope=`.
   final int? itemId;
@@ -177,7 +191,7 @@ class _DeferredCostsScreenState extends State<DeferredCostsScreen> {
     if (!_canView) return setState(() => _loading = false);
     setState(() => _loading = true);
     try {
-      final res = await _api.get('/api/Poultry/deferred-inventory-costs', query: {
+      final res = await _api.get('$_base/deferred-inventory-costs', query: {
         'farmId': widget.company.farmId,
         'scope': _scope,
         if (_itemId != null) 'itemId': '$_itemId',
@@ -188,7 +202,7 @@ class _DeferredCostsScreenState extends State<DeferredCostsScreen> {
       });
       if (!mounted) return;
       setState(() {
-        _data = res is Map ? res : null;
+        _data = res is Map ? (widget.restaurant ? restaurantDeferredResponse(res) : res) : null;
         _error = null;
         _expanded.clear();
         _history.clear();
@@ -213,8 +227,8 @@ class _DeferredCostsScreenState extends State<DeferredCostsScreen> {
     if (_history.containsKey(id)) return;
     setState(() => _historyLoading.add(id));
     try {
-      final h = await _api.get('/api/Poultry/deferred-inventory-costs/$id/history', query: {'farmId': widget.company.farmId});
-      if (mounted) setState(() => _history[id] = rowsOf(h));
+      final h = await _api.get('$_base/deferred-inventory-costs/$id/history', query: {'farmId': widget.company.farmId});
+      if (mounted) setState(() => _history[id] = widget.restaurant ? [for (final x in rowsOf(h)) restaurantDeferredDraw(x)] : rowsOf(h));
     } on ApiException catch (e) {
       final x = explainLoadFailure(e.message, 'the recognition history');
       if (mounted) trackerToast(context, x.headline, description: x.hint, error: true);
@@ -231,6 +245,8 @@ class _DeferredCostsScreenState extends State<DeferredCostsScreen> {
 
   void _href(String href, String label) => openAppHref(context, widget.session, widget.company, href, label: label);
 
+  String get _base => widget.restaurant ? '/api/Restaurant' : '/api/Poultry';
+
   Future<void> _detail(Map p) => showDialog<void>(
         context: context,
         builder: (_) => PurchaseDetailDialog(
@@ -238,9 +254,12 @@ class _DeferredCostsScreenState extends State<DeferredCostsScreen> {
           rows: _history[tIntOrNull(p['poultryRawMaterialPurchaseId']) ?? 0],
           fmt: _gh,
           offset: _offset,
-          onOpenItem: () => _href('/poultry-supply-purchases?tab=items&itemId=${tStr(p['poultryRawMaterialItemId'])}', 'Raw materials'),
-          onOpenPurchase: () =>
-              _href('/poultry-supply-purchases?tab=purchases&purchaseId=${tStr(p['poultryRawMaterialPurchaseId'])}', 'Raw materials'),
+          onOpenItem: () => widget.restaurant
+              ? _href('/restaurant-inventory', 'Inventory')
+              : _href('/poultry-supply-purchases?tab=items&itemId=${tStr(p['poultryRawMaterialItemId'])}', 'Raw materials'),
+          onOpenPurchase: () => widget.restaurant
+              ? _href('/restaurant-inventory?tab=purchases&purchaseId=${tStr(p['poultryRawMaterialPurchaseId'])}', 'Inventory')
+              : _href('/poultry-supply-purchases?tab=purchases&purchaseId=${tStr(p['poultryRawMaterialPurchaseId'])}', 'Raw materials'),
         ),
       );
 
@@ -493,7 +512,7 @@ class _DeferredCostsScreenState extends State<DeferredCostsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final lead = sidebarLeading(context, widget.session, widget.company, href: '/poultry-deferred-costs');
+    final lead = sidebarLeading(context, widget.session, widget.company, href: widget.restaurant ? '/restaurant-deferred-costs' : '/poultry-deferred-costs');
     final all = _purchases;
     final rows = _supplier == 'all' ? all : [for (final p in all) if (tStr(p['supplierName']) == _supplier) p];
     if (rows.length != _lastTotal) {
@@ -534,6 +553,12 @@ class _DeferredCostsScreenState extends State<DeferredCostsScreen> {
                     child: const Text(deferredPageIntro, style: TextStyle(fontSize: 12, color: Color(0xFF0C4A6E))),
                   ),
                   const SizedBox(height: 12),
+                  // 371: cost for stock no purchase covers (e.g. opening stock), recorded as an event.
+                  // Poultry only: the Restaurant page has no such panel.
+                  if (!widget.restaurant) ...[
+                    ManualDeferredCostPanel(session: widget.session, company: widget.company, onChanged: _load),
+                    const SizedBox(height: 12),
+                  ],
                   _filters(all),
                   const SizedBox(height: 12),
                   if (_loading)
@@ -555,7 +580,7 @@ class _DeferredCostsScreenState extends State<DeferredCostsScreen> {
                         decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
                         child: Text(
                           _scope == 'DEFERRED'
-                              ? 'No purchases are holding cost back from Profit & Loss. On a farm that expenses stock when it is bought, this is the expected result.'
+                              ? 'No purchases are holding cost back from Profit & Loss. On a ${widget.restaurant ? 'restaurant' : 'farm'} that expenses stock when it is bought, this is the expected result.'
                               : 'No purchases match these filters.',
                           textAlign: TextAlign.center,
                           style: const TextStyle(fontSize: 13, color: TColors.slate500),

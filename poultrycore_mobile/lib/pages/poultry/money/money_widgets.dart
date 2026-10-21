@@ -20,11 +20,14 @@ enum Accent { emerald, blue, violet, amber, rose, slate }
     };
 
 class Highlight {
-  const Highlight(this.label, this.value, {this.accent = Accent.slate, this.wide = false});
+  const Highlight(this.label, this.value, {this.accent = Accent.slate, this.wide = false, this.strike = false});
   final String label;
   final String value;
   final Accent accent;
   final bool wide;
+
+  /// The web's line-through on a reversed record's figure.
+  final bool strike;
 }
 
 /// MobileCardList: one collapsible card per item (open by default), striped
@@ -199,7 +202,9 @@ class _CardState<T> extends State<_Card<T>> {
                           decoration: BoxDecoration(color: bg, border: Border.all(color: border), borderRadius: BorderRadius.circular(8)),
                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                             Text(h.label.toUpperCase(), style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: lc)),
-                            Text(h.value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: vc)),
+                            Text(h.value,
+                                style: TextStyle(
+                                    fontSize: 18, fontWeight: FontWeight.w800, color: vc, decoration: h.strike ? TextDecoration.lineThrough : null)),
                           ]),
                         );
                       }),

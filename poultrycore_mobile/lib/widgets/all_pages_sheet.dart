@@ -4,6 +4,7 @@ import '../api/quick_links_api.dart';
 import '../design/web_mobile.dart';
 import '../models/company.dart';
 import '../pages/registry.dart';
+import '../pages/shared/setup_admin_routes.dart';
 import '../pages/web_nav.dart';
 import '../state/session.dart';
 import 'module_sidebar.dart';
@@ -20,7 +21,7 @@ Future<void> showAllPages(
   Session session,
   Company company,
 ) {
-  final groups = webNavGroups[PageRegistry.moduleOf(company.type)] ?? const [];
+  final groups = gateSetupLinks(webNavGroups[PageRegistry.moduleOf(company.type)] ?? const [], company);
 
   return showModalBottomSheet<void>(
     context: context,
@@ -112,9 +113,9 @@ class _AllPagesSheetState extends State<_AllPagesSheet> {
       _customise();
       return;
     }
-    // Water's System → Alerts is a button on the web (onOpenAlerts), not a
-    // page: it opens the alerts dialog over the sheet.
-    if (link.href == '#alerts' && widget.company.type == CompanyType.water) {
+    // System → Alerts is a button on the web (onOpenAlerts), not a page: it
+    // opens the alerts dialog over the sheet, for every company type.
+    if (link.href == '#alerts') {
       showSystemAlertsDialog(context);
       return;
     }

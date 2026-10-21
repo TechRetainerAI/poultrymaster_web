@@ -159,16 +159,37 @@ class AssetRail {
   static const poultry = AssetRail._('poultry');
   static const water = AssetRail._('water');
 
+  /// The Restaurant register (migration 328): Poultry's page, with unprefixed
+  /// keys, the finance cash accounts, and the cash ledger in place of an expense.
+  static const restaurant = AssetRail._('restaurant');
+
   bool get isWater => module == 'water';
-  String get api => isWater ? '/api/Water' : '/api/Poultry';
-  String get assetIdKey => '${module}CapitalAssetId';
-  String get categoryIdKey => '${module}AssetCategoryId';
-  String get costIdKey => '${module}CapitalAssetCostId';
-  String get depreciationIdKey => '${module}AssetDepreciationId';
-  String get cashAccountIdKey => '${module}CashAccountId';
+  bool get isRestaurant => module == 'restaurant';
+  String get api => isWater ? '/api/Water' : isRestaurant ? '/api/Restaurant' : '/api/Poultry';
+  String get assetIdKey => isRestaurant ? 'capitalAssetId' : '${module}CapitalAssetId';
+  String get categoryIdKey => isRestaurant ? 'assetCategoryId' : '${module}AssetCategoryId';
+  String get costIdKey => isRestaurant ? 'assetCostId' : '${module}CapitalAssetCostId';
+  String get depreciationIdKey => isRestaurant ? 'assetDepreciationId' : '${module}AssetDepreciationId';
+  String get cashAccountIdKey => isRestaurant ? 'cashAccountId' : '${module}CashAccountId';
   String get expenseIdKey => isWater ? 'waterExpenseId' : 'expenseId';
   String get assetsHref => '/$module-assets';
-  String get expensesHref => isWater ? '/water-expenses' : '/expenses';
+  String get expensesHref => isWater ? '/water-expenses' : isRestaurant ? '/restaurant-expenses' : '/expenses';
+
+  /// listCashAccounts: Restaurant's live under /finance, named `name`.
+  String get cashAccountsPath => isRestaurant ? '/api/Restaurant/finance/accounts' : '$api/cash-accounts';
+  String get cashAccountNameKey => isRestaurant ? 'name' : 'accountName';
+
+  /// The examples the forms and the empty list use.
+  String get emptyText => isRestaurant
+      ? 'No capital investments recorded. A combi oven, a walk-in cold room or a delivery motorbike belongs here rather than on the Expenses page.'
+      : 'No capital investments recorded. A poultry house, a vehicle or a feed mixer belongs here rather than on the Expenses page.';
+  String get namePlaceholder => isWater ? 'Borehole 2' : isRestaurant ? 'Combi oven' : 'Poultry House 4';
+  String get costExamples => isWater
+      ? 'Drilling, the pump, casing, wiring'
+      : isRestaurant
+          ? 'Installation, an extraction hood, electrical work'
+          : 'Cement, roofing, labour';
+  String get costPlaceholder => isWater ? 'Submersible pump' : isRestaurant ? 'Extraction hood' : 'Roofing sheets';
 
   /// The register's own name: "Capital Investments/Assets", Water's "Assets".
   String get title => isWater ? 'Assets' : 'Capital Investments/Assets';

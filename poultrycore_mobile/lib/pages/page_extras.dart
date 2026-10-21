@@ -36,6 +36,14 @@ class RecordExtra {
   final bool Function(Map<String, dynamic> row)? when;
 }
 
+/// Extra facts a page reads after listing and writes onto its rows (Staff ↔
+/// Employee link: which rows are also the other kind). Failures leave the rows
+/// as they were — the list still works without them.
+typedef RowEnrich = Future<void> Function(Session session, Company company, List<Map<String, dynamic>> rows);
+
+/// A small badge after a row's name on the list, or null for none.
+typedef RowBadge = Widget? Function(Map<String, dynamic> row);
+
 /// Work a page does before listing, as the web's load() does (Products:
 /// make sure the default Eggs and Birds products exist). Failures are
 /// ignored, as on the web.

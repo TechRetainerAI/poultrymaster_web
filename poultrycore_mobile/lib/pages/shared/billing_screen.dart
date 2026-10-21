@@ -16,8 +16,41 @@ import '../../state/session.dart';
 import '../../widgets/module_sidebar.dart';
 import '../poultry/trackers/tracker_logic.dart' show tNum, tStr, tBool;
 import '../poultry/trackers/tracker_widgets.dart';
+import 'reason_select.dart' show ReasonSelectField, marketChangeReasons;
 
 const billingReturnPath = '/business-office/billing';
+
+/// The billing companies grouped by business type (companyFamily, else
+/// businessType, else "Other"), in the web's order: Poultry, Water, Hotel,
+/// Restaurant, Generic, then anything else.
+List<(String, List<Map>)> billingCompanyGroups(List<Map> companies) {
+  const order = ['Poultry', 'Water', 'Hotel', 'Restaurant', 'Generic'];
+  final map = <String, List<Map>>{};
+  for (final c in companies) {
+    final fam = tStr(c['companyFamily']).isNotEmpty
+        ? tStr(c['companyFamily'])
+        : tStr(c['businessType']).isNotEmpty
+            ? tStr(c['businessType'])
+            : 'Other';
+    map.putIfAbsent(fam, () => []).add(c);
+  }
+  int rank(String f) => order.contains(f) ? order.indexOf(f) : 99;
+  final entries = map.entries.toList();
+  // A stable sort, as Array.sort is: equal ranks keep their first-seen order.
+  final indexed = [for (final (i, e) in entries.indexed) (i, e)]
+    ..sort((a, b) => rank(a.$2.key) != rank(b.$2.key) ? rank(a.$2.key) - rank(b.$2.key) : a.$1 - b.$1);
+  return [for (final (_, e) in indexed) (e.key, e.value)];
+}
+
+/// TypeTile: each business type's icon and tile colours.
+(IconData, Color, Color) billingTypeTile(String type) => switch (type.toLowerCase()) {
+      'poultry' => (Icons.egg_outlined, const Color(0xFFFFFBEB), const Color(0xFFD97706)),
+      'water' => (Icons.water_drop_outlined, const Color(0xFFF0F9FF), const Color(0xFF0284C7)),
+      'hotel' => (Icons.bed_outlined, const Color(0xFFFFF1F2), const Color(0xFFE11D48)),
+      'restaurant' => (Icons.restaurant, const Color(0xFFFFF7ED), const Color(0xFFEA580C)),
+      'generic' => (Icons.shopping_bag_outlined, const Color(0xFFF5F3FF), const Color(0xFF7C3AED)),
+      _ => (Icons.business_outlined, const Color(0xFFF1F5F9), const Color(0xFF64748B)),
+    };
 
 String billingMoney(Object? v, Object? currency) {
   if (v == null) return '—';
@@ -82,6 +115,10 @@ class BillingScreen extends StatefulWidget {
 }
 
 class _BillingScreenState extends State<BillingScreen> {
+  // Companies grouped by business type; each type row is a dropdown. All start
+  // collapsed -- tap a type (Poultry, Water, ...) and its companies unfold.
+  final Set<String> _openTypes = {};
+
   Map? _summary;
   List<Map> _invoices = [], _payments = [];
   bool _loading = true, _checkoutBusy = false, _verifying = false;
@@ -378,7 +415,10 @@ class _BillingScreenState extends State<BillingScreen> {
             ]),
           ),
           const Divider(height: 1, color: TColors.slate100),
-          for (final c in companies) ...[_companyRow(c), const Divider(height: 1, color: TColors.slate100)],
+          for (final (family, rows) in billingCompanyGroups(companies)) ...[
+            _typeGroup(family, rows, preview),
+            const Divider(height: 1, color: TColors.slate100),
+          ],
           Container(
             color: const Color(0xB3F8FAFC),
             padding: const EdgeInsets.all(14),
@@ -454,6 +494,65 @@ class _BillingScreenState extends State<BillingScreen> {
   }
 
   String _cap(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+
+  /// CompanyTypeGroup: the type row (tile, name, "N companies · M billed", the
+  /// billed subtotal, a chevron); tapping it unfolds that type's companies.
+  Widget _typeGroup(String family, List<Map> rows, Map preview) {
+    final open = _openTypes.contains(family);
+    final billed = rows.where((c) => const {'Resolved', 'CustomPrice', 'Grandfathered'}.contains(tStr(c['pricingStatus']))).toList();
+    final subtotal = billed.fold<num>(0, (a, c) => a + tNum(c['monthlyAmount']));
+    final (icon, bg, fg) = billingTypeTile(family);
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      InkWell(
+        onTap: () => setState(() => open ? _openTypes.remove(family) : _openTypes.add(family)),
+        child: Container(
+          color: const Color(0x66F8FAFC),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
+              child: Icon(icon, size: 18, color: fg),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(family, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: TColors.slate900)),
+                Text('${rows.length} ${rows.length == 1 ? 'company' : 'companies'} · ${billed.length} billed',
+                    style: const TextStyle(fontSize: 12, color: TColors.slate500)),
+              ]),
+            ),
+            subtotal > 0
+                ? Text.rich(TextSpan(children: [
+                    TextSpan(
+                        text: billingMoney(subtotal, preview['currencyCode']),
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: TColors.slate900)),
+                    const TextSpan(text: '/mo', style: TextStyle(fontSize: 12, color: TColors.slate400)),
+                  ]))
+                : const Text('—', style: TextStyle(color: TColors.slate300)),
+            const SizedBox(width: 8),
+            AnimatedRotation(
+              turns: open ? .5 : 0,
+              duration: const Duration(milliseconds: 150),
+              child: const Icon(Icons.expand_more, size: 18, color: TColors.slate400),
+            ),
+          ]),
+        ),
+      ),
+      if (open)
+        Container(
+          decoration: const BoxDecoration(border: Border(top: BorderSide(color: TColors.slate100))),
+          padding: const EdgeInsets.only(left: 8),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            for (final (i, c) in rows.indexed) ...[
+              if (i > 0) const Divider(height: 1, color: TColors.slate100),
+              _companyRow(c),
+            ],
+          ]),
+        ),
+    ]);
+  }
 
   Widget _companyRow(Map c) {
     final unpriced = tStr(c['pricingStatus']) == 'PricingNotConfigured';
@@ -602,7 +701,7 @@ class _MarketDialogState extends State<_MarketDialog> {
             ),
           ],
           const SizedBox(height: 10),
-          AppInput(controller: _reason, hintText: 'Reason (e.g. business relocated)'),
+          ReasonSelectField(controller: _reason, options: marketChangeReasons),
         ]),
       ),
       actions: [

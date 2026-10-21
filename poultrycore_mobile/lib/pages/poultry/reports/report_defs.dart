@@ -105,6 +105,10 @@ List<String>? reportTotalsRow(List<ColumnDef> columns, List<Map> rows, FmtCtx c)
 String Function(List<Map>, FmtCtx) sumOf(String field) =>
     (rows, c) => c.number(rows.fold<num>(0, (t, r) => t + toNum(r[field])));
 
+/// sumOf, printed as money.
+String Function(List<Map>, FmtCtx) sumMoneyOf(String field) =>
+    (rows, c) => c.money(rows.fold<num>(0, (t, r) => t + toNum(r[field])));
+
 String? _profitAccent(Object? n) => toNum(n) >= 0 ? 'green' : 'rose';
 num? _pctOf(Object? part, Object? whole) => toNum(whole) == 0 ? null : toNum(part) / toNum(whole) * 100;
 
@@ -121,7 +125,9 @@ ColumnDef _money(String h, String f) => ColumnDef(h, (r, c) => c.money(r[f]), ri
 ColumnDef _pct(String h, String f) => ColumnDef(h, (r, c) => c.pct(r[f]), right: true);
 ColumnDef _yesNo(String h, String f) => ColumnDef(h, (r, c) => r[f] == true ? 'Yes' : 'No');
 
-CardDef _cNum(String l, String f, {String? accent}) => CardDef(l, (s, c) => c.number(s[f]), accent: accent);
+CardDef _cNum(String l, String f, {String? accent, String? note}) =>
+    CardDef(l, (s, c) => c.number(s[f]), accent: accent, note: note);
+CardDef _cPair(String l, String a, String b) => CardDef(l, (s, c) => '${c.number(s[a])} / ${c.number(s[b])}');
 CardDef _cMoney(String l, String f, {String? accent, String? note}) =>
     CardDef(l, (s, c) => c.money(s[f]), accent: accent, note: note);
 CardDef _cPct(String l, String f, {String? accent}) => CardDef(l, (s, c) => c.pct(s[f]), accent: accent);
@@ -178,6 +184,9 @@ final Map<String, PoultryReportDef> poultryReportDefs = {
       _cProfit('Estimated profit', 'estimatedProfit'),
       _cMoney('Cash collected', 'cashCollected'),
       _cMoney('Customer receivables', 'customerReceivables'),
+      _cNum('Broken eggs in stock', 'brokenEggsInStock', note: 'Byproduct stock at the end date, not saleable eggs'),
+      _cNum('Dead birds pending disposition', 'deadBirdsPendingDisposition', note: 'Not live birds'),
+      _cMoney('Byproduct sales', 'byproductRevenue'),
     ],
     columns: [
       _text('Flock', 'flockName'),
@@ -205,6 +214,8 @@ final Map<String, PoultryReportDef> poultryReportDefs = {
       _cDay('Lowest day', 'lowestProductionDay', 'lowestProductionDayEggs'),
       _cNum('Total broken eggs', 'totalBrokenEggs', accent: 'rose'),
       _cPct('Avg production %', 'averageProductionPercent'),
+      _cPair('Broken eggs sold / disposed', 'brokenEggsSold', 'brokenEggsDisposed'),
+      _cNum('Broken eggs remaining', 'brokenEggsRemaining', note: 'Byproduct stock at the end date'),
     ],
     columns: [
       _date('Date', 'date'),
@@ -235,6 +246,9 @@ final Map<String, PoultryReportDef> poultryReportDefs = {
       _cNum('Total eggs', 'totalEggs', accent: 'green'),
       _cNum('Avg eggs / flock', 'averageEggsPerFlock'),
       _cPct('Avg production %', 'averageProductionPercent'),
+      _cNum('Broken eggs generated', 'brokenEggsGenerated', accent: 'rose'),
+      _cPair('Broken eggs sold / disposed', 'brokenEggsSold', 'brokenEggsDisposed'),
+      _cNum('Broken eggs remaining', 'brokenEggsRemaining', note: 'Byproduct stock at the end date'),
     ],
     columns: [
       ColumnDef('Flock', (r, c) => c.text(r['flockName']),
@@ -283,6 +297,9 @@ final Map<String, PoultryReportDef> poultryReportDefs = {
       _cDay('Highest mortality day', 'highestMortalityDay', 'highestMortalityDayDeaths'),
       _cPct('Cumulative mortality %', 'cumulativeMortalityPercent', accent: 'rose'),
       _cNum('Flocks with high mortality', 'flocksWithHighMortality'),
+      _cNum('Dead birds sold', 'deadBirdsSold'),
+      _cNum('Dead birds disposed', 'deadBirdsDisposed'),
+      _cNum('Dead birds remaining', 'deadBirdsRemaining', note: 'Awaiting disposition at the end date'),
     ],
     columns: [
       _date('Date', 'date'),
@@ -307,6 +324,7 @@ final Map<String, PoultryReportDef> poultryReportDefs = {
       _cNum('Total culls', 'totalCulls'),
       _cNum('Sold / transferred out', 'totalBirdsSoldTransferred'),
       _cNum('Bird variance', 'birdVariance'),
+      _cNum('Dead birds pending disposition', 'deadBirdsPendingDisposition', note: 'Shown for information: never part of the live birds'),
     ],
     columns: [
       _text('Flock', 'flockName'),
@@ -404,6 +422,7 @@ final Map<String, PoultryReportDef> poultryReportDefs = {
       _cNum('Saleable eggs', 'saleableEggs'),
       _cNum('Broken / rejected', 'brokenRejectedEggs', accent: 'rose'),
       _cMoney('Stock value', 'stockValue'),
+      _cNum('Broken eggs in stock', 'brokenEggsInStock', note: 'A byproduct: not in the egg totals'),
     ],
     columns: [
       _text('Product / grade', 'productGrade'),
@@ -415,6 +434,38 @@ final Map<String, PoultryReportDef> poultryReportDefs = {
       _number('Crates', 'currentStockCrates'),
       _number('Loose', 'looseEggs'),
       _text('Status', 'status', badge: true),
+    ],
+  ),
+  'byproduct-inventory': PoultryReportDef(
+    slug: 'byproduct-inventory',
+    title: 'Byproduct Inventory & Disposition',
+    description:
+        'Broken Eggs and Dead Birds: what was generated, sold, disposed and is left, by flock. Pick the byproduct with the Category filter.',
+    filters: const ReportFilters(flock: true, category: true),
+    cards: [
+      _cNum('Broken eggs generated', 'brokenEggsGenerated', accent: 'rose'),
+      _cPair('Broken eggs sold / disposed', 'brokenEggsSold', 'brokenEggsDisposed'),
+      _cNum('Broken eggs on hand', 'brokenEggsClosing', accent: 'green', note: 'At the end date'),
+      _cNum('Dead birds generated', 'deadBirdsGenerated', accent: 'rose'),
+      _cPair('Dead birds sold / disposed', 'deadBirdsSold', 'deadBirdsDisposed'),
+      _cNum('Dead birds pending', 'deadBirdsClosing', note: 'At the end date; never live birds'),
+      _cMoney('Byproduct sales', 'byproductRevenue', accent: 'green'),
+    ],
+    columns: [
+      _text('Byproduct', 'category'),
+      _text('Flock', 'flockName'),
+      _text('Batch', 'batchCode'),
+      _number('Opening', 'opening', total: true),
+      _number('Generated', 'generated', total: true),
+      _number('Manual in', 'manualIn', total: true),
+      _number('Sold', 'sold', total: true),
+      _number('Disposed', 'disposed', total: true),
+      _number('Internal use', 'internalUse', total: true),
+      _number('Manual out', 'manualOut', total: true),
+      _number('Reversals', 'reversals', total: true),
+      _number('Closing', 'closing', total: true),
+      ColumnDef('Sales revenue', (r, c) => c.money(r['revenue']), right: true, total: sumMoneyOf('revenue')),
+      _money('Avg price', 'averageSalePrice'),
     ],
   ),
   'egg-sales': PoultryReportDef(
@@ -429,6 +480,8 @@ final Map<String, PoultryReportDef> poultryReportDefs = {
       _cMoney('Paid in period', 'totalPaid', accent: 'green'),
       _cMoney('Unpaid in period', 'totalUnpaid', accent: 'rose'),
       _cText('Top customer', 'topCustomer'),
+      _cNum('Broken eggs sold', 'brokenEggsSold', note: 'Not in eggs sold'),
+      _cMoney('Broken egg revenue', 'brokenEggsRevenue', note: 'Included in total sales revenue'),
     ],
     columns: [
       _date('Date', 'date'),
@@ -740,6 +793,8 @@ final Map<String, PoultryReportDef> poultryReportDefs = {
       _cPct('Mortality %', 'mortalityPercent', accent: 'rose'),
       _cMoney('Feed cost / egg', 'feedCostPerEgg'),
       _cMoney('Profit / bird', 'profitPerBird'),
+      _cPair('Dead birds sold / disposed', 'deadBirdsSold', 'deadBirdsDisposed'),
+      _cNum('Dead birds unresolved', 'deadBirdsRemaining', note: 'Live-bird closeout is unaffected'),
     ],
     columns: [
       _text('Flock', 'flockName'),

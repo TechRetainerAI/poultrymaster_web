@@ -19,6 +19,7 @@ import '../sales/balances_logic.dart' show pageSlice;
 import '../sales/balances_widgets.dart' show CompactPager;
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, loc;
 import '../trackers/tracker_widgets.dart';
+import '../../shared/reason_select.dart';
 
 const lossTypes = ['Damage', 'Mortality', 'Theft', 'Spoilage', 'MissingStock', 'Other'];
 
@@ -413,7 +414,7 @@ class _LossRecordDialogState extends State<LossRecordDialog> {
             ),
             _cell('Quantity', NumBox(value: _qty, decimal: true, onChanged: (v) => _qty = v)),
             _cell('Estimated value', NumBox(value: _value, decimal: true, onChanged: (v) => _value = v)),
-            _cell('Reason', AppInput(initialValue: _reason, onChanged: (v) => _reason = v)),
+            _cell('Reason', ReasonSelect(options: lossReasons, value: _reason, onChanged: (v) => setState(() => _reason = v))),
           ]),
         ),
         actions: [

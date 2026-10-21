@@ -201,14 +201,14 @@ void main() {
     expect(find.text('Reverse Owner Money'), findsOneWidget);
     expect(find.text('OWN-2026-0001 · Contribution'), findsOneWidget);
     expect(find.text('GHC 1,000.00 on 1 Oct 2026, 09:15 · Main Cash'), findsOneWidget);
-    await enter(tester, 'Reason *', 'no');
+    await reasonOther(tester, 'no');
     final go = inDialog(find.widgetWithText(FilledButton, 'Reverse'));
     await tester.tap(go);
     await tester.pumpAndSettle();
     expect(find.textContaining('Say why'), findsOneWidget);
     expect(a.writes, isEmpty);
     clearToasts(tester);
-    await enter(tester, 'Reason *', 'Was a loan');
+    await reasonOther(tester, 'Was a loan');
     await tester.tap(go);
     await tester.pumpAndSettle();
     final w = a.writes.single;

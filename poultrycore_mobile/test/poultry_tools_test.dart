@@ -301,7 +301,7 @@ void main() {
       expect(find.text('Reverse this feed distribution?'), findsOneWidget);
       final confirm = find.widgetWithText(FilledButton, 'Reverse');
       expect(tester.widget<FilledButton>(confirm).onPressed, isNull, reason: 'a reason is required');
-      await tester.enterText(find.byType(TextField).last, 'Wrong pen');
+      await reasonOther(tester, 'Wrong pen');
       await tester.pump();
       await tester.tap(confirm);
       await tester.pumpAndSettle();

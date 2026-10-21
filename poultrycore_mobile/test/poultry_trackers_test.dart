@@ -326,7 +326,7 @@ void main() {
       await enter(tester, 'Eggs (+ found / − missing)', '-40');
       await tester.pumpAndSettle();
       expect(find.text('30 → -10 eggs — more than is in stock', findRichText: true), findsOneWidget);
-      await enter(tester, 'Reason *', 'recount');
+      await reasonOther(tester, 'recount');
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(FilledButton, 'Record'));
       await tester.pumpAndSettle();

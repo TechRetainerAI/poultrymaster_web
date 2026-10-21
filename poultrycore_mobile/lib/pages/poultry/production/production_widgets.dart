@@ -78,10 +78,13 @@ Widget _fieldLabel(String t) => Padding(
 
 /// NumField for a whole number held as a number (the picks).
 class ProdNumField extends StatefulWidget {
-  const ProdNumField({super.key, required this.label, required this.value, required this.onChanged});
+  const ProdNumField({super.key, required this.label, required this.value, required this.onChanged, this.max});
   final String label;
   final num value;
   final ValueChanged<num> onChanged;
+
+  /// Typing past this is clamped back to it, so the box can never hold more.
+  final num? max;
   @override
   State<ProdNumField> createState() => _ProdNumFieldState();
 }
@@ -107,27 +110,81 @@ class _ProdNumFieldState extends State<ProdNumField> {
         AppInput(
           controller: _c,
           keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly, if (widget.max != null) clampFormatter(widget.max!)],
           onChanged: (v) => widget.onChanged(num.tryParse(v) ?? 0),
         ),
       ]);
 }
 
+/// NumField's `max`: a value typed past [max] becomes [max].
+TextInputFormatter clampFormatter(num max) => TextInputFormatter.withFunction((old, next) {
+      final v = num.tryParse(next.text);
+      if (v == null || v <= max) return next;
+      final t = '${max.toInt()}';
+      return TextEditingValue(text: t, selection: TextSelection.collapsed(offset: t.length));
+    });
+
 /// NumField with `text`: the raw string is kept, so blank stays blank.
 class ProdTextField extends StatelessWidget {
-  const ProdTextField({super.key, required this.label, required this.controller, this.decimal = false});
+  const ProdTextField({super.key, required this.label, required this.controller, this.decimal = false, this.max});
   final String label;
   final TextEditingController controller;
   final bool decimal;
+
+  /// Typing past this is clamped back to it (the web's NumField `max`).
+  final num? max;
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
         _fieldLabel(label),
         AppInput(
           controller: controller,
           keyboardType: TextInputType.numberWithOptions(decimal: decimal),
-          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(decimal ? r'[0-9.]' : r'[0-9]'))],
+          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(decimal ? r'[0-9.]' : r'[0-9]')), if (max != null) clampFormatter(max!)],
         ),
       ]);
+}
+
+/// 372: what happens to a record's broken eggs / dead birds. "Keep" puts them
+/// into the Broken Eggs / Dead Birds stock; "Disposed" records them as
+/// generated and disposed at once. Shown only when there are some.
+class DispositionField extends StatelessWidget {
+  const DispositionField({
+    super.key,
+    required this.count,
+    required this.value,
+    required this.onChanged,
+    required this.keepText,
+    required this.disposedText,
+  });
+  final num count;
+  final String value;
+  final ValueChanged<String> onChanged;
+  final String keepText, disposedText;
+
+  @override
+  Widget build(BuildContext context) {
+    if (count <= 0) return const SizedBox.shrink();
+    Widget option(String v, String label) => Material(
+          color: value == v ? TColors.slate800 : Colors.white,
+          child: InkWell(
+            onTap: () => onChanged(v),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              child: Text(label,
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: value == v ? Colors.white : TColors.slate600)),
+            ),
+          ),
+        );
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+      Container(
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(border: Border.all(color: TColors.slate300), borderRadius: BorderRadius.circular(6)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [Flexible(child: option('Keep', 'Keep')), Flexible(child: option('Disposed', 'Disposed immediately'))]),
+      ),
+      const SizedBox(height: 6),
+      Text(value == 'Keep' ? keepText : disposedText, style: const TextStyle(fontSize: 12, color: TColors.slate600)),
+    ]);
+  }
 }
 
 enum CalcTone { good, bad }

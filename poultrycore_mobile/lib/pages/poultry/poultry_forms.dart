@@ -20,6 +20,7 @@ import 'money/cash_transfers_screen.dart';
 import 'money/reconciliation_screen.dart';
 import 'expenses/assets_screen.dart';
 import 'expenses/deferred_costs_screen.dart';
+import 'expenses/supplier_credits_screen.dart';
 import 'expenses/supplier_payments_screen.dart';
 import 'expenses/employee_loans_screen.dart';
 import 'expenses/payroll_screen.dart';
@@ -41,6 +42,7 @@ import 'expenses/internal_use_screen.dart';
 import 'expenses/recurring_expenses_screen.dart';
 import 'egg_sorting/egg_sorting_screens.dart';
 import 'sales/customer_balances_screen.dart';
+import 'sales/customer_credits_screen.dart';
 import 'sales/balances_logic.dart' show BalanceSide;
 import 'sales/payments_received_screen.dart';
 import 'sales/sales_screen.dart';
@@ -301,6 +303,7 @@ const Map<String, PageScreenBuilder> poultryPageScreens = {
   '/sales': _sales,
   '/poultry-payments': _payments,
   '/customer-balances': _balances,
+  '/customer-credits': _customerCredits,
   '/cash-flow': _cashFlow,
   '/poultry-financial-activity': _financialActivity,
   '/poultry-profit-loss': _profitLoss,
@@ -312,6 +315,7 @@ const Map<String, PageScreenBuilder> poultryPageScreens = {
   '/poultry-assets': _assets,
   '/poultry-deferred-costs': _deferredCosts,
   '/supplier-balances': _supplierBalances,
+  '/supplier-credits': _supplierCredits,
   '/supplier-payments': _supplierPayments,
   '/poultry-employee-loans': _employeeLoans,
   '/poultry-payroll': _payroll,
@@ -398,6 +402,8 @@ Widget _cashFlow(Session s, Company c) => CashFlowScreen(session: s, company: c)
 Widget _sales(Session s, Company c) => SalesScreen(session: s, company: c);
 Widget _payments(Session s, Company c) => PaymentsReceivedScreen(session: s, company: c);
 Widget _balances(Session s, Company c) => CustomerBalancesScreen(session: s, company: c);
+Widget _customerCredits(Session s, Company c) => CustomerCreditsScreen(session: s, company: c);
+Widget _supplierCredits(Session s, Company c) => SupplierCreditsScreen(session: s, company: c);
 
 Widget _initialFarmSetup(Session s, Company c) => InitialFarmSetupScreen(session: s, company: c);
 

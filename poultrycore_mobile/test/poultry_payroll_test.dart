@@ -135,7 +135,7 @@ void main() {
     await tap(tester, find.text('Reopen'));
     await tapIn(tester, inDialog(find.widgetWithText(FilledButton, 'Reopen')));
     expect(find.textContaining('A reason is required'), findsOneWidget);
-    await enterIn(tester, 'Reason *', 'Wrong rate');
+    await reasonOther(tester, 'Wrong rate');
     await tapIn(tester, inDialog(find.widgetWithText(FilledButton, 'Reopen')));
     expect(body(a, '/api/Poultry/payroll-runs/2/unapprove'), {'reason': 'Wrong rate'});
   });

@@ -5,8 +5,30 @@
 
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 
-/// The page's fixed option lists (SALE_PRODUCT_OPTIONS).
-const saleProductOptions = ['Fresh Eggs', 'Chicken', 'Manure', 'Other'];
+/// Every product the list can show (SALE_PRODUCT_OPTIONS). Broken Eggs / Dead
+/// Birds only when the company offers them (374).
+const saleProductOptions = ['Fresh Eggs', 'Chicken', 'Broken Eggs', 'Dead Birds', 'Manure', 'Other'];
+
+/// saleProductOptions(settings): Broken Eggs on by default, Dead Birds off until
+/// turned on. [settings] is GET Poultry/stock/byproduct-settings, or null.
+List<String> saleProductOptionsFor(Map? settings) {
+  final broken = settings == null || settings['brokenEggsInSales'] != false;
+  final dead = settings != null && settings['deadBirdsInSales'] == true;
+  return [
+    for (final o in saleProductOptions)
+      if ((o != 'Broken Eggs' || broken) && (o != 'Dead Birds' || dead)) o,
+  ];
+}
+
+/// lib/poultry/byproducts.ts byproductRole: "Broken Eggs" / "Dead Birds" (or
+/// their "(system)" names) give the role; anything else null. They are their
+/// own stock: a Broken Eggs sale is not an egg sale, a Dead Birds sale takes no
+/// live birds.
+String? byproductRole(Object? product) => switch (tStr(product).trim().toLowerCase()) {
+      'broken eggs' || 'broken eggs (system)' => 'BrokenEggs',
+      'dead birds' || 'dead birds (system)' => 'DeadBirds',
+      _ => null,
+    };
 const salePaymentMethods = ['Cash', 'Credit Card', 'Bank Transfer', 'Check', 'Mobile Money'];
 
 /// The Record payment dialog's own list (it differs from the sale form's).
@@ -20,7 +42,9 @@ const eggSizeSuggestions = ['Inside', 'Tee', 'Serum', 'Small', 'Medium', 'Large'
 
 const salePageSizes = [5, 10, 15, 25, 50, 100];
 
-bool isEggProductName(Object? product) => tStr(product).toLowerCase().contains('egg');
+/// isEggProduct: eggs sold by size and crate. Broken Eggs are NOT: they are
+/// their own stock, sold by the egg.
+bool isEggProductName(Object? product) => tStr(product).toLowerCase().contains('egg') && byproductRole(product) == null;
 
 /// eggCrateBreakdown: "2c + 15p", or long "2 crates + 15 pieces"; null for nothing.
 String? eggCrateBreakdown(num quantity, {bool long = false, int eggsPerCrate = 30}) {
@@ -75,6 +99,9 @@ List<num> scaleLineTotals(List<num> calculated, num? override) {
 Map? saleStockProduct(List<Map> products, Object? product) {
   final name = tStr(product).trim().toLowerCase();
   if (name.isEmpty) return null;
+  // 374: Broken Eggs / Dead Birds sell out of their own stock.
+  final role = byproductRole(product);
+  if (role != null) return products.where((p) => byproductRole(p['name']) == role).firstOrNull;
   if (name.contains('egg')) {
     return products.where((p) => p['isRawEggProduct'] == true).firstOrNull ??
         products.where((p) => tStr(p['name']).toLowerCase().contains('egg')).firstOrNull;
@@ -91,7 +118,8 @@ String stockUnitLabel(Map? product) {
   if (product['isRawEggProduct'] == true) return 'eggs';
   if (product['isBirdProduct'] == true) return 'birds';
   final u = tStr(product['unit']);
-  return (u.isEmpty ? 'units' : u).toLowerCase();
+  final unit = (u.isEmpty ? 'units' : u).toLowerCase();
+  return unit == 'egg' ? 'eggs' : (unit == 'bird' ? 'birds' : unit);
 }
 
 /// Stock available to THIS sale: an edited egg sale adds its own quantity back.
@@ -111,7 +139,7 @@ bool isFlockClosed(Map? f) {
 
 bool _sellsBirds(Object? p) {
   final name = tStr(p).trim().toLowerCase();
-  return RegExp('bird|chick|cockerel').hasMatch(name) && !name.contains('egg');
+  return RegExp('bird|chick|cockerel').hasMatch(name) && !name.contains('egg') && byproductRole(name) == null;
 }
 
 /// A closed flock cannot take a BIRD sale (on any line), except the flock the
@@ -259,8 +287,8 @@ class SaleItem {
   int eggs(int epc) => crates * epc + loose;
   num total(int epc) => saleLineTotal(qty(epc), unitPrice, isEggs, epc);
 
-  /// The Product dropdown's value: one of the options, else "Other".
-  String get selectValue => saleProductOptions.contains(product) ? product : 'Other';
+  /// The Product dropdown's value: one of [options], else "Other".
+  String selectValueIn(List<String> options) => options.contains(product) ? product : 'Other';
 }
 
 /// The New sale / Corrected sale form: the web's formData, its Items lines and
@@ -276,6 +304,9 @@ class SaleForm {
   bool showNewCustomerInput = false;
   String otherCustomerName = '';
   int? flockId = 0;
+
+  /// 366: the bird batch the sale is attributed to (0 = All batches).
+  int batchId = 0;
   late List<SaleItem> items;
   num? overrideAmount;
   bool overrideStock = false;
@@ -287,6 +318,13 @@ class SaleForm {
   String saleDescription = '';
   int _seq = 1;
 
+  /// Pay with customer credit: money the customer already paid and the business
+  /// still holds, allocated to this sale in the same transaction -- no new
+  /// payment, no cash. [creditAvailable] is what the chosen customer holds.
+  bool useCredit = false;
+  num? creditAmount;
+  num creditAvailable = 0;
+
   SaleItem get first => items.first;
   List<SaleItem> get extra => items.skip(1).toList();
   bool get hasExtraLines => items.length > 1;
@@ -296,11 +334,36 @@ class SaleForm {
   num get calculatedSaleTotal => _round2(items.fold<num>(0, (s, l) => s + l.total(eggsPerCrate)));
   num get allLinesAmount => hasOverride ? _round2(overrideAmount!) : calculatedSaleTotal;
 
+  num get creditUsed {
+    if (!useCredit || creditAvailable <= 0) return 0;
+    final cap = [creditAmount ?? 0, creditAvailable, allLinesAmount].reduce((a, b) => a < b ? a : b);
+    return _round2(cap < 0 ? 0 : cap);
+  }
+
+  /// What is left to pay after the credit: paid now, part paid or owed.
+  num get restAfterCredit => _round2(allLinesAmount - creditUsed);
+  bool get creditCoversAll => creditUsed > 0 && restAfterCredit <= 0.005;
+
+  /// Pay later: nothing is received now, so no payment method or cash account
+  /// is asked for.
+  bool get payLater => !paid && !partPayment;
+  bool get noMoneyNow => creditCoversAll || payLater;
+
+  /// What the sale stores as its method: never a cash method for money not received.
+  String? get saleMethodToStore =>
+      creditCoversAll ? 'Customer Credit' : (payLater ? 'Pay later' : (paymentMethod.isEmpty ? null : paymentMethod));
+
+  /// The most credit the form may use: what is held, and at most the sale total.
+  num get creditCap => creditAvailable < allLinesAmount ? creditAvailable : allLinesAmount;
+
+  /// Credit pays some of it and "Paid now" pays the rest in cash.
+  num get restPaidNow => creditUsed > 0 && !partPayment && paid && restAfterCredit > 0 ? restAfterCredit : 0;
+
   /// 360: a sale is one product, so different products are saved as one sale each.
   int get saleProductCount => {for (final l in items) l.product.trim().toLowerCase()}.where((p) => p.isNotEmpty).length;
 
   /// setFirstLineProduct / an added line's product change.
-  void setProduct(SaleItem line, String value, List<Map> classes) {
+  void setProduct(SaleItem line, String value, List<Map> classes, [List<Map> products = const []]) {
     final egg = isEggProductName(value);
     final wasEgg = line.isEggs;
     line.product = value;
@@ -309,6 +372,8 @@ class SaleForm {
       line.crates = 0;
       line.loose = 0;
       if (wasEgg) line.quantity = 0;
+      // 374: a byproduct starts at the price set on its product.
+      line.unitPrice = byproductPrice(products, value) ?? line.unitPrice;
     }
     // A new egg sale with no price yet starts at its class's price (line 1).
     if (egg && identical(line, first) && !(line.unitPrice > 0)) {
@@ -424,7 +489,7 @@ class SaleForm {
     if (customerName.trim().isEmpty) return 'Enter or select who bought from you.';
     if (!quantity.isFinite || quantity <= 0) return 'Enter how many units were sold — use a number greater than zero.';
     if (!first.unitPrice.isFinite || first.unitPrice <= 0) return 'Enter the price per unit — it must be greater than zero.';
-    if (paymentMethod.trim().isEmpty) return 'Select how the customer paid (cash, mobile money, bank, etc.).';
+    if (paymentMethod.trim().isEmpty && !noMoneyNow) return 'Select how the customer paid (cash, mobile money, bank, etc.).';
     if (short > 0 && !overrideStock) {
       return 'Only ${thousands(available ?? 0)} $stockUnits in stock — this sale is '
           '${thousands(short)} more. Lower the quantity, or tick "Sell it anyway" to record it regardless.';
@@ -438,12 +503,25 @@ class SaleForm {
     final paidNow = partPaidAmount ?? 0;
     if (customerName.trim().isEmpty) return 'A part payment needs a customer, so the rest can be owed by someone.';
     if (paidNow <= 0) return 'Enter the amount the customer paid now.';
-    if (paidNow >= allLinesAmount) return 'That covers the whole sale. Choose Paid now instead.';
+    if (paidNow >= restAfterCredit) {
+      return creditUsed > 0
+          ? 'With the credit, that covers the whole sale. Choose Paid now instead.'
+          : 'That covers the whole sale. Choose Paid now instead.';
+    }
     return null;
   }
 
-  /// Several lines or a part payment are posted to Sale/group.
-  bool get postsAsGroup => hasExtraLines || partPayment;
+  /// The Use customer credit checks, after the part payment.
+  String? validateCredit(String Function(num) money) {
+    if (useCredit && creditAvailable > 0 && creditUsed <= 0) {
+      return "Enter how much of the customer's credit to use, or untick Use customer credit.";
+    }
+    if (useCredit && (creditAmount ?? 0) > creditCap + 0.005) return 'Use at most ${money(creditCap)} of credit.';
+    return null;
+  }
+
+  /// Several lines, a part payment or customer credit are posted to Sale/group.
+  bool get postsAsGroup => hasExtraLines || partPayment || creditUsed > 0;
 
   /// The group checks: every added line complete, and no short line unless overridden.
   String? validateGroup(List<Map> classes, List<Map> products) {
@@ -486,12 +564,14 @@ class SaleForm {
       'userId': userId,
       'saleDate': saleDate,
       'customerName': customerName.isEmpty ? null : customerName,
-      'paymentMethod': paymentMethod.isEmpty ? null : paymentMethod,
+      'paymentMethod': saleMethodToStore,
       'poultryCashAccountId': cashAccountId,
-      'paid': partPayment ? false : paid,
-      'amountPaidNow': partPayment ? _round2(partPaidAmount ?? 0) : null,
+      'paid': partPayment || creditUsed > 0 ? false : paid,
+      'amountPaidNow': partPayment ? _round2(partPaidAmount ?? 0) : (restPaidNow > 0 ? restPaidNow : null),
+      'customerCreditAmount': creditUsed > 0 ? creditUsed : null,
       'saleDescription': saleDescription.isEmpty ? null : saleDescription,
       'flockId': (flockId ?? 0) == 0 ? null : flockId,
+      'batchId': batchId == 0 ? null : batchId,
       'correctsSaleId': correctsSaleId,
       'requestKey': requestKey,
       'lines': lines,
@@ -511,9 +591,10 @@ class SaleForm {
     'quantity': first.qty(eggsPerCrate),
     'unitPrice': first.unitPrice,
     'totalAmount': singleTotal,
-    'paymentMethod': paymentMethod,
+    'paymentMethod': saleMethodToStore ?? '',
     'customerName': customerName,
     'flockId': flockId ?? 0,
+    'batchId': batchId == 0 ? null : batchId,
     'saleDescription': saleDescription,
     'paid': paid,
     'size': (first.size ?? '').trim().isNotEmpty ? first.size!.trim() : null,
@@ -526,7 +607,7 @@ class SaleForm {
 
   /// openCorrectionForm: a NEW sale, pre-filled from the reversed one. Money
   /// kept as credit is applied after saving, so it goes in as Pay later.
-  static SaleForm correctionOf(Map sale, {required num creditKept, int? defaultAccount, int eggsPerCrate = 30}) {
+  static SaleForm correctionOf(Map sale, {required num creditKept, int? defaultAccount, int eggsPerCrate = 30, List<Map> flocks = const []}) {
     final f = SaleForm(eggsPerCrate: eggsPerCrate);
     final lines = multiLines(sale);
     final first = lines.firstOrNull;
@@ -540,7 +621,14 @@ class SaleForm {
       ..flockId = tIntOrNull(sale['flockId'])
       ..saleDescription = tStr(sale['saleDescription'])
       ..paid = creditKept > 0 ? false : (sale['paid'] ?? true) as bool
-      ..cashAccountId = tIntOrNull(sale['poultryCashAccountId']) ?? defaultAccount;
+      ..cashAccountId = tIntOrNull(sale['poultryCashAccountId']) ?? defaultAccount
+      ..batchId = tIntOrNull(sale['batchId']) ?? batchOfFlock(flocks, tIntOrNull(sale['flockId']));
+    // The money kept at the reversal pays the corrected sale, from the form.
+    if (creditKept > 0) {
+      f
+        ..useCredit = true
+        ..creditAmount = creditKept;
+    }
     final l1 = f.first
       ..product = product
       ..unitPrice = tNum(first?['unitPrice'] ?? sale['unitPrice'])
@@ -572,6 +660,18 @@ class SaleForm {
     return f;
   }
 }
+
+/// The Broken Eggs / Dead Birds price set under Products, if any.
+num? byproductPrice(List<Map> products, Object? product) {
+  final role = byproductRole(product);
+  if (role == null) return null;
+  final p = products.where((x) => byproductRole(x['name']) == role).firstOrNull;
+  return p != null && tNum(p['unitPrice']) > 0 ? tNum(p['unitPrice']) : null;
+}
+
+/// The batch a flock came from (flock.batchId), or 0.
+int batchOfFlock(List<Map> flocks, int? flockId) =>
+    tIntOrNull(flocks.where((f) => tIntOrNull(f['flockId']) == flockId).firstOrNull?['batchId']) ?? 0;
 
 /// The default account a new sale is received into: "Main Cash Account", else
 /// the first active one.
@@ -605,8 +705,12 @@ bool matchesStatusFilter(Map sale, String paymentStatus, String filter) {
 
 const reversalReasons = ['Wrong customer', 'Wrong quantity', 'Wrong price', 'Duplicate sale', 'Wrong product', 'Entered by mistake', 'Other'];
 
-/// The choices the dialog opens with: each payment's server default.
-Map<String, String> defaultHandling(List<Map> payments) => {for (final p in payments) tStr(p['key']): tStr(p['default'])};
+/// The choices the dialog opens with: reverse the payment wherever that is
+/// allowed (user decision 2026-10-14 -- a reversed sale usually means the money
+/// went back), otherwise the server's default. Keeping it as credit is a
+/// deliberate choice.
+Map<String, String> defaultHandling(List<Map> payments) =>
+    {for (final p in payments) tStr(p['key']): _allowed(p).contains('ReversePayment') ? 'ReversePayment' : tStr(p['default'])};
 
 List<String> _allowed(Map p) => [for (final a in (p['allowed'] is List ? p['allowed'] as List : const [])) '$a'];
 

@@ -150,6 +150,8 @@ void main() {
     expect(find.text('1'), findsWidgets, reason: 'active filter badge');
 
     await tap(tester, find.text('Filters'));
+    await tester.ensureVisible(find.text('Clear all'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Clear all'));
     await tester.pumpAndSettle();
     await tap(tester, find.text('View table format'));
@@ -178,6 +180,14 @@ void main() {
     expect(find.text('65 eggs'), findsOneWidget);
     await enter(tester, 'Broken eggs', '3');
     await enter(tester, 'Deaths', '1');
+    // 372: Keep / Disposed for the broken eggs and the dead birds.
+    expect(find.text('3 broken eggs will be added to Broken Egg stock.'), findsOneWidget);
+    expect(find.text('1 live bird removed; kept as Dead Birds stock.'), findsOneWidget);
+    await tester.ensureVisible(find.text('Disposed immediately').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Disposed immediately').first);
+    await tester.pumpAndSettle();
+    expect(find.text('3 broken eggs recorded and disposed of. Nothing is added to stock.'), findsOneWidget);
     await choose(tester, 'None', 'Layer mash (Kilogram) · 40 in stock · FIFO', within: find.byType(Dialog));
     await enter(tester, 'Consumed', '30');
     expect(find.text('310.00'), findsWidgets);
@@ -187,6 +197,7 @@ void main() {
     await tester.pumpAndSettle();
     final b = jsonDecode(a.writes.lastWhere((w) => w.url.path == '/api/ProductionRecord').body) as Map;
     expect((b['FlockId'], b['production9AM'], b['totalProduction'], b['brokenEggs']), (7, 65, 65, 3));
+    expect((b['brokenEggDisposition'], b['mortalityDisposition']), ('Disposed', 'Keep'));
     expect((b['noOfBirds'], b['mortality'], b['noOfBirdsLeft'], b['feedKg'], b['medication']), (118, 1, 117, 30, 'None'));
     expect((b['meatyEggs'], b['eggGrade'], b['totalCostOfProduction']), (null, 'Mixed', 310), reason: 'egg grade is automatic since egg sorting');
     final feed = (b['feeds'] as List).single as Map;
@@ -207,6 +218,8 @@ void main() {
     expect((w.method, w.url.path), ('PUT', '/api/ProductionRecord/11'));
     final b = jsonDecode(w.body) as Map;
     expect((b['id'], b['production12PM'], b['eggGrade'], b['medication']), (11, 31, 'Large', 'Vitamins'));
+    // A record from an older API has no disposition: none is sent, so the saved choice stays.
+    expect(b.containsKey('brokenEggDisposition'), isFalse);
   });
 
   testWidgets('edit: a feed type outside the list ("General Feed", the database default) no longer crashes', (tester) async {

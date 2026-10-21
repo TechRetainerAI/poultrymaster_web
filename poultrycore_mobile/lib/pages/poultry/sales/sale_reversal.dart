@@ -13,6 +13,8 @@ import '../../../api/api_client.dart';
 import '../../../design/ui/inputs.dart';
 import '../../../models/company.dart';
 import '../../../state/session.dart';
+import '../../shared/reason_select.dart' show ReasonSelect, customerRefundReasons;
+import '../poultry_links.dart';
 import '../reports/report_format.dart';
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, trackerDate;
 import '../trackers/tracker_widgets.dart';
@@ -657,15 +659,6 @@ class _ReverseSaleScreenState extends State<ReverseSaleScreen> {
                 children: [
                   _choice(
                     p,
-                    'KeepAsCredit',
-                    action,
-                    'Keep it as customer credit',
-                    'The money stays received. ${_money(allocated)} becomes credit the customer can use on another sale. The cash account does not change.',
-                    const Color(0xFF60A5FA),
-                    const Color(0x99EFF6FF),
-                  ),
-                  _choice(
-                    p,
                     'ReversePayment',
                     action,
                     'Reverse the payment',
@@ -673,6 +666,15 @@ class _ReverseSaleScreenState extends State<ReverseSaleScreen> {
                         '${account.isNotEmpty ? account : 'Its cash account'} decreases by ${_money(allocated)}, shown in Cash Flow as a payment reversal (not an expense).',
                     TColors.red300,
                     const Color(0x99FEF2F2),
+                  ),
+                  _choice(
+                    p,
+                    'KeepAsCredit',
+                    action,
+                    'Keep it as customer credit',
+                    'The money stays received. ${_money(allocated)} becomes credit the customer can use on another sale. The cash account does not change.',
+                    const Color(0xFF60A5FA),
+                    const Color(0x99EFF6FF),
                   ),
                 ],
               ),
@@ -1066,6 +1068,8 @@ class _ApplyCreditDialogState extends State<_ApplyCreditDialog> {
 
 /// Refund customer credit: the business physically hands money back — real
 /// Money Out from the account chosen here. Not an expense; no stock moves.
+/// 367: [poultryPaymentId] refunds out of that one credit (its label shown as
+/// [creditLabel]); without it the oldest credit goes first.
 /// Returns true when the refund was recorded.
 Future<bool> showRefundCredit(
   BuildContext context, {
@@ -1074,11 +1078,20 @@ Future<bool> showRefundCredit(
   required int customerId,
   required String customerName,
   required num availableCredit,
+  int? poultryPaymentId,
+  String? creditLabel,
 }) async {
   final ok = await showDialog<bool>(
     context: context,
-    builder: (_) =>
-        _RefundCreditDialog(session: session, company: company, customerId: customerId, customerName: customerName, availableCredit: availableCredit),
+    builder: (_) => _RefundCreditDialog(
+      session: session,
+      company: company,
+      customerId: customerId,
+      customerName: customerName,
+      availableCredit: availableCredit,
+      poultryPaymentId: poultryPaymentId,
+      creditLabel: creditLabel,
+    ),
   );
   return ok == true;
 }
@@ -1090,12 +1103,16 @@ class _RefundCreditDialog extends StatefulWidget {
     required this.customerId,
     required this.customerName,
     required this.availableCredit,
+    this.poultryPaymentId,
+    this.creditLabel,
   });
   final Session session;
   final Company company;
   final int customerId;
   final String customerName;
   final num availableCredit;
+  final int? poultryPaymentId;
+  final String? creditLabel;
   @override
   State<_RefundCreditDialog> createState() => _RefundCreditDialogState();
 }
@@ -1105,7 +1122,7 @@ class _RefundCreditDialogState extends State<_RefundCreditDialog> {
   int? _account;
   String _method = 'Cash';
   late final _amount = TextEditingController(text: widget.availableCredit > 0 ? widget.availableCredit.toStringAsFixed(2) : '');
-  final _reason = TextEditingController();
+  String _reason = '';
   bool _saving = false;
   String? _error;
   FarmMoney _money = const FarmMoney();
@@ -1137,12 +1154,11 @@ class _RefundCreditDialogState extends State<_RefundCreditDialog> {
   @override
   void dispose() {
     _amount.dispose();
-    _reason.dispose();
     super.dispose();
   }
 
   num get _value => num.tryParse(_amount.text) ?? 0;
-  bool get _valid => _value > 0 && _value <= widget.availableCredit + 0.005 && _account != null && _reason.text.trim().isNotEmpty;
+  bool get _valid => _value > 0 && _value <= widget.availableCredit + 0.005 && _account != null && _reason.trim().isNotEmpty;
 
   Future<void> _save() async {
     if (!_valid) return;
@@ -1159,7 +1175,8 @@ class _RefundCreditDialogState extends State<_RefundCreditDialog> {
           'amount': (_value * 100).round() / 100,
           'poultryCashAccountId': _account,
           'paymentMethod': _method,
-          'reason': _reason.text.trim(),
+          'reason': _reason.trim(),
+          'poultryPaymentId': widget.poultryPaymentId,
           'farmId': farmId,
         },
       );
@@ -1193,11 +1210,26 @@ class _RefundCreditDialogState extends State<_RefundCreditDialog> {
               'This is money going out of the account you choose; it is recorded as a refund, not an expense, and no stock moves.',
               style: const TextStyle(fontSize: 13, color: TColors.slate500),
             ),
+            if ((widget.creditLabel ?? '').isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text.rich(
+                TextSpan(
+                  children: [
+                    const TextSpan(text: 'Credit: '),
+                    TextSpan(
+                      text: widget.creditLabel,
+                      style: const TextStyle(fontWeight: FontWeight.w500, color: TColors.slate900),
+                    ),
+                  ],
+                ),
+                style: const TextStyle(fontSize: 13, color: TColors.slate600),
+              ),
+            ],
             const SizedBox(height: 12),
             Text.rich(
               TextSpan(
                 children: [
-                  const TextSpan(text: 'Available credit: '),
+                  TextSpan(text: widget.poultryPaymentId != null ? 'Available on this credit: ' : 'Available credit: '),
                   TextSpan(
                     text: _money(widget.availableCredit),
                     style: const TextStyle(fontWeight: FontWeight.w600),
@@ -1242,13 +1274,7 @@ class _RefundCreditDialogState extends State<_RefundCreditDialog> {
             const SizedBox(height: 10),
             FilterLabel(
               'Reason',
-              AppInput(
-                controller: _reason,
-                minLines: 2,
-                maxLines: 4,
-                hintText: 'e.g. Sale cancelled, customer asked for the money back',
-                onChanged: (_) => setState(() {}),
-              ),
+              ReasonSelect(options: customerRefundReasons, value: _reason, onChanged: (v) => setState(() => _reason = v)),
             ),
             if (_error != null) ...[const SizedBox(height: 10), TrackerBanner.error(_error!)],
           ],
@@ -1355,9 +1381,21 @@ class _CustomerCreditPanelState extends State<CustomerCreditPanel> {
                 ),
               ),
               const SizedBox(width: 8),
-              Text(
-                '${_money(total)} held',
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1D4ED8)),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '${_money(total)} held',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1D4ED8)),
+                  ),
+                  InkWell(
+                    onTap: () => openPoultryHref(context, widget.session, widget.company, '/customer-credits', label: 'Customer Credits'),
+                    child: const Text(
+                      'Open Customer Credits',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF1D4ED8)),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -1407,7 +1445,7 @@ class _CustomerCreditPanelState extends State<CustomerCreditPanel> {
               ),
             ),
           const Text(
-            'To use credit on a sale, open the sale\'s Pay dialog on the Sales page and choose "Use customer credit". No new money is recorded.',
+            'To use credit, tick "Use customer credit" when adding the customer\'s next sale, or use the Pay dialog on a sale they owe. No new money is recorded.',
             style: TextStyle(fontSize: 12, color: TColors.slate500),
           ),
         ],

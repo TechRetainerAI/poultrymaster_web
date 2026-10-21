@@ -7,6 +7,7 @@ import '../../design/ui/form_section.dart';
 import '../../design/ui/inputs.dart';
 import '../../models/company.dart';
 import '../../state/session.dart';
+import '../shared/staff_employee_link.dart' show EmployeePrefill;
 import 'restaurant_roles.dart';
 
 /// Restaurant → Menu & Setup → Staff → Add / Edit, as the web's dialog in
@@ -19,11 +20,19 @@ class RestaurantStaffFormScreen extends StatefulWidget {
     required this.session,
     required this.company,
     this.existing,
+    this.prefill,
+    this.onCreated,
   });
 
   final Session session;
   final Company company;
   final Map<String, dynamic>? existing;
+
+  /// Employee link (362): New staff opened from Employees starts from that
+  /// person (role Waiter, Monthly, 0 pay, as the web), and [onCreated] links
+  /// the saved row to their login.
+  final EmployeePrefill? prefill;
+  final Future<void> Function(dynamic created)? onCreated;
 
   @override
   State<RestaurantStaffFormScreen> createState() => _RestaurantStaffFormScreenState();
@@ -50,6 +59,13 @@ class _RestaurantStaffFormScreenState extends State<RestaurantStaffFormScreen> {
   void initState() {
     super.initState();
     final r = _row;
+    final p = widget.prefill;
+    if (r == null && p != null) {
+      _first.text = p.firstName;
+      _last.text = p.lastName;
+      _phone.text = p.phoneNumber;
+      _email.text = p.email;
+    }
     if (r == null) return;
     String s(String k) => r[k] == null ? '' : '${r[k]}';
     _first.text = s('firstName');
@@ -97,7 +113,8 @@ class _RestaurantStaffFormScreenState extends State<RestaurantStaffFormScreen> {
           body: input,
         );
       } else {
-        await client.post('/api/Restaurant/staff', body: {...input, 'farmId': farmId});
+        final created = await client.post('/api/Restaurant/staff', body: {...input, 'farmId': farmId});
+        await widget.onCreated?.call(created);
       }
       if (!mounted) return;
       Navigator.of(context).pop(true);

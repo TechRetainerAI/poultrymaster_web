@@ -15,6 +15,7 @@ import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../trackers/tracker_widgets.dart';
 import 'money_widgets.dart';
 import '../reports/money_reports.dart' show MoneyRail, poultryMoneyRail;
+import '../../shared/reason_select.dart';
 
 /// Poultry → Money → Owner Money, as `app/poultry-owner-money/page.tsx`: what
 /// the owner put in and took out. A contribution is not revenue and a draw is
@@ -689,8 +690,7 @@ class _ReverseOwnerMoneyDialogState extends State<ReverseOwnerMoneyDialog> {
             ]),
             const SizedBox(height: 12),
             formSection('Why', TColors.amber600, [
-              FilterLabel('Reason *',
-                  AppInput(controller: _reason, hintText: 'Why is this being reversed?', minLines: 3, maxLines: 5)),
+              FilterLabel('Reason *', ReasonSelectField(controller: _reason, options: reversalReasons)),
               const Text('Written to the audit trail.', style: TextStyle(fontSize: 11, color: TColors.slate500)),
             ]),
           ]),

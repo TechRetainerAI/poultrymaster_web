@@ -107,3 +107,40 @@ Future<void> enter(WidgetTester tester, String label, String text) async {
   await tester.pump();
 }
 
+/// A reason box that is now a list (reason-select.tsx): pick "Other" and type
+/// [text] in the box it opens, so the request still carries [text]. When
+/// "Other" is already picked, only the text is replaced.
+Future<void> reasonOther(WidgetTester tester, String text) async {
+  final select = find.text('Select a reason');
+  if (select.evaluate().isNotEmpty) {
+    await tester.ensureVisible(select.last);
+    await tester.pumpAndSettle();
+    await tester.tap(select.last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Other').last);
+    await tester.pumpAndSettle();
+  }
+  // The box "Other" opened: ReasonSelect's or a prompt's, by its hint;
+  // failing that the focused field, else the last one.
+  final hinted = find.byWidgetPredicate((w) =>
+      w is TextField && (w.decoration?.hintText == 'Type the reason' || w.decoration?.hintText == 'Say what happened'));
+  final focused = find.byWidgetPredicate((w) => w is EditableText && w.focusNode.hasFocus);
+  final box = hinted.evaluate().isNotEmpty
+      ? hinted.last
+      : focused.evaluate().isNotEmpty
+          ? focused.first
+          : find.byType(EditableText).last;
+  await tester.enterText(box, text);
+  await tester.pumpAndSettle();
+}
+
+/// A reason picked straight from the list.
+Future<void> reasonPick(WidgetTester tester, String option) async {
+  final select = find.text('Select a reason');
+  await tester.ensureVisible(select.last);
+  await tester.pumpAndSettle();
+  await tester.tap(select.last);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(option).last);
+  await tester.pumpAndSettle();
+}

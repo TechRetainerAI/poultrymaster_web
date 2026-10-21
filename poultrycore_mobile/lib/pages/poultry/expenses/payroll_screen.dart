@@ -16,6 +16,7 @@ import '../sales/balances_widgets.dart';
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../trackers/tracker_widgets.dart';
 import '../reports/money_reports.dart' show MoneyRail, poultryMoneyRail;
+import '../../shared/reason_select.dart';
 
 /// Poultry → Expenses → Payroll, as `app/poultry-payroll/page.tsx`: payroll
 /// runs (Draft → Approved → Paid, reopen, cancel, delete), their staff lines
@@ -517,7 +518,7 @@ class _ReasonDialogState extends State<_ReasonDialog> {
             style: const TextStyle(fontSize: 13, color: TColors.slate500),
           ),
           const SizedBox(height: 12),
-          FilterLabel(reopen ? 'Reason *' : 'Reason', AppInput(controller: _reason, hintText: 'Why?')),
+          FilterLabel(reopen ? 'Reason *' : 'Reason', ReasonSelectField(controller: _reason, options: reopen ? reopenReasons : cancelReasons)),
         ]),
       ),
       actions: [

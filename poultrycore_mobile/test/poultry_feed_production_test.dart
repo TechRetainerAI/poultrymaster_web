@@ -197,7 +197,7 @@ void main() {
     await see(tester, find.text('from 50 in the recipe'));
     await see(tester, find.text('Record #77'));
     await tap(tester, find.text('Reverse'));
-    await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)), 'Wrong mix');
+    await reasonOther(tester, 'Wrong mix');
     await tester.tap(find.text('Reverse Batch'));
     await tester.pumpAndSettle();
     final w = a.writes.firstWhere((w) => w.url.path == '/api/Poultry/feed-production/4/reverse');

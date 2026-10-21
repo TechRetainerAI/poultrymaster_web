@@ -1,3 +1,4 @@
+import '../../shared/setup_admin_routes.dart';
 import '../money/money_routes.dart';
 import 'package:flutter/material.dart';
 
@@ -56,6 +57,8 @@ void openReportHref(BuildContext context, Session session, Company company, Stri
 /// Follows any app link from a report (Settings, Cash Flow, Loans…): the
 /// native screen when the app has one, otherwise the web page in-app.
 void openAppHref(BuildContext context, Session session, Company company, String href, {required String label}) {
+  // SetupAccessGuard: an ordinary employee does not get a Setup page.
+  if (isSetupAdminRoute(href) && !canOpenSetup(company)) return;
   final screen = pageScreens[href];
   Navigator.of(context).push(MaterialPageRoute(
     builder: (_) => screen != null

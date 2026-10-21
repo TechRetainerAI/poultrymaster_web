@@ -23,6 +23,7 @@ import '../trackers/tracker_widgets.dart';
 import 'delivery_detail_screen.dart';
 import 'delivery_dialogs.dart';
 import 'delivery_logic.dart';
+import '../../shared/reason_select.dart' show reversalReasons;
 
 class DeliveriesScreen extends StatefulWidget {
   const DeliveriesScreen({super.key, required this.session, required this.company, this.date});
@@ -288,6 +289,7 @@ class _DeliveriesScreenState extends State<DeliveriesScreen> {
                 'created by this reconciliation. You can then edit and reconcile the delivery again.',
         label: edit ? 'Reason for edit' : 'Reason for reversal',
         placeholder: 'e.g. wrong customer assigned / late MoMo correction',
+        options: reversalReasons,
         confirmLabel: edit ? 'Reverse & edit' : 'Reverse',
         onSubmit: (_) async {
           try {

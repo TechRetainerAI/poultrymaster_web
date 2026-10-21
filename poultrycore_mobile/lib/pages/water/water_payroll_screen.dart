@@ -16,6 +16,7 @@ import '../poultry/trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../poultry/trackers/tracker_widgets.dart';
 import '../shared/business_dates.dart';
 import '../shared/company_clock.dart';
+import '../shared/reason_select.dart';
 import 'reports/water_money_reports.dart' show waterMoneyRail;
 
 /// Water → Expenses → Payroll, as `app/water-payroll/page.tsx`: pay runs
@@ -154,6 +155,7 @@ class _WaterPayrollScreenState extends State<WaterPayrollScreen> {
   Future<void> _cancel(Map r) => showWaterPayrollPrompt(
     context,
     title: 'Cancel payroll run',
+    options: cancelReasons,
     description: 'Run for ${_period(r)} will be cancelled.',
     label: 'Reason (optional)',
     placeholder: 'e.g. ran twice, wrong period, replacing with corrected run…',
@@ -351,6 +353,8 @@ class _WaterPayrollScreenState extends State<WaterPayrollScreen> {
 // ------------------------------------------------------------------ dialogs
 
 /// PromptDialog: a title, a description, one text box, and a confirm button.
+/// With [options] the reason is picked from that list, and the box opens only
+/// for "Other" (lib/reversal-reasons.ts).
 Future<void> showWaterPayrollPrompt(
   BuildContext context, {
   required String title,
@@ -359,10 +363,12 @@ Future<void> showWaterPayrollPrompt(
   required String placeholder,
   required String confirm,
   bool allowEmpty = false,
+  List<String>? options,
   required Future<bool> Function(String reason) onSubmit,
 }) => showDialog<void>(
   context: context,
-  builder: (_) => _PromptDialog(title: title, description: description, label: label, placeholder: placeholder, confirm: confirm, allowEmpty: allowEmpty, onSubmit: onSubmit),
+  builder: (_) => _PromptDialog(
+      title: title, description: description, label: label, placeholder: placeholder, confirm: confirm, allowEmpty: allowEmpty, options: options, onSubmit: onSubmit),
 );
 
 /// "Reopen payroll run": a reason is required; the linked expense is reversed
@@ -375,6 +381,7 @@ Future<void> showWaterPayrollReopen(BuildContext context, {required Session sess
   label: 'Reason *',
   placeholder: 'e.g. wrong amount for Kofi, missed bonus, correcting period…',
   confirm: 'Reopen run',
+  options: reopenReasons,
   onSubmit: (reason) async {
     if (reason.trim().isEmpty) {
       trackerToast(context, 'Reason required', description: 'Tell future-you why this payroll is being reopened.', error: true);
@@ -396,9 +403,11 @@ Future<void> showWaterPayrollReopen(BuildContext context, {required Session sess
 );
 
 class _PromptDialog extends StatefulWidget {
-  const _PromptDialog({required this.title, required this.description, required this.label, required this.placeholder, required this.confirm, required this.allowEmpty, required this.onSubmit});
+  const _PromptDialog(
+      {required this.title, required this.description, required this.label, required this.placeholder, required this.confirm, required this.allowEmpty, this.options, required this.onSubmit});
   final String title, description, label, placeholder, confirm;
   final bool allowEmpty;
+  final List<String>? options;
   final Future<bool> Function(String) onSubmit;
   @override
   State<_PromptDialog> createState() => _PromptDialogState();
@@ -407,6 +416,8 @@ class _PromptDialog extends StatefulWidget {
 class _PromptDialogState extends State<_PromptDialog> {
   final _text = TextEditingController();
   bool _busy = false;
+  String _choice = '';
+  String? _error;
 
   @override
   void dispose() {
@@ -415,8 +426,13 @@ class _PromptDialogState extends State<_PromptDialog> {
   }
 
   Future<void> _go() async {
-    setState(() => _busy = true);
-    final ok = await widget.onSubmit(_text.text.trim());
+    final r = promptReasonValue(widget.options, _choice, _text.text, label: widget.label, allowEmpty: widget.allowEmpty);
+    if (r.error != null) return setState(() => _error = r.error);
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    final ok = await widget.onSubmit(r.value!);
     if (!mounted) return;
     setState(() => _busy = false);
     if (ok) Navigator.pop(context);
@@ -434,7 +450,31 @@ class _PromptDialogState extends State<_PromptDialog> {
         children: [
           Text(widget.description, style: const TextStyle(fontSize: 13, color: TColors.slate600)),
           const SizedBox(height: 12),
-          FilterLabel(widget.label, AppInput(controller: _text, hintText: widget.placeholder, onChanged: (_) => setState(() {}))),
+          if (widget.options == null)
+            FilterLabel(widget.label, AppInput(controller: _text, hintText: widget.placeholder, onChanged: (_) => setState(() {})))
+          else
+            FilterLabel(
+              widget.label,
+              Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+                AppSelect<String>(
+                  value: _choice.isEmpty ? null : _choice,
+                  hintText: 'Select a reason',
+                  items: [for (final o in widget.options!) AppSelectItem(value: o, label: o)],
+                  onChanged: (v) => setState(() {
+                    _choice = v ?? '';
+                    _error = null;
+                  }),
+                ),
+                if (_choice == 'Other') ...[
+                  const SizedBox(height: 8),
+                  AppInput(controller: _text, hintText: 'Say what happened', autofocus: true, onChanged: (_) => setState(() {})),
+                ],
+              ]),
+            ),
+          if (_error != null) ...[
+            const SizedBox(height: 6),
+            Text(_error!, style: const TextStyle(fontSize: 13, color: TColors.rose700)),
+          ],
         ],
       ),
     ),
@@ -442,7 +482,7 @@ class _PromptDialogState extends State<_PromptDialog> {
       TextButton(onPressed: _busy ? null : () => Navigator.pop(context), child: const Text('Cancel')),
       FilledButton(
         style: FilledButton.styleFrom(backgroundColor: TColors.red600),
-        onPressed: _busy || (!widget.allowEmpty && _text.text.trim().isEmpty) ? null : _go,
+        onPressed: _busy || (widget.options == null && !widget.allowEmpty && _text.text.trim().isEmpty) ? null : _go,
         child: Text(widget.confirm),
       ),
     ],

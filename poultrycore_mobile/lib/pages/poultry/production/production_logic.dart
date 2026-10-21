@@ -369,3 +369,20 @@ num? eggPercent(Map r) {
 }
 
 String monthKey(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}';
+
+/// The sentence to show when the API refuses a save or a delete -- never the
+/// raw response. A refusal is a 400 with {message} (e.g. 372's byproduct guard)
+/// or a 500 wrapping a database RAISE (sqlState P0…); both carry a message
+/// written for the user. Anything else gets [fallback].
+String productionRefusal(Object e, String fallback) {
+  if (e is! ApiException) return fallback;
+  final body = e.body;
+  final message = body is Map ? '${body['message'] ?? ''}'.trim() : '';
+  if (message.isNotEmpty) {
+    final raised = body is Map && '${body['sqlState'] ?? ''}'.startsWith('P0');
+    if (e.statusCode == 400 || raised) return message;
+  }
+  // A plain-text 400 is the API's own wording; anything else is not for the user.
+  if (e.statusCode == 400 && body == null && e.message.trim().isNotEmpty && !e.message.trim().startsWith('<')) return e.message.trim();
+  return fallback;
+}

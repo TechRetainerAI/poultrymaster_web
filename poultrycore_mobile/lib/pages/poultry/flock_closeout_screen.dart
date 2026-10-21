@@ -14,6 +14,7 @@ import 'money/money_widgets.dart';
 import 'reports/report_format.dart';
 import 'sales/balances_logic.dart' show pageSlice;
 import 'sales/balances_widgets.dart';
+import 'sales/credit_widgets.dart' show CreditTabs;
 import 'trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import 'trackers/tracker_widgets.dart';
 
@@ -198,7 +199,7 @@ class _FlockCloseoutScreenState extends State<FlockCloseoutScreen> {
                     ]);
                   }),
                   const SizedBox(height: 14),
-                  _tabsList(),
+                  _tabsList(open.length, closedAll.length),
                   if (_tab != 'compare') ...[
                     const SizedBox(height: 12),
                     ListFiltersCard(
@@ -240,38 +241,16 @@ class _FlockCloseoutScreenState extends State<FlockCloseoutScreen> {
         ]),
       );
 
-  /// The web's TabsList: a slate pill holding the three triggers.
-  Widget _tabsList() {
-    const tabs = [('open', 'Ready to close'), ('closed', 'Closed'), ('compare', 'Compare')];
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(color: TColors.slate100, borderRadius: BorderRadius.circular(8)),
-      child: Row(children: [
-        for (final (v, l) in tabs)
-          Expanded(
-            child: InkWell(
-              borderRadius: BorderRadius.circular(6),
-              onTap: () => setState(() => _tab = v),
-              child: Container(
-                constraints: const BoxConstraints(minHeight: 40),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: _tab == v ? Colors.white : null,
-                  borderRadius: BorderRadius.circular(6),
-                  boxShadow: _tab == v ? const [BoxShadow(color: Color(0x14000000), blurRadius: 2, offset: Offset(0, 1))] : null,
-                ),
-                child: Text(l,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: _tab == v ? TColors.slate900 : TColors.slate500)),
-              ),
-            ),
-          ),
-      ]),
-    );
-  }
+  /// The web's TabsList (tabListCls): icon, label and count per trigger.
+  Widget _tabsList(int openCount, int closedCount) => CreditTabs(
+        tabs: [
+          ('open', Icons.flag_outlined, 'Ready to close', openCount),
+          ('closed', Icons.lock_outline, 'Closed', closedCount),
+          ('compare', Icons.balance, 'Compare', null),
+        ],
+        value: _tab,
+        onChanged: (v) => setState(() => _tab = v),
+      );
 
   Widget _state(String text) => TCard(
         padding: const EdgeInsets.all(24),

@@ -114,6 +114,12 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
     messenger.showSnackBar(SnackBar(content: Text('Switched to ${target.name}'), duration: const Duration(seconds: 2)));
   }
 
+  bool get _canCreateCompany {
+    final me = widget.session.tokens.userId;
+    final owns = me != null && widget.session.myCompanies.any((c) => c.ownerUserId == me);
+    return (widget.company.role ?? '').toLowerCase() != 'staff' || owns;
+  }
+
   Future<void> _create() async {
     final created = await Navigator.of(context).push<_Created>(MaterialPageRoute(
       builder: (_) => _NewCompanyScreen(session: widget.session),
@@ -153,8 +159,12 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
           children: [
-            AppButton(label: 'New company', icon: Icons.add, fullWidth: true, onPressed: _create),
-            const SizedBox(height: 10),
+            // useCanCreateCompany: creating a company makes the caller its owner, so
+            // owners only (an employee who also owns a company still may).
+            if (_canCreateCompany) ...[
+              AppButton(label: 'New company', icon: Icons.add, fullWidth: true, onPressed: _create),
+              const SizedBox(height: 10),
+            ],
             Text(
               'One login, multiple businesses. Create a poultry farm or a water business — switch between '
               'them anytime using the company switcher at the top of the page.',

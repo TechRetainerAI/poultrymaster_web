@@ -57,6 +57,7 @@ const List<ReportMenuGroup> poultryReportMenuGroups = [
       (id: 'hen-day-production', title: 'Hen-Day Production', description: 'Production relative to live birds.', icon: Icons.show_chart, href: '/poultry/reports/hen-day-production'),
       (id: 'batch-production-summary', title: 'Batch Production Summary', description: 'Production performance rolled up per flock batch.', icon: Icons.inventory_2_outlined, href: '/poultry/reports/batch-production-summary'),
       (id: 'egg-stock-balance', title: 'Egg Stock Balance', description: 'Egg inventory on hand, in eggs and crates.', icon: Icons.inventory_2_outlined, href: '/poultry/reports/egg-stock-balance'),
+      (id: 'byproduct-inventory', title: 'Byproduct Inventory & Disposition', description: 'Broken Eggs and Dead Birds: generated, sold, disposed and left, by flock.', icon: Icons.delete_outline, href: '/poultry/reports/byproduct-inventory'),
       (id: 'missing-daily-records', title: 'Missing Daily Records', description: 'Active flocks missing required daily records.', icon: Icons.fact_check_outlined, href: '/poultry/reports/missing-daily-records'),
     ],
   ),

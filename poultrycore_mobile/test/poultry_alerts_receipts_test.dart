@@ -251,7 +251,7 @@ void main() {
       expect(find.textContaining('paid on receipt from Main Cash Account (Cash) — supplier payment #12'), findsOneWidget);
       expect(find.text('2 used'), findsOneWidget);
       await tapText(tester, 'Reverse receipt');
-      await tester.enterText(find.byType(TextFormField).last, 'Wrong supplier');
+      await reasonOther(tester, 'Wrong supplier');
       await tester.tap(find.widgetWithText(FilledButton, 'Reverse receipt'));
       await tester.pumpAndSettle();
       expect(api.lastBody('$receiptsBase/3/reverse')['reason'], 'Wrong supplier');
