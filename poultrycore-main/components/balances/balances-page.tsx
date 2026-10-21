@@ -128,6 +128,11 @@ export function BalancesPage({
   const partyWord = wording?.party ?? (isCustomer ? "customer" : "supplier")
   const partyWordPlural = wording?.partyPlural ?? `${partyWord}s`
   const docWord = wording?.document ?? (isCustomer ? "sale" : "purchase")
+  // "Bulk" only when there is more than one thing to spread the money over; with
+  // one open item the summary row's button is just a payment against it.
+  const payLabel = (party: PartyBalanceRow) => party.openDocumentCount > 1
+    ? (isCustomer ? "Receive bulk payment" : "Record bulk payment")
+    : (isCustomer ? "Receive payment" : "Record payment")
   const pageTitle = wording?.title ?? (isCustomer ? "Customer Balances" : "Supplier Balances")
 
   const [rows, setRows] = useState<PartyBalanceRow[]>([])
@@ -553,7 +558,7 @@ export function BalancesPage({
                               <div className="grid grid-cols-2 gap-2 pt-2">
                                 {canPay && (
                                   <Button size="sm" className="col-span-2 h-10 w-full" onClick={(e) => { e.stopPropagation(); setPayFor({ party, doc: null }) }}>
-                                    <Wallet className="mr-2 h-4 w-4" /> {isCustomer ? "Receive bulk payment" : "Record bulk payment"}
+                                    <Wallet className="mr-2 h-4 w-4" /> {payLabel(party)}
                                   </Button>
                                 )}
                                 {canStatement && (
@@ -684,7 +689,7 @@ export function BalancesPage({
                                 <div className="flex justify-end gap-1">
                                   {canPay && (
                                     <Button size="sm" onClick={() => setPayFor({ party, doc: null })}>
-                                      {isCustomer ? "Receive bulk payment" : "Record bulk payment"}
+                                      {payLabel(party)}
                                     </Button>
                                   )}
                                   {canStatement && (

@@ -191,14 +191,16 @@ function FinancialActivityPageInner() {
     return { moneyIn, moneyOut, revenue, expense, net: moneyIn - moneyOut, profit: revenue - expense }
   }, [filtered])
 
-  // Default order is what the server sent: chronological, which is the order
-  // Running Cash is computed in. Sorting is therefore a VIEW of the same rows --
-  // clearing the sort puts the ledger back.
+  // The server sends rows chronologically, the order Running Cash is computed in.
+  // With no column sort the ledger is shown NEWEST FIRST, like Cash Flow: the
+  // server order simply reversed, so same-day rows keep their relative order and
+  // each Running Cash still reads as the position after that row. A column sort
+  // is a VIEW of the same rows -- clearing it puts the ledger back.
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<SortDirection>(null)
 
   const sorted = useMemo(
-    () => sortData(filtered, sortKey, sortDir, (r, key) => {
+    () => !sortKey || !sortDir ? [...filtered].reverse() : sortData(filtered, sortKey, sortDir, (r, key) => {
       switch (key) {
         // The business date is what the column shows; createdAt only breaks ties
         // for rows entered on the same day.
@@ -245,7 +247,8 @@ function FinancialActivityPageInner() {
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
     }
     const lines = [head.join(",")]
-    for (const r of filtered) {
+    // Same order as the table on screen.
+    for (const r of sorted) {
       lines.push([
         formatActivityMoment(r.occurredAt, r.createdAt), r.type, r.category, r.description ?? "",
         r.moneyIn || "", r.moneyOut || "", r.revenue || "", r.expense || "",

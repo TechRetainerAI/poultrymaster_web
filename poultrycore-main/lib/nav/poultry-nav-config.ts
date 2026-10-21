@@ -243,7 +243,7 @@ export function buildPoultryNavConfig(
           // the two Sales rows.
           { id: "supplier-payments", title: "Supplier Payments", icon: Receipt, href: "/supplier-payments", visible: money("/supplier-payments") },
           { id: "supplier-balances", title: "Supplier Balances", icon: Truck, href: "/supplier-balances", visible: money("/supplier-balances") },
-          { id: "supplier-credits", title: "Supplier Credits", icon: Wallet, href: "/supplier-credits", visible: money("/supplier-credits") },
+          { id: "supplier-credits", title: "Supplier Credits & Advances", icon: Wallet, href: "/supplier-credits", visible: money("/supplier-credits") },
           // Moved here from Operations > Inventory & Health. Stock the farm
           // consumes itself is money going out in kind -- it belongs with the
           // outflows it is, rather than with the stock counts it is measured
