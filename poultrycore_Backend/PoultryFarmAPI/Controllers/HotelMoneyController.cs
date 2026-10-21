@@ -59,7 +59,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // Account extras (migration 331). Every write is one Postgres function call;
     // its refusals (P0001) come back as 400 with the sentence, via
     // HotelBusinessRuleFilter. The acting user comes from the token, never the body.
-    [ApiController][Authorize][Route("api/Hotel")][HotelBusinessRuleFilter]
+    [ApiController][Authorize][Route("api/Hotel")][HotelBusinessRuleFilter][RequireCompanyType("Hotel")]
     public class HotelMoneyController : ControllerBase
     {
         private readonly IHotelMoneyService _svc;

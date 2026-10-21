@@ -1,5 +1,6 @@
 
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 
@@ -19,6 +20,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // =========================================================================
     [ApiController]
     [Route("api/poultry/reports")]
+    [RequireCompanyType("Poultry")]
     public class PoultryAdvancedReportsController : ControllerBase
     {
         private readonly IPoultryAdvancedReportService _reports;

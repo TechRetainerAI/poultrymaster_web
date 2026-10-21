@@ -19,6 +19,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [Authorize]
     [RestaurantBusinessRuleFilter]
     [Route("api/Restaurant/internal-usage")]
+    [RequireCompanyType("Restaurant")]
     public class RestaurantInternalUseController : ControllerBase
     {
         private static readonly string[] Categories =

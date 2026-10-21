@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 
@@ -10,6 +11,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/Poultry/products")]
+    [RequireCompanyType("Poultry")]
     public class PoultryProductController : ControllerBase
     {
         private readonly IPoultryProductService _svc;
@@ -76,6 +78,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Poultry/stock")]
+    [RequireCompanyType("Poultry")]
     public class PoultryStockController : ControllerBase
     {
         private readonly IPoultryStockService _svc;
@@ -174,6 +177,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Poultry/production-batches")]
+    [RequireCompanyType("Poultry")]
     public class PoultryProductionBatchController : ControllerBase
     {
         private readonly IPoultryProductionBatchService _svc;
@@ -200,6 +204,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Poultry/production-losses")]
+    [RequireCompanyType("Poultry")]
     public class PoultryProductionLossController : ControllerBase
     {
         private readonly IPoultryProductionBatchService _svc;
@@ -211,6 +216,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Poultry/loss-records")]
+    [RequireCompanyType("Poultry")]
     public class PoultryLossRecordController : ControllerBase
     {
         private readonly IPoultryLossRecordService _svc;
@@ -237,6 +243,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Poultry/daily-closings")]
+    [RequireCompanyType("Poultry")]
     public class PoultryDailyClosingController : ControllerBase
     {
         private readonly IPoultryDailyClosingService _svc;
@@ -315,6 +322,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Poultry/closing-report")]
+    [RequireCompanyType("Poultry")]
     public class PoultryClosingReportController : ControllerBase
     {
         private readonly IPoultryReportService _svc;
@@ -326,6 +334,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Poultry/deliveries")]
+    [RequireCompanyType("Poultry")]
     public class PoultryDeliveryController : ControllerBase
     {
         private readonly IPoultryDeliveryService _svc;

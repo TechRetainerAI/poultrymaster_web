@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 
@@ -9,6 +10,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // ====================================================================
     [ApiController]
     [Route("api/Poultry/staff")]
+    [RequireCompanyType("Poultry")]
     public class PoultryStaffController : ControllerBase
     {
         private readonly IPoultryStaffService _svc;
@@ -61,6 +63,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // ====================================================================
     [ApiController]
     [Route("api/Poultry/staff-attendance")]
+    [RequireCompanyType("Poultry")]
     public class PoultryStaffAttendanceController : ControllerBase
     {
         private readonly IPoultryStaffAttendanceService _svc;
@@ -101,6 +104,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // ====================================================================
     [ApiController]
     [Route("api/Poultry/payroll-runs")]
+    [RequireCompanyType("Poultry")]
     public class PoultryPayrollController : ControllerBase
     {
         private readonly IPoultryPayrollService _svc;

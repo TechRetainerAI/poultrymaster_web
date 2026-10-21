@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 
@@ -7,6 +8,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/Water/drivers")]
+    [RequireCompanyType("Water")]
     public class WaterDriverController : ControllerBase
     {
         private readonly IWaterDriverService _svc;
@@ -85,6 +87,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/Water/vehicles")]
+    [RequireCompanyType("Water")]
     public class WaterVehicleController : ControllerBase
     {
         private readonly IWaterVehicleService _svc;
@@ -129,6 +132,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/Water/routes")]
+    [RequireCompanyType("Water")]
     public class WaterRouteController : ControllerBase
     {
         private readonly IWaterRouteService _svc;
@@ -172,6 +176,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Water/vehicle-loadings")]
+    [RequireCompanyType("Water")]
     public class WaterVehicleLoadingController : ControllerBase
     {
         private readonly IWaterVehicleLoadingService _svc;
@@ -246,6 +251,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Water/driver-returns")]
+    [RequireCompanyType("Water")]
     public class WaterDriverReturnController : ControllerBase
     {
         private readonly IWaterDriverReturnService _svc;
@@ -381,6 +387,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
     [ApiController]
     [Route("api/Water/driver-shortages")]
+    [RequireCompanyType("Water")]
     public class WaterDriverShortageController : ControllerBase
     {
         private readonly IWaterDriverShortageService _svc;

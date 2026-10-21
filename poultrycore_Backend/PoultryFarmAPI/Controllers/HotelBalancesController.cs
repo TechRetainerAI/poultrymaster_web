@@ -24,7 +24,7 @@ namespace PoultryFarmAPIWeb.Controllers
 {
     public class HotelSaleBillToRequest { public string FarmId { get; set; } = ""; public int HotelCustomerId { get; set; } }
 
-    [ApiController][Authorize][Route("api/Hotel")][HotelBusinessRuleFilter]
+    [ApiController][Authorize][Route("api/Hotel")][HotelBusinessRuleFilter][RequireCompanyType("Hotel")]
     public class HotelBalancesController : ControllerBase
     {
         private readonly IHotelBalanceService _svc;

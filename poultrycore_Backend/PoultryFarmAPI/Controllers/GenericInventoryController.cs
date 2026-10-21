@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 
@@ -10,6 +11,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // =========================================================================
     [ApiController]
     [Route("api/generic-company/{farmId}")]
+    [RequireCompanyType("Generic")]
     public class GenericProductController : ControllerBase
     {
         private readonly IGenericProductService _products;
@@ -165,6 +167,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // =========================================================================
     [ApiController]
     [Route("api/generic-company/{farmId}")]
+    [RequireCompanyType("Generic")]
     public class GenericServiceCatalogController : ControllerBase
     {
         private readonly IGenericServiceCatalogService _services;
@@ -296,6 +299,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // =========================================================================
     [ApiController]
     [Route("api/generic-company/{farmId}/inventory")]
+    [RequireCompanyType("Generic")]
     public class GenericInventoryController : ControllerBase
     {
         private readonly IGenericInventoryService _inv;

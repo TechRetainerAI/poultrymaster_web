@@ -6,6 +6,7 @@
 // way and the frontend already expects this shape.
 
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 
@@ -16,6 +17,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // ====================================================================
     [ApiController]
     [Route("api/Water/expense-categories")]
+    [RequireCompanyType("Water")]
     public class WaterExpenseCategoryController : ControllerBase
     {
         private readonly IWaterExpenseCategoryService _svc;
@@ -66,6 +68,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // ====================================================================
     [ApiController]
     [Route("api/Water/cash-accounts")]
+    [RequireCompanyType("Water")]
     public class WaterCashAccountController : ControllerBase
     {
         private readonly IWaterCashAccountService _svc;
@@ -154,6 +157,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // water.cash-reconciliation.approve without any special-casing.
     [ApiController]
     [Route("api/Water/cash-reconciliations")]
+    [RequireCompanyType("Water")]
     public class WaterCashReconciliationController : ControllerBase
     {
         private readonly IWaterCashReconciliationService _svc;
@@ -264,6 +268,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // ====================================================================
     [ApiController]
     [Route("api/Water/cash-transfers")]
+    [RequireCompanyType("Water")]
     public class WaterCashTransferController : ControllerBase
     {
         private readonly IWaterCashTransferService _svc;
@@ -336,6 +341,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // ====================================================================
     [ApiController]
     [Route("api/Water/expenses")]
+    [RequireCompanyType("Water")]
     public class WaterExpenseController : ControllerBase
     {
         private readonly IWaterExpenseService _svc;
@@ -446,6 +452,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // ====================================================================
     [ApiController]
     [Route("api/Water/customers")]
+    [RequireCompanyType("Water")]
     public class WaterCustomerLedgerController : ControllerBase
     {
         private readonly IWaterCustomerLedgerService _svc;
@@ -480,6 +487,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/Water/suppliers")]
+    [RequireCompanyType("Water")]
     public class WaterSupplierController : ControllerBase
     {
         private readonly IWaterSupplierService _svc;

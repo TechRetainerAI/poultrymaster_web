@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 using System;
@@ -29,6 +30,7 @@ namespace PoultryFarmAPIWeb.Controllers
     /// </summary>
     [ApiController]
     [Route("api/flock-closeout")]
+    [RequireCompanyType("Poultry")]
     public class FlockCloseoutController : ControllerBase
     {
         private readonly IFlockCloseoutService _closeout;

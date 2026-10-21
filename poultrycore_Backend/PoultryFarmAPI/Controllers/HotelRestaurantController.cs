@@ -19,7 +19,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // Orders and their money are written by sphotelrestaurantorder_create / _setstatus
     // (migration 327) in one transaction: a paid order posts POS cash, a room-charged
     // order becomes folio charges, a cancellation reverses either. Refusals are 400s.
-    [ApiController][Authorize][Route("api/Hotel/restaurant")][HotelBusinessRuleFilter]
+    [ApiController][Authorize][Route("api/Hotel/restaurant")][HotelBusinessRuleFilter][RequireCompanyType("Hotel")]
     public class HotelRestaurantController : ControllerBase
     {
         private readonly string _cs;

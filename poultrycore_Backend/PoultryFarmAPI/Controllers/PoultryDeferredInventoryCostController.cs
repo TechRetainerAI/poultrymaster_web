@@ -9,6 +9,7 @@
 // sppoultryproductionrawmaterialsync (266) -- not on this rail.
 
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Models;
@@ -17,6 +18,7 @@ namespace PoultryFarmAPIWeb.Controllers
 {
     [ApiController]
     [Route("api/Poultry/deferred-inventory-costs")]
+    [RequireCompanyType("Poultry")]
     public class PoultryDeferredInventoryCostController : ControllerBase
     {
         private readonly IPoultryDeferredInventoryCostService _svc;

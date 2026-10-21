@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Helpers;
 namespace PoultryFarmAPIWeb.Controllers
 {
     [ApiController][Authorize][Route("api/Restaurant/reports")]
+    [RequireCompanyType("Restaurant")]
     public class RestaurantReportController : ControllerBase
     {
         private readonly IRestaurantReportService _svc;

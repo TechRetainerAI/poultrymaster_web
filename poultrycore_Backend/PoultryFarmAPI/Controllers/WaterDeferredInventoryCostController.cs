@@ -13,6 +13,7 @@
 // thing that consumed the stock.
 
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 
@@ -20,6 +21,7 @@ namespace PoultryFarmAPIWeb.Controllers
 {
     [ApiController]
     [Route("api/Water/deferred-inventory-costs")]
+    [RequireCompanyType("Water")]
     public class WaterDeferredInventoryCostController : ControllerBase
     {
         private readonly IWaterDeferredInventoryCostService _svc;

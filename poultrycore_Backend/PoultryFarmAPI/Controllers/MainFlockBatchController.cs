@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 
@@ -7,6 +8,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [ApiController]
     [Route("api/[controller]")]
     // Handles all API requests for the MainFlockBatch entity.
+    [RequireCompanyType("Poultry")]
     public class MainFlockBatchController : ControllerBase
     {
         private readonly IMainFlockBatchService _batchService;

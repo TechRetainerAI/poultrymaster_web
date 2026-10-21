@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 
@@ -6,6 +7,7 @@ namespace PoultryFarmAPIWeb.Controllers
 {
     [ApiController]
     [Route("api/Hotel/profit-loss")]
+    [RequireCompanyType("Hotel")]
     public class HotelProfitLossController : ControllerBase
     {
         private readonly IHotelProfitLossService _svc;

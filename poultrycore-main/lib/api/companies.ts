@@ -157,6 +157,7 @@ export function dashboardHomeForType(type: CompanyType | null | undefined): stri
   if (type === "Water") return "/water-dashboard"
   if (type === "Generic") return "/generic-dashboard"
   if (type === "Hotel") return "/hotel-dashboard"
+  if (type === "Restaurant") return "/restaurant-dashboard"
   return "/dashboard"
 }
 

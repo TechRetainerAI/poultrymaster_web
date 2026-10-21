@@ -27,7 +27,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // cancel, mark paid) run inside database functions from migration 325, so a
     // loan repayment and the payroll it came from can never disagree. Their
     // refusals come back as 400 with the database's sentence (HotelBusinessRuleFilter).
-    [ApiController][Authorize][Route("api/Hotel")][HotelBusinessRuleFilter]
+    [ApiController][Authorize][Route("api/Hotel")][HotelBusinessRuleFilter][RequireCompanyType("Hotel")]
     public class HotelPayrollController : ControllerBase
     {
         private readonly string _cs;

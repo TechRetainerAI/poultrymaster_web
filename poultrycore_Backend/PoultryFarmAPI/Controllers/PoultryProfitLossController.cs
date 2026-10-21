@@ -9,6 +9,7 @@
 // drilldown total can never disagree with the figure the user clicked.
 
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 
@@ -16,6 +17,7 @@ namespace PoultryFarmAPIWeb.Controllers
 {
     [ApiController]
     [Route("api/Poultry/profit-loss")]
+    [RequireCompanyType("Poultry")]
     public class PoultryProfitLossController : ControllerBase
     {
         private readonly IPoultryProfitLossService _svc;

@@ -1,11 +1,12 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Helpers;
 
 namespace PoultryFarmAPIWeb.Controllers
 {
-    [ApiController][Authorize][Route("api/Hotel/front-desk")]
+    [ApiController][Authorize][Route("api/Hotel/front-desk")][RequireCompanyType("Hotel")]
     public class HotelFrontDeskController : ControllerBase
     {
         private readonly IHotelFrontDeskService _svc;
@@ -62,7 +63,7 @@ namespace PoultryFarmAPIWeb.Controllers
         public string? Notes { get; set; }
     }
 
-    [ApiController][Authorize][Route("api/Hotel/housekeeping")]
+    [ApiController][Authorize][Route("api/Hotel/housekeeping")][RequireCompanyType("Hotel")]
     public class HotelHousekeepingController : ControllerBase
     {
         private readonly IHotelHousekeepingService _svc;

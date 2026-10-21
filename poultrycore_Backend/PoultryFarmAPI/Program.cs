@@ -578,9 +578,11 @@ builder.Services.AddControllers(options =>
     // it logs what it would have blocked and lets everything through. See
     // Filters/IamEnforcementFilter.cs before switching it on.
     options.Filters.AddService<PoultryFarmAPIWeb.Filters.IamEnforcementFilter>();
+    options.Filters.AddService<PoultryFarmAPIWeb.Filters.CompanyTypeFilter>();
     options.Filters.AddService<AuditLogActionFilter>();
 });
 builder.Services.AddScoped<PoultryFarmAPIWeb.Filters.IamEnforcementFilter>();
+builder.Services.AddScoped<PoultryFarmAPIWeb.Filters.CompanyTypeFilter>();
 builder.Services.AddScoped<AuditLogActionFilter>();
 builder.Services.AddSignalR();
 

@@ -9,6 +9,7 @@ import { SubscriptionGuard } from '@/components/auth/subscription-guard'
 import { WaterAccessGuard } from '@/components/auth/water-access-guard'
 import { HotelAccessGuard } from '@/components/auth/hotel-access-guard'
 import { SetupAccessGuard } from '@/components/auth/setup-access-guard'
+import { CompanyTypeGuard } from '@/components/auth/company-type-guard'
 import { Toaster } from '@/components/ui/toaster'
 import './globals.css'
 
@@ -34,6 +35,7 @@ export default function RootLayout({
           <WaterAccessGuard />
           <HotelAccessGuard />
           <SetupAccessGuard />
+          <CompanyTypeGuard />
           {children}
           <FloatingChatWidget />
           <Toaster />

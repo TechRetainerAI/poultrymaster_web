@@ -6,6 +6,7 @@
 // PoultryFarmAPIWeb.Controllers namespace).
 
 using Microsoft.AspNetCore.Mvc;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 
@@ -16,6 +17,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // ====================================================================
     [ApiController]
     [Route("api/generic-company/{farmId}/staff")]
+    [RequireCompanyType("Generic")]
     public class GenericStaffController : ControllerBase
     {
         private readonly IGenericStaffService _svc;
@@ -84,6 +86,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // ====================================================================
     [ApiController]
     [Route("api/generic-company/{farmId}/staff-attendance")]
+    [RequireCompanyType("Generic")]
     public class GenericStaffAttendanceController : ControllerBase
     {
         private readonly IGenericStaffAttendanceService _svc;
@@ -136,6 +139,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // ====================================================================
     [ApiController]
     [Route("api/generic-company/{farmId}/payroll-runs")]
+    [RequireCompanyType("Generic")]
     public class GenericPayrollController : ControllerBase
     {
         private readonly IGenericPayrollService _svc;
