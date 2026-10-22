@@ -1156,12 +1156,6 @@ export default function PoultryFarmSetupPage() {
                             </div>
                           </div>
                         )}
-                        {visibleHouses.length > 0 && (
-                          <GridHeader columns={[
-                            ["col-span-4", "House/Pen Name *"], ["col-span-2", "Capacity"],
-                            ["col-span-5", "Location"], ["col-span-1", ""],
-                          ]} />
-                        )}
                         {draft.houses.length === 0 && (
                             <p className="text-slate-600 text-sm">No houses/pens yet. Create some above, or add one row at a time.</p>
                           )}
@@ -1172,18 +1166,28 @@ export default function PoultryFarmSetupPage() {
                                 : "None of your pens are empty. Add a new one above, or choose “All houses/pens” to see them."}
                             </p>
                           )}
+                          {/* Cards, about three to a row: a full-width row per pen
+                              made a handful of pens fill the whole screen. */}
+                          {visibleHouses.length > 0 && (
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                           {visibleHouses.map(({ row: h, index: i, isExisting, load }) => (
-                            <div key={h.key} className={`rounded-lg border px-3 py-3 md:grid md:grid-cols-12 md:gap-3 [&_input]:bg-white [&_button[role=combobox]]:bg-white [&_[data-slot=select-trigger]]:bg-white ${rowShell(i, submitted ? fieldErrors.houses?.[i] : undefined, serverErrors.houses?.[i])}`}>
-                              <RowHeader
+                            <div key={h.key} className={`rounded-lg border px-3 py-3 [&_input]:bg-white [&_button[role=combobox]]:bg-white [&_[data-slot=select-trigger]]:bg-white ${rowShell(i, submitted ? fieldErrors.houses?.[i] : undefined, serverErrors.houses?.[i])}`}>
+                              {/* Only a pen this setup is CREATING can be taken
+                                  out of it. One the farm already has is not this
+                                  wizard's to discard — and a bin next to it reads
+                                  like it would delete the pen from the farm, which
+                                  it never did. Deleting a real pen is the Houses
+                                  page's job, and it refuses while birds are in it. */}
+                              <RowHeader alwaysShow
                                 label={h.houseName || `House ${i + 1}`}
                                 badge={isExisting
                                   ? <Badge variant="secondary" className="h-6 px-1.5 text-[10px]">Existing</Badge>
                                   : <Badge variant="outline" className="h-6 px-1.5 text-[10px] border-blue-300 text-blue-700">New</Badge>}
                                 onRemove={isExisting ? undefined : () => removeHouse(i)}
                               />
-                              <div className="grid grid-cols-12 gap-3 md:contents">
-                              <Field className="col-span-12 md:col-span-4"
-                                label="House/Pen Name *" mobileOnlyLabel error={errorFor("houses", i, "houseName")}
+                              <div className="grid grid-cols-2 gap-3">
+                              <Field className="col-span-2"
+                                label="House/Pen Name *" error={errorFor("houses", i, "houseName")}
                                 hint={(() => {
                                   // Only pens that hold something say anything. The
                                   // "Empty" filter lists only empty pens, so labelling
@@ -1195,29 +1199,17 @@ export default function PoultryFarmSetupPage() {
                                 <Input value={h.houseName} disabled={isExisting}
                                   onChange={(e) => patchHouse(i, { houseName: e.target.value })} placeholder="Pen 1" />
                               </Field>
-                              <Field className="col-span-12 sm:col-span-6 md:col-span-2" label="Capacity" mobileOnlyLabel error={errorFor("houses", i, "capacity")}>
+                              <Field className="col-span-1" label="Capacity" error={errorFor("houses", i, "capacity")}>
                                 <NumberInput min="0" value={h.capacity} onChange={(e) => patchHouse(i, { capacity: e.target.value })} placeholder="5000" />
                               </Field>
-                              <Field className="col-span-12 md:col-span-5" label="Location" mobileOnlyLabel>
+                              <Field className="col-span-1" label="Location">
                                 <Input value={h.location} onChange={(e) => patchHouse(i, { location: e.target.value })} placeholder="Layer House A" />
                               </Field>
                               </div>
-                              <div className="col-span-12 md:col-span-1 hidden md:flex items-end justify-end">
-                                {/* Only a pen this setup is CREATING can be taken
-                                    out of it. One the farm already has is not this
-                                    wizard's to discard — and a bin next to it reads
-                                    like it would delete the pen from the farm, which
-                                    it never did. Deleting a real pen is the Houses
-                                    page's job, and it refuses while birds are in it. */}
-                                {!isExisting && (
-                                  <Button type="button" variant="ghost" size="icon" onClick={() => removeHouse(i)}
-                                    className="h-9 w-9 shrink-0 text-red-600 hover:bg-red-50" aria-label="Remove house">
-                                    <Trash2 className="w-4 h-4" />
-                                  </Button>
-                                )}
-                              </div>
                             </div>
                           ))}
+                          </div>
+                          )}
                           <Button type="button" variant="outline" size="sm" onClick={() => setDraft((d) => ({ ...d, houses: [emptyHouse(penCapacity, penLocation), ...d.houses] }))}>
                             <Plus className="w-4 h-4 mr-1" /> Add Another Row
                           </Button>
@@ -2406,13 +2398,15 @@ function Section({ title, description, icon: Icon, children }: {
 }
 
 /** The column headings for a grid step. Desktop only -- on mobile each field carries its own. */
-function RowHeader({ label, badge, onRemove }: {
+function RowHeader({ label, badge, onRemove, alwaysShow }: {
   label: string; badge: React.ReactNode
   /** Omitted for a row that is not this setup's to remove. */
   onRemove?: () => void
+  /** For a card layout, which has no desktop grid row to carry the badge and bin. */
+  alwaysShow?: boolean
 }) {
   return (
-    <div className="mb-3 flex items-center justify-between gap-2 border-b border-slate-100 pb-2 md:hidden">
+    <div className={`mb-3 flex items-center justify-between gap-2 border-b border-slate-100 pb-2 ${alwaysShow ? "" : "md:hidden"}`}>
       <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</span>
       <span className="flex items-center gap-1">
         {badge}
@@ -2502,14 +2496,6 @@ const normalizeMoney = (raw: string | null | undefined) => {
   const t = (raw ?? "").trim()
   if (!t || !Number.isFinite(Number(t))) return ""
   return Number(t).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
-
-function GridHeader({ columns }: { columns: [string, string][] }) {
-  return (
-    <div className="hidden md:grid grid-cols-12 gap-3 px-3 pb-1 text-xs font-medium text-slate-500">
-      {columns.map(([span, label]) => <div key={label} className={span}>{label}</div>)}
-    </div>
-  )
 }
 
 function Field({ label, error, hint, note, className, children, mobileOnlyLabel }: {
