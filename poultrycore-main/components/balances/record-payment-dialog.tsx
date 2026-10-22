@@ -22,7 +22,7 @@
 // the user types into a line, changing the amount re-spreads it oldest first, so
 // paying less than the whole never leaves the grid over-allocated.
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader } from "@/components/ui/dialog"
 import { FORM_DIALOG_CONTENT, FORM_DIALOG_PRIMARY, FormDialogFooter, FormDialogTitle } from "@/components/ui/form-dialog"
 import { FormSection } from "@/components/ui/form-section"
@@ -33,7 +33,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Checkbox } from "@/components/ui/checkbox"
-import { AlertTriangle, Loader2, Wallet, Wand2, X } from "lucide-react"
+import { AlertCircle, AlertTriangle, BarChart3, FileText, Loader2, Wallet, Wand2, X } from "lucide-react"
 import { useFmt } from "@/lib/currency"
 import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/use-permissions"
@@ -119,6 +119,9 @@ export function RecordPaymentDialog({
   const [addToPL, setAddToPL] = useState(false)
   const [saleType, setSaleType] = useState("")
   const [saleTypeOther, setSaleTypeOther] = useState("")
+  // "Payment for an earlier sale": on Profit & Loss unless the income was
+  // already recorded (owner / admin only -- it is a P&L exclusion).
+  const [earlierSaleOnPL, setEarlierSaleOnPL] = useState(true)
 
   // Load the lines this payment can be spread over. A single-document payment
   // still goes through the grid, so the two modes cannot drift apart.
@@ -132,6 +135,7 @@ export function RecordPaymentDialog({
     setAddToPL(false)
     setSaleType("")
     setSaleTypeOther("")
+    setEarlierSaleOnPL(true)
 
     if (singleDocument) {
       setDocuments([singleDocument])
@@ -207,7 +211,7 @@ export function RecordPaymentDialog({
     ? validation.unallocated : 0
   const oldDebtSaleType = saleType === "Other" ? saleTypeOther.trim() : saleType
   // 384: an old customer debt on P&L must say what was sold.
-  const saleTypeMissing = isCustomer && oldDebt > 0 && !oldDebtSaleType
+  const saleTypeMissing = isCustomer && oldDebt > 0 && earlierSaleOnPL && !oldDebtSaleType
   const debtAllocated = recordedDebtAllocated + oldDebt
   const leftoverWord = oldDebt > 0 ? (isCustomer ? "old customer debt" : "old supplier debt") : creditWord
 
@@ -294,7 +298,7 @@ export function RecordPaymentDialog({
             documentId: d.documentId,
             amount: allocation[docKey(d)],
           })),
-        excludeFromPL: debtAllocated > 0 && !countOnPL,
+        excludeFromPL: (debtAllocated > 0 && !countOnPL) || (isCustomer && oldDebt > 0 && !earlierSaleOnPL),
         remainderAsOldDebt: oldDebt > 0,
         oldDebtSaleType: isCustomer && oldDebt > 0 ? oldDebtSaleType : null,
       })
@@ -549,59 +553,141 @@ export function RecordPaymentDialog({
           </FormSection>
         )}
 
-        {/* 384: customer -- credit by default; ticked, it pays an old sale and goes on P&L. */}
-        {remainderAsOldDebt && isCustomer && allowUnallocated && validation.unallocated > 0 && (
-          <FormSection title="Money left over" color="amber" tinted columns={1}>
-          <div className="space-y-2 text-sm text-slate-800">
-            <p>
-              {fmt(validation.unallocated)} is not applied to anything listed.{" "}
-              {addToPL
-                ? `It will be recorded as a debt the customer owed from before the system, paid now.`
-                : `It will be kept as ${creditWord} (an advance) -- not on Profit & Loss until it is used.`}
-            </p>
-            {/* Two boxes, one choice: ticking either unticks the other, so one is
-                always ticked -- credit by default. */}
-            <div className="space-y-1.5">
-              <label className="flex items-start gap-2 text-xs">
-                <Checkbox className="mt-0.5" checked={!addToPL} onCheckedChange={(v) => setAddToPL(v !== true)} />
-                Keep it as {creditWord} (an advance)
-              </label>
-              <label className="flex items-start gap-2 text-xs">
-                <Checkbox className="mt-0.5" checked={addToPL} onCheckedChange={(v) => setAddToPL(v === true)} />
-                This pays for a sale made before the system -- add to Profit &amp; Loss
-              </label>
+        {/* 384: customer -- what to do with money left over after the open sales.
+            Credit by default; "Payment for an Earlier Sale" records the old debt
+            it pays, on Profit & Loss unless the income was already recorded. */}
+        {remainderAsOldDebt && isCustomer && allowUnallocated && validation.unallocated > 0 && (() => {
+          const remaining = validation.unallocated
+          const appliedDocs = documents.filter((d) => (allocation[docKey(d)] ?? 0) > 0)
+          const option = (active: boolean, onPick: () => void, icon: ReactNode, iconCls: string, title: string, body: ReactNode, extra?: ReactNode) => (
+            <div className={cn("rounded-lg border p-3 transition-colors",
+                               active ? "border-emerald-300 bg-emerald-50" : "border-slate-200 bg-white")}>
+              <button type="button" role="radio" aria-checked={active} onClick={onPick}
+                      className="flex w-full items-start gap-3 text-left">
+                <span className={cn("mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2",
+                                    active ? "border-blue-600" : "border-slate-300")}>
+                  {active && <span className="h-2 w-2 rounded-full bg-blue-600" />}
+                </span>
+                <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-full", iconCls)}>{icon}</span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-slate-900">{title}</span>
+                  <span className="block text-sm text-slate-600">{body}</span>
+                </span>
+              </button>
+              {extra}
             </div>
-            {addToPL && (
-              <div className="grid gap-2 sm:grid-cols-2">
-                <div className="space-y-1">
-                  <Label className="text-xs">What was sold?</Label>
-                  <Select value={saleType} onValueChange={setSaleType}>
-                    <SelectTrigger className="w-full bg-white"><SelectValue placeholder="Select sale type" /></SelectTrigger>
-                    <SelectContent>
-                      {SALE_PRODUCT_OPTIONS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {saleType === "Other" && (
-                  <div className="space-y-1">
-                    <Label htmlFor="old-debt-type" className="text-xs">Describe it</Label>
-                    <Input id="old-debt-type" className="bg-white" value={saleTypeOther}
-                           onChange={(e) => setSaleTypeOther(e.target.value)} placeholder="e.g. Egg trays" />
-                  </div>
-                )}
-                <p className={cn("text-xs sm:col-span-2", saleTypeMissing ? "text-amber-700" : "text-emerald-800")}>
-                  {saleTypeMissing
-                    ? "Choose what was sold to add it to Profit & Loss."
-                    : `${fmt(validation.unallocated)} goes on Profit & Loss as Revenue (${oldDebtSaleType}).`}
+          )
+          return (
+            <FormSection title={`Overpayment (Money Left Over) — ${fmt(remaining)}`} color="orange" tinted columns={1}>
+              <div className="flex items-start gap-3 text-sm text-slate-700">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-600">
+                  <AlertCircle className="h-4 w-4" />
+                </span>
+                <p>
+                  You received <b>{fmt(amountValue)}</b> from this customer.{" "}
+                  {allocated > 0
+                    ? <><b>{fmt(allocated)}</b> will settle the outstanding {docWord}{appliedDocs.length === 1 ? "" : "s"}. </>
+                    : null}
+                  There is <b>{fmt(remaining)}</b> remaining. What would you like to do with it?
                 </p>
               </div>
-            )}
-          </div>
-          </FormSection>
-        )}
+
+              <div role="radiogroup" aria-label="What to do with the money left over" className="space-y-2">
+                {option(!addToPL, () => setAddToPL(false),
+                  <Wallet className="h-5 w-5" />, "bg-emerald-100 text-emerald-700",
+                  "Keep as Customer Credit (Advance Payment)",
+                  <>The customer is paying in advance for future purchases. We will save <b>{fmt(remaining)}</b> as {creditWord}, which can be used when they buy from you later.</>)}
+                {option(addToPL, () => setAddToPL(true),
+                  <FileText className="h-5 w-5" />, "bg-blue-100 text-blue-700",
+                  "Payment for an Earlier Sale",
+                  "The customer is paying for goods you sold before recording the sale in VisibilityCore.",
+                  addToPL && (
+                    <div className="mt-3 space-y-3 rounded-md bg-slate-50 p-3 sm:ml-[4.25rem]">
+                      <label className="flex items-start gap-2 text-sm">
+                        <Checkbox className="mt-0.5" checked={earlierSaleOnPL} onCheckedChange={(v) => setEarlierSaleOnPL(v === true)} />
+                        <span>
+                          Include this payment as income in Profit &amp; Loss?
+                          <span className="block text-xs text-slate-500">Record this amount as sales income in Profit &amp; Loss.</span>
+                        </span>
+                      </label>
+                      <label className={cn("flex items-start gap-2 text-sm", !isAdmin && "opacity-60")}>
+                        <Checkbox className="mt-0.5" checked={!earlierSaleOnPL} disabled={!isAdmin}
+                                  onCheckedChange={(v) => setEarlierSaleOnPL(v !== true)} />
+                        <span>
+                          <b className="font-medium">Income was already recorded</b> or should not be recognized again
+                          <span className="block text-xs text-slate-500">
+                            Do not record this amount as income in Profit &amp; Loss.
+                            {!isAdmin && " Only the owner or an admin can choose this."}
+                          </span>
+                        </span>
+                      </label>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <div className={cn("space-y-1", saleType !== "Other" && "sm:col-span-2")}>
+                          <Label className="text-xs">What was sold?</Label>
+                          <Select value={saleType} onValueChange={setSaleType}>
+                            <SelectTrigger className="w-full bg-white"><SelectValue placeholder="Select sale type or product" /></SelectTrigger>
+                            <SelectContent>
+                              {SALE_PRODUCT_OPTIONS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {saleType === "Other" && (
+                          <div className="space-y-1">
+                            <Label htmlFor="old-debt-type" className="text-xs">Describe it</Label>
+                            <Input id="old-debt-type" className="bg-white" value={saleTypeOther}
+                                   onChange={(e) => setSaleTypeOther(e.target.value)} placeholder="e.g. Egg trays" />
+                          </div>
+                        )}
+                      </div>
+                      <p className={cn("text-xs", saleTypeMissing ? "text-amber-700" : "text-slate-500")}>
+                        {saleTypeMissing
+                          ? "Choose what was sold to add it to Profit & Loss."
+                          : earlierSaleOnPL
+                            ? `${fmt(remaining)} goes on Profit & Loss as Revenue${oldDebtSaleType ? ` (${oldDebtSaleType})` : ""}.`
+                            : "Recorded as an earlier sale paid now, but kept off Profit & Loss."}
+                      </p>
+                    </div>
+                  ))}
+              </div>
+
+              <div className="overflow-hidden rounded-lg border border-blue-200 bg-blue-50/40">
+                <div className="flex items-center justify-between px-3 py-2">
+                  <span className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                    <BarChart3 className="h-4 w-4 text-blue-600" /> Payment breakdown
+                  </span>
+                  <span className="text-xs text-slate-500">Amount</span>
+                </div>
+                <div className="divide-y divide-slate-100 bg-white text-sm">
+                  <div className="flex justify-between gap-3 px-3 py-1.5">
+                    <span>Total received from customer</span>
+                    <span className="tabular-nums">{fmt(amountValue)}</span>
+                  </div>
+                  {appliedDocs.map((d) => (
+                    <div key={docKey(d)} className="flex justify-between gap-3 px-3 py-1.5">
+                      <span className="min-w-0">Applied to outstanding {docWord} ({d.reference ?? d.documentId}{d.label ? ` - ${d.label}` : ""})</span>
+                      <span className="font-semibold tabular-nums">{fmt(allocation[docKey(d)] ?? 0)}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between gap-3 px-3 py-1.5">
+                    <span className="min-w-0">
+                      {addToPL
+                        ? `Payment for an earlier sale${oldDebtSaleType ? ` (${oldDebtSaleType})` : ""}${earlierSaleOnPL ? "" : ", not on Profit & Loss"}`
+                        : "Customer credit (advance payment)"}
+                    </span>
+                    <span className="tabular-nums">{fmt(remaining)}</span>
+                  </div>
+                </div>
+                <div className="flex justify-between gap-3 bg-blue-100/70 px-3 py-2 text-sm font-semibold text-slate-900">
+                  <span>Total allocated</span>
+                  <span className="tabular-nums">{fmt(allocated + remaining)}</span>
+                </div>
+              </div>
+            </FormSection>
+          )
+        })()}
 
         {remainderAsOldDebt && !isCustomer && allowUnallocated && validation.unallocated > 0 && (
-          <FormSection title="Money left over" color="amber" tinted columns={1}>
+          <FormSection title="Overpayment (Money Left Over)" color="amber" tinted columns={1}>
           <div className="text-sm text-slate-800">
             <p>
               {fmt(validation.unallocated)} is not applied to anything listed.{" "}
