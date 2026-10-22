@@ -147,6 +147,17 @@ export default function CustomerCreditsPage() {
 
   useEffect(() => { if (canView) void load() }, [canView, load])
 
+  // Deep link from Payments received: ?tab=manual&q=<payment number> opens the
+  // hand-added credit that cannot be reversed there.
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const params = new URLSearchParams(window.location.search)
+    const t = params.get("tab")
+    if (t === "held" || t === "manual" || t === "refunds") setTab(t)
+    const q = params.get("q")
+    if (q) setSearch(q)
+  }, [])
+
   // Opened rows (and the phone dialog) load their events when missing.
   useEffect(() => {
     const want = new Set(expanded)

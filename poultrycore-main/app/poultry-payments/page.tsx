@@ -1,6 +1,6 @@
 "use client"
 
-// Poultry "Payments received".
+// Poultry "Customer Payments".
 //
 // Thin: everything lives in <PaymentsReceivedPage>, which water and generic can
 // reuse once they need it. All this file decides is which module it is, where a
@@ -23,6 +23,7 @@ export default function PoultryPaymentsPage() {
       <PaymentsReceivedPage
         module="poultry"
         companyType="Poultry"
+        title="Customer Payments"
         // The Sales page is a list with its own filters rather than a per-sale
         // route, so deep-link into it with the sale highlighted.
         saleHref={(saleId) => `/sales?saleId=${saleId}`}
@@ -31,6 +32,9 @@ export default function PoultryPaymentsPage() {
         headerActions={(reload) => can("poultry.customer-payments.create")
           ? <RecordCustomerPaymentButton onPosted={reload} />
           : null}
+        // 363: a hand-added credit is reversed or refunded on Customer Credits.
+        manualCreditHref={(row) =>
+          `/customer-credits?tab=manual&q=${encodeURIComponent(row.paymentNumber ?? row.partyName ?? "")}`}
         permissions={{
           view: "poultry.customer-balances.view",
           reverse: "poultry.customer-payments.reverse",
