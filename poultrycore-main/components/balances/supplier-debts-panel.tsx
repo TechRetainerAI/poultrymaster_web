@@ -17,9 +17,12 @@ import { useState } from "react"
 import { Loader2, Plus, Undo2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
-  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogHeader,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
+import { FORM_DIALOG_CONTENT, FORM_DIALOG_PRIMARY, FormDialogFooter, FormDialogTitle } from "@/components/ui/form-dialog"
+import { FormSection } from "@/components/ui/form-section"
+import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/use-permissions"
 import { formatCurrency, getSelectedCurrency } from "@/lib/utils/currency"
@@ -110,27 +113,28 @@ export function ReverseSupplierDebtButton({ doc, partyName, compact, onChanged }
       </Button>
 
       <Dialog open={open} onOpenChange={(o) => { if (!o && !busy) setOpen(false) }}>
-        <DialogContent className="max-w-md" onClick={(e) => e.stopPropagation()}>
+        <DialogContent className={cn(FORM_DIALOG_CONTENT, "sm:max-w-lg")} onClick={(e) => e.stopPropagation()}>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Undo2 className="h-5 w-5 text-red-600" /> Reverse {number}?</DialogTitle>
+            <FormDialogTitle icon={Undo2} color="red">Reverse {number}?</FormDialogTitle>
             <DialogDescription>
               You will no longer owe {partyName ?? "the supplier"} {money(doc.totalAmount)}. The debt stays in the
               history, marked Reversed. No cash moves.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 text-sm">
-            <div className="space-y-1">
-              <Label htmlFor="sd-reverse-reason">Reason *</Label>
+          <div className="min-w-0 space-y-4 text-sm">
+            <FormSection title="Reason" color="slate" tinted columns={1}>
+              <div className="min-w-0 space-y-1">
+                <Label htmlFor="sd-reverse-reason">Reason *</Label>
               <ReasonSelect id="sd-reverse-reason" options={REVERSAL_REASONS} value={reason} onChange={setReason} />
-            </div>
+              </div>
+            </FormSection>
             {error && <p className="rounded-md bg-red-50 p-2.5 text-red-700">{error}</p>}
           </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setOpen(false)} disabled={busy}>Cancel</Button>
-            <Button className="bg-red-600 hover:bg-red-700" onClick={doReverse} disabled={busy || !reason.trim()}>
-              {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Reverse debt
+          <FormDialogFooter onCancel={() => setOpen(false)} cancelDisabled={busy}>
+            <Button className={cn("px-6", FORM_DIALOG_PRIMARY.red)} onClick={doReverse} disabled={busy || !reason.trim()}>
+              {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Reverse debt · {money(doc.totalAmount)}
             </Button>
-          </div>
+          </FormDialogFooter>
         </DialogContent>
       </Dialog>
     </>

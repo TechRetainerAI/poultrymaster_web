@@ -71,10 +71,23 @@ const COLORS = {
 
 export type FormSectionColor = keyof typeof COLORS
 
+// `tinted`: the New sale look -- a border and body in the band's own colour.
+const TINTS: Record<FormSectionColor, { border: string; body: string }> = {
+  indigo:  { border: "border-indigo-200",  body: "bg-indigo-50/40" },
+  blue:    { border: "border-blue-200",    body: "bg-blue-50/40" },
+  green:   { border: "border-green-200",   body: "bg-green-50/40" },
+  sky:     { border: "border-sky-200",     body: "bg-sky-50/40" },
+  emerald: { border: "border-emerald-200", body: "bg-emerald-50/40" },
+  amber:   { border: "border-amber-200",   body: "bg-amber-50/40" },
+  rose:    { border: "border-rose-200",    body: "bg-rose-50/40" },
+  purple:  { border: "border-purple-200",  body: "bg-purple-50/40" },
+  slate:   { border: "border-slate-200",   body: "bg-slate-50" },
+}
+
 export function FormSection({
-  title, color = "indigo", columns = 2, stackOnMobile = false, children, className,
+  title, color = "indigo", columns = 2, stackOnMobile = false, tinted = false, action, children, className,
 }: {
-  title: string
+  title: ReactNode
   color?: FormSectionColor
   columns?: 1 | 2 | 3 | 4
   /**
@@ -84,6 +97,14 @@ export function FormSection({
    * repeated rows. Off by default so existing forms are untouched.
    */
   stackOnMobile?: boolean
+  /**
+   * The New sale look (app/sales/page.tsx): border and body tinted in the
+   * band's colour instead of slate / white. Off by default so existing forms
+   * are untouched.
+   */
+  tinted?: boolean
+  /** Right-hand slot in the band, e.g. an "Add line" button or a count. */
+  action?: ReactNode
   children: ReactNode
   className?: string
 }) {
@@ -108,9 +129,12 @@ export function FormSection({
     // (DialogContent uses display:grid; without min-w-0 here the inner field
     // grid would force the parent to expand to its intrinsic content width,
     // pushing a page-level horizontal scrollbar onto the body).
-    <div className={cn("rounded-xl border border-slate-200 overflow-hidden min-w-0 w-full", className)}>
-      <div className={cn(COLORS[color], "px-4 py-2 text-sm font-semibold text-white")}>{title}</div>
-      <div className={cn("grid gap-3 p-4 bg-white min-w-0", gridClass)}>
+    <div className={cn("rounded-xl border overflow-hidden min-w-0 w-full", tinted ? TINTS[color].border : "border-slate-200", className)}>
+      <div className={cn(COLORS[color], "flex items-center justify-between gap-2 px-4 py-2 text-sm font-semibold text-white")}>
+        <span className="min-w-0">{title}</span>
+        {action}
+      </div>
+      <div className={cn("grid gap-3 p-4 min-w-0", tinted ? TINTS[color].body : "bg-white", gridClass)}>
         {children}
       </div>
     </div>

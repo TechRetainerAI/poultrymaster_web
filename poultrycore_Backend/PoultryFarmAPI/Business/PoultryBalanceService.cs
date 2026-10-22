@@ -346,9 +346,13 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<string> RecordCustomerPayment(RecordPaymentRequest r)
         {
             using var conn = new NpgsqlConnection(_connectionString);
+            // 384: the sale type is passed only when given, so this still works before 384 is applied.
+            var saleType = r.RemainderAsOldDebt && !string.IsNullOrWhiteSpace(r.OldDebtSaleType) ? r.OldDebtSaleType.Trim() : null;
             using var cmd = new NpgsqlCommand(
                 // 383: Record customer payment -- the rest pays a debt from before the system.
-                (r.RemainderAsOldDebt ? "SELECT sppoultrycustomerpayment_recordolddebt(" : "SELECT sppoultrycustomerpayment_record(") + "p_farmid => @FarmId::text, p_customerid => @PartyId::int, p_amount => @Amount::numeric, p_allocations => @Allocations::jsonb, p_paymentmethod => @PaymentMethod::text, p_paymentdate => @PaymentDate::timestamp, p_cashaccountid => @CashAccountId::int, p_reference => @Reference::text, p_note => @Notes::text, p_sourcetype => @SourceType::text, p_createdby => @CreatedBy::text)", conn);
+                (r.RemainderAsOldDebt ? "SELECT sppoultrycustomerpayment_recordolddebt(" : "SELECT sppoultrycustomerpayment_record(") + "p_farmid => @FarmId::text, p_customerid => @PartyId::int, p_amount => @Amount::numeric, p_allocations => @Allocations::jsonb, p_paymentmethod => @PaymentMethod::text, p_paymentdate => @PaymentDate::timestamp, p_cashaccountid => @CashAccountId::int, p_reference => @Reference::text, p_note => @Notes::text, p_sourcetype => @SourceType::text, p_createdby => @CreatedBy::text"
+                + (saleType != null ? ", p_saletype => @SaleType::text)" : ")"), conn);
+            if (saleType != null) cmd.Parameters.AddWithValue("@SaleType", saleType);
             cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
             cmd.Parameters.AddWithValue("@PartyId", Db(r.PartyId));
             cmd.Parameters.AddWithValue("@Amount", r.Amount);

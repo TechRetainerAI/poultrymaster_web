@@ -10,7 +10,7 @@
  */
 
 import { useState } from "react"
-import { Loader2 } from "lucide-react"
+import { CircleMinus, CirclePlus, Loader2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -21,6 +21,7 @@ import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useFmt } from "@/lib/currency"
 import { cn } from "@/lib/utils"
+import { FORM_DIALOG_PRIMARY } from "@/components/ui/form-dialog"
 import { setPaymentPLExclusion, type BalanceSide, type PaymentHistoryRow } from "@/lib/api/balances"
 
 const onPL = (row: PaymentHistoryRow) =>
@@ -81,7 +82,13 @@ export function PaymentPLToggle({
       <AlertDialog open={open} onOpenChange={(o) => { if (!busy) setOpen(o) }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{exclude ? "Keep this payment off Profit & Loss?" : "Put this payment back on Profit & Loss?"}</AlertDialogTitle>
+            {/* The New sale icon tile (FormDialogTitle wraps DialogTitle, so it is repeated here). */}
+            <AlertDialogTitle className="flex items-center gap-2.5 text-left">
+              <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white", exclude ? "bg-slate-700" : "bg-emerald-600")}>
+                {exclude ? <CircleMinus className="h-5 w-5" /> : <CirclePlus className="h-5 w-5" />}
+              </span>
+              <span className="min-w-0">{exclude ? "Keep this payment off Profit & Loss?" : "Put this payment back on Profit & Loss?"}</span>
+            </AlertDialogTitle>
             <AlertDialogDescription>
               {exclude
                 ? `${fmt(row.plAmount ?? 0)} of ${ref} was paid on debts and counts as ${what}. Excluding it takes it off Profit & Loss; the payment, the debt and the cash are not changed.`
@@ -89,8 +96,9 @@ export function PaymentPLToggle({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
-            <AlertDialogAction disabled={busy} onClick={(e) => { e.preventDefault(); void run() }}>
+            <AlertDialogCancel disabled={busy} className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700">Cancel</AlertDialogCancel>
+            <AlertDialogAction disabled={busy} className={cn("px-6", exclude ? FORM_DIALOG_PRIMARY.slate : FORM_DIALOG_PRIMARY.emerald)}
+                               onClick={(e) => { e.preventDefault(); void run() }}>
               {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {exclude ? "Exclude from P&L" : "Include in P&L"}
             </AlertDialogAction>

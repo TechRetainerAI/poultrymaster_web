@@ -39,8 +39,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import {
-  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogHeader,
 } from "@/components/ui/dialog"
+import { FORM_DIALOG_CONTENT, FORM_DIALOG_PRIMARY, FormDialogFooter, FormDialogTitle } from "@/components/ui/form-dialog"
+import { FormSection } from "@/components/ui/form-section"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { tabCountCls, tabListCls, tabTriggerCls } from "@/lib/ui/tab-styles"
@@ -371,7 +373,7 @@ export default function CustomerCreditsPage() {
 
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Card><CardContent className="p-4">
-              <div className="text-xs text-slate-500">Credit held</div>
+              <div className="text-xs text-slate-500">Available credit</div>
               <div className="text-2xl font-semibold tabular-nums text-blue-700">{money(totalHeld)}</div>
             </CardContent></Card>
             <Card><CardContent className="p-4">
@@ -394,7 +396,7 @@ export default function CustomerCreditsPage() {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <TabsList className={tabListCls}>
                 <TabsTrigger value="held" className={tabTriggerCls}>
-                  <PiggyBank className="h-4 w-4" /> Credit held
+                  <PiggyBank className="h-4 w-4" /> Available credit
                   <span className={tabCountCls}>{rows.length}</span>
                 </TabsTrigger>
                 <TabsTrigger value="manual" className={tabTriggerCls}>
@@ -424,7 +426,7 @@ export default function CustomerCreditsPage() {
                     primary={(r) => r.customerName}
                     secondary={(r) => <span>{r.paymentCount} credit{r.paymentCount === 1 ? "" : "s"}</span>}
                     highlights={(r) => [
-                      { label: "Credit", value: money(r.availableCredit), accent: "blue" },
+                      { label: "Available", value: money(r.availableCredit), accent: "blue" },
                       { label: "Owes", value: money(r.outstanding), accent: Number(r.outstanding) > 0 ? "amber" : "slate" },
                     ]}
                     actions={(r) => rowActions(r, true)}
@@ -440,7 +442,7 @@ export default function CustomerCreditsPage() {
                             <TableRow>
                               <TableHead className="w-10" />
                               <TableHead>Customer</TableHead>
-                              <TableHead className="text-right">Credit held</TableHead>
+                              <TableHead className="text-right">Available credit</TableHead>
                               <TableHead className="text-right">Credits</TableHead>
                               <TableHead className="text-right">Still owes</TableHead>
                               <TableHead className="text-right">Actions</TableHead>
@@ -664,9 +666,9 @@ export default function CustomerCreditsPage() {
 
       {/* Phones: one customer's credits, each with its own actions. */}
       <Dialog open={!!eventsFor} onOpenChange={(o) => { if (!o) setEventsFor(null) }}>
-        <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+        <DialogContent className={cn(FORM_DIALOG_CONTENT, "sm:max-w-lg")}>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><PiggyBank className="h-5 w-5 text-blue-600" /> {eventsFor?.customerName}&apos;s credits</DialogTitle>
+            <FormDialogTitle icon={PiggyBank} color="blue">{eventsFor?.customerName}&apos;s credits</FormDialogTitle>
             <DialogDescription>Each credit, where it came from, and what is left of it.</DialogDescription>
           </DialogHeader>
           {eventsFor && (() => {
@@ -694,6 +696,7 @@ export default function CustomerCreditsPage() {
               </ul>
             )
           })()}
+          <FormDialogFooter onCancel={() => setEventsFor(null)} cancelLabel="Close" />
         </DialogContent>
       </Dialog>
 
@@ -713,15 +716,16 @@ export default function CustomerCreditsPage() {
       />
 
       <Dialog open={!!reverseFor} onOpenChange={(o) => { if (!o && !reversing) setReverseFor(null) }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className={cn(FORM_DIALOG_CONTENT, "sm:max-w-lg")}>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Undo2 className="h-5 w-5 text-red-600" /> Reverse {reverseFor?.paymentNumber ?? "credit"}?</DialogTitle>
+            <FormDialogTitle icon={Undo2} color="red">Reverse {reverseFor?.paymentNumber ?? "credit"}?</FormDialogTitle>
             <DialogDescription>
               The credit stays in the history, marked Reversed. {reverseFor?.customerName ?? "The customer"} no longer holds it.
             </DialogDescription>
           </DialogHeader>
           {reverseFor && (
-            <div className="space-y-3 text-sm">
+            <div className="min-w-0 space-y-4 text-sm">
+              <FormSection title="What happens" color="amber" tinted columns={1}>
               <ul className="list-disc space-y-1 pl-5 text-slate-700">
                 <li>{money(reverseFor.amount)} {MANUAL_CREDIT_KIND_LABEL[reverseFor.kind].toLowerCase()} is cancelled.</li>
                 {reverseFor.used > 0 && (
@@ -735,50 +739,55 @@ export default function CustomerCreditsPage() {
                 )}
                 {reverseFor.kind === "CreditNote" && <li>It comes off Profit &amp; Loss.</li>}
               </ul>
-              <div className="space-y-1">
-                <Label htmlFor="mc-reverse-reason">Reason *</Label>
-                <ReasonSelect id="mc-reverse-reason" options={REVERSAL_REASONS} value={reverseReason} onChange={setReverseReason} />
-              </div>
+              </FormSection>
+              <FormSection title="Reason" color="slate" tinted columns={1}>
+                <div className="min-w-0 space-y-1">
+                  <Label htmlFor="mc-reverse-reason">Reason *</Label>
+                  <ReasonSelect id="mc-reverse-reason" options={REVERSAL_REASONS} value={reverseReason} onChange={setReverseReason} />
+                </div>
+              </FormSection>
               {reverseError && <p className="rounded-md bg-red-50 p-2.5 text-red-700">{reverseError}</p>}
             </div>
           )}
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setReverseFor(null)} disabled={reversing}>Cancel</Button>
-            <Button className="bg-red-600 hover:bg-red-700" onClick={doReverse} disabled={reversing || !reverseReason.trim()}>
-              {reversing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Reverse credit
+          <FormDialogFooter onCancel={() => setReverseFor(null)} cancelDisabled={reversing}>
+            <Button className={cn("px-6", FORM_DIALOG_PRIMARY.red)} onClick={doReverse} disabled={reversing || !reverseReason.trim()}>
+              {reversing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {reverseFor ? `Reverse credit · ${money(reverseFor.amount)}` : "Reverse credit"}
             </Button>
-          </div>
+          </FormDialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* 367: reversing a refund is not a casual action -- say what it means. */}
       <Dialog open={!!refundReverseFor} onOpenChange={(o) => { if (!o && !refundReversing) setRefundReverseFor(null) }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className={cn(FORM_DIALOG_CONTENT, "sm:max-w-lg")}>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Undo2 className="h-5 w-5 text-red-600" /> Reverse refund {refundReverseFor?.refundNumber}?</DialogTitle>
+            <FormDialogTitle icon={Undo2} color="red">Reverse refund {refundReverseFor?.refundNumber}?</FormDialogTitle>
             <DialogDescription>The refund stays in the history, marked Reversed.</DialogDescription>
           </DialogHeader>
           {refundReverseFor && (
-            <div className="space-y-3 text-sm">
+            <div className="min-w-0 space-y-4 text-sm">
               <p className="rounded-md border border-amber-200 bg-amber-50 p-2.5 text-amber-900">
                 Reversing this refund will restore <b>{money(refundReverseFor.amount)}</b> to {refundReverseFor.customerName ?? "the customer"}&apos;s
                 credit and add <b>{money(refundReverseFor.amount)}</b> back to <b>{refundReverseFor.accountName ?? "the account it was paid from"}</b>.
                 Only continue if the refund was entered by mistake, or the refunded money has come back to the business.
               </p>
               <p className="text-slate-600">Cash Flow keeps the refund&apos;s money out and shows the reversal as money in today.</p>
-              <div className="space-y-1">
-                <Label htmlFor="rf-reverse-reason">Reason *</Label>
-                <ReasonSelect id="rf-reverse-reason" options={REVERSAL_REASONS} value={refundReverseReason} onChange={setRefundReverseReason} />
-              </div>
+              <FormSection title="Reason" color="slate" tinted columns={1}>
+                <div className="min-w-0 space-y-1">
+                  <Label htmlFor="rf-reverse-reason">Reason *</Label>
+                  <ReasonSelect id="rf-reverse-reason" options={REVERSAL_REASONS} value={refundReverseReason} onChange={setRefundReverseReason} />
+                </div>
+              </FormSection>
               {refundReverseError && <p className="rounded-md bg-red-50 p-2.5 text-red-700">{refundReverseError}</p>}
             </div>
           )}
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setRefundReverseFor(null)} disabled={refundReversing}>Cancel</Button>
-            <Button className="bg-red-600 hover:bg-red-700" onClick={doReverseRefund} disabled={refundReversing || !refundReverseReason.trim()}>
-              {refundReversing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Reverse refund
+          <FormDialogFooter onCancel={() => setRefundReverseFor(null)} cancelDisabled={refundReversing}>
+            <Button className={cn("px-6", FORM_DIALOG_PRIMARY.red)} onClick={doReverseRefund} disabled={refundReversing || !refundReverseReason.trim()}>
+              {refundReversing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {refundReverseFor ? `Reverse refund · ${money(refundReverseFor.amount)}` : "Reverse refund"}
             </Button>
-          </div>
+          </FormDialogFooter>
         </DialogContent>
       </Dialog>
 

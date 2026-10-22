@@ -15,13 +15,15 @@
 import { REVERSAL_REASONS } from "@/lib/reversal-reasons"
 import { ReasonSelect } from "@/components/ui/reason-select"
 import { Fragment, useEffect, useState } from "react"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader } from "@/components/ui/dialog"
+import { FORM_DIALOG_CONTENT, FORM_DIALOG_PRIMARY, FormDialogFooter, FormDialogTitle } from "@/components/ui/form-dialog"
+import { FormSection } from "@/components/ui/form-section"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ChevronDown, ChevronRight, Loader2, Undo2 } from "lucide-react"
+import { ChevronDown, ChevronRight, History, Loader2, Undo2 } from "lucide-react"
 import { useFmt } from "@/lib/currency"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -201,16 +203,21 @@ export function PaymentHistoryDialog({
           95vw rather than the base full-width-minus-2rem, because setting any
           max-w-* overrides that mobile cap and the modal would otherwise run
           edge to edge; tighter padding on a phone buys back a column. */}
-      <DialogContent className="w-[95vw] max-w-[95vw] max-h-[92vh] overflow-y-auto p-4 sm:max-w-7xl sm:p-6">
+      <DialogContent className={cn(FORM_DIALOG_CONTENT, "sm:max-w-7xl")}>
         <DialogHeader>
-          <DialogTitle>Payment history</DialogTitle>
-          <DialogDescription>
+          <FormDialogTitle icon={History} color="blue">Payment history</FormDialogTitle>
+          <DialogDescription className="text-left">
             {partyName ?? (side === "customer" ? "All customers" : "All suppliers")}
             {documentId ? ` · ${documentType ?? ""} #${documentId}` : ""}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="rounded-md border">
+        <div className="min-w-0 space-y-4">
+        <FormSection
+          title={<>Payments{!loading && rows.length > 0 && <span className="ml-1 rounded-full bg-white/25 px-2 py-0.5 text-xs">{rows.length}</span>}</>}
+          color="green" tinted columns={1}
+        >
+        <div className="rounded-md border bg-white">
           {loading ? (
             <div className="flex items-center gap-2 p-6 text-slate-500">
               <Loader2 className="h-4 w-4 animate-spin" /> Loading…
@@ -474,38 +481,38 @@ export function PaymentHistoryDialog({
             </>
           )}
         </div>
+        </FormSection>
+        </div>
 
-        <DialogFooter>
-          <Button className="h-10 w-full sm:h-9 sm:w-auto" onClick={() => onOpenChange(false)}>Close</Button>
-        </DialogFooter>
+        <FormDialogFooter onCancel={() => onOpenChange(false)} cancelLabel="Close" />
       </DialogContent>
     </Dialog>
 
     <Dialog open={!!reversing} onOpenChange={(o) => { if (!o && !reverseBusy) setReversing(null) }}>
-      <DialogContent className="max-w-md">
+      <DialogContent className={cn(FORM_DIALOG_CONTENT, "sm:max-w-lg")}>
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Undo2 className="h-5 w-5 text-red-600" /> Reverse {reversing?.paymentNumber ?? "this payment"}?
-          </DialogTitle>
-          <DialogDescription>
+          <FormDialogTitle icon={Undo2} color="red">Reverse {reversing?.paymentNumber ?? "this payment"}?</FormDialogTitle>
+          <DialogDescription className="text-left">
             {reversing && `${fmt(reversing.totalAmount)} ${side === "customer" ? "from" : "to"} ${reversing.partyName ?? partyName ?? (side === "customer" ? "the customer" : "the supplier")}. `}
             The balance goes back onto the {side === "customer" ? "sales" : "purchases"} it was applied to and the cash
             movement is undone. The payment stays in the history, marked Reversed.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-3 text-sm">
-          <div className="space-y-1">
-            <Label htmlFor="ph-reverse-reason">Reason *</Label>
-            <ReasonSelect id="ph-reverse-reason" options={REVERSAL_REASONS} value={reason} onChange={setReason} />
-          </div>
+        <div className="min-w-0 space-y-4 text-sm">
+          <FormSection title="Reason" color="slate" tinted columns={1}>
+            <div className="space-y-1">
+              <Label htmlFor="ph-reverse-reason">Reason *</Label>
+              <ReasonSelect id="ph-reverse-reason" options={REVERSAL_REASONS} value={reason} onChange={setReason} />
+            </div>
+          </FormSection>
           {reverseError && <p className="rounded-md bg-red-50 p-2.5 text-red-700">{reverseError}</p>}
         </div>
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={() => setReversing(null)} disabled={reverseBusy}>Cancel</Button>
-          <Button className="bg-red-600 hover:bg-red-700" onClick={doReverse} disabled={reverseBusy || !reason.trim()}>
-            {reverseBusy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Reverse payment
+        <FormDialogFooter onCancel={() => setReversing(null)} cancelDisabled={reverseBusy}>
+          <Button className={cn("px-6", FORM_DIALOG_PRIMARY.red)} onClick={doReverse} disabled={reverseBusy || !reason.trim()}>
+            {reverseBusy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Reverse payment{reversing ? ` · ${fmt(reversing.totalAmount)}` : ""}
           </Button>
-        </div>
+        </FormDialogFooter>
       </DialogContent>
     </Dialog>
     </>

@@ -43,6 +43,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog"
+import { cn } from "@/lib/utils"
+import { FORM_DIALOG_CONTENT, FORM_DIALOG_PRIMARY, FormDialogFooter, FormDialogTitle } from "@/components/ui/form-dialog"
+import { FormSection } from "@/components/ui/form-section"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { usePagination } from "@/hooks/use-pagination"
 import { PERIOD_GROUPS, periodToRange, rangeToPeriod } from "@/lib/date-ranges"
@@ -221,6 +224,8 @@ export function PaymentsLedgerPage({
     for (const r of rows) if (r.partyId) seen.set(r.partyId, r.partyName ?? `Supplier #${r.partyId}`)
     return [...seen].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
   }, [rows])
+  // Payments with no supplier get their own option, like Walk-in on Customer Payments.
+  const hasNoSupplier = useMemo(() => rows.some((r) => !r.partyId), [rows])
 
   const methodOptions = useMemo(
     () => [...new Set(rows.map((r) => (r.paymentMethod ?? "").trim()).filter(Boolean))].sort(),
@@ -233,7 +238,7 @@ export function PaymentsLedgerPage({
     const max = maxAmount.trim() === "" ? null : Number(maxAmount)
 
     return rows.filter((r) => {
-      if (supplierFilter !== "all" && String(r.partyId ?? "") !== supplierFilter) return false
+      if (supplierFilter === "none" ? !!r.partyId : supplierFilter !== "all" && String(r.partyId ?? "") !== supplierFilter) return false
       if (methodFilter !== "all" && (r.paymentMethod ?? "") !== methodFilter) return false
       if (accountFilter !== "all" && String(r.cashAccountId ?? "") !== accountFilter) return false
       if (sourceFilter !== "all" && (r.sourceType ?? "") !== sourceFilter) return false
@@ -681,6 +686,7 @@ export function PaymentsLedgerPage({
                       {supplierOptions.map((s) => (
                         <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
                       ))}
+                      {hasNoSupplier && <SelectItem value="none">No supplier</SelectItem>}
                     </SelectContent>
                   </Select>
                 </div>
@@ -909,11 +915,11 @@ export function PaymentsLedgerPage({
       </div>
 
       <Dialog open={!!reversing} onOpenChange={(o) => { if (!o && !reverseBusy) setReversing(null) }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className={cn(FORM_DIALOG_CONTENT, "sm:max-w-lg")}>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Undo2 className="h-5 w-5 text-red-600" /> Reverse {reversing?.paymentNumber ?? "this payment"}?
-            </DialogTitle>
+            <FormDialogTitle icon={Undo2} color="red">
+              Reverse {reversing?.paymentNumber ?? "this payment"}?
+            </FormDialogTitle>
             <DialogDescription>
               {reversing && `${fmt(reversing.totalAmount)} to ${reversing.partyName ?? "the supplier"}. `}
               {!reversing?.allocationCount
@@ -922,19 +928,29 @@ export function PaymentsLedgerPage({
               The payment stays in the history, marked Reversed.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 text-sm">
-            <div className="space-y-1">
-              <Label htmlFor="sp-reverse-reason">Reason *</Label>
-              <ReasonSelect id="sp-reverse-reason" options={REVERSAL_REASONS} value={reason} onChange={setReason} />
-            </div>
+          <div className="min-w-0 space-y-4 text-sm">
+            {reversing && (
+              <FormSection title="This reversal will" color="amber" tinted columns={1}>
+                <div className="flex items-center justify-between gap-2 rounded-md border bg-white p-3">
+                  <span className="text-slate-500">{reversing.partyName ?? "the supplier"}</span>
+                  <span className="font-semibold tabular-nums">{fmt(reversing.totalAmount)}</span>
+                </div>
+              </FormSection>
+            )}
+            <FormSection title="Reason" color="slate" tinted columns={1}>
+              <div className="space-y-1">
+                <Label htmlFor="sp-reverse-reason">Reason *</Label>
+                <ReasonSelect id="sp-reverse-reason" options={REVERSAL_REASONS} value={reason} onChange={setReason} />
+              </div>
+            </FormSection>
             {reverseError && <p className="rounded-md bg-red-50 p-2.5 text-red-700">{reverseError}</p>}
           </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setReversing(null)} disabled={reverseBusy}>Cancel</Button>
-            <Button className="bg-red-600 hover:bg-red-700" onClick={doReverse} disabled={reverseBusy || !reason.trim()}>
-              {reverseBusy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Reverse payment
+          <FormDialogFooter onCancel={() => setReversing(null)} cancelDisabled={reverseBusy}>
+            <Button className={cn("px-6", FORM_DIALOG_PRIMARY.red)} onClick={doReverse} disabled={reverseBusy || !reason.trim()}>
+              {reverseBusy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Reverse payment{reversing ? ` · ${fmt(reversing.totalAmount)}` : ""}
             </Button>
-          </div>
+          </FormDialogFooter>
         </DialogContent>
       </Dialog>
     </div>

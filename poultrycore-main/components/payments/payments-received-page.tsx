@@ -32,6 +32,8 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { Card, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { SortableHeader, sortData, toggleSort, type SortDirection } from "@/components/ui/sortable-header"
+import { FORM_DIALOG_CONTENT, FORM_DIALOG_PRIMARY, FormDialogFooter, FormDialogTitle } from "@/components/ui/form-dialog"
+import { FormSection } from "@/components/ui/form-section"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -71,6 +73,9 @@ const SOURCE_LABEL: Record<string, string> = {
 }
 // 363: a credit added by hand is reversed from Customer Credits (owner / admin).
 const MANUAL_CREDIT_SOURCES = new Set(["OpeningCredit", "Deposit", "CreditNote"])
+/** Filter key for a payment's customer: the id, or one shared key for walk-ins. */
+const customerKey = (r: { partyId?: number | null; partyName?: string | null }) =>
+  r.partyId != null ? `id:${r.partyId}` : r.partyName ? `name:${r.partyName}` : "walkin"
 const sourceLabel = (s?: string | null) => (s ? SOURCE_LABEL[s] ?? s : "—")
 
 /**
@@ -168,6 +173,8 @@ export function PaymentsReceivedPage({
   const [source, setSource] = useState("all")
   const [status, setStatus] = useState("Posted")
   const [appliedTo, setAppliedTo] = useState("all")
+  // One customer's payments. Keyed by id; walk-ins (no customer) share one key.
+  const [customer, setCustomer] = useState("all")
 
   const canView = can(permissions.view)
   const canReverse = can(permissions.reverse)
@@ -205,11 +212,18 @@ export function PaymentsReceivedPage({
     () => Array.from(new Set(rows.map((r) => r.sourceType).filter(Boolean) as string[])).sort(),
     [rows],
   )
+  // The customers who paid in the loaded date range, by name.
+  const customers = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const r of rows) m.set(customerKey(r), r.partyName ?? "Walk-in")
+    return Array.from(m, ([key, name]) => ({ key, name })).sort((a, b) => a.name.localeCompare(b.name))
+  }, [rows])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return rows.filter((r) => {
       if (status !== "all" && (r.status ?? "Posted") !== status) return false
+      if (customer !== "all" && customerKey(r) !== customer) return false
       if (method !== "all" && (r.paymentMethod ?? "") !== method) return false
       if (source !== "all" && (r.sourceType ?? "") !== source) return false
       if (appliedTo === "single" && r.allocationCount !== 1) return false
@@ -221,7 +235,7 @@ export function PaymentsReceivedPage({
       }
       return true
     })
-  }, [rows, search, status, method, source, appliedTo])
+  }, [rows, search, status, method, source, appliedTo, customer])
 
   // How many payments each sale has taken. Counted over every loaded row and
   // not the filtered ones, so a sale still says it was paid three times while a
@@ -617,10 +631,22 @@ export function PaymentsReceivedPage({
             search={search} setSearch={setSearch}
             dateFrom={from} setDateFrom={setFrom}
             dateTo={to} setDateTo={setTo}
-            searchPlaceholder="Search customer, payment, method or reference"
+            searchPlaceholder="Search…"
+            // Narrow search and filters so the whole strip fits on one line.
+            searchWidthClassName="sm:w-[160px]"
             extras={
               <>
-                <div className="w-full sm:w-[150px]">
+                <div className="w-full sm:w-[180px]">
+                  <Label className="text-xs text-slate-500">Customer</Label>
+                  <Select value={customer} onValueChange={setCustomer}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All customers</SelectItem>
+                      {customers.map((c) => <SelectItem key={c.key} value={c.key}>{c.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="w-full sm:w-[130px]">
                   <Label className="text-xs text-slate-500">Method</Label>
                   <Select value={method} onValueChange={setMethod}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
@@ -630,7 +656,7 @@ export function PaymentsReceivedPage({
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="w-full sm:w-[150px]">
+                <div className="w-full sm:w-[130px]">
                   <Label className="text-xs text-slate-500">Source</Label>
                   <Select value={source} onValueChange={setSource}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
@@ -640,7 +666,7 @@ export function PaymentsReceivedPage({
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="w-full sm:w-[150px]">
+                <div className="w-full sm:w-[130px]">
                   <Label className="text-xs text-slate-500">Applied to</Label>
                   <Select value={appliedTo} onValueChange={setAppliedTo}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
@@ -651,7 +677,7 @@ export function PaymentsReceivedPage({
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="w-full sm:w-[150px]">
+                <div className="w-full sm:w-[130px]">
                   <Label className="text-xs text-slate-500">Status</Label>
                   <Select value={status} onValueChange={setStatus}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
@@ -1091,11 +1117,11 @@ export function PaymentsReceivedPage({
           money back onto several balances at once and that is not obvious from
           the row. */}
       <Dialog open={!!reverseTarget} onOpenChange={(o) => { if (!o && !reversing) { setReverseTarget(null); setReason(""); setReverseError(null) } }}>
-        <DialogContent className="w-[95vw] max-w-md p-4 sm:p-6">
+        <DialogContent className={cn(FORM_DIALOG_CONTENT, "sm:max-w-lg")}>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Undo2 className="h-5 w-5 text-red-600" /> Reverse {reverseTarget?.paymentNumber ?? "this payment"}?
-            </DialogTitle>
+            <FormDialogTitle icon={Undo2} color="red">
+              Reverse {reverseTarget?.paymentNumber ?? "this payment"}?
+            </FormDialogTitle>
             <DialogDescription>
               The balance goes back onto every sale it was applied to and the cash movement is undone. The payment
               stays in the history, marked Reversed.
@@ -1103,8 +1129,9 @@ export function PaymentsReceivedPage({
           </DialogHeader>
 
           {reverseTarget && (
-            <div className="space-y-3 text-sm">
-              <div className="rounded-md border bg-slate-50 p-3">
+            <div className="min-w-0 space-y-4 text-sm">
+              <FormSection title="This reversal will" color="amber" tinted columns={1}>
+              <div className="rounded-md border bg-white p-3">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-slate-500">{reverseTarget.partyName ?? "Walk-in"}</span>
                   <span className="font-semibold tabular-nums">{fmt(reverseTarget.totalAmount)}</span>
@@ -1124,25 +1151,25 @@ export function PaymentsReceivedPage({
                   )}
                 </div>
               </div>
+              </FormSection>
 
-              <div className="space-y-1">
-                <Label htmlFor="reverse-reason">Reason *</Label>
-                <ReasonSelect id="reverse-reason" options={REVERSAL_REASONS} value={reason} onChange={setReason} />
-              </div>
+              <FormSection title="Reason" color="slate" tinted columns={1}>
+                <div className="space-y-1">
+                  <Label htmlFor="reverse-reason">Reason *</Label>
+                  <ReasonSelect id="reverse-reason" options={REVERSAL_REASONS} value={reason} onChange={setReason} />
+                </div>
+              </FormSection>
               {reverseError && <p className="rounded-md bg-red-50 p-2.5 text-red-700">{reverseError}</p>}
             </div>
           )}
 
-          <DialogFooter className="flex-col gap-2 sm:flex-row">
-            <Button variant="outline" className="h-10 w-full sm:h-9 sm:w-auto" disabled={reversing}
-                    onClick={() => { setReverseTarget(null); setReason(""); setReverseError(null) }}>
-              Cancel
-            </Button>
-            <Button className="h-10 w-full bg-red-600 hover:bg-red-700 sm:h-9 sm:w-auto" disabled={reversing || !reason.trim()} onClick={doReverse}>
+          <FormDialogFooter cancelDisabled={reversing}
+                            onCancel={() => { setReverseTarget(null); setReason(""); setReverseError(null) }}>
+            <Button className={cn("px-6", FORM_DIALOG_PRIMARY.red)} disabled={reversing || !reason.trim()} onClick={doReverse}>
               {reversing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Reverse payment
+              Reverse payment{reverseTarget ? ` · ${fmt(reverseTarget.totalAmount)}` : ""}
             </Button>
-          </DialogFooter>
+          </FormDialogFooter>
         </DialogContent>
       </Dialog>
     </div>
