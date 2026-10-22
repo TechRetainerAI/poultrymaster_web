@@ -892,6 +892,7 @@ export function ProductionRecordForm({
         </div>
         <div className="mt-3">
           <DispositionField
+            label="Broken Egg Stock allocation"
             count={brokenEggs}
             value={form.brokenEggDisposition || "Keep"}
             onChange={(v) => patch({ brokenEggDisposition: v })}
@@ -928,6 +929,7 @@ export function ProductionRecordForm({
         </div>
         <div className="mt-3">
           <DispositionField
+            label="Dead Bird Stock allocation"
             count={mortalityNum}
             value={form.mortalityDisposition || "Keep"}
             onChange={(v) => patch({ mortalityDisposition: v })}
