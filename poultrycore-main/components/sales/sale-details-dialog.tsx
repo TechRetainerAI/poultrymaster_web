@@ -7,15 +7,15 @@
 // money, and the sale that corrected it.
 
 import { useEffect, useState } from "react"
-import { FileText, Loader2, RotateCcw, Undo2 } from "lucide-react"
+import { FileText, Loader2, RotateCcw, ShoppingCart, Undo2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader } from "@/components/ui/dialog"
+import { FORM_DIALOG_CONTENT, FORM_DIALOG_PRIMARY, FormDialogFooter, FormDialogTitle } from "@/components/ui/form-dialog"
+import { FormSection } from "@/components/ui/form-section"
 import { Textarea } from "@/components/ui/textarea"
 import { formatCurrency } from "@/lib/utils/currency"
-import { formatDateShort } from "@/lib/utils"
+import { cn, formatDateShort } from "@/lib/utils"
 import { getSaleReversal, type Sale, type SaleLine, type SaleReversalRecord } from "@/lib/api/sale"
 import { restoreLabel } from "@/lib/sales/reversal"
 
@@ -44,10 +44,6 @@ const HANDLING_LABEL: Record<SaleReversalRecord["paymentHandling"], string> = {
   KeepAsCredit: "Kept as customer credit",
   ReversePayment: "Payment reversed",
   Mixed: "Partly kept as credit, partly reversed",
-}
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{children}</p>
 }
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -89,14 +85,16 @@ export function SaleDetailsDialog({
 
   return (
     <Dialog open={!!sale} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className={cn(FORM_DIALOG_CONTENT, "sm:max-w-2xl")}>
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            Sale {label}
-            {reversed
-              ? <Badge variant="outline" className="border-red-300 bg-red-50 text-red-700">Reversed</Badge>
-              : <Badge variant="outline" className="border-emerald-300 bg-emerald-50 text-emerald-700">Posted</Badge>}
-          </DialogTitle>
+          <FormDialogTitle icon={ShoppingCart} color="blue">
+            <span className="flex flex-wrap items-center gap-2">
+              Sale {label}
+              {reversed
+                ? <Badge variant="outline" className="border-red-300 bg-red-50 text-red-700">Reversed</Badge>
+                : <Badge variant="outline" className="border-emerald-300 bg-emerald-50 text-emerald-700">Posted</Badge>}
+            </span>
+          </FormDialogTitle>
           <DialogDescription>
             {reversed
               ? "This sale was reversed. It stays here for the record; it no longer counts as revenue, stock sold or money owed. Use Edit & repost to enter it again with the mistake fixed."
@@ -104,7 +102,7 @@ export function SaleDetailsDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           {sale.correctsSaleId ? (
             <p className="rounded-md bg-blue-50 p-2.5 text-sm text-blue-800">
               Correction of sale{" "}
@@ -112,7 +110,7 @@ export function SaleDetailsDialog({
             </p>
           ) : null}
 
-          <section className="space-y-1.5 rounded-md border p-3">
+          <FormSection title="Sale" color="blue" tinted columns={1} className="[&>div:last-child]:gap-1.5">
             <Row label="Date">{formatDateShort(sale.saleDate)}</Row>
             <Row label="Customer">{sale.customerName || "Walk-in"}</Row>
             <Row label="Flock">{flockLabel(sale.flockId)}</Row>
@@ -120,22 +118,20 @@ export function SaleDetailsDialog({
             <Row label="Total">{money(sale.totalAmount)}</Row>
             {!reversed && <Row label="Paid">{money(paid)}</Row>}
             {!reversed && <Row label="Balance">{money(Math.max(0, (Number(sale.totalAmount) || 0) - paid))}</Row>}
-          </section>
+          </FormSection>
 
-          <section className="space-y-2">
-            <SectionLabel>{lines.length > 1 ? "Lines" : "Item"}</SectionLabel>
+          <FormSection title={lines.length > 1 ? "Lines" : "Item"} color="amber" tinted columns={1} className="[&>div:last-child]:gap-2">
             {lines.map((l) => (
-              <div key={l.lineNo} className="flex justify-between gap-3 rounded-md border p-2.5 text-sm">
+              <div key={l.lineNo} className="flex justify-between gap-3 rounded-md border bg-white p-2.5 text-sm">
                 <span>{lineLabel(l)}</span>
                 <span className="tabular-nums font-medium">{money(l.totalAmount)}</span>
               </div>
             ))}
-          </section>
+          </FormSection>
 
           {reversed && (
-            <section className="space-y-2">
-              <SectionLabel>Reversal</SectionLabel>
-              <div className="space-y-1.5 rounded-md border border-red-200 bg-red-50/40 p-3">
+            <FormSection title="Reversal" color="rose" tinted columns={1}>
+              <div className="space-y-1.5">
                 <Row label="Reversed">{reversal ? `${reversal.reversalNumber} · ${formatDateShort(reversal.businessDate)}` : (sale.reversedAt ? formatDateShort(sale.reversedAt) : "—")}</Row>
                 <Row label="By">{reversal?.reversedBy || sale.reversedBy || "—"}</Row>
                 <Row label="Reason">{reversal ? [reversal.reasonCode, reversal.reason].filter(Boolean).join(": ") : (sale.reversalReason || "—")}</Row>
@@ -158,32 +154,31 @@ export function SaleDetailsDialog({
                   </Row>
                 )}
               </div>
-            </section>
+            </FormSection>
           )}
 
-          <section className="space-y-2">
-            <SectionLabel>Note</SectionLabel>
+          <FormSection title="Note" color="slate" tinted columns={1}>
             {reversed ? (
               <p className="text-sm text-slate-700">{sale.saleDescription || "—"}</p>
             ) : (
               <>
-                <Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2}
+                <Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} className="bg-white"
                           placeholder="Internal note (does not change the sale's money or stock)" />
                 {noteChanged && (
-                  <Button size="sm" variant="outline" disabled={savingNote}
+                  <Button size="sm" variant="outline" disabled={savingNote} className="w-fit bg-white"
                           onClick={async () => { setSavingNote(true); try { await onSaveNote(sale, note) } finally { setSavingNote(false) } }}>
                     {savingNote && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save note
                   </Button>
                 )}
               </>
             )}
-          </section>
+          </FormSection>
         </div>
 
-        <DialogFooter className="flex-wrap gap-2">
+        <FormDialogFooter onCancel={() => onOpenChange(false)} cancelLabel="Close">
           <Button variant="outline" onClick={() => onInvoice(sale)}><FileText className="mr-2 h-4 w-4" /> Invoice</Button>
           {reversed && canRepost && onRepost && !reversal?.correctionSaleId && (
-            <Button className="bg-blue-600 hover:bg-blue-700" onClick={() => onRepost(sale)}>
+            <Button className={FORM_DIALOG_PRIMARY.blue} onClick={() => onRepost(sale)}>
               <RotateCcw className="mr-2 h-4 w-4" /> Edit &amp; repost
             </Button>
           )}
@@ -192,12 +187,12 @@ export function SaleDetailsDialog({
               <Button variant="outline" className="border-red-200 text-red-700 hover:bg-red-50" onClick={() => onReverse(sale)}>
                 <Undo2 className="mr-2 h-4 w-4" /> Reverse sale
               </Button>
-              <Button className="bg-blue-600 hover:bg-blue-700" onClick={() => onCorrect(sale)}>
+              <Button className={FORM_DIALOG_PRIMARY.blue} onClick={() => onCorrect(sale)}>
                 <RotateCcw className="mr-2 h-4 w-4" /> Correct sale
               </Button>
             </>
           )}
-        </DialogFooter>
+        </FormDialogFooter>
       </DialogContent>
     </Dialog>
   )

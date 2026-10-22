@@ -13,12 +13,10 @@ import { ReasonSelect } from "@/components/ui/reason-select"
 import { useEffect, useState } from "react"
 import { Loader2, PiggyBank } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader } from "@/components/ui/dialog"
+import { FORM_DIALOG_CONTENT, FORM_DIALOG_PRIMARY, FormDialogFooter, FormDialogTitle } from "@/components/ui/form-dialog"
+import { FormField, FormSection } from "@/components/ui/form-section"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/utils/currency"
@@ -125,86 +123,78 @@ export function ManualCreditDialog({ open, currencyCode, onOpenChange, onCreated
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!saving) onOpenChange(o) }}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className={cn(FORM_DIALOG_CONTENT, "sm:max-w-2xl")}>
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2"><PiggyBank className="h-5 w-5 text-blue-600" /> Add customer credit</DialogTitle>
+          <FormDialogTitle icon={PiggyBank} color="blue">Add customer credit</FormDialogTitle>
           <DialogDescription>
             Money held for a customer, to use on their next sales or refund. Say where it came from — that decides whether cash or profit moves.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            <Label>Customer *</Label>
-            <Select value={customerId} onValueChange={setCustomerId}>
-              <SelectTrigger><SelectValue placeholder={customers.length ? "Choose the customer" : "Loading customers…"} /></SelectTrigger>
-              <SelectContent>
-                {customers.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="min-w-0 space-y-4">
+          <FormSection title="Customer & Date" color="blue" tinted stackOnMobile>
+            <FormField label="Customer *">
+              <Select value={customerId} onValueChange={setCustomerId}>
+                <SelectTrigger className="w-full bg-white"><SelectValue placeholder={customers.length ? "Choose the customer" : "Loading customers…"} /></SelectTrigger>
+                <SelectContent>
+                  {customers.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </FormField>
+            <FormField label={kind === "OpeningCredit" ? "As at *" : "Date *"}>
+              <Input id="mc-date" type="date" className="bg-white" value={date} onChange={(e) => setDate(e.target.value)} />
+            </FormField>
+          </FormSection>
 
-          <div className="space-y-1.5">
-            <Label>Where the credit came from *</Label>
-            <div className="space-y-2">
-              {KINDS.map((k) => (
-                <label key={k.value}
-                       className={cn("flex cursor-pointer gap-2.5 rounded-md border p-2.5", kind === k.value ? "border-blue-400 bg-blue-50/60" : "border-slate-200")}>
-                  <input type="radio" name="manual-credit-kind" className="mt-1" checked={kind === k.value} onChange={() => { setKind(k.value); setReason("") }} />
-                  <span className="text-sm">
-                    <span className="font-medium text-slate-900">{k.title}</span>
-                    <span className="block text-xs text-slate-600">{k.body}</span>
-                  </span>
-                </label>
-              ))}
-            </div>
-          </div>
+          <FormSection title="Where the credit came from *" color="amber" tinted columns={1}>
+            {KINDS.map((k) => (
+              <label key={k.value}
+                     className={cn("flex cursor-pointer gap-2.5 rounded-md border p-2.5", kind === k.value ? "border-amber-400 bg-amber-50" : "border-slate-200 bg-white")}>
+                <input type="radio" name="manual-credit-kind" className="mt-1" checked={kind === k.value} onChange={() => { setKind(k.value); setReason("") }} />
+                <span className="text-sm">
+                  <span className="font-medium text-slate-900">{k.title}</span>
+                  <span className="block text-xs text-slate-600">{k.body}</span>
+                </span>
+              </label>
+            ))}
+          </FormSection>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="mc-amount">Amount *</Label>
-              <Input id="mc-amount" type="number" min={0} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="mc-date">{kind === "OpeningCredit" ? "As at *" : "Date *"}</Label>
-              <Input id="mc-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-            </div>
-          </div>
+          <FormSection title="Amount" color="green" tinted>
+            <FormField label="Amount *">
+              <Input id="mc-amount" type="number" min={0} step="0.01" className="bg-white text-right font-semibold tabular-nums"
+                     value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" />
+            </FormField>
+            <FormField label="Reference">
+              <Input id="mc-ref" className="bg-white" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Optional, e.g. receipt" />
+            </FormField>
+            {isDeposit && (
+              <>
+                <FormField label="Received into *">
+                  <Select value={accountId} onValueChange={setAccountId}>
+                    <SelectTrigger className="w-full bg-white"><SelectValue placeholder="Cash account" /></SelectTrigger>
+                    <SelectContent>
+                      {accounts.map((a) => (
+                        <SelectItem key={a.poultryCashAccountId} value={String(a.poultryCashAccountId)}>{a.accountName}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormField>
+                <FormField label="Method">
+                  <Select value={method} onValueChange={setMethod}>
+                    <SelectTrigger className="w-full bg-white"><SelectValue /></SelectTrigger>
+                    <SelectContent>{METHODS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                  </Select>
+                </FormField>
+              </>
+            )}
+          </FormSection>
 
-          {isDeposit && (
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Received into *</Label>
-                <Select value={accountId} onValueChange={setAccountId}>
-                  <SelectTrigger><SelectValue placeholder="Cash account" /></SelectTrigger>
-                  <SelectContent>
-                    {accounts.map((a) => (
-                      <SelectItem key={a.poultryCashAccountId} value={String(a.poultryCashAccountId)}>{a.accountName}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Method</Label>
-                <Select value={method} onValueChange={setMethod}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{METHODS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-            </div>
-          )}
-
-          <div className="space-y-1.5">
-            <Label htmlFor="mc-ref">Reference</Label>
-            <Input id="mc-ref" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Optional, e.g. receipt or old ledger page" />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="mc-reason">Reason *</Label>
+          <FormSection title="Reason" color="slate" tinted columns={1}>
             <ReasonSelect id="mc-reason" options={CUSTOMER_CREDIT_REASONS[kind]} value={reason} onChange={setReason} />
-          </div>
+          </FormSection>
 
           {value > 0 && customerName && (
-            <p className="rounded-md bg-slate-50 p-2.5 text-sm text-slate-700">
+            <p className="rounded-md border border-blue-200 bg-blue-50 p-2.5 text-sm text-blue-900">
               {customerName} will hold <b className="tabular-nums">{formatCurrency(value, currencyCode)}</b> of credit.{" "}
               {isDeposit
                 ? `${accounts.find((a) => String(a.poultryCashAccountId) === accountId)?.accountName ?? "The account"} goes up by the same amount.`
@@ -216,12 +206,12 @@ export function ManualCreditDialog({ open, currencyCode, onOpenChange, onCreated
           {error && <p className="rounded-md bg-red-50 p-2.5 text-sm text-red-700">{error}</p>}
         </div>
 
-        <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>
-          <Button onClick={save} disabled={!valid || saving} className="bg-blue-600 hover:bg-blue-700">
-            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Add credit
+        <FormDialogFooter onCancel={() => onOpenChange(false)} cancelDisabled={saving}>
+          <Button onClick={save} disabled={!valid || saving} className={cn("px-6", FORM_DIALOG_PRIMARY.blue)}>
+            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {value > 0 ? `Add credit · ${formatCurrency(value, currencyCode)}` : "Add credit"}
           </Button>
-        </DialogFooter>
+        </FormDialogFooter>
       </DialogContent>
     </Dialog>
   )
