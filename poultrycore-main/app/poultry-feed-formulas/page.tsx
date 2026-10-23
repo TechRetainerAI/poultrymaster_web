@@ -21,14 +21,14 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { Plus, Pencil, Loader2, Trash2, FlaskConical, AlertTriangle, CheckCircle2, ArrowLeft, ChevronDown, ChevronUp } from "lucide-react"
+import { Plus, Pencil, Loader2, Trash2, FlaskConical, AlertTriangle, CheckCircle2, ArrowLeft, ChevronDown, ChevronUp, Copy, Sparkles } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/use-permissions"
 import { listPoultryRawMaterialItems, type PoultryRawMaterialItem } from "@/lib/api/poultry-inventory"
 import { unitOptions } from "@/lib/units"
 import {
-  listFeedFormulas, getFeedFormula, upsertFeedFormula, deleteFeedFormula,
+  listFeedFormulas, getFeedFormula, upsertFeedFormula, deleteFeedFormula, ensureDefaultFeedFormulas,
   type FeedFormula, type FeedFormulaQuantityMode,
 } from "@/lib/api/poultry-feed-production"
 
@@ -54,9 +54,15 @@ type FormState = {
   defaultOutputUnit: string
   notes: string
   isActive: boolean
+  /** Editing a default makes it the farm's own (385), so the dialog says so. */
+  isDefault: boolean
   lines: LineForm[]
 }
-const EMPTY_FORM: FormState = { poultryFeedFormulaId: null, formulaName: "", finishedFeedItemId: null, defaultOutputUnit: "", notes: "", isActive: true, lines: [newLine()] }
+const EMPTY_FORM: FormState = { poultryFeedFormulaId: null, formulaName: "", finishedFeedItemId: null, defaultOutputUnit: "", notes: "", isActive: true, isDefault: false, lines: [newLine()] }
+
+function DefaultBadge() {
+  return <Badge variant="outline" className="border-sky-300 bg-sky-50 text-sky-700">Default</Badge>
+}
 
 export default function PoultryFeedFormulasPage() {
   const { toast } = useToast()
@@ -75,6 +81,9 @@ export default function PoultryFeedFormulasPage() {
   const isMobile = useIsMobile()
   // Mobile opens on scorecards; "View table format" flips to the wide table.
   const [showTableMobile, setShowTableMobile] = useState(false)
+  const [restoring, setRestoring] = useState(false)
+  // The defaults are seeded on the first load only; after that it is the farm's list.
+  const seededRef = useRef(false)
 
   const finishedFeedItems = useMemo(() => items.filter((i) => i.isActive && isFinishedFeed(i.category)), [items])
   const ingredientItems = useMemo(() => items.filter((i) => i.isActive && isIngredient(i.category)), [items])
@@ -82,6 +91,11 @@ export default function PoultryFeedFormulasPage() {
   async function loadAll() {
     setLoading(true)
     try {
+      if (!seededRef.current) {
+        seededRef.current = true
+        // Once per farm on the server; silent if it fails (staff, or 385 not applied).
+        if (canManage) await ensureDefaultFeedFormulas().catch(() => {})
+      }
       const [f, it] = await Promise.all([listFeedFormulas(), listPoultryRawMaterialItems()])
       setFormulas(f)
       setItems(it)
@@ -104,16 +118,33 @@ export default function PoultryFeedFormulasPage() {
     setOpen(true)
   }
 
-  async function openEdit(f: FeedFormula) {
+  async function restoreDefaults() {
+    setRestoring(true)
+    try {
+      const r = await ensureDefaultFeedFormulas(true)
+      toast(r.formulasCreated + r.itemsCreated === 0
+        ? { title: "Nothing to add", description: "All the default formulas and feeds are already here." }
+        : { title: "Default formulas added", description: `${r.formulasCreated} formula${r.formulasCreated === 1 ? "" : "s"} and ${r.itemsCreated} feed item${r.itemsCreated === 1 ? "" : "s"} added.` })
+      await loadAll()
+    } catch (e: any) {
+      toast({ title: "Could not add the default formulas", description: e?.message ?? String(e), variant: "destructive" })
+    } finally {
+      setRestoring(false)
+    }
+  }
+
+  /** Opens the formula in the dialog. `asCopy` starts a new formula from it instead. */
+  async function openEdit(f: FeedFormula, asCopy = false) {
     try {
       const full = await getFeedFormula(f.poultryFeedFormulaId)
       setForm({
-        poultryFeedFormulaId: full.poultryFeedFormulaId,
-        formulaName: full.formulaName,
+        poultryFeedFormulaId: asCopy ? null : full.poultryFeedFormulaId,
+        formulaName: asCopy ? `My ${full.formulaName}` : full.formulaName,
         finishedFeedItemId: full.finishedFeedItemId ?? null,
         defaultOutputUnit: full.defaultOutputUnit ?? "",
         notes: full.notes ?? "",
         isActive: full.isActive,
+        isDefault: !asCopy && !!full.isDefault,
         lines: (full.lines ?? []).length
           ? full.lines!.map((l) => ({
               key: Math.random().toString(36).slice(2),
@@ -229,6 +260,31 @@ export default function PoultryFeedFormulasPage() {
             )}
           </div>
 
+          {/* The defaults (385) are an example, not a rule -- say so where they appear. */}
+          <div className="flex flex-col gap-3 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex gap-3">
+              <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-sky-600" />
+              <div className="space-y-1">
+                <p className="font-semibold">Default formulas to start with</p>
+                <p>
+                  Starter, Grower, Developer and Layer formulas — each for <b>1,000 kg (1 tonne)</b> of feed — are ready to use.
+                  This is one great example many farmers use. To make 2 tonnes, every amount is simply doubled.
+                </p>
+                <p>
+                  Most farms have their own variation. <b>Copy</b> a default to make your own version, edit it, or create a
+                  new formula from scratch.
+                </p>
+              </div>
+            </div>
+            {canManage && (
+              <Button variant="outline" size="sm" className="shrink-0 self-start border-sky-300 bg-white text-sky-800 hover:bg-sky-100"
+                onClick={() => void restoreDefaults()} disabled={restoring || loading}>
+                {restoring ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Plus className="mr-1 h-4 w-4" />}
+                Add missing defaults
+              </Button>
+            )}
+          </div>
+
           {loading ? (
             <div className="flex items-center gap-2 text-slate-500 p-8"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>
           ) : (
@@ -257,6 +313,7 @@ export default function PoultryFeedFormulasPage() {
                                 <div className="pr-6">
                                   <div className="flex flex-wrap items-center gap-2">
                                     <span className="font-semibold text-slate-900">{f.formulaName}</span>
+                                    {f.isDefault && <DefaultBadge />}
                                     {f.isActive ? <Badge variant="secondary">Active</Badge> : <Badge variant="outline">Inactive</Badge>}
                                   </div>
                                   <div className="mt-0.5 truncate text-xs text-slate-500">{f.finishedFeedItemName ?? "No finished feed"}</div>
@@ -297,6 +354,12 @@ export default function PoultryFeedFormulasPage() {
                                   <Button variant="outline" size="sm" className="h-10 w-full bg-white text-red-600 border-red-200 hover:bg-red-50"
                                     onClick={(e) => { e.stopPropagation(); setDeleteTarget(f) }}>
                                     <Trash2 className="h-4 w-4 mr-2" /> Delete
+                                  </Button>
+                                )}
+                                {canManage && (
+                                  <Button variant="outline" size="sm" className="col-span-2 h-10 w-full bg-white"
+                                    onClick={(e) => { e.stopPropagation(); void openEdit(f, true) }}>
+                                    <Copy className="h-4 w-4 mr-2" /> Copy as my own formula
                                   </Button>
                                 )}
                               </div>
@@ -343,7 +406,9 @@ export default function PoultryFeedFormulasPage() {
                       const pctGood = !usesPct || Math.abs((f.percentageTotal ?? 0) - 100) < 0.01
                       return (
                         <TableRow key={f.poultryFeedFormulaId}>
-                          <TableCell className="font-medium">{f.formulaName}</TableCell>
+                          <TableCell className="font-medium">
+                            <span className="inline-flex flex-wrap items-center gap-2">{f.formulaName}{f.isDefault && <DefaultBadge />}</span>
+                          </TableCell>
                           <TableCell>{f.finishedFeedItemName ?? "—"}</TableCell>
                           <TableCell className="text-center tabular-nums">{f.lineCount ?? 0}</TableCell>
                           <TableCell className="text-center tabular-nums">
@@ -359,7 +424,8 @@ export default function PoultryFeedFormulasPage() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-1">
-                              <Button variant="ghost" size="sm" onClick={() => void openEdit(f)}><Pencil className="w-4 h-4" /></Button>
+                              <Button variant="ghost" size="sm" onClick={() => void openEdit(f)} aria-label="Edit"><Pencil className="w-4 h-4" /></Button>
+                              {canManage && <Button variant="ghost" size="sm" onClick={() => void openEdit(f, true)} aria-label="Copy as my own formula" title="Copy as my own formula"><Copy className="w-4 h-4" /></Button>}
                               {canManage && <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(f)}><Trash2 className="w-4 h-4 text-red-600" /></Button>}
                             </div>
                           </TableCell>
@@ -386,6 +452,13 @@ export default function PoultryFeedFormulasPage() {
             fixes both ends. */}
         <DialogContent className="sm:max-w-[820px] max-h-[92vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader><DialogTitle>{form.poultryFeedFormulaId ? "Edit Feed Formula" : "New Feed Formula"}</DialogTitle></DialogHeader>
+
+          {form.isDefault && (
+            <p className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">
+              This is a default formula for 1,000 kg. Saving changes makes it your farm&apos;s own formula. To keep the
+              default as it is, close this and use <b>Copy</b> instead.
+            </p>
+          )}
 
           <FormSection title="Formula details" color="blue" stackOnMobile>
             <FormField label="Formula name *"><Input value={form.formulaName} onChange={(e) => setForm({ ...form, formulaName: e.target.value })} placeholder="e.g. Layer Mash Formula" /></FormField>
