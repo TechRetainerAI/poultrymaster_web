@@ -429,93 +429,161 @@ const Map<String, List<NavGroup>> webNavGroups = {
       ]),
     ]),
   ],
+  // Rebuilt 2026-10-21 from the web sidebar's Hotel branch after the emma
+  // merge (components/dashboard/sidebar.tsx, isHotel → renderMenu) and
+  // lib/nav/hotel-nav-config.ts: menus like Poultry, Water and Restaurant.
+  // Reports is HOTEL_REPORT_NAV_GROUPS led by "All reports". No Hotel page is
+  // native yet: rows keep the specKeys they had (a generated list), and a row
+  // new to the menu (specKey null) opens the real web page in-app.
   'hotel': [
-    NavGroup('People', [
+    NavGroup('Quick Links', [
       NavSubGroup('', [
-        NavLink('Staff', '/hotel-staff', 'hotel-staff'),
-        NavLink('Payroll', '/hotel-payroll', 'hotel-payroll-runs'),
-      ]),
-    ]),
-    NavGroup('System', [
-      NavSubGroup('', [
-        NavLink('Hotel Reports/Weekly Report', '/hotel-reports/weekly-report', 'hotel-reports-daily-closings'),
-        NavLink('Hotel Reports/Monthly Report', '/hotel-reports/monthly-report', 'hotel-reports-daily-closings'),
-        NavLink('Hotel Reports/Menu Performance', '/hotel-reports/menu-performance', 'restaurant-menu-items'),
-        NavLink('Hotel Reports/Guest Report', '/hotel-reports/guest-report', 'hotel-bookings'),
-        NavLink('Hotel Reports/Daily Report', '/hotel-reports/daily-report', 'hotel-reports-daily-closings'),
-        NavLink('Hotel Reports/Cash Flow Report', '/hotel-reports/cash-flow-report', 'hotel-finance-cash-accounts'),
-        NavLink('Hotel Reports/Billing Report', '/hotel-reports/billing-report', 'hotel-billing-payments'),
-        NavLink('Hotel Dashboard', '/hotel-dashboard', 'hotel-bookings'),
-        NavLink('Company Setup', '/hotel-company-setup', 'hotel-setup-profile'),
-        NavLink('Setup', '/hotel-setup', 'hotel-setup-amenities'),
-      ]),
-    ]),
-    NavGroup('Front Desk', [
-      NavSubGroup('', [
-        NavLink('Guests', '/hotel-guests', 'hotel-guests'),
+        NavLink('Daily Closing', '/hotel-daily-closing', 'hotel-reports-daily-closings'),
+        NavLink('Night Audit', '/hotel-night-audit', 'hotel-night-audit'),
+        NavLink('Shift Handover', '/hotel-shift-handover', 'hotel-shift-handovers'),
         NavLink('Bookings', '/hotel-bookings', 'hotel-bookings'),
+      ]),
+    ]),
+    NavGroup('Operations', [
+      NavSubGroup('Front Desk', [
+        NavLink('Bookings', '/hotel-bookings', 'hotel-bookings'),
+        NavLink('Guests', '/hotel-guests', 'hotel-guests'),
         NavLink('Check-in', '/hotel-check-in', 'hotel-bookings'),
         NavLink('Check-out', '/hotel-check-out', 'hotel-bookings'),
         NavLink('Availability', '/hotel-availability', 'hotel-setup-room-types'),
         NavLink('Guest Folio', '/hotel-guest-folio', 'hotel-bookings'),
+        NavLink('Billing', '/hotel-billing', 'hotel-billing-charges'),
+        NavLink('Invoices', '/hotel-invoices', 'hotel-billing-invoices'),
         NavLink('Stay History', '/hotel-stay-history', 'hotel-checkin-history'),
-        NavLink('Night Audit', '/hotel-night-audit', 'hotel-night-audit'),
       ]),
-    ]),
-    NavGroup('Guest Services', [
-      NavSubGroup('', [
+      NavSubGroup('Guest Services', [
         NavLink('Guest Log', '/hotel-communications', 'hotel-communications'),
         NavLink('Requests', '/hotel-guest-requests', 'hotel-guest-requests'),
         NavLink('Lost & Found', '/hotel-lost-found', 'hotel-lost-and-found'),
       ]),
-    ]),
-    NavGroup('Rooms & Service', [
-      NavSubGroup('', [
+      NavSubGroup('Rooms & Housekeeping', [
         NavLink('Rooms', '/hotel-rooms', 'hotel-rooms'),
         NavLink('Housekeeping', '/hotel-housekeeping', 'hotel-housekeeping'),
-        NavLink('Room Service', '/hotel-room-service', 'hotel-restaurant-orders'),
-        NavLink('Restaurant', '/hotel-restaurant', 'hotel-restaurant-orders'),
-        NavLink('Menu Items', '/hotel-menu', 'hotel-restaurant-tables'),
         NavLink('HK Schedule', '/hotel-housekeeping-schedule', 'hotel-housekeeping-schedule'),
-        NavLink('Tables', '/hotel-restaurant-tables', 'hotel-restaurant-tables'),
+        NavLink('Room Service', '/hotel-room-service', 'hotel-restaurant-orders'),
+      ]),
+    ]),
+    NavGroup('Restaurant & Bar', [
+      NavSubGroup('Restaurant & Bar', [
+        NavLink('Orders', '/hotel-restaurant', 'hotel-restaurant-orders'),
+        NavLink('Menu', '/hotel-menu', 'hotel-restaurant-tables'),
         NavLink('Kitchen', '/hotel-kitchen', 'hotel-restaurant-orders'),
+        NavLink('Tables', '/hotel-restaurant-tables', 'hotel-restaurant-tables'),
       ]),
     ]),
-    NavGroup('Billing & Money', [
-      NavSubGroup('', [
-        NavLink('Billing', '/hotel-billing', 'hotel-billing-charges'),
-        NavLink('Invoices', '/hotel-invoices', 'hotel-billing-invoices'),
+    NavGroup('Sales, Expenses & Money', [
+      NavSubGroup('Sales', [
+        NavLink('Sales', '/hotel-sales', null),
         NavLink('Payments', '/hotel-payments', 'hotel-finance-expenses'),
+        NavLink('Customer Balances', '/hotel-customer-balances', null),
+      ]),
+      NavSubGroup('Expenses', [
         NavLink('Expenses', '/hotel-expenses', 'hotel-finance-expense-categories'),
-        NavLink('Cash Accounts', '/hotel-cash-accounts', 'hotel-finance-cash-accounts'),
-        NavLink('Daily Closing', '/hotel-daily-closing', 'hotel-reports-daily-closings'),
+        NavLink('Supplier Payments', '/hotel-supplier-payments', null),
+        NavLink('Supplier Balances', '/hotel-supplier-balances', null),
+        NavLink('Recurring Expenses', '/hotel-recurring-expenses', null),
+        NavLink('Internal Use', '/hotel-internal-use', null),
+        NavLink('Payroll', '/hotel-payroll', 'hotel-payroll-runs'),
+        NavLink('Employee Loans & Advances', '/hotel-employee-loans', null),
+        NavLink('Deferred inventory cost', '/hotel-deferred-costs', null),
+        NavLink('Capital Investments/Assets', '/hotel-assets', null),
+      ]),
+      NavSubGroup('Money', [
+        NavLink('Cash Flow', '/hotel-cash-flow', null),
+        NavLink('Financial Activity', '/hotel-financial-activity', null),
+        NavLink('Profit & Loss', '/hotel-profit-loss', null),
+        NavLink('Owner Money', '/hotel-owner-money', null),
+        NavLink('Loans (Financing)', '/hotel-loans', null),
+        NavLink('Cash Account', '/hotel-cash-accounts', 'hotel-finance-cash-accounts'),
+        NavLink('Cash Transfers', '/hotel-cash-transfers', null),
+        NavLink('Reconciliation', '/hotel-cash-reconciliation', null),
       ]),
     ]),
-    NavGroup('Inventory & Reports', [
-      NavSubGroup('', [
+    NavGroup('Reports', [
+      NavSubGroup('All reports', [
+        NavLink('All Reports', '/hotel-reports', null),
+      ]),
+      NavSubGroup('Financial', [
         NavLink('Revenue Summary', '/hotel-reports/revenue-summary', 'hotel-reports-daily-closings'),
-        NavLink('Restaurant Sales', '/hotel-reports/restaurant-sales', 'hotel-restaurant-orders'),
-        NavLink('Payroll Report', '/hotel-reports/payroll-report', 'hotel-payroll-runs'),
-        NavLink('Occupancy Report', '/hotel-reports/occupancy-report', 'hotel-reports-daily-closings'),
-        NavLink('Maintenance Report', '/hotel-reports/maintenance-report', 'hotel-maintenance'),
-        NavLink('Inventory Report', '/hotel-reports/inventory-report', 'hotel-inventory'),
-        NavLink('Housekeeping Report', '/hotel-reports/housekeeping-report', 'hotel-housekeeping'),
         NavLink('Expense Report', '/hotel-reports/expense-report', 'hotel-finance-expenses'),
+        NavLink('Billing & Payments', '/hotel-reports/billing-report', 'hotel-billing-payments'),
+        NavLink('Payroll Report', '/hotel-reports/payroll-report', 'hotel-payroll-runs'),
+        NavLink('Cash Flow Report', '/hotel-reports/cash-flow-report', 'hotel-finance-cash-accounts'),
+        NavLink('Guest Ledger', '/hotel-reports/guest-ledger', null),
+        NavLink('Ancillary Revenue', '/hotel-reports/ancillary-revenue', null),
+        NavLink('Employee Loans & Advances', '/hotel-reports/staff-loans', null),
+      ]),
+      NavSubGroup('Operations', [
         NavLink('Bookings Report', '/hotel-reports/bookings-report', 'hotel-bookings'),
+        NavLink('Guest Report', '/hotel-reports/guest-report', 'hotel-bookings'),
+        NavLink('Occupancy & ADR', '/hotel-reports/occupancy-report', 'hotel-reports-daily-closings'),
+        NavLink('Maintenance Report', '/hotel-reports/maintenance-report', 'hotel-maintenance'),
+        NavLink('Loyalty Programme', '/hotel-reports/loyalty-report', null),
+      ]),
+      NavSubGroup('Restaurant & Bar', [
+        NavLink('Restaurant Sales', '/hotel-reports/restaurant-sales', 'hotel-restaurant-orders'),
+        NavLink('Menu Performance', '/hotel-reports/menu-performance', 'restaurant-menu-items'),
+      ]),
+      NavSubGroup('Periodic Reports', [
+        NavLink('Daily Report', '/hotel-reports/daily-report', 'hotel-reports-daily-closings'),
+        NavLink('Weekly Report', '/hotel-reports/weekly-report', 'hotel-reports-daily-closings'),
+        NavLink('Monthly Report', '/hotel-reports/monthly-report', 'hotel-reports-daily-closings'),
+      ]),
+      NavSubGroup('Housekeeping & Inventory', [
+        NavLink('Housekeeping Report', '/hotel-reports/housekeeping-report', 'hotel-housekeeping'),
+        NavLink('Inventory Report', '/hotel-reports/inventory-report', 'hotel-inventory'),
+        NavLink('Housekeeping Productivity', '/hotel-reports/housekeeping-productivity', null),
+      ]),
+      NavSubGroup('Revenue Management', [
+        NavLink('Performance & KPIs', '/hotel-reports/performance-kpis', null),
+        NavLink('Source of Business', '/hotel-reports/source-of-business', null),
+        NavLink('Booking Pace', '/hotel-reports/booking-pace', null),
+        NavLink('Room Type Performance', '/hotel-reports/room-type-performance', null),
+        NavLink('Length of Stay', '/hotel-reports/length-of-stay', null),
+        NavLink('Cancellations', '/hotel-reports/cancellations', null),
+      ]),
+    ]),
+    NavGroup('Setup', [
+      NavSubGroup('Hotel', [
+        NavLink('Company Setup', '/hotel-company-setup', 'hotel-setup-profile'),
+        NavLink('Hotel Setup', '/hotel-setup', 'hotel-setup-amenities'),
+      ]),
+      NavSubGroup('People', [
+        NavLink('Staff', '/hotel-staff', 'hotel-staff'),
+        NavLink('Users & Permissions', '/employees', null),
+      ]),
+      NavSubGroup('Finance', [
+        NavLink('Customers', '/hotel-customers', null),
+        NavLink('Suppliers', '/hotel-suppliers', null),
+      ]),
+      NavSubGroup('Facilities', [
         NavLink('Supplies', '/hotel-inventory', 'hotel-inventory'),
         NavLink('Maintenance', '/hotel-maintenance', 'hotel-maintenance'),
-        NavLink('Reports', '/hotel-reports', null),
-        NavLink('Shift Handover', '/hotel-shift-handover', 'hotel-shift-handovers'),
+      ]),
+    ]),
+    // sidebar.tsx prepends "Account" to the config's "Your account" column,
+    // whose own Account row is hidden (visible: false).
+    NavGroup('System', [
+      NavSubGroup('Your account', [
+        NavLink('Account', '/profile', 'authentication-get-current-user'),
+        NavLink('Companies', '/companies', 'companies-mine'),
+        NavLink('Billing', '/business-office/billing', null),
       ]),
     ]),
   ],
   // Restaurant had no entry here at all, so a restaurant company opened the
   // app to an empty menu. Mirrors lib/nav/restaurant-nav-config.ts: same
   // sections, same order, same labels as the site.
-  // Hand-rebuilt 2026-10-02 from the web sidebar's Restaurant branch
-  // (components/dashboard/sidebar.tsx) and lib/nav/restaurant-nav-config.ts,
-  // in the sidebar's order. The generated copy had no Sales / Expenses /
-  // Money at all, and sent Dashboard to Menu Items and POS to the order list.
+  // Rebuilt 2026-10-21 from the web sidebar's Restaurant branch after the
+  // emma merge (components/dashboard/sidebar.tsx, isRestaurant): it is now
+  // menus like Poultry and Water, each a collapsible section in the drawer
+  // with its columns (lib/nav/restaurant-nav-config.ts) as sub-headings.
+  // Reports is RESTAURANT_REPORT_NAV_GROUPS led by "All reports", as Water's.
   //
   // specKey null = the page has no list endpoint of its own (POS, the money
   // reports, Restaurant Setup's tabs); it opens the real web page in-app.
@@ -530,32 +598,33 @@ const Map<String, List<NavGroup>> webNavGroups = {
         NavLink('Daily Closing', '/restaurant-daily-closing', 'restaurant-finance-daily-closing'),
       ]),
     ]),
-    NavGroup('Orders', [
-      NavSubGroup('', [
+    NavGroup('Orders & Kitchen', [
+      NavSubGroup('Orders', [
         NavLink('POS / New Order', '/restaurant-pos', null),
         NavLink('New Guest Orders', '/restaurant-pending-orders', 'restaurant-online-pending-orders'),
         NavLink('All Orders', '/restaurant-orders', 'restaurant-orders'),
       ]),
-    ]),
-    NavGroup('Kitchen', [
-      NavSubGroup('', [
+      NavSubGroup('Kitchen', [
         NavLink('Kitchen Display', '/restaurant-kds', null),
       ]),
     ]),
     NavGroup('Dining', [
-      NavSubGroup('', [
+      NavSubGroup('Floor & Tables', [
         NavLink('Restaurant Areas', '/restaurant-floor-plan', 'restaurant-floor-floors'),
         NavLink('Reservations & Waitlist', '/restaurant-reservations', 'restaurant-reservations'),
       ]),
     ]),
     NavGroup('Delivery & Online', [
-      NavSubGroup('', [
+      NavSubGroup('Online Ordering', [
         NavLink('Online Settings', '/restaurant-online-orders', 'restaurant-online-settings'),
+        NavLink('QR / Customer Order', '/restaurant-order-online', 'restaurant-public-menu'),
+      ]),
+      NavSubGroup('Delivery', [
         NavLink('Drivers & Dispatch', '/restaurant-delivery', 'restaurant-delivery-drivers'),
       ]),
     ]),
     NavGroup('Inventory', [
-      NavSubGroup('', [
+      NavSubGroup('Inventory', [
         NavLink('Ingredients & Stock', '/restaurant-inventory', 'restaurant-inventory-ingredients'),
         NavLink('Record Purchase', '/restaurant-inventory?purchase=1', null),
       ]),
@@ -589,44 +658,97 @@ const Map<String, List<NavGroup>> webNavGroups = {
       ]),
     ]),
     NavGroup('Growth', [
-      NavSubGroup('', [
+      NavSubGroup('Customers', [
         NavLink('Customers & CRM', '/restaurant-crm', 'restaurant-crm-customers'),
         NavLink('Loyalty & Rewards', '/restaurant-loyalty', 'restaurant-loyalty-accounts'),
+      ]),
+      NavSubGroup('More', [
         NavLink('Events & Catering', '/restaurant-events', 'restaurant-events'),
         NavLink('Gift Cards', '/restaurant-gift-cards', 'restaurant-gift-cards'),
         NavLink('Notifications', '/restaurant-notifications', 'restaurant-notifications'),
       ]),
     ]),
     NavGroup('Reports', [
-      NavSubGroup('', [
+      NavSubGroup('All reports', [
         NavLink('Reports', '/restaurant-reports', null),
       ]),
+      NavSubGroup('Money', [
+        NavLink('Profit & Loss', '/restaurant-reports/pnl', null),
+        NavLink('Sales Summary', '/restaurant-reports/sales-summary', null),
+        NavLink('Payment Methods', '/restaurant-reports/payment-methods', null),
+        NavLink('Expenses', '/restaurant-reports/expenses', null),
+        NavLink('Discounts & Promotions', '/restaurant-reports/discounts', null),
+        NavLink('Profit vs Cash', '/restaurant-reports/profit-vs-cash', null),
+        NavLink('Payroll', '/restaurant-reports/payroll', null),
+        NavLink('Employee Loans & Advances', '/restaurant-reports/staff-loans', null),
+      ]),
+      NavSubGroup('Cash & Ledger', [
+        NavLink('Cash Flow Detail', '/restaurant-reports/cash-flow-detail', null),
+        NavLink('Cash Movement', '/restaurant-reports/cash-movement', null),
+        NavLink('Cash Account Report', '/restaurant-reports/cash-accounts', null),
+        NavLink('Money Movement', '/restaurant-reports/money-movement', null),
+        NavLink('Takings by Account', '/restaurant-reports/takings-by-account', null),
+        NavLink('Till & Count Variances', '/restaurant-reports/till-variances', null),
+        NavLink('Closing Report', '/restaurant-reports/closing-report', null),
+      ]),
+      NavSubGroup('Sales', [
+        NavLink('Daily Sales', '/restaurant-reports/daily-sales', null),
+        NavLink('Revenue Trend', '/restaurant-reports/revenue-trend', null),
+        NavLink('Top Selling Items', '/restaurant-reports/top-items', null),
+        NavLink('Sales by Category', '/restaurant-reports/sales-by-category', null),
+        NavLink('Peak Hours', '/restaurant-reports/peak-hours', null),
+      ]),
+      NavSubGroup('Menu & Food', [
+        NavLink('Menu Engineering', '/restaurant-reports/menu-engineering', null),
+        NavLink('Food Cost', '/restaurant-reports/food-cost', null),
+        NavLink('Waste', '/restaurant-reports/waste', null),
+      ]),
+      NavSubGroup('Operations', [
+        NavLink('Kitchen Performance', '/restaurant-reports/kitchen-performance', null),
+        NavLink('Table Turnover', '/restaurant-reports/table-turnover', null),
+        NavLink('Waiter Performance', '/restaurant-reports/waiter-performance', null),
+        NavLink('Tips', '/restaurant-reports/tips', null),
+        NavLink('Voids & Cancellations', '/restaurant-reports/voids', null),
+        NavLink('Stock on Hand', '/restaurant-reports/stock-on-hand', null),
+      ]),
+      NavSubGroup('Guests & Channels', [
+        NavLink('Customer Retention', '/restaurant-reports/customer-retention', null),
+        NavLink('Guest Feedback', '/restaurant-reports/feedback', null),
+        NavLink('Delivery Performance', '/restaurant-reports/delivery-performance', null),
+        NavLink('Channel Profitability', '/restaurant-reports/channel', null),
+        NavLink('Events & Catering', '/restaurant-reports/events', null),
+      ]),
     ]),
-    NavGroup('Menu & Setup', [
-      NavSubGroup('', [
+    NavGroup('Setup', [
+      NavSubGroup('Menu & Staff', [
         NavLink('Menu Items', '/restaurant-menu', 'restaurant-menu-items'),
         NavLink('Staff', '/restaurant-staff', 'restaurant-staff'),
         NavLink('Restaurant Setup', '/restaurant-setup', null),
       ]),
-    ]),
-    NavGroup('System', [
-      NavSubGroup('', [
-        NavLink('Users & Permissions', '/employees', 'admin-company-employees'),
-        NavLink('Account', '/profile', 'authentication-get-current-user'),
-        // An action, not a page: opens "System Alerts and Notifications".
-        NavLink('Alerts', '#alerts', null),
-        NavLink('Companies', '/companies', 'companies-mine'),
-        NavLink('Billing', '/business-office/billing', 'payments-subscription-tiers'),
-        NavLink('Activity Log', '/audit-logs', 'auditlogs'),
-        NavLink('Terms & Conditions', '/terms', null),
+      NavSubGroup('Finance', [
+        NavLink('Suppliers', '/restaurant-suppliers', 'restaurant-setup-suppliers'),
       ]),
     ]),
-    // Not on the web sidebar, but in the top nav (Setup > Finance, Online
-    // Ordering, Inventory). Kept so the All pages sheet still reaches them.
+    // The web's Restaurant System menu: "Account" is prepended by
+    // sidebar.tsx to the nav config's Account column (My Account, Companies,
+    // Billing), so both rows open /profile there too.
+    NavGroup('System', [
+      NavSubGroup('Account', [
+        NavLink('Account', '/profile', 'authentication-get-current-user'),
+        NavLink('My Account', '/profile', null),
+        NavLink('Companies', '/companies', 'companies-mine'),
+        NavLink('Billing', '/business-office/billing', 'payments-subscription-tiers'),
+      ]),
+    ]),
+    // Not on the web's Restaurant sidebar any more (the old flat System block
+    // and the QR print page). Kept so the All pages sheet still reaches them.
     NavGroup('More pages', [
       NavSubGroup('', [
-        NavLink('Suppliers', '/restaurant-suppliers', 'restaurant-setup-suppliers'),
-        NavLink('QR / Customer Order', '/restaurant-order-online', 'restaurant-public-menu'),
+        NavLink('Users & Permissions', '/employees', 'admin-company-employees'),
+        // An action, not a page: opens "System Alerts and Notifications".
+        NavLink('Alerts', '#alerts', null),
+        NavLink('Activity Log', '/audit-logs', 'auditlogs'),
+        NavLink('Terms & Conditions', '/terms', null),
         NavLink('QR Codes', '/restaurant-qr-print', 'restaurant-online-qr-codes'),
       ]),
     ]),

@@ -488,13 +488,22 @@ class _CompanyCardState extends State<_CompanyCard> {
       // The Currency section is the single control; the profile mirrors it.
       final payload = {..._form.payload(), 'defaultCurrency': _code};
       await savePoultryProfile(widget.session, widget.company, _form, payload);
-      await widget.session.farmClient.put('/api/Water/farm-settings/currency?farmId=$_farm', body: {
-        'currencyCode': _code,
-        'currencySymbol': _symbol.text.trim(),
-        'showCurrencySymbol': _showSymbol,
-      });
       messenger.showSnackBar(SnackBar(
           content: Text(wasNew ? 'Poultry Company set up. Default cash accounts seeded.' : 'Company settings saved')));
+      // The profile saved; a currency-sync failure shouldn't lose that (as the
+      // web's Poultry Company Setup). The server now keeps this route Water-only.
+      try {
+        await widget.session.farmClient.put('/api/Water/farm-settings/currency?farmId=$_farm', body: {
+          'currencyCode': _code,
+          'currencySymbol': _symbol.text.trim(),
+          'showCurrencySymbol': _showSymbol,
+        });
+      } on ApiException {
+        messenger
+          ..hideCurrentSnackBar()
+          ..showSnackBar(const SnackBar(
+            content: Text('Currency not applied app-wide. The profile saved, but the display currency could not be updated.')));
+      }
     } on ApiException catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('Save failed. ${e.message}')));
     } finally {

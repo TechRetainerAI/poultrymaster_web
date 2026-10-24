@@ -2,10 +2,26 @@
 // EmptyState, plus the rose tab strip and the small badge the Restaurant pages
 // share.
 
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 import '../poultry/trackers/tracker_widgets.dart' show TColors;
 import 'restaurant_roles.dart' show restaurantRose;
+
+/// A picture the web stored either as a data URI (how Menu uploads save it) or
+/// as a plain URL; [fallback] when there is none or it cannot be read.
+Widget restaurantImage(String src, {required Widget fallback, BoxFit fit = BoxFit.cover}) {
+  if (src.isEmpty) return fallback;
+  if (src.startsWith('data:')) {
+    try {
+      return Image.memory(base64Decode(src.substring(src.indexOf(',') + 1)), fit: fit, gaplessPlayback: true, errorBuilder: (_, _, _) => fallback);
+    } catch (_) {
+      return fallback;
+    }
+  }
+  return Image.network(src, fit: fit, errorBuilder: (_, _, _) => fallback);
+}
 
 /// PageHeader: the rose icon tile, title and subtitle; actions full width below.
 class RPageHeader extends StatelessWidget {

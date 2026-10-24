@@ -8,6 +8,7 @@ import '../design/web_mobile.dart';
 import '../state/session.dart';
 import '../pages/poultry/production/production_logic.dart' show loadEggsPerCrate;
 import '../pages/poultry/farm_alerts_screen.dart';
+import '../pages/restaurant/restaurant_dashboard_view.dart';
 import '../widgets/app_header.dart';
 import '../widgets/company_switcher_sheet.dart';
 
@@ -69,6 +70,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _load() async {
     final company = widget.session.active;
     if (company == null) return;
+    // Restaurant's Home is RestaurantDashboardView, which loads its own figures.
+    if (company.type == CompanyType.restaurant) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
     // EggsPerCrateLoader (344): the farm's crate size, used by every egg screen.
     loadEggsPerCrate(widget.session, company);
     _loadAlertCount();
@@ -146,6 +152,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       body: Column(
         children: [
           CompanyBar(company: company, onTap: _switchCompany),
+          // Restaurant draws the web's own dashboard rather than the summary grid.
+          if (company.type == CompanyType.restaurant)
+            Expanded(child: RestaurantDashboardView(key: ValueKey(company.farmId), session: session, company: company))
+          else
           Expanded(
             child: RefreshIndicator(
               onRefresh: _load,

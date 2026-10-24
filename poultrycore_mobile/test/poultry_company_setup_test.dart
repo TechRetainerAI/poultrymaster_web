@@ -191,6 +191,24 @@ void main() {
       await tester.pumpAndSettle();
       expect(api.writes.any((w) => w.method == 'DELETE' && w.url.path == '/api/Poultry/vehicles/3'), isTrue);
     });
+
+    testWidgets('the server refusing the Water-only currency route still saves the company (2026-10-24)',
+        (tester) async {
+      final api = FakeApi()
+        ..gets['/api/Poultry/company'] = {
+          'brandName': 'Gyimah Farm', 'businessType': 'Layers', 'housingSystem': 'DeepLitter',
+          'defaultCurrency': 'GHS', 'defaultCrateEggCount': 30,
+        }
+        ..statuses['/api/Water/farm-settings'] = 403
+        ..writeStatuses['/api/Water/farm-settings/currency'] = 403;
+      await open(tester, FarmSetupScreen(session: await sessionFor(api), company: company));
+      await tester.ensureVisible(find.text('Save changes'));
+      await tester.tap(find.text('Save changes'));
+      await tester.pumpAndSettle();
+      expect(api.lastBody('/api/Poultry/company', 'PUT')['defaultCurrency'], 'GHS');
+      expect(find.textContaining('Save failed'), findsNothing);
+      expect(find.textContaining('Currency not applied app-wide'), findsOneWidget);
+    });
   });
 }
 

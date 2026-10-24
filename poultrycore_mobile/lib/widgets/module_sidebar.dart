@@ -360,6 +360,14 @@ IconData sidebarIconFor(String href) => _iconByHref[href] ?? Icons.insert_chart_
 const Map<String, IconData> _menuIcons = {
   'Quick Links': Icons.star_border,
   'Operations': Icons.factory_outlined,
+  // Restaurant's menus (sidebar.tsx: ShoppingCart, Building2, Truck, Boxes, Users).
+  'Orders & Kitchen': Icons.shopping_cart_outlined,
+  'Dining': Icons.business_outlined,
+  'Delivery & Online': Icons.local_shipping_outlined,
+  'Inventory': Icons.inventory_2_outlined,
+  'Growth': Icons.people_outline,
+  // Hotel's (sidebar.tsx: UtensilsCrossed).
+  'Restaurant & Bar': Icons.restaurant,
   'Sales, Expenses & Money': Icons.account_balance_wallet_outlined,
   'Trackers': Icons.bar_chart,
   'Reports': Icons.bar_chart,
@@ -510,6 +518,7 @@ class _PoultrySidebarState extends State<_PoultrySidebar> {
                       icon: switch (widget.company.type) {
                         CompanyType.water => Icons.water_drop_outlined,
                         CompanyType.restaurant => Icons.restaurant,
+                        CompanyType.hotel => Icons.business_outlined,
                         _ => Icons.home_outlined,
                       },
                       label: 'Dashboard',
@@ -519,18 +528,16 @@ class _PoultrySidebarState extends State<_PoultrySidebar> {
                     const SizedBox(height: 16),
                     const _Divider(),
                     const SizedBox(height: 16),
-                    if (_flat)
-                      ..._flatGroups()
-                    else ...[
-                      for (final g in menus) ...[
-                        _menu(g),
-                        const SizedBox(height: 4),
-                      ],
-                      const SizedBox(height: 12),
-                      const _Divider(),
-                      const SizedBox(height: 16),
-                      for (final g in system) _menu(g),
+                    // Poultry, Water and (since the 2026-10 web sidebar) Restaurant
+                    // are all menus: each a collapsible section in the drawer.
+                    for (final g in menus) ...[
+                      _menu(g),
+                      const SizedBox(height: 4),
                     ],
+                    const SizedBox(height: 12),
+                    const _Divider(),
+                    const SizedBox(height: 16),
+                    for (final g in system) _menu(g),
                   ],
                 ),
               ),
@@ -649,40 +656,6 @@ class _PoultrySidebarState extends State<_PoultrySidebar> {
           ),
       ],
     );
-  }
-
-  /// Restaurant renders the web's flat layout; Poultry and Water their menus.
-  /// Water moved to menus on the web (sidebar.tsx's isWater branch now calls
-  /// renderMenu for Quick Links, Operations, Sales Expenses & Money,
-  /// Trackers, Reports and Setup, as Poultry does): in the drawer each is a
-  /// collapsible section showing its columns as sub-headings.
-  bool get _flat => widget.company.type == CompanyType.restaurant;
-
-  /// Restaurant's layout on the web (sidebar.tsx, the isRestaurant branch):
-  /// not menus but a flat run of titled groups, each open and collapsible,
-  /// with a divider where the top nav has a separate menu.
-  List<Widget> _flatGroups() {
-    const noDividerBefore = <String>{};
-    final out = <Widget>[];
-    for (final g in _groups) {
-      if (sheetOnlyGroups.contains(g.title)) continue;
-      final subs = g.subGroups.where((s) => s.links.isNotEmpty).toList();
-      final quick = g.title == 'Quick Links' && _customisable;
-      if (subs.isEmpty && !quick) continue;
-      if (out.isNotEmpty && !noDividerBefore.contains(g.title)) {
-        out.addAll(const [SizedBox(height: 8), _Divider(), SizedBox(height: 12)]);
-      }
-      for (final s in subs.isEmpty ? [const NavSubGroup('', [])] : subs) {
-        final heading = switch (g.title) {
-          'Setup' => 'Setup · ${s.title}',
-          'System' => 'System',
-          _ => s.title.isEmpty ? g.title : s.title,
-        };
-        out.add(_subGroup(g.title, s, heading: heading));
-      }
-      if (quick) out.add(_customiseRow());
-    }
-    return out;
   }
 
   /// A column heading inside an open menu: xs, uppercase, slate-500, and

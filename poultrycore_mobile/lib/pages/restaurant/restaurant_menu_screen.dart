@@ -367,13 +367,11 @@ class _RestaurantMenuScreenState extends State<RestaurantMenuScreen> {
       ("86'd Items", _items.length - available, const Color(0xFFB91C1C), const Color(0xFFFEF2F2)),
       ('Combos', _combos.length, const Color(0xFF1D4ED8), const Color(0xFFEFF6FF)),
     ];
-    return GridView.count(
-      crossAxisCount: 2,
+    // A set tile height: a width ratio left the tiles too short on a 360 px phone.
+    return GridView(
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, mainAxisSpacing: 10, crossAxisSpacing: 10, mainAxisExtent: 92),
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 10,
-      crossAxisSpacing: 10,
-      childAspectRatio: 2.4,
       children: [
         for (final (label, value, fg, bg) in cards)
           Container(
