@@ -568,12 +568,12 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     if (isCollapsed && !isMobile) {
       return (
         <div className="space-y-0.5">
-          {items.map((item) => (
+          {items.map((item, idx) => (
             // The badge was dropped here while the rail was collapsed, even though
             // the collapsed tooltip below already renders one. Passed on only for
             // rows that opted in, so the collapsed rail is unchanged for every
             // other company type.
-            <div key={item.href}>{renderNavItem(
+            <div key={item.id ?? `${item.href}-${idx}`}>{renderNavItem(
               item, item.isButton, item.onClick,
               item.alertOnBadge ? item.badge : undefined, item.alertOnBadge)}</div>
           ))}
@@ -597,8 +597,8 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
         </button>
         {isOpen && (
           <div className="space-y-0.5 mt-0.5">
-            {items.map((item) => (
-              <div key={item.href}>{renderNavItem(item, item.isButton, item.onClick, item.badge, item.alertOnBadge)}</div>
+            {items.map((item, idx) => (
+              <div key={item.id ?? `${item.href}-${idx}`}>{renderNavItem(item, item.isButton, item.onClick, item.badge, item.alertOnBadge)}</div>
             ))}
           </div>
         )}
@@ -683,8 +683,8 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
             {visible.length === 1
               ? (
                 <div className="space-y-0.5">
-                  {visible[0].items.map((item) => (
-                    <div key={item.href}>{renderNavItem(item, item.isButton, item.onClick, item.badge, item.alertOnBadge)}</div>
+                  {visible[0].items.map((item, idx) => (
+                    <div key={item.id ?? `${item.href}-${idx}`}>{renderNavItem(item, item.isButton, item.onClick, item.badge, item.alertOnBadge)}</div>
                   ))}
                 </div>
               )
