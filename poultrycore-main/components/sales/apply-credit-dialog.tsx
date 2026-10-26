@@ -7,11 +7,12 @@
 import { useEffect, useState } from "react"
 import { Loader2, Wallet } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader } from "@/components/ui/dialog"
+import { FORM_DIALOG_CONTENT, FORM_DIALOG_PRIMARY, FormDialogFooter, FormDialogTitle } from "@/components/ui/form-dialog"
+import { FormSection } from "@/components/ui/form-section"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/utils/currency"
 import { applyCustomerCredit, customerCreditTotal } from "@/lib/api/customer-credit"
 
@@ -66,40 +67,43 @@ export function ApplyCreditDialog({ target, currencyCode, onOpenChange, onApplie
 
   return (
     <Dialog open={!!target} onOpenChange={(o) => { if (!saving) onOpenChange(o) }}>
-      <DialogContent className="max-w-md">
+      <DialogContent className={cn(FORM_DIALOG_CONTENT, "sm:max-w-lg")}>
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2"><Wallet className="h-5 w-5 text-emerald-600" /> Apply customer credit</DialogTitle>
+          <FormDialogTitle icon={Wallet} color="blue">Apply customer credit</FormDialogTitle>
           <DialogDescription>
             Use money {target?.customerName || "the customer"} already paid to settle sale {target?.saleLabel}.
             No new payment is recorded and no cash moves.
           </DialogDescription>
         </DialogHeader>
         {target && (
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <div className="rounded-md border p-2.5">
+          <div className="min-w-0 space-y-4">
+            <FormSection title="Customer & Sale" color="blue" tinted>
+              <div className="rounded-md border border-blue-200 bg-white p-2.5 text-sm">
                 <p className="text-[11px] text-slate-500">Available credit</p>
                 <p className="font-semibold tabular-nums">{credit == null ? "…" : money(credit)}</p>
               </div>
-              <div className="rounded-md border p-2.5">
+              <div className="rounded-md border border-blue-200 bg-white p-2.5 text-sm">
                 <p className="text-[11px] text-slate-500">Sale outstanding</p>
                 <p className="font-semibold tabular-nums">{money(target.outstanding)}</p>
               </div>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="credit-amount">Amount to apply</Label>
-              <Input id="credit-amount" type="number" min={0} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
-              {credit != null && credit <= 0 && <p className="text-xs text-slate-500">This customer has no credit to apply.</p>}
-            </div>
+            </FormSection>
+            <FormSection title="Amount" color="green" tinted columns={1}>
+              <div className="min-w-0 space-y-1">
+                <Label htmlFor="credit-amount">Amount to apply</Label>
+                <Input id="credit-amount" type="number" min={0} step="0.01" className="bg-white text-right font-semibold tabular-nums"
+                       value={amount} onChange={(e) => setAmount(e.target.value)} />
+                {credit != null && credit <= 0 && <p className="text-xs text-slate-500">This customer has no credit to apply.</p>}
+              </div>
+            </FormSection>
             {error && <p className="rounded-md bg-red-50 p-2.5 text-sm text-red-700">{error}</p>}
           </div>
         )}
-        <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Not now</Button>
-          <Button onClick={apply} disabled={!valid || saving} className="bg-emerald-600 hover:bg-emerald-700">
-            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Apply credit
+        <FormDialogFooter onCancel={() => onOpenChange(false)} cancelLabel="Not now" cancelDisabled={saving}>
+          <Button onClick={apply} disabled={!valid || saving} className={cn("px-6", FORM_DIALOG_PRIMARY.blue)}>
+            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {value > 0 ? `Apply credit · ${money(value)}` : "Apply credit"}
           </Button>
-        </DialogFooter>
+        </FormDialogFooter>
       </DialogContent>
     </Dialog>
   )

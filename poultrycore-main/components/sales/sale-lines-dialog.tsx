@@ -8,15 +8,15 @@
 // Each sale is fetched fresh (GET Sale/{id} carries its lines).
 
 import { useEffect, useState } from "react"
-import { ExternalLink, Loader2 } from "lucide-react"
+import { ExternalLink, Loader2, ShoppingCart } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader } from "@/components/ui/dialog"
+import { FORM_DIALOG_CONTENT, FormDialogFooter, FormDialogTitle } from "@/components/ui/form-dialog"
+import { FormSection } from "@/components/ui/form-section"
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useFmt } from "@/lib/currency"
-import { formatDateShort } from "@/lib/utils"
+import { cn, formatDateShort } from "@/lib/utils"
 import { getUserContext } from "@/lib/utils/user-context"
 import { getSale, type Sale, type SaleLine } from "@/lib/api/sale"
 import { getEggClasses, type EggClass } from "@/lib/api/egg-sorting"
@@ -93,9 +93,11 @@ export function SaleLinesDialog({ saleIds, title, onOpenChange, onOpenSale }: Pr
 
   return (
     <Dialog open={!!saleIds?.length} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className={cn(FORM_DIALOG_CONTENT, "sm:max-w-3xl")}>
         <DialogHeader>
-          <DialogTitle>{title ?? (saleIds && saleIds.length > 1 ? `${saleIds.length} sales` : "Sale details")}</DialogTitle>
+          <FormDialogTitle icon={ShoppingCart} color="blue">
+            {title ?? (saleIds && saleIds.length > 1 ? `${saleIds.length} sales` : "Sale details")}
+          </FormDialogTitle>
           <DialogDescription>What was sold on {saleIds && saleIds.length > 1 ? "these sales" : "this sale"}, line by line.</DialogDescription>
         </DialogHeader>
 
@@ -106,7 +108,7 @@ export function SaleLinesDialog({ saleIds, title, onOpenChange, onOpenSale }: Pr
         ) : error ? (
           <p className="py-6 text-sm text-red-600">{error}</p>
         ) : (
-          <div className="space-y-5">
+          <div className="min-w-0 space-y-4">
             {sales.map((s) => {
               // An older payload without lines reads as one line (the header).
               const lines: SaleLine[] = s.lines?.length ? s.lines : [{
@@ -117,27 +119,33 @@ export function SaleLinesDialog({ saleIds, title, onOpenChange, onOpenSale }: Pr
               const paid = Number(s.amountPaid ?? (s.paid === false ? 0 : total)) || 0
               const reversed = s.status === "Reversed"
               return (
-                <section key={s.saleId} className="space-y-2">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-slate-900">Sale {s.saleGroupNo ?? `#${s.saleId}`}</span>
+                <FormSection
+                  key={s.saleId}
+                  color="blue"
+                  tinted
+                  columns={1}
+                  title={
+                    <span className="flex items-center gap-2">
+                      Sale {s.saleGroupNo ?? `#${s.saleId}`}
                       {reversed
                         ? <Badge variant="outline" className="border-red-300 bg-red-50 text-red-700">Reversed</Badge>
                         : <Badge variant="outline" className="border-emerald-300 bg-emerald-50 text-emerald-700">Posted</Badge>}
-                    </div>
-                    {onOpenSale && (
-                      <Button size="sm" variant="ghost" onClick={() => onOpenSale(s.saleId)}>
-                        <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Open on Sales page
-                      </Button>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 rounded-md border bg-slate-50 p-3 text-sm sm:grid-cols-4">
+                    </span>
+                  }
+                  action={onOpenSale && (
+                    <Button size="sm" onClick={() => onOpenSale(s.saleId)}
+                            className="h-7 bg-white text-blue-700 shadow-sm hover:bg-blue-50">
+                      <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Open on Sales page
+                    </Button>
+                  )}
+                >
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 rounded-md border bg-white p-3 text-sm sm:grid-cols-4">
                     <div><span className="text-slate-500">Date</span><div className="font-medium">{formatDateShort(s.saleDate)}</div></div>
                     <div><span className="text-slate-500">Customer</span><div className="font-medium">{s.customerName || "Walk-in"}</div></div>
                     <div><span className="text-slate-500">Paid</span><div className="font-medium tabular-nums">{fmt(paid)}</div></div>
                     <div><span className="text-slate-500">Balance</span><div className="font-semibold tabular-nums">{reversed ? "—" : fmt(Math.max(0, total - paid))}</div></div>
                   </div>
-                  <div className="overflow-x-auto rounded-md border">
+                  <div className="overflow-x-auto rounded-md border bg-white">
                     <Table>
                       <TableHeader>
                         <TableRow className="bg-slate-100 hover:bg-slate-100">
@@ -171,11 +179,13 @@ export function SaleLinesDialog({ saleIds, title, onOpenChange, onOpenSale }: Pr
                       </TableFooter>
                     </Table>
                   </div>
-                </section>
+                </FormSection>
               )
             })}
           </div>
         )}
+
+        <FormDialogFooter onCancel={() => onOpenChange(false)} cancelLabel="Close" />
       </DialogContent>
     </Dialog>
   )

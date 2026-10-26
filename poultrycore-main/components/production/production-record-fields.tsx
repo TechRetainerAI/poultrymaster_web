@@ -151,8 +151,10 @@ export function CalcField({
  * disposed at once, so nothing is left in stock. Shown only when there are some.
  */
 export function DispositionField({
-  count, value, onChange, keepText, disposedText,
+  label, count, value, onChange, keepText, disposedText,
 }: {
+  /** Names the choice, e.g. "Broken Egg Stock allocation". */
+  label: string
   count: number
   value: "Keep" | "Disposed"
   onChange: (value: "Keep" | "Disposed") => void
@@ -162,7 +164,9 @@ export function DispositionField({
   if (count <= 0) return null
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
-      <div className="inline-flex overflow-hidden rounded-md border border-slate-300" role="radiogroup">
+      {/* Own line on a phone, inline beside the buttons from sm up. */}
+      <span className="w-full font-semibold text-slate-700 sm:w-auto">{label}</span>
+      <div className="inline-flex overflow-hidden rounded-md border border-slate-300" role="radiogroup" aria-label={label}>
         {(["Keep", "Disposed"] as const).map((v) => (
           <button
             key={v}

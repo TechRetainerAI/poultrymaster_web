@@ -122,7 +122,7 @@ export function buildPoultryNavConfig(
         { href: "/poultry-supply-purchases", label: "Supply Purchases",    icon: Box },
         { href: "/sales",                 label: "Sales",              icon: ShoppingCart,
           visible: money("/sales") },
-        { href: "/poultry-payments",      label: "Payments received",  icon: Wallet,
+        { href: "/poultry-payments",      label: "Customer Payments",  icon: Wallet,
           visible: money("/poultry-payments") },
         { href: "/customer-balances",     label: "Customer Balances",  icon: Users,
           visible: money("/customer-balances") },
@@ -225,7 +225,7 @@ export function buildPoultryNavConfig(
         label: "Sales",
         items: [
           { id: "sales",    title: "Sales",             icon: ShoppingCart, href: "/sales",            visible: money("/sales") },
-          { id: "payments", title: "Payments",          icon: Wallet,       href: "/poultry-payments", visible: money("/poultry-payments") },
+          { id: "payments", title: "Customer Payments", icon: Wallet,       href: "/poultry-payments", visible: money("/poultry-payments") },
           // "Who owes us what" — the collections control centre, so it belongs
           // with the money coming in rather than with the cash accounts.
           { id: "customer-balances", title: "Customer Balances", icon: Users, href: "/customer-balances", visible: money("/customer-balances") },

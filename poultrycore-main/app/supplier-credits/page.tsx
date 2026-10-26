@@ -26,10 +26,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import {
-  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogHeader,
 } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { FORM_DIALOG_CONTENT, FORM_DIALOG_PRIMARY, FormDialogFooter, FormDialogTitle } from "@/components/ui/form-dialog"
+import { FormSection } from "@/components/ui/form-section"
 import { tabCountCls, tabListCls, tabTriggerCls } from "@/lib/ui/tab-styles"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { DataPagination } from "@/components/ui/data-pagination"
@@ -285,7 +287,7 @@ export default function SupplierCreditsPage() {
 
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Card><CardContent className="p-4">
-              <div className="text-xs text-slate-500">Credit held by suppliers</div>
+              <div className="text-xs text-slate-500">Available credit with suppliers</div>
               <div className="text-2xl font-semibold tabular-nums text-blue-700">{money(totalHeld)}</div>
             </CardContent></Card>
             <Card><CardContent className="p-4">
@@ -307,7 +309,7 @@ export default function SupplierCreditsPage() {
           <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <TabsList className={tabListCls}>
-                <TabsTrigger value="held" className={tabTriggerCls}><Wallet className="h-4 w-4" /> Credit held <span className={tabCountCls}>{rows.length}</span></TabsTrigger>
+                <TabsTrigger value="held" className={tabTriggerCls}><Wallet className="h-4 w-4" /> Available credit <span className={tabCountCls}>{rows.length}</span></TabsTrigger>
                 <TabsTrigger value="applied" className={tabTriggerCls}><Link2 className="h-4 w-4" /> Applied <span className={tabCountCls}>{apps.length}</span></TabsTrigger>
                 <TabsTrigger value="refunds" className={tabTriggerCls}><ArrowDownToLine className="h-4 w-4" /> Refunds <span className={tabCountCls}>{refunds.length}</span></TabsTrigger>
               </TabsList>
@@ -329,7 +331,7 @@ export default function SupplierCreditsPage() {
                     primary={(r) => r.supplierName}
                     secondary={(r) => <span>{r.creditCount} credit{r.creditCount === 1 ? "" : "s"}</span>}
                     highlights={(r) => [
-                      { label: "Credit", value: money(r.availableCredit), accent: "blue" },
+                      { label: "Available", value: money(r.availableCredit), accent: "blue" },
                       { label: "You owe", value: money(r.owed), accent: Number(r.owed) > 0 ? "amber" : "slate" },
                     ]}
                     actions={(r) => (
@@ -345,7 +347,7 @@ export default function SupplierCreditsPage() {
                             <TableRow>
                               <TableHead className="w-10" />
                               <TableHead>Supplier</TableHead>
-                              <TableHead className="text-right">Credit held</TableHead>
+                              <TableHead className="text-right">Available credit</TableHead>
                               <TableHead className="text-right">Credits</TableHead>
                               <TableHead className="text-right">You still owe</TableHead>
                             </TableRow>
@@ -533,9 +535,9 @@ export default function SupplierCreditsPage() {
 
       {/* Phones: one supplier's credits, each with its own actions. */}
       <Dialog open={!!eventsFor} onOpenChange={(o) => { if (!o) setEventsFor(null) }}>
-        <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+        <DialogContent className={cn(FORM_DIALOG_CONTENT, "sm:max-w-lg")}>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Wallet className="h-5 w-5 text-amber-600" /> {eventsFor?.supplierName}&apos;s credits</DialogTitle>
+            <FormDialogTitle icon={Wallet} color="amber">{eventsFor?.supplierName}&apos;s credits</FormDialogTitle>
             <DialogDescription>Each credit, where it came from, and what is left of it.</DialogDescription>
           </DialogHeader>
           {eventsFor && (() => {
@@ -543,7 +545,7 @@ export default function SupplierCreditsPage() {
             if (list === undefined) return <div className="flex items-center gap-2 py-6 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
             if (list.length === 0) return <p className="py-4 text-sm text-slate-500">Nothing held any more.</p>
             return (
-              <ul className="divide-y rounded-md border">
+              <ul className="divide-y overflow-hidden rounded-xl border border-amber-200 bg-white">
                 {list.map((e) => (
                   <li key={e.poultrySupplierPaymentId} className="space-y-2 p-3">
                     <div className="flex items-start justify-between gap-3">
@@ -563,6 +565,7 @@ export default function SupplierCreditsPage() {
               </ul>
             )
           })()}
+          <FormDialogFooter onCancel={() => setEventsFor(null)} cancelLabel="Close" />
         </DialogContent>
       </Dialog>
 
@@ -604,18 +607,17 @@ export default function SupplierCreditsPage() {
       />
 
       <Dialog open={!!reverse} onOpenChange={(o) => { if (!o && !reversing) setReverse(null) }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className={cn(FORM_DIALOG_CONTENT, "sm:max-w-lg")}>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Undo2 className="h-5 w-5 text-red-600" />
+            <FormDialogTitle icon={Undo2} color="red">
               {reverse?.kind === "credit" ? `Reverse ${reverse.event.creditNumber}?`
                 : reverse?.kind === "application" ? "Unapply this credit?"
                 : reverse?.kind === "refund" ? `Reverse refund ${reverse.refund.refundNumber}?` : ""}
-            </DialogTitle>
+            </FormDialogTitle>
             <DialogDescription>It stays in the history, marked as reversed.</DialogDescription>
           </DialogHeader>
           {reverse && (
-            <div className="space-y-3 text-sm">
+            <div className="min-w-0 space-y-4 text-sm">
               <p className="rounded-md border border-amber-200 bg-amber-50 p-2.5 text-amber-900">
                 {reverse.kind === "credit" && (
                   reverse.event.poultryCashAccountId
@@ -630,19 +632,20 @@ export default function SupplierCreditsPage() {
                   Only continue if the refund was entered by mistake or the money was returned to the supplier.</>
                 )}
               </p>
-              <div className="space-y-1">
-                <Label htmlFor="sup-reverse-reason">Reason *</Label>
-                <ReasonSelect id="sup-reverse-reason" options={REVERSAL_REASONS} value={reason} onChange={setReason} />
-              </div>
+              <FormSection title="Reason" color="slate" tinted columns={1}>
+                <div className="min-w-0 space-y-1">
+                  <Label htmlFor="sup-reverse-reason">Reason *</Label>
+                  <ReasonSelect id="sup-reverse-reason" options={REVERSAL_REASONS} value={reason} onChange={setReason} />
+                </div>
+              </FormSection>
               {reverseError && <p className="rounded-md bg-red-50 p-2.5 text-red-700">{reverseError}</p>}
             </div>
           )}
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setReverse(null)} disabled={reversing}>Cancel</Button>
-            <Button className="bg-red-600 hover:bg-red-700" onClick={doReverse} disabled={reversing || !reason.trim()}>
+          <FormDialogFooter onCancel={() => setReverse(null)} cancelDisabled={reversing}>
+            <Button className={cn("px-6", FORM_DIALOG_PRIMARY.red)} onClick={doReverse} disabled={reversing || !reason.trim()}>
               {reversing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} {reverse?.kind === "application" ? "Unapply" : "Reverse"}
             </Button>
-          </div>
+          </FormDialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -22,8 +22,10 @@
 // the user types into a line, changing the amount re-spreads it oldest first, so
 // paying less than the whole never leaves the grid over-allocated.
 
-import { useEffect, useMemo, useState } from "react"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { Dialog, DialogContent, DialogDescription, DialogHeader } from "@/components/ui/dialog"
+import { FORM_DIALOG_CONTENT, FORM_DIALOG_PRIMARY, FormDialogFooter, FormDialogTitle } from "@/components/ui/form-dialog"
+import { FormSection } from "@/components/ui/form-section"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -31,7 +33,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Checkbox } from "@/components/ui/checkbox"
-import { AlertTriangle, Loader2, Wallet, Wand2, X } from "lucide-react"
+import { AlertCircle, AlertTriangle, BarChart3, FileText, Loader2, Wallet, Wand2, X } from "lucide-react"
 import { useFmt } from "@/lib/currency"
 import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/use-permissions"
@@ -44,6 +46,7 @@ import type { BalanceModule, BalanceSide, OpenDocumentRow, PartyBalanceRow } fro
 import { listOpenDocuments, recordPayment } from "@/lib/api/balances"
 import { entryTimestamp } from "@/lib/utils/date-key"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
+import { SALE_PRODUCT_OPTIONS } from "@/components/sales/sale-item-row"
 
 const PAYMENT_METHODS = ["Cash", "MoMo", "Bank Transfer", "Cheque", "Card", "Other"] as const
 
@@ -71,8 +74,11 @@ interface Props {
   sourceType?: string
   /**
    * 383 (poultry: Record customer / supplier payment): money not applied to
-   * anything paid something owed from before the system -- recorded as that debt
-   * and paid now, so it is on Profit & Loss -- unless the user keeps it as credit.
+   * anything can pay something owed from before the system -- recorded as that
+   * debt and paid now, so it is on Profit & Loss.
+   *   supplier  old debt by default; the user can keep it as credit instead.
+   *   customer  (384) customer credit by default; the user ticks "add to Profit
+   *             & Loss" and says which sale type it paid for.
    */
   remainderAsOldDebt?: boolean
   onPosted: () => void
@@ -109,6 +115,13 @@ export function RecordPaymentDialog({
   const [countOnPL, setCountOnPL] = useState(true)
   // 383: the leftover is an old debt by default; the user can keep it as credit instead.
   const [keepAsCredit, setKeepAsCredit] = useState(false)
+  // 384 (customer): the leftover is credit unless ticked onto P&L with a sale type.
+  const [addToPL, setAddToPL] = useState(false)
+  const [saleType, setSaleType] = useState("")
+  const [saleTypeOther, setSaleTypeOther] = useState("")
+  // "Payment for an earlier sale": on Profit & Loss unless the income was
+  // already recorded (owner / admin only -- it is a P&L exclusion).
+  const [earlierSaleOnPL, setEarlierSaleOnPL] = useState(true)
 
   // Load the lines this payment can be spread over. A single-document payment
   // still goes through the grid, so the two modes cannot drift apart.
@@ -119,6 +132,10 @@ export function RecordPaymentDialog({
     setLinesEdited(false)
     setCountOnPL(true)
     setKeepAsCredit(false)
+    setAddToPL(false)
+    setSaleType("")
+    setSaleTypeOther("")
+    setEarlierSaleOnPL(true)
 
     if (singleDocument) {
       setDocuments([singleDocument])
@@ -188,8 +205,13 @@ export function RecordPaymentDialog({
   )
 
   // 383: what is left over pays an old debt, unless kept as credit.
-  const oldDebt = remainderAsOldDebt && allowUnallocated && !keepAsCredit && validation.unallocated > 0
+  // 384: on the customer side only when ticked onto Profit & Loss.
+  const leftoverIsOldDebt = isCustomer ? addToPL : !keepAsCredit
+  const oldDebt = remainderAsOldDebt && allowUnallocated && leftoverIsOldDebt && validation.unallocated > 0
     ? validation.unallocated : 0
+  const oldDebtSaleType = saleType === "Other" ? saleTypeOther.trim() : saleType
+  // 384: an old customer debt on P&L must say what was sold.
+  const saleTypeMissing = isCustomer && oldDebt > 0 && earlierSaleOnPL && !oldDebtSaleType
   const debtAllocated = recordedDebtAllocated + oldDebt
   const leftoverWord = oldDebt > 0 ? (isCustomer ? "old customer debt" : "old supplier debt") : creditWord
 
@@ -254,7 +276,7 @@ export function RecordPaymentDialog({
   const submit = async () => {
     if (!party) return
     setTouched(true)
-    if (!validation.ok || overdraws) return
+    if (!validation.ok || overdraws || saleTypeMissing) return
 
     setPosting(true)
     try {
@@ -276,8 +298,9 @@ export function RecordPaymentDialog({
             documentId: d.documentId,
             amount: allocation[docKey(d)],
           })),
-        excludeFromPL: debtAllocated > 0 && !countOnPL,
+        excludeFromPL: (debtAllocated > 0 && !countOnPL) || (isCustomer && oldDebt > 0 && !earlierSaleOnPL),
         remainderAsOldDebt: oldDebt > 0,
+        oldDebtSaleType: isCustomer && oldDebt > 0 ? oldDebtSaleType : null,
       })
       toast({
         title: isCustomer ? "Payment received" : "Payment recorded",
@@ -315,25 +338,20 @@ export function RecordPaymentDialog({
           squeezing seven columns into it. The paired `w-[95vw] max-w-[95vw]`
           puts the mobile gutter back, which the unprefixed value had also
           taken. Same shape as the statement and history dialogs beside it. */}
-      <DialogContent className={cn("w-[95vw] max-w-[95vw] max-h-[92vh] gap-5 overflow-y-auto p-4 sm:p-6", isBulk ? "sm:max-w-4xl" : "sm:max-w-2xl")}>
-        <DialogHeader className="flex-row items-center gap-3 space-y-0 text-left">
-          <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
-            isCustomer ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700")}>
-            <Wallet className="h-5 w-5" />
-          </div>
-          <div className="min-w-0">
-            <DialogTitle>
-              {isCustomer
-                ? isBulk ? "Receive bulk payment" : "Receive payment"
-                : isBulk ? "Record bulk payment" : "Record payment"}
-            </DialogTitle>
-            <DialogDescription className="truncate">
-              {party?.partyName}
-              {single ? ` · ${single.reference ?? single.documentId}` : ""}
-            </DialogDescription>
-          </div>
+      <DialogContent className={cn(FORM_DIALOG_CONTENT, isBulk ? "sm:max-w-4xl" : "sm:max-w-2xl")}>
+        <DialogHeader>
+          <FormDialogTitle icon={Wallet} color={isCustomer ? "emerald" : "amber"}>
+            {isCustomer
+              ? isBulk ? "Receive bulk payment" : "Receive payment"
+              : isBulk ? "Record bulk payment" : "Record payment"}
+          </FormDialogTitle>
+          <DialogDescription className="truncate text-left">
+            {party?.partyName}
+            {single ? ` · ${single.reference ?? single.documentId}` : ""}
+          </DialogDescription>
         </DialogHeader>
 
+        <div className="min-w-0 space-y-4">
         {/* Where the money stands, live: what is owed, what this payment pays, what is left. */}
         <div className="grid grid-cols-3 divide-x rounded-lg border bg-slate-50">
           <div className="px-3 py-2.5">
@@ -353,7 +371,7 @@ export function RecordPaymentDialog({
           </div>
         </div>
 
-        <div className="grid gap-x-4 gap-y-3 sm:grid-cols-3">
+        <FormSection title="Payment" color="green" tinted columns={3} stackOnMobile>
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <Label htmlFor="pay-amount">Payment amount</Label>
@@ -365,7 +383,7 @@ export function RecordPaymentDialog({
             </div>
             <Input
               id="pay-amount" type="number" min="0" step="0.01" inputMode="decimal"
-              className="text-right font-semibold tabular-nums"
+              className="bg-white text-right font-semibold tabular-nums"
               value={amount}
               onChange={(e) => changeAmount(e.target.value)}
               placeholder="0.00"
@@ -374,12 +392,12 @@ export function RecordPaymentDialog({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="pay-date">Payment date</Label>
-            <Input id="pay-date" type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
+            <Input id="pay-date" type="date" className="bg-white" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
           </div>
           <div className="space-y-1.5">
             <Label>Payment method</Label>
             <Select value={method} onValueChange={setMethod}>
-              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full bg-white"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {PAYMENT_METHODS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
               </SelectContent>
@@ -391,7 +409,7 @@ export function RecordPaymentDialog({
               value={cashAccountId ? String(cashAccountId) : ""}
               onValueChange={(v) => setCashAccountId(v ? Number(v) : null)}
             >
-              <SelectTrigger className="w-full"><SelectValue placeholder="Select account" /></SelectTrigger>
+              <SelectTrigger className="w-full bg-white"><SelectValue placeholder="Select account" /></SelectTrigger>
               <SelectContent>
                 {cashAccounts.map((a) => (
                   <SelectItem key={a.id} value={String(a.id)}>
@@ -404,16 +422,17 @@ export function RecordPaymentDialog({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="pay-ref">Reference <span className="font-normal text-slate-400">(optional)</span></Label>
-            <Input id="pay-ref" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="e.g. MoMo ID, cheque no." />
+            <Input id="pay-ref" className="bg-white" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="e.g. MoMo ID, cheque no." />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="pay-notes">Notes <span className="font-normal text-slate-400">(optional)</span></Label>
-            <Input id="pay-notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything to remember" />
+            <Input id="pay-notes" className="bg-white" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything to remember" />
           </div>
-        </div>
+        </FormSection>
 
         {single ? (
-          <div className="rounded-lg border px-3 py-2.5 text-sm">
+          <FormSection title={`Applies to this ${docWord}`} color="blue" tinted columns={1}>
+          <div className="rounded-lg border bg-white px-3 py-2.5 text-sm">
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
               <div className="min-w-0">
                 <span className="text-slate-500">Applies to </span>
@@ -435,12 +454,25 @@ export function RecordPaymentDialog({
               <p className="mt-1 text-xs text-blue-700">{fmt(validation.unallocated)} over the balance is kept as {creditWord}.</p>
             )}
           </div>
+          </FormSection>
         ) : (
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
+          <FormSection
+            title={`Apply to open ${docWord}s`} color="blue" tinted columns={1}
+            action={
+              <div className="flex items-center gap-1">
+                <Button type="button" size="sm" onClick={autoAllocate} disabled={!amount || loading}
+                        className="h-8 bg-white text-blue-700 shadow-sm hover:bg-blue-50">
+                  <Wand2 className="mr-1.5 h-3.5 w-3.5" /> Oldest first
+                </Button>
+                <Button type="button" size="sm" onClick={clearAllocation} disabled={loading}
+                        className="h-8 bg-white/20 text-white hover:bg-white/30">
+                  <X className="mr-1.5 h-3.5 w-3.5" /> Clear
+                </Button>
+              </div>
+            }
+          >
               <div className="text-sm">
-                <span className="font-medium text-slate-900">Apply to open {docWord}s</span>
-                <span className="ml-2 text-slate-500">
+                <span className="text-slate-600">
                   {fmt(allocated)} of {fmt(amountValue)} allocated
                 </span>
                 {validation.unallocated !== 0 && (
@@ -454,17 +486,7 @@ export function RecordPaymentDialog({
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-1">
-                <Button type="button" variant="outline" size="sm" onClick={autoAllocate} disabled={!amount || loading}>
-                  <Wand2 className="mr-1.5 h-3.5 w-3.5" /> Oldest first
-                </Button>
-                <Button type="button" variant="ghost" size="sm" onClick={clearAllocation} disabled={loading}>
-                  <X className="mr-1.5 h-3.5 w-3.5" /> Clear
-                </Button>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto rounded-lg border">
+            <div className="overflow-x-auto rounded-lg border bg-white">
               {loading ? (
                 <div className="flex items-center gap-2 p-6 text-slate-500">
                   <Loader2 className="h-4 w-4 animate-spin" /> Loading open items…
@@ -528,11 +550,145 @@ export function RecordPaymentDialog({
                 </Table>
               )}
             </div>
-          </div>
+          </FormSection>
         )}
 
-        {remainderAsOldDebt && allowUnallocated && validation.unallocated > 0 && (
-          <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+        {/* 384: customer -- what to do with money left over after the open sales.
+            Credit by default; "Payment for an Earlier Sale" records the old debt
+            it pays, on Profit & Loss unless the income was already recorded. */}
+        {remainderAsOldDebt && isCustomer && allowUnallocated && validation.unallocated > 0 && (() => {
+          const remaining = validation.unallocated
+          const appliedDocs = documents.filter((d) => (allocation[docKey(d)] ?? 0) > 0)
+          const option = (active: boolean, onPick: () => void, icon: ReactNode, iconCls: string, title: string, body: ReactNode, extra?: ReactNode) => (
+            <div className={cn("rounded-lg border p-3 transition-colors",
+                               active ? "border-emerald-300 bg-emerald-50" : "border-slate-200 bg-white")}>
+              <button type="button" role="radio" aria-checked={active} onClick={onPick}
+                      className="flex w-full items-start gap-3 text-left">
+                <span className={cn("mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2",
+                                    active ? "border-blue-600" : "border-slate-300")}>
+                  {active && <span className="h-2 w-2 rounded-full bg-blue-600" />}
+                </span>
+                <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-full", iconCls)}>{icon}</span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-slate-900">{title}</span>
+                  <span className="block text-sm text-slate-600">{body}</span>
+                </span>
+              </button>
+              {extra}
+            </div>
+          )
+          return (
+            <FormSection title={`Overpayment (Money Left Over) — ${fmt(remaining)}`} color="orange" tinted columns={1}>
+              <div className="flex items-start gap-3 text-sm text-slate-700">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-600">
+                  <AlertCircle className="h-4 w-4" />
+                </span>
+                <p>
+                  You received <b>{fmt(amountValue)}</b> from this customer.{" "}
+                  {allocated > 0
+                    ? <><b>{fmt(allocated)}</b> will settle the outstanding {docWord}{appliedDocs.length === 1 ? "" : "s"}. </>
+                    : null}
+                  There is <b>{fmt(remaining)}</b> remaining. What would you like to do with it?
+                </p>
+              </div>
+
+              <div role="radiogroup" aria-label="What to do with the money left over" className="space-y-2">
+                {option(!addToPL, () => setAddToPL(false),
+                  <Wallet className="h-5 w-5" />, "bg-emerald-100 text-emerald-700",
+                  "Keep as Customer Credit (Advance Payment)",
+                  <>The customer is paying in advance for future purchases. We will save <b>{fmt(remaining)}</b> as {creditWord}, which can be used when they buy from you later.</>)}
+                {option(addToPL, () => setAddToPL(true),
+                  <FileText className="h-5 w-5" />, "bg-blue-100 text-blue-700",
+                  "Payment for an Earlier Sale",
+                  "The customer is paying for goods you sold before recording the sale in VisibilityCore.",
+                  addToPL && (
+                    <div className="mt-3 space-y-3 rounded-md bg-slate-50 p-3 sm:ml-[4.25rem]">
+                      <label className="flex items-start gap-2 text-sm">
+                        <Checkbox className="mt-0.5" checked={earlierSaleOnPL} onCheckedChange={(v) => setEarlierSaleOnPL(v === true)} />
+                        <span>
+                          Include this payment as income in Profit &amp; Loss?
+                          <span className="block text-xs text-slate-500">Record this amount as sales income in Profit &amp; Loss.</span>
+                        </span>
+                      </label>
+                      <label className={cn("flex items-start gap-2 text-sm", !isAdmin && "opacity-60")}>
+                        <Checkbox className="mt-0.5" checked={!earlierSaleOnPL} disabled={!isAdmin}
+                                  onCheckedChange={(v) => setEarlierSaleOnPL(v !== true)} />
+                        <span>
+                          <b className="font-medium">Income was already recorded</b> or should not be recognized again
+                          <span className="block text-xs text-slate-500">
+                            Do not record this amount as income in Profit &amp; Loss.
+                            {!isAdmin && " Only the owner or an admin can choose this."}
+                          </span>
+                        </span>
+                      </label>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <div className={cn("space-y-1", saleType !== "Other" && "sm:col-span-2")}>
+                          <Label className="text-xs">What was sold?</Label>
+                          <Select value={saleType} onValueChange={setSaleType}>
+                            <SelectTrigger className="w-full bg-white"><SelectValue placeholder="Select sale type or product" /></SelectTrigger>
+                            <SelectContent>
+                              {SALE_PRODUCT_OPTIONS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {saleType === "Other" && (
+                          <div className="space-y-1">
+                            <Label htmlFor="old-debt-type" className="text-xs">Describe it</Label>
+                            <Input id="old-debt-type" className="bg-white" value={saleTypeOther}
+                                   onChange={(e) => setSaleTypeOther(e.target.value)} placeholder="e.g. Egg trays" />
+                          </div>
+                        )}
+                      </div>
+                      <p className={cn("text-xs", saleTypeMissing ? "text-amber-700" : "text-slate-500")}>
+                        {saleTypeMissing
+                          ? "Choose what was sold to add it to Profit & Loss."
+                          : earlierSaleOnPL
+                            ? `${fmt(remaining)} goes on Profit & Loss as Revenue${oldDebtSaleType ? ` (${oldDebtSaleType})` : ""}.`
+                            : "Recorded as an earlier sale paid now, but kept off Profit & Loss."}
+                      </p>
+                    </div>
+                  ))}
+              </div>
+
+              <div className="overflow-hidden rounded-lg border border-blue-200 bg-blue-50/40">
+                <div className="flex items-center justify-between px-3 py-2">
+                  <span className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                    <BarChart3 className="h-4 w-4 text-blue-600" /> Payment breakdown
+                  </span>
+                  <span className="text-xs text-slate-500">Amount</span>
+                </div>
+                <div className="divide-y divide-slate-100 bg-white text-sm">
+                  <div className="flex justify-between gap-3 px-3 py-1.5">
+                    <span>Total received from customer</span>
+                    <span className="tabular-nums">{fmt(amountValue)}</span>
+                  </div>
+                  {appliedDocs.map((d) => (
+                    <div key={docKey(d)} className="flex justify-between gap-3 px-3 py-1.5">
+                      <span className="min-w-0">Applied to outstanding {docWord} ({d.reference ?? d.documentId}{d.label ? ` - ${d.label}` : ""})</span>
+                      <span className="font-semibold tabular-nums">{fmt(allocation[docKey(d)] ?? 0)}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between gap-3 px-3 py-1.5">
+                    <span className="min-w-0">
+                      {addToPL
+                        ? `Payment for an earlier sale${oldDebtSaleType ? ` (${oldDebtSaleType})` : ""}${earlierSaleOnPL ? "" : ", not on Profit & Loss"}`
+                        : "Customer credit (advance payment)"}
+                    </span>
+                    <span className="tabular-nums">{fmt(remaining)}</span>
+                  </div>
+                </div>
+                <div className="flex justify-between gap-3 bg-blue-100/70 px-3 py-2 text-sm font-semibold text-slate-900">
+                  <span>Total allocated</span>
+                  <span className="tabular-nums">{fmt(allocated + remaining)}</span>
+                </div>
+              </div>
+            </FormSection>
+          )
+        })()}
+
+        {remainderAsOldDebt && !isCustomer && allowUnallocated && validation.unallocated > 0 && (
+          <FormSection title="Overpayment (Money Left Over)" color="amber" tinted columns={1}>
+          <div className="text-sm text-slate-800">
             <p>
               {fmt(validation.unallocated)} is not applied to anything listed.{" "}
               {keepAsCredit
@@ -544,10 +700,14 @@ export function RecordPaymentDialog({
               Keep it as {creditWord} (an advance) instead
             </label>
           </div>
+          </FormSection>
         )}
 
-        {debtAllocated > 0 && (
-          <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+        {/* 384: on the customer side the old debt was ticked onto P&L above, so this
+            box only appears for debts recorded by hand. */}
+        {(isCustomer ? recordedDebtAllocated > 0 : debtAllocated > 0) && (
+          <FormSection title="Profit & Loss" color="emerald" tinted columns={1}>
+          <div className="text-sm text-emerald-900">
             {isAdmin ? (
               <label className="flex items-start gap-2">
                 <Checkbox className="mt-0.5" checked={countOnPL} onCheckedChange={(v) => setCountOnPL(v === true)} />
@@ -563,6 +723,7 @@ export function RecordPaymentDialog({
               <>The {fmt(debtAllocated)} paid on debts goes on Profit &amp; Loss as {isCustomer ? "revenue" : "an operating expense"}.</>
             )}
           </div>
+          </FormSection>
         )}
 
         {touched && (blockingProblems.length > 0 || overdraws) && (
@@ -581,13 +742,15 @@ export function RecordPaymentDialog({
           </Alert>
         )}
 
-        <DialogFooter className="border-t pt-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={posting}>Cancel</Button>
-          <Button onClick={submit} disabled={posting || loading || !validation.ok || overdraws}>
+        </div>
+
+        <FormDialogFooter onCancel={() => onOpenChange(false)} cancelDisabled={posting}>
+          <Button onClick={submit} disabled={posting || loading || !validation.ok || overdraws || saleTypeMissing}
+                  className={cn("px-6", FORM_DIALOG_PRIMARY[isCustomer ? "emerald" : "amber"])}>
             {posting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isCustomer ? "Receive" : "Record"} {amountValue > 0 ? fmt(amountValue) : "payment"}
           </Button>
-        </DialogFooter>
+        </FormDialogFooter>
       </DialogContent>
     </Dialog>
   )

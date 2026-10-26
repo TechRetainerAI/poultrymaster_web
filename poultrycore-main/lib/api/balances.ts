@@ -153,6 +153,8 @@ export interface RecordPaymentRequest {
   excludeFromPL?: boolean
   /** Poultry (383): the part not applied to anything paid a debt from before the system. */
   remainderAsOldDebt?: boolean
+  /** Poultry customer side (384): what that old debt was for -- shown on the P&L revenue detail. */
+  oldDebtSaleType?: string | null
 }
 
 export interface PaymentHistoryRow {
