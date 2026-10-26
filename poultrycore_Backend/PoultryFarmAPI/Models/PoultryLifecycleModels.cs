@@ -33,6 +33,8 @@ namespace PoultryFarmAPIWeb.Models
         [Range(0, 365)] public int LeadTimeDays { get; set; } = 3;
         public string? ActionType { get; set; }
         public int SortOrder { get; set; }
+        /// <summary>387: repeat every N days until the flock is closed; null = once.</summary>
+        [Range(1, 3650)] public int? RepeatEveryDays { get; set; }
     }
 
     public class LifecycleTemplateModel
@@ -49,6 +51,8 @@ namespace PoultryFarmAPIWeb.Models
         public DateTime CreatedAt { get; set; }
         public string? UpdatedBy { get; set; }
         public DateTime? UpdatedAt { get; set; }
+        /// <summary>387: a built-in plan (the national vaccination schedule) the farm has not edited.</summary>
+        public bool IsDefault { get; set; }
         public List<LifecycleMilestoneModel>? Milestones { get; set; }
     }
 
@@ -134,6 +138,9 @@ namespace PoultryFarmAPIWeb.Models
         public DateTime? ActedAt { get; set; }
         /// <summary>The company's business date the statuses were worked out against.</summary>
         public DateTime Today { get; set; }
+        /// <summary>387: 0 = the milestone itself, 1.. = its repeats. AgeDays is this occurrence's age.</summary>
+        public int Occurrence { get; set; }
+        public int? RepeatEveryDays { get; set; }
     }
 
     public class LifecycleSummaryModel
@@ -156,6 +163,8 @@ namespace PoultryFarmAPIWeb.Models
         /// <summary>"Completed" | "Skipped" | "Open" (undo).</summary>
         [Required] public string Status { get; set; } = string.Empty;
         [StringLength(1000)] public string? Note { get; set; }
+        /// <summary>387: which repeat of the milestone; 0 for a one-off.</summary>
+        [Range(0, 500)] public int Occurrence { get; set; }
     }
 
     public class LifecycleTaskEventModel
@@ -169,5 +178,13 @@ namespace PoultryFarmAPIWeb.Models
         public string? Note { get; set; }
         public string? Actor { get; set; }
         public DateTime AtUtc { get; set; }
+        public int Occurrence { get; set; }
+    }
+
+    /// <summary>387: what seeding the national vaccination schedule did.</summary>
+    public class LifecycleDefaultsResult
+    {
+        public int PlansCreated { get; set; }
+        public bool AlreadyApplied { get; set; }
     }
 }

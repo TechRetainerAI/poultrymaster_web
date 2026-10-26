@@ -101,7 +101,7 @@ export function MyTasks({ companies, onOpen }: {
             </div>
           )}
           {shown.map((t) => {
-            const key = `${t.companyFarmId}-${t.flockId}-${t.milestoneId}`
+            const key = `${t.companyFarmId}-${t.flockId}-${t.milestoneId}-${t.occurrence ?? 0}`
             const company = poultry.find((c) => c.farmId === t.companyFarmId)!
             return (
               <div key={key} className="p-3 flex flex-wrap items-center justify-between gap-2">

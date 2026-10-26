@@ -26,6 +26,8 @@ export interface LifecycleMilestone {
   leadTimeDays: number
   actionType?: LifecycleActionType | null
   sortOrder?: number
+  /** 387: repeat every N days until the flock is closed; null = once. */
+  repeatEveryDays?: number | null
 }
 
 export interface LifecycleTemplate {
@@ -41,6 +43,8 @@ export interface LifecycleTemplate {
   createdAt: string
   updatedBy?: string | null
   updatedAt?: string | null
+  /** 387: a built-in plan (the national vaccination schedule) the farm has not edited. */
+  isDefault?: boolean
   milestones?: LifecycleMilestone[] | null
 }
 
@@ -110,6 +114,9 @@ export interface LifecycleTask {
   actedAt?: string | null
   /** The company's business date the statuses were worked out against. */
   today: string
+  /** 387: 0 = the milestone itself, 1.. = its repeats. ageDays is this occurrence's age. */
+  occurrence?: number
+  repeatEveryDays?: number | null
 }
 
 export interface LifecycleSummary {
@@ -133,6 +140,7 @@ export interface LifecycleTaskEvent {
   note?: string | null
   actor?: string | null
   atUtc: string
+  occurrence?: number
 }
 
 function fid(farmId?: string): string {
@@ -172,11 +180,13 @@ export const listLifecycleTasks = (opts?: { view?: LifecycleView; flockId?: numb
 export const getLifecycleSummary = (farmId?: string) =>
   call<LifecycleSummary>(`/Poultry/lifecycle/summary?${q(farmId)}`)
 
-export const getLifecycleTaskHistory = (flockId: number, milestoneId?: number, farmId?: string) =>
-  call<LifecycleTaskEvent[]>(`/Poultry/lifecycle/tasks/history?${q(farmId, { flockId, milestoneId })}`)
+export const getLifecycleTaskHistory = (flockId: number, milestoneId?: number, farmId?: string, occurrence?: number) =>
+  call<LifecycleTaskEvent[]>(`/Poultry/lifecycle/tasks/history?${q(farmId, { flockId, milestoneId, occurrence })}`)
 
 export const setLifecycleTaskStatus = (input: {
   flockId: number; milestoneId: number; status: "Completed" | "Skipped" | "Open"; note?: string | null; farmId?: string
+  /** Which repeat of the milestone; 0 / omitted for a one-off. */
+  occurrence?: number
 }) => {
   const farmId = fid(input.farmId)
   return call<{ taskId: number }>(`/Poultry/lifecycle/tasks/status?farmId=${encodeURIComponent(farmId)}`, "PUT", { ...input, farmId })
@@ -208,3 +218,11 @@ export const assignLifecycleTemplate = (input: { templateId: number; batchId?: n
 
 export const removeLifecycleAssignment = (id: number) =>
   call<void>(`/Poultry/lifecycle/assignments/${id}?${q()}`, "DELETE")
+
+/**
+ * 387: the Ghana national vaccination schedule as two built-in plans. Once per
+ * farm (the page calls it on load); force re-adds a plan the farm removed.
+ */
+export const ensureDefaultLifecyclePlans = (force = false) =>
+  call<{ plansCreated: number; alreadyApplied: boolean }>(
+    `/Poultry/lifecycle/ensure-defaults?${q(undefined, { force: force ? "true" : undefined })}`, "POST")
