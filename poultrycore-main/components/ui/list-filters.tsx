@@ -58,6 +58,11 @@ export interface ListFiltersProps {
   extras?: ReactNode
   /** Slot for action buttons (Export PDF, etc.). Rendered on the right. */
   actions?: ReactNode
+  /**
+   * Width of the search box from sm up. Defaults to 260px; a page with many
+   * extras passes a narrower one so the whole strip fits on one line.
+   */
+  searchWidthClassName?: string
 }
 
 export function ListFilters({
@@ -68,6 +73,7 @@ export function ListFilters({
   searchOnly,
   extras,
   actions,
+  searchWidthClassName = "sm:w-[260px]",
 }: ListFiltersProps) {
   const showDates = !searchOnly && setDateFrom && setDateTo
   const activeCount =
@@ -85,7 +91,7 @@ export function ListFilters({
 
   return (
     <div className="p-3 bg-white rounded-lg border flex flex-wrap gap-3 items-end mb-4">
-      <div className="w-full sm:w-[260px]">
+      <div className={`w-full ${searchWidthClassName}`}>
         <Label className="text-xs text-slate-500">Search</Label>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />

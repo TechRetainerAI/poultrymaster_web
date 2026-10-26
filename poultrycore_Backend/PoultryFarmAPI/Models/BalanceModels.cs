@@ -134,6 +134,10 @@ namespace PoultryFarmAPIWeb.Models
         /// to anything paid a debt from before the system -- recorded as that debt and
         /// paid in the same step (on Profit &amp; Loss), instead of kept as credit.</summary>
         public bool RemainderAsOldDebt { get; set; }
+        /// <summary>384 (poultry customer side, with RemainderAsOldDebt): what the old
+        /// debt was for -- a sale type ("Fresh Eggs", "Chicken", ...) or the user's own
+        /// text. Shown in the Profit &amp; Loss revenue detail.</summary>
+        public string? OldDebtSaleType { get; set; }
     }
 
     /// <summary>382: exclude a poultry debt payment from Profit &amp; Loss, or include it again.</summary>

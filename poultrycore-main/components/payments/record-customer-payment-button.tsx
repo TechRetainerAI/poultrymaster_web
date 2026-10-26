@@ -11,10 +11,10 @@
 import { useEffect, useState } from "react"
 import { HandCoins } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
+import { Dialog, DialogContent, DialogDescription, DialogHeader } from "@/components/ui/dialog"
+import { FORM_DIALOG_CONTENT, FORM_DIALOG_PRIMARY, FormDialogFooter, FormDialogTitle } from "@/components/ui/form-dialog"
+import { FormField, FormSection } from "@/components/ui/form-section"
+import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { RecordPaymentDialog, type CashAccountOption } from "@/components/balances/record-payment-dialog"
 import { getCustomers } from "@/lib/api"
@@ -82,28 +82,33 @@ export function RecordPartyPaymentButton({ side, onPosted }: { side: "customer" 
       </Button>
 
       <Dialog open={pickOpen} onOpenChange={setPickOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className={cn(FORM_DIALOG_CONTENT, "sm:max-w-lg")}>
           <DialogHeader>
-            <DialogTitle>Record {word} payment</DialogTitle>
+            <FormDialogTitle icon={HandCoins} color={isCustomer ? "emerald" : "amber"}>Record {word} payment</FormDialogTitle>
             <DialogDescription>
               {isCustomer
                 ? "Choose who paid. You can then apply the money to their open sales; whatever is not applied is kept as their credit."
                 : "Choose who you paid. You can then apply the money to what you owe them; whatever is not applied is kept as supplier credit."}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-1.5">
-            <Label>{isCustomer ? "Customer" : "Supplier"} *</Label>
-            <Select value={customerId} onValueChange={setCustomerId}>
-              <SelectTrigger><SelectValue placeholder={customers.length ? `Choose the ${word}` : "Loading…"} /></SelectTrigger>
-              <SelectContent>
-                {customers.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+          <div className="min-w-0 space-y-4">
+            <FormSection title={isCustomer ? "Customer" : "Supplier"} color="blue" tinted columns={1}>
+              <FormField label={`${isCustomer ? "Customer" : "Supplier"} *`}>
+                <Select value={customerId} onValueChange={setCustomerId}>
+                  <SelectTrigger className="w-full bg-white"><SelectValue placeholder={customers.length ? `Choose the ${word}` : "Loading…"} /></SelectTrigger>
+                  <SelectContent>
+                    {customers.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </FormField>
+            </FormSection>
           </div>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setPickOpen(false)}>Cancel</Button>
-            <Button onClick={next} disabled={!customerId}>Next</Button>
-          </DialogFooter>
+          <FormDialogFooter onCancel={() => setPickOpen(false)}>
+            <Button onClick={next} disabled={!customerId}
+                    className={cn("px-6", isCustomer ? FORM_DIALOG_PRIMARY.emerald : FORM_DIALOG_PRIMARY.amber)}>
+              Next
+            </Button>
+          </FormDialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -115,7 +120,7 @@ export function RecordPartyPaymentButton({ side, onPosted }: { side: "customer" 
         party={party}
         cashAccounts={cashAccounts}
         sourceType={isCustomer ? "PaymentsPage" : "SupplierPayments"}
-        // 383: money not applied to anything paid an old debt -- on Profit & Loss.
+        // 383/384: money not applied can pay an old debt on Profit & Loss (customer: only when ticked, with a sale type).
         remainderAsOldDebt
         onPosted={() => { setParty(null); onPosted() }}
       />

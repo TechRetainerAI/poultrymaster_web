@@ -31,6 +31,9 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Card, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { SortableHeader, sortData, toggleSort, type SortDirection } from "@/components/ui/sortable-header"
+import { FORM_DIALOG_CONTENT, FORM_DIALOG_PRIMARY, FormDialogFooter, FormDialogTitle } from "@/components/ui/form-dialog"
+import { FormSection } from "@/components/ui/form-section"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -40,7 +43,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ListFilters } from "@/components/ui/list-filters"
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
-import { ChevronDown, ChevronRight, Eye, Loader2, Undo2, Wallet } from "lucide-react"
+import { ArrowRight, ChevronDown, ChevronRight, Eye, Loader2, Undo2, Wallet } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -70,6 +73,9 @@ const SOURCE_LABEL: Record<string, string> = {
 }
 // 363: a credit added by hand is reversed from Customer Credits (owner / admin).
 const MANUAL_CREDIT_SOURCES = new Set(["OpeningCredit", "Deposit", "CreditNote"])
+/** Filter key for a payment's customer: the id, or one shared key for walk-ins. */
+const customerKey = (r: { partyId?: number | null; partyName?: string | null }) =>
+  r.partyId != null ? `id:${r.partyId}` : r.partyName ? `name:${r.partyName}` : "walkin"
 const sourceLabel = (s?: string | null) => (s ? SOURCE_LABEL[s] ?? s : "—")
 
 /**
@@ -104,12 +110,42 @@ export interface PaymentsReceivedPageProps {
   onSaleDetails?: (saleIds: number[], title: string) => void
   /** 367: extra header actions (Poultry: Record customer payment); reload refreshes the list. */
   headerActions?: (reload: () => void) => React.ReactNode
+  /**
+   * 363: where a hand-added credit (Opening credit / Deposit / Credit note) is
+   * reversed or refunded. When given, those rows link there instead of
+   * showing no action at all.
+   */
+  manualCreditHref?: (row: PaymentHistoryRow) => string | null
+  /** Page heading. Defaults to "Payments received". */
+  title?: string
 }
 
 export function PaymentsReceivedPage({
   module, companyType, saleHref, permissions, iconClassName, pagerVariant, onSaleDetails, headerActions,
+  manualCreditHref, title = "Payments received",
 }: PaymentsReceivedPageProps) {
   const fmt = useFmt()
+
+  const isManualCredit = (row: PaymentHistoryRow) => MANUAL_CREDIT_SOURCES.has(row.sourceType ?? "")
+  // Stands in for Reverse on a manual credit: it is managed on Customer Credits.
+  const manualCreditLink = (row: PaymentHistoryRow, variant: "icon" | "full", className?: string) => {
+    const href = manualCreditHref?.(row)
+    if (!href) return null
+    const label = "Manage in Customer Credits"
+    return variant === "icon" ? (
+      <Button asChild variant="ghost" size="icon" className={className}>
+        <Link href={href} aria-label={label} title={`${label} (reverse or refund)`}>
+          <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
+      </Button>
+    ) : (
+      <Button asChild variant="outline" size="sm" className={cn("w-full bg-white", className)}>
+        <Link href={href}>
+          {label} <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+        </Link>
+      </Button>
+    )
+  }
   const router = useRouter()
   const { toast } = useToast()
   const logout = useLogout()
@@ -137,6 +173,8 @@ export function PaymentsReceivedPage({
   const [source, setSource] = useState("all")
   const [status, setStatus] = useState("Posted")
   const [appliedTo, setAppliedTo] = useState("all")
+  // One customer's payments. Keyed by id; walk-ins (no customer) share one key.
+  const [customer, setCustomer] = useState("all")
 
   const canView = can(permissions.view)
   const canReverse = can(permissions.reverse)
@@ -174,11 +212,18 @@ export function PaymentsReceivedPage({
     () => Array.from(new Set(rows.map((r) => r.sourceType).filter(Boolean) as string[])).sort(),
     [rows],
   )
+  // The customers who paid in the loaded date range, by name.
+  const customers = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const r of rows) m.set(customerKey(r), r.partyName ?? "Walk-in")
+    return Array.from(m, ([key, name]) => ({ key, name })).sort((a, b) => a.name.localeCompare(b.name))
+  }, [rows])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return rows.filter((r) => {
       if (status !== "all" && (r.status ?? "Posted") !== status) return false
+      if (customer !== "all" && customerKey(r) !== customer) return false
       if (method !== "all" && (r.paymentMethod ?? "") !== method) return false
       if (source !== "all" && (r.sourceType ?? "") !== source) return false
       if (appliedTo === "single" && r.allocationCount !== 1) return false
@@ -190,7 +235,7 @@ export function PaymentsReceivedPage({
       }
       return true
     })
-  }, [rows, search, status, method, source, appliedTo])
+  }, [rows, search, status, method, source, appliedTo, customer])
 
   // How many payments each sale has taken. Counted over every loaded row and
   // not the filtered ones, so a sale still says it was paid three times while a
@@ -224,7 +269,35 @@ export function PaymentsReceivedPage({
     return { visible, carriers, folded }
   }, [filtered, payCountBySale])
 
-  const pg = usePagination(visible)
+  // Column sort. Runs after folding so the newest payment still carries a
+  // part-paid sale's trail; no sort keeps the server's newest-first order.
+  const [sortKey, setSortKey] = useState<string | null>(null)
+  const [sortDirection, setSortDirection] = useState<SortDirection>(null)
+  const handleSort = (key: string) => {
+    const next = toggleSort(key, sortKey, sortDirection)
+    setSortKey(next.key)
+    setSortDirection(next.direction)
+  }
+  const sorted = useMemo(
+    () => sortData(visible, sortKey, sortDirection, (r, key) => {
+      switch (key) {
+        // Business date, then entry time, as the Date column shows them.
+        case "date":     return `${r.paymentDate ?? ""} ${r.createdAt ?? ""}`
+        case "payment":  return paymentRef(r)
+        case "customer": return r.partyName ?? "Walk-in"
+        case "amount":   return Number(r.totalAmount) || 0
+        case "sale":     return r.allocationCount === 1 ? r.saleId ?? null : null
+        case "before":   return r.allocationCount === 1 ? r.balanceBefore ?? null : null
+        case "after":    return r.allocationCount === 1 ? r.balanceAfter ?? null : null
+        case "method":   return r.paymentMethod ?? null
+        case "status":   return r.status ?? "Posted"
+        default:         return null
+      }
+    }),
+    [visible, sortKey, sortDirection],
+  )
+
+  const pg = usePagination(sorted)
 
   /** How many times this row's sale was paid, once that is more than once. */
   const payCount = (row: PaymentHistoryRow) => {
@@ -497,7 +570,8 @@ export function PaymentsReceivedPage({
                   <TableCell className="text-right">
                     {rev
                       ? <span className="text-xs text-slate-400">Rev.</span>
-                      : canReverse && !MANUAL_CREDIT_SOURCES.has(pmt.sourceType ?? "") && (
+                      : isManualCredit(pmt) ? manualCreditLink(pmt, "icon", "h-7 w-7")
+                      : canReverse && (
                           <Button variant="ghost" size="icon" className="h-7 w-7"
                                   onClick={() => { setReverseTarget(pmt); setReason("") }}
                                   aria-label="Reverse payment" title="Reverse payment">
@@ -543,7 +617,7 @@ export function PaymentsReceivedPage({
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <h1 className="mb-1 flex items-center gap-2 text-2xl font-semibold text-slate-900">
-              <Wallet className={cn("h-6 w-6", iconClassName ?? "text-sky-600")} /> Payments received
+              <Wallet className={cn("h-6 w-6", iconClassName ?? "text-sky-600")} /> {title}
             </h1>
             {headerActions?.(() => { void load() })}
           </div>
@@ -557,10 +631,22 @@ export function PaymentsReceivedPage({
             search={search} setSearch={setSearch}
             dateFrom={from} setDateFrom={setFrom}
             dateTo={to} setDateTo={setTo}
-            searchPlaceholder="Search customer, payment, method or reference"
+            searchPlaceholder="Search…"
+            // Narrow search and filters so the whole strip fits on one line.
+            searchWidthClassName="sm:w-[160px]"
             extras={
               <>
-                <div className="w-full sm:w-[150px]">
+                <div className="w-full sm:w-[180px]">
+                  <Label className="text-xs text-slate-500">Customer</Label>
+                  <Select value={customer} onValueChange={setCustomer}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All customers</SelectItem>
+                      {customers.map((c) => <SelectItem key={c.key} value={c.key}>{c.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="w-full sm:w-[130px]">
                   <Label className="text-xs text-slate-500">Method</Label>
                   <Select value={method} onValueChange={setMethod}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
@@ -570,7 +656,7 @@ export function PaymentsReceivedPage({
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="w-full sm:w-[150px]">
+                <div className="w-full sm:w-[130px]">
                   <Label className="text-xs text-slate-500">Source</Label>
                   <Select value={source} onValueChange={setSource}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
@@ -580,7 +666,7 @@ export function PaymentsReceivedPage({
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="w-full sm:w-[150px]">
+                <div className="w-full sm:w-[130px]">
                   <Label className="text-xs text-slate-500">Applied to</Label>
                   <Select value={appliedTo} onValueChange={setAppliedTo}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
@@ -591,7 +677,7 @@ export function PaymentsReceivedPage({
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="w-full sm:w-[150px]">
+                <div className="w-full sm:w-[130px]">
                   <Label className="text-xs text-slate-500">Status</Label>
                   <Select value={status} onValueChange={setStatus}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
@@ -734,7 +820,8 @@ export function PaymentsReceivedPage({
                               <Eye className="mr-1.5 h-3.5 w-3.5" /> Sale details
                             </Button>
                           )}
-                          {canReverse && !isReversed && !MANUAL_CREDIT_SOURCES.has(row.sourceType ?? "") && (
+                          {!isReversed && isManualCredit(row) && manualCreditLink(row, "full", "mt-2 h-10")}
+                          {canReverse && !isReversed && !isManualCredit(row) && (
                             <Button variant="outline" size="sm" className="mt-2 h-10 w-full bg-white"
                                     onClick={() => { setReverseTarget(row); setReason("") }}>
                               <Undo2 className="mr-1.5 h-3.5 w-3.5" /> Reverse
@@ -797,7 +884,8 @@ export function PaymentsReceivedPage({
                                             lives here. */}
                                         {(pmt.status ?? "Posted") === "Reversed"
                                           ? <div className="mt-1.5 text-[11px] text-slate-400">Reversed</div>
-                                          : canReverse && !MANUAL_CREDIT_SOURCES.has(pmt.sourceType ?? "") && (
+                                          : isManualCredit(pmt) ? manualCreditLink(pmt, "full", "mt-2 h-8")
+                                          : canReverse && (
                                               <Button variant="outline" size="sm" className="mt-2 h-8 w-full bg-white"
                                                       onClick={() => { setReverseTarget(pmt); setReason("") }}>
                                                 <Undo2 className="mr-1.5 h-3.5 w-3.5" /> Reverse
@@ -851,16 +939,16 @@ export function PaymentsReceivedPage({
                       <TableHeader>
                         <TableRow>
                           <TableHead className="w-8" />
-                          <TableHead>Date</TableHead>
-                          <TableHead>Payment</TableHead>
-                          <TableHead>Customer</TableHead>
-                          <TableHead className="text-right">Amount</TableHead>
+                          <SortableHeader label="Date" sortKey="date" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} />
+                          <SortableHeader label="Payment" sortKey="payment" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} />
+                          <SortableHeader label="Customer" sortKey="customer" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} />
+                          <SortableHeader label="Amount" sortKey="amount" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right" />
                           {/* The allocation, for the payment that settled one
                               sale. A payment across several shows the count
                               here and em dashes across the money columns --
                               there is no single balance to report -- and opens
                               for the full breakdown. */}
-                          <TableHead>Sale</TableHead>
+                          <SortableHeader label="Sale" sortKey="sale" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} />
                           {/* Before and After stay two labelled columns: they
                               are the pair people scan the ledger for, and a
                               merged "600.00 -> 0.00" cell made them read as one
@@ -869,10 +957,10 @@ export function PaymentsReceivedPage({
                               because on a one-sale payment it is the Amount
                               column repeated, and on a multi-sale one it was
                               always an em dash. */}
-                          <TableHead className="text-right">Before</TableHead>
-                          <TableHead className="text-right">After</TableHead>
-                          <TableHead>Method</TableHead>
-                          <TableHead>Status</TableHead>
+                          <SortableHeader label="Before" sortKey="before" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right" />
+                          <SortableHeader label="After" sortKey="after" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right" />
+                          <SortableHeader label="Method" sortKey="method" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} />
+                          <SortableHeader label="Status" sortKey="status" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} />
                           <TableHead className="w-20 text-right"><span className="sr-only">Actions</span></TableHead>
                         </TableRow>
                       </TableHeader>
@@ -974,7 +1062,8 @@ export function PaymentsReceivedPage({
                                       <Eye className="h-3.5 w-3.5" />
                                     </Button>
                                   )}
-                                  {canReverse && !isReversed && !MANUAL_CREDIT_SOURCES.has(row.sourceType ?? "") && (
+                                  {!isReversed && isManualCredit(row) && manualCreditLink(row, "icon", "h-8 w-8")}
+                                  {canReverse && !isReversed && !isManualCredit(row) && (
                                     <Button variant="ghost" size="icon" className="h-8 w-8"
                                             onClick={() => { setReverseTarget(row); setReason("") }}
                                             aria-label="Reverse payment" title="Reverse payment">
@@ -1028,11 +1117,11 @@ export function PaymentsReceivedPage({
           money back onto several balances at once and that is not obvious from
           the row. */}
       <Dialog open={!!reverseTarget} onOpenChange={(o) => { if (!o && !reversing) { setReverseTarget(null); setReason(""); setReverseError(null) } }}>
-        <DialogContent className="w-[95vw] max-w-md p-4 sm:p-6">
+        <DialogContent className={cn(FORM_DIALOG_CONTENT, "sm:max-w-lg")}>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Undo2 className="h-5 w-5 text-red-600" /> Reverse {reverseTarget?.paymentNumber ?? "this payment"}?
-            </DialogTitle>
+            <FormDialogTitle icon={Undo2} color="red">
+              Reverse {reverseTarget?.paymentNumber ?? "this payment"}?
+            </FormDialogTitle>
             <DialogDescription>
               The balance goes back onto every sale it was applied to and the cash movement is undone. The payment
               stays in the history, marked Reversed.
@@ -1040,8 +1129,9 @@ export function PaymentsReceivedPage({
           </DialogHeader>
 
           {reverseTarget && (
-            <div className="space-y-3 text-sm">
-              <div className="rounded-md border bg-slate-50 p-3">
+            <div className="min-w-0 space-y-4 text-sm">
+              <FormSection title="This reversal will" color="amber" tinted columns={1}>
+              <div className="rounded-md border bg-white p-3">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-slate-500">{reverseTarget.partyName ?? "Walk-in"}</span>
                   <span className="font-semibold tabular-nums">{fmt(reverseTarget.totalAmount)}</span>
@@ -1061,25 +1151,25 @@ export function PaymentsReceivedPage({
                   )}
                 </div>
               </div>
+              </FormSection>
 
-              <div className="space-y-1">
-                <Label htmlFor="reverse-reason">Reason *</Label>
-                <ReasonSelect id="reverse-reason" options={REVERSAL_REASONS} value={reason} onChange={setReason} />
-              </div>
+              <FormSection title="Reason" color="slate" tinted columns={1}>
+                <div className="space-y-1">
+                  <Label htmlFor="reverse-reason">Reason *</Label>
+                  <ReasonSelect id="reverse-reason" options={REVERSAL_REASONS} value={reason} onChange={setReason} />
+                </div>
+              </FormSection>
               {reverseError && <p className="rounded-md bg-red-50 p-2.5 text-red-700">{reverseError}</p>}
             </div>
           )}
 
-          <DialogFooter className="flex-col gap-2 sm:flex-row">
-            <Button variant="outline" className="h-10 w-full sm:h-9 sm:w-auto" disabled={reversing}
-                    onClick={() => { setReverseTarget(null); setReason(""); setReverseError(null) }}>
-              Cancel
-            </Button>
-            <Button className="h-10 w-full bg-red-600 hover:bg-red-700 sm:h-9 sm:w-auto" disabled={reversing || !reason.trim()} onClick={doReverse}>
+          <FormDialogFooter cancelDisabled={reversing}
+                            onCancel={() => { setReverseTarget(null); setReason(""); setReverseError(null) }}>
+            <Button className={cn("px-6", FORM_DIALOG_PRIMARY.red)} disabled={reversing || !reason.trim()} onClick={doReverse}>
               {reversing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Reverse payment
+              Reverse payment{reverseTarget ? ` · ${fmt(reverseTarget.totalAmount)}` : ""}
             </Button>
-          </DialogFooter>
+          </FormDialogFooter>
         </DialogContent>
       </Dialog>
     </div>

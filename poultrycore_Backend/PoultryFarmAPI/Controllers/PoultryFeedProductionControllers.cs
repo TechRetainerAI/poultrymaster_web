@@ -43,6 +43,15 @@ namespace PoultryFarmAPIWeb.Controllers
             await _svc.DeleteAsync(farmId, id);
             return NoContent();
         }
+
+        // 385. Default ingredients, age-named finished feeds and 1-tonne formulas.
+        // Once per farm; force=true re-adds any default the farm has removed.
+        [HttpPost("ensure-defaults")] public async Task<ActionResult<PoultryFeedDefaultsResult>> EnsureDefaults(
+            [FromQuery] string farmId, [FromQuery] string? userId, [FromQuery] bool force = false)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            return Ok(await _svc.EnsureDefaultsAsync(farmId, userId, force));
+        }
     }
 
     [ApiController]

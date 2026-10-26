@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useEffect, useMemo, useState } from "react"
+import { Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -54,6 +54,7 @@ import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poul
 import { RecalculateStockButton } from "@/components/poultry/recalculate-stock-button"
 import { PoultryPurchaseDialog } from "@/components/raw-materials/poultry-purchase-dialog"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
+import { ensureDefaultFeedFormulas } from "@/lib/api/poultry-feed-production"
 
 const CATEGORIES = ["FeedIngredient", "FinishedFeed", "Packaging", "Medication", "Vaccine", "Bedding", "Disinfectant", "Equipment", "SparePart", "Fuel", "Other"]
 // Readable labels for the camel-case category codes stored in the DB.
@@ -352,9 +353,16 @@ function PoultryRawMaterialsPageInner() {
     setFocusPurchaseId(Number.isFinite(pid) && pid > 0 ? pid : null)
   }, [searchParams])
 
+  // 385: the default feeds and ingredients, once per page visit (and once per farm on the server).
+  const feedDefaultsRef = useRef(false)
+
   async function load() {
     setLoading(true)
     try {
+      if (!feedDefaultsRef.current) {
+        feedDefaultsRef.current = true
+        await ensureDefaultFeedFormulas().catch(() => {})
+      }
       const [is, ps, cas, val] = await Promise.all([
         listPoultryRawMaterialItems(), listPoultryRawMaterialPurchases(),
         listPoultryCashAccounts().catch(() => []),
