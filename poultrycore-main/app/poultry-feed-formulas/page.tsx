@@ -267,7 +267,7 @@ export default function PoultryFeedFormulasPage() {
               <div className="space-y-1">
                 <p className="font-semibold">Default formulas to start with</p>
                 <p>
-                  Starter, Grower, Developer and Layer formulas — each for <b>1,000 kg (1 tonne)</b> of feed — are ready to use.
+                  Galdus Magic Feed (0–10 days), Starter, Grower, Developer and Layer formulas — each for <b>1,000 kg (1 tonne)</b> of feed — are ready to use.
                   This is one great example many farmers use. To make 2 tonnes, every amount is simply doubled.
                 </p>
                 <p>

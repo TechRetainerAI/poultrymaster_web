@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   ageAtStartDays, dueLabel, formatAgeDays, lifecycleActionHref, milestoneAgeLabel,
-  sortTasks, taskSentence, validatePlan,
+  repeatFromParts, repeatLabel, repeatToParts, sortTasks, taskAgeLabel, taskKey, taskSentence, validatePlan,
 } from "./lifecycle"
 
 describe("lifecycleActionHref — links only, never actions", () => {
@@ -72,5 +72,35 @@ describe("validatePlan", () => {
     expect(validatePlan("P", [{ ...ok, title: "" }])).toContain("Milestone 1: give it a title.")
     expect(validatePlan("P", [{ ...ok, ageValue: -1 }])).toContain("Milestone 1: enter an age between 0 and 5000.")
     expect(validatePlan("P", [{ ...ok, leadTimeDays: 400 }])).toContain("Milestone 1: lead time must be between 0 and 365 days.")
+    expect(validatePlan("P", [{ ...ok, repeatEveryDays: 0 }])).toContain("Milestone 1 (Review): repeat every 1 to 3650 days, or not at all.")
+    expect(validatePlan("P", [{ ...ok, repeatEveryDays: 91 }])).toEqual([])
+  })
+})
+
+describe("repeats (387)", () => {
+  it("reads a repeat's own age", () => {
+    expect(taskAgeLabel({ ageUnit: "Day", ageValue: 203, ageDays: 203, occurrence: 0 })).toBe("Day 203")
+    expect(taskAgeLabel({ ageUnit: "Day", ageValue: 203, ageDays: 385, occurrence: 2 })).toBe("Day 385")
+    expect(taskAgeLabel({ ageUnit: "Week", ageValue: 42, ageDays: 385, occurrence: 1 })).toBe("Week 55")
+    expect(taskAgeLabel({ ageUnit: "Week", ageValue: 16 })).toBe("Week 16")
+  })
+  it("says the repeat in the task sentence", () => {
+    expect(taskSentence({ batchCode: null, flockName: "Layers", ageUnit: "Day", ageValue: 203, ageDays: 294, occurrence: 1, status: "Due", daysUntilDue: 0 }))
+      .toBe("Layers is at Day 294 now")
+  })
+  it("keys a task by flock, milestone and repeat", () => {
+    expect(taskKey({ flockId: 3, milestoneId: 9 })).toBe("3-9-0")
+    expect(taskKey({ flockId: 3, milestoneId: 9, occurrence: 2 })).toBe("3-9-2")
+  })
+  it("words and splits a repeat interval", () => {
+    expect(repeatLabel(91)).toBe("every 13 weeks")
+    expect(repeatLabel(7)).toBe("every week")
+    expect(repeatLabel(10)).toBe("every 10 days")
+    expect(repeatLabel(null)).toBeNull()
+    expect(repeatToParts(91)).toEqual({ value: 13, unit: "Week" })
+    expect(repeatToParts(10)).toEqual({ value: 10, unit: "Day" })
+    expect(repeatToParts(null)).toBeNull()
+    expect(repeatFromParts(13, "Week")).toBe(91)
+    expect(repeatFromParts(10, "Day")).toBe(10)
   })
 })
