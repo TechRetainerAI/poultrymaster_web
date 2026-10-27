@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
+import { useGlobalSearchPrefill } from "@/hooks/use-global-search-prefill"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Card, CardContent } from "@/components/ui/card"
@@ -56,6 +57,7 @@ export default function GenericProductsPage() {
   const { toast } = useToast()
   const [rows, setRows] = useState<GenericProduct[]>([])
   const [search, setSearch] = useState("")
+  useGlobalSearchPrefill(setSearch)
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [loading, setLoading] = useState(true)
