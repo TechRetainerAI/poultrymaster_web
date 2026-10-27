@@ -145,45 +145,80 @@ export function CalcField({
   )
 }
 
+/** 386 / 387: keep all, dispose some, or dispose all of a record's broken eggs / dead birds. */
+export type DisposalMode = "keep" | "some" | "all"
+
 /**
- * 372: what happens to a record's broken eggs / dead birds. "Keep" puts them into
- * the Broken Eggs / Dead Birds stock; "Disposed" records them as generated and
- * disposed at once, so nothing is left in stock. Shown only when there are some.
+ * 386 / 387: what happens to a record's broken eggs / dead birds. Some can be
+ * disposed at once and the rest added to Broken Eggs / Dead Birds stock (to
+ * sell or use). Shown only when there are some.
  */
-export function DispositionField({
-  label, count, value, onChange, keepText, disposedText,
+export function DisposalSplitField({
+  label, count, mode, disposed, onChange, noun, stockName,
 }: {
   /** Names the choice, e.g. "Broken Egg Stock allocation". */
   label: string
   count: number
-  value: "Keep" | "Disposed"
-  onChange: (value: "Keep" | "Disposed") => void
-  keepText: string
-  disposedText: string
+  mode: DisposalMode
+  /** The "Dispose some" count, as typed. */
+  disposed: string
+  onChange: (p: { mode?: DisposalMode; disposed?: string }) => void
+  /** e.g. ["broken egg", "broken eggs"]. */
+  noun: [string, string]
+  /** e.g. "Broken Egg stock". */
+  stockName: string
 }) {
   if (count <= 0) return null
+  const out = disposedCount(mode, disposed, count)
+  const kept = count - out
+  const options: { v: DisposalMode; text: string }[] = [
+    { v: "keep", text: "Keep all" },
+    { v: "some", text: "Dispose some" },
+    { v: "all", text: "Dispose all" },
+  ]
+  const n = (x: number) => `${x.toLocaleString()} ${x === 1 ? noun[0] : noun[1]}`
   return (
-    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
-      {/* Own line on a phone, inline beside the buttons from sm up. */}
-      <span className="w-full font-semibold text-slate-700 sm:w-auto">{label}</span>
-      <div className="inline-flex overflow-hidden rounded-md border border-slate-300" role="radiogroup" aria-label={label}>
-        {(["Keep", "Disposed"] as const).map((v) => (
-          <button
-            key={v}
-            type="button"
-            role="radio"
-            aria-checked={value === v}
-            onClick={() => onChange(v)}
-            className={cn(
-              "px-2.5 py-1 font-medium",
-              value === v ? "bg-slate-800 text-white" : "bg-white text-slate-600 hover:bg-slate-50",
-            )}
-          >
-            {v === "Keep" ? "Keep" : "Disposed immediately"}
-          </button>
-        ))}
+    <div className="space-y-2 text-xs text-slate-600">
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Own line on a phone, inline beside the buttons from sm up. */}
+        <span className="w-full font-semibold text-slate-700 sm:w-auto">{label}</span>
+        <div className="inline-flex overflow-hidden rounded-md border border-slate-300" role="radiogroup" aria-label={label}>
+          {options.map((o) => (
+            <button
+              key={o.v}
+              type="button"
+              role="radio"
+              aria-checked={mode === o.v}
+              onClick={() => onChange({ mode: o.v })}
+              className={cn(
+                "px-2.5 py-1 font-medium",
+                mode === o.v ? "bg-slate-800 text-white" : "bg-white text-slate-600 hover:bg-slate-50",
+              )}
+            >
+              {o.text}
+            </button>
+          ))}
+        </div>
       </div>
-      <span>{value === "Keep" ? keepText : disposedText}</span>
+      {mode === "some" && (
+        <div className="w-40">
+          <NumField label="Disposed now" value={disposed} onChange={(v) => onChange({ disposed: String(v) })} text max={count} />
+        </div>
+      )}
+      <p>
+        {out === 0
+          ? `${n(count)} will be added to ${stockName}.`
+          : kept === 0
+            ? `${n(count)} recorded and disposed of. Nothing is added to stock.`
+            : `${n(out)} disposed of; ${n(kept)} added to ${stockName}.`}
+      </p>
     </div>
   )
+}
+
+/** How many a mode disposes, capped at the count recorded. */
+export function disposedCount(mode: DisposalMode, disposed: string, count: number): number {
+  if (count <= 0 || mode === "keep") return 0
+  if (mode === "all") return count
+  return Math.min(Math.max(parseInt(disposed) || 0, 0), count)
 }

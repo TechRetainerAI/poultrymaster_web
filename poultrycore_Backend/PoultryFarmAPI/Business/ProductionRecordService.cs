@@ -95,29 +95,38 @@ namespace PoultryFarmAPIWeb.Business
         /// </summary>
         private static async Task SetDispositionAsync(NpgsqlConnection conn, string farmId, int recordId, ProductionRecordModel model, NpgsqlTransaction tx)
         {
-            if (string.IsNullOrWhiteSpace(model.MortalityDisposition) && string.IsNullOrWhiteSpace(model.BrokenEggDisposition)) return;
+            if (string.IsNullOrWhiteSpace(model.MortalityDisposition) && string.IsNullOrWhiteSpace(model.BrokenEggDisposition)
+                && model.BrokenEggsDisposed is null && model.MortalityDisposed is null) return;
+            // 386 / 387: BrokenEggsDisposed / MortalityDisposed (how many were disposed
+            // at once) win over Keep / Disposed.
             using var cmd = new NpgsqlCommand(
                 "SELECT sppoultryproduction_setdisposition(p_farmid => @FarmId::text, p_recordid => @Id::int, " +
-                "p_mortalitydisposition => @Mort::text, p_brokeneggdisposition => @Broken::text, p_by => @By::text)", conn, tx);
+                "p_mortalitydisposition => @Mort::text, p_brokeneggdisposition => @Broken::text, p_by => @By::text, " +
+                "p_brokeneggsdisposed => @BrokenDisposed::int, p_mortalitydisposed => @MortDisposed::int)", conn, tx);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@Id", recordId);
             cmd.Parameters.AddWithValue("@Mort", (object?)model.MortalityDisposition ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Broken", (object?)model.BrokenEggDisposition ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@BrokenDisposed", (object?)model.BrokenEggsDisposed ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@MortDisposed", (object?)model.MortalityDisposed ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@By", (object?)model.UserId ?? DBNull.Value);
             await cmd.ExecuteNonQueryAsync();
         }
 
-        /// <summary>372: each record's dead-bird / broken-egg choice (only the non-default ones).</summary>
-        private static async Task<Dictionary<int, (string Mort, string Broken)>> GetDispositionsAsync(NpgsqlConnection conn, string farmId)
+        /// <summary>372: each record's dead-bird / broken-egg choice (only the non-default ones);
+        /// 386 / 387: + how many broken eggs / dead birds were disposed at once.</summary>
+        private static async Task<Dictionary<int, (string Mort, string Broken, int? BrokenDisposed, int? MortDisposed)>> GetDispositionsAsync(NpgsqlConnection conn, string farmId)
         {
-            var map = new Dictionary<int, (string, string)>();
+            var map = new Dictionary<int, (string, string, int?, int?)>();
             try
             {
                 using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryproduction_dispositions(p_farmid => @FarmId::text)", conn);
                 cmd.Parameters.AddWithValue("@FarmId", farmId);
                 using var r = await cmd.ExecuteReaderAsync();
                 while (await r.ReadAsync())
-                    map[r.GetInt32(0)] = (r.GetString(1), r.GetString(2));
+                    map[r.GetInt32(0)] = (r.GetString(1), r.GetString(2),
+                        r.FieldCount > 3 && !r.IsDBNull(3) ? r.GetInt32(3) : null,    // 386 column
+                        r.FieldCount > 4 && !r.IsDBNull(4) ? r.GetInt32(4) : null);   // 387 column
             }
             catch (PostgresException ex) when (ex.SqlState == "42883")
             {
@@ -531,9 +540,11 @@ namespace PoultryFarmAPIWeb.Business
 
                     // 372: the record's dead-bird / broken-egg choice, so an edit keeps it.
                     var disp = await GetDispositionsAsync(conn, farmId);
-                    var d = disp.TryGetValue(record.Id, out var v) ? v : ("Keep", "Keep");
+                    var d = disp.TryGetValue(record.Id, out var v) ? v : ("Keep", "Keep", 0, 0);
                     record.MortalityDisposition = d.Item1;
                     record.BrokenEggDisposition = d.Item2;
+                    record.BrokenEggsDisposed = d.Item3;
+                    record.MortalityDisposed = d.Item4;
                     return record;
                 }
 
@@ -612,9 +623,11 @@ namespace PoultryFarmAPIWeb.Business
                 var disp = await GetDispositionsAsync(dconn, farmId);
                 foreach (var rec in records)
                 {
-                    var d = disp.TryGetValue(rec.Id, out var v) ? v : ("Keep", "Keep");
+                    var d = disp.TryGetValue(rec.Id, out var v) ? v : ("Keep", "Keep", 0, 0);
                     rec.MortalityDisposition = d.Item1;
                     rec.BrokenEggDisposition = d.Item2;
+                    rec.BrokenEggsDisposed = d.Item3;
+                    rec.MortalityDisposed = d.Item4;
                 }
             }
 
