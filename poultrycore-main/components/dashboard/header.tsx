@@ -4,8 +4,7 @@ import { EggsPerCrateLoader } from "@/hooks/use-eggs-per-crate"
 import { useFarmAlertCount } from "@/hooks/use-farm-alert-count"
 
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Search, MessageCircle, User, Menu, Briefcase, Bell } from "lucide-react"
+import { MessageCircle, User, Menu, Briefcase, Bell } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useChatStore } from "@/lib/store/chat-store"
@@ -15,6 +14,7 @@ import { TopNavigation } from "./top-nav"
 import { MobileBottomNav } from "./mobile-bottom-nav"
 import { InventoryLogo } from "@/components/auth/logo"
 import { CompanySwitcher } from "./company-switcher"
+import { GlobalSearch } from "./global-search"
 
 export function DashboardHeader() {
   const router = useRouter()
@@ -26,7 +26,6 @@ export function DashboardHeader() {
   const clearActiveCompany = useAuthStore((s) => s.clearActiveCompany)
   const [username, setUsername] = useState("")
   const [roleLabel, setRoleLabel] = useState("")
-  const [searchQuery, setSearchQuery] = useState("")
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -37,135 +36,10 @@ export function DashboardHeader() {
   // Search placeholder adapts to active company type. Poultry-only terms
   // ("flocks") shouldn't show on Water or Generic companies.
   const searchPlaceholder =
-    activeFarmType === "Water"   ? "Search customers, sales, drivers…" :
-    activeFarmType === "Generic" ? "Search customers, products, sales…" :
-    "Search customers, flocks, sales…"
-
-  // Define all available pages for navigation
-  const pageRoutes = [
-    { path: '/dashboard', keywords: ['overview', 'dashboard', 'home', 'main'] },
-    { path: '/customers', keywords: ['customers', 'customer', 'client'] },
-    { path: '/suppliers', keywords: ['suppliers', 'supplier', 'vendor', 'vendors'] },
-    { path: '/flocks', keywords: ['flocks', 'flock', 'birds', 'chicken'] },
-    { path: '/flock-batch', keywords: ['flock batch', 'batch', 'batches'] },
-    { path: '/employees', keywords: ['employees', 'employee', 'staff', 'workers'] },
-    { path: '/sales', keywords: ['sales', 'sale', 'sell', 'revenue'] },
-    { path: '/expenses', keywords: ['expenses', 'expense', 'cost', 'spending'] },
-    { path: '/poultry-financial-activity', keywords: ['financial activity', 'cash vs profit', 'why is profit different', 'money in revenue', 'profit impact', 'financial position'] },
-    { path: '/inventory', keywords: ['inventory', 'stock', 'items'] },
-    { path: '/supplies', keywords: ['supplies', 'supply', 'materials'] },
-    { path: '/production-records', keywords: ['production', 'records', 'production records'] },
-    { path: '/poultry-egg-sorting', keywords: ['egg sorting', 'sort eggs', 'egg sizes', 'egg grading', 'eggs', 'egg'] },
-    { path: '/egg-tracker', keywords: ['egg tracker', 'egg inventory', 'egg ledger', 'eggs at hand'] },
-    { path: '/feed-tracker', keywords: ['feed at hand', 'feed tracker', 'feed analytics', 'feed consumption', 'finished feed'] },
-    { path: '/feed-ingredient-tracker', keywords: ['ingredients tracker', 'ingredients at hand', 'feed ingredients', 'maize soya stock', 'raw feed materials'] },
-    { path: '/feed-inventory-tracker', keywords: ['feed inventory tracker', 'ingredient stock', 'finished feed stock', 'feed ingredient ledger', 'feed stock movements'] },
-    { path: '/medication-tracker', keywords: ['medication at hand', 'medication tracker', 'medication log'] },
-    { path: '/feed-usage', keywords: ['feed usage', 'feed', 'feeding'] },
-    { path: '/feed-tracker', keywords: ['feed tracker', 'feed totals', 'feed consumption'] },
-    { path: '/health', keywords: ['health', 'vaccination', 'medication'] },
-    { path: '/medication-tracker', keywords: ['medication tracker', 'medication', 'drugs', 'treatment log'] },
-    { path: '/houses', keywords: ['houses', 'house', 'poultry house'] },
-    { path: '/poultry-driver-returns', keywords: ['deliveries', 'delivery', 'driver returns', 'load vehicle', 'reconcile'] },
-    { path: '/poultry-drivers', keywords: ['drivers', 'driver', 'riders'] },
-    { path: '/poultry-vehicles', keywords: ['vehicles', 'vehicle', 'trucks', 'vans'] },
-    { path: '/poultry-routes', keywords: ['routes', 'route', 'delivery routes'] },
-    { path: '/poultry-driver-report', keywords: ['driver report', 'driver collection', 'driver accountability'] },
-    { path: '/reports', keywords: ['reports', 'report', 'analytics'] },
-    { path: '/profile', keywords: ['profile', 'account', 'user', 'settings'] },
-    { path: '/audit-logs', keywords: ['audit logs', 'audit', 'logs', 'activity'] },
-    { path: '/settings', keywords: ['settings', 'configuration', 'config'] },
-    { path: '/resources', keywords: ['resources', 'resource', 'help'] },
-    { path: '/help', keywords: ['help center', 'help', 'support'] },
-    { path: '/terms', keywords: ['terms', 'conditions', 'policy'] },
-  ]
-
-  const findMatchingPage = (query: string): string | null => {
-    const lowerQuery = query.toLowerCase().trim()
-    if (!lowerQuery) return null
-    
-    // Exact match first
-    for (const route of pageRoutes) {
-      if (route.path === lowerQuery || route.path === `/${lowerQuery}`) {
-        return route.path
-      }
-    }
-    
-    // Keyword match
-    for (const route of pageRoutes) {
-      for (const keyword of route.keywords) {
-        if (lowerQuery.includes(keyword) || keyword.includes(lowerQuery)) {
-          return route.path
-        }
-      }
-    }
-    
-    return null
-  }
-
-  const handleSearchChange = (value: string) => {
-    setSearchQuery(value)
-    
-    // Work in real-time - dispatch search event immediately as user types
-    if (typeof window !== 'undefined') {
-      const currentPath = window.location.pathname
-      
-      // If already on a list page, trigger search immediately for data filtering
-      if (currentPath.includes('/employees') || 
-          currentPath.includes('/customers') || 
-          currentPath.includes('/suppliers') ||
-          currentPath.includes('/flocks') ||
-          currentPath.includes('/sales') ||
-          currentPath.includes('/inventory') ||
-          currentPath.includes('/expenses') ||
-          currentPath.includes('/supplies') ||
-          currentPath.includes('/health') ||
-          currentPath.includes('/audit-logs')) {
-        // Dispatch event for pages to listen to in real-time
-        window.dispatchEvent(new CustomEvent('globalSearch', { detail: { query: value.trim() } }))
-      }
-      
-      // Store in sessionStorage for navigation between pages
-      if (value.trim()) {
-        sessionStorage.setItem('globalSearchQuery', value.trim())
-      } else {
-        sessionStorage.removeItem('globalSearchQuery')
-      }
-    }
-  }
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!searchQuery.trim()) return
-    
-    const matchingPage = findMatchingPage(searchQuery)
-    
-    if (matchingPage) {
-      // Navigate to the matching page
-      router.push(matchingPage)
-      setSearchQuery("") // Clear search after navigation
-      sessionStorage.removeItem('globalSearchQuery')
-    } else {
-      // If no page match, check if we're on a searchable page and filter data
-      const currentPath = typeof window !== 'undefined' ? window.location.pathname : ''
-      
-      if (currentPath.includes('/employees') || 
-          currentPath.includes('/customers') || 
-          currentPath.includes('/suppliers') ||
-          currentPath.includes('/flocks') ||
-          currentPath.includes('/sales') ||
-          currentPath.includes('/inventory') ||
-          currentPath.includes('/expenses') ||
-          currentPath.includes('/supplies') ||
-          currentPath.includes('/health') ||
-          currentPath.includes('/audit-logs')) {
-        // Already filtering on current page, do nothing
-      } else {
-        // Navigate to dashboard if no match
-        router.push('/dashboard')
-      }
-    }
-  }
+    activeFarmType === "Water"   ? "Search pages, customers, drivers…" :
+    activeFarmType === "Generic" ? "Search pages, customers, products…" :
+    activeFarmType === "Hotel" || activeFarmType === "Restaurant" ? "Search pages and reports…" :
+    "Search pages, customers, flocks…"
 
   return (
     <div className="flex flex-col min-w-0 overflow-x-hidden">
@@ -186,23 +60,9 @@ export function DashboardHeader() {
           </div>
 
           {/* Search */}
-          <form onSubmit={handleSearch} className="flex-1 max-w-md min-w-0">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-              <Input
-                type="text"
-                placeholder={searchPlaceholder}
-                value={searchQuery}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') {
-                    handleSearchChange('')
-                  }
-                }}
-                className="pl-10 min-h-[44px] lg:min-h-9 bg-slate-800 border-slate-700 text-white placeholder:text-slate-400 focus:bg-slate-700 focus:border-slate-600"
-              />
-            </div>
-          </form>
+          <div className="flex-1 max-w-md min-w-0">
+            <GlobalSearch placeholder={searchPlaceholder} />
+          </div>
 
           {/* Right side actions */}
           <div className="flex items-center gap-2 sm:gap-4">

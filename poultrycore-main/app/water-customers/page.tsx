@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
+import { useGlobalSearchPrefill } from "@/hooks/use-global-search-prefill"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
@@ -36,6 +37,7 @@ export default function WaterCustomersPage() {
 
   const [customers, setCustomers] = useState<WaterCustomer[]>([])
   const [search, setSearch] = useState("")
+  useGlobalSearchPrefill(setSearch)
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [loading, setLoading] = useState(true)

@@ -1,185 +1,37 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useAuthStore } from "@/lib/store/auth-store"
+import Link from "next/link"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
+import {
+  ArrowRight, BookA, BookOpen, HelpCircle, Keyboard, LifeBuoy, MessageCircle, Search, Wrench, X,
+} from "lucide-react"
+import { useAuthStore } from "@/lib/store/auth-store"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import {
-  HelpCircle,
-  Search,
-  Bird,
-  Egg,
-  Package,
-  DollarSign,
-  Users,
-  BarChart3,
-  Settings,
-  ShoppingCart,
-  FileText,
-  Activity,
-  ChevronDown,
-  ChevronUp,
-  BookOpen,
-  Mail,
-  Phone,
-} from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { HelpEntryCard } from "@/components/help/help-entry-card"
+import { ContactSupport, type ContactSupportHandle } from "@/components/help/contact-support"
+import { useSearchPages } from "@/hooks/use-global-search"
+import { rankPages } from "@/lib/search/page-index"
+import { prepareHelpIndex, searchHelp } from "@/lib/help/help-search"
+import type { HelpEntry, HelpKind } from "@/lib/help/help-types"
+import { FEATURE_GUIDES, HELP_ENTRIES, toneFor } from "@/lib/help/poultry-help-content"
 
-interface FAQItem {
-  question: string
-  answer: string
-  category: string
-}
-
-const faqData: FAQItem[] = [
-  {
-    category: "Getting Started",
-    question: "How do I set up my farm?",
-    answer:
-      "Go to Settings from the sidebar menu. Enter your farm name, location, and preferred currency. Click 'Edit Settings' to modify and 'Save Changes' to confirm.",
-  },
-  {
-    category: "Getting Started",
-    question: "How do I add employees/staff?",
-    answer:
-      "Navigate to the Employees page from the sidebar. Click 'Add Employee' and fill in their details including name, email, phone, and role. Staff members can be given limited access compared to admins.",
-  },
-  {
-    category: "Flocks",
-    question: "How do I create a new flock?",
-    answer:
-      "Go to Flocks from the sidebar and click 'Add Flock'. Enter the flock name, breed, quantity, start date, and assign it to a house. Flocks can be marked as active or inactive.",
-  },
-  {
-    category: "Flocks",
-    question: "What are flock batches?",
-    answer:
-      "Flock batches allow you to group birds within a flock by arrival date or source. Navigate to Flock Batches to manage batches. Each batch tracks its own quantity and metadata.",
-  },
-  {
-    category: "Flocks",
-    question: "How do I deactivate a flock?",
-    answer:
-      "On the Flocks page, edit the flock you want to deactivate. Set the 'Active' toggle to off and provide a reason for inactivation. The flock will remain in your records for reporting purposes.",
-  },
-  {
-    category: "Production",
-    question: "How do I log daily production?",
-    answer:
-      "Go to Production Records and click 'Log Production'. Select the flock, date, and enter egg counts for 9 AM, 12 PM, and 4 PM collections. You can also record broken eggs, feed usage, and medication.",
-  },
-  {
-    category: "Production",
-    question: "How are egg totals calculated?",
-    answer:
-      "Egg totals are displayed in both raw counts and crates. One crate equals 30 eggs. For example, 95 eggs = 3 crates + 5 pieces (3c + 5p).",
-  },
-  {
-    category: "Production",
-    question: "Where can I see egg production trends?",
-    answer:
-      "Use Egg sorting for daily collection by flock and totals by size. Use Egg tracker (under Analytics) for the egg inventory ledger from production and sales. The Reports page provides charts for production trends over time.",
-  },
-  {
-    category: "Feed & Inventory",
-    question: "How do I record feed usage?",
-    answer:
-      "Navigate to Feed Usage and click 'Add Usage'. Select the flock, date, feed type, and quantity in kg. Feed records are automatically linked to production records for the same flock and date.",
-  },
-  {
-    category: "Feed & Inventory",
-    question: "How do I manage inventory?",
-    answer:
-      "The Inventory page lets you track all farm supplies including feed, medication, equipment, and eggs. Add items with quantities, unit prices, suppliers, and expiry dates. Use filters to search and categorize.",
-  },
-  {
-    category: "Sales & Expenses",
-    question: "How do I record a sale?",
-    answer:
-      "Go to Sales and click 'Record Sale'. Select the customer, items sold (eggs in crates/pieces, or other products), quantity, unit price, and payment method. The system calculates totals automatically.",
-  },
-  {
-    category: "Sales & Expenses",
-    question: "How do I track expenses?",
-    answer:
-      "Navigate to Expenses and click 'Add Expense'. Select the flock, category (Feed, Veterinary, Equipment, Labor, Utilities, Other), enter the amount, payment method, and description.",
-  },
-  {
-    category: "Sales & Expenses",
-    question: "Can I export sales or expense data?",
-    answer:
-      "Yes! On both the Sales and Expenses pages, you'll find PDF and CSV export buttons in the filter bar. Exports include all currently filtered records.",
-  },
-  {
-    category: "Customers",
-    question: "How do I manage customers?",
-    answer:
-      "The Customers page lets you add, edit, and delete customer records. Each customer has a name, email, phone, city, and address. Customers can be linked to sales for tracking.",
-  },
-  {
-    category: "Reports",
-    question: "What reports are available?",
-    answer:
-      "The Reports page provides production summaries, financial overviews, flock performance metrics, and trend analysis. Data can be filtered by date range and flock for detailed insights.",
-  },
-  {
-    category: "Health",
-    question: "How do I log health records?",
-    answer:
-      "Navigate to Health Records from the sidebar. Record vaccinations, treatments, and health observations for each flock. Track medication usage and health trends over time.",
-  },
-  {
-    category: "Account",
-    question: "How do I change my password?",
-    answer:
-      "Go to your Profile page by clicking the user icon in the top-right corner of the header. You'll find the option to update your password and other account settings.",
-  },
-  {
-    category: "Account",
-    question: "What's the difference between Admin and Staff roles?",
-    answer:
-      "Admins have full access to all features including settings, employee management, and delete operations. Staff members have limited access — they can view and create records but may not be able to delete or access certain admin-only features.",
-  },
+const SHORTCUTS: { keys: string[]; what: string }[] = [
+  { keys: ["Ctrl", "K"], what: "Search pages, customers and flocks from anywhere" },
+  { keys: ["/"], what: "Same, when you are not typing in a box" },
+  { keys: ["↑", "↓", "Enter"], what: "Move through search results and open one" },
+  { keys: ["Esc"], what: "Clear the search, then close it" },
 ]
 
-// `tint` is the disc behind the icon. It follows the subject, and where a
-// subject also appears as an FAQ category the two use the same colour.
-const featureGuides = [
-  { icon: Bird, title: "Flocks", description: "Manage your flocks, batches, and bird tracking", path: "/flocks", tint: "bg-amber-100 text-amber-700" },
-  { icon: Egg, title: "Production", description: "Log daily egg production and track metrics", path: "/production-records", tint: "bg-sky-100 text-sky-700" },
-  { icon: Package, title: "Feed Usage", description: "Record and monitor feed consumption", path: "/feed-usage", tint: "bg-lime-100 text-lime-700" },
-  { icon: ShoppingCart, title: "Sales", description: "Record sales and track revenue", path: "/sales", tint: "bg-violet-100 text-violet-700" },
-  { icon: DollarSign, title: "Expenses", description: "Track costs and financial records", path: "/expenses", tint: "bg-rose-100 text-rose-700" },
-  { icon: Users, title: "Customers", description: "Manage your customer database", path: "/customers", tint: "bg-teal-100 text-teal-700" },
-  { icon: BarChart3, title: "Reports", description: "View analytics and generate reports", path: "/reports", tint: "bg-indigo-100 text-indigo-700" },
-  { icon: Activity, title: "Health Records", description: "Track vaccinations and treatments", path: "/health", tint: "bg-red-100 text-red-700" },
-  { icon: FileText, title: "Inventory", description: "Manage farm supplies and stock", path: "/inventory", tint: "bg-emerald-100 text-emerald-700" },
-  { icon: Settings, title: "Company Setup", description: "Configure farm preferences", path: "/poultry-company-setup", tint: "bg-slate-200 text-slate-700" },
-]
+/** Questions people actually type, offered before they type anything. */
+const SUGGESTIONS = ["who owes me", "cash doesn't match profit", "reverse a sale", "eggs per crate", "close the day", "can't see a page"]
 
-/**
- * A colour per FAQ category, so the same subject is the same colour wherever
- * it appears — the filter chip, the badge on an answer, and the rail down the
- * left of its card. A long list of questions in one grey is a wall; colour is
- * what lets someone scanning for "Flocks" find the block of them.
- */
-const CATEGORY_TONES: Record<string, { chip: string; chipOn: string; rail: string; badge: string }> = {
-  "Getting Started":  { chip: "hover:bg-emerald-50", chipOn: "bg-emerald-600 hover:bg-emerald-700", rail: "border-l-emerald-400", badge: "border-emerald-200 bg-emerald-50 text-emerald-700" },
-  "Flocks":           { chip: "hover:bg-amber-50",   chipOn: "bg-amber-600 hover:bg-amber-700",     rail: "border-l-amber-400",   badge: "border-amber-200 bg-amber-50 text-amber-700" },
-  "Production":       { chip: "hover:bg-sky-50",     chipOn: "bg-sky-600 hover:bg-sky-700",         rail: "border-l-sky-400",     badge: "border-sky-200 bg-sky-50 text-sky-700" },
-  "Feed & Inventory": { chip: "hover:bg-lime-50",    chipOn: "bg-lime-600 hover:bg-lime-700",       rail: "border-l-lime-400",    badge: "border-lime-200 bg-lime-50 text-lime-700" },
-  "Sales & Expenses": { chip: "hover:bg-violet-50",  chipOn: "bg-violet-600 hover:bg-violet-700",   rail: "border-l-violet-400",  badge: "border-violet-200 bg-violet-50 text-violet-700" },
-  "Customers":        { chip: "hover:bg-teal-50",    chipOn: "bg-teal-600 hover:bg-teal-700",       rail: "border-l-teal-400",    badge: "border-teal-200 bg-teal-50 text-teal-700" },
-  "Health":           { chip: "hover:bg-rose-50",    chipOn: "bg-rose-600 hover:bg-rose-700",       rail: "border-l-rose-400",    badge: "border-rose-200 bg-rose-50 text-rose-700" },
-  "Reports":          { chip: "hover:bg-indigo-50",  chipOn: "bg-indigo-600 hover:bg-indigo-700",   rail: "border-l-indigo-400",  badge: "border-indigo-200 bg-indigo-50 text-indigo-700" },
-  "Account":          { chip: "hover:bg-slate-100",  chipOn: "bg-slate-700 hover:bg-slate-800",     rail: "border-l-slate-400",   badge: "border-slate-200 bg-slate-100 text-slate-700" },
-}
-
-const FALLBACK_TONE = { chip: "hover:bg-slate-100", chipOn: "bg-indigo-600 hover:bg-indigo-700", rail: "border-l-slate-300", badge: "border-slate-200 bg-slate-50 text-slate-600" }
-const toneFor = (category: string) => CATEGORY_TONES[category] ?? FALLBACK_TONE
+const TAB_FOR_KIND: Record<HelpKind, string> = { faq: "questions", fix: "troubleshooting", term: "glossary" }
 
 export default function HelpPage() {
   const router = useRouter()
@@ -195,31 +47,70 @@ export default function HelpPage() {
   }, [activeFarmType, router])
 
   const [searchQuery, setSearchQuery] = useState("")
-  // Open by default, and several at once: someone on a help page is reading,
-  // not navigating, and a wall of closed questions makes them click to find out
-  // whether each one was even the right question. `closedFAQs` holds the few
-  // they have chosen to fold away rather than the many they have opened.
-  const [closedFAQs, setClosedFAQs] = useState<Set<string>>(new Set())
+  const [tab, setTab] = useState("questions")
   const [selectedCategory, setSelectedCategory] = useState<string>("All")
+  // Questions are open by default, and several at once: someone on a help page
+  // is reading, not navigating. `closed` holds the few they folded away.
+  // Troubleshooting is the other way round -- a list of symptoms to scan, so
+  // `opened` holds the ones they expanded.
+  const [closed, setClosed] = useState<Set<string>>(new Set())
+  const [opened, setOpened] = useState<Set<string>>(new Set())
+  const [flashId, setFlashId] = useState<string | null>(null)
+  const supportRef = useRef<ContactSupportHandle>(null)
 
-  const toggleFAQ = (key: string) => setClosedFAQs((prev) => {
-    const next = new Set(prev)
-    if (!next.delete(key)) next.add(key)
-    return next
-  })
+  // The gated page list the header search uses: answer links and "Go to page"
+  // results only offer pages this user may open.
+  const pages = useSearchPages()
+  const openable = useMemo(() => new Set(pages.map((p) => p.href.split("?")[0])), [pages])
+  const canOpen = (href: string) => openable.has(href.split("?")[0])
 
-  const categories = ["All", ...Array.from(new Set(faqData.map((f) => f.category)))]
+  const index = useMemo(() => prepareHelpIndex(HELP_ENTRIES), [])
+  const hits = useMemo(() => searchHelp(searchQuery, index), [searchQuery, index])
+  const pageHits = useMemo(() => rankPages(searchQuery, pages, [], 5), [searchQuery, pages])
+  const searching = searchQuery.trim().length > 0
 
-  const filteredFAQs = faqData.filter((faq) => {
-    const matchesSearch =
-      !searchQuery ||
-      faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      faq.answer.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesCategory = selectedCategory === "All" || faq.category === selectedCategory
-    return matchesSearch && matchesCategory
-  })
+  const isOpen = (e: HelpEntry) => (e.kind === "fix" ? opened.has(e.id) : !closed.has(e.id))
+  const toggle = (e: HelpEntry) => {
+    const flip = (prev: Set<string>) => {
+      const next = new Set(prev)
+      if (!next.delete(e.id)) next.add(e.id)
+      return next
+    }
+    if (e.kind === "fix") setOpened(flip)
+    else setClosed(flip)
+  }
 
-  const allOpen = filteredFAQs.every((f) => !closedFAQs.has(f.question))
+  // A shared link (/help#reverse-sale) opens on its answer: switch to its tab,
+  // make sure it is expanded, scroll to it and ring it for a moment.
+  useEffect(() => {
+    const go = () => {
+      const id = decodeURIComponent(window.location.hash.slice(1))
+      const entry = HELP_ENTRIES.find((e) => e.id === id)
+      if (!entry) {
+        if (id === "contact") document.getElementById("contact")?.scrollIntoView({ behavior: "smooth" })
+        return
+      }
+      setSearchQuery("")
+      setSelectedCategory("All")
+      setTab(TAB_FOR_KIND[entry.kind])
+      if (entry.kind === "fix") setOpened((p) => new Set(p).add(entry.id))
+      else setClosed((p) => { const n = new Set(p); n.delete(entry.id); return n })
+      setFlashId(entry.id)
+      setTimeout(() => document.getElementById(entry.id)?.scrollIntoView({ behavior: "smooth", block: "start" }), 60)
+      setTimeout(() => setFlashId(null), 2200)
+    }
+    go()
+    window.addEventListener("hashchange", go)
+    return () => window.removeEventListener("hashchange", go)
+  }, [])
+
+  const faqs = HELP_ENTRIES.filter((e) => e.kind === "faq")
+  const fixes = HELP_ENTRIES.filter((e) => e.kind === "fix")
+  const terms = HELP_ENTRIES.filter((e) => e.kind === "term").sort((a, b) => a.title.localeCompare(b.title))
+  const categories = ["All", ...Array.from(new Set(faqs.map((f) => f.category)))]
+  const shownFaqs = selectedCategory === "All" ? faqs : faqs.filter((f) => f.category === selectedCategory)
+  const allOpen = shownFaqs.every((f) => !closed.has(f.id))
+  const termLetters = Array.from(new Set(terms.map((t) => t.title[0].toUpperCase())))
 
   const handleLogout = () => {
     localStorage.removeItem("auth_token")
@@ -247,176 +138,288 @@ export default function HelpPage() {
               </div>
               <h1 className="text-3xl font-bold text-slate-900">Help Center</h1>
               <p className="text-slate-600 max-w-xl mx-auto">
-                Find answers to common questions, learn how to use VisibilityCore features, and get support.
+                Ask in your own words. Answers, fixes for common problems, what the terms mean, and a quick way to
+                reach us.
               </p>
             </div>
 
             {/* Search */}
-            <div className="relative max-w-lg mx-auto">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-              <Input
-                placeholder="Search for help topics..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-12 h-12 text-base rounded-xl"
-              />
-            </div>
-
-            {/* Quick Links - Feature Guides */}
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                <BookOpen className="w-5 h-5 text-indigo-600" />
-                Feature Guide
-              </h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-                {featureGuides.map((guide) => (
-                  <Card
-                    key={guide.path}
-                    className="group cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md"
-                    onClick={() => router.push(guide.path)}
-                  >
-                    <CardContent className="p-4 text-center">
-                      {/* The icon in its own tinted disc: ten grey glyphs in a
-                          row are hard to tell apart at a glance, and this grid
-                          is meant to be scanned, not read. */}
-                      <div className={`mx-auto mb-2 flex h-11 w-11 items-center justify-center rounded-xl ${guide.tint}`}>
-                        <guide.icon className="h-6 w-6" />
-                      </div>
-                      <div className="text-sm font-medium text-slate-900">{guide.title}</div>
-                      <div className="mt-1 hidden text-xs text-slate-500 sm:block">{guide.description}</div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
-
-            {/* FAQ Section */}
-            <div>
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-                  <HelpCircle className="w-5 h-5 text-indigo-600" />
-                  Frequently Asked Questions
-                  <span className="text-sm font-normal text-slate-500">
-                    {filteredFAQs.length} {filteredFAQs.length === 1 ? "answer" : "answers"}
-                  </span>
-                </h2>
-                {filteredFAQs.length > 0 && (
+            <div className="max-w-xl mx-auto space-y-2">
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                <Input
+                  placeholder="e.g. how do I reverse a sale?"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Escape") setSearchQuery("") }}
+                  aria-label="Search help"
+                  className="pl-12 pr-10 h-12 text-base rounded-xl bg-white"
+                />
+                {searching && (
                   <button
-                    className="text-xs font-medium text-indigo-600 hover:underline"
-                    onClick={() => setClosedFAQs(allOpen ? new Set(filteredFAQs.map((f) => f.question)) : new Set())}
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    aria-label="Clear search"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-slate-700"
                   >
-                    {allOpen ? "Collapse all" : "Expand all"}
+                    <X className="h-4 w-4" />
                   </button>
                 )}
               </div>
-
-              {/* Category Filters */}
-              <div className="flex flex-wrap gap-2 mb-4">
-                {categories.map((cat) => {
-                  const tone = cat === "All" ? FALLBACK_TONE : toneFor(cat)
-                  const on = selectedCategory === cat
-                  return (
-                    <Badge
-                      key={cat}
-                      variant={on ? "default" : "outline"}
-                      className={`cursor-pointer px-3 py-1 transition-colors ${on ? tone.chipOn : tone.chip}`}
-                      onClick={() => setSelectedCategory(cat)}
+              {!searching && (
+                <div className="flex flex-wrap justify-center gap-1.5">
+                  {SUGGESTIONS.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setSearchQuery(s)}
+                      className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600 hover:border-indigo-300 hover:text-indigo-700"
                     >
-                      {cat}
-                      <span className={`ml-1.5 text-[10px] ${on ? "opacity-80" : "text-slate-400"}`}>
-                        {cat === "All" ? faqData.length : faqData.filter((f) => f.category === cat).length}
-                      </span>
-                    </Badge>
-                  )
-                })}
-              </div>
-
-              {/* FAQ Items */}
-              <div className="space-y-2">
-                {filteredFAQs.length === 0 ? (
-                  <Card>
-                    <CardContent className="py-8 text-center text-slate-500">
-                      No results found for &quot;{searchQuery}&quot;. Try a different search term.
-                    </CardContent>
-                  </Card>
-                ) : (
-                  filteredFAQs.map((faq) => {
-                    const tone = toneFor(faq.category)
-                    const open = !closedFAQs.has(faq.question)
-                    return (
-                      <Card key={faq.question} className={`border-l-4 transition-all ${tone.rail} ${open ? "shadow-sm" : ""}`}>
-                        <CardContent className="p-0">
-                          <button
-                            className="w-full rounded-xl px-4 py-4 text-left transition-colors hover:bg-slate-50 sm:px-5"
-                            onClick={() => toggleFAQ(faq.question)}
-                            aria-expanded={open}
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              {/* The category badge sits ABOVE the question on a
-                                  phone: inline, it took half the width and left
-                                  the question wrapping in a two-word column. */}
-                              <div className="min-w-0 flex-1">
-                                <Badge variant="outline" className={`mb-1.5 text-[10px] font-medium ${tone.badge}`}>
-                                  {faq.category}
-                                </Badge>
-                                <div className="font-medium text-slate-900">{faq.question}</div>
-                              </div>
-                              {open ? (
-                                <ChevronUp className="mt-0.5 h-5 w-5 shrink-0 text-slate-400" />
-                              ) : (
-                                <ChevronDown className="mt-0.5 h-5 w-5 shrink-0 text-slate-400" />
-                              )}
-                            </div>
-                          </button>
-                          {open && (
-                            <div className="px-4 pb-4 pt-0 sm:px-5">
-                              <div className="border-t border-slate-100 pt-3 text-sm leading-relaxed text-slate-600">
-                                {faq.answer}
-                              </div>
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    )
-                  })
-                )}
-              </div>
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* Contact Support */}
-            <Card className="border-indigo-200 bg-indigo-50/50">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-indigo-900">
-                  <Mail className="w-5 h-5" />
-                  Need More Help?
-                </CardTitle>
-                <CardDescription className="text-indigo-700">
-                  Can't find what you're looking for? Reach out to our support team.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-6">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
-                      <Mail className="w-5 h-5 text-indigo-600" />
-                    </div>
-                    <div>
-                      <div className="text-sm font-medium text-slate-900">Email Support</div>
-                      <div className="text-sm text-slate-600">techretainer@gmail.com</div>
-                    </div>
+            {searching ? (
+              /* ------------------------------------------------ results */
+              <div className="space-y-4">
+                {pageHits.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-medium uppercase tracking-wide text-slate-400">Go to page</span>
+                    {pageHits.map((p) => (
+                      <Link
+                        key={p.href}
+                        href={p.href}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-white px-3 py-1 text-sm text-indigo-700 hover:bg-indigo-50"
+                      >
+                        {p.icon && <p.icon className="h-3.5 w-3.5" />}
+                        {p.title}
+                        <ArrowRight className="h-3 w-3" />
+                      </Link>
+                    ))}
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
-                      <Phone className="w-5 h-5 text-indigo-600" />
-                    </div>
-                    <div>
-                      <div className="text-sm font-medium text-slate-900">Phone Support</div>
-                      <div className="text-sm text-slate-600">+1 (917) 420-2946 / 0533431086</div>
-                    </div>
+                )}
+
+                <h2 className="text-sm font-medium text-slate-500">
+                  {hits.length} {hits.length === 1 ? "answer" : "answers"} for “{searchQuery.trim()}”
+                </h2>
+
+                {hits.length > 0 ? (
+                  <div className="space-y-2">
+                    {hits.map(({ entry, matched }) => (
+                      <HelpEntryCard
+                        key={entry.id}
+                        entry={entry}
+                        tone={toneFor(entry.category)}
+                        open={isOpen(entry)}
+                        onToggle={() => toggle(entry)}
+                        matched={matched}
+                        canOpen={canOpen}
+                        showKind
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <Card>
+                    <CardContent className="space-y-3 py-8 text-center text-slate-500">
+                      <p>No answer matches “{searchQuery.trim()}” yet.</p>
+                      <button
+                        type="button"
+                        onClick={() => supportRef.current?.ask(searchQuery.trim())}
+                        className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
+                      >
+                        <MessageCircle className="h-4 w-4" /> Ask support this question
+                      </button>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {hits.length > 0 && (
+                  <p className="text-center text-sm text-slate-500">
+                    Not what you needed?{" "}
+                    <button
+                      type="button"
+                      onClick={() => supportRef.current?.ask(searchQuery.trim())}
+                      className="font-medium text-indigo-600 hover:underline"
+                    >
+                      Ask support
+                    </button>
+                  </p>
+                )}
+              </div>
+            ) : (
+              <>
+                {/* Feature Guide */}
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                    <BookOpen className="w-5 h-5 text-indigo-600" />
+                    Feature Guide
+                  </h2>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                    {FEATURE_GUIDES.filter((g) => canOpen(g.path)).map((guide) => (
+                      <Link key={guide.path} href={guide.path} className="group">
+                        <Card className="h-full transition-all group-hover:-translate-y-0.5 group-hover:shadow-md">
+                          <CardContent className="p-4 text-center">
+                            {/* The icon in its own tinted disc: ten grey glyphs
+                                in a row are hard to tell apart at a glance, and
+                                this grid is meant to be scanned, not read. */}
+                            <div className={`mx-auto mb-2 flex h-11 w-11 items-center justify-center rounded-xl ${guide.tint}`}>
+                              <guide.icon className="h-6 w-6" />
+                            </div>
+                            <div className="text-sm font-medium text-slate-900">{guide.title}</div>
+                            <div className="mt-1 hidden text-xs text-slate-500 sm:block">{guide.description}</div>
+                          </CardContent>
+                        </Card>
+                      </Link>
+                    ))}
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+
+                {/* Questions / Troubleshooting / Glossary */}
+                <Tabs value={tab} onValueChange={setTab}>
+                  <TabsList className="w-full justify-start overflow-x-auto sm:w-auto">
+                    <TabsTrigger value="questions" className="gap-1.5">
+                      <HelpCircle className="h-4 w-4" /> Questions <span className="text-xs text-slate-400">{faqs.length}</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="troubleshooting" className="gap-1.5">
+                      <Wrench className="h-4 w-4" /> Troubleshooting <span className="text-xs text-slate-400">{fixes.length}</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="glossary" className="gap-1.5">
+                      <BookA className="h-4 w-4" /> Glossary <span className="text-xs text-slate-400">{terms.length}</span>
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="questions" className="mt-4">
+                    <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
+                      <div className="flex flex-wrap gap-2">
+                        {categories.map((cat) => {
+                          const tone = toneFor(cat === "All" ? "" : cat)
+                          const on = selectedCategory === cat
+                          return (
+                            <Badge
+                              key={cat}
+                              variant={on ? "default" : "outline"}
+                              className={`cursor-pointer px-3 py-1 transition-colors ${on ? tone.chipOn : tone.chip}`}
+                              onClick={() => setSelectedCategory(cat)}
+                            >
+                              {cat}
+                              <span className={`ml-1.5 text-[10px] ${on ? "opacity-80" : "text-slate-400"}`}>
+                                {cat === "All" ? faqs.length : faqs.filter((f) => f.category === cat).length}
+                              </span>
+                            </Badge>
+                          )
+                        })}
+                      </div>
+                      <button
+                        className="text-xs font-medium text-indigo-600 hover:underline"
+                        onClick={() => setClosed(allOpen ? new Set(shownFaqs.map((f) => f.id)) : new Set())}
+                      >
+                        {allOpen ? "Collapse all" : "Expand all"}
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {shownFaqs.map((e) => (
+                        <HelpEntryCard key={e.id} entry={e} tone={toneFor(e.category)} open={isOpen(e)}
+                          onToggle={() => toggle(e)} canOpen={canOpen} flash={flashId === e.id} />
+                      ))}
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="troubleshooting" className="mt-4">
+                    <p className="mb-3 text-sm text-slate-500">
+                      Something looks wrong? Find the symptom, open it, and work through the checks in order.
+                    </p>
+                    <div className="space-y-2">
+                      {fixes.map((e) => (
+                        <HelpEntryCard key={e.id} entry={e} tone={toneFor(e.category)} open={isOpen(e)}
+                          onToggle={() => toggle(e)} canOpen={canOpen} flash={flashId === e.id} />
+                      ))}
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="glossary" className="mt-4">
+                    <div className="mb-3 flex flex-wrap gap-1">
+                      {termLetters.map((l) => (
+                        <a key={l} href={`#letter-${l}`}
+                          className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-xs font-medium text-slate-600 hover:border-indigo-300 hover:text-indigo-700">
+                          {l}
+                        </a>
+                      ))}
+                    </div>
+                    <Card>
+                      <CardContent className="divide-y divide-slate-100 p-0">
+                        {terms.map((t, i) => {
+                          const letter = t.title[0].toUpperCase()
+                          const firstOfLetter = i === 0 || terms[i - 1].title[0].toUpperCase() !== letter
+                          const links = (t.links ?? []).filter((l) => canOpen(l.href))
+                          return (
+                            <div
+                              key={t.id}
+                              id={t.id}
+                              className={`scroll-mt-24 px-4 py-3 sm:px-5 transition-colors ${flashId === t.id ? "bg-indigo-50" : ""}`}
+                            >
+                              {firstOfLetter && <span id={`letter-${letter}`} className="block scroll-mt-24" />}
+                              <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                                <div className="font-semibold text-slate-900">{t.title}</div>
+                                <span className="text-[11px] text-slate-400">{t.category}</span>
+                              </div>
+                              <div className="mt-1 text-sm leading-relaxed text-slate-600">
+                                {t.body}
+                              </div>
+                              {links.length > 0 && (
+                                <div className="mt-1.5 flex flex-wrap gap-3">
+                                  {links.map((l) => (
+                                    <Link key={l.href} href={l.href} className="text-xs font-medium text-indigo-600 hover:underline">
+                                      {l.label} →
+                                    </Link>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                </Tabs>
+              </>
+            )}
+
+            {/* Support + shortcuts */}
+            <div className="grid gap-4 lg:grid-cols-3">
+              <div className="lg:col-span-2">
+                <ContactSupport ref={supportRef} />
+              </div>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base text-slate-900">
+                    <Keyboard className="h-5 w-5 text-indigo-600" />
+                    Shortcuts
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {SHORTCUTS.map((s) => (
+                    <div key={s.what} className="flex items-start justify-between gap-3 text-sm">
+                      <span className="text-slate-600">{s.what}</span>
+                      <span className="flex shrink-0 gap-1">
+                        {s.keys.map((k) => (
+                          <kbd key={k} className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[11px] font-medium text-slate-600">
+                            {k}
+                          </kbd>
+                        ))}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="flex items-start gap-2 border-t border-slate-100 pt-3 text-xs text-slate-500">
+                    <LifeBuoy className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                    Every answer has a <span className="font-medium text-slate-700">Copy link</span> button — send it to
+                    a colleague and it opens on that answer.
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </main>
       </div>
