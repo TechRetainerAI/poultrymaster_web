@@ -353,7 +353,7 @@ async function postJson<T>(endpoint: string, body: unknown): Promise<T | null> {
   const r = await fetch(url, {
     method: "POST",
     headers: getAuthHeaders(),
-    body: JSON.stringify(body ?? {}),
+    body: JSON.stringify(withFarmId((body ?? {}) as object)),
   })
   if (r.status === 204) return null
   if (!r.ok) {
@@ -369,7 +369,7 @@ async function putJson<T>(endpoint: string, body: unknown): Promise<T | null> {
   const r = await fetch(url, {
     method: "PUT",
     headers: getAuthHeaders(),
-    body: JSON.stringify(body ?? {}),
+    body: JSON.stringify(withFarmId((body ?? {}) as object)),
   })
   if (r.status === 204) return null
   if (!r.ok) {
