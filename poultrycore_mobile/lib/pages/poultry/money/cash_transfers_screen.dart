@@ -24,6 +24,9 @@ import '../../shared/reason_select.dart';
 
 const transferStatusFilters = ['All', 'Approved', 'Draft', 'Reversed', 'Cancelled'];
 
+/// The Hotel posts both legs at once, so it has no Draft or Cancelled transfer.
+const hotelTransferStatusFilters = ['All', 'Approved', 'Reversed'];
+
 const _sky600 = Color(0xFF0284C7);
 
 (Color, Color) transferStatusTone(String s) => switch (s) {
@@ -32,6 +35,10 @@ const _sky600 = Color(0xFF0284C7);
       'Cancelled' => (TColors.slate100, TColors.slate700),
       _ => (TColors.sky100, TColors.sky800),
     };
+
+/// The Hotel's badge for anything else is violet where Poultry's is sky.
+(Color, Color) transferStatusToneFor(MoneyRail r, String s) =>
+    r.isHotel && !const ['Approved', 'Reversed'].contains(s) ? (TColors.violet100, TColors.violet800) : transferStatusTone(s);
 
 String transferNumber(Map t, [String p = 'poultry']) =>
     tStr(t['transferNumber']).isNotEmpty ? tStr(t['transferNumber']) : '#${tStr(t['${p}CashTransferId'])}';
@@ -135,10 +142,10 @@ class _CashTransfersScreenState extends State<CashTransfersScreen> {
     setState(() => _loading = true);
     try {
       final q = {'farmId': widget.company.farmId};
-      final r = await Future.wait([_api.get('${_r.api}/cash-accounts', query: q), _api.get('${_r.api}/cash-transfers', query: q)]);
+      final r = await Future.wait([_api.get(_r.cashAccountsApi, query: q), _api.get('${_r.api}/cash-transfers', query: q)]);
       if (!mounted) return;
       setState(() {
-        _accounts = rowsOf(r[0]);
+        _accounts = _r.accountsOf(r[0]);
         _rows = rowsOf(r[1]);
       });
     } on ApiException catch (e) {
@@ -179,8 +186,8 @@ class _CashTransfersScreenState extends State<CashTransfersScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
           children: [
-            const Row(children: [
-              Icon(Icons.swap_horiz, size: 24, color: _sky600),
+            Row(children: [
+              Icon(Icons.swap_horiz, size: 24, color: _r.accent ?? _sky600),
               SizedBox(width: 8),
               Expanded(child: Text('Cash Transfers', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TColors.slate900))),
             ]),
@@ -201,7 +208,7 @@ class _CashTransfersScreenState extends State<CashTransfersScreen> {
               alignment: Alignment.centerLeft,
               child: FilledButton.icon(
                 onPressed: () => _dialog(RecordTransferDialog(session: widget.session, company: widget.company, rail: _r, accounts: _accounts, fmt: _fmt)),
-                style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
+                style: FilledButton.styleFrom(minimumSize: const Size(0, 44), backgroundColor: _r.accent),
                 icon: const Icon(Icons.add, size: 18),
                 label: const Text('Record transfer'),
               ),
@@ -232,7 +239,8 @@ class _CashTransfersScreenState extends State<CashTransfersScreen> {
               }),
               extras: [
                 Wrap(spacing: 8, runSpacing: 8, children: [
-                  for (final s in transferStatusFilters) filterChipButton(s, _status == s, () => setState(() => _status = s)),
+                  for (final s in _r.isHotel ? hotelTransferStatusFilters : transferStatusFilters)
+                    filterChipButton(s, _status == s, () => setState(() => _status = s), color: _r.accent),
                 ]),
               ],
             ),
@@ -261,7 +269,7 @@ class _CashTransfersScreenState extends State<CashTransfersScreen> {
                 primary: (t) => transferNumber(t, _r.idPrefix),
                 secondary: (t) => '${_when(t)} · ${tStr(t['fromAccountName'])} → ${tStr(t['toAccountName'])}',
                 trailing: (t) {
-                  final (bg, fg) = transferStatusTone(tStr(t['status']));
+                  final (bg, fg) = transferStatusToneFor(_r, tStr(t['status']));
                   return Padding(padding: const EdgeInsets.only(left: 6), child: TBadge(tStr(t['status']), bg: bg, fg: fg));
                 },
                 highlights: (t) => [Highlight('Amount', _fmt(tNum(t['amount'])))],
@@ -304,7 +312,7 @@ class _CashTransfersScreenState extends State<CashTransfersScreen> {
                         Text(_dash(t['createdBy']), style: const TextStyle(color: TColors.slate500)),
                         Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                           Builder(builder: (_) {
-                            final (bg, fg) = transferStatusTone(tStr(t['status']));
+                            final (bg, fg) = transferStatusToneFor(_r, tStr(t['status']));
                             return TBadge(tStr(t['status']), bg: bg, fg: fg);
                           }),
                           if (tStr(t['status']) == 'Reversed' && tStr(t['reversalReason']).isNotEmpty)
@@ -384,6 +392,22 @@ class _RecordTransferDialogState extends State<RecordTransferDialog> {
     final farmId = widget.company.farmId;
     String? opt(TextEditingController c) => c.text.trim().isEmpty ? null : c.text.trim();
     try {
+      // The Hotel records and posts a transfer in one request (migration 331).
+      if (_r.isHotel) {
+        await api.post('${_r.api}/cash-transfers', body: {
+          'farmId': farmId,
+          'fromHotelCashAccountId': int.parse(_from),
+          'toHotelCashAccountId': int.parse(_to),
+          'amount': _amountNum,
+          'transferDate': entryTimestamp(_date),
+          'referenceNumber': opt(_ref),
+          'notes': opt(_notes),
+        });
+        if (!mounted) return;
+        trackerToast(context, 'Transfer recorded');
+        Navigator.pop(context, true);
+        return;
+      }
       final res = await api.post('${_r.api}/cash-transfers', body: {
         'from${_r.cap}CashAccountId': int.parse(_from),
         'to${_r.cap}CashAccountId': int.parse(_to),
@@ -435,8 +459,8 @@ class _RecordTransferDialogState extends State<RecordTransferDialog> {
       canPop: !_saving,
       child: AlertDialog(
         scrollable: true,
-        title: const Row(children: [
-          Icon(Icons.swap_horiz, color: _sky600),
+        title: Row(children: [
+          Icon(Icons.swap_horiz, color: _r.accent ?? _sky600),
           SizedBox(width: 6),
           Flexible(child: Text('Record Cash Transfer')),
         ]),
@@ -448,7 +472,7 @@ class _RecordTransferDialogState extends State<RecordTransferDialog> {
               style: TextStyle(fontSize: 13, color: TColors.slate500),
             ),
             const SizedBox(height: 12),
-            formSection('Movement', _sky600, [
+            formSection('Movement', _r.accent ?? _sky600, [
               FilterLabel(
                 'Transfer date *',
                 AppDateField(
@@ -512,6 +536,7 @@ class _RecordTransferDialogState extends State<RecordTransferDialog> {
         actions: [
           redCancelButton(_saving ? null : () => Navigator.pop(context, false)),
           FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: _r.accent),
             onPressed: _saving || _overdraw ? null : _save,
             child: Text(_saving ? 'Recording...' : 'Record Transfer'),
           ),
@@ -566,7 +591,7 @@ class _ReverseTransferDialogState extends State<ReverseTransferDialog> {
       await widget.session.farmClient.post(
         '${_r.api}/cash-transfers/${tStr(t['${_r.idPrefix}CashTransferId'])}/reverse',
         query: {'farmId': widget.company.farmId, 'reversedBy': widget.session.tokens.userId ?? ''},
-        body: {'reason': _reason.text.trim()},
+        body: {if (_r.isHotel) 'farmId': widget.company.farmId, 'reason': _reason.text.trim()},
       );
       if (!mounted) return;
       trackerToast(context, 'Transfer reversed',

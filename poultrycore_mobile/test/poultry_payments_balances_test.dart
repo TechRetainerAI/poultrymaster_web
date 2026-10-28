@@ -123,6 +123,62 @@ void main() {
     expect(pageScreens.containsKey('/customer-balances'), isTrue);
   });
 
+  // ------------------------------------------------------------ 26 Oct pull
+
+  group('Customer Payments (26 Oct pull)', () {
+    test('the Customer filter keys a payment by its customer; walk-ins share one key', () {
+      expect(customerFilterKey({'partyId': 2, 'partyName': 'Kofi'}), 'id:2');
+      expect(customerFilterKey({'partyName': 'Esi'}), 'name:Esi');
+      expect(customerFilterKey({}), 'walkin');
+    });
+
+    testWidgets('renamed, filtered by customer, sorted by amount; a manual credit links to Customer Credits', (tester) async {
+      final a = api()
+        ..gets['/api/Poultry/customer-payments'] = [
+          ...payments,
+          {'paymentId': 'm1', 'paymentNumber': 'PAY-0009', 'partyId': 1, 'partyName': 'Ama', 'paymentDate': '2026-10-05T00:00:00', 'totalAmount': 25,
+            'paymentMethod': 'Cash', 'sourceType': 'OpeningCredit', 'status': 'Posted', 'allocationCount': 0},
+        ];
+      // Tall, so every card is built and their order can be read.
+      await open(tester, PaymentsReceivedScreen(session: await sessionFor(a), company: adminCompany), size: const Size(360, 5000));
+      List<String> order() => [
+            for (final t in tester.widgetList<Text>(find.textContaining(RegExp(r'^PAY-\d{4}$'))))
+              if (t.data != null) t.data!,
+          ];
+      expect(find.text('Customer Payments'), findsWidgets);
+      expect(find.text('Payments received'), findsNothing);
+
+      // Customer: Kofi's payments only.
+      await choose(tester, 'All customers', 'Kofi');
+      await see(tester, find.text('PAY-0002'));
+      expect(find.text('PAY-0003'), findsNothing);
+      await choose(tester, 'Kofi', 'All customers');
+
+      // No sort keeps the server's order; Amount ascending puts 25 before 50 before 300.
+      expect(order(), ['PAY-0003', 'PAY-0002', 'PAY-0009']);
+      await choose(tester, 'Newest first', 'Amount');
+      expect(order(), ['PAY-0009', 'PAY-0003', 'PAY-0002']);
+      await choose(tester, 'Ascending', 'Descending');
+      expect(order(), ['PAY-0002', 'PAY-0003', 'PAY-0009']);
+      await choose(tester, 'Amount', 'Customer');
+      expect(order().first, isNot('PAY-0002'), reason: 'Ama before Kofi');
+
+      // The opening credit is not reversed here: it links to Customer Credits.
+      await tapSeen(tester, find.text('Manage in Customer Credits'));
+      expect(find.text('Customer Credits'), findsWidgets);
+      expect(find.widgetWithText(TextField, 'PAY-0009'), findsOneWidget, reason: 'opened searched for the credit');
+    });
+
+    testWidgets('Water Payments keeps its name but gets the Customer filter and Sort by', (tester) async {
+      final a = FakeApi()..gets['/api/Water/customer-payments'] = payments;
+      await open(tester, PaymentsReceivedScreen(session: await sessionFor(a), company: company, rail: BalanceRail.water), size: phone);
+      expect(find.text('Payments received'), findsWidgets);
+      await see(tester, find.text('All customers'));
+      await see(tester, find.text('Newest first'));
+      expect(find.text('Manage in Customer Credits'), findsNothing);
+    });
+  });
+
   // ------------------------------------------------------------ payments received
 
   group('Payments received', () {
@@ -146,6 +202,7 @@ void main() {
 
       await choose(tester, 'All methods', 'Cash');
       await choose(tester, 'Any', 'Several sales');
+      await see(tester, find.text('PAY-0002'));
       expect(find.text('PAY-0002'), findsOneWidget);
       expect(find.text('PAY-0003'), findsNothing);
       await choose(tester, 'Several sales', 'Any');
@@ -172,7 +229,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
       expect(find.text('Loading the sales it covers…'), findsOneWidget);
       expect(find.textContaining('The balance goes back onto every sale it was applied to'), findsOneWidget);
-      final confirm = find.widgetWithText(FilledButton, 'Reverse payment');
+      final confirm = find.ancestor(of: find.textContaining('Reverse payment'), matching: find.byType(FilledButton)).first;
       expect(tester.widget<FilledButton>(confirm).onPressed, isNull, reason: 'a reason is required');
       // The reason comes from the list; Other opens a box for its own words.
       await tester.tap(find.text('Select a reason'));
@@ -181,7 +238,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
       await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextFormField)).last, 'wrong customer');
       await tester.pump();
-      await tester.tap(find.widgetWithText(FilledButton, 'Reverse payment'));
+      await tester.tap(find.ancestor(of: find.textContaining('Reverse payment'), matching: find.byType(FilledButton)).first);
       await tester.pumpAndSettle();
       final body = a.lastBody('/api/Poultry/customer-payments/p3/reverse');
       expect((body['reason'], body['farmId']), ('wrong customer', 'farm-1'));
@@ -253,7 +310,7 @@ void main() {
       expect(find.text('Receive bulk payment'), findsWidgets);
       expect(find.text('Ama · GHC 170.00 outstanding across 2 open item(s)'), findsOneWidget);
       await enter(tester, 'Payment amount', '150');
-      await tapSeen(tester, find.text('Auto-allocate oldest first'));
+      await tapSeen(tester, find.text('Oldest first'));
       expect(find.text('Balance after GHC 0.00'), findsOneWidget, reason: 'S3 settled first');
       expect(find.text('Balance after GHC 20.00'), findsOneWidget);
       await tapSeen(tester, find.widgetWithText(FilledButton, 'Receive payment'));
@@ -287,7 +344,7 @@ void main() {
       await open(tester, CustomerBalancesScreen(session: await sessionFor(a), company: company), size: phone);
       await tapSeen(tester, find.text('Show 2 open sales'));
       await tapSeen(tester, find.text('Receive payment'));
-      expect(find.text('Auto-allocate oldest first'), findsNothing);
+      expect(find.text('Oldest first'), findsNothing);
       expect(find.text('Applies to S7 · Fresh Eggs', findRichText: true), findsOneWidget);
       expect(find.text('Balance GHC 50.00 → GHC 0.00 after this payment', findRichText: true), findsOneWidget);
       await enter(tester, 'Payment amount', '60');
@@ -312,13 +369,15 @@ void main() {
       await tapSeen(tester, find.text('Refund'));
       expect(find.text('Refund customer credit'), findsOneWidget);
       expect(find.text('Main Cash Account · GHC 900.00'), findsOneWidget, reason: 'the first account');
-      final refund = find.widgetWithText(FilledButton, 'Refund');
+      final refund = find.ancestor(of: find.textContaining('Refund'), matching: find.byType(FilledButton)).first;
       expect(tester.widget<FilledButton>(refund).onPressed, isNull, reason: 'a reason is required');
       await tester.tap(find.descendant(of: find.byType(AlertDialog), matching: find.text('Cash')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Mobile Money').last);
       await tester.pumpAndSettle();
       // The reason is a dropdown now (reason-select.tsx); "Order cancelled" is listed.
+      await tester.ensureVisible(find.text('Select a reason').last);
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Select a reason').last);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Order cancelled').last);
@@ -393,8 +452,8 @@ void main() {
       await pick(tester, 'Opening balance', 'Historical sale / debt');
       await shown('Description *');
       await enter(tester, 'Description *', 'Eggs before the system');
-      await shown('Record debt');
-      await tester.tap(find.widgetWithText(FilledButton, 'Record debt'));
+      await shown('Record debt · GHC 80.00');
+      await tester.tap(find.ancestor(of: find.textContaining('Record debt'), matching: find.byType(FilledButton)).first);
       await tester.pumpAndSettle();
       final body = a.lastBody('/api/Poultry/customer-debts');
       expect((body['customerId'], body['amount'], body['entryType'], body['description']), (2, 80, 'HistoricalDebt', 'Eggs before the system'));
@@ -409,7 +468,7 @@ void main() {
       await tapSeen(tester, find.descendant(of: row, matching: find.text('Reverse debt')));
       expect(find.text('Reverse CD-0001?'), findsOneWidget);
       await pick(tester, 'Select a reason', 'Wrong amount');
-      await tester.tap(find.widgetWithText(FilledButton, 'Reverse debt'));
+      await tester.tap(find.ancestor(of: find.textContaining('Reverse debt'), matching: find.byType(FilledButton)).first);
       await tester.pumpAndSettle();
       expect(a.lastBody('/api/Poultry/customer-debts/9/reverse')['reason'], 'Wrong amount');
 
@@ -448,7 +507,9 @@ void main() {
       expect(a.lastBody('/api/Poultry/customer-payments/p9/pl-exclusion'), {'farmId': 'farm-1', 'exclude': true});
     });
 
-    testWidgets('Record customer payment: applied to nothing pays an old debt, on P&L', (tester) async {
+    // 384: the leftover is customer credit by default; "Payment for an Earlier
+    // Sale" records it as an old debt on P&L, and must say what was sold.
+    Future<FakeApi> overpay(WidgetTester tester) async {
       final a = plApi();
       await open(tester, PaymentsReceivedScreen(session: await sessionFor(a), company: adminCompany), size: phone);
       await tapSeen(tester, find.text('Record customer payment'));
@@ -459,13 +520,39 @@ void main() {
       await tester.pumpAndSettle();
       await see(tester, find.text('Select account'));
       await pick(tester, 'Select account', 'Main Cash Account · GHC 900.00');
-      await see(tester, find.textContaining('a debt the customer owed from before the system'));
-      expect(find.textContaining('Count the GHC 40.00 paid on debts on Profit & Loss'), findsOneWidget);
+      await see(tester, find.text('Overpayment (Money Left Over) — GHC 40.00'));
+      return a;
+    }
+
+    testWidgets('Record customer payment: the leftover is kept as credit by default', (tester) async {
+      final a = await overpay(tester);
+      expect(find.text('Keep as Customer Credit (Advance Payment)'), findsOneWidget);
+      await see(tester, find.text('Customer credit (advance payment)'));
+      expect(find.text('Total allocated'), findsOneWidget);
+      // No hand-recorded debt is paid, so the P&L box stays away.
+      expect(find.textContaining('paid on debts on Profit & Loss'), findsNothing);
       await tapSeen(tester, find.widgetWithText(FilledButton, 'Receive payment'));
       final body = a.lastBody('/api/Poultry/customer-payments');
-      expect((body['partyId'], body['amount'], body['sourceType'], body['remainderAsOldDebt'], body['excludeFromPL'], body['cashAccountId']),
-          (2, 40, 'PaymentsPage', true, false, 5));
+      expect((body['partyId'], body['amount'], body['remainderAsOldDebt'], body['oldDebtSaleType'], body['excludeFromPL'], body['cashAccountId']),
+          (2, 40, false, null, false, 5));
       expect(body['allocations'], isEmpty);
+    });
+
+    testWidgets('Record customer payment: payment for an earlier sale needs what was sold, then goes on P&L', (tester) async {
+      final a = await overpay(tester);
+      await tapSeen(tester, find.text('Payment for an Earlier Sale'));
+      await see(tester, find.text('Choose what was sold to add it to Profit & Loss.'));
+      final receive = find.widgetWithText(FilledButton, 'Receive payment');
+      await see(tester, receive);
+      expect(tester.widget<FilledButton>(receive).onPressed, isNull, reason: 'a sale type is required');
+      await pick(tester, 'Select sale type or product', 'Other');
+      await enter(tester, 'Describe it', 'Egg trays');
+      await tester.pumpAndSettle();
+      await see(tester, find.text('GHC 40.00 goes on Profit & Loss as Revenue (Egg trays).'));
+      await see(tester, find.text('Payment for an earlier sale (Egg trays)'));
+      await tapSeen(tester, receive);
+      final body = a.lastBody('/api/Poultry/customer-payments');
+      expect((body['remainderAsOldDebt'], body['oldDebtSaleType'], body['excludeFromPL']), (true, 'Egg trays', false));
     });
   });
 }

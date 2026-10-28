@@ -498,7 +498,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Apply customer credit'), findsOneWidget);
       expect(find.text('GHC 120.00'), findsOneWidget, reason: 'available credit');
-      await tester.tap(find.widgetWithText(FilledButton, 'Apply credit'));
+      await tester.tap(find.ancestor(of: find.textContaining('Apply credit'), matching: find.byType(FilledButton)).first);
       await tester.pumpAndSettle();
       final body = api.lastBody('/api/Poultry/customer-payments/apply-credit');
       expect((body['customerId'], body['saleId'], body['amount'], body['farmId']), (2, 2, 120, 'farm-1'));
@@ -529,7 +529,7 @@ void main() {
       await tester.pumpAndSettle();
       // Its own window, with the reason from the list.
       expect(find.text('Reverse PAY-0007?'), findsOneWidget);
-      final confirm = find.widgetWithText(FilledButton, 'Reverse payment');
+      final confirm = find.ancestor(of: find.textContaining('Reverse payment'), matching: find.byType(FilledButton)).first;
       expect(tester.widget<FilledButton>(confirm).onPressed, isNull, reason: 'a reason is required');
       await choose(tester, 'Select a reason', 'Duplicate entry');
       await tester.tap(confirm);
@@ -587,7 +587,7 @@ void main() {
       expect(find.text('Paid with this sale'), findsNothing, reason: 'shown inline with the number');
       await tapSeen(tester, find.text('Reverse the payment'));
       expect(find.text('GHC 75.00'), findsWidgets);
-      final confirm = find.widgetWithText(FilledButton, 'Reverse sale');
+      final confirm = find.ancestor(of: find.textContaining('Reverse sale'), matching: find.byType(FilledButton)).first;
       expect(tester.widget<FilledButton>(confirm).onPressed, isNull, reason: 'a reason is needed');
       await choose(tester, 'Choose a reason', 'Other');
       expect(tester.widget<FilledButton>(confirm).onPressed, isNull, reason: 'Other needs a note');
@@ -619,7 +619,7 @@ void main() {
       await see(tester, find.textContaining('Received on Customer Balances.'));
       expect(find.textContaining('Received on Customer Balances.'), findsOneWidget);
       await choose(tester, 'Choose a reason', 'Wrong price');
-      await tester.tap(find.widgetWithText(FilledButton, 'Reverse and correct'));
+      await tester.tap(find.ancestor(of: find.textContaining('Reverse and correct'), matching: find.byType(FilledButton)).first);
       await tester.pumpAndSettle();
       expect(find.text('Corrected sale (replaces #2)'), findsOneWidget);
       expect(find.textContaining('GHC 200.00 from the reversed sale is held as customer credit.'), findsOneWidget);

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../api/api_client.dart';
+import '../../../design/ui/form_dialog.dart';
 import '../../../design/ui/inputs.dart';
 import '../../../models/company.dart';
 import '../../../state/session.dart';
@@ -276,6 +277,7 @@ class _SupplierCreditsScreenState extends State<SupplierCreditsScreen> {
         title: "${tStr(r['supplierName'])}'s credits",
         icon: Icons.account_balance_wallet_outlined,
         iconColor: TColors.amber600,
+        color: FormColor.amber,
         load: () => _events(tIntOrNull(r['supplierId']) ?? 0),
         heading: (e) => '${tStr(e['creditNumber'])} · ${tStr(e['source'])}',
         subline: (e) => '${_dt(e['creditDate'])}${tStr(e['reference']).isNotEmpty ? ' · ${tStr(e['reference'])}' : ''}',
@@ -377,7 +379,7 @@ class _SupplierCreditsScreenState extends State<SupplierCreditsScreen> {
             ]),
             const SizedBox(height: 14),
             twoUp([
-              creditKpi('Credit held by suppliers', _money(totalHeld), color: creditBlue700),
+              creditKpi('Available credit with suppliers', _money(totalHeld), color: creditBlue700),
               creditKpi('Suppliers with credit', '${_rows.length}'),
               creditKpi('You still owe them (not netted)', _money(totalOwed), color: TColors.amber700),
               creditKpi('Sent back by suppliers', _money(totalReturned)),
@@ -388,7 +390,7 @@ class _SupplierCreditsScreenState extends State<SupplierCreditsScreen> {
               value: _tab,
               onChanged: (v) => setState(() => _tab = v),
               tabs: [
-                ('held', Icons.account_balance_wallet_outlined, 'Credit held', _rows.length),
+                ('held', Icons.account_balance_wallet_outlined, 'Available credit', _rows.length),
                 ('applied', Icons.link, 'Applied', _apps.length),
                 ('refunds', Icons.download_outlined, 'Refunds', _refunds.length),
               ],
@@ -444,14 +446,14 @@ class _SupplierCreditsScreenState extends State<SupplierCreditsScreen> {
           return '$n credit${n == 1 ? '' : 's'}';
         },
         highlights: (r) => [
-          Highlight('Credit', _money(tNum(r['availableCredit'])), accent: Accent.blue),
+          Highlight('Available', _money(tNum(r['availableCredit'])), accent: Accent.blue),
           Highlight('You owe', _money(tNum(r['owed'])), accent: tNum(r['owed']) > 0 ? Accent.amber : Accent.slate),
         ],
         actions: (r) => [cardAction('Credits', Icons.account_balance_wallet_outlined, () => _openEvents(r))],
         table: (items) => TrackerTable(
           columns: const [
             TCol('Supplier', width: 180),
-            TCol('Credit held', right: true, width: 120),
+            TCol('Available credit', right: true, width: 130),
             TCol('Credits', right: true, width: 80),
             TCol('You still owe', right: true, width: 120),
           ],
@@ -636,36 +638,38 @@ Widget _numInput(TextEditingController c, VoidCallback onChanged, {bool enabled 
       onChanged: (_) => onChanged(),
     );
 
-Widget _dialogTitle(IconData icon, Color color, String text) => Row(children: [
-      Icon(icon, color: color),
-      const SizedBox(width: 8),
-      Flexible(child: Text(text)),
-    ]);
+Widget _dialogTitle(IconData icon, FormColor color, String text) => FormDialogTitle(icon: icon, color: color, text: text);
 
 Widget _blurb(String text) => Text(text, style: const TextStyle(fontSize: 13, color: TColors.slate500));
 
-Widget _available(String money) => Text.rich(
-      TextSpan(children: [
-        const TextSpan(text: 'Available on this credit: '),
-        TextSpan(text: money, style: const TextStyle(fontWeight: FontWeight.w600)),
-      ]),
-      style: const TextStyle(fontSize: 13, color: TColors.slate600),
-    );
+/// "Available on this credit": a box in the dialog's colour (blue to apply,
+/// emerald to refund).
+Widget _available(String money, {FormColor tone = FormColor.blue}) => summaryBox(tone: tone, [
+      const TextSpan(text: 'Available on this credit: '),
+      TextSpan(text: money, style: const TextStyle(fontWeight: FontWeight.w600)),
+    ]);
 
-List<Widget> _dialogActions(BuildContext context, {required bool saving, required bool valid, required String label, required Color color, required VoidCallback onSave}) => [
-      OutlinedButton(onPressed: saving ? null : () => Navigator.pop(context), child: const Text('Cancel')),
+/// The footer: red-outline Cancel and the main button, which carries the
+/// amount once there is one ("Pay advance · GH₵ 50.00").
+List<Widget> _dialogActions(BuildContext context,
+        {required bool saving, required bool valid, required String label, required FormColor color, required VoidCallback onSave, String? amount}) {
+  final text = amount == null ? label : '$label · $amount';
+  return [
+    FormDialogFooter(onCancel: () => Navigator.pop(context), cancelDisabled: saving, children: [
       FilledButton(
-        style: FilledButton.styleFrom(backgroundColor: color),
+        style: formPrimary(color),
         onPressed: !valid || saving ? null : onSave,
         child: !saving
-            ? Text(label)
+            ? Text(text)
             : Row(mainAxisSize: MainAxisSize.min, children: [
                 const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
                 const SizedBox(width: 8),
-                Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
+                Flexible(child: Text(text, overflow: TextOverflow.ellipsis)),
               ]),
       ),
-    ];
+    ]),
+  ];
+}
 
 String _accountLabel(Map a, FarmMoney money) => '${tStr(a['accountName'])} · ${money(tNum(a['currentBalance']))}';
 
@@ -763,59 +767,66 @@ class _PayAdvanceDialogState extends State<_PayAdvanceDialog> {
       canPop: !_saving,
       child: AlertDialog(
         scrollable: true,
-        title: _dialogTitle(Icons.account_balance_wallet_outlined, TColors.amber600, 'Pay supplier advance'),
+        title: _dialogTitle(Icons.account_balance_wallet_outlined, FormColor.amber, 'Pay supplier advance'),
         content: SizedBox(
-          width: 480,
+          width: 672,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _blurb('Pay a supplier before anything is delivered. The money leaves the account you choose and is held as their '
                   'credit, to use on their next purchases. It is not a purchase and not an expense.'),
-              const SizedBox(height: 14),
-              FilterLabel(
-                'Supplier *',
-                AppSelect<int>(
-                  value: _supplier,
-                  hintText: _suppliers.isNotEmpty || _suppliersLoaded ? 'Choose the supplier' : 'Loading suppliers…',
-                  items: [for (final (id, name) in _suppliers) AppSelectItem(value: id, label: name)],
-                  onChanged: (v) => setState(() => _supplier = v),
-                ),
-              ),
-              const SizedBox(height: 10),
-              filterRow([
-                FilterLabel('Amount *', _numInput(_amount, () => setState(() {}))),
-                FilterLabel('Date *', FilterDate(value: _date, hint: 'Date', onChanged: (v) => setState(() => _date = v))),
-              ]),
-              const SizedBox(height: 10),
-              filterRow([
-                FilterLabel(
-                  'Pay from *',
-                  AppSelect<int>(
-                    value: _account,
-                    hintText: 'Cash account',
-                    items: [
-                      for (final a in _accounts) AppSelectItem(value: tIntOrNull(a['poultryCashAccountId'])!, label: _accountLabel(a, widget.money)),
-                    ],
-                    onChanged: (v) => setState(() => _account = v),
+              const SizedBox(height: 16),
+              TintedSection(title: 'Supplier & Date', color: FormColor.blue, children: [
+                FormPair(
+                  stackOnMobile: true,
+                  FilterLabel(
+                    'Supplier *',
+                    AppSelect<int>(
+                      value: _supplier,
+                      hintText: _suppliers.isNotEmpty || _suppliersLoaded ? 'Choose the supplier' : 'Loading suppliers…',
+                      items: [for (final (id, name) in _suppliers) AppSelectItem(value: id, label: name)],
+                      onChanged: (v) => setState(() => _supplier = v),
+                    ),
                   ),
-                ),
-                FilterLabel(
-                  'Method *',
-                  AppSelect<String>(
-                    value: _method,
-                    items: [for (final m in refundMethods) AppSelectItem(value: m, label: m)],
-                    onChanged: (v) => setState(() => _method = v ?? _method),
-                  ),
+                  FilterLabel('Date *', FilterDate(value: _date, hint: 'Date', onChanged: (v) => setState(() => _date = v))),
                 ),
               ]),
-              const SizedBox(height: 10),
-              FilterLabel('Reference', AppInput(controller: _reference, hintText: 'Optional, e.g. receipt or transfer ID')),
-              const SizedBox(height: 10),
-              FilterLabel('Notes', AppInput(controller: _notes, minLines: 2, maxLines: 4, hintText: 'Optional, e.g. maize for next month')),
+              const SizedBox(height: 16),
+              TintedSection(title: 'Payment', color: FormColor.green, children: [
+                FormPair(
+                  FilterLabel('Amount *', _numInput(_amount, () => setState(() {}))),
+                  FilterLabel(
+                    'Pay from *',
+                    AppSelect<int>(
+                      value: _account,
+                      hintText: 'Cash account',
+                      items: [
+                        for (final a in _accounts) AppSelectItem(value: tIntOrNull(a['poultryCashAccountId'])!, label: _accountLabel(a, widget.money)),
+                      ],
+                      onChanged: (v) => setState(() => _account = v),
+                    ),
+                  ),
+                ),
+                FormPair(
+                  FilterLabel(
+                    'Method *',
+                    AppSelect<String>(
+                      value: _method,
+                      items: [for (final m in refundMethods) AppSelectItem(value: m, label: m)],
+                      onChanged: (v) => setState(() => _method = v ?? _method),
+                    ),
+                  ),
+                  FilterLabel('Reference', AppInput(controller: _reference, hintText: 'Optional, e.g. receipt or transfer ID')),
+                ),
+              ]),
+              const SizedBox(height: 16),
+              TintedSection(title: 'Notes', color: FormColor.slate, children: [
+                AppInput(controller: _notes, minLines: 2, maxLines: 4, hintText: 'Optional, e.g. maize for next month'),
+              ]),
               if (_value > 0 && _supplierName.isNotEmpty) ...[
                 const SizedBox(height: 12),
-                summaryBox([
+                summaryBox(tone: FormColor.amber, [
                   TextSpan(text: '${_or(accountName, 'The account')} goes down by '),
                   TextSpan(text: widget.money(_value), style: boldSpan),
                   TextSpan(text: ', and $_supplierName holds the same amount as credit for you.'),
@@ -825,7 +836,9 @@ class _PayAdvanceDialogState extends State<_PayAdvanceDialog> {
             ],
           ),
         ),
-        actions: _dialogActions(context, saving: _saving, valid: _valid, label: 'Pay advance', color: TColors.amber600, onSave: _save),
+        actions: _dialogActions(context,
+            saving: _saving, valid: _valid, label: 'Pay advance', color: FormColor.amber, onSave: _save,
+            amount: _value > 0 ? widget.money(_value) : null),
       ),
     );
   }
@@ -916,49 +929,54 @@ class _SupplierCreditDialogState extends State<_SupplierCreditDialog> {
         canPop: !_saving,
         child: AlertDialog(
           scrollable: true,
-          title: _dialogTitle(Icons.note_alt_outlined, TColors.blue600, 'Add supplier credit'),
+          title: _dialogTitle(Icons.note_alt_outlined, FormColor.blue, 'Add supplier credit'),
           content: SizedBox(
-            width: 480,
+            width: 672,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _blurb('Credit a supplier owes you with no money moving now. If you paid them money in advance, use Pay advance instead.'),
-                const SizedBox(height: 14),
-                FilterLabel(
-                  'Supplier *',
-                  AppSelect<int>(
-                    value: _supplier,
-                    hintText: _suppliers.isNotEmpty || _suppliersLoaded ? 'Choose the supplier' : 'Loading suppliers…',
-                    items: [for (final (id, name) in _suppliers) AppSelectItem(value: id, label: name)],
-                    onChanged: (v) => setState(() => _supplier = v),
+                const SizedBox(height: 16),
+                TintedSection(title: 'Supplier & Date', color: FormColor.blue, children: [
+                  FormPair(
+                    stackOnMobile: true,
+                    FilterLabel(
+                      'Supplier *',
+                      AppSelect<int>(
+                        value: _supplier,
+                        hintText: _suppliers.isNotEmpty || _suppliersLoaded ? 'Choose the supplier' : 'Loading suppliers…',
+                        items: [for (final (id, name) in _suppliers) AppSelectItem(value: id, label: name)],
+                        onChanged: (v) => setState(() => _supplier = v),
+                      ),
+                    ),
+                    FilterLabel('Date *', FilterDate(value: _date, hint: 'Date', onChanged: (v) => setState(() => _date = v))),
                   ),
-                ),
-                const SizedBox(height: 12),
-                const Text('What is it *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: TColors.slate700)),
-                const SizedBox(height: 6),
-                for (final (value, body) in _supplierKinds)
-                  kindOption(
-                    selected: _kind == value,
-                    title: supplierCreditKindLabel[value]!,
-                    body: body,
-                    onTap: () => setState(() => _kind = value),
-                  ),
-                const SizedBox(height: 4),
-                filterRow([
-                  FilterLabel('Amount *', _numInput(_amount, () => setState(() {}))),
-                  FilterLabel('Date *', FilterDate(value: _date, hint: 'Date', onChanged: (v) => setState(() => _date = v))),
                 ]),
-                const SizedBox(height: 10),
-                FilterLabel('Reference', AppInput(controller: _reference, hintText: 'Optional, e.g. credit note number')),
-                const SizedBox(height: 10),
-                FilterLabel(
-                  'Reason *',
+                const SizedBox(height: 16),
+                TintedSection(title: 'What is it *', color: FormColor.amber, gap: 0, children: [
+                  for (final (value, body) in _supplierKinds)
+                    kindOption(
+                      selected: _kind == value,
+                      title: supplierCreditKindLabel[value]!,
+                      body: body,
+                      onTap: () => setState(() => _kind = value),
+                    ),
+                ]),
+                const SizedBox(height: 16),
+                TintedSection(title: 'Amount', color: FormColor.green, children: [
+                  FormPair(
+                    FilterLabel('Amount *', _numInput(_amount, () => setState(() {}))),
+                    FilterLabel('Reference', AppInput(controller: _reference, hintText: 'Optional, e.g. credit note number')),
+                  ),
+                ]),
+                const SizedBox(height: 16),
+                TintedSection(title: 'Reason *', color: FormColor.slate, children: [
                   ReasonSelect(options: supplierCreditReasons, value: _reason, onChanged: (v) => setState(() => _reason = v)),
-                ),
+                ]),
                 if (_value > 0 && _supplierName.isNotEmpty) ...[
                   const SizedBox(height: 12),
-                  summaryBox([
+                  summaryBox(tone: FormColor.blue, [
                     TextSpan(text: '$_supplierName will hold '),
                     TextSpan(text: widget.money(_value), style: boldSpan),
                     const TextSpan(text: ' of credit for you. No cash moves.'),
@@ -968,7 +986,9 @@ class _SupplierCreditDialogState extends State<_SupplierCreditDialog> {
               ],
             ),
           ),
-          actions: _dialogActions(context, saving: _saving, valid: _valid, label: 'Add credit', color: TColors.blue600, onSave: _save),
+          actions: _dialogActions(context,
+              saving: _saving, valid: _valid, label: 'Add credit', color: FormColor.blue, onSave: _save,
+              amount: _value > 0 ? widget.money(_value) : null),
         ),
       );
 }
@@ -1062,18 +1082,19 @@ class _ApplyCreditDialogState extends State<_ApplyCreditDialog> {
       canPop: !_saving,
       child: AlertDialog(
         scrollable: true,
-        title: _dialogTitle(Icons.link, TColors.blue600, 'Apply supplier credit'),
+        title: _dialogTitle(Icons.link, FormColor.blue, 'Apply supplier credit'),
         content: SizedBox(
-          width: 480,
+          width: 672,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _blurb('Use ${tStr(c['creditNumber'])} (${source.toLowerCase()}) to pay something ${_or(tStr(c['supplierName']), 'the supplier')} is owed. '
                   'No money moves now -- it already left with the ${source == 'Credit note' ? 'credit note' : 'payment'}.'),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               _available(widget.money(_creditAvailable)),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
+              TintedSection(title: 'Apply to', color: FormColor.blue, children: [
               FilterLabel(
                 'Apply to *',
                 docs == null
@@ -1098,17 +1119,19 @@ class _ApplyCreditDialogState extends State<_ApplyCreditDialog> {
                             }),
                           ),
               ),
-              const SizedBox(height: 10),
-              FilterLabel('Amount *', _numInput(_amount, () => setState(() {}), enabled: _doc != null)),
-              if (_doc != null) ...[
-                const SizedBox(height: 4),
-                Text('At most ${widget.money(_max)}.', style: const TextStyle(fontSize: 12, color: TColors.slate500)),
-              ],
+              ]),
+              const SizedBox(height: 16),
+              TintedSection(title: 'Amount', color: FormColor.green, gap: 4, children: [
+                FilterLabel('Amount *', _numInput(_amount, () => setState(() {}), enabled: _doc != null)),
+                if (_doc != null) Text('At most ${widget.money(_max)}.', style: const TextStyle(fontSize: 12, color: TColors.slate500)),
+              ]),
               if (_error != null) ...[const SizedBox(height: 10), TrackerBanner.error(_error!)],
             ],
           ),
         ),
-        actions: _dialogActions(context, saving: _saving, valid: _valid, label: 'Apply credit', color: TColors.blue600, onSave: _save),
+        actions: _dialogActions(context,
+            saving: _saving, valid: _valid, label: 'Apply credit', color: FormColor.blue, onSave: _save,
+            amount: _value > 0 ? widget.money(_value) : null),
       ),
     );
   }
@@ -1193,24 +1216,24 @@ class _SupplierRefundDialogState extends State<_SupplierRefundDialog> {
         canPop: !_saving,
         child: AlertDialog(
           scrollable: true,
-          title: _dialogTitle(Icons.download_outlined, TColors.emerald600, 'Receive supplier refund'),
+          title: _dialogTitle(Icons.download_outlined, FormColor.emerald, 'Receive supplier refund'),
           content: SizedBox(
-            width: 440,
+            width: 576,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _blurb('${_or(tStr(c['supplierName']), 'The supplier')} sends back money out of ${tStr(c['creditNumber'])}. It comes into the account you choose '
                     '(Money In on Cash Flow). It is not a sale.'),
-                const SizedBox(height: 12),
-                _available(widget.money(tNum(c['available']))),
-                const SizedBox(height: 12),
-                filterRow([
+                const SizedBox(height: 16),
+                _available(widget.money(tNum(c['available'])), tone: FormColor.emerald),
+                const SizedBox(height: 16),
+                TintedSection(title: 'Refund', color: FormColor.green, children: [
+                FormPair(
                   FilterLabel('Amount *', _numInput(_amount, () => setState(() {}))),
                   FilterLabel('Date *', FilterDate(value: _date, hint: 'Date', onChanged: (v) => setState(() => _date = v))),
-                ]),
-                const SizedBox(height: 10),
-                filterRow([
+                ),
+                FormPair(
                   FilterLabel(
                     'Received into *',
                     AppSelect<int>(
@@ -1228,17 +1251,19 @@ class _SupplierRefundDialogState extends State<_SupplierRefundDialog> {
                       onChanged: (v) => setState(() => _method = v ?? _method),
                     ),
                   ),
-                ]),
-                const SizedBox(height: 10),
-                FilterLabel(
-                  'Reason *',
-                  ReasonSelect(options: supplierRefundReasons, value: _reason, onChanged: (v) => setState(() => _reason = v)),
                 ),
+                ]),
+                const SizedBox(height: 16),
+                TintedSection(title: 'Reason *', color: FormColor.slate, children: [
+                  ReasonSelect(options: supplierRefundReasons, value: _reason, onChanged: (v) => setState(() => _reason = v)),
+                ]),
                 if (_error != null) ...[const SizedBox(height: 10), TrackerBanner.error(_error!)],
               ],
             ),
           ),
-          actions: _dialogActions(context, saving: _saving, valid: _valid, label: 'Record refund', color: TColors.emerald600, onSave: _save),
+          actions: _dialogActions(context,
+              saving: _saving, valid: _valid, label: 'Record refund', color: FormColor.emerald, onSave: _save,
+              amount: _value > 0 ? widget.money(_value) : null),
         ),
       );
 }

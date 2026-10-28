@@ -51,6 +51,7 @@ class ReportDocument {
     this.subtitle,
     this.notes = const [],
     this.rose = false,
+    this.violet = false,
   });
   final String title;
   final String filename;
@@ -76,6 +77,9 @@ class ReportDocument {
   /// Restaurant's palette (the web's module-report-shell accent, rose-600)
   /// rather than Poultry's emerald.
   final bool rose;
+
+  /// Hotel's palette (module-report-shell's violet accent).
+  final bool violet;
 
   int get rowCount => sections.fold(0, (n, s) => n + s.rows.length);
 }
@@ -187,10 +191,10 @@ class ReportExport {
   }
 
   static Future<Uint8List> buildPdf(ReportDocument d) async {
-    final brand = d.rose ? const PdfColor.fromInt(0xFFE11D48) : _brand;
-    final band = d.rose ? const PdfColor.fromInt(0xFFBE123C) : _band;
-    final zebra = d.rose ? const PdfColor.fromInt(0xFFFFF1F2) : _zebra;
-    final totalsBg = d.rose ? const PdfColor.fromInt(0xFFFFE4E6) : _totalsBg;
+    final brand = d.violet ? const PdfColor.fromInt(0xFF7C3AED) : d.rose ? const PdfColor.fromInt(0xFFE11D48) : _brand;
+    final band = d.violet ? const PdfColor.fromInt(0xFF6D28D9) : d.rose ? const PdfColor.fromInt(0xFFBE123C) : _band;
+    final zebra = d.violet ? const PdfColor.fromInt(0xFFF5F3FF) : d.rose ? const PdfColor.fromInt(0xFFFFF1F2) : _zebra;
+    final totalsBg = d.violet ? const PdfColor.fromInt(0xFFEDE9FE) : d.rose ? const PdfColor.fromInt(0xFFFFE4E6) : _totalsBg;
     final wide = d.landscape ?? d.sections.any((s) => s.columns.length > 7);
     final format = wide ? PdfPageFormat.a4.landscape : PdfPageFormat.a4;
     final generated = DateTime.now().toString().substring(0, 16);

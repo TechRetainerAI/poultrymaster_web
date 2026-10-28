@@ -40,6 +40,79 @@ const _labels = {
 };
 String restaurantInternalUseLabel(Object? c) => _labels[tStr(c)] ?? tStr(c);
 
+/// What differs on Hotel's copy of this page (`app/hotel-internal-use`,
+/// migration 334): its route, its own reasons, "Supply" for a stock line, the
+/// wording, and violet. Its API speaks `itemId` for the stock item.
+class InternalUseFlavor {
+  const InternalUseFlavor({
+    required this.api,
+    required this.href,
+    required this.inventoryHref,
+    required this.categories,
+    required this.labels,
+    required this.stockType,
+    required this.subtitle,
+    required this.recipientHint,
+    required this.accent,
+    required this.soft,
+    required this.border,
+    required this.ink,
+    required this.tile,
+    this.itemIdKey = false,
+  });
+  final String api, href, inventoryHref, stockType, subtitle, recipientHint;
+  final List<String> categories;
+  final Map<String, String> labels;
+  final Color accent, soft, border, ink, tile;
+
+  /// Hotel: each line also carries `itemId` (toApi), and comes back with it.
+  final bool itemIdKey;
+
+  String label(Object? c) => labels[tStr(c)] ?? tStr(c);
+}
+
+const restaurantInternalUseFlavor = InternalUseFlavor(
+  api: '/api/Restaurant/internal-usage',
+  href: '/restaurant-internal-use',
+  inventoryHref: '/restaurant-inventory',
+  categories: restaurantInternalUseCategories,
+  labels: _labels,
+  stockType: 'Ingredient',
+  subtitle: 'Food, drinks or supplies used by the restaurant — given to staff, taken by the owner, donated, sampled or tested. Recorded at cost, never as a sale.',
+  recipientHint: 'e.g. Kitchen team',
+  accent: restaurantRose,
+  soft: TColors.rose50,
+  border: TColors.rose200,
+  ink: Color(0xFF881337),
+  tile: Color(0xFFFFE4E6),
+);
+
+/// HOTEL_INTERNAL_USE_CATEGORIES and their labels (lib/api/hotel-supplies.ts).
+const hotelInternalUseFlavor = InternalUseFlavor(
+  api: '/api/Hotel/internal-usage',
+  href: '/hotel-internal-use',
+  inventoryHref: '/hotel-inventory',
+  categories: ['RoomAmenities', 'Housekeeping', 'StaffWelfare', 'Complimentary', 'Donation', 'Damaged', 'Other'],
+  labels: {
+    'RoomAmenities': 'Rooms restocked (amenities)',
+    'Housekeeping': 'Housekeeping consumption',
+    'StaffWelfare': 'Staff use',
+    'Complimentary': 'Complimentary / guest gift',
+    'Donation': 'Donation',
+    'Damaged': 'Damaged / written off',
+    'Other': 'Other',
+  },
+  stockType: 'Supply',
+  subtitle: 'Supplies used by the hotel itself — rooms restocked, housekeeping, staff use, complimentary, donated or written off. Recorded at cost, never as a sale.',
+  recipientHint: 'e.g. Housekeeping team',
+  accent: TColors.violet600,
+  soft: TColors.violet50,
+  border: Color(0xFFDDD6FE),
+  ink: Color(0xFF4C1D95),
+  tile: TColors.violet100,
+  itemIdKey: true,
+);
+
 /// RESTAURANT_STAFF_BASED_CATEGORIES: only a staff meal is entered staff × each.
 bool _isStaff(Object? c) => tStr(c) == 'StaffWelfare';
 
@@ -94,9 +167,10 @@ List<Map> filterRestaurantInternalUse(List<Map> rows,
 }
 
 class RestaurantInternalUseScreen extends StatefulWidget {
-  const RestaurantInternalUseScreen({super.key, required this.session, required this.company});
+  const RestaurantInternalUseScreen({super.key, required this.session, required this.company, this.flavor = restaurantInternalUseFlavor});
   final Session session;
   final Company company;
+  final InternalUseFlavor flavor;
 
   @override
   State<RestaurantInternalUseScreen> createState() => _RestaurantInternalUseScreenState();
@@ -113,7 +187,8 @@ class _RestaurantInternalUseScreenState extends State<RestaurantInternalUseScree
 
   ApiClient get _api => widget.session.farmClient;
   String get _farmId => widget.company.farmId;
-  String _u([String path = '']) => '/api/Restaurant/internal-usage$path?farmId=${Uri.encodeQueryComponent(_farmId)}';
+  InternalUseFlavor get _f => widget.flavor;
+  String _u([String path = '']) => '${_f.api}$path?farmId=${Uri.encodeQueryComponent(_farmId)}';
 
   @override
   void initState() {
@@ -156,7 +231,7 @@ class _RestaurantInternalUseScreenState extends State<RestaurantInternalUseScree
   Future<void> _openForm([Map? editing]) async {
     final done = await showDialog<bool>(
       context: context,
-      builder: (_) => _FormDialog(session: widget.session, company: widget.company, products: _products, fmt: _gh, editing: editing),
+      builder: (_) => _FormDialog(session: widget.session, company: widget.company, products: _products, fmt: _gh, editing: editing, flavor: _f),
     );
     if (done == true) _load();
   }
@@ -171,7 +246,7 @@ class _RestaurantInternalUseScreenState extends State<RestaurantInternalUseScree
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: destructive ? TColors.red600 : restaurantRose),
+            style: FilledButton.styleFrom(backgroundColor: destructive ? TColors.red600 : _f.accent),
             child: Text(action),
           ),
         ],
@@ -231,7 +306,7 @@ class _RestaurantInternalUseScreenState extends State<RestaurantInternalUseScree
     }
   }
 
-  Future<void> _view(Map r) => showDialog<void>(context: context, builder: (_) => _Detail(record: r, fmt: _gh, offset: _offset));
+  Future<void> _view(Map r) => showDialog<void>(context: context, builder: (_) => _Detail(record: r, fmt: _gh, offset: _offset, flavor: _f));
 
   /// rowActions: what each status allows.
   List<Widget> _actions(Map r) {
@@ -262,7 +337,7 @@ class _RestaurantInternalUseScreenState extends State<RestaurantInternalUseScree
 
   @override
   Widget build(BuildContext context) {
-    final lead = sidebarLeading(context, widget.session, widget.company, href: '/restaurant-internal-use');
+    final lead = sidebarLeading(context, widget.session, widget.company, href: _f.href);
     final visible = filterRestaurantInternalUse(_items, search: _search.text, from: _from, to: _to, status: _status, category: _category);
     if (visible.length != _lastTotal) {
       _lastTotal = visible.length;
@@ -290,20 +365,21 @@ class _RestaurantInternalUseScreenState extends State<RestaurantInternalUseScree
             RPageHeader(
               icon: Icons.remove_shopping_cart_outlined,
               title: 'Internal Use',
-              subtitle:
-                  'Food, drinks or supplies used by the restaurant — given to staff, taken by the owner, donated, sampled or tested. Recorded at cost, never as a sale.',
-              actions: [roseButton('Record internal use', () => _openForm())],
+              subtitle: _f.subtitle,
+              tileColor: _f.tile,
+              iconColor: _f.accent,
+              actions: [roseButton('Record internal use', () => _openForm(), color: _f.accent)],
             ),
             const SizedBox(height: 10),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(color: TColors.rose50, border: Border.all(color: TColors.rose200), borderRadius: BorderRadius.circular(6)),
-              child: const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Icon(Icons.info_outline, size: 16, color: Color(0xFF881337)),
-                SizedBox(width: 6),
+              decoration: BoxDecoration(color: _f.soft, border: Border.all(color: _f.border), borderRadius: BorderRadius.circular(6)),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Icon(Icons.info_outline, size: 16, color: _f.ink),
+                const SizedBox(width: 6),
                 Expanded(
                   child: Text('Posting writes a stock movement, updates inventory and books a non-cash expense.',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF881337))),
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: _f.ink)),
                 ),
               ]),
             ),
@@ -317,7 +393,7 @@ class _RestaurantInternalUseScreenState extends State<RestaurantInternalUseScree
                   const Text('Internal Use takes stock off a product, so add one before recording anything. ',
                       style: TextStyle(fontSize: 13, color: TColors.amber800)),
                   InkWell(
-                    onTap: () => openAppHref(context, widget.session, widget.company, '/restaurant-inventory', label: 'Inventory'),
+                    onTap: () => openAppHref(context, widget.session, widget.company, _f.inventoryHref, label: 'Inventory'),
                     child: const Text('Go to Inventory',
                         style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: TColors.amber900, decoration: TextDecoration.underline)),
                   ),
@@ -362,7 +438,7 @@ class _RestaurantInternalUseScreenState extends State<RestaurantInternalUseScree
                   value: _category,
                   items: [
                     const AppSelectItem(value: 'ALL', label: 'All reasons'),
-                    for (final c in restaurantInternalUseCategories) AppSelectItem(value: c, label: restaurantInternalUseLabel(c)),
+                    for (final c in _f.categories) AppSelectItem(value: c, label: _f.label(c)),
                   ],
                   onChanged: (v) => setState(() => _category = v ?? 'ALL'),
                 ),
@@ -382,7 +458,7 @@ class _RestaurantInternalUseScreenState extends State<RestaurantInternalUseScree
                 striped: true,
                 items: pageRows,
                 keyOf: (r) => '${_id(r)}',
-                primary: (r) => restaurantInternalUseLabel(r['category']),
+                primary: (r) => _f.label(r['category']),
                 secondary: (r) => fmtDateTime(r['usageDate'], r, _offset),
                 trailing: (r) => Padding(padding: const EdgeInsets.only(left: 6), child: _badge(r['status'])),
                 highlights: (r) => [
@@ -405,7 +481,7 @@ class _RestaurantInternalUseScreenState extends State<RestaurantInternalUseScree
                     for (final r in items)
                       [
                         Text(fmtDateTime(r['usageDate'], r, _offset), style: const TextStyle(fontWeight: FontWeight.w500)),
-                        cellText(restaurantInternalUseLabel(r['category'])),
+                        cellText(_f.label(r['category'])),
                         cellText(_product(r)),
                         cellText(describeRestaurantInternalQty(r)),
                         Align(alignment: Alignment.centerRight, child: Text(_gh(tNum(r['totalCostValue'])))),
@@ -434,11 +510,12 @@ class _RestaurantInternalUseScreenState extends State<RestaurantInternalUseScree
 
 /// Record internal use / Edit draft.
 class _FormDialog extends StatefulWidget {
-  const _FormDialog({required this.session, required this.company, required this.products, required this.fmt, this.editing});
+  const _FormDialog({required this.session, required this.company, required this.products, required this.fmt, required this.flavor, this.editing});
   final Session session;
   final Company company;
   final List<Map> products;
   final FarmMoney fmt;
+  final InternalUseFlavor flavor;
   final Map? editing;
 
   @override
@@ -469,7 +546,10 @@ class _FormDialogState extends State<_FormDialog> {
       _recipient.text = tStr(r['recipientName']);
       _reason.text = tStr(r['reason']);
       _notes.text = tStr(r['notes']);
-      if (line != null) _itemKey = _optKey(line['itemType'], line['itemType'] == 'MenuItem' ? line['menuItemId'] : line['ingredientId']);
+      // Hotel's lines come back with itemId (withIngredientIds reads it as the stock id).
+      if (line != null) {
+        _itemKey = _optKey(line['itemType'], line['itemType'] == 'MenuItem' ? line['menuItemId'] : (line['ingredientId'] ?? line['itemId']));
+      }
       _qty.text = _plain(tNum(line?['entryQuantity']));
       _cost.text = _plain(tNum(line?['entryUnitCost']));
       _staffHelper = false;
@@ -543,6 +623,8 @@ class _FormDialogState extends State<_FormDialog> {
           'itemType': tStr(p['itemType']),
           'ingredientId': menu ? null : tIntOrNull(p['itemId']),
           'menuItemId': menu ? tIntOrNull(p['itemId']) : null,
+          // Hotel's toApi: itemId = itemId ?? ingredientId.
+          if (widget.flavor.itemIdKey) 'itemId': menu ? null : tIntOrNull(p['itemId']),
           'entryQuantity': _effective,
           'entryUnit': _unitLabel,
           'quantityPerStaff': _staffMode ? _n(_perStaff) : null,
@@ -555,10 +637,10 @@ class _FormDialogState extends State<_FormDialog> {
     final q = '?farmId=${Uri.encodeQueryComponent(widget.company.farmId)}';
     try {
       if (_editId != 0) {
-        await api.put('/api/Restaurant/internal-usage/$_editId$q', body: payload);
+        await api.put('${widget.flavor.api}/$_editId$q', body: payload);
         if (mounted) trackerToast(context, 'Draft updated');
       } else {
-        await api.post('/api/Restaurant/internal-usage$q', body: payload);
+        await api.post('${widget.flavor.api}$q', body: payload);
         if (mounted) trackerToast(context, 'Draft saved', description: "Post it when you're ready to move the stock.");
       }
       if (mounted) Navigator.pop(context, true);
@@ -576,8 +658,8 @@ class _FormDialogState extends State<_FormDialog> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: active ? TColors.rose50 : Colors.white,
-              border: Border.all(color: active ? const Color(0xFFF43F5E) : TColors.slate200, width: 2),
+              color: active ? widget.flavor.soft : Colors.white,
+              border: Border.all(color: active ? widget.flavor.accent : TColors.slate200, width: 2),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -610,7 +692,7 @@ class _FormDialogState extends State<_FormDialog> {
   Widget build(BuildContext context) {
     final gh = widget.fmt;
     final p = _product;
-    final stock = [for (final x in widget.products) if (x['itemType'] == 'Ingredient') x];
+    final stock = [for (final x in widget.products) if (x['itemType'] == widget.flavor.stockType) x];
     final menu = [for (final x in widget.products) if (x['itemType'] == 'MenuItem') x];
     return PopScope(
       canPop: !_saving,
@@ -636,11 +718,11 @@ class _FormDialogState extends State<_FormDialog> {
                 'Reason',
                 AppSelect<String>(
                   value: _category,
-                  items: [for (final c in restaurantInternalUseCategories) AppSelectItem(value: c, label: restaurantInternalUseLabel(c))],
+                  items: [for (final c in widget.flavor.categories) AppSelectItem(value: c, label: widget.flavor.label(c))],
                   onChanged: (v) => setState(() => _category = v ?? _category),
                 ),
               ),
-              _optional('Who received it', _recipient, 'e.g. Kitchen team'),
+              _optional('Who received it', _recipient, widget.flavor.recipientHint),
               _optional('Detail', _reason, 'e.g. Friday staff lunch'),
             ]),
             const SizedBox(height: 12),
@@ -658,7 +740,7 @@ class _FormDialogState extends State<_FormDialog> {
                     InkWell(
                       onTap: () {
                         Navigator.pop(context, false);
-                        openAppHref(context, widget.session, widget.company, '/restaurant-inventory', label: 'Inventory');
+                        openAppHref(context, widget.session, widget.company, widget.flavor.inventoryHref, label: 'Inventory');
                       },
                       child: const Text('Go to Inventory',
                           style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: TColors.amber900, decoration: TextDecoration.underline)),
@@ -744,7 +826,7 @@ class _FormDialogState extends State<_FormDialog> {
           Wrap(alignment: WrapAlignment.end, spacing: 8, runSpacing: 8, children: [
             OutlinedButton(onPressed: _saving ? null : () => Navigator.pop(context, false), child: const Text('Cancel')),
             FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: restaurantRose),
+              style: FilledButton.styleFrom(backgroundColor: widget.flavor.accent),
               onPressed: _saving || _notEnough ? null : _save,
               child: Text(_saving ? 'Saving…' : 'Save draft'),
             ),
@@ -771,10 +853,11 @@ class _FormDialogState extends State<_FormDialog> {
 /// The details dialog: reversal, what was used (with what reached the P&L),
 /// who and why, and the history.
 class _Detail extends StatelessWidget {
-  const _Detail({required this.record, required this.fmt, required this.offset});
+  const _Detail({required this.record, required this.fmt, required this.offset, required this.flavor});
   final Map record;
   final FarmMoney fmt;
   final Duration offset;
+  final InternalUseFlavor flavor;
 
   @override
   Widget build(BuildContext context) {
@@ -827,7 +910,7 @@ class _Detail extends StatelessWidget {
       content: SizedBox(
         width: 520,
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text('${fmtDateTime(r['usageDate'], r, offset)} · ${restaurantInternalUseLabel(r['category'])}',
+          Text('${fmtDateTime(r['usageDate'], r, offset)} · ${flavor.label(r['category'])}',
               style: const TextStyle(fontSize: 13, color: TColors.slate500)),
           const SizedBox(height: 12),
           if (tStr(r['status']) == 'Reversed') ...[
@@ -873,7 +956,7 @@ class _Detail extends StatelessWidget {
           card(
             Column(children: [
               ...[
-                row('Reason', restaurantInternalUseLabel(r['category'])),
+                row('Reason', flavor.label(r['category'])),
                 row('Recipient', r['recipientName']),
                 row('Staff', tNum(r['staffCount']) > 0 ? tStr(r['staffCount']) : null),
                 row('Detail', r['reason']),

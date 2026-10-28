@@ -529,7 +529,7 @@ class CostDetailDialog extends StatelessWidget {
           const SizedBox(height: 12),
           sectionLabel('The record behind it'),
           // Restaurant: CostRecordRow, the cash ledger in place of an expense.
-          rail.isRestaurant
+          rail.restaurantShape
               ? row(
                   'Cash ledger',
                   tNum(c['amountPaid']) != 0
@@ -548,8 +548,8 @@ class CostDetailDialog extends StatelessWidget {
               : row('Expense', t('None — nothing was paid or owed for this entry.', color: TColors.slate500)),
           if (tStr(c['expenseCategory']).isNotEmpty) row('Filed under', t(tStr(c['expenseCategory']))),
           // Restaurant reads documentAmount where Poultry reads expenseAmount.
-          if (c[rail.isRestaurant ? 'documentAmount' : 'expenseAmount'] != null)
-            row(correction ? 'Document now reads' : 'Document total', t(fmt(tNum(c[rail.isRestaurant ? 'documentAmount' : 'expenseAmount'])))),
+          if (c[rail.restaurantShape ? 'documentAmount' : 'expenseAmount'] != null)
+            row(correction ? 'Document now reads' : 'Document total', t(fmt(tNum(c[rail.restaurantShape ? 'documentAmount' : 'expenseAmount'])))),
           row('Recorded by', t(tStr(c['createdBy']).isEmpty ? '—' : tStr(c['createdBy']))),
           row('Recorded', t(tStr(c['createdAt']).isEmpty ? '—' : dt(c['createdAt']))),
           if (tStr(c['status']) != 'Posted') ...[

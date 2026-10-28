@@ -6,6 +6,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../api/api_client.dart';
+import '../../../design/ui/form_dialog.dart';
 import '../../shared/reason_select.dart';
 import '../trackers/tracker_logic.dart' show tNum, tStr;
 import '../trackers/tracker_widgets.dart';
@@ -139,12 +140,14 @@ Future<void> showCreditEvents(
   required String Function(Map e) subline,
   required String Function(num n) money,
   required List<Widget> Function(Map e, VoidCallback close) actions,
+  FormColor color = FormColor.blue,
 }) => showDialog<void>(
   context: context,
   builder: (_) => _CreditEventsDialog(
     title: title,
     icon: icon,
     iconColor: iconColor,
+    color: color,
     load: load,
     heading: heading,
     subline: subline,
@@ -158,6 +161,7 @@ class _CreditEventsDialog extends StatefulWidget {
     required this.title,
     required this.icon,
     required this.iconColor,
+    required this.color,
     required this.load,
     required this.heading,
     required this.subline,
@@ -167,6 +171,9 @@ class _CreditEventsDialog extends StatefulWidget {
   final String title;
   final IconData icon;
   final Color iconColor;
+
+  /// The title tile's colour: blue for a customer's credits, amber for a supplier's.
+  final FormColor color;
   final Future<List<Map>> Function() load;
   final String Function(Map e) heading;
   final String Function(Map e) subline;
@@ -198,13 +205,7 @@ class _CreditEventsDialogState extends State<_CreditEventsDialog> {
     void close() => Navigator.pop(context);
     return AlertDialog(
       scrollable: true,
-      title: Row(
-        children: [
-          Icon(widget.icon, color: widget.iconColor),
-          const SizedBox(width: 8),
-          Flexible(child: Text(widget.title)),
-        ],
-      ),
+      title: FormDialogTitle(icon: widget.icon, color: widget.color, text: widget.title),
       content: SizedBox(
         width: 480,
         child: Column(
@@ -231,9 +232,11 @@ class _CreditEventsDialogState extends State<_CreditEventsDialog> {
               )
             else
               Container(
+                clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
-                  border: Border.all(color: TColors.slate200),
-                  borderRadius: BorderRadius.circular(6),
+                  color: Colors.white,
+                  border: Border.all(color: widget.color == FormColor.amber ? TColors.amber200 : TColors.slate200),
+                  borderRadius: BorderRadius.circular(widget.color == FormColor.amber ? 12 : 6),
                 ),
                 child: Column(
                   children: [
@@ -299,7 +302,7 @@ class _CreditEventsDialogState extends State<_CreditEventsDialog> {
           ],
         ),
       ),
-      actions: [OutlinedButton(onPressed: close, child: const Text('Close'))],
+      actions: [FormDialogFooter(onCancel: close, cancelLabel: 'Close')],
     );
   }
 }
@@ -315,10 +318,19 @@ Future<bool> showReverseWithReason(
   required String action,
   required Future<void> Function(String reason) onConfirm,
   List<String> reasons = reversalReasons,
+  String? bodyTitle,
 }) async =>
     await showDialog<bool>(
       context: context,
-      builder: (_) => _ReverseDialog(title: title, description: description, body: body, action: action, onConfirm: onConfirm, reasons: reasons),
+      builder: (_) => _ReverseDialog(
+        title: title,
+        description: description,
+        body: body,
+        action: action,
+        onConfirm: onConfirm,
+        reasons: reasons,
+        bodyTitle: bodyTitle,
+      ),
     ) ==
     true;
 
@@ -330,10 +342,17 @@ class _ReverseDialog extends StatefulWidget {
     required this.action,
     required this.onConfirm,
     required this.reasons,
+    this.bodyTitle,
   });
   final String title;
   final String description;
   final List<Widget> body;
+
+  /// When set, [body] sits in an amber section with this title, as the web's
+  /// "What happens" / "This reversal will".
+  final String? bodyTitle;
+
+  /// The button's words; the caller adds " · amount" where the web shows one.
   final String action;
   final Future<void> Function(String reason) onConfirm;
   final List<String> reasons;
@@ -367,32 +386,36 @@ class _ReverseDialogState extends State<_ReverseDialog> {
     canPop: !_saving,
     child: AlertDialog(
       scrollable: true,
-      title: Row(
-        children: [
-          const Icon(Icons.undo, color: TColors.red600),
-          const SizedBox(width: 8),
-          Flexible(child: Text(widget.title)),
-        ],
-      ),
+      title: FormDialogTitle(icon: Icons.undo, color: FormColor.red, text: widget.title),
       content: SizedBox(
-        width: 440,
+        width: 512,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(widget.description, style: const TextStyle(fontSize: 13, color: TColors.slate500)),
-            const SizedBox(height: 12),
-            ...widget.body,
-            const SizedBox(height: 12),
-            FilterLabel('Reason *', ReasonSelect(options: widget.reasons, value: _reason, onChanged: (v) => setState(() => _reason = v))),
+            if (widget.body.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              if (widget.bodyTitle != null)
+                TintedSection(title: widget.bodyTitle!, color: FormColor.amber, gap: 0, children: widget.body)
+              else
+                ...widget.body,
+            ],
+            const SizedBox(height: 16),
+            TintedSection(title: 'Reason', color: FormColor.slate, children: [
+              FilterLabel('Reason *', ReasonSelect(options: widget.reasons, value: _reason, onChanged: (v) => setState(() => _reason = v))),
+            ]),
             if (_error != null) ...[const SizedBox(height: 10), TrackerBanner.error(_error!)],
           ],
         ),
       ),
       actions: [
-        OutlinedButton(onPressed: _saving ? null : () => Navigator.pop(context, false), child: const Text('Cancel')),
+        FormDialogFooter(
+          onCancel: () => Navigator.pop(context, false),
+          cancelDisabled: _saving,
+          children: [
         FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: TColors.red600),
+          style: formPrimary(FormColor.red),
           onPressed: _saving || _reason.trim().isEmpty ? null : _go,
           child: !_saving
               ? Text(widget.action)
@@ -404,6 +427,8 @@ class _ReverseDialogState extends State<_ReverseDialog> {
                     Flexible(child: Text(widget.action, overflow: TextOverflow.ellipsis)),
                   ],
                 ),
+        ),
+          ],
         ),
       ],
     ),
@@ -448,9 +473,11 @@ Widget kindOption({required bool selected, required String title, required Strin
     borderRadius: BorderRadius.circular(6),
     child: Container(
       padding: const EdgeInsets.all(10),
+      // Amber when chosen, white otherwise, as the web's tinted "Where the
+      // credit came from" / "What is it" sections.
       decoration: BoxDecoration(
-        color: selected ? const Color(0x99EFF6FF) : null,
-        border: Border.all(color: selected ? const Color(0xFF60A5FA) : TColors.slate200),
+        color: selected ? TColors.amber50 : Colors.white,
+        border: Border.all(color: selected ? const Color(0xFFFBBF24) : TColors.slate200),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
@@ -476,12 +503,25 @@ Widget kindOption({required bool selected, required String title, required Strin
   ),
 );
 
-/// The grey summary line at the foot of a form ("X will hold …").
-Widget summaryBox(List<InlineSpan> spans) => Container(
+/// The summary line at the foot of a form ("X will hold …"): amber where money
+/// is owed or leaves (debts, advances), blue where credit is held.
+Widget summaryBox(List<InlineSpan> spans, {FormColor? tone}) {
+  final (bg, border, fg) = switch (tone) {
+    FormColor.amber => (TColors.amber50, TColors.amber200, TColors.amber900),
+    FormColor.blue => (const Color(0xFFEFF6FF), const Color(0xFFBFDBFE), const Color(0xFF1E3A8A)),
+    FormColor.emerald => (const Color(0xFFECFDF5), const Color(0xFFA7F3D0), const Color(0xFF064E3B)),
+    _ => (TColors.slate50, null, TColors.slate700),
+  };
+  return Container(
   padding: const EdgeInsets.all(10),
-  decoration: BoxDecoration(color: TColors.slate50, borderRadius: BorderRadius.circular(6)),
+  decoration: BoxDecoration(
+    color: bg,
+    border: border == null ? null : Border.all(color: border),
+    borderRadius: BorderRadius.circular(6),
+  ),
   child: Text.rich(
     TextSpan(children: spans),
-    style: const TextStyle(fontSize: 13, color: TColors.slate700),
+    style: TextStyle(fontSize: 13, color: fg),
   ),
 );
+}

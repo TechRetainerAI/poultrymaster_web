@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../api/api_client.dart';
+import '../../../design/ui/form_dialog.dart';
 import '../../../design/ui/inputs.dart';
 import '../../../models/company.dart';
 import '../../../state/session.dart';
@@ -18,6 +19,7 @@ import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../trackers/tracker_widgets.dart';
 import 'balances_logic.dart';
 import 'payments_received_screen.dart' show fmtDateTimeLike;
+import 'sales_logic.dart' show saleProductOptions;
 
 // ------------------------------------------------------------------ small parts
 
@@ -291,22 +293,23 @@ class _ReversePaymentDialogState extends State<ReversePaymentDialog> {
   Widget build(BuildContext context) {
     final t = widget.target;
     return AlertDialog(
-      title: Row(children: [
-        const Icon(Icons.undo, color: TColors.red600),
-        const SizedBox(width: 8),
-        Flexible(child: Text('Reverse ${tStr(t['paymentNumber']).isEmpty ? 'this payment' : tStr(t['paymentNumber'])}?')),
-      ]),
+      title: FormDialogTitle(
+        icon: Icons.undo,
+        color: FormColor.red,
+        text: 'Reverse ${tStr(t['paymentNumber']).isEmpty ? 'this payment' : tStr(t['paymentNumber'])}?',
+      ),
       scrollable: true,
       content: SizedBox(
-        width: 440,
+        width: 512,
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           const Text(
               'The balance goes back onto every sale it was applied to and the cash movement is undone. The payment stays in the history, marked Reversed.',
               style: TextStyle(fontSize: 13, color: TColors.slate500)),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
+          TintedSection(title: 'This reversal will', color: FormColor.amber, children: [
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: TColors.slate50, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+            decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Row(children: [
                 Expanded(child: Text(tStr(t['partyName']).isEmpty ? 'Walk-in' : tStr(t['partyName']), style: const TextStyle(color: TColors.slate500))),
@@ -323,20 +326,24 @@ class _ReversePaymentDialogState extends State<ReversePaymentDialog> {
                   ]),
             ]),
           ),
-          const SizedBox(height: 12),
-          FilterLabel('Reason *', ReasonSelect(options: reversalReasons, value: _reason, onChanged: (v) => setState(() => _reason = v))),
+          ]),
+          const SizedBox(height: 16),
+          TintedSection(title: 'Reason', color: FormColor.slate, children: [
+            FilterLabel('Reason *', ReasonSelect(options: reversalReasons, value: _reason, onChanged: (v) => setState(() => _reason = v))),
+          ]),
           if (_error != null) ...[const SizedBox(height: 10), TrackerBanner.error(_error!)],
         ]),
       ),
       actions: [
-        OutlinedButton(onPressed: _busy ? null : () => Navigator.pop(context, false), child: const Text('Cancel')),
-        FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: TColors.red600),
-          onPressed: _busy || _reason.trim().isEmpty ? null : _reverse,
-          child: _busy
-              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : const Text('Reverse payment'),
-        ),
+        FormDialogFooter(onCancel: () => Navigator.pop(context, false), cancelDisabled: _busy, children: [
+          FilledButton(
+            style: formPrimary(FormColor.red),
+            onPressed: _busy || _reason.trim().isEmpty ? null : _reverse,
+            child: _busy
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : Text('Reverse payment · ${widget.fmt(tNum(t['totalAmount']))}'),
+          ),
+        ]),
       ],
     );
   }
@@ -376,6 +383,7 @@ Widget? paymentPLToggle(BuildContext context,
       final ok = await showDialog<bool>(
         context: context,
         builder: (ctx) => _PLConfirm(
+          exclude: exclude,
           title: exclude ? 'Keep this payment off Profit & Loss?' : 'Put this payment back on Profit & Loss?',
           body: exclude
               ? '$amount of $ref was paid on debts and counts as $what. Excluding it takes it off Profit & Loss; the payment, the debt and the cash are not changed.'
@@ -396,8 +404,11 @@ Widget? paymentPLToggle(BuildContext context,
 }
 
 class _PLConfirm extends StatefulWidget {
-  const _PLConfirm({required this.title, required this.body, required this.action, required this.run});
+  const _PLConfirm({required this.exclude, required this.title, required this.body, required this.action, required this.run});
   final String title, body, action;
+
+  /// Excluding shows a slate minus tile; including an emerald plus.
+  final bool exclude;
   final Future<Object?> Function() run;
   @override
   State<_PLConfirm> createState() => _PLConfirmState();
@@ -423,11 +434,20 @@ class _PLConfirmState extends State<_PLConfirm> {
         canPop: !_busy,
         child: AlertDialog(
           scrollable: true,
-          title: Text(widget.title),
+          title: FormDialogTitle(
+            icon: widget.exclude ? Icons.remove_circle_outline : Icons.add_circle_outline,
+            color: widget.exclude ? FormColor.slate : FormColor.emerald,
+            text: widget.title,
+          ),
           content: SizedBox(width: 420, child: Text(widget.body, style: const TextStyle(fontSize: 13, color: TColors.slate600))),
           actions: [
-            OutlinedButton(onPressed: _busy ? null : () => Navigator.pop(context, false), child: const Text('Cancel')),
-            FilledButton(onPressed: _busy ? null : _go, child: Text(widget.action)),
+            FormDialogFooter(onCancel: () => Navigator.pop(context, false), cancelDisabled: _busy, children: [
+              FilledButton(
+                style: formPrimary(widget.exclude ? FormColor.slate : FormColor.emerald),
+                onPressed: _busy ? null : _go,
+                child: Text(widget.action),
+              ),
+            ]),
           ],
         ),
       );
@@ -510,9 +530,13 @@ class _PickPartyState extends State<_PickParty> {
     final word = _customer ? 'customer' : 'supplier';
     return AlertDialog(
       scrollable: true,
-      title: Text('Record $word payment'),
+      title: FormDialogTitle(
+        icon: Icons.payments_outlined,
+        color: _customer ? FormColor.emerald : FormColor.amber,
+        text: 'Record $word payment',
+      ),
       content: SizedBox(
-        width: 420,
+        width: 512,
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Text(
             _customer
@@ -520,26 +544,30 @@ class _PickPartyState extends State<_PickParty> {
                 : 'Choose who you paid. You can then apply the money to what you owe them; whatever is not applied is kept as supplier credit.',
             style: const TextStyle(fontSize: 13, color: TColors.slate500),
           ),
-          const SizedBox(height: 12),
-          FilterLabel(
-            _customer ? 'Customer *' : 'Supplier *',
-            AppSelect<int>(
-              value: _id,
-              hintText: _people.isNotEmpty ? 'Choose the $word' : 'Loading…',
-              items: [for (final (id, name) in _people) AppSelectItem(value: id, label: name)],
-              onChanged: (v) => setState(() => _id = v),
+          const SizedBox(height: 16),
+          TintedSection(title: _customer ? 'Customer' : 'Supplier', color: FormColor.blue, children: [
+            FilterLabel(
+              _customer ? 'Customer *' : 'Supplier *',
+              AppSelect<int>(
+                value: _id,
+                hintText: _people.isNotEmpty ? 'Choose the $word' : 'Loading…',
+                items: [for (final (id, name) in _people) AppSelectItem(value: id, label: name)],
+                onChanged: (v) => setState(() => _id = v),
+              ),
             ),
-          ),
+          ]),
         ]),
       ),
       actions: [
-        OutlinedButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-        FilledButton(
-          onPressed: _id == null
-              ? null
-              : () => Navigator.pop(context, (_id!, _people.firstWhere((p) => p.$1 == _id).$2, _accounts)),
-          child: const Text('Next'),
-        ),
+        FormDialogFooter(onCancel: () => Navigator.pop(context), children: [
+          FilledButton(
+            style: formPrimary(_customer ? FormColor.emerald : FormColor.amber),
+            onPressed: _id == null
+                ? null
+                : () => Navigator.pop(context, (_id!, _people.firstWhere((p) => p.$1 == _id).$2, _accounts)),
+            child: const Text('Next'),
+          ),
+        ]),
       ],
     );
   }
@@ -569,8 +597,11 @@ class RecordPaymentScreen extends StatefulWidget {
   final BalanceSide side;
 
   /// 383 (poultry: Record customer / supplier payment on Payments Received):
-  /// money not applied to anything paid something owed from before the system,
-  /// unless the user keeps it as credit.
+  /// money not applied to anything can pay something owed from before the
+  /// system -- recorded as that debt and paid now, so it is on Profit & Loss.
+  ///   supplier  old debt by default; the user can keep it as credit instead.
+  ///   customer  (384) customer credit by default; the user ticks "Payment for
+  ///             an Earlier Sale" and says which sale type it paid for.
   final bool remainderAsOldDebt;
 
   /// The module's route prefix (BalanceRail.api).
@@ -606,6 +637,15 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
 
   /// 383: the leftover is an old debt by default; the user can keep it as credit.
   bool _keepAsCredit = false;
+
+  /// 384 (customer): the leftover is credit unless ticked onto P&L with a sale type.
+  bool _addToPL = false;
+  String _saleType = '';
+  final _saleTypeOther = TextEditingController();
+
+  /// "Payment for an earlier sale": on Profit & Loss unless the income was
+  /// already recorded (owner / admin only -- it is a P&L exclusion).
+  bool _earlierSaleOnPL = true;
 
   /// 367 / 370: a poultry payment need not be applied in full -- the rest is
   /// kept as the customer's / supplier's credit (applied to nothing = an advance).
@@ -644,6 +684,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
     _amount.dispose();
     _ref.dispose();
     _notes.dispose();
+    _saleTypeOther.dispose();
     for (final c in _lineCtl.values) {
       c.dispose();
     }
@@ -705,9 +746,11 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
     });
   }
 
-  Future<void> _submit(AllocationValidation v, {required num debtAllocated, required num oldDebt}) async {
+  Future<void> _submit(AllocationValidation v,
+      {required num debtAllocated, required num oldDebt, required String oldDebtSaleType, required bool saleTypeMissing}) async {
     setState(() => _touched = true);
-    if (!v.ok || _overdraws) return;
+    if (!v.ok || _overdraws || saleTypeMissing) return;
+    final isCustomer = widget.side.isCustomer;
     setState(() => _posting = true);
     final side = widget.side;
     try {
@@ -733,8 +776,9 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
         ],
         'farmId': widget.company.farmId,
         'createdBy': widget.session.tokens.userId,
-        'excludeFromPL': debtAllocated > 0 && !_countOnPL,
+        'excludeFromPL': (debtAllocated > 0 && !_countOnPL) || (isCustomer && oldDebt > 0 && !_earlierSaleOnPL),
         'remainderAsOldDebt': oldDebt > 0,
+        'oldDebtSaleType': isCustomer && oldDebt > 0 ? oldDebtSaleType : null,
       });
       if (!mounted) return;
       trackerToast(context, side.isCustomer ? 'Payment received' : 'Payment recorded',
@@ -757,7 +801,13 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
     final v = validateAllocations(amount, _docs, _alloc,
         cashAccountRequired: widget.side.cashAccountRequired, cashAccountId: _account, allowUnallocated: _allowUnallocated);
     // 383: what is left over pays an old debt, unless kept as credit.
-    final oldDebt = widget.remainderAsOldDebt && _allowUnallocated && !_keepAsCredit && v.unallocated > 0 ? v.unallocated : 0;
+    // 384: on the customer side only when ticked onto Profit & Loss.
+    final isCustomer = widget.side.isCustomer;
+    final leftoverIsOldDebt = isCustomer ? _addToPL : !_keepAsCredit;
+    final oldDebt = widget.remainderAsOldDebt && _allowUnallocated && leftoverIsOldDebt && v.unallocated > 0 ? v.unallocated : 0;
+    final oldDebtSaleType = _saleType == 'Other' ? _saleTypeOther.text.trim() : _saleType;
+    // 384: an old customer debt on P&L must say what was sold.
+    final saleTypeMissing = isCustomer && oldDebt > 0 && _earlierSaleOnPL && oldDebtSaleType.isEmpty;
     final debtAllocated = _recordedDebtAllocated + oldDebt;
     final leftoverWord = oldDebt > 0 ? (widget.side.isCustomer ? 'old customer debt' : 'old supplier debt') : _creditWord;
     final leftoverLine = '${_fmt(v.unallocated)} ${oldDebt > 0 ? 'pays an' : 'kept as'} $leftoverWord';
@@ -780,6 +830,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
             style: const TextStyle(fontSize: 13, color: TColors.slate500),
           ),
           const SizedBox(height: 14),
+          TintedSection(title: 'Payment', color: FormColor.green, gap: 10, children: [
           FilterLabel(
             'Payment amount',
             AppInput(
@@ -790,7 +841,6 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
               onChanged: _changeAmount,
             ),
           ),
-          const SizedBox(height: 10),
           FilterLabel(
             'Payment date',
             AppDateField(
@@ -798,7 +848,6 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
               onChanged: (d) => setState(() => _date = d == null ? '' : isoDay(d)),
             ),
           ),
-          const SizedBox(height: 10),
           FilterLabel(
             'Payment method',
             AppSelect<String>(
@@ -807,7 +856,6 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
               onChanged: (m) => setState(() => _method = m ?? _method),
             ),
           ),
-          const SizedBox(height: 10),
           FilterLabel(
             widget.side.isCustomer ? 'Cash account (optional)' : 'Cash account',
             AppSelect<int>(
@@ -823,17 +871,17 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
               onChanged: (id) => setState(() => _account = id),
             ),
           ),
-          const SizedBox(height: 10),
           FilterLabel('Reference', AppInput(controller: _ref, hintText: 'Optional')),
-          const SizedBox(height: 10),
           FilterLabel('Notes', AppInput(controller: _notes, hintText: 'Optional', minLines: 1, maxLines: 4)),
+          ]),
           const SizedBox(height: 12),
           if (s != null)
             // Single-document mode: nothing to choose, so a summary line stands
             // in for the table. It still posts as a one-line allocation.
+            TintedSection(title: 'Applies to this ${widget.side.docWord}', color: FormColor.blue, children: [
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(color: TColors.slate50, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+              decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text.rich(TextSpan(children: [
                   const TextSpan(text: 'Applies to '),
@@ -852,33 +900,49 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
                     TextSpan(text: ' · $leftoverLine', style: const TextStyle(color: Color(0xFF1D4ED8))),
                 ]), style: const TextStyle(fontSize: 13, color: TColors.slate500)),
               ]),
-            )
-          else ...[
-          const Divider(height: 1),
-          const SizedBox(height: 10),
-          Wrap(spacing: 8, runSpacing: 6, children: [
-            OutlinedButton.icon(
-              onPressed: _amount.text.isEmpty || _loading
-                  ? null
-                  : () => setState(() {
-                        _touched = true;
-                        _alloc = autoAllocateOldestFirst(amount, _docs);
-                      }),
-              icon: const Icon(Icons.auto_fix_high, size: 16),
-              label: const Text('Auto-allocate oldest first'),
             ),
-            TextButton.icon(
-              onPressed: _loading
-                  ? null
-                  : () => setState(() {
-                        _touched = true;
-                        _alloc = {};
-                      }),
-              icon: const Icon(Icons.close, size: 16),
-              label: const Text('Clear'),
-            ),
-          ]),
-          const SizedBox(height: 6),
+            ])
+          else
+          // "Oldest first" and "Clear" sit in the section's band, as the web's.
+          TintedSection(
+            title: 'Apply to open ${widget.side.docWord}s',
+            color: FormColor.blue,
+            gap: 10,
+            action: Wrap(spacing: 4, children: [
+              TextButton.icon(
+                style: TextButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: const Color(0xFF1D4ED8),
+                  visualDensity: VisualDensity.compact,
+                  minimumSize: const Size(0, 32),
+                ),
+                onPressed: _amount.text.isEmpty || _loading
+                    ? null
+                    : () => setState(() {
+                          _touched = true;
+                          _alloc = autoAllocateOldestFirst(amount, _docs);
+                        }),
+                icon: const Icon(Icons.auto_fix_high, size: 15),
+                label: const Text('Oldest first'),
+              ),
+              TextButton.icon(
+                style: TextButton.styleFrom(
+                  backgroundColor: const Color(0x33FFFFFF),
+                  foregroundColor: Colors.white,
+                  visualDensity: VisualDensity.compact,
+                  minimumSize: const Size(0, 32),
+                ),
+                onPressed: _loading
+                    ? null
+                    : () => setState(() {
+                          _touched = true;
+                          _alloc = {};
+                        }),
+                icon: const Icon(Icons.close, size: 15),
+                label: const Text('Clear'),
+              ),
+            ]),
+            children: [
           Text.rich(TextSpan(children: [
             const TextSpan(text: 'Allocated ', style: TextStyle(color: TColors.slate500)),
             TextSpan(text: _fmt(allocated), style: const TextStyle(fontWeight: FontWeight.w500)),
@@ -892,9 +956,8 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
                     color: v.unallocated > 0 ? (_allowUnallocated ? const Color(0xFF1D4ED8) : TColors.amber600) : TColors.red600),
               ),
           ]), style: const TextStyle(fontSize: 13)),
-          const SizedBox(height: 10),
           Container(
-            decoration: BoxDecoration(border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+            decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
             child: _loading
                 ? const Padding(padding: EdgeInsets.all(20), child: LoadingLine('Loading open items…'))
                 : _docs.isEmpty
@@ -904,21 +967,28 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
                       )
                     : Column(children: [for (final d in _docs) _line(d, v, money, moneyFmt)]),
           ),
-          ],
-          if (widget.remainderAsOldDebt && _allowUnallocated && v.unallocated > 0) ...[
+            ],
+          ),
+          // 384: customer -- what to do with money left over after the open
+          // sales. Credit by default; "Payment for an Earlier Sale" records the
+          // old debt it pays, on Profit & Loss unless the income was already
+          // recorded.
+          if (widget.remainderAsOldDebt && isCustomer && _allowUnallocated && v.unallocated > 0) ...[
             const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEFF6FF),
-                border: Border.all(color: TColors.blue200),
-                borderRadius: BorderRadius.circular(6),
-              ),
+            _overpayment(v.unallocated, amount, allocated, oldDebtSaleType, saleTypeMissing),
+          ],
+          if (widget.remainderAsOldDebt && !isCustomer && _allowUnallocated && v.unallocated > 0) ...[
+            const SizedBox(height: 12),
+            _PayBand(
+              title: 'Overpayment (Money Left Over)',
+              color: _amber600,
+              border: TColors.amber200,
+              tint: _amberTint,
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 Text(
                   '${_fmt(v.unallocated)} is not applied to anything listed. '
-                  '${_keepAsCredit ? 'It will be kept as $_creditWord (an advance) -- not on Profit & Loss until it is used.' : 'It will be recorded as ${widget.side.isCustomer ? 'a debt the customer owed' : 'a debt we owed the supplier'} from before the system, paid now.'}',
-                  style: const TextStyle(fontSize: 13, color: TColors.blue900),
+                  '${_keepAsCredit ? 'It will be kept as $_creditWord (an advance) -- not on Profit & Loss until it is used.' : 'It will be recorded as a debt we owed the supplier from before the system, paid now.'}',
+                  style: const TextStyle(fontSize: 13, color: TColors.slate800),
                 ),
                 const SizedBox(height: 6),
                 InkWell(
@@ -931,22 +1001,19 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
                     ),
                     const SizedBox(width: 6),
                     Expanded(
-                      child: Text('Keep it as $_creditWord (an advance) instead', style: const TextStyle(fontSize: 12, color: TColors.blue900)),
+                      child: Text('Keep it as $_creditWord (an advance) instead', style: const TextStyle(fontSize: 12, color: TColors.slate800)),
                     ),
                   ]),
                 ),
               ]),
             ),
           ],
-          if (debtAllocated > 0) ...[
+          // 384: on the customer side the old debt was ticked onto P&L above,
+          // so this box only appears for debts recorded by hand.
+          if (isCustomer ? _recordedDebtAllocated > 0 : debtAllocated > 0) ...[
             const SizedBox(height: 12),
+            TintedSection(title: 'Profit & Loss', color: FormColor.emerald, children: [
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: TColors.emerald50,
-                border: Border.all(color: TColors.emerald200),
-                borderRadius: BorderRadius.circular(6),
-              ),
               child: _isAdmin
                   ? InkWell(
                       onTap: () => setState(() => _countOnPL = !_countOnPL),
@@ -976,6 +1043,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
                       style: const TextStyle(fontSize: 13, color: TColors.emerald900),
                     ),
             ),
+            ]),
           ],
           if (_touched && (blocking.isNotEmpty || overdraws)) ...[
             const SizedBox(height: 12),
@@ -990,7 +1058,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
           Row(children: [
             Expanded(
               child: OutlinedButton(
-                style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(44)),
+                style: formCancel.copyWith(minimumSize: const WidgetStatePropertyAll(Size.fromHeight(44))),
                 onPressed: _posting ? null : () => Navigator.pop(context, false),
                 child: const Text('Cancel'),
               ),
@@ -998,8 +1066,15 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
             const SizedBox(width: 10),
             Expanded(
               child: FilledButton(
-                style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(44)),
-                onPressed: _posting || _loading || !v.ok ? null : () => _submit(v, debtAllocated: debtAllocated, oldDebt: oldDebt),
+                style: formPrimary(isCustomer ? FormColor.emerald : FormColor.amber)
+                    .copyWith(minimumSize: const WidgetStatePropertyAll(Size.fromHeight(44))),
+                onPressed: _posting || _loading || !v.ok || saleTypeMissing
+                    ? null
+                    : () => _submit(v,
+                        debtAllocated: debtAllocated,
+                        oldDebt: oldDebt,
+                        oldDebtSaleType: oldDebtSaleType,
+                        saleTypeMissing: saleTypeMissing),
                 child: _posting
                     ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                     : Text(widget.side.isCustomer ? 'Receive payment' : 'Record payment'),
@@ -1008,6 +1083,255 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
           ]),
         ],
       ),
+    );
+  }
+
+  /// 384: "Overpayment (Money Left Over)" -- the customer's leftover is kept as
+  /// credit, or recorded as payment for a sale made before the system.
+  Widget _overpayment(num remaining, num amount, num allocated, String oldDebtSaleType, bool saleTypeMissing) {
+    final appliedDocs = [for (final d in _docs) if ((_alloc[docKey(d)] ?? 0) > 0) d];
+    final docWord = widget.side.docWord;
+    const body = TextStyle(fontSize: 13, color: TColors.slate600);
+    const bold = TextStyle(fontWeight: FontWeight.w700);
+
+    Widget radio(bool active, VoidCallback onPick, IconData icon, Color iconBg, Color iconFg, String title, Widget text,
+            {Widget? extra}) =>
+        Container(
+          decoration: BoxDecoration(
+            color: active ? TColors.emerald50 : Colors.white,
+            border: Border.all(color: active ? TColors.emerald300 : TColors.slate200),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Semantics(
+              checked: active,
+              inMutuallyExclusiveGroup: true,
+              child: InkWell(
+                onTap: onPick,
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Container(
+                      margin: const EdgeInsets.only(top: 4),
+                      width: 16,
+                      height: 16,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                          shape: BoxShape.circle, border: Border.all(color: active ? TColors.blue600 : TColors.slate300, width: 2)),
+                      child: active
+                          ? Container(width: 8, height: 8, decoration: const BoxDecoration(shape: BoxShape.circle, color: TColors.blue600))
+                          : null,
+                    ),
+                    const SizedBox(width: 10),
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(shape: BoxShape.circle, color: iconBg),
+                      child: Icon(icon, size: 20, color: iconFg),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: TColors.slate900)),
+                        DefaultTextStyle.merge(style: body, child: text),
+                      ]),
+                    ),
+                  ]),
+                ),
+              ),
+            ),
+            ?extra,
+          ]),
+        );
+
+    Widget check(bool value, ValueChanged<bool>? onChanged, Widget title, String detail) => InkWell(
+          onTap: onChanged == null ? null : () => onChanged(!value),
+          child: Opacity(
+            opacity: onChanged == null ? .6 : 1,
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: Checkbox(value: value, onChanged: onChanged == null ? null : (x) => onChanged(x == true)),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  DefaultTextStyle.merge(style: const TextStyle(fontSize: 13, color: TColors.slate900), child: title),
+                  Text(detail, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
+                ]),
+              ),
+            ]),
+          ),
+        );
+
+    Widget breakdownRow(String label, num value, {bool strong = false}) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: const BoxDecoration(border: Border(top: BorderSide(color: TColors.slate100))),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(child: Text(label, style: const TextStyle(fontSize: 13))),
+            const SizedBox(width: 10),
+            Text(_fmt(value), style: TextStyle(fontSize: 13, fontWeight: strong ? FontWeight.w600 : FontWeight.w400)),
+          ]),
+        );
+
+    return _PayBand(
+      title: 'Overpayment (Money Left Over) — ${_fmt(remaining)}',
+      color: _orange500,
+      border: _orange200,
+      tint: _orangeTint,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: const BoxDecoration(shape: BoxShape.circle, color: _orange100),
+            child: const Icon(Icons.error_outline, size: 16, color: _orange600),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text.rich(
+              TextSpan(children: [
+                const TextSpan(text: 'You received '),
+                TextSpan(text: _fmt(amount), style: bold),
+                const TextSpan(text: ' from this customer. '),
+                if (allocated > 0) ...[
+                  TextSpan(text: _fmt(allocated), style: bold),
+                  TextSpan(text: ' will settle the outstanding $docWord${appliedDocs.length == 1 ? '' : 's'}. '),
+                ],
+                const TextSpan(text: 'There is '),
+                TextSpan(text: _fmt(remaining), style: bold),
+                const TextSpan(text: ' remaining. What would you like to do with it?'),
+              ]),
+              style: const TextStyle(fontSize: 13, color: TColors.slate700),
+            ),
+          ),
+        ]),
+        const SizedBox(height: 12),
+        radio(
+          !_addToPL,
+          () => setState(() => _addToPL = false),
+          Icons.account_balance_wallet_outlined,
+          TColors.emerald100,
+          TColors.emerald700,
+          'Keep as Customer Credit (Advance Payment)',
+          Text.rich(TextSpan(children: [
+            const TextSpan(text: 'The customer is paying in advance for future purchases. We will save '),
+            TextSpan(text: _fmt(remaining), style: bold),
+            TextSpan(text: ' as $_creditWord, which can be used when they buy from you later.'),
+          ])),
+        ),
+        const SizedBox(height: 8),
+        radio(
+          _addToPL,
+          () => setState(() => _addToPL = true),
+          Icons.description_outlined,
+          TColors.blue100,
+          _blue700,
+          'Payment for an Earlier Sale',
+          const Text('The customer is paying for goods you sold before recording the sale in VisibilityCore.'),
+          extra: !_addToPL
+              ? null
+              : Container(
+                  margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: TColors.slate50, borderRadius: BorderRadius.circular(6)),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                    check(
+                      _earlierSaleOnPL,
+                      (x) => setState(() => _earlierSaleOnPL = x),
+                      const Text('Include this payment as income in Profit & Loss?'),
+                      'Record this amount as sales income in Profit & Loss.',
+                    ),
+                    const SizedBox(height: 10),
+                    check(
+                      !_earlierSaleOnPL,
+                      _isAdmin ? (x) => setState(() => _earlierSaleOnPL = !x) : null,
+                      const Text.rich(TextSpan(children: [
+                        TextSpan(text: 'Income was already recorded', style: TextStyle(fontWeight: FontWeight.w500)),
+                        TextSpan(text: ' or should not be recognized again'),
+                      ])),
+                      'Do not record this amount as income in Profit & Loss.${_isAdmin ? '' : ' Only the owner or an admin can choose this.'}',
+                    ),
+                    const SizedBox(height: 10),
+                    FilterLabel(
+                      'What was sold?',
+                      AppSelect<String>(
+                        value: _saleType.isEmpty ? null : _saleType,
+                        hintText: 'Select sale type or product',
+                        items: [for (final t in saleProductOptions) AppSelectItem(value: t, label: t)],
+                        onChanged: (t) => setState(() => _saleType = t ?? ''),
+                      ),
+                    ),
+                    if (_saleType == 'Other') ...[
+                      const SizedBox(height: 8),
+                      FilterLabel(
+                        'Describe it',
+                        AppInput(controller: _saleTypeOther, hintText: 'e.g. Egg trays', onChanged: (_) => setState(() {})),
+                      ),
+                    ],
+                    const SizedBox(height: 8),
+                    Text(
+                      saleTypeMissing
+                          ? 'Choose what was sold to add it to Profit & Loss.'
+                          : _earlierSaleOnPL
+                              ? '${_fmt(remaining)} goes on Profit & Loss as Revenue${oldDebtSaleType.isNotEmpty ? ' ($oldDebtSaleType)' : ''}.'
+                              : 'Recorded as an earlier sale paid now, but kept off Profit & Loss.',
+                      style: TextStyle(fontSize: 12, color: saleTypeMissing ? TColors.amber700 : TColors.slate500),
+                    ),
+                  ]),
+                ),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          decoration: BoxDecoration(color: _blueTint, border: Border.all(color: TColors.blue200), borderRadius: BorderRadius.circular(8)),
+          clipBehavior: Clip.antiAlias,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(children: [
+                Icon(Icons.bar_chart, size: 16, color: TColors.blue600),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text('Payment breakdown',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: TColors.slate900)),
+                ),
+                Text('Amount', style: TextStyle(fontSize: 12, color: TColors.slate500)),
+              ]),
+            ),
+            ColoredBox(
+              color: Colors.white,
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                breakdownRow('Total received from customer', amount),
+                for (final d in appliedDocs)
+                  breakdownRow(
+                    'Applied to outstanding $docWord (${d['reference'] ?? d['documentId']}${tStr(d['label']).isNotEmpty ? ' - ${d['label']}' : ''})',
+                    _alloc[docKey(d)] ?? 0,
+                    strong: true,
+                  ),
+                breakdownRow(
+                  _addToPL
+                      ? 'Payment for an earlier sale${oldDebtSaleType.isNotEmpty ? ' ($oldDebtSaleType)' : ''}${_earlierSaleOnPL ? '' : ', not on Profit & Loss'}'
+                      : 'Customer credit (advance payment)',
+                  remaining,
+                ),
+              ]),
+            ),
+            Container(
+              color: const Color(0xB3DBEAFE),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(children: [
+                const Expanded(
+                  child: Text('Total allocated', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: TColors.slate900)),
+                ),
+                Text(_fmt(allocated + remaining),
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: TColors.slate900)),
+              ]),
+            ),
+          ]),
+        ),
+      ]),
     );
   }
 
@@ -1179,7 +1503,8 @@ class _StatementScreenState extends State<StatementScreen> {
         children: [
           Text('${p['partyName']}${tStr(p['contactPhone']).isNotEmpty ? ' · ${p['contactPhone']}' : ''}',
               style: const TextStyle(fontSize: 13, color: TColors.slate500)),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
+          TintedSection(title: 'Period', color: FormColor.blue, gap: 4, children: [
           filterRow([
             FilterLabel('From', FilterDate(value: _from, hint: 'From', onChanged: (v) {
               setState(() => _from = v);
@@ -1204,9 +1529,11 @@ class _StatementScreenState extends State<StatementScreen> {
                 child: const Text('All history'),
               ),
             ),
-          const SizedBox(height: 10),
+          ]),
+          const SizedBox(height: 16),
+          TintedSection(title: widget.side.isCustomer ? 'Charges & payments' : 'Bills & payments', color: FormColor.green, children: [
           Container(
-            decoration: BoxDecoration(border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+            decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
             child: _loading
                 ? const Padding(padding: EdgeInsets.all(20), child: LoadingLine('Loading statement…'))
                 : _lines.isEmpty
@@ -1228,17 +1555,15 @@ class _StatementScreenState extends State<StatementScreen> {
                         ),
                       ]),
           ),
+          ]),
           const SizedBox(height: 14),
-          Row(children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _loading || _lines.isEmpty ? null : _print,
-                icon: const Icon(Icons.print_outlined, size: 18),
-                label: const Text('Print'),
-              ),
+          FormDialogFooter(onCancel: () => Navigator.pop(context), cancelLabel: 'Close', children: [
+            FilledButton.icon(
+              style: formPrimary(FormColor.blue),
+              onPressed: _loading || _lines.isEmpty ? null : _print,
+              icon: const Icon(Icons.print_outlined, size: 18),
+              label: const Text('Print'),
             ),
-            const SizedBox(width: 10),
-            Expanded(child: FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))),
           ]),
         ],
       ),
@@ -1312,4 +1637,40 @@ class _StatementScreenState extends State<StatementScreen> {
       ]),
     );
   }
+}
+
+const _orange100 = Color(0xFFFFEDD5);
+const _orange200 = Color(0xFFFED7AA);
+const _orange500 = Color(0xFFF97316);
+const _orange600 = Color(0xFFEA580C);
+const _amber600 = Color(0xFFD97706);
+const _blue700 = Color(0xFF1D4ED8);
+// The web's tinted FormSection bodies (`-50/40`, orange `-50/30`).
+const _orangeTint = Color(0x4DFFF7ED);
+const _amberTint = Color(0x66FFFBEB);
+const _blueTint = Color(0x66EFF6FF);
+
+/// A tinted FormSection (components/ui/form-section.tsx, `tinted`): a solid
+/// coloured header band over a body tinted in the same colour.
+class _PayBand extends StatelessWidget {
+  const _PayBand({required this.title, required this.color, required this.border, required this.tint, required this.child});
+  final String title;
+  final Color color;
+  final Color border;
+  final Color tint;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        decoration: BoxDecoration(border: Border.all(color: border), borderRadius: BorderRadius.circular(12)),
+        clipBehavior: Clip.antiAlias,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Container(
+            color: color,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            child: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
+          ),
+          Container(color: tint, padding: const EdgeInsets.all(14), child: child),
+        ]),
+      );
 }

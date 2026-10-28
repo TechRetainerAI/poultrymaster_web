@@ -701,6 +701,7 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
           _pair(ProdTextField(label: 'Soft eggs', controller: _soft), ProdTextField(label: 'Lost eggs', controller: _lost)),
           CalcField(label: 'Net sellable', value: loc(net), tone: CalcTone.good),
           DispositionField(
+            label: 'Broken Egg Stock allocation',
             count: _int(_broken),
             value: _brokenDisposition.isEmpty ? 'Keep' : _brokenDisposition,
             onChanged: (v) => _set(() => _brokenDisposition = v),
@@ -719,6 +720,7 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
           _pair(ProdTextField(label: 'Number of birds', controller: _numBirds), ProdTextField(label: 'Deaths', controller: _mortality)),
           CalcField(label: 'Birds left', value: loc(_birdsLeft), tone: _birdsLeft < 0 ? CalcTone.bad : null),
           DispositionField(
+            label: 'Dead Bird Stock allocation',
             count: _int(_mortality),
             value: _mortalityDisposition.isEmpty ? 'Keep' : _mortalityDisposition,
             onChanged: (v) => _set(() => _mortalityDisposition = v),

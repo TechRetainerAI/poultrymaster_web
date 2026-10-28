@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import '../../models/company.dart';
 import '../../state/session.dart';
 import '../form_screen.dart';
+import '../hotel/hotel_staff_screen.dart';
 import '../module_registry.dart' show formForSpec;
 import '../page_extras.dart';
 import '../registry.dart';
@@ -30,11 +31,12 @@ String suggestUserName(EmployeePrefill p) => [p.firstName, p.lastName]
     .join('_');
 
 /// staffPagePath: the Staff page of each company type. The app has Poultry's,
-/// Water's and Restaurant's; Generic and Hotel are not in the app.
+/// Water's, Restaurant's and Hotel's; Generic is not in the app.
 String? staffPagePath(CompanyType t) => switch (t) {
       CompanyType.poultry => '/poultry-staff',
       CompanyType.water => '/water-staff',
       CompanyType.restaurant => '/restaurant-staff',
+      CompanyType.hotel => '/hotel-staff',
       _ => null,
     };
 
@@ -175,6 +177,14 @@ class _AddAsStaff extends StatelessWidget {
         company: company,
         prefill: p,
         onCreated: (created) => _link(context, created is Map ? int.tryParse('${created['staffId']}') : null),
+      );
+    }
+    if (row[_staffPage] == '/hotel-staff') {
+      return HotelStaffScreen(
+        session: session,
+        company: company,
+        prefill: p,
+        onCreated: (created) => _link(context, created is Map ? int.tryParse('${created['hotelStaffId']}') : null),
       );
     }
     if (row[_staffPage] == '/water-staff') {

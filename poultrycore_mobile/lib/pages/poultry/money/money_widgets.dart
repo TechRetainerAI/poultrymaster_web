@@ -315,12 +315,12 @@ Widget moneyStat(String label, String value, {String? hint, Color color = TColor
     );
 
 /// A filter button: filled when chosen ("default", or "secondary"), outlined otherwise.
-Widget filterChipButton(String label, bool on, VoidCallback tap, {bool secondary = false}) => on
+Widget filterChipButton(String label, bool on, VoidCallback tap, {bool secondary = false, Color? color}) => on
     ? FilledButton(
         onPressed: tap,
         style: FilledButton.styleFrom(
           visualDensity: VisualDensity.compact,
-          backgroundColor: secondary ? TColors.slate100 : TColors.slate900,
+          backgroundColor: secondary ? TColors.slate100 : color ?? TColors.slate900,
           foregroundColor: secondary ? TColors.slate900 : Colors.white,
         ),
         child: Text(label),

@@ -8,7 +8,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import '../../../api/api_client.dart';
-import '../../../design/ui/buttons.dart';
+import '../../../design/ui/form_dialog.dart';
 import '../../../design/ui/inputs.dart';
 import '../../../models/company.dart';
 import '../../../state/session.dart';
@@ -328,7 +328,7 @@ class _PaymentHistoryState extends State<_PaymentHistory> {
           'The balance goes back onto the ${customer ? 'sales' : 'purchases'} it was applied to and the cash '
           'movement is undone. The payment stays in the history, marked Reversed.',
       body: const [],
-      action: 'Reverse payment',
+      action: 'Reverse payment · ${money(tNum(row['totalAmount']))}',
       onConfirm: (reason) => _api.post(
         '${widget.api}/${widget.side.paymentsPath}/${Uri.encodeComponent(tStr(row['paymentId']))}/reverse',
         body: {'farmId': _farmId, 'reason': reason, 'reversedBy': widget.session.tokens.userId},
@@ -352,13 +352,24 @@ class _PaymentHistoryState extends State<_PaymentHistory> {
           controller: widget.controller,
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
           children: [
-            const Text('Payment history', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 2),
+            DefaultTextStyle.merge(
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: TColors.slate900),
+              child: const FormDialogTitle(icon: Icons.history, color: FormColor.blue, text: 'Payment history'),
+            ),
+            const SizedBox(height: 4),
             Text('$party$scope',
                 style: const TextStyle(fontSize: 13, color: TColors.slate500)),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
+            TintedSection(
+              title: 'Payments',
+              titleWidget: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Text('Payments'),
+                if (!_loading && _rows.isNotEmpty) ...[const SizedBox(width: 6), FormCountPill('${_rows.length}')],
+              ]),
+              color: FormColor.green,
+              children: [
             Container(
-              decoration: BoxDecoration(border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
               child: _loading
                   ? const Padding(
                       padding: EdgeInsets.all(24),
@@ -380,8 +391,10 @@ class _PaymentHistoryState extends State<_PaymentHistory> {
                           ],
                         ]),
             ),
+              ],
+            ),
             const SizedBox(height: 14),
-            AppButton(label: 'Close', fullWidth: true, onPressed: () => Navigator.pop(context)),
+            FormDialogFooter(onCancel: () => Navigator.pop(context), cancelLabel: 'Close'),
           ],
         );
       },

@@ -18,13 +18,30 @@ import '../trackers/tracker_widgets.dart';
 import 'asset_detail_screen.dart';
 import 'asset_logic.dart';
 import 'asset_widgets.dart';
+import 'hotel_asset_view.dart';
 import '../../shared/reason_select.dart';
 
 /// Poultry → Expenses → Capital Investments/Assets, as `app/poultry-assets/page.tsx`:
 /// the register of long-term investments, their cost, depreciation and book value.
 /// On AssetRail.water it is Water's Assets (`app/water-assets/page.tsx`): the
 /// table on every width, a supplier picker and a payment method in New asset,
-/// and the supplier picker in Add cost.
+/// and the supplier picker in Add cost. On AssetRail.hotel it is the Hotel's
+/// (`app/hotel-assets/page.tsx`): the Restaurant register in violet, its calls
+/// going through HotelAssetApi.
+
+/// The Hotel's violet on the primary buttons, as the web's bg-violet-600.
+Widget assetThemed(BuildContext context, AssetRail r, Widget child) {
+  final accent = r.accent;
+  if (accent == null) return child;
+  final t = Theme.of(context);
+  return Theme(
+    data: t.copyWith(
+      colorScheme: t.colorScheme.copyWith(primary: accent),
+      filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(backgroundColor: accent, foregroundColor: Colors.white)),
+    ),
+    child: child,
+  );
+}
 
 String _today() => DateTime.now().toUtc().toIso8601String().substring(0, 10);
 
@@ -38,8 +55,10 @@ class AssetApi {
   ApiClient get _api => session.farmClient;
   String get _q => 'farmId=${Uri.encodeQueryComponent(company.farmId)}';
   Map<String, Object?> get _who => {'farmId': company.farmId, 'createdBy': session.tokens.userId};
+  late final HotelAssetApi? hotel = rail.isHotel ? HotelAssetApi(session, company) : null;
 
   Future<Map?> get(int id) async {
+    if (hotel != null) return hotel!.get(id);
     final r = await _api.get('${_r.api}/assets/$id', query: {'farmId': company.farmId});
     return r is Map ? r : null;
   }
@@ -47,10 +66,13 @@ class AssetApi {
   Future<void> correctOriginalCost(int id, num newAmount, String? date, String reason) =>
       _api.put('${_r.api}/assets/$id/original-cost?$_q', body: {'newAmount': newAmount, 'effectiveDate': date, 'reason': reason, ..._who});
 
-  Future<void> reverseCost(int assetId, int costId, String reason) =>
-      _api.delete('${_r.api}/assets/$assetId/costs/$costId?$_q', body: {'farmId': company.farmId, 'reason': reason, 'createdBy': session.tokens.userId});
+  Future<void> reverseCost(int assetId, int costId, String reason) => hotel != null
+      ? hotel!.reverseCost(assetId, costId, reason)
+      : _api.delete('${_r.api}/assets/$assetId/costs/$costId?$_q', body: {'farmId': company.farmId, 'reason': reason, 'createdBy': session.tokens.userId});
 
-  Future<void> reverseDepreciation(int entryId, String reason) => _api.post('${_r.api}/asset-depreciation/$entryId/reverse',
+  Future<void> reverseDepreciation(int entryId, String reason) => hotel != null
+      ? hotel!.reverseDepreciation(entryId, reason)
+      : _api.post('${_r.api}/asset-depreciation/$entryId/reverse',
       query: {'farmId': company.farmId}, body: {'farmId': company.farmId, 'reason': reason, 'createdBy': session.tokens.userId});
 }
 
@@ -113,6 +135,24 @@ class _AssetsScreenState extends State<AssetsScreen> {
       }
     }
 
+    final hotel = _assetsApi.hotel;
+    if (hotel != null) {
+      try {
+        final r = await Future.wait([hotel.assets(), hotel.categories(), hotel.summary(), hotel.cashAccounts()]);
+        if (!mounted) return;
+        setState(() {
+          _assets = r[0] as List<Map>;
+          _categories = r[1] as List<Map>;
+          _summary = r[2] as Map;
+          _due = const [];
+          _cash = r[3] as List<Map>;
+        });
+      } on ApiException catch (e) {
+        if (mounted) trackerToast(context, _r.t('Could not load capital investments'), description: e.message, error: true);
+      }
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
     try {
       final r = await Future.wait([
         _api.get('${_r.api}/assets', query: q),
@@ -164,7 +204,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
   int _id(Map a) => tIntOrNull(a[_r.assetIdKey]) ?? 0;
 
   Future<void> _dialog(Widget d) async {
-    final done = await showDialog<bool>(context: context, builder: (_) => d);
+    final done = await showDialog<bool>(context: context, builder: (c) => assetThemed(c, _r, d));
     if (done == true) await _load();
   }
 
@@ -176,7 +216,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
         categories: _categories,
         fmt: _gh,
         offset: _offset,
-        onCorrectOriginalCost: () => _correct(a),
+        onCorrectOriginalCost: _r.canCorrectOriginalCost ? () => _correct(a) : null,
       ));
 
   Future<void> _addCost(Map a) => _dialog(AddAssetCostDialog(session: widget.session, company: widget.company, rail: _r, asset: a, cashAccounts: _cash, suppliers: _suppliers, fmt: _gh));
@@ -266,8 +306,10 @@ class _AssetsScreenState extends State<AssetsScreen> {
   Future<void> _runDepreciation() async {
     setState(() => _saving = true);
     try {
-      final res = await _api.post('${_r.api}/asset-depreciation/generate',
-          query: {'farmId': _farmId}, body: {'farmId': _farmId, 'createdBy': widget.session.tokens.userId});
+      final res = _assetsApi.hotel != null
+          ? await _assetsApi.hotel!.generateDepreciation()
+          : await _api.post('${_r.api}/asset-depreciation/generate',
+              query: {'farmId': _farmId}, body: {'farmId': _farmId, 'createdBy': widget.session.tokens.userId});
       final created = tIntOrNull(res is Map ? res['entriesCreated'] : null) ?? 0;
       if (mounted) {
         trackerToast(context, created > 0 ? 'Depreciation posted' : 'Nothing was due',
@@ -289,6 +331,34 @@ class _AssetsScreenState extends State<AssetsScreen> {
     await showDialog<void>(
       context: context,
       builder: (ctx) => StatefulBuilder(builder: (ctx, set) {
+        // Hotel has no "what is due" query: posting charges every month due, up to today.
+        if (!_r.hasDepreciationDue) {
+          return assetThemed(
+            ctx,
+            _r,
+            AlertDialog(
+              scrollable: true,
+              title: const Text('Depreciation'),
+              content: const SizedBox(
+                width: 560,
+                child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  Text(depreciationNoncashNote, style: TextStyle(fontSize: 13, color: TColors.slate500)),
+                  SizedBox(height: 12),
+                  Text(
+                    'Charges every month of depreciation that is due, up to today, for each capital investment in service. Months already posted are skipped.',
+                    style: TextStyle(fontSize: 13, color: TColors.slate600),
+                  ),
+                  SizedBox(height: 10),
+                  Text(depreciationConventionNote, style: TextStyle(fontSize: 11, color: TColors.slate500)),
+                ]),
+              ),
+              actions: [
+                OutlinedButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+                FilledButton(onPressed: _saving ? null : _runDepreciation, child: const Text('Post depreciation')),
+              ],
+            ),
+          );
+        }
         return AlertDialog(
           scrollable: true,
           title: const Text('Depreciation'),
@@ -384,7 +454,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
           child: OutlinedButton.icon(
               onPressed: locked ? null : () => _addCost(a), icon: const Icon(Icons.payments_outlined, size: 16), label: const Text('Add cost')),
         ),
-      if (!disposed && tNum(a['acquisitionCost']) > 0)
+      if (_r.canCorrectOriginalCost && !disposed && tNum(a['acquisitionCost']) > 0)
         OutlinedButton.icon(onPressed: () => _correct(a), icon: const Icon(Icons.tune, size: 16), label: const Text('Correct cost')),
       if (!disposed)
         OutlinedButton.icon(
@@ -417,8 +487,8 @@ class _AssetsScreenState extends State<AssetsScreen> {
         onRetry: () => _loadDetail(id),
         onEdit: () => _edit(a),
         onAddCost: () => _addCost(a),
-        onCorrectOriginalCost: () => _correct(a),
-        onOpenFullPage: () => _openPage(a),
+        onCorrectOriginalCost: _r.canCorrectOriginalCost ? () => _correct(a) : null,
+        onOpenFullPage: _r.hasFullPage ? () => _openPage(a) : null,
         onOpenExpenses: _openExpenses,
         onViewCost: (row) => _viewCost(a, row),
         onReverseCost: (row) => _reverseCost(id, row),
@@ -464,7 +534,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
                 ),
                 Text(tStr(a['assetNumber']), style: const TextStyle(fontFamily: 'monospace', fontSize: 13)),
                 InkWell(
-                  onTap: () => _openPage(a),
+                  onTap: _r.hasFullPage ? () => _openPage(a) : null,
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                     Text(tStr(a['assetName']), style: const TextStyle(fontWeight: FontWeight.w500)),
                     if (tStr(a['location']).isNotEmpty) Text(tStr(a['location']), style: const TextStyle(fontSize: 11, color: TColors.slate500)),
@@ -505,7 +575,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
                             onPressed: locked ? null : () => _addCost(a),
                             icon: const Icon(Icons.payments_outlined, size: 18),
                           ),
-                        if (!disposed && tNum(a['acquisitionCost']) > 0)
+                        if (_r.canCorrectOriginalCost && !disposed && tNum(a['acquisitionCost']) > 0)
                           IconButton(tooltip: 'Correct the original acquisition cost', onPressed: () => _correct(a), icon: const Icon(Icons.tune, size: 18)),
                         if (!disposed)
                           IconButton(
@@ -556,7 +626,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
     final dueMonths = _due.fold<num>(0, (s, d) => s + tNum(d['monthsDue']));
     final s = _summary;
 
-    return Scaffold(
+    return assetThemed(context, _r, Scaffold(
       appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: Text(_r.title)),
       body: RefreshIndicator(
         onRefresh: _load,
@@ -684,7 +754,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
           ],
         ),
       ),
-    );
+    ));
   }
 }
 
@@ -790,7 +860,7 @@ class _NewAssetDialogState extends State<NewAssetDialog> {
     final life = num.tryParse(_life.text) ?? 0;
     String? opt(TextEditingController c) => c.text.isEmpty ? null : c.text;
     try {
-      await widget.session.farmClient.post('${_r.api}/assets', query: {'farmId': widget.company.farmId}, body: {
+      final body = <String, Object?>{
         'assetName': _name.text,
         'assetCategoryId': _category.isEmpty ? null : int.parse(_category),
         'description': opt(_desc),
@@ -810,7 +880,12 @@ class _NewAssetDialogState extends State<NewAssetDialog> {
         'notes': null,
         'farmId': widget.company.farmId,
         'createdBy': widget.session.tokens.userId,
-      });
+      };
+      if (_r.isHotel) {
+        await HotelAssetApi(widget.session, widget.company).create(body);
+      } else {
+        await widget.session.farmClient.post('${_r.api}/assets', query: {'farmId': widget.company.farmId}, body: body);
+      }
       if (!mounted) return;
       trackerToast(context, _r.t('Investment recorded'), description: "It is in the register and excluded from this period's operating expenses.");
       Navigator.pop(context, true);
@@ -961,7 +1036,7 @@ class AssetEditDialog extends StatefulWidget {
   final List<Map> categories;
   final FarmMoney fmt;
   final Duration offset;
-  final VoidCallback onCorrectOriginalCost;
+  final VoidCallback? onCorrectOriginalCost;
 
   @override
   State<AssetEditDialog> createState() => _AssetEditDialogState();
@@ -996,9 +1071,7 @@ class _AssetEditDialogState extends State<AssetEditDialog> {
     setState(() => _saving = true);
     String? opt(TextEditingController c) => c.text.isEmpty ? null : c.text;
     try {
-      await widget.session.farmClient.put(
-        '${_r.api}/assets/${tStr(a[_r.assetIdKey])}?farmId=${Uri.encodeQueryComponent(widget.company.farmId)}',
-        body: {
+      final body = <String, Object?>{
           'assetName': _name.text,
           'assetCategoryId': _category.isEmpty ? null : int.tryParse(_category),
           'description': opt(_desc),
@@ -1011,8 +1084,15 @@ class _AssetEditDialogState extends State<AssetEditDialog> {
           'setFinancials': fin,
           'farmId': widget.company.farmId,
           'updatedBy': widget.session.tokens.userId,
-        },
-      );
+      };
+      if (_r.isHotel) {
+        await HotelAssetApi(widget.session, widget.company).update(tIntOrNull(a[_r.assetIdKey]) ?? 0, body);
+      } else {
+        await widget.session.farmClient.put(
+          '${_r.api}/assets/${tStr(a[_r.assetIdKey])}?farmId=${Uri.encodeQueryComponent(widget.company.farmId)}',
+          body: body,
+        );
+      }
       if (!mounted) return;
       trackerToast(context, _r.t('Investment updated'));
       Navigator.pop(context, true);
@@ -1066,6 +1146,7 @@ class _AssetEditDialogState extends State<AssetEditDialog> {
               _hinted(additionalCostLabel, _readOnly(fmt(tNum(a['additionalCost']))), _r.t(additionalCostTooltip)),
               _hinted(totalCapitalizedCostLabel, _readOnly(fmt(tNum(a['totalCapitalizedCost'])), bold: true), _r.t(totalCapitalizedCostTooltip)),
             ]),
+            if (_r.canCorrectOriginalCost) ...[
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(10),
@@ -1087,7 +1168,7 @@ class _AssetEditDialogState extends State<AssetEditDialog> {
                         ? null
                         : () {
                             Navigator.pop(context, false);
-                            widget.onCorrectOriginalCost();
+                            widget.onCorrectOriginalCost?.call();
                           },
                     icon: const Icon(Icons.tune, size: 15),
                     label: const Text('Correct original cost'),
@@ -1095,6 +1176,7 @@ class _AssetEditDialogState extends State<AssetEditDialog> {
                 ),
               ]),
             ),
+            ],
             if (_locked) ...[
               const SizedBox(height: 10),
               amberNote(
@@ -1149,9 +1231,7 @@ class _AddAssetCostDialogState extends State<AddAssetCostDialog> {
     setState(() => _saving = true);
     String? opt(TextEditingController c) => c.text.isEmpty ? null : c.text;
     try {
-      await widget.session.farmClient.post('${_r.api}/assets/${tStr(widget.asset[_r.assetIdKey])}/costs',
-          query: {'farmId': widget.company.farmId},
-          body: {
+      final body = <String, Object?>{
             'costDate': _date.isEmpty ? null : _date,
             'description': opt(_desc),
             'costCategory': opt(_type),
@@ -1163,7 +1243,13 @@ class _AddAssetCostDialogState extends State<AddAssetCostDialog> {
             'cashAccountId': _account.isEmpty ? null : int.parse(_account),
             'farmId': widget.company.farmId,
             'createdBy': widget.session.tokens.userId,
-          });
+      };
+      if (_r.isHotel) {
+        await HotelAssetApi(widget.session, widget.company).addCost(tIntOrNull(widget.asset[_r.assetIdKey]) ?? 0, body);
+      } else {
+        await widget.session.farmClient.post('${_r.api}/assets/${tStr(widget.asset[_r.assetIdKey])}/costs',
+            query: {'farmId': widget.company.farmId}, body: body);
+      }
       if (!mounted) return;
       trackerToast(context, 'Cost added', description: _r.t("The investment's value has increased. Nothing was charged to profit."));
       Navigator.pop(context, true);
@@ -1307,6 +1393,10 @@ class _DisposeAssetDialogState extends State<DisposeAssetDialog> {
   Future<void> _save() async {
     setState(() => _saving = true);
     try {
+      if (_r.isHotel) {
+        await HotelAssetApi(widget.session, widget.company)
+            .dispose(tIntOrNull(widget.asset[_r.assetIdKey]) ?? 0, _date.isEmpty ? null : _date, _notes.text.isEmpty ? null : _notes.text);
+      } else {
       await widget.session.farmClient.post('${_r.api}/assets/${tStr(widget.asset[_r.assetIdKey])}/dispose',
           query: {'farmId': widget.company.farmId},
           body: {
@@ -1317,6 +1407,7 @@ class _DisposeAssetDialogState extends State<DisposeAssetDialog> {
             'farmId': widget.company.farmId,
             'createdBy': widget.session.tokens.userId,
           });
+      }
       if (!mounted) return;
       trackerToast(context, _r.t('Investment disposed'));
       Navigator.pop(context, true);
@@ -1389,9 +1480,13 @@ class _ReverseAssetDialogState extends State<ReverseAssetDialog> {
     if (_reason.text.trim().isEmpty) return trackerToast(context, 'A reason is required', error: true);
     setState(() => _saving = true);
     try {
-      await widget.session.farmClient.post('${_r.api}/assets/${tStr(widget.asset[_r.assetIdKey])}/reverse',
-          query: {'farmId': widget.company.farmId},
-          body: {'farmId': widget.company.farmId, 'reason': _reason.text.trim(), 'createdBy': widget.session.tokens.userId});
+      if (_r.isHotel) {
+        await HotelAssetApi(widget.session, widget.company).reverse(tIntOrNull(widget.asset[_r.assetIdKey]) ?? 0, _reason.text.trim());
+      } else {
+        await widget.session.farmClient.post('${_r.api}/assets/${tStr(widget.asset[_r.assetIdKey])}/reverse',
+            query: {'farmId': widget.company.farmId},
+            body: {'farmId': widget.company.farmId, 'reason': _reason.text.trim(), 'createdBy': widget.session.tokens.userId});
+      }
       if (!mounted) return;
       trackerToast(context, 'Acquisition reversed', description: 'Any cash paid has been returned. The record is kept with its reason.');
       Navigator.pop(context, true);

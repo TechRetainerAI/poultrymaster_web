@@ -115,14 +115,14 @@ class _LoansScreenState extends State<LoansScreen> {
     try {
       final q = {'farmId': _farmId};
       final r = await Future.wait([
-        _api.get('${widget.rail.api}/cash-accounts', query: q),
+        _api.get(widget.rail.cashAccountsApi, query: q),
         _api.get('${widget.rail.api}/loans', query: q),
         _api.get('${widget.rail.api}/loan-payments', query: q),
         _api.get('${widget.rail.api}/loans/summary', query: q),
       ]);
       if (!mounted) return;
       setState(() {
-        _accounts = rowsOf(r[0]);
+        _accounts = widget.rail.accountsOf(r[0]);
         _loans = rowsOf(r[1]);
         _payments = rowsOf(r[2]);
         _summary = r[3] is Map ? r[3] as Map : null;
@@ -154,7 +154,8 @@ class _LoansScreenState extends State<LoansScreen> {
         fmtMoney: _fmt.call,
         entityLabel: widget.rail.entity,
         idPrefix: _p,
-        onSubmit: (i) => _api.post('${widget.rail.api}/loans/${i.loanId}/record-repayment', body: {
+        // The Hotel's repayment lives at /loans/{id}/repayments (migration 331).
+        onSubmit: (i) => _api.post('${widget.rail.api}/loans/${i.loanId}/${widget.rail.isHotel ? 'repayments' : 'record-repayment'}', body: {
           '${_p}CashAccountId': i.accountId,
           'principalAmount': i.principalAmount,
           'interestAmount': i.interestAmount,
@@ -439,7 +440,7 @@ class _LoansScreenState extends State<LoansScreen> {
 
   Widget _table(List<Map> items, Map<int, List<Map>> byLoan) {
     if (_water) return _waterTable(items);
-    final open = [for (final l in items) if (_expanded.contains(tIntOrNull(l['poultryLoanId']) ?? 0)) l];
+    final open = [for (final l in items) if (_expanded.contains(tIntOrNull(l['${_p}LoanId']) ?? 0)) l];
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       TrackerTable(
         columns: const [
@@ -459,7 +460,7 @@ class _LoansScreenState extends State<LoansScreen> {
         rows: [
           for (final l in items)
             () {
-              final id = tIntOrNull(l['poultryLoanId']) ?? 0;
+              final id = tIntOrNull(l['${_p}LoanId']) ?? 0;
               final n = byLoan[id]?.length ?? 0;
               final isOpen = _expanded.contains(id);
               void tog() => setState(() => _expanded.contains(id) ? _expanded.remove(id) : _expanded.add(id));
@@ -477,7 +478,7 @@ class _LoansScreenState extends State<LoansScreen> {
                 InkWell(
                   onTap: tog,
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                    Text(loanNumber(l), style: const TextStyle(fontWeight: FontWeight.w500)),
+                    Text(loanNumber(l, _p), style: const TextStyle(fontWeight: FontWeight.w500)),
                     Text(n == 0 ? 'no repayments' : '$n repayment${n == 1 ? '' : 's'}',
                         style: const TextStyle(fontSize: 12, color: TColors.slate500)),
                   ]),
@@ -517,9 +518,9 @@ class _LoansScreenState extends State<LoansScreen> {
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(color: TColors.slate50, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Text(loanNumber(l), style: const TextStyle(fontWeight: FontWeight.w600)),
+            Text(loanNumber(l, _p), style: const TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 6),
-            _repaymentTable(byLoan[tIntOrNull(l['poultryLoanId']) ?? 0] ?? const []),
+            _repaymentTable(byLoan[tIntOrNull(l['${_p}LoanId']) ?? 0] ?? const []),
           ]),
         ),
       ],
@@ -570,7 +571,7 @@ class _LoansScreenState extends State<LoansScreen> {
               alignment: Alignment.centerLeft,
               child: FilledButton.icon(
                 onPressed: _newLoan,
-                style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
+                style: FilledButton.styleFrom(minimumSize: const Size(0, 44), backgroundColor: widget.rail.accent),
                 icon: const Icon(Icons.add, size: 18),
                 label: const Text('Record loan'),
               ),
@@ -588,7 +589,9 @@ class _LoansScreenState extends State<LoansScreen> {
             ]),
             const SizedBox(height: 14),
             Wrap(spacing: 8, runSpacing: 8, children: [
-              for (final st in loanStatusFilters) filterChipButton(st, _status == st, () => setState(() => _status = st)),
+              // The Hotel has no draft loans.
+              for (final st in loanStatusFilters)
+                if (!(widget.rail.isHotel && st == 'Draft')) filterChipButton(st, _status == st, () => setState(() => _status = st), color: widget.rail.accent),
             ]),
             const SizedBox(height: 14),
             if (_loading)
@@ -631,7 +634,7 @@ class _LoansScreenState extends State<LoansScreen> {
                   ('Next payment', _next(l['nextPaymentDate'])),
                   ('Repayments', tStr(l['paymentCount']).isEmpty ? '0' : tStr(l['paymentCount'])),
                 ],
-                extra: _water ? null : (l) => _repaymentList(byLoan[tIntOrNull(l['poultryLoanId']) ?? 0] ?? const []),
+                extra: _water ? null : (l) => _repaymentList(byLoan[tIntOrNull(l['${_p}LoanId']) ?? 0] ?? const []),
                 actions: (l) => [
                   if (isRepayableLoan(l, _p))
                     OutlinedButton.icon(
@@ -855,7 +858,11 @@ class _NewLoanDialogState extends State<NewLoanDialog> {
         ),
         actions: [
           redCancelButton(_saving ? null : () => Navigator.pop(context, false)),
-          FilledButton(onPressed: _saving ? null : _save, child: Text(_saving ? 'Recording...' : 'Record Loan')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: widget.rail.accent),
+            onPressed: _saving ? null : _save,
+            child: Text(_saving ? 'Recording...' : 'Record Loan'),
+          ),
         ],
       ),
     );
@@ -903,7 +910,7 @@ class _ReverseRepaymentDialogState extends State<ReverseRepaymentDialog> {
       await widget.session.farmClient.post(
         '${widget.rail.api}/loan-payments/${tStr(widget.payment[widget.rail.id('LoanPaymentId')])}/reverse',
         query: {'farmId': widget.company.farmId, 'reversedBy': widget.session.tokens.userId ?? ''},
-        body: {'reason': _reason.text.trim()},
+        body: {if (widget.rail.isHotel) 'farmId': widget.company.farmId, 'reason': _reason.text.trim()},
       );
       if (!mounted) return;
       trackerToast(context, 'Repayment reversed', description: 'The debt is back up and the cash returned.');

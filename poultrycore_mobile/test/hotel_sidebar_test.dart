@@ -1,9 +1,12 @@
 // The Hotel sidebar at phone width (2026-10-21), as the web drawer now draws
 // it (components/dashboard/sidebar.tsx, the isHotel branch → renderMenu).
+// Switched on for Hotel on 2026-10-28: the menu button on every Hotel page
+// opens it, as it does for Poultry, Water and Restaurant.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:poultrycore_mobile/models/company.dart';
+import 'package:poultrycore_mobile/pages/hotel/hotel_guest_service_screens.dart';
 import 'package:poultrycore_mobile/pages/web_nav.dart';
 import 'package:poultrycore_mobile/state/session.dart';
 import 'package:poultrycore_mobile/widgets/module_sidebar.dart';
@@ -76,5 +79,40 @@ void main() {
     for (final t in ['HOTEL', 'PEOPLE', 'FINANCE', 'FACILITIES', 'Hotel Setup', 'Supplies']) {
       expect(find.text(t), findsOneWidget, reason: t);
     }
+  });
+  test('Hotel has the sidebar, and every Hotel row has its own icon', () {
+    expect(hasSidebar(CompanyType.hotel), isTrue);
+    for (final g in webNavGroups['hotel']!) {
+      for (final s in g.subGroups) {
+        for (final l in s.links) {
+          expect(sidebarIconFor(l.href), isNot(Icons.insert_chart_outlined), reason: l.href);
+        }
+      }
+    }
+  });
+
+  testWidgets('a Hotel page has the sidebar button, and its row is highlighted with its menu open', (tester) async {
+    final api = FakeApi()..gets['/api/Hotel/communications'] = [];
+    final s = await sessionFor(api);
+    await open(tester, HotelGuestLogScreen(session: s, company: hotel), size: phone);
+    await tester.tap(find.byTooltip('Open sidebar'));
+    await tester.pumpAndSettle();
+    expect(find.text('VisibilityCore'), findsOneWidget);
+    expect(find.text('GUEST SERVICES'), findsOneWidget, reason: 'Operations starts open on the page it was opened from');
+    expect(find.text('Guest Log'), findsNWidgets(2), reason: 'the page behind, and its row in the drawer');
+    await _tapIn(tester, 'Requests');
+    expect(find.byType(HotelGuestRequestsScreen), findsOneWidget);
+  });
+
+  testWidgets('Quick Links stays the fixed Hotel list, whatever is stored', (tester) async {
+    final api = FakeApi()..gets['/api/UserQuickLinks'] = {'customised': true, 'hrefs': ['/hotel-rooms']};
+    await _openSidebar(tester, await sessionFor(api));
+    await _tapIn(tester, 'Quick Links');
+    for (final t in ['Daily Closing', 'Night Audit', 'Shift Handover', 'Bookings']) {
+      expect(find.text(t), findsOneWidget, reason: t);
+    }
+    expect(find.text('Rooms'), findsNothing);
+    expect(find.text('Customise…'), findsNothing);
+    expect(api.requests.where((r) => r.url.path == '/api/UserQuickLinks'), isEmpty);
   });
 }

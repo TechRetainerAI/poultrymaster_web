@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../api/api_client.dart';
+import '../../../design/ui/form_dialog.dart';
 import '../../../design/ui/inputs.dart';
 import '../../../models/company.dart';
 import '../../../state/session.dart';
@@ -27,14 +28,6 @@ String _newKey() {
 }
 
 String _shortDate(Object? d) => tStr(d).isEmpty ? '—' : trackerDate(d);
-
-Widget _sectionLabel(String text) => Padding(
-  padding: const EdgeInsets.only(bottom: 6),
-  child: Text(
-    text.toUpperCase(),
-    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: .5, color: TColors.slate500),
-  ),
-);
 
 Widget _row(String label, Widget value) => Padding(
   padding: const EdgeInsets.symmetric(vertical: 3),
@@ -55,16 +48,6 @@ Widget _row(String label, Widget value) => Padding(
       ),
     ],
   ),
-);
-
-Widget _box(List<Widget> children, {Color border = TColors.slate200, Color? color}) => Container(
-  padding: const EdgeInsets.all(12),
-  decoration: BoxDecoration(
-    color: color,
-    border: Border.all(color: border),
-    borderRadius: BorderRadius.circular(6),
-  ),
-  child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
 );
 
 Widget _postedBadge(bool reversed) => reversed
@@ -227,12 +210,14 @@ class _SaleDetailsScreenState extends State<SaleDetailsScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 24),
         children: [
-          Row(
-            children: [
+          FormDialogTitle(
+            icon: Icons.shopping_cart_outlined,
+            color: FormColor.blue,
+            text: 'Sale $label',
+            child: Wrap(spacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
               Text('Sale $label', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
-              const SizedBox(width: 8),
               _postedBadge(_reversed),
-            ],
+            ]),
           ),
           const SizedBox(height: 6),
           Text(
@@ -255,7 +240,7 @@ class _SaleDetailsScreenState extends State<SaleDetailsScreen> {
             ),
             const SizedBox(height: 12),
           ],
-          _box([
+          TintedSection(title: 'Sale', color: FormColor.blue, gap: 6, children: [
             _row('Date', Text(_shortDate(s['saleDate']))),
             _row('Customer', Text(tStr(s['customerName']).isEmpty ? 'Walk-in' : tStr(s['customerName']))),
             _row('Flock', Text(widget.flockLabel)),
@@ -264,13 +249,13 @@ class _SaleDetailsScreenState extends State<SaleDetailsScreen> {
             if (!_reversed) _row('Paid', Text(_money(paid))),
             if (!_reversed) _row('Balance', Text(_money(max<num>(0, total - paid)))),
           ]),
-          const SizedBox(height: 14),
-          _sectionLabel(lines.length > 1 ? 'Lines' : 'Item'),
+          const SizedBox(height: 16),
+          TintedSection(title: lines.length > 1 ? 'Lines' : 'Item', color: FormColor.amber, gap: 8, children: [
           for (final l in lines)
             Container(
-              margin: const EdgeInsets.only(bottom: 6),
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
+                color: Colors.white,
                 border: Border.all(color: TColors.slate200),
                 borderRadius: BorderRadius.circular(6),
               ),
@@ -281,10 +266,10 @@ class _SaleDetailsScreenState extends State<SaleDetailsScreen> {
                 ],
               ),
             ),
+          ]),
           if (_reversed) ...[
-            const SizedBox(height: 8),
-            _sectionLabel('Reversal'),
-            _box(border: TColors.red200, color: const Color(0x66FEF2F2), [
+            const SizedBox(height: 16),
+            TintedSection(title: 'Reversal', color: FormColor.rose, gap: 6, children: [
               _row(
                 'Reversed',
                 Text(
@@ -318,8 +303,8 @@ class _SaleDetailsScreenState extends State<SaleDetailsScreen> {
               if (correctedBy != null && correctedBy != 0) _row('Corrected by', link(correctedBy)),
             ]),
           ],
-          const SizedBox(height: 14),
-          _sectionLabel('Note'),
+          const SizedBox(height: 16),
+          TintedSection(title: 'Note', color: FormColor.slate, gap: 8, children: [
           if (_reversed)
             Text(tStr(s['saleDescription']).isEmpty ? '—' : tStr(s['saleDescription']), style: const TextStyle(fontSize: 13, color: TColors.slate700))
           else ...[
@@ -330,18 +315,18 @@ class _SaleDetailsScreenState extends State<SaleDetailsScreen> {
               hintText: "Internal note (does not change the sale's money or stock)",
               onChanged: (_) => setState(() {}),
             ),
-            if (_note.text != _savedNote) ...[
-              const SizedBox(height: 8),
+            if (_note.text != _savedNote)
               Align(
                 alignment: Alignment.centerLeft,
                 child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(backgroundColor: Colors.white),
                   onPressed: _saving ? null : _saveNote,
                   icon: _saving ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)) : const SizedBox.shrink(),
                   label: const Text('Save note'),
                 ),
               ),
-            ],
           ],
+          ]),
           const SizedBox(height: 20),
           const Divider(height: 1),
           const SizedBox(height: 12),
@@ -380,6 +365,13 @@ class _SaleDetailsScreenState extends State<SaleDetailsScreen> {
               label: const Text('Correct sale'),
             ),
           ],
+          // The web's footer now carries a red-outline Close.
+          const SizedBox(height: 8),
+          OutlinedButton(
+            style: formCancel.copyWith(minimumSize: const WidgetStatePropertyAll(Size.fromHeight(44))),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
         ],
       ),
     );
@@ -615,9 +607,9 @@ class _ReverseSaleScreenState extends State<ReverseSaleScreen> {
     final account = tStr(p['cashAccountName']);
     final meta = [tStr(p['paymentMethod']), account].where((x) => x.isNotEmpty).join(' · ');
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
+        color: Colors.white,
         border: Border.all(color: TColors.slate200),
         borderRadius: BorderRadius.circular(6),
       ),
@@ -728,7 +720,7 @@ class _ReverseSaleScreenState extends State<ReverseSaleScreen> {
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(44)),
+                    style: formCancel.copyWith(minimumSize: const WidgetStatePropertyAll(Size.fromHeight(44))),
                     onPressed: _saving ? null : () => Navigator.pop(context),
                     child: const Text('Cancel'),
                   ),
@@ -736,14 +728,15 @@ class _ReverseSaleScreenState extends State<ReverseSaleScreen> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: _correct ? TColors.blue600 : TColors.red600,
-                      minimumSize: const Size.fromHeight(44),
-                    ),
+                    style: formPrimary(_correct ? FormColor.blue : FormColor.red)
+                        .copyWith(minimumSize: const WidgetStatePropertyAll(Size.fromHeight(44))),
                     onPressed: _canConfirm ? _confirm : null,
                     child: _saving
                         ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : Text(_correct ? 'Reverse and correct' : 'Reverse sale'),
+                        : Text(
+                            '${_correct ? 'Reverse and correct' : 'Reverse sale'}${p != null ? ' · ${_money(tNum(p['total']))}' : ''}',
+                            overflow: TextOverflow.ellipsis,
+                          ),
                   ),
                 ),
               ],
@@ -753,14 +746,13 @@ class _ReverseSaleScreenState extends State<ReverseSaleScreen> {
         body: ListView(
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 24),
           children: [
-            Row(
-              children: [
-                Icon(_correct ? Icons.restart_alt : Icons.undo, size: 20, color: _correct ? TColors.blue600 : TColors.red600),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
-                ),
-              ],
+            DefaultTextStyle.merge(
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: TColors.slate900),
+              child: FormDialogTitle(
+                icon: _correct ? Icons.restart_alt : Icons.undo,
+                color: _correct ? FormColor.blue : FormColor.red,
+                text: title,
+              ),
             ),
             const SizedBox(height: 6),
             Text(
@@ -826,60 +818,62 @@ class _ReverseSaleScreenState extends State<ReverseSaleScreen> {
                 ),
                 const SizedBox(height: 12),
               ],
-              _sectionLabel('The sale'),
-              _grid([
-                _figure('Customer', tStr(p['customerName']).isEmpty ? 'Walk-in' : tStr(p['customerName'])),
-                _figure('Sale total', _money(tNum(p['total']))),
-                _figure('Paid', _money(paid), tone: paid > 0 ? 'good' : null),
-                _figure('Outstanding', _money(outstanding), tone: outstanding > 0 ? 'warn' : null),
+              TintedSection(title: 'The sale', color: FormColor.blue, children: [
+                _grid([
+                  _figure('Customer', tStr(p['customerName']).isEmpty ? 'Walk-in' : tStr(p['customerName'])),
+                  _figure('Sale total', _money(tNum(p['total']))),
+                  _figure('Paid', _money(paid), tone: paid > 0 ? 'good' : null),
+                  _figure('Outstanding', _money(outstanding), tone: outstanding > 0 ? 'warn' : null),
+                ]),
               ]),
-              const SizedBox(height: 14),
-              _sectionLabel('This reversal will'),
-              _will("Reverse the sale's revenue of ${_money(tNum(p['total']))}"),
-              if (restores.isNotEmpty) _will('Put back ${restores.join(', ')} — exactly what was sold'),
-              if (outstanding > 0) _will('Remove the ${_money(outstanding)} the customer still owes on it'),
-              if (_payments.isNotEmpty) _will('Release the payments applied to it (below)'),
-              _will('Keep the sale, its payments and its stock movements in the history'),
-              const SizedBox(height: 14),
-              if (_payments.isNotEmpty) ...[
-                _sectionLabel('Payment handling'),
-                const Text(
-                  'Reversing a sale does not by itself mean the money left the business. Choose what happened to it.',
-                  style: TextStyle(fontSize: 13, color: TColors.slate600),
-                ),
-                const SizedBox(height: 8),
-                for (final x in _payments) _payment(x),
-                if (outcome != null)
-                  _grid([
-                    _figure('Becomes customer credit', _money(outcome.creditCreated)),
-                    _figure('Money out of cash', _money(outcome.cashOut), tone: outcome.cashOut > 0 ? 'warn' : null),
-                  ]),
-              ] else
+              const SizedBox(height: 16),
+              TintedSection(title: 'This reversal will', color: FormColor.amber, gap: 0, children: [
+                _will("Reverse the sale's revenue of ${_money(tNum(p['total']))}"),
+                if (restores.isNotEmpty) _will('Put back ${restores.join(', ')} — exactly what was sold'),
+                if (outstanding > 0) _will('Remove the ${_money(outstanding)} the customer still owes on it'),
+                if (_payments.isNotEmpty) _will('Release the payments applied to it (below)'),
+                _will('Keep the sale, its payments and its stock movements in the history'),
+              ]),
+              const SizedBox(height: 16),
+              if (_payments.isNotEmpty)
+                TintedSection(title: 'Payment handling', color: FormColor.green, gap: 8, children: [
+                  const Text(
+                    'Reversing a sale does not by itself mean the money left the business. Choose what happened to it.',
+                    style: TextStyle(fontSize: 13, color: TColors.slate600),
+                  ),
+                  for (final x in _payments) _payment(x),
+                  if (outcome != null)
+                    _grid([
+                      _figure('Becomes customer credit', _money(outcome.creditCreated)),
+                      _figure('Money out of cash', _money(outcome.cashOut), tone: outcome.cashOut > 0 ? 'warn' : null),
+                    ]),
+                ])
+              else
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(color: TColors.slate50, borderRadius: BorderRadius.circular(6)),
                   child: const Text('Nothing was paid on this sale, so no money moves.', style: TextStyle(fontSize: 13, color: TColors.slate600)),
                 ),
-              const SizedBox(height: 14),
-              _sectionLabel('Reason'),
-              AppSelect<String>(
-                value: _reasonCode,
-                hintText: 'Choose a reason',
-                items: [for (final r in reversalReasons) AppSelectItem(value: r, label: r)],
-                onChanged: (v) => setState(() => _reasonCode = v),
-              ),
-              const SizedBox(height: 8),
-              AppInput(
-                controller: _reason,
-                minLines: 2,
-                maxLines: 4,
-                hintText: _noteRequired
-                    ? 'Say what happened (needed for Other)'
-                    : _correct
-                    ? 'Note (optional), e.g. price should have been 25 per crate'
-                    : 'Note (optional)',
-                onChanged: (_) => setState(() {}),
-              ),
+              const SizedBox(height: 16),
+              TintedSection(title: 'Reason', color: FormColor.slate, gap: 8, children: [
+                AppSelect<String>(
+                  value: _reasonCode,
+                  hintText: 'Choose a reason',
+                  items: [for (final r in reversalReasons) AppSelectItem(value: r, label: r)],
+                  onChanged: (v) => setState(() => _reasonCode = v),
+                ),
+                AppInput(
+                  controller: _reason,
+                  minLines: 2,
+                  maxLines: 4,
+                  hintText: _noteRequired
+                      ? 'Say what happened (needed for Other)'
+                      : _correct
+                      ? 'Note (optional), e.g. price should have been 25 per crate'
+                      : 'Note (optional)',
+                  onChanged: (_) => setState(() {}),
+                ),
+              ]),
               if (_error != null) ...[const SizedBox(height: 12), TrackerBanner.error(_error!)],
             ],
           ],
@@ -992,7 +986,8 @@ class _ApplyCreditDialogState extends State<_ApplyCreditDialog> {
     child: Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        border: Border.all(color: TColors.slate200),
+        color: Colors.white,
+        border: Border.all(color: TColors.blue200),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Column(
@@ -1010,15 +1005,9 @@ class _ApplyCreditDialogState extends State<_ApplyCreditDialog> {
     canPop: !_saving,
     child: AlertDialog(
       scrollable: true,
-      title: const Row(
-        children: [
-          Icon(Icons.account_balance_wallet_outlined, color: TColors.emerald600),
-          SizedBox(width: 8),
-          Flexible(child: Text('Apply customer credit')),
-        ],
-      ),
+      title: const FormDialogTitle(icon: Icons.account_balance_wallet_outlined, color: FormColor.blue, text: 'Apply customer credit'),
       content: SizedBox(
-        width: 420,
+        width: 512,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1028,39 +1017,46 @@ class _ApplyCreditDialogState extends State<_ApplyCreditDialog> {
               'No new payment is recorded and no cash moves.',
               style: const TextStyle(fontSize: 13, color: TColors.slate500),
             ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                _cell('Available credit', _credit == null ? '…' : _money(_credit!)),
-                const SizedBox(width: 8),
-                _cell('Sale outstanding', _money(t.outstanding)),
-              ],
-            ),
-            const SizedBox(height: 12),
-            FilterLabel(
-              'Amount to apply',
-              AppInput(
-                controller: _amount,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
-                onChanged: (_) => setState(() {}),
+            const SizedBox(height: 16),
+            TintedSection(title: 'Customer & Sale', color: FormColor.blue, children: [
+              Row(
+                children: [
+                  _cell('Available credit', _credit == null ? '…' : _money(_credit!)),
+                  const SizedBox(width: 8),
+                  _cell('Sale outstanding', _money(t.outstanding)),
+                ],
               ),
-            ),
-            if (_credit != null && _credit! <= 0) ...[
-              const SizedBox(height: 4),
-              const Text('This customer has no credit to apply.', style: TextStyle(fontSize: 12, color: TColors.slate500)),
-            ],
+            ]),
+            const SizedBox(height: 16),
+            TintedSection(title: 'Amount', color: FormColor.green, gap: 4, children: [
+              FilterLabel(
+                'Amount to apply',
+                AppInput(
+                  controller: _amount,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+              if (_credit != null && _credit! <= 0)
+                const Text('This customer has no credit to apply.', style: TextStyle(fontSize: 12, color: TColors.slate500)),
+            ]),
             if (_error != null) ...[const SizedBox(height: 10), TrackerBanner.error(_error!)],
           ],
         ),
       ),
       actions: [
-        OutlinedButton(onPressed: _saving ? null : () => Navigator.pop(context), child: const Text('Not now')),
-        FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: TColors.emerald600),
-          onPressed: !_valid || _saving ? null : _apply,
-          child: Text(_saving ? 'Applying…' : 'Apply credit'),
-        ),
+        FormDialogFooter(onCancel: () => Navigator.pop(context), cancelLabel: 'Not now', cancelDisabled: _saving, children: [
+          FilledButton(
+            style: formPrimary(FormColor.blue),
+            onPressed: !_valid || _saving ? null : _apply,
+            child: Text(_saving
+                ? 'Applying…'
+                : (num.tryParse(_amount.text) ?? 0) > 0
+                    ? 'Apply credit · ${_money(num.tryParse(_amount.text) ?? 0)}'
+                    : 'Apply credit'),
+          ),
+        ]),
       ],
     ),
   );
@@ -1192,15 +1188,9 @@ class _RefundCreditDialogState extends State<_RefundCreditDialog> {
     canPop: !_saving,
     child: AlertDialog(
       scrollable: true,
-      title: const Row(
-        children: [
-          Icon(Icons.payments_outlined, color: TColors.amber600),
-          SizedBox(width: 8),
-          Flexible(child: Text('Refund customer credit')),
-        ],
-      ),
+      title: const FormDialogTitle(icon: Icons.payments_outlined, color: FormColor.amber, text: 'Refund customer credit'),
       content: SizedBox(
-        width: 420,
+        width: 512,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1210,35 +1200,43 @@ class _RefundCreditDialogState extends State<_RefundCreditDialog> {
               'This is money going out of the account you choose; it is recorded as a refund, not an expense, and no stock moves.',
               style: const TextStyle(fontSize: 13, color: TColors.slate500),
             ),
-            if ((widget.creditLabel ?? '').isNotEmpty) ...[
-              const SizedBox(height: 12),
+            const SizedBox(height: 16),
+            TintedSection(title: 'Customer', color: FormColor.blue, gap: 4, children: [
+              Text.rich(
+                TextSpan(children: [
+                  const TextSpan(text: 'Customer: '),
+                  TextSpan(text: widget.customerName, style: const TextStyle(fontWeight: FontWeight.w500, color: TColors.slate900)),
+                ]),
+                style: const TextStyle(fontSize: 13, color: TColors.slate600),
+              ),
+              if ((widget.creditLabel ?? '').isNotEmpty)
+                Text.rich(
+                  TextSpan(
+                    children: [
+                      const TextSpan(text: 'Credit: '),
+                      TextSpan(
+                        text: widget.creditLabel,
+                        style: const TextStyle(fontWeight: FontWeight.w500, color: TColors.slate900),
+                      ),
+                    ],
+                  ),
+                  style: const TextStyle(fontSize: 13, color: TColors.slate600),
+                ),
               Text.rich(
                 TextSpan(
                   children: [
-                    const TextSpan(text: 'Credit: '),
+                    TextSpan(text: widget.poultryPaymentId != null ? 'Available on this credit: ' : 'Available credit: '),
                     TextSpan(
-                      text: widget.creditLabel,
-                      style: const TextStyle(fontWeight: FontWeight.w500, color: TColors.slate900),
+                      text: _money(widget.availableCredit),
+                      style: const TextStyle(fontWeight: FontWeight.w600, color: TColors.slate900),
                     ),
                   ],
                 ),
                 style: const TextStyle(fontSize: 13, color: TColors.slate600),
               ),
-            ],
-            const SizedBox(height: 12),
-            Text.rich(
-              TextSpan(
-                children: [
-                  TextSpan(text: widget.poultryPaymentId != null ? 'Available on this credit: ' : 'Available credit: '),
-                  TextSpan(
-                    text: _money(widget.availableCredit),
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                ],
-              ),
-              style: const TextStyle(fontSize: 13, color: TColors.slate600),
-            ),
-            const SizedBox(height: 12),
+            ]),
+            const SizedBox(height: 16),
+            TintedSection(title: 'Refund', color: FormColor.green, gap: 10, children: [
             filterRow([
               FilterLabel(
                 'Amount',
@@ -1258,7 +1256,6 @@ class _RefundCreditDialogState extends State<_RefundCreditDialog> {
                 ),
               ),
             ]),
-            const SizedBox(height: 10),
             FilterLabel(
               'Paid from',
               AppSelect<int>(
@@ -1271,22 +1268,26 @@ class _RefundCreditDialogState extends State<_RefundCreditDialog> {
                 onChanged: (v) => setState(() => _account = v),
               ),
             ),
-            const SizedBox(height: 10),
-            FilterLabel(
-              'Reason',
-              ReasonSelect(options: customerRefundReasons, value: _reason, onChanged: (v) => setState(() => _reason = v)),
-            ),
+            ]),
+            const SizedBox(height: 16),
+            TintedSection(title: 'Reason', color: FormColor.slate, children: [
+              FilterLabel(
+                'Reason',
+                ReasonSelect(options: customerRefundReasons, value: _reason, onChanged: (v) => setState(() => _reason = v)),
+              ),
+            ]),
             if (_error != null) ...[const SizedBox(height: 10), TrackerBanner.error(_error!)],
           ],
         ),
       ),
       actions: [
-        OutlinedButton(onPressed: _saving ? null : () => Navigator.pop(context, false), child: const Text('Cancel')),
-        FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: TColors.amber600),
-          onPressed: !_valid || _saving ? null : _save,
-          child: Text(_saving ? 'Refunding…' : 'Refund'),
-        ),
+        FormDialogFooter(onCancel: () => Navigator.pop(context, false), cancelDisabled: _saving, children: [
+          FilledButton(
+            style: formPrimary(FormColor.amber),
+            onPressed: !_valid || _saving ? null : _save,
+            child: Text(_saving ? 'Refunding…' : _value > 0 ? 'Refund · ${_money(_value)}' : 'Refund'),
+          ),
+        ]),
       ],
     ),
   );
@@ -1537,34 +1538,35 @@ class _SaleLinesScreenState extends State<SaleLinesScreen> {
         Text(v, style: TextStyle(fontSize: 13, fontWeight: bold ? FontWeight.w600 : FontWeight.w500)),
       ],
     );
+    final saleTitle = 'Sale ${tStr(s['saleGroupNo']).isNotEmpty ? s['saleGroupNo'] : '#${s['saleId']}'}';
     return Padding(
-      padding: const EdgeInsets.only(bottom: 18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Wrap(
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 8,
-            runSpacing: 4,
-            children: [
-              Text(
-                'Sale ${tStr(s['saleGroupNo']).isNotEmpty ? s['saleGroupNo'] : '#${s['saleId']}'}',
-                style: const TextStyle(fontWeight: FontWeight.w600, color: TColors.slate900),
-              ),
-              _postedBadge(reversed),
-              if (widget.onOpenSale != null)
-                TextButton.icon(
-                  onPressed: () => widget.onOpenSale!(tIntOrNull(s['saleId']) ?? 0),
-                  icon: const Icon(Icons.open_in_new, size: 15),
-                  label: const Text('Open on Sales page'),
+      padding: const EdgeInsets.only(bottom: 16),
+      child: TintedSection(
+        title: saleTitle,
+        color: FormColor.blue,
+        gap: 8,
+        titleWidget: Wrap(spacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
+          Text(saleTitle),
+          _postedBadge(reversed),
+        ]),
+        action: widget.onOpenSale == null
+            ? null
+            : TextButton.icon(
+                style: TextButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: const Color(0xFF1D4ED8),
+                  visualDensity: VisualDensity.compact,
+                  minimumSize: const Size(0, 28),
                 ),
-            ],
-          ),
-          const SizedBox(height: 6),
+                onPressed: () => widget.onOpenSale!(tIntOrNull(s['saleId']) ?? 0),
+                icon: const Icon(Icons.open_in_new, size: 15),
+                label: const Text('Open on Sales page'),
+              ),
+        children: [
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: TColors.slate50,
+              color: Colors.white,
               border: Border.all(color: TColors.slate200),
               borderRadius: BorderRadius.circular(6),
             ),
@@ -1586,12 +1588,11 @@ class _SaleLinesScreenState extends State<SaleLinesScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 8),
           for (final l in lines)
             Container(
-              margin: const EdgeInsets.only(bottom: 6),
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
+                color: Colors.white,
                 border: Border.all(color: TColors.slate200),
                 borderRadius: BorderRadius.circular(6),
               ),
@@ -1625,7 +1626,7 @@ class _SaleLinesScreenState extends State<SaleLinesScreen> {
             ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(color: TColors.slate50, borderRadius: BorderRadius.circular(6)),
+            decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
             child: Row(
               children: [
                 const Expanded(
@@ -1665,6 +1666,7 @@ class _SaleLinesScreenState extends State<SaleLinesScreen> {
             Text(_error!, style: const TextStyle(fontSize: 13, color: TColors.red600))
           else
             for (final s in _sales) _sale(s),
+          FormDialogFooter(onCancel: () => Navigator.pop(context), cancelLabel: 'Close'),
         ],
       ),
     );

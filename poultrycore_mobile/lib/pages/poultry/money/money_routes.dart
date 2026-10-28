@@ -20,12 +20,17 @@ import '../expenses/payroll_screen.dart';
 import 'cash_accounts_screen.dart';
 import 'reconciliation_screen.dart';
 import '../../water/reports/water_money_reports.dart' show waterMoneyRail;
+import '../../hotel/hotel_money_rail.dart' show hotelMoneyRail;
+import '../../hotel/hotel_front_desk_screens.dart' show HotelBookingsScreen;
 import '../../water/water_payroll_screen.dart' show WaterPayrollDetailScreen;
 import '../../water/water_deferred_costs_screen.dart' show WaterDeferredCostsScreen;
 import '../../water/water_production_screen.dart' show WaterProductionDetailScreen;
 import '../../water/water_deliveries_screen.dart' show WaterDeliveryRunScreen;
 import '../../water/water_raw_materials_screen.dart' show WaterRawMaterialsScreen;
 import '../../restaurant/restaurant_forms.dart' show restaurantExpensesScreenForHref, restaurantOrdersScreenForHref;
+import '../../hotel/hotel_expenses_screen.dart';
+import '../../hotel/hotel_supplies_screen.dart';
+import '../../hotel/hotel_employee_loans_screen.dart' show HotelEmployeeLoansScreen;
 import '../../restaurant/restaurant_staff_loans_screen.dart' show RestaurantStaffLoansScreen;
 import '../../restaurant/restaurant_sales_screen.dart' show RestaurantSalesScreen;
 import '../../restaurant/restaurant_inventory_screen.dart' show RestaurantInventoryScreen;
@@ -46,6 +51,15 @@ Widget? moneyScreenForHref(String href, Session session, Company company) {
   }
   final wrun = RegExp(r'^/water-payroll/(\d+)$').firstMatch(uri.path);
   if (wrun != null) return WaterPayrollDetailScreen(session: session, company: company, runId: int.parse(wrun[1]!));
+  // Sales → New Booking (?new=1) and Edit on a stay (?edit=<bookingId>).
+  if (uri.path == '/hotel-bookings' && uri.query.isNotEmpty) {
+    return HotelBookingsScreen(
+        session: session, company: company, openNew: uri.queryParameters['new'] == '1', editId: int.tryParse(uri.queryParameters['edit'] ?? ''));
+  }
+  if (uri.path == '/hotel-cash-reconciliation' && uri.query.isNotEmpty) {
+    return ReconciliationScreen(
+        session: session, company: company, accountId: int.tryParse(uri.queryParameters['accountId'] ?? ''), rail: hotelMoneyRail);
+  }
   if (uri.path == '/water-cash-reconciliation' && uri.query.isNotEmpty) {
     return ReconciliationScreen(
         session: session, company: company, accountId: int.tryParse(uri.queryParameters['accountId'] ?? ''), rail: waterMoneyRail);
@@ -149,6 +163,27 @@ Widget? moneyScreenForHref(String href, Session session, Company company) {
   if (uri.path == '/expenses' && uri.query.isNotEmpty) return expensesScreenForHref(href, session, company);
   if (uri.path == '/restaurant-expenses' && uri.query.isNotEmpty) return restaurantExpensesScreenForHref(href, session, company);
   if (uri.path == '/restaurant-orders' && uri.query.isNotEmpty) return restaurantOrdersScreenForHref(href, session, company);
+  // hotelPayableHref (Supplier Balances / Payments): the bill, narrowed.
+  if (uri.path == '/hotel-expenses' && uri.query.isNotEmpty) {
+    final id = int.tryParse(uri.queryParameters['expenseId'] ?? '');
+    return HotelExpensesScreen(session: session, company: company, focusExpenseId: id != null && id > 0 ? id : null);
+  }
+  if (uri.path == '/hotel-inventory' && uri.query.isNotEmpty) {
+    return HotelSuppliesScreen(session: session, company: company, purchaseId: int.tryParse(uri.queryParameters['purchaseId'] ?? ''));
+  }
+  // The Staff page's "Owes" column.
+  if (uri.path == '/hotel-employee-loans' && uri.query.isNotEmpty) {
+    return HotelEmployeeLoansScreen(session: session, company: company, staffId: int.tryParse(uri.queryParameters['staffId'] ?? ''));
+  }
+  if (uri.path == '/hotel-deferred-costs' && uri.query.isNotEmpty) {
+    return DeferredCostsScreen(
+      session: session,
+      company: company,
+      hotel: true,
+      itemId: int.tryParse(uri.queryParameters['itemId'] ?? ''),
+      scope: uri.queryParameters['scope'],
+    );
+  }
   // Supply Purchases' "Receive Invoice" opens the page with the receive form up.
   if (uri.path == '/poultry-purchase-receipts' && uri.query.isNotEmpty) {
     return PurchaseReceiptsScreen(session: session, company: company, openReceive: uri.queryParameters['receive'] == '1');

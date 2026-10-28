@@ -11,7 +11,7 @@ import '../pages/web_page_screen.dart';
 import '../state/session.dart';
 import 'quick_links_dialog.dart';
 
-/// The web's sidebar as it appears on a phone, for Poultry, Water and Restaurant (`components/dashboard/sidebar.tsx`,
+/// The web's sidebar as it appears on a phone, for Poultry, Water, Restaurant and Hotel (`components/dashboard/sidebar.tsx`,
 /// the `lg:hidden` drawer): a slate-900 panel that slides in from the left,
 /// 85% of the screen wide and never more than 320, over a black/50 backdrop.
 ///
@@ -109,7 +109,8 @@ String? hrefForSpec(String specKey, Company company) {
 bool hasSidebar(CompanyType type) =>
     type == CompanyType.poultry ||
     type == CompanyType.water ||
-    type == CompanyType.restaurant;
+    type == CompanyType.restaurant ||
+    type == CompanyType.hotel;
 
 /// Nav groups that exist only for the All pages sheet — pages the web's
 /// sidebar does not list (Water's individual reports, Restaurant's top-nav
@@ -326,6 +327,85 @@ const Map<String, IconData> _iconByHref = {
   '/restaurant-staff': Icons.manage_accounts_outlined,
   '/restaurant-setup': Icons.settings_outlined,
   '/business-office/billing': Icons.credit_card,
+  // Hotel (lib/nav/hotel-nav-config.ts; report rows from lib/reports/hotel-reports-config.ts)
+  '/hotel-daily-closing': Icons.description_outlined,
+  '/hotel-night-audit': Icons.shield_outlined,
+  '/hotel-shift-handover': Icons.receipt_long_outlined,
+  '/hotel-bookings': Icons.description_outlined,
+  '/hotel-guests': Icons.people_outline,
+  '/hotel-check-in': Icons.show_chart,
+  '/hotel-check-out': Icons.fact_check_outlined,
+  '/hotel-availability': Icons.search,
+  '/hotel-guest-folio': Icons.receipt_long_outlined,
+  '/hotel-billing': Icons.receipt_outlined,
+  '/hotel-invoices': Icons.description_outlined,
+  '/hotel-stay-history': Icons.description_outlined,
+  '/hotel-communications': Icons.chat_bubble_outline,
+  '/hotel-guest-requests': Icons.notifications_none,
+  '/hotel-lost-found': Icons.inventory_2_outlined,
+  '/hotel-rooms': Icons.business_outlined,
+  '/hotel-housekeeping': Icons.fact_check_outlined,
+  '/hotel-housekeeping-schedule': Icons.calendar_month_outlined,
+  '/hotel-room-service': Icons.local_shipping_outlined,
+  '/hotel-restaurant': Icons.shopping_cart_outlined,
+  '/hotel-menu': Icons.restaurant,
+  '/hotel-kitchen': Icons.restaurant,
+  '/hotel-restaurant-tables': Icons.business_outlined,
+  '/hotel-sales': Icons.shopping_cart_outlined,
+  '/hotel-payments': Icons.account_balance_wallet_outlined,
+  '/hotel-customer-balances': Icons.people_outline,
+  '/hotel-expenses': Icons.attach_money,
+  '/hotel-supplier-payments': Icons.receipt_outlined,
+  '/hotel-supplier-balances': Icons.local_shipping_outlined,
+  '/hotel-recurring-expenses': Icons.repeat,
+  '/hotel-internal-use': Icons.inventory_outlined,
+  '/hotel-payroll': Icons.payments_outlined,
+  '/hotel-employee-loans': Icons.volunteer_activism_outlined,
+  '/hotel-deferred-costs': Icons.hourglass_empty,
+  '/hotel-assets': Icons.business_outlined,
+  '/hotel-cash-flow': Icons.account_balance_wallet_outlined,
+  '/hotel-financial-activity': Icons.show_chart,
+  '/hotel-profit-loss': Icons.trending_up,
+  '/hotel-owner-money': Icons.payments_outlined,
+  '/hotel-loans': Icons.volunteer_activism_outlined,
+  '/hotel-cash-accounts': Icons.account_balance_wallet_outlined,
+  '/hotel-cash-transfers': Icons.swap_horiz,
+  '/hotel-cash-reconciliation': Icons.balance,
+  '/hotel-reports': Icons.bar_chart,
+  '/hotel-reports/revenue-summary': Icons.bar_chart,
+  '/hotel-reports/expense-report': Icons.attach_money,
+  '/hotel-reports/billing-report': Icons.credit_card,
+  '/hotel-reports/payroll-report': Icons.account_balance_wallet_outlined,
+  '/hotel-reports/cash-flow-report': Icons.account_balance_outlined,
+  '/hotel-reports/guest-ledger': Icons.receipt_outlined,
+  '/hotel-reports/ancillary-revenue': Icons.shopping_cart_outlined,
+  '/hotel-reports/staff-loans': Icons.volunteer_activism_outlined,
+  '/hotel-reports/bookings-report': Icons.event_available_outlined,
+  '/hotel-reports/guest-report': Icons.people_outline,
+  '/hotel-reports/occupancy-report': Icons.bed_outlined,
+  '/hotel-reports/maintenance-report': Icons.build_outlined,
+  '/hotel-reports/loyalty-report': Icons.workspace_premium_outlined,
+  '/hotel-reports/restaurant-sales': Icons.shopping_cart_outlined,
+  '/hotel-reports/menu-performance': Icons.description_outlined,
+  '/hotel-reports/daily-report': Icons.calendar_today_outlined,
+  '/hotel-reports/weekly-report': Icons.calendar_today_outlined,
+  '/hotel-reports/monthly-report': Icons.calendar_today_outlined,
+  '/hotel-reports/housekeeping-report': Icons.fact_check_outlined,
+  '/hotel-reports/inventory-report': Icons.description_outlined,
+  '/hotel-reports/housekeeping-productivity': Icons.timer_outlined,
+  '/hotel-reports/performance-kpis': Icons.speed,
+  '/hotel-reports/source-of-business': Icons.public,
+  '/hotel-reports/booking-pace': Icons.history_toggle_off,
+  '/hotel-reports/room-type-performance': Icons.grid_view,
+  '/hotel-reports/length-of-stay': Icons.nightlight_outlined,
+  '/hotel-reports/cancellations': Icons.event_busy_outlined,
+  '/hotel-company-setup': Icons.business_outlined,
+  '/hotel-setup': Icons.settings_outlined,
+  '/hotel-staff': Icons.groups_outlined,
+  '/hotel-customers': Icons.people_outline,
+  '/hotel-suppliers': Icons.local_shipping_outlined,
+  '/hotel-inventory': Icons.widgets_outlined,
+  '/hotel-maintenance': Icons.build_outlined,
 };
 
 /// "System Alerts and Notifications" (components/dashboard/charts.tsx). The
@@ -418,10 +498,14 @@ class _PoultrySidebarState extends State<_PoultrySidebar> {
   /// defaults stand; an empty list = they cleared the bar.
   List<String>? _quickHrefs;
 
-  /// The nav as shown: Quick Links resolved from the user's choice.
+  /// The nav as shown: Quick Links resolved from the user's choice. Only
+  /// Poultry and Water read a stored choice (sidebar.tsx passes quickLinkHrefs
+  /// to those two configs alone); Restaurant and Hotel keep their fixed list.
   List<NavGroup> get _groups => [
         for (final g in _base)
-          g.title == 'Quick Links' ? NavGroup(g.title, [NavSubGroup('', resolveQuickLinks(_base, _quickHrefs))]) : g,
+          g.title == 'Quick Links' && _customisable
+              ? NavGroup(g.title, [NavSubGroup('', resolveQuickLinks(_base, _quickHrefs))])
+              : g,
       ];
 
   /// Poultry and Water put "Customise…" at the foot of Quick Links, as the web does.
@@ -434,6 +518,7 @@ class _PoultrySidebarState extends State<_PoultrySidebar> {
   }
 
   Future<void> _loadQuickLinks() async {
+    if (!_customisable) return;
     final saved = await QuickLinksApi(widget.session.farmClient).get(
       userId: widget.session.tokens.userId,
       farmId: widget.company.farmId,
@@ -528,7 +613,7 @@ class _PoultrySidebarState extends State<_PoultrySidebar> {
                     const SizedBox(height: 16),
                     const _Divider(),
                     const SizedBox(height: 16),
-                    // Poultry, Water and (since the 2026-10 web sidebar) Restaurant
+                    // Poultry, Water, Restaurant (since the 2026-10 web sidebar) and Hotel
                     // are all menus: each a collapsible section in the drawer.
                     for (final g in menus) ...[
                       _menu(g),

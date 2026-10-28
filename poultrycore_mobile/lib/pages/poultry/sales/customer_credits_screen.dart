@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../api/api_client.dart';
+import '../../../design/ui/form_dialog.dart';
 import '../../../design/ui/inputs.dart';
 import '../../../models/company.dart';
 import '../../../state/session.dart';
@@ -45,9 +46,14 @@ const manualCreditKindLabel = {
     };
 
 class CustomerCreditsScreen extends StatefulWidget {
-  const CustomerCreditsScreen({super.key, required this.session, required this.company});
+  const CustomerCreditsScreen({super.key, required this.session, required this.company, this.initialTab, this.initialSearch});
   final Session session;
   final Company company;
+
+  /// The web's deep link from Customer Payments: `?tab=manual&q=<payment number>`
+  /// opens the hand-added credit that cannot be reversed there.
+  final String? initialTab;
+  final String? initialSearch;
   @override
   State<CustomerCreditsScreen> createState() => _CustomerCreditsScreenState();
 }
@@ -79,6 +85,8 @@ class _CustomerCreditsScreenState extends State<CustomerCreditsScreen> {
   @override
   void initState() {
     super.initState();
+    if (const {'held', 'manual', 'refunds'}.contains(widget.initialTab)) _tab = widget.initialTab!;
+    if ((widget.initialSearch ?? '').isNotEmpty) _search.text = widget.initialSearch!;
     FarmMoney.load(widget.session, widget.company).then((m) {
       if (mounted) setState(() => _money = m);
     });
@@ -176,7 +184,8 @@ class _CustomerCreditsScreenState extends State<CustomerCreditsScreen> {
       context,
       title: 'Reverse ${tStr(m['paymentNumber']).isEmpty ? 'credit' : tStr(m['paymentNumber'])}?',
       description: 'The credit stays in the history, marked Reversed. $name no longer holds it.',
-      action: 'Reverse credit',
+      action: 'Reverse credit · ${_money(tNum(m['amount']))}',
+      bodyTitle: 'What happens',
       body: [
         bullet('${_money(tNum(m['amount']))} $kind is cancelled.'),
         if (tNum(m['used']) > 0) bullet('${_money(tNum(m['used']))} of it was used on sales. Those sales will be owed again.', color: TColors.amber800),
@@ -206,7 +215,7 @@ class _CustomerCreditsScreenState extends State<CustomerCreditsScreen> {
       context,
       title: 'Reverse refund ${tStr(r['refundNumber'])}?',
       description: 'The refund stays in the history, marked Reversed.',
-      action: 'Reverse refund',
+      action: 'Reverse refund · $amount',
       body: [
         warnBox([
           const TextSpan(text: 'Reversing this refund will restore '),
@@ -353,7 +362,7 @@ class _CustomerCreditsScreenState extends State<CustomerCreditsScreen> {
             ]),
             const SizedBox(height: 14),
             twoUp([
-              creditKpi('Credit held', _money(totalHeld), color: creditBlue700),
+              creditKpi('Available credit', _money(totalHeld), color: creditBlue700),
               creditKpi('Customers with credit', '${_rows.length}'),
               creditKpi('They still owe (not netted)', _money(totalOwed), color: TColors.amber700),
               creditKpi('Refunded', _money(totalRefunded)),
@@ -364,7 +373,7 @@ class _CustomerCreditsScreenState extends State<CustomerCreditsScreen> {
               value: _tab,
               onChanged: (v) => setState(() => _tab = v),
               tabs: [
-                ('held', Icons.savings_outlined, 'Credit held', _rows.length),
+                ('held', Icons.savings_outlined, 'Available credit', _rows.length),
                 ('manual', Icons.edit_outlined, 'Added by hand', _manual.length),
                 ('refunds', Icons.payments_outlined, 'Refunds', _refunds.length),
               ],
@@ -424,7 +433,7 @@ class _CustomerCreditsScreenState extends State<CustomerCreditsScreen> {
             return '$n credit${n == 1 ? '' : 's'}';
           },
           highlights: (r) => [
-            Highlight('Credit', _money(tNum(r['availableCredit'])), accent: Accent.blue),
+            Highlight('Available', _money(tNum(r['availableCredit'])), accent: Accent.blue),
             Highlight('Owes', _money(tNum(r['outstanding'])), accent: tNum(r['outstanding']) > 0 ? Accent.amber : Accent.slate),
           ],
           actions: (r) => [
@@ -443,7 +452,7 @@ class _CustomerCreditsScreenState extends State<CustomerCreditsScreen> {
           table: (items) => TrackerTable(
             columns: const [
               TCol('Customer', width: 180),
-              TCol('Credit held', right: true, width: 120),
+              TCol('Available credit', right: true, width: 130),
               TCol('Credits', right: true, width: 80),
               TCol('Still owes', right: true, width: 120),
               TCol('Actions', right: true, width: 210),
@@ -784,13 +793,9 @@ class _ManualCreditDialogState extends State<_ManualCreditDialog> {
       canPop: !_saving,
       child: AlertDialog(
         scrollable: true,
-        title: const Row(children: [
-          Icon(Icons.savings_outlined, color: TColors.blue600),
-          SizedBox(width: 8),
-          Flexible(child: Text('Add customer credit')),
-        ]),
+        title: const FormDialogTitle(icon: Icons.savings_outlined, color: FormColor.blue, text: 'Add customer credit'),
         content: SizedBox(
-          width: 480,
+          width: 672,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -799,88 +804,91 @@ class _ManualCreditDialogState extends State<_ManualCreditDialog> {
                 'Money held for a customer, to use on their next sales or refund. Say where it came from — that decides whether cash or profit moves.',
                 style: TextStyle(fontSize: 13, color: TColors.slate500),
               ),
-              const SizedBox(height: 14),
-              FilterLabel(
-                'Customer *',
-                AppSelect<int>(
-                  value: _customer,
-                  hintText: _customers.isNotEmpty || _customersLoaded ? 'Choose the customer' : 'Loading customers…',
-                  items: [for (final (id, name) in _customers) AppSelectItem(value: id, label: name)],
-                  onChanged: (v) => setState(() => _customer = v),
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Text('Where the credit came from *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: TColors.slate700)),
-              const SizedBox(height: 6),
-              for (final (value, title, body) in _kinds)
-                kindOption(
-                  selected: _kind == value,
-                  title: title,
-                  body: body,
-                  onTap: () => setState(() {
-                    _kind = value;
-                    _reason = '';
-                  }),
-                ),
-              const SizedBox(height: 4),
-              filterRow([
-                FilterLabel(
-                  'Amount *',
-                  AppInput(
-                    controller: _amount,
-                    hintText: '0.00',
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
-                    onChanged: (_) => setState(() {}),
+              const SizedBox(height: 16),
+              TintedSection(title: 'Customer & Date', color: FormColor.blue, children: [
+                FormPair(
+                  stackOnMobile: true,
+                  FilterLabel(
+                    'Customer *',
+                    AppSelect<int>(
+                      value: _customer,
+                      hintText: _customers.isNotEmpty || _customersLoaded ? 'Choose the customer' : 'Loading customers…',
+                      items: [for (final (id, name) in _customers) AppSelectItem(value: id, label: name)],
+                      onChanged: (v) => setState(() => _customer = v),
+                    ),
                   ),
-                ),
-                FilterLabel(
-                  _kind == 'OpeningCredit' ? 'As at *' : 'Date *',
-                  FilterDate(value: _date, hint: 'Date', onChanged: (v) => setState(() => _date = v)),
+                  FilterLabel(
+                    _kind == 'OpeningCredit' ? 'As at *' : 'Date *',
+                    FilterDate(value: _date, hint: 'Date', onChanged: (v) => setState(() => _date = v)),
+                  ),
                 ),
               ]),
-              if (_isDeposit) ...[
-                const SizedBox(height: 10),
-                filterRow([
+              const SizedBox(height: 16),
+              TintedSection(title: 'Where the credit came from *', color: FormColor.amber, gap: 0, children: [
+                for (final (value, title, body) in _kinds)
+                  kindOption(
+                    selected: _kind == value,
+                    title: title,
+                    body: body,
+                    onTap: () => setState(() {
+                      _kind = value;
+                      _reason = '';
+                    }),
+                  ),
+              ]),
+              const SizedBox(height: 16),
+              TintedSection(title: 'Amount', color: FormColor.green, children: [
+                FormPair(
                   FilterLabel(
-                    'Received into *',
-                    AppSelect<int>(
-                      value: _account,
-                      hintText: 'Cash account',
-                      items: [
-                        for (final a in _accounts) AppSelectItem(value: tIntOrNull(a['poultryCashAccountId'])!, label: tStr(a['accountName'])),
-                      ],
-                      onChanged: (v) => setState(() => _account = v),
+                    'Amount *',
+                    AppInput(
+                      controller: _amount,
+                      hintText: '0.00',
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
+                      onChanged: (_) => setState(() {}),
                     ),
                   ),
                   FilterLabel(
-                    'Method',
-                    AppSelect<String>(
-                      value: _method,
-                      items: [for (final m in refundMethods) AppSelectItem(value: m, label: m)],
-                      onChanged: (v) => setState(() => _method = v ?? _method),
+                    'Reference',
+                    AppInput(controller: _reference, hintText: 'Optional, e.g. receipt'),
+                  ),
+                ),
+                if (_isDeposit)
+                  FormPair(
+                    FilterLabel(
+                      'Received into *',
+                      AppSelect<int>(
+                        value: _account,
+                        hintText: 'Cash account',
+                        items: [
+                          for (final a in _accounts) AppSelectItem(value: tIntOrNull(a['poultryCashAccountId'])!, label: tStr(a['accountName'])),
+                        ],
+                        onChanged: (v) => setState(() => _account = v),
+                      ),
+                    ),
+                    FilterLabel(
+                      'Method',
+                      AppSelect<String>(
+                        value: _method,
+                        items: [for (final m in refundMethods) AppSelectItem(value: m, label: m)],
+                        onChanged: (v) => setState(() => _method = v ?? _method),
+                      ),
                     ),
                   ),
-                ]),
-              ],
-              const SizedBox(height: 10),
-              FilterLabel(
-                'Reference',
-                AppInput(controller: _reference, hintText: 'Optional, e.g. receipt or old ledger page'),
-              ),
-              const SizedBox(height: 10),
-              FilterLabel(
-                'Reason *',
+              ]),
+              const SizedBox(height: 16),
+              TintedSection(title: 'Reason', color: FormColor.slate, children: [
                 ReasonSelect(
                   key: ValueKey(_kind),
                   options: customerCreditReasons[_kind]!,
                   value: _reason,
                   onChanged: (v) => setState(() => _reason = v),
                 ),
-              ),
+              ]),
               if (_value > 0 && _customerName.isNotEmpty) ...[
                 const SizedBox(height: 12),
-                summaryBox([
+                summaryBox(tone: FormColor.blue, [
                   TextSpan(text: '$_customerName will hold '),
                   TextSpan(text: widget.money(_value), style: boldSpan),
                   const TextSpan(text: ' of credit. '),
@@ -898,12 +906,13 @@ class _ManualCreditDialogState extends State<_ManualCreditDialog> {
           ),
         ),
         actions: [
-          OutlinedButton(onPressed: _saving ? null : () => Navigator.pop(context), child: const Text('Cancel')),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: TColors.blue600),
-            onPressed: !_valid || _saving ? null : _save,
-            child: Text(_saving ? 'Adding…' : 'Add credit'),
-          ),
+          FormDialogFooter(onCancel: () => Navigator.pop(context), cancelDisabled: _saving, children: [
+            FilledButton(
+              style: formPrimary(FormColor.blue),
+              onPressed: !_valid || _saving ? null : _save,
+              child: Text(_saving ? 'Adding…' : _value > 0 ? 'Add credit · ${widget.money(_value)}' : 'Add credit'),
+            ),
+          ]),
         ],
       ),
     );

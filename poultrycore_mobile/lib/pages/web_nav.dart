@@ -37,7 +37,7 @@ const Map<String, List<NavGroup>> webNavGroups = {
         NavLink('Egg sorting', '/poultry-egg-sorting', null),
         NavLink('Supply Purchases', '/poultry-supply-purchases', null),
         NavLink('Sales', '/sales', 'sales'),
-        NavLink('Payments received', '/poultry-payments', 'poultry-payments'),
+        NavLink('Customer Payments', '/poultry-payments', 'poultry-payments'),
         NavLink('Customer Balances', '/customer-balances', 'poultry-customer-balances'),
         NavLink('Expenses', '/expenses', null),
         NavLink('Cash Flow', '/cash-flow', null),
@@ -72,7 +72,7 @@ const Map<String, List<NavGroup>> webNavGroups = {
     NavGroup('Sales, Expenses & Money', [
       NavSubGroup('Sales', [
         NavLink('Sales', '/sales', 'sales'),
-        NavLink('Payments', '/poultry-payments', 'poultry-payments'),
+        NavLink('Customer Payments', '/poultry-payments', 'poultry-payments'),
         NavLink('Customer Balances', '/customer-balances', 'poultry-customer-balances'),
         // Money held FOR customers (351): its own page, beside what they owe.
         NavLink('Customer Credits', '/customer-credits', null),

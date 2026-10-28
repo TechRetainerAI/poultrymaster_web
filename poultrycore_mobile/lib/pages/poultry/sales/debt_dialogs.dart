@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../api/api_client.dart';
+import '../../../design/ui/form_dialog.dart';
 import '../../../design/ui/inputs.dart';
 import '../../../models/company.dart';
 import '../../../state/session.dart';
@@ -83,7 +84,7 @@ Future<bool> reverseDebt(
         ? '${(partyName ?? '').isNotEmpty ? partyName : 'The customer'} will no longer owe $total. The debt stays in the history, marked Reversed. No cash moves.'
         : 'You will no longer owe $party $total. The debt stays in the history, marked Reversed. No cash moves.',
     body: const [],
-    action: 'Reverse debt',
+    action: 'Reverse debt · $total',
     onConfirm: (reason) => session.farmClient.post(
       '/api/Poultry/${_debtsPath(side)}/${tStr(doc['documentId'])}/reverse?farmId=${Uri.encodeQueryComponent(company.farmId)}',
       body: {'farmId': company.farmId, 'reason': reason},
@@ -184,13 +185,9 @@ class _DebtDialogState extends State<_DebtDialog> {
       canPop: !_saving,
       child: AlertDialog(
         scrollable: true,
-        title: Row(children: [
-          const Icon(Icons.report_outlined, color: TColors.amber600),
-          const SizedBox(width: 8),
-          Flexible(child: Text('Record $word debt')),
-        ]),
+        title: FormDialogTitle(icon: Icons.report_outlined, color: FormColor.amber, text: 'Record $word debt'),
         content: SizedBox(
-          width: 480,
+          width: 672,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -203,55 +200,61 @@ class _DebtDialogState extends State<_DebtDialog> {
                         'system. It is added to what you owe them and is paid like a purchase. It is not a purchase: no stock, no expense and no cash.',
                 style: const TextStyle(fontSize: 13, color: TColors.slate500),
               ),
-              const SizedBox(height: 14),
-              FilterLabel(
-                _customer ? 'Customer *' : 'Supplier *',
-                AppSelect<int>(
-                  value: _party,
-                  hintText: _parties.isNotEmpty || _partiesLoaded ? 'Choose the $word' : 'Loading ${word}s…',
-                  items: [for (final (id, name) in _parties) AppSelectItem(value: id, label: name)],
-                  onChanged: (v) => setState(() => _party = v),
+              const SizedBox(height: 16),
+              TintedSection(title: _customer ? 'Customer & Date' : 'Supplier & Date', color: FormColor.blue, children: [
+                FormPair(
+                  stackOnMobile: true,
+                  FilterLabel(
+                    _customer ? 'Customer *' : 'Supplier *',
+                    AppSelect<int>(
+                      value: _party,
+                      hintText: _parties.isNotEmpty || _partiesLoaded ? 'Choose the $word' : 'Loading ${word}s…',
+                      items: [for (final (id, name) in _parties) AppSelectItem(value: id, label: name)],
+                      onChanged: (v) => setState(() => _party = v),
+                    ),
+                  ),
+                  FilterLabel('Owed from *', FilterDate(value: _date, hint: 'Date', onChanged: (v) => setState(() => _date = v))),
                 ),
-              ),
-              const SizedBox(height: 10),
-              filterRow([
+              ]),
+              const SizedBox(height: 16),
+              TintedSection(title: 'Debt', color: FormColor.amber, children: [
+                FormPair(
+                  FilterLabel(
+                    'Amount owed *',
+                    AppInput(
+                      controller: _amount,
+                      hintText: '0.00',
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ),
+                  FilterLabel(
+                    'Why is it owed *',
+                    AppSelect<String>(
+                      value: _entryType,
+                      items: [for (final e in _labels.entries) AppSelectItem(value: e.key, label: e.value)],
+                      onChanged: (v) => setState(() => _entryType = v ?? _entryType),
+                    ),
+                  ),
+                ),
                 FilterLabel(
-                  'Amount owed *',
+                  'Description *',
                   AppInput(
-                    controller: _amount,
-                    hintText: '0.00',
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
+                    controller: _description,
+                    hintText: _customer ? 'e.g. Eggs supplied before we started using the system' : 'e.g. Maize bought before we started using the system',
                     onChanged: (_) => setState(() {}),
                   ),
                 ),
-                FilterLabel('Owed from *', FilterDate(value: _date, hint: 'Date', onChanged: (v) => setState(() => _date = v))),
+                FilterLabel('Reference', AppInput(controller: _reference, hintText: 'Optional, e.g. old ledger page or invoice')),
               ]),
-              const SizedBox(height: 10),
-              FilterLabel(
-                'Why is it owed *',
-                AppSelect<String>(
-                  value: _entryType,
-                  items: [for (final e in _labels.entries) AppSelectItem(value: e.key, label: e.value)],
-                  onChanged: (v) => setState(() => _entryType = v ?? _entryType),
-                ),
-              ),
-              const SizedBox(height: 10),
-              FilterLabel(
-                'Description *',
-                AppInput(
-                  controller: _description,
-                  hintText: _customer ? 'e.g. Eggs supplied before we started using the system' : 'e.g. Maize bought before we started using the system',
-                  onChanged: (_) => setState(() {}),
-                ),
-              ),
-              const SizedBox(height: 10),
-              FilterLabel('Reference', AppInput(controller: _reference, hintText: 'Optional, e.g. old ledger page or invoice')),
-              const SizedBox(height: 10),
-              FilterLabel('Notes', AppInput(controller: _notes, hintText: 'Optional', minLines: 2, maxLines: 4)),
+              const SizedBox(height: 16),
+              TintedSection(title: 'Notes', color: FormColor.slate, children: [
+                AppInput(controller: _notes, hintText: 'Optional', minLines: 2, maxLines: 4),
+              ]),
               if (_value > 0 && _partyName.isNotEmpty) ...[
                 const SizedBox(height: 12),
-                summaryBox(_customer
+                summaryBox(tone: FormColor.amber, _customer
                     ? [
                         TextSpan(text: '$_partyName will owe '),
                         TextSpan(text: widget.money(_value), style: boldSpan),
@@ -268,12 +271,13 @@ class _DebtDialogState extends State<_DebtDialog> {
           ),
         ),
         actions: [
-          OutlinedButton(onPressed: _saving ? null : () => Navigator.pop(context), child: const Text('Cancel')),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: TColors.amber600),
-            onPressed: !_valid || _saving ? null : _save,
-            child: Text(_saving ? 'Recording…' : 'Record debt'),
-          ),
+          FormDialogFooter(onCancel: () => Navigator.pop(context), cancelDisabled: _saving, children: [
+            FilledButton(
+              style: formPrimary(FormColor.amber),
+              onPressed: !_valid || _saving ? null : _save,
+              child: Text(_saving ? 'Recording…' : _value > 0 ? 'Record debt · ${widget.money(_value)}' : 'Record debt'),
+            ),
+          ]),
         ],
       ),
     );

@@ -1,6 +1,8 @@
 import 'custom_form.dart';
 import 'form_spec.dart';
 import 'generated_forms.dart';
+import 'hotel/hotel_forms.dart';
+import 'hotel/reports/hotel_report_routes.dart';
 import 'page_extras.dart';
 import 'poultry/poultry_extras.dart';
 import 'poultry/poultry_forms.dart';
@@ -53,7 +55,8 @@ final Map<String, List<ListFilter>> listFilters = {
 final Map<String, DeleteGuard> deleteGuards = {...waterDeleteGuards, ...restaurantDeleteGuards, ...poultryDeleteGuards};
 final Map<String, BeforeLoad> beforeLoad = {...poultryBeforeLoad};
 final Map<String, RowEnrich> rowEnrich = {...staffLinkRowEnrich};
-final Map<String, RowBadge> rowBadges = {...staffLinkRowBadges};
+final Map<String, RowBadge> rowBadges = {...staffLinkRowBadges, ...poultryRowBadges};
+final Map<String, ListBanner> listBanners = {...poultryListBanners};
 
 /// Routes that are screens of their own, keyed by web href.
 final Map<String, PageScreenBuilder> pageScreens = {
@@ -65,6 +68,8 @@ final Map<String, PageScreenBuilder> pageScreens = {
   ...waterReportScreens,
   ...restaurantPageScreens,
   ...restaurantReportScreens,
+  ...hotelPageScreens,
+  ...hotelReportScreens,
 };
 
 /// The form for a spec: the curated one when there is one, else the extracted.

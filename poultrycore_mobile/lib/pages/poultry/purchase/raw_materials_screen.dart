@@ -11,6 +11,7 @@ import '../../../design/ui/inputs.dart';
 import '../../../models/company.dart';
 import '../../../state/session.dart';
 import '../../../widgets/module_sidebar.dart';
+import '../feed_formula_form_screen.dart' show ensureDefaultFeedFormulas;
 import '../../shared/business_dates.dart';
 import '../../shared/company_clock.dart';
 import '../reports/report_format.dart';
@@ -175,8 +176,16 @@ class _RawMaterialsScreenState extends State<RawMaterialsScreen> {
     super.dispose();
   }
 
+  /// 385: the default feeds and ingredients, once per page visit (and once
+  /// per farm on the server).
+  bool _feedDefaultsDone = false;
+
   Future<void> _load() async {
     setState(() => _loading = true);
+    if (!_feedDefaultsDone) {
+      _feedDefaultsDone = true;
+      await ensureDefaultFeedFormulas(widget.session, widget.company).catchError((_) => (0, 0));
+    }
     try {
       final r = await Future.wait<Object?>([
         _api.get('/api/Poultry/raw-material-items', query: _q),

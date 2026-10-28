@@ -781,6 +781,24 @@ class _ListScreenState extends State<ListScreen> {
                           detail: _error!,
                           onRetry: _load,
                         )
+                      // The page's panel (ListBanner) scrolls with the rows:
+                      // in the fixed header it squeezed the list on a phone.
+                      // It stays on an empty list, where "add the defaults"
+                      // is exactly what is needed.
+                      : rows.isEmpty && listBanners[spec.key] != null
+                          ? ListView(
+                              padding: const EdgeInsets.fromLTRB(16, 14, 16, 40),
+                              children: [
+                                listBanners[spec.key]!(widget.session, widget.company, _load),
+                                const SizedBox(height: 24),
+                                Text(
+                                  _query.isEmpty && _filters.isEmpty
+                                      ? (spec.emptyMessage ?? 'No ${head.title.toLowerCase()} recorded for ${widget.company.name}.')
+                                      : 'Nothing matches “$_query”.',
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            )
                       : rows.isEmpty
                           ? _Message(
                               icon: Icons.inbox_outlined,
@@ -813,7 +831,15 @@ class _ListScreenState extends State<ListScreen> {
                               separatorBuilder: (_, _) =>
                                   const SizedBox(height: 8),
                               itemBuilder: (context, i) {
-                                if (i == 0) return _summaryBlock(rows.length);
+                                if (i == 0) {
+                                  final banner = listBanners[spec.key];
+                                  if (banner == null) return _summaryBlock(rows.length);
+                                  return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                                    banner(widget.session, widget.company, _load),
+                                    const SizedBox(height: 12),
+                                    _summaryBlock(rows.length),
+                                  ]);
+                                }
                                 final row = rows[i - 1];
                                 return _RecordCard(
                                   spec: spec,

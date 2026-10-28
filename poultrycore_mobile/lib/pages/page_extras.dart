@@ -44,6 +44,11 @@ typedef RowEnrich = Future<void> Function(Session session, Company company, List
 /// A small badge after a row's name on the list, or null for none.
 typedef RowBadge = Widget? Function(Map<String, dynamic> row);
 
+/// A panel under a list's header buttons, as the web's info boxes above a
+/// table (Feed Formulas: "Default formulas to start with"). [reload] lists
+/// the rows again, for a panel whose button changes them.
+typedef ListBanner = Widget Function(Session session, Company company, Future<void> Function() reload);
+
 /// Work a page does before listing, as the web's load() does (Products:
 /// make sure the default Eggs and Birds products exist). Failures are
 /// ignored, as on the web.

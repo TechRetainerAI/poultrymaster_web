@@ -132,7 +132,7 @@ void main() {
       await choose(tester, 'Select a reason', 'Other');
       await tester.enterText(find.byType(TextFormField).last, 'Customer moved away');
       await tester.pumpAndSettle();
-      await tapLast(tester, 'Refund');
+      await tapLast(tester, 'Refund · GHC 100.00');
 
       final body = api.lastBody('$cBase/refunds');
       expect(body['poultryPaymentId'], 31);
@@ -155,7 +155,7 @@ void main() {
       await choose(tester, 'Cash', 'Mobile Money');
       await choose(tester, 'Select a reason', 'Prepayment for a bulk order');
       expect(find.textContaining('goes up by the same amount'), findsOneWidget);
-      await tapLast(tester, 'Add credit');
+      await tapLast(tester, 'Add credit · GHC 75.00');
 
       final body = api.lastBody('$cBase/credit/manual');
       expect(body['customerId'], 5);
@@ -176,7 +176,7 @@ void main() {
       await tapLast(tester, 'Reverse refund');
       expect(find.textContaining('Reversing this refund will restore'), findsOneWidget);
       await choose(tester, 'Select a reason', 'Wrong amount');
-      await tapLast(tester, 'Reverse refund');
+      await tapLast(tester, 'Reverse refund · GHC 20.00');
       expect(api.lastBody('$cBase/refunds/9/reverse')['reason'], 'Wrong amount');
     });
 
@@ -206,7 +206,7 @@ void main() {
       expect(find.text('Apply supplier credit'), findsOneWidget);
       await choose(tester, 'Choose a purchase, bill or debt', 'INV-80');
       expect(find.textContaining('At most'), findsOneWidget);
-      await tapLast(tester, 'Apply credit');
+      await tapLast(tester, 'Apply credit · GHC 120.00');
 
       final body = api.lastBody('$sBase/apply');
       expect(body['poultrySupplierPaymentId'], 51);
@@ -223,7 +223,7 @@ void main() {
       await choose(tester, 'Choose the supplier', 'Feed Co');
       await enter(tester, 'Amount *', '80');
       await choose(tester, 'Cash', 'Bank Transfer');
-      await tapLast(tester, 'Pay advance');
+      await tapLast(tester, 'Pay advance · GHC 80.00');
 
       final body = api.lastBody('/api/Poultry/supplier-payments');
       expect(body['partyId'], 8);
@@ -242,7 +242,7 @@ void main() {
       await tapLast(tester, 'Opening credit');
       await enter(tester, 'Amount *', '40');
       await choose(tester, 'Select a reason', 'Balance carried from old books');
-      await tapLast(tester, 'Add credit');
+      await tapLast(tester, 'Add credit · GHC 40.00');
 
       final body = api.lastBody('$sBase/manual');
       expect(body['supplierId'], 8);

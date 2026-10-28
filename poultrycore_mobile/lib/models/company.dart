@@ -52,7 +52,12 @@ class Company {
     this.email,
     this.phoneNumber,
     this.ownerUserId,
+    this.createdAt,
   });
+
+  /// When the company was created. The Business Office sidebar hands out its
+  /// colours in creation order (lib/utils/company-color.ts).
+  final String? createdAt;
 
   final String farmId;
   final String name;
@@ -77,5 +82,6 @@ class Company {
         email: json['email'] as String?,
         phoneNumber: json['phoneNumber'] as String?,
         ownerUserId: json['ownerUserId']?.toString(),
+        createdAt: json['createdAt']?.toString(),
       );
 }

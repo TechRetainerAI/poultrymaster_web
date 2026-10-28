@@ -17,7 +17,7 @@ import 'support/harness.dart';
 final _groups = webNavGroups['poultry']!;
 
 const _defaults = [
-  'Production Records', 'Egg sorting', 'Supply Purchases', 'Sales', 'Payments received', 'Customer Balances', 'Expenses', 'Cash Flow',
+  'Production Records', 'Egg sorting', 'Supply Purchases', 'Sales', 'Customer Payments', 'Customer Balances', 'Expenses', 'Cash Flow',
   'Profit & Loss', 'Daily Closing',
 ];
 

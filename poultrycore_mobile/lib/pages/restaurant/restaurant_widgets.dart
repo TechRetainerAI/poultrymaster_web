@@ -25,19 +25,30 @@ Widget restaurantImage(String src, {required Widget fallback, BoxFit fit = BoxFi
 
 /// PageHeader: the rose icon tile, title and subtitle; actions full width below.
 class RPageHeader extends StatelessWidget {
-  const RPageHeader({super.key, required this.icon, required this.title, this.subtitle, this.actions = const []});
+  const RPageHeader({
+    super.key,
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    this.actions = const [],
+    this.tileColor = const Color(0xFFFFE4E6),
+    this.iconColor = restaurantRose,
+  });
   final IconData icon;
   final String title;
   final String? subtitle;
   final List<Widget> actions;
+
+  /// The icon tile; Hotel's copies of these pages pass violet.
+  final Color tileColor, iconColor;
 
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: const Color(0xFFFFE4E6), borderRadius: BorderRadius.circular(8)),
-            child: Icon(icon, size: 22, color: restaurantRose),
+            decoration: BoxDecoration(color: tileColor, borderRadius: BorderRadius.circular(8)),
+            child: Icon(icon, size: 22, color: iconColor),
           ),
           const SizedBox(width: 12),
           Expanded(

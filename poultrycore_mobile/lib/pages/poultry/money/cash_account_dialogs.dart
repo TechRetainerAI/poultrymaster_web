@@ -20,7 +20,55 @@ const cashAccountTypes = ['FarmCashBox', 'OwnerCash', 'MoMoWallet', 'BankAccount
 /// Water's ACCOUNT_TYPES (app/water-cash-accounts): a factory cash box and driver cash.
 const waterCashAccountTypes = ['FactoryCashBox', 'OwnerCash', 'MoMoWallet', 'BankAccount', 'DriverCash', 'PettyCash', 'Other'];
 
-List<String> cashAccountTypesFor(MoneyRail r) => r.idPrefix == 'water' ? waterCashAccountTypes : cashAccountTypes;
+List<String> cashAccountTypesFor(MoneyRail r) => r.isHotel
+    ? [for (final t in hotelCashAccountTypes) t.$1]
+    : r.idPrefix == 'water'
+        ? waterCashAccountTypes
+        : cashAccountTypes;
+
+/// HOTEL_CASH_ACCOUNT_TYPES (lib/api/hotel-money.ts): (value, label).
+const hotelCashAccountTypes = [
+  ('FrontDeskCash', 'Front Desk Cash'),
+  ('CashBox', 'Cash Box'),
+  ('PettyCash', 'Petty Cash'),
+  ('Cash', 'Cash'),
+  ('Bank', 'Bank Account'),
+  ('MobileMoney', 'Mobile Money'),
+  ('Other', 'Other'),
+];
+
+/// hotelAccountTypeLabel.
+String hotelAccountTypeLabel(Object? v) {
+  final s = tStr(v);
+  return hotelCashAccountTypes.where((t) => t.$1 == s).firstOrNull?.$2 ?? (s.isEmpty ? '—' : s);
+}
+
+/// An account type as the page shows it: the Hotel's labels, Poultry's and Water's values.
+String cashAccountTypeLabel(MoneyRail r, Object? v) => r.isHotel ? hotelAccountTypeLabel(v) : tStr(v);
+
+/// HOTEL_CASH_PURPOSES: what an account is linked to (auto-routing).
+const hotelCashPurposes = [
+  ('FrontDesk', 'Front Desk — guest payments in'),
+  ('POS', 'POS / Restaurant — orders in'),
+  ('Expenses', 'Expenses — money out'),
+  ('Payroll', 'Payroll — salaries out'),
+];
+
+/// purposeLabel: the part before the dash, or null.
+String? hotelPurposeLabel(Object? p) => hotelCashPurposes.where((x) => x.$1 == tStr(p)).firstOrNull?.$2.split(' — ').first;
+
+/// HOTEL_CASH_REASONS: Poultry's without the driver entries.
+const hotelCashReasons = [
+  'Cash shortage', 'Cash overage', 'Bank charge', 'MoMo charge', 'Unrecorded expense', 'Unrecorded income',
+  'Wrong cash account used', 'Owner draw not recorded', 'Owner contribution not recorded', 'Rounding difference',
+  'Opening balance correction', 'Other',
+];
+
+/// HOTEL_CASH_TRANSFER_REASONS: driver floats swapped for the front-desk float.
+const hotelCashTransferReasons = [
+  'Bank deposit', 'Bank withdrawal', 'MoMo cash-out', 'MoMo top-up', 'Front desk float issued', 'Front desk float returned',
+  'Petty cash top-up', 'Funding payroll', 'Funding supplier payment', 'Consolidating balances', 'Safe keeping', 'Other',
+];
 
 /// POULTRY_CASH_REASONS — why the cash differed. Stored as text.
 const cashReasons = [
@@ -82,6 +130,9 @@ class _CashAccountFormDialogState extends State<CashAccountFormDialog> {
   late final _notes = TextEditingController(text: tStr(_e?['notes']));
   final _opening = TextEditingController(text: '0');
   late String _type = tStr(_e?['accountType']).isEmpty ? cashAccountTypesFor(widget.rail).first : tStr(_e?['accountType']);
+
+  /// Hotel's "Used for" link; '' is "No link (General)".
+  late String _purpose = tStr(_e?['purpose']);
   late bool _allowNeg = _e?['allowNegativeBalance'] == true;
   late bool _active = _e == null ? true : _e['isActive'] == true;
   bool _saving = false;
@@ -100,7 +151,30 @@ class _CashAccountFormDialogState extends State<CashAccountFormDialog> {
     final api = widget.session.farmClient;
     final farmId = widget.company.farmId;
     try {
-      if (_e != null) {
+      final purpose = _purpose.isEmpty ? null : _purpose;
+      if (_r.isHotel && _e != null) {
+        await api.put('${_r.cashAccountsApi}/${tStr(_e['hotelCashAccountId'])}', body: {
+          'farmId': farmId,
+          'accountName': _name.text.trim(),
+          'accountType': _type,
+          'allowNegativeBalance': _allowNeg,
+          'isActive': _active,
+          'notes': _notes.text,
+          'purpose': purpose,
+        });
+        if (mounted) trackerToast(context, 'Account updated');
+      } else if (_r.isHotel) {
+        await api.post(_r.cashAccountsApi, body: {
+          'farmId': farmId,
+          'accountName': _name.text.trim(),
+          'accountType': _type,
+          'openingBalance': num.tryParse(_opening.text) ?? 0,
+          'allowNegativeBalance': _allowNeg,
+          'notes': _notes.text,
+          'purpose': purpose,
+        });
+        if (mounted) trackerToast(context, 'Account created');
+      } else if (_e != null) {
         final id = tStr(_e['${_r.idPrefix}CashAccountId']);
         await api.put('${_r.api}/cash-accounts/$id', body: {
           'accountName': _name.text,
@@ -138,24 +212,47 @@ class _CashAccountFormDialogState extends State<CashAccountFormDialog> {
       canPop: !_saving,
       child: AlertDialog(
         scrollable: true,
-        title: _dialogTitle(editing ? Icons.edit_outlined : Icons.account_balance_wallet_outlined, _blue600,
+        title: _dialogTitle(editing ? Icons.edit_outlined : Icons.account_balance_wallet_outlined, _r.accent ?? _blue600,
             editing ? 'Edit account' : 'New cash account'),
         content: SizedBox(
           width: 460,
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             const Text('Configure where cash flows into or out of', style: TextStyle(fontSize: 13, color: TColors.slate500)),
             const SizedBox(height: 12),
-            formSection('Identity', _indigo600, [
-              FilterLabel('Name *', AppInput(controller: _name)),
+            formSection('Identity', _r.accent ?? _indigo600, [
+              FilterLabel('Name *', AppInput(controller: _name, hintText: _r.isHotel ? 'e.g. Front Desk Cash' : null)),
               FilterLabel(
                 'Type',
                 AppSelect<String>(
                   value: _type,
-                  items: [for (final t in cashAccountTypesFor(_r)) AppSelectItem(value: t, label: t)],
+                  items: [
+                    for (final t in cashAccountTypesFor(_r)) AppSelectItem(value: t, label: cashAccountTypeLabel(_r, t)),
+                    // A type the list no longer has still shows.
+                    if (!cashAccountTypesFor(_r).contains(_type)) AppSelectItem(value: _type, label: _type),
+                  ],
                   onChanged: (v) => setState(() => _type = v ?? _type),
                 ),
               ),
               if (!editing) FilterLabel('Opening balance', _numberField(_opening, () => setState(() {}))),
+              if (_r.isHotel)
+                Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  FilterLabel(
+                    'Used for',
+                    AppSelect<String>(
+                      value: _purpose,
+                      items: [
+                        const AppSelectItem(value: '', label: 'No link (General)'),
+                        for (final p in hotelCashPurposes) AppSelectItem(value: p.$1, label: p.$2),
+                      ],
+                      onChanged: (v) => setState(() => _purpose = v ?? ''),
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.only(top: 4),
+                    child: Text('Linking an account auto-routes money in/out when transactions happen',
+                        style: TextStyle(fontSize: 11, color: TColors.slate500)),
+                  ),
+                ]),
             ]),
             const SizedBox(height: 12),
             formSection('Behavior', TColors.amber600, [
@@ -169,7 +266,11 @@ class _CashAccountFormDialogState extends State<CashAccountFormDialog> {
         ),
         actions: [
           redCancelButton(_saving ? null : () => Navigator.pop(context, false)),
-          FilledButton(onPressed: _saving ? null : _save, child: Text(_saving ? 'Saving…' : 'Save')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: _r.accent),
+            onPressed: _saving ? null : _save,
+            child: Text(_saving ? 'Saving…' : 'Save'),
+          ),
         ],
       ),
     );
@@ -204,6 +305,7 @@ class _CashTransferQuickDialogState extends State<CashTransferQuickDialog> {
   }
 
   Future<void> _save() async {
+    if (_r.isHotel && (_from == '0' || _to == '0')) return trackerToast(context, 'Pick both accounts', error: true);
     if (_from == _to) return trackerToast(context, 'From and To must differ', error: true);
     final amount = num.tryParse(_amount.text) ?? 0;
     if (amount <= 0) return trackerToast(context, 'Amount required', error: true);
@@ -211,6 +313,22 @@ class _CashTransferQuickDialogState extends State<CashTransferQuickDialog> {
     final api = widget.session.farmClient;
     final farmId = widget.company.farmId;
     try {
+      // The Hotel records and posts a transfer in one request.
+      if (_r.isHotel) {
+        await api.post('${_r.api}/cash-transfers', body: {
+          'farmId': farmId,
+          'fromHotelCashAccountId': int.parse(_from),
+          'toHotelCashAccountId': int.parse(_to),
+          'amount': amount,
+          'transferDate': null,
+          'referenceNumber': null,
+          'notes': (_reason == 'Other' ? _other.text.trim() : _reason).isEmpty ? null : (_reason == 'Other' ? _other.text.trim() : _reason),
+        });
+        if (!mounted) return;
+        trackerToast(context, 'Transfer approved');
+        Navigator.pop(context, true);
+        return;
+      }
       final res = await api.post('${_r.api}/cash-transfers', body: {
         'from${_r.cap}CashAccountId': int.parse(_from),
         'to${_r.cap}CashAccountId': int.parse(_to),
@@ -241,13 +359,13 @@ class _CashTransferQuickDialogState extends State<CashTransferQuickDialog> {
         );
     return AlertDialog(
       scrollable: true,
-      title: _dialogTitle(Icons.swap_horiz, _blue600, 'Cash transfer (Draft → Approved)'),
+      title: _dialogTitle(Icons.swap_horiz, _r.accent ?? _blue600, _r.isHotel ? 'Cash transfer' : 'Cash transfer (Draft → Approved)'),
       content: SizedBox(
         width: 460,
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           const Text('Move funds between two cash accounts', style: TextStyle(fontSize: 13, color: TColors.slate500)),
           const SizedBox(height: 12),
-          formSection('Accounts', _indigo600, [
+          formSection('Accounts', _r.accent ?? _indigo600, [
             FilterLabel('From', pick(_from, 'From account', (v) => _from = v)),
             FilterLabel('To', pick(_to, 'To account', (v) => _to = v)),
           ]),
@@ -259,7 +377,7 @@ class _CashTransferQuickDialogState extends State<CashTransferQuickDialog> {
               AppSelect<String>(
                 value: _reason.isEmpty ? null : _reason,
                 hintText: 'Why is the money moving?',
-                items: [for (final r in cashTransferReasons) AppSelectItem(value: r, label: r)],
+                items: [for (final r in _r.isHotel ? hotelCashTransferReasons : cashTransferReasons) AppSelectItem(value: r, label: r)],
                 onChanged: (v) => setState(() {
                   _reason = v ?? '';
                   _other.clear();
@@ -268,13 +386,20 @@ class _CashTransferQuickDialogState extends State<CashTransferQuickDialog> {
             ),
             if (_reason == 'Other')
               FilterLabel('Say what happened *',
-                  AppInput(controller: _other, autofocus: true, hintText: 'e.g. Moved to the depot safe overnight')),
+                  AppInput(
+                      controller: _other,
+                      autofocus: true,
+                      hintText: _r.isHotel ? 'e.g. Moved to the back-office safe overnight' : 'e.g. Moved to the depot safe overnight')),
           ]),
         ]),
       ),
       actions: [
         redCancelButton(() => Navigator.pop(context, false)),
-        FilledButton(onPressed: _save, child: const Text('Create & approve')),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: _r.accent),
+          onPressed: _save,
+          child: Text(_r.isHotel ? 'Record transfer' : 'Create & approve'),
+        ),
       ],
     );
   }
@@ -333,9 +458,14 @@ class _RecordCashAdjustmentDialogState extends State<RecordCashAdjustmentDialog>
     final signed = _signed;
     try {
       await widget.session.farmClient.post(
-        '${_r.api}/cash-accounts/$_account/adjust',
+        '${_r.cashAccountsApi}/$_account/adjust',
         query: {'farmId': widget.company.farmId},
-        body: {'amount': signed, 'reason': _needsNote ? _note.text.trim() : _reason, 'createdBy': widget.session.tokens.userId},
+        body: {
+          if (_r.isHotel) 'farmId': widget.company.farmId,
+          'amount': signed,
+          'reason': _needsNote ? _note.text.trim() : _reason,
+          'createdBy': widget.session.tokens.userId,
+        },
       );
       if (!mounted) return;
       trackerToast(context, 'Adjustment recorded',
@@ -354,14 +484,14 @@ class _RecordCashAdjustmentDialogState extends State<RecordCashAdjustmentDialog>
       canPop: !_saving,
       child: AlertDialog(
         scrollable: true,
-        title: _dialogTitle(Icons.balance, _sky600, 'Record Cash Adjustment'),
+        title: _dialogTitle(Icons.balance, _r.accent ?? _sky600, 'Record Cash Adjustment'),
         content: SizedBox(
           width: 460,
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             const Text('Posts a cash transaction against one account. Balances are never edited directly.',
                 style: TextStyle(fontSize: 13, color: TColors.slate500)),
             const SizedBox(height: 12),
-            formSection('Adjustment', _sky600, [
+            formSection('Adjustment', _r.accent ?? _sky600, [
               Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 FilterLabel(
                   'Cash account *',
@@ -405,7 +535,7 @@ class _RecordCashAdjustmentDialogState extends State<RecordCashAdjustmentDialog>
                   AppSelect<String>(
                     value: _reason.isEmpty ? null : _reason,
                     hintText: 'Why is the balance changing?',
-                    items: [for (final r in cashReasons) AppSelectItem(value: r, label: r)],
+                    items: [for (final r in _r.isHotel ? hotelCashReasons : cashReasons) AppSelectItem(value: r, label: r)],
                     onChanged: (v) => setState(() {
                       _reason = v ?? '';
                       _note.clear();
@@ -457,7 +587,11 @@ class _RecordCashAdjustmentDialogState extends State<RecordCashAdjustmentDialog>
         ),
         actions: [
           TextButton(onPressed: _saving ? null : () => Navigator.pop(context, false), child: const Text('Cancel')),
-          FilledButton(onPressed: _canSubmit ? _submit : null, child: Text(_saving ? 'Saving…' : 'Record adjustment')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: _r.accent),
+            onPressed: _canSubmit ? _submit : null,
+            child: Text(_saving ? 'Saving…' : 'Record adjustment'),
+          ),
         ],
       ),
     );
@@ -560,7 +694,7 @@ class _AdjustBalanceDialogState extends State<AdjustBalanceDialog> {
                   AppSelect<String>(
                     value: _reason.isEmpty ? null : _reason,
                     hintText: 'Why is the balance changing?',
-                    items: [for (final r in cashReasons) AppSelectItem(value: r, label: r)],
+                    items: [for (final r in _r.isHotel ? hotelCashReasons : cashReasons) AppSelectItem(value: r, label: r)],
                     onChanged: (v) => setState(() {
                       _reason = v ?? '';
                       _note.clear();

@@ -12,6 +12,7 @@ import '../../../api/api_client.dart';
 import '../../../design/ui/inputs.dart';
 import '../../../models/company.dart';
 import '../../../state/session.dart';
+import '../feed_formula_form_screen.dart' show ensureDefaultFeedFormulas;
 import '../../shared/business_dates.dart';
 import '../money/money_widgets.dart' show formSection;
 import '../purchase/raw_material_dialogs.dart' show RawPurchaseDialog;
@@ -303,6 +304,8 @@ class _FeedProductionBatchFormState extends State<FeedProductionBatchForm> {
   Future<void> _load() async {
     try {
       final savedFormula = _formulaId;
+      // 385: the default feeds and formulas, once per farm. Silent on failure.
+      await ensureDefaultFeedFormulas(widget.session, widget.company).catchError((_) => (0, 0));
       Future<List<Map>> soft(String path, Map<String, String> q) async {
         try {
           return rowsOf(await _api.get(path, query: q));

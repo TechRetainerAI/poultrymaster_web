@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Release builds read only this manifest; without this line an installed
+         APK cannot reach the API ("Network error"), while debug runs work. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="poultrycore_mobile"
         android:name="${applicationName}"

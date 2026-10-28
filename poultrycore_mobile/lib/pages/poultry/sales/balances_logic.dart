@@ -24,6 +24,15 @@ const paymentsSourceLabels = {
 /// 363: a credit added by hand is reversed from Customer Credits (owner / admin).
 const manualCreditSources = {'OpeningCredit', 'Deposit', 'CreditNote'};
 bool isManualCreditPayment(Map row) => manualCreditSources.contains(tStr(row['sourceType']));
+
+/// customerKey: the Customer filter's key for a payment -- its customer id, or
+/// one shared key for walk-ins.
+String customerFilterKey(Map r) {
+  final id = r['partyId'];
+  if (id != null && tStr(id).isNotEmpty) return 'id:$id';
+  final name = tStr(r['partyName']);
+  return name.isNotEmpty ? 'name:$name' : 'walkin';
+}
 String paymentsSourceLabel(Object? s) {
   final v = tStr(s);
   return v.isEmpty ? '—' : (paymentsSourceLabels[v] ?? v);
@@ -317,23 +326,44 @@ class BalanceRail {
   bool get isWater => api == '/api/Water';
   bool get isRestaurant => api == '/api/Restaurant';
 
+  /// Hotel's routes sit under /balances (migration 332), so its prefix is
+  /// `/api/Hotel/balances` and every path builds on it as the web's does.
+  bool get isHotel => api == '/api/Hotel/balances';
+
   /// Poultry alone has supplier / customer debts, the P&L badge and the
   /// credit panels; Water and Restaurant pass none of those.
   bool get isPoultry => api == '/api/Poultry';
 
   String balancesHref(BalanceSide side) => side.isCustomer ? customerBalancesHref : supplierBalancesHref;
 
-  String get supplierPaymentsHref => isWater ? '/water-supplier-payments' : isRestaurant ? '/restaurant-supplier-payments' : '/supplier-payments';
+  String get supplierPaymentsHref => isWater
+      ? '/water-supplier-payments'
+      : isRestaurant
+          ? '/restaurant-supplier-payments'
+          : isHotel
+              ? '/hotel-supplier-payments'
+              : '/supplier-payments';
 
   /// partyHref on the supplier pages.
-  String get suppliersHref => isWater ? '/water-suppliers' : isRestaurant ? '/restaurant-suppliers' : '/suppliers';
+  String get suppliersHref => isWater ? '/water-suppliers' : isRestaurant ? '/restaurant-suppliers' : isHotel ? '/hotel-suppliers' : '/suppliers';
 
   /// The module's cash-accounts id key.
-  String get cashAccountIdKey => isWater ? 'waterCashAccountId' : isRestaurant ? 'cashAccountId' : 'poultryCashAccountId';
+  String get cashAccountIdKey => isWater
+      ? 'waterCashAccountId'
+      : isRestaurant
+          ? 'cashAccountId'
+          : isHotel
+              ? 'hotelCashAccountId'
+              : 'poultryCashAccountId';
 
   /// Where the cash accounts are listed: Restaurant's live under /finance
-  /// (listCashAccounts), with `name` and `allowNegative`.
-  String get cashAccountsPath => isRestaurant ? '/api/Restaurant/finance/accounts' : '$api/cash-accounts';
+  /// (listCashAccounts), with `name` and `allowNegative`; Hotel's under
+  /// /finance/cash-accounts (loadHotelCashAccounts).
+  String get cashAccountsPath => isRestaurant
+      ? '/api/Restaurant/finance/accounts'
+      : isHotel
+          ? '/api/Hotel/finance/cash-accounts'
+          : '$api/cash-accounts';
   String get cashAccountNameKey => isRestaurant ? 'name' : 'accountName';
   String get allowNegativeKey => isRestaurant ? 'allowNegative' : 'allowNegativeBalance';
 
@@ -348,6 +378,16 @@ class BalanceRail {
         'Purchase' => '/restaurant-inventory?tab=purchases&purchaseId=$id',
         'Expense' => '/restaurant-expenses?expenseId=$id',
         'AssetCost' => '/restaurant-assets',
+        _ => '',
+      };
+    }
+    // hotelPayableHref (lib/hotel/balances.ts).
+    if (isHotel) {
+      return switch (type) {
+        'Purchase' => '/hotel-inventory?purchaseId=$id',
+        'Expense' => '/hotel-expenses?expenseId=$id',
+        'AssetCost' => '/hotel-assets',
+        'OpeningBalance' => '/hotel-suppliers',
         _ => '',
       };
     }
@@ -368,4 +408,6 @@ class BalanceRail {
   static const water = BalanceRail._('/api/Water', '/water-payments', '/water-customer-balances', '/water-supplier-balances', false);
   static const restaurant =
       BalanceRail._('/api/Restaurant', '/restaurant-payments', '/restaurant-customer-balances', '/restaurant-supplier-balances', true);
+  static const hotel =
+      BalanceRail._('/api/Hotel/balances', '/hotel-payments', '/hotel-customer-balances', '/hotel-supplier-balances', true);
 }

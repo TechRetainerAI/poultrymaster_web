@@ -23,11 +23,25 @@ class EmployeeFormScreen extends StatefulWidget {
     this.existing,
     this.prefill,
     this.onCreated,
+    this.boCompanies,
+    this.accessOnly = false,
   });
+
+  /// Business Office "Manage access": the company switches (applied at once)
+  /// over the Admin Access and Staff Page Access controls, saved with "Save
+  /// permissions". Needs [existing] and [boCompanies].
+  final bool accessOnly;
 
   final Session session;
   final Company company;
   final Map<String, dynamic>? existing;
+
+  /// Business Office mode (`boMode` on the web): no company is open, so a new
+  /// employee's company is picked here from these, and an existing one is
+  /// seeded from the org-wide row (the single read is scoped to the open
+  /// company and 404s here). The staff switches follow the chosen company, or
+  /// every company the employee is in.
+  final List<Company>? boCompanies;
 
   /// Staff "Make employee" (362): start from the staff record; the user adds
   /// the login details. [onCreated] gets the new login's id to link it.
@@ -97,6 +111,19 @@ const _moduleOptions = <CompanyType, List<(String, String, String?)>>{
     ('canViewWaterPayroll', 'View Water Payroll', null),
     ('canViewWaterSetup', 'View Water Setup', 'Setup and Company Setup'),
   ],
+  // Hotel — one toggle per sidebar group, matching the hotel nav layout.
+  CompanyType.hotel: [
+    ('canViewHotelRooms', 'View Hotel Rooms', 'Room inventory, room status, room service'),
+    ('canViewHotelBookings', 'View Hotel Bookings', 'Bookings, check-in, check-out, guests'),
+    ('canViewHotelHousekeeping', 'View Housekeeping', 'Cleaning tasks, inspections'),
+    ('canViewHotelBilling', 'View Hotel Billing', 'Charges, invoices, payments'),
+    ('canViewHotelRestaurant', 'View Restaurant & Bar', 'POS, tables, menu, kitchen display'),
+    ('canViewHotelStaff', 'View Hotel Staff', null),
+    ('canViewHotelPayroll', 'View Hotel Payroll', null),
+    ('canViewHotelInventory', 'View Hotel Supplies', 'Linens, toiletries, minibar stock'),
+    ('canViewHotelMaintenance', 'View Hotel Maintenance', null),
+    ('canViewHotelSetup', 'View Hotel Setup', 'Profile, room types, floors, amenities'),
+  ],
   CompanyType.restaurant: [
     ('canViewRestaurantPOS', 'View POS & Orders', 'Point of sale, create and manage orders'),
     ('canViewRestaurantKDS', 'View Kitchen Display', 'Kitchen display system, order bumping'),
@@ -112,8 +139,22 @@ const _moduleOptions = <CompanyType, List<(String, String, String?)>>{
   ],
 };
 
-List<(String, String, String?)> _staffOptionsFor(CompanyType type) =>
-    [..._coreOptions, ...?_moduleOptions[type]];
+List<(String, String, String?)> _staffOptionsFor(CompanyType type) => _staffOptionsForTypes([type]);
+
+/// staffPermissionOptionsForCompanyTypes: core plus each module the employee's
+/// companies cover, in the web's list order (an employee in a Water and a
+/// Poultry company sees both sets). Generic alone is core only; nothing
+/// recognisable at all shows every switch, as the web does.
+List<(String, String, String?)> _staffOptionsForTypes(Iterable<CompanyType> types) {
+  final modules = {for (final t in types) if (_moduleOptions.containsKey(t)) t};
+  if (modules.isEmpty && !types.contains(CompanyType.generic)) {
+    return [..._coreOptions, for (final o in _moduleOptions.values) ...o];
+  }
+  return [
+    ..._coreOptions,
+    for (final e in _moduleOptions.entries) if (modules.contains(e.key)) ...e.value,
+  ];
+}
 
 /// DEFAULT_STAFF_FEATURE_PERMISSIONS. Every key the web carries is sent, not
 /// only the Poultry ones shown, so saving never wipes another module's flags.
@@ -162,13 +203,63 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
   bool get _editing => widget.existing != null;
   String? get _id => widget.existing?['id']?.toString();
 
+  bool get _bo => widget.boCompanies != null;
+
+  /// Business Office: the company a new employee joins.
+  String? _boFarmId;
+
+  /// Manage access: the companies this employee can reach (farmId → type),
+  /// changed at once by the switches.
+  late final Map<String, String> _access = {
+    for (final c in (widget.existing?['companies'] is List ? widget.existing!['companies'] as List : const []))
+      if (c is Map) '${c['farmId']}': '${c['type'] ?? ''}',
+  };
+  String? _busyFarm;
+
+  Future<void> _toggleAccess(Company c) async {
+    final has = _access.containsKey(c.farmId);
+    setState(() => _busyFarm = c.farmId);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      if (has) {
+        await widget.session.loginClient.delete('/api/Admin/employees/$_id/company-access/${Uri.encodeComponent(c.farmId)}');
+      } else {
+        await widget.session.loginClient.post('/api/Admin/employees/$_id/company-access', body: {'FarmId': c.farmId, 'Role': 'Staff'});
+      }
+      setState(() => has ? _access.remove(c.farmId) : _access[c.farmId] = c.type.wire);
+      _accessChanged = true;
+      messenger.showSnackBar(SnackBar(content: Text('${has ? 'Access revoked' : 'Access granted'}. ${c.name}')));
+    } on ApiException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Update failed. ${e.message}')));
+    } finally {
+      if (mounted) setState(() => _busyFarm = null);
+    }
+  }
+
+  /// A company switch changed something: the list behind reloads on close.
+  bool _accessChanged = false;
+
+  /// The company types whose staff switches show.
+  Iterable<CompanyType> get _staffTypes {
+    if (!_bo) return [widget.company.type];
+    if (widget.accessOnly) return [for (final t in _access.values) companyTypeFrom(t)];
+    if (_editing) {
+      final cs = widget.existing?['companies'];
+      return [for (final c in (cs is List ? cs : const [])) if (c is Map) companyTypeFrom('${c['type'] ?? ''}')];
+    }
+    final chosen = widget.boCompanies!.where((c) => c.farmId == _boFarmId).firstOrNull;
+    return chosen == null ? const [] : [chosen.type];
+  }
+
   @override
   void initState() {
     super.initState();
     final row = widget.existing;
     if (row != null) {
       _seed(row);
-      _loadFull();
+      // The org-wide row already carries the permissions; the single read is
+      // scoped to the open company, which the Business Office does not have.
+      if (!_bo) _loadFull();
     }
     final p = widget.prefill;
     if (row == null && p != null) {
@@ -259,6 +350,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
       return;
     }
     if (!_editing) {
+      if (_bo && _boFarmId == null) return _fail('Please select a company for this employee.');
       if (_password.text != _confirm.text) return _fail('Passwords do not match');
       if (_password.text.length < 4) {
         return _fail('Password must be at least 4 characters long');
@@ -287,15 +379,17 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
         await client.put('/api/Admin/employees/$_id', body: {'Id': _id, ...common});
         if (!mounted) return;
         Navigator.of(context).pop(true);
-        messenger.showSnackBar(const SnackBar(content: Text('Employee updated successfully.')));
+        messenger.showSnackBar(SnackBar(
+            content: Text(widget.accessOnly ? 'Access updated. Permissions saved.' : 'Employee updated successfully.')));
         return;
       }
+      final joins = _bo ? widget.boCompanies!.firstWhere((c) => c.farmId == _boFarmId) : widget.company;
       final created = await client.post('/api/Admin/employees', body: {
         ...common,
         'UserName': _user.text.trim(),
         'Password': _password.text,
-        'FarmId': widget.company.farmId,
-        'FarmName': widget.company.name,
+        'FarmId': joins.farmId,
+        'FarmName': joins.name,
       });
       messenger.showSnackBar(const SnackBar(content: Text('Employee created successfully.')));
       final data = created is Map && created['data'] is Map ? created['data'] : created;
@@ -307,7 +401,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
           'Email': to,
           'UserName': _user.text.trim(),
           'Password': _password.text,
-          'FarmName': widget.company.name,
+          'FarmName': joins.name,
         });
         messenger.showSnackBar(SnackBar(content: Text('Login details sent to $to.')));
       } on ApiException catch (e) {
@@ -341,10 +435,19 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(_editing ? 'Edit Employee' : 'Add New Employee',
+            Text(
+                widget.accessOnly
+                    ? 'Manage access — ${[_first.text, _last.text].where((x) => x.isNotEmpty).join(' ').ifEmptyThen(_user.text)}'
+                    : _editing
+                        ? 'Edit Employee'
+                        : 'Add New Employee',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
             Text(
-              _editing
+              widget.accessOnly
+                  ? 'Company access applies at once; permissions when you save'
+                  : _editing
                   ? 'Update employee profile and access permissions'
                   : widget.prefill != null
                       ? 'Give ${widget.prefill!.firstName} ${widget.prefill!.lastName} a login. Their staff record is linked to it, so they show on both Employees and Staff.'
@@ -366,6 +469,14 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
               _ErrorBox(message: _error!),
               const SizedBox(height: 12),
             ],
+            if (_bo && !_editing) ...[
+              _companyPicker(),
+              const SizedBox(height: 12),
+            ],
+            if (widget.accessOnly) ...[
+              _companyAccess(),
+              const SizedBox(height: 12),
+            ] else ...[
             FormSection(title: 'Personal Information', color: SectionColor.indigo, children: [
               AppField(label: 'First Name', required: true,
                   child: AppInput(controller: _first, hintText: 'John', validator: _req)),
@@ -411,6 +522,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
                         obscureText: true, validator: _req)),
               ]),
             const SizedBox(height: 12),
+            ],
             _adminSection(),
             const SizedBox(height: 12),
             _staffSection(),
@@ -423,13 +535,15 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
                     variant: AppButtonVariant.destructive,
                     size: AppButtonSize.lg,
                     fullWidth: true,
-                    onPressed: _saving ? null : () => Navigator.of(context).pop(),
+                    onPressed: _saving ? null : () => Navigator.of(context).pop(_accessChanged ? true : null),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: AppButton(
-                    label: _editing
+                    label: widget.accessOnly
+                        ? 'Save permissions'
+                        : _editing
                         ? 'Save Changes'
                         : _isAdmin
                             ? 'Create Admin'
@@ -500,6 +614,95 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
     ]);
   }
 
+  /// Manage access: every company in the organisation, ticked where this
+  /// employee can reach it. A tap grants or revokes at once.
+  Widget _companyAccess() {
+    final companies = widget.boCompanies ?? const <Company>[];
+    return FormSection(title: 'Company access', color: SectionColor.indigo, columns: 1, children: [
+      if (companies.isEmpty)
+        const AppField(label: '', full: true, child: Text('No companies in this organization yet.'))
+      else
+        AppField(
+          label: '',
+          full: true,
+          child: Column(children: [
+            for (final c in companies)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Material(
+                  color: _access.containsKey(c.farmId) ? const Color(0xFFEEF2FF) : Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: _busyFarm == c.farmId ? null : () => _toggleAccess(c),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: _access.containsKey(c.farmId) ? const Color(0xFFC7D2FE) : const Color(0xFFE2E8F0)),
+                      ),
+                      child: Row(children: [
+                        Container(
+                          width: 20,
+                          height: 20,
+                          decoration: BoxDecoration(
+                            color: _access.containsKey(c.farmId) ? const Color(0xFF4F46E5) : Colors.white,
+                            border: Border.all(color: _access.containsKey(c.farmId) ? const Color(0xFF4F46E5) : const Color(0xFFCBD5E1)),
+                            borderRadius: BorderRadius.circular(5),
+                          ),
+                          child: _busyFarm == c.farmId
+                              ? const Padding(padding: EdgeInsets.all(3), child: CircularProgressIndicator(strokeWidth: 2))
+                              : _access.containsKey(c.farmId)
+                                  ? const Icon(Icons.check, size: 14, color: Colors.white)
+                                  : null,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(child: Text(c.name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14))),
+                        Text(c.type.wire, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                      ]),
+                    ),
+                  ),
+                ),
+              ),
+          ]),
+        ),
+      const AppField(
+        label: '',
+        full: true,
+        child: Text('Toggling access adds or removes this employee from the company. Changes apply immediately.',
+            style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
+      ),
+    ]);
+  }
+
+  /// Business Office: "Company · Assign to company *", as the web's orange band.
+  Widget _companyPicker() => Container(
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(border: Border.all(color: const Color(0xFFFED7AA)), borderRadius: BorderRadius.circular(12)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Container(
+            color: const Color(0xFFF97316),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+            child: const Text('Company', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: AppField(
+              label: 'Assign to company',
+              required: true,
+              child: AppSelect<String>(
+                value: _boFarmId,
+                hintText: 'Select a company for this employee',
+                items: [for (final c in widget.boCompanies!) AppSelectItem(value: c.farmId, label: c.name)],
+                onChanged: (v) {
+                  if (!_saving) setState(() => _boFarmId = v);
+                },
+              ),
+            ),
+          ),
+        ]),
+      );
+
   Widget _staffSection() {
     final tokens = context.tokens;
     return FormSection(title: 'Staff Page Access', color: SectionColor.slate, columns: 1, children: [
@@ -536,7 +739,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
           label: '',
           full: true,
           child: _ToggleList(children: [
-            for (final (key, label, hint) in _staffOptionsFor(widget.company.type))
+            for (final (key, label, hint) in _bo ? _staffOptionsForTypes(_staffTypes) : _staffOptionsFor(widget.company.type))
               AppSwitchRow(
                 label: label,
                 description: hint,
@@ -547,6 +750,10 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
         ),
     ]);
   }
+}
+
+extension on String {
+  String ifEmptyThen(String other) => isEmpty ? other : this;
 }
 
 /// `rounded-lg border divide-y` around a list of switches.

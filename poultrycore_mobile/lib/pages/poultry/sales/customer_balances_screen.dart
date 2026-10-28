@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../hotel/hotel_sales_screen.dart';
 import '../../../api/api_client.dart';
 import '../../../design/ui/inputs.dart';
 import '../../../models/company.dart';
@@ -186,15 +187,19 @@ class _CustomerBalancesScreenState extends State<CustomerBalancesScreen> {
     }
     try {
       final res = await _api.get(widget.rail.cashAccountsPath, query: {'farmId': _farmId});
+      final hotel = widget.rail.isHotel;
+      // loadHotelCashAccounts reads either key spelling and keeps any account
+      // not marked inactive.
+      Object? pick(Map a, String k) => hotel ? (a[k] ?? a[k.toLowerCase()]) : a[k];
       if (mounted) {
         setState(() => _accounts = [
               for (final a in rowsOf(res))
-                if (a['isActive'] == true)
+                if (hotel ? pick(a, 'isActive') != false : a['isActive'] == true)
                   {
-                    'id': a[widget.rail.cashAccountIdKey],
-                    'name': a[widget.rail.cashAccountNameKey],
-                    'currentBalance': a['currentBalance'],
-                    'allowNegativeBalance': a[widget.rail.allowNegativeKey],
+                    'id': pick(a, widget.rail.cashAccountIdKey),
+                    'name': pick(a, widget.rail.cashAccountNameKey),
+                    'currentBalance': pick(a, 'currentBalance'),
+                    'allowNegativeBalance': pick(a, widget.rail.allowNegativeKey),
                   },
             ]);
       }
@@ -281,8 +286,20 @@ class _CustomerBalancesScreenState extends State<CustomerBalancesScreen> {
       openAppHref(context, widget.session, widget.company, href, label: _side.docTitle);
       return;
     }
+    // hotelCustomerDocumentHref: an opening balance is on Customers; a stay
+    // opens Sales on that booking.
+    if (widget.rail.isHotel && d['documentType'] == 'OpeningBalance') {
+      openAppHref(context, widget.session, widget.company, '/hotel-customers', label: 'Customers');
+      return;
+    }
     if (id == null) {
       trackerToast(context, 'No page for this record', description: '${d['documentType']} #${d['documentId']} has no detail page.');
+      return;
+    }
+    if (widget.rail.isHotel) {
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => HotelSalesScreen(session: widget.session, company: widget.company, focusBookingId: id),
+      ));
       return;
     }
     // restaurantOrderHref: the Restaurant Sales page, on that order.

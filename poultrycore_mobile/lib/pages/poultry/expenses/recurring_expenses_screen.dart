@@ -32,7 +32,12 @@ typedef RecurringOption = ({int id, String name});
 /// then waits for approval on Water Expenses.
 class RecurringLookups {
   const RecurringLookups(
-      {this.suppliers = const [], this.cashAccounts = const [], this.categories = const [], this.water = false, this.restaurant = false});
+      {this.suppliers = const [],
+      this.cashAccounts = const [],
+      this.categories = const [],
+      this.water = false,
+      this.restaurant = false,
+      this.hotel = false});
   final List<RecurringOption> suppliers;
   final List<RecurringOption> cashAccounts;
   final List<RecurringOption> categories;
@@ -40,9 +45,19 @@ class RecurringLookups {
 
   /// Restaurant: its category table, and no approval step (moduleApproves false).
   final bool restaurant;
-  bool get categoriesAreText => !water && !restaurant;
-  bool get moduleApproves => water;
-  String get expensesHref => water ? '/water-expenses' : restaurant ? '/restaurant-expenses' : '/expenses';
+
+  /// Hotel: its category table, and a posted expense follows Hotel Expenses'
+  /// approval (moduleApproves true).
+  final bool hotel;
+  bool get categoriesAreText => !water && !restaurant && !hotel;
+  bool get moduleApproves => water || hotel;
+  String get expensesHref => water
+      ? '/water-expenses'
+      : restaurant
+          ? '/restaurant-expenses'
+          : hotel
+              ? '/hotel-expenses'
+              : '/expenses';
   List<String> get textCategories => categoriesAreText ? poultryRecurringCategories : const [];
 }
 
@@ -102,10 +117,12 @@ class _RecurringExpensesScreenState extends State<RecurringExpensesScreen> {
 
   bool get _water => widget.company.type == CompanyType.water;
   bool get _restaurant => widget.company.type == CompanyType.restaurant;
+  bool get _hotel => widget.company.type == CompanyType.hotel;
 
   Future<void> _loadLookups() async {
     if (_water) return _loadWaterLookups();
     if (_restaurant) return _loadRestaurantLookups();
+    if (_hotel) return _loadHotelLookups();
     List<Map> cash = [], sup = [];
     try {
       cash = rowsOf(await _api.get('/api/Poultry/cash-accounts', query: _q()));
@@ -181,6 +198,39 @@ class _RecurringExpensesScreenState extends State<RecurringExpensesScreen> {
           cashAccounts: [
             for (final a in cash)
               if (a['isActive'] != false) (id: tIntOrNull(a['cashAccountId']) ?? 0, name: tStr(a['name'])),
+          ],
+        ));
+  }
+
+  /// loadModuleLookups("hotel"): its active categories, suppliers and cash
+  /// accounts. Hotel lists can answer in lowercase keys, so both are read.
+  Future<void> _loadHotelLookups() async {
+    Future<List<Map>> rows(String path) async {
+      try {
+        return rowsOf(await _api.get(path, query: _q()));
+      } on ApiException {
+        return [];
+      }
+    }
+
+    Object? v(Map m, String k) => m[k] ?? m[k.toLowerCase()];
+    final cats = await rows('/api/Hotel/finance/expense-categories');
+    final sups = await rows('/api/Hotel/suppliers');
+    final cash = await rows('/api/Hotel/finance/cash-accounts');
+    if (!mounted) return;
+    setState(() => _lookups = RecurringLookups(
+          hotel: true,
+          categories: [
+            for (final c in cats)
+              if (v(c, 'isActive') != false) (id: tIntOrNull(v(c, 'hotelExpenseCategoryId')) ?? 0, name: tStr(c['name'])),
+          ],
+          suppliers: [
+            for (final s in sups)
+              if (v(s, 'isActive') != false) (id: tIntOrNull(v(s, 'hotelSupplierId')) ?? 0, name: tStr(v(s, 'supplierName'))),
+          ],
+          cashAccounts: [
+            for (final a in cash)
+              if (v(a, 'isActive') != false) (id: tIntOrNull(v(a, 'hotelCashAccountId')) ?? 0, name: tStr(v(a, 'accountName'))),
           ],
         ));
   }
@@ -445,7 +495,13 @@ class _RecurringExpensesScreenState extends State<RecurringExpensesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final lead = sidebarLeading(context, widget.session, widget.company, href: _water ? '/water-recurring-expenses' : _restaurant ? '/restaurant-recurring-expenses' : '/recurring-expenses');
+    final lead = sidebarLeading(context, widget.session, widget.company, href: _water
+            ? '/water-recurring-expenses'
+            : _restaurant
+                ? '/restaurant-recurring-expenses'
+                : _hotel
+                    ? '/hotel-recurring-expenses'
+                    : '/recurring-expenses');
     final drafts = [for (final o in _occurrences) if (o['status'] == 'Draft' || o['status'] == 'Posting') o];
     final draftTotal = drafts.fold<num>(0, (s, o) => s + tNum(o['amount']));
     final upcomingTotal = _upcoming.fold<num>(0, (s, u) => s + tNum(u['amount']));

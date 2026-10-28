@@ -57,7 +57,6 @@ const _blue400 = Color(0xFF60A5FA);
 const _blue600 = Color(0xFF2563EB);
 const _blue700 = Color(0xFF1D4ED8);
 const _blue900 = Color(0xFF1E3A8A);
-const _indigo600 = Color(0xFF4F46E5);
 const _emerald50 = Color(0xFFECFDF5);
 const _emerald200 = Color(0xFFA7F3D0);
 const _emerald600 = Color(0xFF059669);
@@ -67,6 +66,8 @@ const _emerald900 = Color(0xFF064E3B);
 const _amber50 = Color(0xFFFFFBEB);
 const _amber200 = Color(0xFFFDE68A);
 const _amber300 = Color(0xFFFCD34D);
+const _amber400 = Color(0xFFFBBF24);
+const _amber500 = Color(0xFFF59E0B);
 const _amber600 = Color(0xFFD97706);
 const _amber700 = Color(0xFFB45309);
 const _amber800 = Color(0xFF92400E);
@@ -78,6 +79,17 @@ const _red500 = Color(0xFFEF4444);
 const _red600 = Color(0xFFDC2626);
 const _red700 = Color(0xFFB91C1C);
 const _purple700 = Color(0xFF7E22CE);
+const _sky50 = Color(0xFFF0F9FF);
+const _sky200 = Color(0xFFBAE6FD);
+const _sky300 = Color(0xFF7DD3FC);
+const _sky500 = Color(0xFF0EA5E9);
+const _sky700 = Color(0xFF0369A1);
+const _green200 = Color(0xFFBBF7D0);
+const _green600 = Color(0xFF16A34A);
+// The web's `-50/40` tints: the -50 shade at 40% over white.
+const _blueTint = Color(0x66EFF6FF);
+const _amberTint = Color(0x66FFFBEB);
+const _greenTint = Color(0x66F0FDF4);
 
 /// The TONES of /production-records' stat tiles: only the number is coloured.
 const _tones = {
@@ -1316,7 +1328,16 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
       description:
           'Create a run of new pens, then edit any of them. Pens you already have are listed so you can allocate to them — this step never deletes a pen from your farm.',
       children: [
-        _GeneratorBox(children: [
+        // The New sale look: a blue band for the generator, an amber one for
+        // the pens themselves.
+        _Band(
+            title: 'Create New Houses/Pens',
+            icon: Icons.auto_fix_high,
+            color: _blue600,
+            border: _blue200,
+            tint: _blueTint,
+            gap: 10,
+            children: [
           _Field(label: 'Number of Pens', child: _number('gen.penCount', _penCount, (s) => setState(() => _penCount = s))),
           _Field(label: 'Naming Prefix', child: _text('gen.penPrefix', _penPrefix, (s) => setState(() => _penPrefix = s), hint: 'Pen')),
           _Field(
@@ -1333,19 +1354,33 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
           _Field(
               label: 'Default Location',
               child: _text('gen.penLocation', _penLocation, (s) => setState(() => _penLocation = s), hint: 'Layer House A')),
-          FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: _indigo600),
-            onPressed: _generateHouses,
-            icon: const Icon(Icons.auto_fix_high, size: 16),
-            label: const Text('Create New Houses/Pens'),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: _blue600, foregroundColor: Colors.white),
+              onPressed: _generateHouses,
+              icon: const Icon(Icons.auto_fix_high, size: 16),
+              label: const Text('Create New Houses/Pens'),
+            ),
           ),
           const Text('Replaces the new rows below; houses you already have are kept. Everything stays editable.',
-              style: TextStyle(fontSize: 12, color: _slate500)),
+              style: TextStyle(fontSize: 12, color: Color(0xB31E3A8A))),
         ]),
+        _Band(
+          title: 'Houses/Pens',
+          count: _draft.houses.length,
+          color: _amber500,
+          border: _amber200,
+          tint: _amberTint,
+          action: _BandButton(
+            label: 'Add Another Row',
+            onPressed: () => _edit(() => _draft.houses.insert(0, emptyHouse(_penCapacity, _penLocation))),
+          ),
+          children: [
         if (_draft.houses.isNotEmpty)
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: _slate50, border: Border.all(color: _slate200), borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _amber200), borderRadius: BorderRadius.circular(8)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Text(summary, style: const TextStyle(fontSize: 13, color: _slate600)),
               const SizedBox(height: 8),
@@ -1369,15 +1404,20 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
                 : 'None of your pens are empty. Add a new one above, or choose “All houses/pens” to see them.',
             style: const TextStyle(fontSize: 13, color: _slate600),
           ),
-        for (final hv in visible)
+        // Cards, about three to a row on a wide screen: a full-width row per
+        // pen made a handful of pens fill the whole screen.
+        if (visible.isNotEmpty)
+          _cardGrid([
+        for (final (n, hv) in visible.indexed)
           () {
             final h = hv.row, i = hv.index, load = hv.load;
             return _RowCard(
-              index: i,
+              n: n + 1,
+              existing: hv.isExisting,
               invalid: _rowInvalid(fe, 'houses', i),
               header: _RowHeader(
                 label: h.houseName.isEmpty ? 'House ${i + 1}' : h.houseName,
-                badge: hv.isExisting ? const _Badge('Existing', _slate200, _slate700, filled: true) : const _Badge('New', _blue300, _blue700),
+                badge: _newExistingBadge(hv.isExisting),
                 onRemove: hv.isExisting ? null : () => _removeHouse(i),
               ),
               children: [
@@ -1390,28 +1430,27 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
                   child: _text('h.${h.key}.name', h.houseName, (s) => _edit(() => h.houseName = s),
                       hint: 'Pen 1', enabled: !hv.isExisting),
                 ),
-                _Field(
-                  label: 'Capacity',
-                  error: _errorFor(fe, 'houses', i, 'capacity'),
-                  child: _number('h.${h.key}.capacity', h.capacity, (s) => _edit(() => h.capacity = s), hint: '5000'),
-                ),
-                _Field(
-                  label: 'Location',
-                  child: _text('h.${h.key}.location', h.location, (s) => _edit(() => h.location = s), hint: 'Layer House A'),
-                ),
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Expanded(
+                    child: _Field(
+                      label: 'Capacity',
+                      error: _errorFor(fe, 'houses', i, 'capacity'),
+                      child: _number('h.${h.key}.capacity', h.capacity, (s) => _edit(() => h.capacity = s), hint: '5000'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _Field(
+                      label: 'Location',
+                      child: _text('h.${h.key}.location', h.location, (s) => _edit(() => h.location = s), hint: 'Layer House A'),
+                    ),
+                  ),
+                ]),
               ],
             );
           }(),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: AppButton(
-            label: 'Add Another Row',
-            icon: Icons.add,
-            variant: AppButtonVariant.outline,
-            size: AppButtonSize.sm,
-            onPressed: () => _edit(() => _draft.houses.insert(0, emptyHouse(_penCapacity, _penLocation))),
-          ),
-        ),
+          ]),
+          ]),
       ],
     );
   }
@@ -1430,7 +1469,14 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
       description:
           'Create a run of new batches, then edit any of them. Purchase cost and supplier are optional — if you do not know what you paid, leave them blank. Nothing here posts cash or revenue for a historical purchase.',
       children: [
-        _GeneratorBox(children: [
+        _Band(
+            title: 'Create New Batches',
+            icon: Icons.auto_fix_high,
+            color: _blue600,
+            border: _blue200,
+            tint: _blueTint,
+            gap: 10,
+            children: [
           _Field(label: 'Number of Batches', child: _number('gen.batchCount', _batchCount, (s) => setState(() => _batchCount = s))),
           _Field(label: 'Name Prefix', child: _text('gen.batchPrefix', _batchPrefix, (s) => setState(() => _batchPrefix = s), hint: 'Batch')),
           _Field(
@@ -1449,44 +1495,58 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
           ),
           _Field(label: 'Default Birds', child: _number('gen.batchBirds', _batchBirds, (s) => setState(() => _batchBirds = s))),
           _Field(label: 'Default Arrival Date', child: _date(_batchDate, (s) => setState(() => _batchDate = s))),
-          FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: _blue600),
-            onPressed: _generateBatchRows,
-            icon: const Icon(Icons.auto_fix_high, size: 16),
-            label: const Text('Create New Batches'),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: _blue600, foregroundColor: Colors.white),
+              onPressed: _generateBatchRows,
+              icon: const Icon(Icons.auto_fix_high, size: 16),
+              label: const Text('Create New Batches'),
+            ),
           ),
           const Text('Replaces the new rows below; batches you already have are kept. Everything stays editable.',
-              style: TextStyle(fontSize: 12, color: _slate500)),
+              style: TextStyle(fontSize: 12, color: Color(0xB31E3A8A))),
         ]),
         const _InfoBox(
           strong: 'Complete batch information now.',
           text: ' You can skip the optional purchase details and add them later, but entering them now means your batch '
               'history, supplier and cost reporting are complete from the start.',
         ),
-        if (existingCount > 0)
-          AppCheckbox(
-            value: _showExistingBatches,
-            onChanged: (v) => setState(() => _showExistingBatches = v),
-            label: 'Show the ${fmtInt(existingCount)} batch${existingCount == 1 ? '' : 'es'} you already have',
-          ),
-        if (visible.isEmpty)
-          const Text('No new batches yet. Create some above, or add one at a time.', style: TextStyle(fontSize: 13, color: _slate600)),
-        for (final e in visible) _batchCard(fe, e.row, e.index, e.isExisting, known),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: AppButton(
+        _Band(
+          title: 'Batches',
+          count: _draft.batches.length,
+          color: _amber500,
+          border: _amber200,
+          tint: _amberTint,
+          gap: 16,
+          action: _BandButton(
             label: 'Add Another Batch',
-            icon: Icons.add,
-            variant: AppButtonVariant.outline,
-            size: AppButtonSize.sm,
             onPressed: () => _edit(() => _draft.batches.insert(0, emptyBatch())),
           ),
+          children: [
+            if (existingCount > 0)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _amber200), borderRadius: BorderRadius.circular(8)),
+                  child: AppCheckbox(
+                    value: _showExistingBatches,
+                    onChanged: (v) => setState(() => _showExistingBatches = v),
+                    label: 'Show the ${fmtInt(existingCount)} batch${existingCount == 1 ? '' : 'es'} you already have',
+                  ),
+                ),
+              ),
+            if (visible.isEmpty)
+              const Text('No new batches yet. Create some above, or add one at a time.', style: TextStyle(fontSize: 13, color: _slate600)),
+            for (final (n, e) in visible.indexed) _batchCard(fe, e.row, e.index, e.isExisting, known, n + 1),
+          ],
         ),
       ],
     );
   }
 
-  Widget _batchCard(Map<String, Map<int, Map<String, String>>> fe, BatchRow b, int i, bool existing, List<String> known) {
+  Widget _batchCard(Map<String, Map<int, Map<String, String>>> fe, BatchRow b, int i, bool existing, List<String> known, int n) {
     final id = 'b.${b.key}';
     void costChange({String? cost, String? birds}) => _edit(() {
           if (cost != null) b.costPerChick = cost;
@@ -1509,11 +1569,12 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
           ),
     ];
     return _RowCard(
-      index: i,
+      n: n,
+      existing: existing,
       invalid: _rowInvalid(fe, 'batches', i),
       header: _RowHeader(
         label: b.batchCode.isNotEmpty ? b.batchCode : b.batchName.isNotEmpty ? b.batchName : 'Batch ${i + 1}',
-        badge: existing ? const _Badge('Existing', _slate200, _slate700, filled: true) : const _Badge('New', _blue300, _blue700),
+        badge: _newExistingBadge(existing),
         onRemove: () => _removeBatch(i),
         removeLabel: 'Remove batch',
       ),
@@ -1717,7 +1778,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
                 active.batch.breed,
                 '${fmtInt(active.batchBirds)} birds',
                 active.batch.startDate.isNotEmpty ? 'started ${active.batch.startDate}' : '',
-              ].where((x) => x.isNotEmpty).join(' · ')),
+              ].where((x) => x.isNotEmpty).join(' · '), color: Colors.white),
               const SizedBox(height: 6),
               Align(
                 alignment: Alignment.centerLeft,
@@ -1734,16 +1795,16 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
         ],
         if (_allocPhase == 'allocate' && active != null) ...[
           Container(
-            decoration: BoxDecoration(border: Border.all(color: _slate200), borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(border: Border.all(color: _green200), borderRadius: BorderRadius.circular(12)),
             clipBehavior: Clip.antiAlias,
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Container(
-                color: _indigo600,
+                color: _green600,
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 child: const Text('Allocation', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
               ),
               Container(
-                color: Colors.white,
+                color: _greenTint,
                 padding: const EdgeInsets.all(10),
                 child: Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
                   AppButton(
@@ -1811,7 +1872,19 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
                 ]),
               ),
           ],
-          for (final x in activeFlocks) _flockCard(fe, x.row, x.index, houseViews),
+          _Band(
+            title: 'Flocks',
+            count: activeFlocks.length,
+            color: _amber500,
+            border: _amber200,
+            tint: _amberTint,
+            gap: 16,
+            children: [
+              if (activeFlocks.isEmpty)
+                const Text('No pens chosen yet — use “Change House/Pen” above.', style: TextStyle(fontSize: 13, color: _slate600)),
+              for (final (n, x) in activeFlocks.indexed) _flockCard(fe, x.row, x.index, houseViews, n + 1),
+            ],
+          ),
           if (nextBatch != null)
             Align(
               alignment: Alignment.centerRight,
@@ -1841,11 +1914,11 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
         );
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: _slate50, border: Border.all(color: _slate200), borderRadius: BorderRadius.circular(8)),
+      decoration: BoxDecoration(color: _emerald50, border: Border.all(color: _emerald200), borderRadius: BorderRadius.circular(8)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Text(
           '${a.batch.batchCode.isNotEmpty ? a.batch.batchCode : a.batch.batchName}${a.batch.breed.isNotEmpty ? ' · ${a.batch.breed}' : ''}',
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _emerald900),
         ),
         if (a.mustBeFullyAllocated)
           const Text('Birds you already had — every one of them needs a pen', style: TextStyle(fontSize: 12, color: _slate600)),
@@ -1863,21 +1936,21 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
         if (_allocPhase == 'pens') ...[
           const SizedBox(height: 10),
           Container(
-            decoration: BoxDecoration(border: Border.all(color: _slate200), borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(border: Border.all(color: _amber200), borderRadius: BorderRadius.circular(12)),
             clipBehavior: Clip.antiAlias,
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Container(
-                color: _blue600,
+                color: _amber500,
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 child: Row(children: [
                   const Expanded(
                     child: Text('Choose Houses/Pens', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
                   ),
-                  Text('$chosen selected', style: const TextStyle(color: Colors.white, fontSize: 13)),
+                  _CountPill('$chosen selected'),
                 ]),
               ),
               Container(
-                color: Colors.white,
+                color: _amberTint,
                 padding: const EdgeInsets.all(12),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   Wrap(spacing: 8, runSpacing: 8, children: [
@@ -1904,13 +1977,19 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
                           child: Tooltip(
                             message: locked ? 'This pen is full' : '',
                             child: Container(
-                              padding: const EdgeInsets.fromLTRB(4, 6, 8, 6),
+                              padding: EdgeInsets.fromLTRB(on ? 7 : 4, 6, 8, 6),
+                              clipBehavior: Clip.antiAlias,
                               decoration: BoxDecoration(
-                                color: on ? _blue50 : locked ? _slate100 : Colors.white,
-                                border: Border.all(color: on ? _blue400 : _slate200),
+                                color: locked ? _slate100 : Colors.white,
+                                border: Border.all(color: on ? _amber400 : _slate200),
                                 borderRadius: BorderRadius.circular(8),
+                                boxShadow: on ? const [BoxShadow(color: Color(0x0D000000), blurRadius: 2, offset: Offset(0, 1))] : null,
                               ),
-                              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              // A picked pen gets the amber left edge, overlaid
+                              // like the cards' stripe.
+                              child: Stack(clipBehavior: Clip.none, children: [
+                                if (on) const Positioned(left: -7, top: -6, bottom: -6, width: 4, child: ColoredBox(color: _amber500)),
+                                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                 SizedBox(
                                   width: 30,
                                   height: 24,
@@ -1938,6 +2017,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
                                     ),
                                   ]),
                                 ),
+                              ]),
                               ]),
                             ),
                           ),
@@ -2031,7 +2111,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
     );
   }
 
-  Widget _flockCard(Map<String, Map<int, Map<String, String>>> fe, FlockRow f, int i, List<HouseRowView> houseViews) {
+  Widget _flockCard(Map<String, Map<int, Map<String, String>>> fe, FlockRow f, int i, List<HouseRowView> houseViews, int n) {
     final id = 'f.${f.key}';
     final reduction = historicalReduction(f);
     final penLoad = f.houseKey.isEmpty ? null : houseLoad(f.houseKey, _draft, _ctx);
@@ -2048,7 +2128,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
     }
     final batch = _draft.batches.where((x) => x.key == f.batchKey).firstOrNull;
     return _RowCard(
-      index: i,
+      n: n,
       invalid: _rowInvalid(fe, 'flocks', i),
       header: _RowHeader(
         label: f.name.isEmpty ? 'Flock ${i + 1}' : f.name,
@@ -2177,16 +2257,27 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
           'We have assumed the missing birds died — change any flock where that is wrong. These losses happened before tracking began, so they are recorded as an opening position and never appear as today’s deaths.',
       children: [
         if (needs.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 24),
-            child: Column(children: [
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 24),
+            decoration: BoxDecoration(color: _emerald50, border: Border.all(color: _emerald200), borderRadius: BorderRadius.circular(12)),
+            child: const Column(children: [
               Icon(Icons.check_circle_outline, size: 40, color: _emerald600),
               SizedBox(height: 6),
-              Text('Every flock balances. No reconciliation needed.', style: TextStyle(color: _slate700)),
+              Text('Every flock balances. No reconciliation needed.',
+                  textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w500, color: _emerald800)),
             ]),
-          ),
-        for (final (i, f) in _draft.flocks.indexed)
-          if (historicalReduction(f) > 0)
+          )
+        else
+          _Band(
+            title: 'Flocks to reconcile',
+            count: needs.length,
+            color: _amber500,
+            border: _amber200,
+            tint: _amberTint,
+            gap: 16,
+            children: [
+        // Numbered over the cards actually shown, not over every flock.
+        for (final (n, f) in [for (final f in _draft.flocks) if (historicalReduction(f) > 0) f].indexed)
             () {
               final b = breakdown(f);
               final id = 'r.${f.key}';
@@ -2195,9 +2286,11 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
                     hint: hint,
                     child: _number('$id.$field', value, (s) => _edit(() => balanceBreakdown(f, field, s))),
                   );
-              return _Striped(
-                index: i,
-                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              return _RowCard(
+                n: n + 1,
+                invalid: b.overStated,
+                header: const SizedBox.shrink(),
+                children: [Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Expanded(
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -2208,11 +2301,11 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _slate200), borderRadius: BorderRadius.circular(10)),
+                      decoration: BoxDecoration(color: _amber50, border: Border.all(color: _amber200), borderRadius: BorderRadius.circular(8)),
                       child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                         const Text('REMAINING TO ACCOUNT',
-                            style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w500, letterSpacing: .5, color: _slate500)),
-                        Text(fmtInt(b.difference), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: _amber600)),
+                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: .4, color: _amber700)),
+                        Text(fmtInt(b.difference), style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700, color: _amber700)),
                       ]),
                     ),
                   ]),
@@ -2239,7 +2332,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
                       bucket('Sold', 'historicalSold', f.historicalSold),
                       bucket('Culled', 'historicalCulled', f.historicalCulled),
                       bucket('Transferred out', 'historicalTransferred', f.historicalTransferred),
-                      _Field(label: 'Other / unknown', child: _ReadOnlyBox(fmtInt(b.other))),
+                      _Field(label: 'Other / unknown', child: _ReadOnlyBox(fmtInt(b.other), color: _slate50)),
                     ]),
                     const SizedBox(height: 4),
                     Text(
@@ -2254,9 +2347,11 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
                       const TextSpan(text: 'opening bird adjustment', style: TextStyle(fontWeight: FontWeight.w700)),
                       const TextSpan(text: ' — not as mortality, and not as a sale.'),
                     ])),
-                ]),
+                ])],
               );
             }(),
+            ],
+          ),
       ],
     );
   }
@@ -2564,25 +2659,129 @@ class _Section extends StatelessWidget {
       );
 }
 
-/// The slate generator strip above a grid.
-class _GeneratorBox extends StatelessWidget {
-  const _GeneratorBox({required this.children});
+/// The web's New sale band (app/sales/page.tsx): a solid coloured strip with
+/// the title, an optional count pill and action, over a body tinted in the
+/// same colour. Inputs inside sit on white.
+class _Band extends StatelessWidget {
+  const _Band({
+    required this.title,
+    required this.color,
+    required this.border,
+    required this.tint,
+    required this.children,
+    this.icon,
+    this.count,
+    this.action,
+    this.gap = 12,
+  });
+  final String title;
+  final Color color;
+  final Color border;
+  final Color tint;
   final List<Widget> children;
+  final IconData? icon;
+  final int? count;
+  final Widget? action;
+  final double gap;
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: _slate50, border: Border.all(color: _slate200), borderRadius: BorderRadius.circular(8)),
+        decoration: BoxDecoration(border: Border.all(color: border), borderRadius: BorderRadius.circular(12)),
+        clipBehavior: Clip.antiAlias,
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          for (final (i, c) in children.indexed) ...[if (i > 0) const SizedBox(height: 10), c],
+          Container(
+            color: color,
+            padding: EdgeInsets.symmetric(horizontal: 14, vertical: action == null ? 8 : 5),
+            // Wraps, so with large text the button drops under the title
+            // instead of overflowing the band.
+            child: Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  if (icon != null) ...[Icon(icon, size: 16, color: Colors.white), const SizedBox(width: 8)],
+                  Flexible(
+                    child: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
+                  ),
+                  if (count != null) ...[const SizedBox(width: 6), _CountPill(fmtInt(count!))],
+                ]),
+                ?action,
+              ],
+            ),
+          ),
+          Container(
+            color: tint,
+            padding: const EdgeInsets.all(12),
+            child: Theme(
+              data: Theme.of(context).copyWith(
+                inputDecorationTheme: Theme.of(context).inputDecorationTheme.copyWith(filled: true, fillColor: Colors.white),
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                for (final (i, c) in children.indexed) ...[if (i > 0) SizedBox(height: gap), c],
+              ]),
+            ),
+          ),
         ]),
       );
 }
 
-/// A row's shell: red when invalid, otherwise alternating blue / white.
+/// The white-on-colour count in a band header (`bg-white/25`).
+class _CountPill extends StatelessWidget {
+  const _CountPill(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+        decoration: BoxDecoration(color: const Color(0x40FFFFFF), borderRadius: BorderRadius.circular(999)),
+        child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500)),
+      );
+}
+
+/// The white "Add Another …" button that sits in an amber band header.
+class _BandButton extends StatelessWidget {
+  const _BandButton({required this.label, required this.onPressed});
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => TextButton.icon(
+        style: TextButton.styleFrom(
+          backgroundColor: Colors.white,
+          foregroundColor: _amber700,
+          visualDensity: VisualDensity.compact,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          minimumSize: const Size(0, 32),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+        ),
+        onPressed: onPressed,
+        icon: const Icon(Icons.add, size: 15),
+        label: Text(label),
+      );
+}
+
+/// Pen cards: one per row on a phone, two from 600 px, three from 1000 px
+/// (the web's grid-cols-1 / sm:2 / lg:3).
+Widget _cardGrid(List<Widget> children) => LayoutBuilder(builder: (context, c) {
+      final cols = c.maxWidth >= 1000 ? 3 : c.maxWidth >= 600 ? 2 : 1;
+      if (cols == 1) {
+        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          for (final (i, x) in children.indexed) ...[if (i > 0) const SizedBox(height: 12), x],
+        ]);
+      }
+      final w = (c.maxWidth - 12 * (cols - 1)) / cols;
+      return Wrap(spacing: 12, runSpacing: 12, children: [for (final x in children) SizedBox(width: w, child: x)]);
+    });
+
+/// A wizard card styled like a New sale line: white, with a coloured left
+/// edge (amber new, sky existing, red invalid) and a numbered corner circle.
 class _RowCard extends StatelessWidget {
-  const _RowCard({required this.index, required this.invalid, required this.header, required this.children});
-  final int index;
+  const _RowCard({required this.n, required this.invalid, required this.header, required this.children, this.existing = false});
+  final int n;
+  final bool existing;
   final bool invalid;
   final Widget header;
   final List<Widget> children;
@@ -2591,42 +2790,65 @@ class _RowCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final (bg, border, left) = invalid
         ? (_red50, _red300, _red500)
-        : index.isEven
-            ? (_blue200, _blue300, _blue600)
-            : (Colors.white, _slate200, _slate300);
-    return Container(
-      decoration: BoxDecoration(color: bg, border: Border.all(color: border), borderRadius: BorderRadius.circular(8)),
-      clipBehavior: Clip.antiAlias,
-      // The left stripe overlays the edge, so the card never has to measure
-      // its own height (the two-column grids inside cannot report one).
-      child: Stack(children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(14, 10, 10, 12),
-          child: Theme(
-            data: Theme.of(context).copyWith(
-              inputDecorationTheme: Theme.of(context).inputDecorationTheme.copyWith(filled: true, fillColor: Colors.white),
-            ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              header,
-              for (final (i, c) in children.indexed) ...[if (i > 0) const SizedBox(height: 10), c],
-            ]),
-          ),
+        : existing
+            ? (Colors.white, _sky200, _sky500)
+            : (Colors.white, _amber200, _amber500);
+    return Stack(clipBehavior: Clip.none, children: [
+      Container(
+        decoration: BoxDecoration(
+          color: bg,
+          border: Border.all(color: border),
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: const [BoxShadow(color: Color(0x0D000000), blurRadius: 2, offset: Offset(0, 1))],
         ),
-        Positioned(left: 0, top: 0, bottom: 0, width: 4, child: ColoredBox(color: left)),
-      ]),
-    );
+        clipBehavior: Clip.antiAlias,
+        // The left stripe overlays the edge, so the card never has to measure
+        // its own height (the two-column grids inside cannot report one).
+        child: Stack(children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 10, 10, 12),
+            child: Theme(
+              data: Theme.of(context).copyWith(
+                inputDecorationTheme: Theme.of(context).inputDecorationTheme.copyWith(filled: true, fillColor: Colors.white),
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                header,
+                for (final (i, c) in children.indexed) ...[if (i > 0) const SizedBox(height: 10), c],
+              ]),
+            ),
+          ),
+          Positioned(left: 0, top: 0, bottom: 0, width: 4, child: ColoredBox(color: left)),
+        ]),
+      ),
+      Positioned(left: -8, top: -8, child: _LineNumber(n, existing: existing)),
+    ]);
   }
 }
 
-/// The reconciliation card stripe.
-class _Striped extends StatelessWidget {
-  const _Striped({required this.index, required this.child});
-  final int index;
-  final Widget child;
+/// The numbered corner circle of a New sale line (amber new, sky existing).
+class _LineNumber extends StatelessWidget {
+  const _LineNumber(this.n, {this.existing = false});
+  final int n;
+  final bool existing;
 
   @override
-  Widget build(BuildContext context) => _RowCard(index: index, invalid: false, header: const SizedBox.shrink(), children: [child]);
+  Widget build(BuildContext context) => Container(
+        width: 20,
+        height: 20,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: existing ? _sky500 : _amber500,
+          boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 2, offset: Offset(0, 1))],
+        ),
+        child: Text('$n', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
+      );
 }
+
+/// "New" (amber) or "Existing" (sky), as the web's NewExistingBadge.
+Widget _newExistingBadge(bool existing) => existing
+    ? const _Badge('Existing', _sky300, _sky700, fill: _sky50)
+    : const _Badge('New', _amber300, _amber700, fill: _amber50);
 
 class _RowHeader extends StatelessWidget {
   const _RowHeader({
@@ -2704,17 +2926,18 @@ class _Field extends StatelessWidget {
 }
 
 class _Badge extends StatelessWidget {
-  const _Badge(this.label, this.border, this.color, {this.filled = false});
+  const _Badge(this.label, this.border, this.color, {this.filled = false, this.fill});
   final String label;
   final Color border;
   final Color color;
   final bool filled;
+  final Color? fill;
 
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
         decoration: BoxDecoration(
-          color: filled ? border : null,
+          color: fill ?? (filled ? border : null),
           border: Border.all(color: border),
           borderRadius: BorderRadius.circular(6),
         ),
@@ -2805,8 +3028,8 @@ class _Pill extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: on ? _indigo600 : Colors.white,
-              border: Border.all(color: on ? _indigo600 : _slate300),
+              color: on ? _amber500 : Colors.white,
+              border: Border.all(color: on ? _amber500 : _slate300),
               borderRadius: BorderRadius.circular(6),
             ),
             child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: on ? Colors.white : _slate700)),
@@ -2838,7 +3061,7 @@ class _BluePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        decoration: BoxDecoration(color: _slate50, border: Border.all(color: _slate200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: _blueTint, border: Border.all(color: _blue200), borderRadius: BorderRadius.circular(12)),
         clipBehavior: Clip.antiAlias,
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Container(
@@ -2846,21 +3069,31 @@ class _BluePanel extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             child: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
           ),
-          Padding(padding: const EdgeInsets.all(12), child: child),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            // The web's [&_button[role=combobox]]:bg-white.
+            child: Theme(
+              data: Theme.of(context).copyWith(
+                inputDecorationTheme: Theme.of(context).inputDecorationTheme.copyWith(filled: true, fillColor: Colors.white),
+              ),
+              child: child,
+            ),
+          ),
         ]),
       );
 }
 
 class _ReadOnlyBox extends StatelessWidget {
-  const _ReadOnlyBox(this.text);
+  const _ReadOnlyBox(this.text, {this.color = _slate100});
   final String text;
+  final Color color;
 
   @override
   Widget build(BuildContext context) => Container(
         constraints: const BoxConstraints(minHeight: 40),
         alignment: Alignment.centerLeft,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(color: _slate100, border: Border.all(color: _slate200), borderRadius: BorderRadius.circular(6)),
+        decoration: BoxDecoration(color: color, border: Border.all(color: _slate200), borderRadius: BorderRadius.circular(6)),
         child: Text(text, style: const TextStyle(fontSize: 14, color: _slate700)),
       );
 }

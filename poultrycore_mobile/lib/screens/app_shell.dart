@@ -28,6 +28,19 @@ class _AppShellState extends State<AppShell> {
   int _index = 0;
 
   @override
+  void initState() {
+    super.initState();
+    // The Business Office asked for a page once the company is open (My Tasks
+    // → Flock Lifecycle): open it over the dashboard.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final company = widget.session.active;
+      final build = widget.session.takePendingScreen();
+      if (build == null || company == null || !mounted) return;
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => build(widget.session, company)));
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final session = widget.session;
     final company = session.active;
@@ -60,7 +73,7 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
-  /// The hamburger. Poultry, Water and Restaurant get the web's sidebar; the other
+  /// The hamburger. Poultry, Water, Restaurant and Hotel get the web's sidebar; the other
   /// company types keep the "All pages" sheet until they are ported.
   void _openMenu(BuildContext context, Company company) {
     if (!hasSidebar(company.type)) {

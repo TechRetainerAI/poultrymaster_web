@@ -163,33 +163,53 @@ class AssetRail {
   /// keys, the finance cash accounts, and the cash ledger in place of an expense.
   static const restaurant = AssetRail._('restaurant');
 
+  /// The Hotel register (`app/hotel-assets`, migrations 322/340): the Restaurant
+  /// page in violet, its rows read through AssetApi into the Restaurant's names
+  /// (as `lib/hotel/capital-assets-view.ts` does), with no "correct original
+  /// cost", no "what is due" list and no full page.
+  static const hotel = AssetRail._('hotel');
+
   bool get isWater => module == 'water';
   bool get isRestaurant => module == 'restaurant';
-  String get api => isWater ? '/api/Water' : isRestaurant ? '/api/Restaurant' : '/api/Poultry';
-  String get assetIdKey => isRestaurant ? 'capitalAssetId' : '${module}CapitalAssetId';
-  String get categoryIdKey => isRestaurant ? 'assetCategoryId' : '${module}AssetCategoryId';
-  String get costIdKey => isRestaurant ? 'assetCostId' : '${module}CapitalAssetCostId';
-  String get depreciationIdKey => isRestaurant ? 'assetDepreciationId' : '${module}AssetDepreciationId';
-  String get cashAccountIdKey => isRestaurant ? 'cashAccountId' : '${module}CashAccountId';
+  bool get isHotel => module == 'hotel';
+
+  /// Rows in the Restaurant's unprefixed names (the Hotel's are converted to them).
+  bool get restaurantShape => isRestaurant || isHotel;
+  String get api => isWater ? '/api/Water' : isRestaurant ? '/api/Restaurant' : isHotel ? '/api/Hotel' : '/api/Poultry';
+  String get assetIdKey => restaurantShape ? 'capitalAssetId' : '${module}CapitalAssetId';
+  String get categoryIdKey => restaurantShape ? 'assetCategoryId' : '${module}AssetCategoryId';
+  String get costIdKey => restaurantShape ? 'assetCostId' : '${module}CapitalAssetCostId';
+  String get depreciationIdKey => restaurantShape ? 'assetDepreciationId' : '${module}AssetDepreciationId';
+  String get cashAccountIdKey => restaurantShape ? 'cashAccountId' : '${module}CashAccountId';
   String get expenseIdKey => isWater ? 'waterExpenseId' : 'expenseId';
   String get assetsHref => '/$module-assets';
-  String get expensesHref => isWater ? '/water-expenses' : isRestaurant ? '/restaurant-expenses' : '/expenses';
+  String get expensesHref => isWater ? '/water-expenses' : isRestaurant ? '/restaurant-expenses' : isHotel ? '/hotel-expenses' : '/expenses';
+
+  /// HOTEL_ASSETS_CAN: what the Hotel backend has beyond the common set.
+  bool get canCorrectOriginalCost => !isHotel;
+  bool get hasDepreciationDue => !isHotel;
+
+  /// The investment's own page (the Hotel register's names are not links).
+  bool get hasFullPage => !isHotel;
+
+  /// Hotel's violet in place of the app's primary colour.
+  Color? get accent => isHotel ? const Color(0xFF7C3AED) : null;
 
   /// listCashAccounts: Restaurant's live under /finance, named `name`.
-  String get cashAccountsPath => isRestaurant ? '/api/Restaurant/finance/accounts' : '$api/cash-accounts';
-  String get cashAccountNameKey => isRestaurant ? 'name' : 'accountName';
+  String get cashAccountsPath => isRestaurant ? '/api/Restaurant/finance/accounts' : isHotel ? '/api/Hotel/finance/cash-accounts' : '$api/cash-accounts';
+  String get cashAccountNameKey => restaurantShape ? 'name' : 'accountName';
 
   /// The examples the forms and the empty list use.
-  String get emptyText => isRestaurant
+  String get emptyText => restaurantShape
       ? 'No capital investments recorded. A combi oven, a walk-in cold room or a delivery motorbike belongs here rather than on the Expenses page.'
       : 'No capital investments recorded. A poultry house, a vehicle or a feed mixer belongs here rather than on the Expenses page.';
-  String get namePlaceholder => isWater ? 'Borehole 2' : isRestaurant ? 'Combi oven' : 'Poultry House 4';
+  String get namePlaceholder => isWater ? 'Borehole 2' : restaurantShape ? 'Combi oven' : 'Poultry House 4';
   String get costExamples => isWater
       ? 'Drilling, the pump, casing, wiring'
-      : isRestaurant
+      : restaurantShape
           ? 'Installation, an extraction hood, electrical work'
           : 'Cement, roofing, labour';
-  String get costPlaceholder => isWater ? 'Submersible pump' : isRestaurant ? 'Extraction hood' : 'Roofing sheets';
+  String get costPlaceholder => isWater ? 'Submersible pump' : restaurantShape ? 'Extraction hood' : 'Roofing sheets';
 
   /// The register's own name: "Capital Investments/Assets", Water's "Assets".
   String get title => isWater ? 'Assets' : 'Capital Investments/Assets';

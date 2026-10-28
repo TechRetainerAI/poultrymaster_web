@@ -150,12 +150,17 @@ class ProdTextField extends StatelessWidget {
 class DispositionField extends StatelessWidget {
   const DispositionField({
     super.key,
+    required this.label,
     required this.count,
     required this.value,
     required this.onChanged,
     required this.keepText,
     required this.disposedText,
   });
+
+  /// Names the choice, e.g. "Broken Egg Stock allocation". On its own line, as
+  /// the web shows it on a phone.
+  final String label;
   final num count;
   final String value;
   final ValueChanged<String> onChanged;
@@ -176,10 +181,15 @@ class DispositionField extends StatelessWidget {
           ),
         );
     return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-      Container(
+      Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: TColors.slate700)),
+      const SizedBox(height: 6),
+      Semantics(
+        label: label,
+        child: Container(
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(border: Border.all(color: TColors.slate300), borderRadius: BorderRadius.circular(6)),
         child: Row(mainAxisSize: MainAxisSize.min, children: [Flexible(child: option('Keep', 'Keep')), Flexible(child: option('Disposed', 'Disposed immediately'))]),
+      ),
       ),
       const SizedBox(height: 6),
       Text(value == 'Keep' ? keepText : disposedText, style: const TextStyle(fontSize: 12, color: TColors.slate600)),

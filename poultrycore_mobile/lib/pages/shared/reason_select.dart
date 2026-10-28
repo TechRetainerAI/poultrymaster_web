@@ -263,6 +263,15 @@ const supplierCreditReasons = [
   'Other',
 ];
 
+/// A per-person permission exception (Access Management → People).
+const permissionOverrideReasons = [
+  'Covering for a colleague',
+  'Role change pending',
+  'Extra responsibility',
+  'Temporary access',
+  'Other',
+];
+
 /// Changing the billing market.
 const marketChangeReasons = [
   'Business relocated',

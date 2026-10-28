@@ -36,6 +36,8 @@ class MoneyRail {
     required this.reconcileHref,
     required this.entity,
     required this.catalog,
+    this.cashAccountsPath,
+    this.accent,
   });
 
   /// `/api/Poultry`, `/api/Water`.
@@ -50,6 +52,27 @@ class MoneyRail {
   /// "farm" (Poultry) or "company" (Water), in the money page's sentences.
   final String entity;
   final Widget Function(Session session, Company company) catalog;
+
+  /// The cash-accounts list when it is not `$api/cash-accounts` (Hotel's is
+  /// under /finance and answers with lower-case keys).
+  final String? cashAccountsPath;
+
+  /// The page's own colour where the web replaces Poultry's (Hotel's violet).
+  final Color? accent;
+
+  bool get isHotel => idPrefix == 'hotel';
+  String get cashAccountsApi => cashAccountsPath ?? '$api/cash-accounts';
+
+  /// The cash accounts with their camelCase keys (the web's `x.accountName ?? x.accountname`).
+  List<Map> accountsOf(Object? res) => [
+        for (final a in (res is List ? res : const []))
+          if (a is Map)
+            {
+              ...a,
+              for (final k in [id('CashAccountId'), 'accountName', 'accountType', 'openingBalance', 'currentBalance', 'allowNegativeBalance', 'isActive'])
+                k: a[k] ?? a[k.toLowerCase()],
+            },
+      ];
 
   String id(String suffix) => '$idPrefix$suffix';
 

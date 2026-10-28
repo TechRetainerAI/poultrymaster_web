@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../hotel/hotel_sales_screen.dart';
 import '../../../api/api_client.dart';
 import '../../../design/ui/inputs.dart';
 import '../../../models/company.dart';
@@ -13,6 +14,7 @@ import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, loc;
 import '../trackers/tracker_widgets.dart';
 import 'balances_logic.dart';
 import 'balances_widgets.dart';
+import 'customer_credits_screen.dart';
 import 'sale_reversal.dart';
 import 'sales_screen.dart';
 import '../../water/water_sales_screen.dart';
@@ -45,6 +47,14 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
   final _search = TextEditingController();
   String _from = '', _to = '';
   String _method = 'all', _source = 'all', _status = 'Posted', _appliedTo = 'all';
+
+  /// One customer's payments. Keyed by id; walk-ins (no customer) share one key.
+  String _customer = 'all';
+
+  /// Column sort, as the web table's headers: none keeps the server's
+  /// newest-first order.
+  String? _sortKey;
+  bool _sortAsc = true;
   int _page = 1;
   int _pageSize = 10;
   int _lastTotal = -1;
@@ -159,7 +169,12 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
   }
 
   /// saleHref: Poultry's Sales page, or `/water-sales?saleId=`, focused on the sale.
-  void _openSale(int saleId) => widget.rail.isRestaurant
+  void _openSale(int saleId) => widget.rail.isHotel
+      // saleHref: `/hotel-sales?bookingId=`.
+      ? Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => HotelSalesScreen(session: widget.session, company: widget.company, focusBookingId: saleId),
+        ))
+      : widget.rail.isRestaurant
       // restaurantOrderHref: the Restaurant Sales page, on that order.
       ? openAppHref(context, widget.session, widget.company, '/restaurant-sales?orderId=$saleId', label: 'Sales')
       : Navigator.of(context).push(MaterialPageRoute(
@@ -206,6 +221,61 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
 
   String _dateOf(Object? d) => tStr(d).isEmpty ? '—' : fmtDateTimeLike(d);
 
+  /// 363: a credit added by hand (Opening credit / Deposit / Credit note) is
+  /// reversed or refunded on Customer Credits (Poultry), so its row links there.
+  void _manageCredit(Map row) => Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => CustomerCreditsScreen(
+          session: widget.session,
+          company: widget.company,
+          initialTab: 'manual',
+          initialSearch: tStr(row['paymentNumber']).isNotEmpty ? tStr(row['paymentNumber']) : tStr(row['partyName']),
+        ),
+      ));
+
+  Widget _manageCreditButton(Map row, double height) => OutlinedButton.icon(
+        style: OutlinedButton.styleFrom(backgroundColor: Colors.white, minimumSize: Size.fromHeight(height)),
+        onPressed: () => _manageCredit(row),
+        iconAlignment: IconAlignment.end,
+        icon: const Icon(Icons.arrow_forward, size: 16),
+        label: const Text('Manage in Customer Credits'),
+      );
+
+  /// The sortable columns' values (the web's sortData getter).
+  static Object? _sortValue(Map r, String key) => switch (key) {
+        // Business date, then entry time, as the Date column shows them.
+        'date' => '${tStr(r['paymentDate'])} ${tStr(r['createdAt'])}',
+        'payment' => paymentRef(r),
+        'customer' => tStr(r['partyName']).isEmpty ? 'Walk-in' : tStr(r['partyName']),
+        'amount' => tNum(r['totalAmount']),
+        'sale' => tIntOrNull(r['allocationCount']) == 1 ? tIntOrNull(r['saleId']) : null,
+        'before' => tIntOrNull(r['allocationCount']) == 1 && r['balanceBefore'] != null ? tNum(r['balanceBefore']) : null,
+        'after' => tIntOrNull(r['allocationCount']) == 1 && r['balanceAfter'] != null ? tNum(r['balanceAfter']) : null,
+        'method' => tStr(r['paymentMethod']).isEmpty ? null : tStr(r['paymentMethod']),
+        'status' => tStr(r['status']).isEmpty ? 'Posted' : tStr(r['status']),
+        _ => null,
+      };
+
+  /// sortData: nulls first ascending, last descending; numbers by value,
+  /// text ignoring case.
+  List<Map> _sorted(List<Map> rows) {
+    final key = _sortKey;
+    if (key == null) return rows;
+    final dir = _sortAsc ? 1 : -1;
+    return [...rows]..sort((a, b) {
+        final x = _sortValue(a, key), y = _sortValue(b, key);
+        if (x == null && y == null) return 0;
+        if (x == null) return -dir;
+        if (y == null) return dir;
+        if (x is num && y is num) return dir * x.compareTo(y);
+        return dir * '$x'.toLowerCase().compareTo('$y'.toLowerCase());
+      });
+  }
+
+  static const _sortColumns = [
+    ('date', 'Date'), ('payment', 'Payment'), ('customer', 'Customer'), ('amount', 'Amount'), ('sale', 'Sale'),
+    ('before', 'Before'), ('after', 'After'), ('method', 'Method'), ('status', 'Status'),
+  ];
+
   /// The one-sale case: on the row (migration 241) or from a fetched allocation.
   ({int saleId, num? saleTotal, num? before, num? applied, num? after})? _single(Map row) {
     if (tIntOrNull(row['allocationCount']) != 1) return null;
@@ -235,35 +305,47 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
     final lead = sidebarLeading(context, widget.session, widget.company, href: widget.rail.paymentsHref);
     final methods = {for (final r in _rows) if (tStr(r['paymentMethod']).isNotEmpty) tStr(r['paymentMethod'])}.toList()..sort();
     final sources = {for (final r in _rows) if (tStr(r['sourceType']).isNotEmpty) tStr(r['sourceType'])}.toList()..sort();
-    final filtered = filterPayments(_rows,
-        search: _search.text, status: _status, method: _method, source: _source, appliedTo: _appliedTo);
+    // The customers who paid in the loaded date range, by name.
+    final customers = {for (final r in _rows) customerFilterKey(r): tStr(r['partyName']).isEmpty ? 'Walk-in' : tStr(r['partyName'])}
+        .entries
+        .toList()
+      ..sort((a, b) => a.value.compareTo(b.value));
+    final filtered = [
+      for (final r in filterPayments(_rows,
+          search: _search.text, status: _status, method: _method, source: _source, appliedTo: _appliedTo))
+        if (_customer == 'all' || customerFilterKey(r) == _customer) r,
+    ];
     final counts = payCountBySale(_rows);
     final fold = foldPayments(filtered, counts);
     final totals = paymentTotals(filtered);
+    // Sorted after folding, so the newest payment still carries a part-paid
+    // sale's trail.
+    final visible = _sorted(fold.visible);
     // usePagination resets to page 1 whenever the total changes.
-    if (fold.visible.length != _lastTotal) {
-      _lastTotal = fold.visible.length;
+    if (visible.length != _lastTotal) {
+      _lastTotal = visible.length;
       _page = 1;
     }
-    final pageRows = pageSlice(fold.visible, _page, _pageSize);
+    final pageRows = pageSlice(visible, _page, _pageSize);
+    final title = widget.rail.isPoultry ? 'Customer Payments' : 'Payments received';
     // Older APIs do not send the inline sale; fetch those rows' allocation.
     for (final r in pageRows) {
       if (tIntOrNull(r['allocationCount']) == 1 && r['saleId'] == null) _fetchAllocation(tStr(r['paymentId']));
     }
 
     return Scaffold(
-      appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: const Text('Payments received')),
+      appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: Text(title)),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
           children: [
-            const Row(children: [
-              Icon(Icons.account_balance_wallet_outlined, size: 24, color: Color(0xFF0284C7)),
-              SizedBox(width: 8),
+            Row(children: [
+              const Icon(Icons.account_balance_wallet_outlined, size: 24, color: Color(0xFF0284C7)),
+              const SizedBox(width: 8),
               Expanded(
-                child: Text('Payments received',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TColors.slate900)),
+                child: Text(title,
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TColors.slate900)),
               ),
             ]),
             if (_canRecord) ...[
@@ -286,7 +368,7 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
             const SizedBox(height: 14),
             ListFiltersCard(
               search: _search,
-              searchPlaceholder: 'Search customer, payment, method or reference',
+              searchPlaceholder: 'Search…',
               onSearch: () => setState(() {}),
               from: _from,
               to: _to,
@@ -306,6 +388,17 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
                 _load();
               },
               extras: [
+                FilterLabel(
+                  'Customer',
+                  AppSelect<String>(
+                    value: customers.any((c) => c.key == _customer) ? _customer : 'all',
+                    items: [
+                      const AppSelectItem(value: 'all', label: 'All customers'),
+                      for (final c in customers) AppSelectItem(value: c.key, label: c.value),
+                    ],
+                    onChanged: (v) => setState(() => _customer = v ?? 'all'),
+                  ),
+                ),
                 FilterLabel(
                   'Method',
                   AppSelect<String>(
@@ -349,6 +442,34 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
                     onChanged: (v) => setState(() => _status = v ?? 'Posted'),
                   ),
                 ),
+                // The web sorts by its table's column headers; the phone's
+                // cards have none, so the same columns are offered here.
+                FilterLabel(
+                  'Sort by',
+                  AppSelect<String>(
+                    value: _sortKey ?? 'none',
+                    items: [
+                      const AppSelectItem(value: 'none', label: 'Newest first'),
+                      for (final (k, l) in _sortColumns) AppSelectItem(value: k, label: l),
+                    ],
+                    onChanged: (v) => setState(() {
+                      _sortKey = v == null || v == 'none' ? null : v;
+                      _sortAsc = true;
+                    }),
+                  ),
+                ),
+                if (_sortKey != null)
+                  FilterLabel(
+                    'Order',
+                    AppSelect<bool>(
+                      value: _sortAsc,
+                      items: const [
+                        AppSelectItem(value: true, label: 'Ascending'),
+                        AppSelectItem(value: false, label: 'Descending'),
+                      ],
+                      onChanged: (v) => setState(() => _sortAsc = v ?? true),
+                    ),
+                  ),
               ],
             ),
             const SizedBox(height: 14),
@@ -408,7 +529,7 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
                               const SizedBox(height: 8),
                             ],
                             CompactPager(
-                              total: fold.visible.length,
+                              total: visible.length,
                               page: _page,
                               pageSize: _pageSize,
                               onPage: (p) => setState(() => _page = p),
@@ -543,6 +664,10 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
             label: const Text('Sale details'),
           ),
         ],
+        if (widget.rail.isPoultry && !reversed && isManualCreditPayment(row)) ...[
+          const SizedBox(height: 8),
+          _manageCreditButton(row, 40),
+        ],
         if (_canReverse && !reversed && !isManualCreditPayment(row)) ...[
           const SizedBox(height: 8),
           OutlinedButton.icon(
@@ -648,6 +773,8 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
             padding: EdgeInsets.only(top: 4),
             child: Text('Reversed', style: TextStyle(fontSize: 11, color: TColors.slate400)),
           )
+        else if (widget.rail.isPoultry && isManualCreditPayment(p))
+          Padding(padding: const EdgeInsets.only(top: 6), child: _manageCreditButton(p, 34))
         else if (_canReverse && !isManualCreditPayment(p))
           Padding(
             padding: const EdgeInsets.only(top: 6),

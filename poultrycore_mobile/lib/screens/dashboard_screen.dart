@@ -8,6 +8,7 @@ import '../design/web_mobile.dart';
 import '../state/session.dart';
 import '../pages/poultry/production/production_logic.dart' show loadEggsPerCrate;
 import '../pages/poultry/farm_alerts_screen.dart';
+import '../pages/hotel/hotel_dashboard_view.dart';
 import '../pages/restaurant/restaurant_dashboard_view.dart';
 import '../widgets/app_header.dart';
 import '../widgets/company_switcher_sheet.dart';
@@ -70,8 +71,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _load() async {
     final company = widget.session.active;
     if (company == null) return;
-    // Restaurant's Home is RestaurantDashboardView, which loads its own figures.
-    if (company.type == CompanyType.restaurant) {
+    // Restaurant's and Hotel's Homes are their own dashboard views, which load their own figures.
+    if (company.type == CompanyType.restaurant || company.type == CompanyType.hotel) {
       if (mounted) setState(() => _loading = false);
       return;
     }
@@ -155,6 +156,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           // Restaurant draws the web's own dashboard rather than the summary grid.
           if (company.type == CompanyType.restaurant)
             Expanded(child: RestaurantDashboardView(key: ValueKey(company.farmId), session: session, company: company))
+          else if (company.type == CompanyType.hotel)
+            Expanded(child: HotelDashboardView(key: ValueKey(company.farmId), session: session, company: company))
           else
           Expanded(
             child: RefreshIndicator(

@@ -13,7 +13,7 @@ import '../sales/balances_logic.dart' show pageSlice;
 import '../sales/balances_widgets.dart';
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../trackers/tracker_widgets.dart';
-import 'cash_account_dialogs.dart' show cashReasons;
+import 'cash_account_dialogs.dart' show cashReasons, hotelCashReasons;
 import 'cash_accounts_screen.dart' show CashAccountDetailScreen, CashAccountsScreen;
 import 'cash_vocabulary.dart';
 import 'money_widgets.dart';
@@ -30,6 +30,14 @@ const cashReversalReasons = [
 ];
 
 const _sky600 = Color(0xFF0284C7);
+
+/// hotelVocabularyType: what the shared counting words should call a Hotel account.
+String hotelVocabularyType(Object? v) => switch ('${v ?? ''}') {
+      'FrontDeskCash' || 'CashBox' || 'PettyCash' || 'Cash' => 'cash',
+      'Bank' => 'bank',
+      'MobileMoney' => 'momo',
+      _ => 'other',
+    };
 
 /// COUNT_BADGE: (bg, fg).
 (Color, Color) countTone(String s) => switch (s) {
@@ -112,13 +120,14 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
     setState(() => _error = '');
     List<Map> accs = [];
     try {
-      accs = rowsOf(await _api.get('${_r.api}/cash-accounts', query: {'farmId': _farmId}));
+      accs = _r.accountsOf(await _api.get(_r.cashAccountsApi, query: {'farmId': _farmId}));
       if (mounted) setState(() => _accounts = accs);
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
     }
     try {
-      final st = rowsOf(await _api.get('${_r.api}/cash-reconciliations/account-status', query: {'farmId': _farmId}));
+      final st = rowsOf(await _api.get(_r.isHotel ? '${_r.cashAccountsApi}/status' : '${_r.api}/cash-reconciliations/account-status',
+          query: {'farmId': _farmId}));
       if (mounted) setState(() => _status = st);
     } on ApiException {
       if (mounted) setState(() => _status = []);
@@ -130,7 +139,9 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
     final id = _accountId;
     if (id == null) return setState(() => _counts = []);
     try {
-      final c = rowsOf(await _api.get('${_r.api}/cash-reconciliations/account/$id', query: {'farmId': _farmId}));
+      final c = rowsOf(_r.isHotel
+          ? await _api.get('${_r.api}/cash-reconciliations', query: {'farmId': _farmId, 'accountId': '$id'})
+          : await _api.get('${_r.api}/cash-reconciliations/account/$id', query: {'farmId': _farmId}));
       if (mounted && id == _accountId) setState(() => _counts = c);
     } on ApiException {
       if (mounted) setState(() => _counts = []);
@@ -146,13 +157,14 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
   Map? get _accountStatus => _status.where((s) => tIntOrNull(s['${_r.idPrefix}CashAccountId']) == _accountId).firstOrNull;
   num get _systemBalance => tNum(_accountStatus?['ledgerBalance'] ?? _account?['currentBalance']);
   Map? get _openDraft => _counts.where((c) => tStr(c['status']) == 'Draft').firstOrNull;
-  CashVocabulary get _vocab => cashAccountVocabulary(_account?['accountType']);
+  CashVocabulary get _vocab => cashAccountVocabulary(_r.isHotel ? hotelVocabularyType(_account?['accountType']) : _account?['accountType']);
 
   Future<void> _postDraft(Map c) async {
     setState(() => _busy = true);
     try {
       final res = await _api.post('${_r.api}/cash-reconciliations/${tStr(c['${_r.idPrefix}CashReconciliationId'])}/post',
-          query: {'farmId': _farmId}, body: {'clearedTransactionIds': <int>[], 'postedBy': widget.session.tokens.userId});
+          query: {'farmId': _farmId},
+          body: {if (_r.isHotel) 'farmId': _farmId, 'clearedTransactionIds': <int>[], 'postedBy': widget.session.tokens.userId});
       final adj = res is Map ? res['adjustmentTransactionId'] : null;
       if (mounted) {
         trackerToast(context, adj != null ? 'Cash count posted' : 'Balanced',
@@ -170,7 +182,9 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
   Future<void> _recalculate() async {
     setState(() => _busy = true);
     try {
-      await _api.post('${_r.api}/cash-accounts/reconcile-balances', query: {'farmId': _farmId});
+      _r.isHotel
+          ? await _api.post('${_r.cashAccountsApi}/recalculate', query: {'farmId': _farmId}, body: {'farmId': _farmId})
+          : await _api.post('${_r.api}/cash-accounts/reconcile-balances', query: {'farmId': _farmId});
       if (mounted) trackerToast(context, 'Balances recalculated', description: "Every cash account's balance was rebuilt from its transactions.");
       await _refreshAll();
     } on ApiException catch (e) {
@@ -228,7 +242,7 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
     if (reason == null) return;
     try {
       await _api.post('${_r.api}/cash-reconciliations/${tStr(c['${_r.idPrefix}CashReconciliationId'])}/reverse',
-          query: {'farmId': _farmId}, body: {'reason': reason, 'reversedBy': widget.session.tokens.userId});
+          query: {'farmId': _farmId}, body: {if (_r.isHotel) 'farmId': _farmId, 'reason': reason, 'reversedBy': widget.session.tokens.userId});
       if (mounted) trackerToast(context, 'Cash count reversed', description: 'The adjustment has been undone.');
       await _refreshAll();
     } on ApiException catch (e) {
@@ -277,13 +291,15 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
   List<Widget> _countActions(Map c) => [
         if (tStr(c['status']) == 'Draft') ...[
           _action('Post', Icons.check, TColors.emerald700, const Color(0xFFA7F3D0), _busy ? null : () => _postDraft(c)),
-          _action('Edit', Icons.edit_outlined, TColors.sky700, const Color(0xFFBAE6FD), () => _openForm(count: c, mode: 'draft')),
+          _action('Edit', Icons.edit_outlined, _r.isHotel ? TColors.violet700 : TColors.sky700, _r.isHotel ? TColors.violet200 : const Color(0xFFBAE6FD),
+              () => _openForm(count: c, mode: 'draft')),
           _action('Discard', Icons.delete_outline, TColors.rose600, const Color(0xFFFECDD3), () => _discard(c)),
         ],
         if (tStr(c['status']) == 'Posted')
           _action('Reverse', Icons.undo, TColors.amber700, const Color(0xFFFDE68A), () => _reverse(c)),
         if (tStr(c['status']) == 'Reversed')
-          _action('Count again', Icons.replay, TColors.sky700, const Color(0xFFBAE6FD), () => _openForm(count: c, mode: 'copy')),
+          _action('Count again', Icons.replay, _r.isHotel ? TColors.violet700 : TColors.sky700, _r.isHotel ? TColors.violet200 : const Color(0xFFBAE6FD),
+              () => _openForm(count: c, mode: 'copy')),
       ];
 
   String _diff(Map c) => tNum(c['difference']) == 0 ? 'Balanced' : _gh(tNum(c['difference']));
@@ -322,8 +338,8 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
                 label: const Text('Back to Cash & Accounts'),
               ),
             ),
-            const Row(children: [
-              Icon(Icons.balance, size: 20, color: _sky600),
+            Row(children: [
+              Icon(Icons.balance, size: 20, color: _r.accent ?? _sky600),
               SizedBox(width: 8),
               Expanded(child: Text('Reconciliation', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: TColors.slate900))),
             ]),
@@ -366,7 +382,7 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
                 LayoutBuilder(builder: (context, c) {
                   final half = (c.maxWidth - 8) / 2;
                   return Wrap(spacing: 8, runSpacing: 8, children: [
-                    if (acc != null)
+                    if (acc != null && !_r.isHotel)
                       SizedBox(
                         width: half,
                         child: OutlinedButton.icon(
@@ -390,6 +406,7 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
                       SizedBox(
                         width: c.maxWidth,
                         child: FilledButton.icon(
+                          style: FilledButton.styleFrom(backgroundColor: _r.accent),
                           onPressed: _reconcile,
                           icon: const Icon(Icons.balance, size: 16),
                           label: Text(draft != null
@@ -445,14 +462,14 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
               if (draft != null) ...[
                 const SizedBox(height: 8),
                 _banner(
-                  const Color(0xFFF0F9FF),
-                  const Color(0xFFBAE6FD),
-                  TColors.sky700,
+                  _r.isHotel ? TColors.violet50 : const Color(0xFFF0F9FF),
+                  _r.isHotel ? TColors.violet200 : const Color(0xFFBAE6FD),
+                  _r.isHotel ? TColors.violet700 : TColors.sky700,
                   Wrap(spacing: 8, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
                     Text(
                       '${countRef(draft, _r.idPrefix)} is saved but not posted — nothing has reached the ledger yet.'
                       '${draft['actualBalance'] != null ? ' Counted ${_gh(tNum(draft['actualBalance']))}.' : ''}',
-                      style: const TextStyle(fontSize: 12, color: TColors.sky900),
+                      style: TextStyle(fontSize: 12, color: _r.isHotel ? const Color(0xFF4C1D95) : TColors.sky900),
                     ),
                     _small('Post it', _busy ? null : () => _postDraft(draft), filled: true),
                     _small('Edit', () => _openForm(count: draft, mode: 'draft')),
@@ -625,7 +642,7 @@ class _CashCountDialogState extends State<CashCountDialog> {
         _actual.text = n == n.roundToDouble() ? n.toInt().toString() : '$n';
       }
       final stored = tStr(e['reason']);
-      final known = cashReasons.contains(stored);
+      final known = (_r.isHotel ? hotelCashReasons : cashReasons).contains(stored);
       _reason = stored.isEmpty ? '' : (known ? stored : 'Other');
       _note.text = stored.isNotEmpty && !known ? stored : '';
       _notes.text = tStr(e['notes']);
@@ -664,13 +681,14 @@ class _CashCountDialogState extends State<CashCountDialog> {
     final api = widget.session.farmClient;
     final q = {'farmId': widget.company.farmId};
     try {
+      final hotelKeys = {if (_r.isHotel) 'farmId': widget.company.farmId, if (_r.isHotel) 'hotelCashAccountId': tIntOrNull(widget.account['hotelCashAccountId'])};
       if (widget.mode == 'draft' && widget.editing != null) {
         await api.put(
             '${_r.api}/cash-reconciliations/${tStr(widget.editing!['${_r.idPrefix}CashReconciliationId'])}?farmId=${Uri.encodeQueryComponent(widget.company.farmId)}',
-            body: fields);
+            body: {...hotelKeys, ...fields});
       } else {
         await api.post('${_r.api}/cash-reconciliations',
-            query: q, body: {'${_r.idPrefix}CashAccountId': tIntOrNull(widget.account['${_r.idPrefix}CashAccountId']), ...fields});
+            query: q, body: {'${_r.idPrefix}CashAccountId': tIntOrNull(widget.account['${_r.idPrefix}CashAccountId']), ...hotelKeys, ...fields});
       }
       if (!mounted) return;
       trackerToast(context, '${v.recordNounTitle} saved',
@@ -707,7 +725,7 @@ class _CashCountDialogState extends State<CashCountDialog> {
       child: AlertDialog(
         scrollable: true,
         title: Row(children: [
-          const Icon(Icons.balance, color: _sky600),
+          Icon(Icons.balance, color: _r.accent ?? _sky600),
           const SizedBox(width: 6),
           Flexible(child: Text(title)),
         ]),
@@ -716,7 +734,7 @@ class _CashCountDialogState extends State<CashCountDialog> {
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Text(desc, style: const TextStyle(fontSize: 13, color: TColors.slate500)),
             const SizedBox(height: 12),
-            formSection(v.action, _sky600, [
+            formSection(v.action, _r.accent ?? _sky600, [
               Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 FilterLabel(
                   '${v.amountLabel} *',
@@ -769,7 +787,7 @@ class _CashCountDialogState extends State<CashCountDialog> {
                     value: _reason.isEmpty ? null : _reason,
                     enabled: !off,
                     hintText: d.balanced ? 'Not needed' : 'Why the difference?',
-                    items: [for (final r in cashReasons) AppSelectItem(value: r, label: r)],
+                    items: [for (final r in _r.isHotel ? hotelCashReasons : cashReasons) AppSelectItem(value: r, label: r)],
                     onChanged: (r) => setState(() {
                       _reason = r ?? '';
                       _note.clear();
@@ -804,7 +822,11 @@ class _CashCountDialogState extends State<CashCountDialog> {
         ),
         actions: [
           TextButton(onPressed: _saving ? null : () => Navigator.pop(context, false), child: const Text('Cancel')),
-          FilledButton(onPressed: _canSubmit ? _submit : null, child: Text(_saving ? 'Saving…' : 'Save ${v.recordNoun}')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: _r.accent),
+            onPressed: _canSubmit ? _submit : null,
+            child: Text(_saving ? 'Saving…' : 'Save ${v.recordNoun}'),
+          ),
         ],
       ),
     );
