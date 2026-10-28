@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ArrowLeft, Loader2, Plus, ShoppingCart, X } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
+import { useGenericModules } from "@/hooks/use-generic-modules"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import {
@@ -59,6 +60,7 @@ const blankRow = (): Row => ({
 export default function NewGenericSalePage() {
   const router = useRouter()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
+  const modules = useGenericModules()
   const logout = useLogout()
   const { toast } = useToast()
 
@@ -94,7 +96,9 @@ export default function NewGenericSalePage() {
         setProducts(ps)
         setCashAccounts(as)
         // Default to first active cash account
-        const firstCash = as.find((a) => a.isActive)
+        const defaultId = modules.businessSettings?.defaultCashAccountForPayments
+        const defaultAccount = defaultId ? as.find((a) => a.genericCashAccountId === defaultId && a.isActive) : null
+        const firstCash = defaultAccount ?? as.find((a) => a.isActive)
         if (firstCash) setHeader((h) => ({ ...h, genericCashAccountId: String(firstCash.genericCashAccountId) }))
       } catch (e: any) {
         if (!cancelled) toast({ title: "Could not load options", description: e?.message ?? String(e), variant: "destructive" })

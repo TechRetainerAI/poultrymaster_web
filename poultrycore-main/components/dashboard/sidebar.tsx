@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition, useEffect, Fragment } from "react"
+import { useState, useTransition, useEffect, useMemo, Fragment } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -59,6 +59,9 @@ import {
   Inbox,
   Factory,
   Star,
+  Zap,
+  GraduationCap,
+  ClipboardCheck,
 } from "lucide-react"
 import { InventoryLogo } from "@/components/auth/logo"
 import { useAlertsStore, type AlertItem } from "@/lib/store/alerts-store"
@@ -75,6 +78,7 @@ import { buildPoultryNavConfig } from "@/lib/nav/poultry-nav-config"
 import { buildWaterNavConfig } from "@/lib/nav/water-nav-config"
 import { buildHotelNavConfig } from "@/lib/nav/hotel-nav-config"
 import { buildRestaurantNavConfig } from "@/lib/nav/restaurant-nav-config"
+import { buildGenericNavConfig } from "@/lib/nav/generic-nav-config"
 import { useQuickLinkHrefs } from "@/lib/store/quick-links-store"
 import { QuickLinksDialog } from "@/components/dashboard/quick-links-dialog"
 import { navPathActive, type MegaMenuGroup, type NavGroup } from "@/lib/nav/nav-model"
@@ -299,93 +303,25 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   // the mobile bar through one cached hook.
   const genericModules = useGenericModules()
 
-  // /generic-inventory is the new at-a-glance stock page (products + cards
-  // + filters). /generic-stock-adjustments stays for actually changing stock.
-  //
-  // Every item here is one of the OPTIONAL modules in section 5 of the spec:
-  // a SaaS company, a gym and a school do not sell stock, and a template that
-  // turns them off must actually take them off the menu. showExisting rather
-  // than showNew, so a failed settings request leaves the menu as it was
-  // instead of emptying it.
-  const genericCatalogItems = [
-    ...(genericModules.showExisting("enableProducts")
-      ? [{ href: "/generic-products", label: "Products", icon: ShoppingBag }] : []),
-    ...(genericModules.showExisting("enableInventory")
-      ? [{ href: "/generic-inventory", label: "Inventory", icon: Boxes }] : []),
-    ...(genericModules.showExisting("enableStockAdjustments")
-      ? [{ href: "/generic-stock-adjustments", label: "Stock adjustments", icon: Boxes }] : []),
-    ...(genericModules.showExisting("enableInternalUse")
-      ? [{ href: "/generic-internal-use", label: "Internal Use", icon: PackageMinus }] : []),
-  ]
-  // Only the NEW items are gated on module settings. Every item that existed
-  // before templates stays ungated -- retro-fitting a gate would take away
-  // access people have today.
-  const genericSubscriptionItems = [
-    ...(genericModules.showNew("enableSubscriptions")
-      ? [
-          { href: "/generic-service-plans",  label: genericModules.labels.planPlural,         icon: Repeat },
-          { href: "/generic-subscriptions",  label: genericModules.labels.subscriptionPlural, icon: CalendarClock },
-          { href: "/generic-billing-runs",   label: "Billing runs",                           icon: Receipt },
-        ]
-      : []),
-  ]
-  const genericSalesItems = [
-    { href: "/generic-sales",              label: "Sales",             icon: ShoppingCart },
-    ...(genericModules.showNew("enableInvoices")
-      ? [{ href: "/generic-invoices", label: genericModules.labels.invoicePlural, icon: FileText }]
-      : []),
-    { href: "/generic-customers",          label: genericModules.labels.customerPlural, icon: Users },
-    { href: "/generic-customer-payments",  label: genericModules.labels.paymentPlural, icon: CreditCard },
-    ...(genericModules.showNew("enableCustomerBalances")
-      ? [{ href: "/generic-customer-balances", label: genericModules.labels.customerBalance, icon: Scale }]
-      : []),
-  ]
-  const genericPurchasingItems = [
-    { href: "/generic-suppliers",          label: "Suppliers",         icon: Truck },
-    // Buying stock is optional too (section 5). A service business owes its
-    // vendors through expenses, and Supplier Balances below covers that.
-    ...(genericModules.showExisting("enablePurchases")
-      ? [{ href: "/generic-purchases", label: "Purchases", icon: Package }] : []),
-    { href: "/generic-supplier-payments",  label: "Supplier payments", icon: CreditCard },
-    // 251 gave both of these a toggle of their own. Supplier balances no longer
-    // rides on Purchases: a service business owes vendors through expenses,
-    // which is exactly what 248's payables arm reads, so gating it on stock
-    // buying hid it from the companies that needed it most.
-    ...(genericModules.showExisting("enableSupplierBalances")
-      ? [{ href: "/generic-supplier-balances", label: "Supplier balances", icon: Scale }]
-      : []),
-    { href: "/generic-expenses",           label: "Expenses",          icon: DollarSign },
-    // 348: the shared engine (drafts for review, no month-end drift) replaces
-    // the Generic-only page here. /generic-recurring-expenses still works by URL
-    // for templates created before it.
-    ...(genericModules.showExisting("enableRecurringExpenses")
-      ? [{ href: "/recurring-expenses", label: "Recurring expenses", icon: Repeat }]
-      : []),
-  ]
-  const genericMoneyItems = [
-    ...(genericModules.showExisting("enableCashAccounts")
-      ? [
-          { href: "/generic-cash",           label: "Cash & Accounts", icon: Wallet },
-          { href: "/generic-cash-transfers", label: "Cash transfers",  icon: Activity },
-        ]
-      : []),
-    { href: "/generic-daily-closings", label: "Daily Closing",   icon: FileText },
-    { href: "/generic-owner-money",    label: "Owner money",     icon: Wallet },
-  ]
-  // Generic — People (Phase 6: staff + attendance + payroll, migrations 055/056)
-  const genericPeopleItems = [
-    { href: "/generic-staff",       label: "Staff",      icon: Users2 },
-    { href: "/generic-attendance",  label: "Attendance", icon: Activity },
-    { href: "/generic-payroll",     label: "Payroll",    icon: Banknote },
-    { href: "/generic-staff-payments", label: "Staff payments", icon: Banknote },
-  ]
-  const genericAdminItems = [
-    { href: "/generic-reports",  label: "Reports",  icon: BarChart3 },
-    { href: "/generic-setup",    label: "Setup",    icon: Settings },
-    // Setup is the company PROFILE; Settings is how the company works --
-    // which modules it has and what they default to (251).
-    { href: "/generic-settings", label: "Settings", icon: Cog },
-  ]
+  // Generic sidebar: built from the shared nav config so the sidebar and
+  // top-nav always agree on labels and visibility.
+  const genericNav = useMemo(() => buildGenericNavConfig(genericModules), [genericModules])
+  const isSchool = genericModules.industry === "School"
+  const isSub = genericModules.isSubscriptionBusiness
+
+  // Flatten MegaMenuGroup[] → NavItem[] for renderGroup
+  // MegaMenuItem uses { id, title, icon, href } while the sidebar needs { href, label, icon }
+  const flat = (groups: { items: { href?: string; title: string; icon: any }[] }[]) =>
+    groups.flatMap((g) => g.items.filter((i) => i.href).map((i) => ({ href: i.href!, label: i.title, icon: i.icon })))
+
+  const genericCatalogItems = flat(genericNav.catalog)
+  const genericSubscriptionItems = flat(genericNav.billing)
+  const genericSalesItems = flat(genericNav.salesOrStudents)
+  const genericPurchasingItems = flat(genericNav.expenses)
+  const genericMoneyItems = flat(genericNav.money)
+  const genericPeopleItems = flat(genericNav.people)
+  const genericSchoolItems = flat(genericNav.school)
+  const genericAdminItems = flat(genericNav.admin)
 
   // Hotel company nav items (shown when activeFarmType === "Hotel")
   const gateHotel = <T extends { href: string }>(items: T[]) =>
@@ -909,34 +845,30 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
 
             {genericSubscriptionItems.length > 0 && (
               <>
-                {/* Generic Company — Subscriptions (migrations 242-243) */}
-                {renderGroup("Subscriptions", genericSubscriptionItems, "genericSubscriptions")}
-
+                {renderGroup(genericNav.billing[0]?.label ?? "Billing", genericSubscriptionItems, "genericSubscriptions")}
                 <div className="border-t border-slate-800 mx-2" />
               </>
             )}
 
-            {/* Generic Company — Sales */}
-            {renderGroup("Sales", genericSalesItems, "genericSales")}
-
+            {renderGroup(genericNav.salesOrStudents[0]?.label ?? "Sales", genericSalesItems, "genericSales")}
             <div className="border-t border-slate-800 mx-2" />
 
-            {/* Generic Company — Purchasing */}
-            {renderGroup("Purchasing", genericPurchasingItems, "genericPurchasing")}
-
+            {renderGroup(genericNav.expenses[0]?.label ?? "Expenses", genericPurchasingItems, "genericPurchasing")}
             <div className="border-t border-slate-800 mx-2" />
 
-            {/* Generic Company — Money */}
-            {renderGroup("Money", genericMoneyItems, "genericMoney")}
-
+            {renderGroup(genericNav.money[0]?.label ?? "Money", genericMoneyItems, "genericMoney")}
             <div className="border-t border-slate-800 mx-2" />
 
-            {/* Generic Company — People (Phase 6) */}
-            {renderGroup("People", genericPeopleItems, "genericPeople")}
+            {renderGroup(genericNav.people[0]?.label ?? "People", genericPeopleItems, "genericPeople")}
+
+            {genericSchoolItems.length > 0 && (
+              <>
+                <div className="border-t border-slate-800 mx-2" />
+                {renderGroup("School", genericSchoolItems, "genericSchool")}
+              </>
+            )}
 
             <div className="border-t border-slate-800 mx-2" />
-
-            {/* Generic Company — Admin */}
             {renderGroup("Admin", genericAdminItems, "genericAdmin")}
           </>
         ) : (

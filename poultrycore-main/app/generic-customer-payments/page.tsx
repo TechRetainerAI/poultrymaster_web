@@ -47,7 +47,8 @@ function badgeClass(s: string) {
 
 function GenericCustomerPaymentsPageInner() {
   // "Membership Payment" for a gym, "Fee Payment" for a school.
-  const { labels } = useGenericModules()
+  const modules = useGenericModules()
+  const { labels } = modules
   const router = useRouter()
   const sp = useSearchParams()
   const status = sp.get("status") || "All"
@@ -83,7 +84,10 @@ function GenericCustomerPaymentsPageInner() {
         getCashAccounts(),
       ])
       setRows(ps); setCustomers(cs); setCashAccounts(as)
-      const firstCash = as.find((a) => a.isActive)
+      // Use the company's default cash account if configured, otherwise first active
+      const defaultId = modules.businessSettings?.defaultCashAccountForPayments
+      const defaultAccount = defaultId ? as.find((a) => a.genericCashAccountId === defaultId && a.isActive) : null
+      const firstCash = defaultAccount ?? as.find((a) => a.isActive)
       if (firstCash && !form.genericCashAccountId) setForm((f) => ({ ...f, genericCashAccountId: String(firstCash.genericCashAccountId) }))
     } catch (e: any) {
       toast({ title: "Could not load", description: e?.message ?? String(e), variant: "destructive" })

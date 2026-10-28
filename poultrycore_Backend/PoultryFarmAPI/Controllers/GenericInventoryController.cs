@@ -12,6 +12,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [ApiController]
     [Route("api/generic-company/{farmId}")]
     [RequireCompanyType("Generic")]
+    [RequireGenericModule("EnableProducts")]
     public class GenericProductController : ControllerBase
     {
         private readonly IGenericProductService _products;
@@ -168,6 +169,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [ApiController]
     [Route("api/generic-company/{farmId}")]
     [RequireCompanyType("Generic")]
+    [RequireGenericModule("EnableSubscriptions")]
     public class GenericServiceCatalogController : ControllerBase
     {
         private readonly IGenericServiceCatalogService _services;
@@ -300,6 +302,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [ApiController]
     [Route("api/generic-company/{farmId}/inventory")]
     [RequireCompanyType("Generic")]
+    [RequireGenericModule("EnableInventory")]
     public class GenericInventoryController : ControllerBase
     {
         private readonly IGenericInventoryService _inv;
@@ -415,6 +418,57 @@ namespace PoultryFarmAPIWeb.Controllers
             if (!string.Equals(farmType, "Generic", StringComparison.OrdinalIgnoreCase))
                 return Conflict($"This company is not a Generic company (current type: {farmType}).");
             return null;
+        }
+    }
+
+    // =========================================================================
+    // UOM Conversions (migration 364). Per-product or farm-wide unit
+    // conversions: "1 basket = 20 tubers".
+    // =========================================================================
+    [ApiController]
+    [Route("api/generic-company/{farmId}/uom-conversions")]
+    [RequireCompanyType("Generic")]
+    public class GenericUomConversionController : ControllerBase
+    {
+        private readonly IGenericProductService _products;
+        private readonly IGenericCompanyService _companies;
+
+        public GenericUomConversionController(IGenericProductService products, IGenericCompanyService companies)
+        {
+            _products = products;
+            _companies = companies;
+        }
+
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<GenericUomConversionModel>>> GetAll(
+            string farmId, [FromQuery] int? productId = null)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            return Ok(await _products.GetUomConversionsAsync(farmId, productId));
+        }
+
+        [HttpPost]
+        public async Task<ActionResult<GenericUomConversionModel>> Upsert(
+            string farmId, [FromBody] GenericUomConversionUpsertRequest req)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+
+            var id = await _products.UpsertUomConversionAsync(
+                farmId, req.GenericProductId, req.FromUnit, req.ToUnit, req.ConversionFactor);
+            return Ok(new { genericUomConversionId = id });
+        }
+
+        [HttpDelete("{id:int}")]
+        public async Task<IActionResult> Delete(string farmId, int id)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+
+            await _products.DeleteUomConversionAsync(id, farmId);
+            return NoContent();
         }
     }
 }

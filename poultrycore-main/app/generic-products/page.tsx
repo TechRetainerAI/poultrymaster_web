@@ -24,7 +24,8 @@ import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import {
   getProducts, createGenericProduct, updateGenericProduct, deleteGenericProduct,
-  type GenericProduct, type GenericProductInput,
+  getUomConversions, upsertUomConversion, deleteUomConversion,
+  type GenericProduct, type GenericProductInput, type GenericUomConversion,
 } from "@/lib/api/generic"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
@@ -45,6 +46,8 @@ const EMPTY_FORM = {
   openingStock: "0",
   minimumStockAlert: "0",
   trackInventory: true,
+  trackExpiry: false,
+  expiryDate: "",
   isActive: true,
   notes: "",
 }
@@ -64,8 +67,11 @@ export default function GenericProductsPage() {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<GenericProduct | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
+  // UOM conversions for the currently-editing product
+  const [conversions, setConversions] = useState<GenericUomConversion[]>([])
+  const [newConv, setNewConv] = useState({ fromUnit: "", toUnit: "", factor: "" })
 
-  const openNew = () => { setEditingId(null); setForm(EMPTY_FORM); setOpen(true) }
+  const openNew = () => { setEditingId(null); setForm(EMPTY_FORM); setConversions([]); setOpen(true) }
   const openEdit = (p: GenericProduct) => {
     setEditingId(p.genericProductId)
     setForm({
@@ -80,10 +86,39 @@ export default function GenericProductsPage() {
       openingStock: String(p.openingStock),
       minimumStockAlert: String(p.minimumStockAlert),
       trackInventory: p.trackInventory,
+      trackExpiry: p.trackExpiry ?? false,
+      expiryDate: p.expiryDate ? p.expiryDate.slice(0, 10) : "",
       isActive: p.isActive,
       notes: p.notes ?? "",
     })
+    getUomConversions(p.genericProductId).then(setConversions).catch(() => setConversions([]))
     setOpen(true)
+  }
+
+  const addConversion = async () => {
+    if (!editingId || !newConv.fromUnit.trim() || !newConv.toUnit.trim() || !Number(newConv.factor)) return
+    try {
+      await upsertUomConversion({
+        genericProductId: editingId,
+        fromUnit: newConv.fromUnit.trim(),
+        toUnit: newConv.toUnit.trim(),
+        conversionFactor: Number(newConv.factor),
+      })
+      setNewConv({ fromUnit: "", toUnit: "", factor: "" })
+      const updated = await getUomConversions(editingId)
+      setConversions(updated)
+    } catch (e: any) {
+      toast({ title: "Could not save conversion", description: e?.message, variant: "destructive" })
+    }
+  }
+
+  const removeConversion = async (id: number) => {
+    try {
+      await deleteUomConversion(id)
+      setConversions((prev) => prev.filter((c) => c.genericUomConversionId !== id))
+    } catch (e: any) {
+      toast({ title: "Could not delete conversion", description: e?.message, variant: "destructive" })
+    }
   }
 
   const load = async () => {
@@ -136,6 +171,8 @@ export default function GenericProductsPage() {
         openingStock: Number(form.openingStock) || 0,
         minimumStockAlert: Number(form.minimumStockAlert) || 0,
         trackInventory: form.trackInventory,
+        trackExpiry: form.trackExpiry,
+        expiryDate: form.expiryDate || null,
         isActive: form.isActive,
         notes: optStr(form.notes),
       }
@@ -228,6 +265,17 @@ export default function GenericProductsPage() {
                         <Label htmlFor="track" className="cursor-pointer text-sm text-slate-600">Uncheck for services or non-stocked items</Label>
                       </div>
                     </FormField>
+                    <FormField label="Track expiry date">
+                      <div className="flex items-center gap-3">
+                        <Switch checked={form.trackExpiry} onCheckedChange={(v) => setForm((f) => ({ ...f, trackExpiry: v, expiryDate: v ? f.expiryDate : "" }))} id="expiry-toggle" />
+                        <Label htmlFor="expiry-toggle" className="cursor-pointer text-sm text-slate-600">For perishable items (food, medicine)</Label>
+                      </div>
+                    </FormField>
+                    {form.trackExpiry && (
+                      <FormField label="Expiry date">
+                        <Input type="date" value={form.expiryDate} onChange={(e) => setForm((f) => ({ ...f, expiryDate: e.target.value }))} />
+                      </FormField>
+                    )}
                     <FormField label="Active">
                       <div className="flex items-center gap-3">
                         <Switch checked={form.isActive} onCheckedChange={(v) => setForm((f) => ({ ...f, isActive: v }))} id="active" />
@@ -238,6 +286,42 @@ export default function GenericProductsPage() {
                       <Textarea rows={2} value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
                     </FormField>
                   </FormSection>
+
+                  {/* UOM Conversions (only when editing an existing product) */}
+                  {editingId && (
+                    <FormSection title="Unit conversions" color="teal" columns={1}>
+                      {conversions.length > 0 && (
+                        <div className="space-y-1.5">
+                          {conversions.map((c) => (
+                            <div key={c.genericUomConversionId} className="flex items-center justify-between gap-2 rounded-md border px-3 py-1.5 text-sm">
+                              <span>1 <strong>{c.fromUnit}</strong> = {c.conversionFactor} <strong>{c.toUnit}</strong></span>
+                              <button type="button" onClick={() => removeConversion(c.genericUomConversionId)} className="text-slate-400 hover:text-red-500">
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div className="flex gap-2 items-end">
+                        <div className="flex-1">
+                          <Label className="text-xs">From</Label>
+                          <Input value={newConv.fromUnit} maxLength={50} onChange={(e) => setNewConv((p) => ({ ...p, fromUnit: e.target.value }))} placeholder="e.g. basket" />
+                        </div>
+                        <div className="flex-1">
+                          <Label className="text-xs">To</Label>
+                          <Input value={newConv.toUnit} maxLength={50} onChange={(e) => setNewConv((p) => ({ ...p, toUnit: e.target.value }))} placeholder="e.g. tuber" />
+                        </div>
+                        <div className="w-24">
+                          <Label className="text-xs">Factor</Label>
+                          <NumberInput step="0.01" min="0" value={newConv.factor} onChange={(e) => setNewConv((p) => ({ ...p, factor: e.target.value }))} placeholder="20" />
+                        </div>
+                        <Button type="button" variant="outline" size="sm" onClick={addConversion} className="shrink-0">
+                          <Plus className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                      <p className="text-xs text-slate-500">Example: 1 basket = 20 tubers</p>
+                    </FormSection>
+                  )}
 
                   <div className="flex gap-3 justify-end pt-2">
                     <Button type="button" onClick={() => setOpen(false)} className="bg-red-600 hover:bg-red-700 text-white">Cancel</Button>

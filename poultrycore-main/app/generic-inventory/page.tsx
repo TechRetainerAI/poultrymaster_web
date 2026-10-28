@@ -90,6 +90,16 @@ export default function GenericInventoryPage() {
     return { label: "In stock", tone: "ok" }
   }
 
+  const expiryStatus = (p: GenericProduct): { label: string; tone: "ok" | "warning" | "expired" } | null => {
+    if (!p.trackExpiry || !p.expiryDate) return null
+    const now = new Date()
+    const exp = new Date(p.expiryDate)
+    const daysUntil = Math.ceil((exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+    if (daysUntil < 0) return { label: `Expired ${Math.abs(daysUntil)}d ago`, tone: "expired" }
+    if (daysUntil <= 30) return { label: `Expires in ${daysUntil}d`, tone: "warning" }
+    return { label: `Expires ${exp.toLocaleDateString()}`, tone: "ok" }
+  }
+
   const matchesQ = (s?: string | null) => !q || (s ?? "").toLowerCase().includes(q.toLowerCase())
 
   const filtered = useMemo(() => {
@@ -124,6 +134,16 @@ export default function GenericInventoryPage() {
     tone === "out" ? <Badge className="bg-rose-100 text-rose-700">{label}</Badge>
       : tone === "low" ? <Badge className="bg-amber-100 text-amber-700">{label}</Badge>
       : <Badge className="bg-emerald-100 text-emerald-700">{label}</Badge>
+
+  const ExpiryBadge = ({ product }: { product: GenericProduct }) => {
+    const exp = expiryStatus(product)
+    if (!exp) return null
+    return exp.tone === "expired"
+      ? <Badge className="bg-rose-100 text-rose-700 ml-1">{exp.label}</Badge>
+      : exp.tone === "warning"
+      ? <Badge className="bg-amber-100 text-amber-700 ml-1">{exp.label}</Badge>
+      : null // Don't show badge for items expiring > 30 days
+  }
 
   return (
     <div className="flex h-screen bg-slate-50">
@@ -211,7 +231,7 @@ export default function GenericInventoryPage() {
                   )}
                   trailing={(p) => {
                     const st = status(p)
-                    return <ToneBadge tone={st.tone} label={st.label} />
+                    return <><ToneBadge tone={st.tone} label={st.label} /><ExpiryBadge product={p} /></>
                   }}
                   details={(p) => [
                     { label: "SKU", value: p.sku ?? "—" },
@@ -255,7 +275,7 @@ export default function GenericInventoryPage() {
                               <TableCell className="text-right tabular-nums text-slate-500">
                                 {p.trackInventory ? ((p.minimumStockAlert ?? 0).toLocaleString() || "—") : "—"}
                               </TableCell>
-                              <TableCell><ToneBadge tone={st.tone} label={st.label} /></TableCell>
+                              <TableCell><ToneBadge tone={st.tone} label={st.label} /><ExpiryBadge product={p} /></TableCell>
                             </TableRow>
                           )
                         })}

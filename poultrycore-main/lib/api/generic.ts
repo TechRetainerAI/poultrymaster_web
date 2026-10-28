@@ -86,6 +86,10 @@ export interface GenericProduct {
   supplierId?: number | null
   isActive: boolean
   notes?: string | null
+  /** Optional expiry/best-before date (migration 363). Null = no expiry. */
+  expiryDate?: string | null
+  /** Whether this product tracks expiry dates (migration 363). */
+  trackExpiry?: boolean
 }
 
 export interface GenericCustomer {
@@ -102,6 +106,15 @@ export interface GenericCustomer {
   currentBalance: number
   isActive: boolean
   notes?: string | null
+  // Student extension fields (migration 365) — nullable, only for schools
+  dateOfBirth?: string | null
+  admissionNumber?: string | null
+  classOrGrade?: string | null
+  guardianName?: string | null
+  guardianPhone?: string | null
+  guardianEmail?: string | null
+  enrollmentDate?: string | null
+  gender?: string | null
 }
 
 export interface GenericCustomerInput {
@@ -116,6 +129,15 @@ export interface GenericCustomerInput {
   openingBalance: number
   isActive: boolean
   notes?: string | null
+  // Student extension fields (migration 365)
+  dateOfBirth?: string | null
+  admissionNumber?: string | null
+  classOrGrade?: string | null
+  guardianName?: string | null
+  guardianPhone?: string | null
+  guardianEmail?: string | null
+  enrollmentDate?: string | null
+  gender?: string | null
 }
 
 export interface GenericSupplier {
@@ -437,6 +459,8 @@ export interface GenericProductInput {
   supplierId?: number | null
   isActive: boolean
   notes?: string | null
+  expiryDate?: string | null
+  trackExpiry?: boolean
 }
 
 export async function createGenericProduct(input: GenericProductInput): Promise<GenericProduct | null> {
@@ -449,6 +473,122 @@ export async function updateGenericProduct(id: number, input: GenericProductInpu
 
 export async function deleteGenericProduct(id: number): Promise<void> {
   await deleteResource(`${farmBase()}/products/${id}`)
+}
+
+// =============================================================================
+// UOM Conversions (migration 364)
+// =============================================================================
+
+export interface GenericUomConversion {
+  genericUomConversionId: number
+  farmId: string
+  genericProductId?: number | null
+  fromUnit: string
+  toUnit: string
+  conversionFactor: number
+  isActive: boolean
+}
+
+export async function getUomConversions(productId?: number | null): Promise<GenericUomConversion[]> {
+  const q = productId ? `?productId=${productId}` : ""
+  return getJson(`${farmBase()}/uom-conversions${q}`)
+}
+
+export async function upsertUomConversion(input: {
+  genericProductId?: number | null
+  fromUnit: string
+  toUnit: string
+  conversionFactor: number
+}): Promise<{ genericUomConversionId: number } | null> {
+  return postJson(`${farmBase()}/uom-conversions`, input)
+}
+
+export async function deleteUomConversion(id: number): Promise<void> {
+  await deleteResource(`${farmBase()}/uom-conversions/${id}`)
+}
+
+// =============================================================================
+// Classes & Academic Terms (migration 366 — school businesses)
+// =============================================================================
+
+export interface GenericClass {
+  genericClassId: number
+  farmId: string
+  className: string
+  classLevel?: number | null
+  classTeacher?: string | null
+  capacity?: number | null
+  description?: string | null
+  isActive: boolean
+  studentCount: number
+}
+
+export interface GenericAcademicTerm {
+  genericAcademicTermId: number
+  farmId: string
+  termName: string
+  startDate: string
+  endDate: string
+  isCurrent: boolean
+  isActive: boolean
+}
+
+export async function getClasses(): Promise<GenericClass[]> {
+  return getJson(`${farmBase()}/classes`)
+}
+
+export async function upsertClass(input: Partial<GenericClass>): Promise<{ genericClassId: number } | null> {
+  return postJson(`${farmBase()}/classes`, input)
+}
+
+export async function deleteClass(id: number): Promise<void> {
+  await deleteResource(`${farmBase()}/classes/${id}`)
+}
+
+export async function getAcademicTerms(): Promise<GenericAcademicTerm[]> {
+  return getJson(`${farmBase()}/academic-terms`)
+}
+
+export async function upsertAcademicTerm(input: Partial<GenericAcademicTerm>): Promise<{ genericAcademicTermId: number } | null> {
+  return postJson(`${farmBase()}/academic-terms`, input)
+}
+
+export async function deleteAcademicTerm(id: number): Promise<void> {
+  await deleteResource(`${farmBase()}/academic-terms/${id}`)
+}
+
+// =============================================================================
+// Customer/Student Attendance (migration 367)
+// =============================================================================
+
+export interface GenericCustomerAttendance {
+  genericCustomerAttendanceId: number
+  farmId: string
+  genericCustomerId: number
+  customerName?: string | null
+  classOrGrade?: string | null
+  attendanceDate: string
+  status: string
+  genericClassId?: number | null
+  genericAcademicTermId?: number | null
+  notes?: string | null
+  createdBy?: string | null
+}
+
+export async function getCustomerAttendance(date?: string, classId?: number): Promise<GenericCustomerAttendance[]> {
+  const params = new URLSearchParams()
+  if (date) params.set("date", date)
+  if (classId) params.set("classId", String(classId))
+  const q = params.toString()
+  return getJson(`${farmBase()}/customer-attendance${q ? `?${q}` : ""}`)
+}
+
+export async function upsertCustomerAttendance(input: Partial<GenericCustomerAttendance>): Promise<{ genericCustomerAttendanceId: number } | null> {
+  return postJson(`${farmBase()}/customer-attendance`, input)
+}
+
+export async function deleteCustomerAttendance(id: number): Promise<void> {
+  await deleteResource(`${farmBase()}/customer-attendance/${id}`)
 }
 
 // =============================================================================

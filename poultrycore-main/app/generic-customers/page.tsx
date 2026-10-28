@@ -22,7 +22,7 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { useGenericModules } from "@/hooks/use-generic-modules"
-import { createCustomer, updateCustomer, deleteCustomer, getCustomers, type GenericCustomer } from "@/lib/api/generic"
+import { createCustomer, updateCustomer, deleteCustomer, getCustomers, getClasses, type GenericCustomer, type GenericClass } from "@/lib/api/generic"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 
@@ -39,11 +39,14 @@ export default function GenericCustomersPage() {
   const { toast } = useToast()
   // A gym has Members, a school has Students, a cleaning firm has Clients.
   // Same page, same table, same API -- only the words change.
-  const { labels } = useGenericModules()
+  const modules = useGenericModules()
+  const { labels } = modules
+  const isSchool = modules.industry === "School"
   const [rows, setRows] = useState<GenericCustomer[]>([])
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  const [classes, setClasses] = useState<GenericClass[]>([])
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -62,6 +65,15 @@ export default function GenericCustomersPage() {
     openingBalance: "0",
     notes: "",
     isActive: true,
+    // Student fields (school only)
+    dateOfBirth: "",
+    admissionNumber: "",
+    classOrGrade: "",
+    guardianName: "",
+    guardianPhone: "",
+    guardianEmail: "",
+    enrollmentDate: "",
+    gender: "",
   }
   const [form, setForm] = useState(EMPTY_FORM)
 
@@ -80,6 +92,14 @@ export default function GenericCustomersPage() {
       openingBalance: String(c.openingBalance),
       notes: c.notes ?? "",
       isActive: c.isActive,
+      dateOfBirth: c.dateOfBirth ? c.dateOfBirth.slice(0, 10) : "",
+      admissionNumber: c.admissionNumber ?? "",
+      classOrGrade: c.classOrGrade ?? "",
+      guardianName: c.guardianName ?? "",
+      guardianPhone: c.guardianPhone ?? "",
+      guardianEmail: c.guardianEmail ?? "",
+      enrollmentDate: c.enrollmentDate ? c.enrollmentDate.slice(0, 10) : "",
+      gender: c.gender ?? "",
     })
     setOpen(true)
   }
@@ -87,7 +107,12 @@ export default function GenericCustomersPage() {
   const load = async () => {
     setLoading(true)
     try {
-      setRows(await getCustomers())
+      const [custs, cls] = await Promise.all([
+        getCustomers(),
+        isSchool ? getClasses().catch(() => []) : Promise.resolve([]),
+      ])
+      setRows(custs)
+      setClasses(cls.filter((c) => c.isActive))
     } catch (e: any) {
       toast({ title: `Could not load ${labels.customerPlural.toLowerCase()}`, description: e?.message ?? String(e), variant: "destructive" })
     } finally { setLoading(false) }
@@ -126,6 +151,17 @@ export default function GenericCustomersPage() {
         openingBalance: Number(form.openingBalance) || 0,
         isActive: form.isActive,
         notes: form.notes || null,
+        // Student fields — only sent for schools, null otherwise
+        ...(isSchool ? {
+          dateOfBirth: form.dateOfBirth || null,
+          admissionNumber: form.admissionNumber || null,
+          classOrGrade: form.classOrGrade || null,
+          guardianName: form.guardianName || null,
+          guardianPhone: form.guardianPhone || null,
+          guardianEmail: form.guardianEmail || null,
+          enrollmentDate: form.enrollmentDate || null,
+          gender: form.gender || null,
+        } : {}),
       }
       if (editingId != null) {
         await updateCustomer(editingId, payload)
@@ -210,6 +246,58 @@ export default function GenericCustomersPage() {
                       <NumberInput step="0.01" value={form.openingBalance} onChange={(e) => setForm((f) => ({ ...f, openingBalance: e.target.value }))} />
                     </FormField>
                   </FormSection>
+
+                  {isSchool && (
+                    <FormSection title="Student information" color="purple">
+                      <FormField label="Admission number">
+                        <Input value={form.admissionNumber} maxLength={50} onChange={(e) => setForm((f) => ({ ...f, admissionNumber: e.target.value }))} placeholder="e.g. STU-2026-001" />
+                      </FormField>
+                      <FormField label="Class / Grade">
+                        {classes.length > 0 ? (
+                          <Select value={form.classOrGrade} onValueChange={(v) => setForm((f) => ({ ...f, classOrGrade: v }))}>
+                            <SelectTrigger><SelectValue placeholder="Select class" /></SelectTrigger>
+                            <SelectContent>
+                              {classes.map((c) => (
+                                <SelectItem key={c.genericClassId} value={c.className}>{c.className}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input value={form.classOrGrade} maxLength={100} onChange={(e) => setForm((f) => ({ ...f, classOrGrade: e.target.value }))} placeholder="e.g. Primary 3, JSS 1" />
+                        )}
+                      </FormField>
+                      <FormField label="Date of birth">
+                        <Input type="date" value={form.dateOfBirth} onChange={(e) => setForm((f) => ({ ...f, dateOfBirth: e.target.value }))} />
+                      </FormField>
+                      <FormField label="Gender">
+                        <Select value={form.gender} onValueChange={(v) => setForm((f) => ({ ...f, gender: v }))}>
+                          <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Male">Male</SelectItem>
+                            <SelectItem value="Female">Female</SelectItem>
+                            <SelectItem value="Other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </FormField>
+                      <FormField label="Enrollment date">
+                        <Input type="date" value={form.enrollmentDate} onChange={(e) => setForm((f) => ({ ...f, enrollmentDate: e.target.value }))} />
+                      </FormField>
+                    </FormSection>
+                  )}
+
+                  {isSchool && (
+                    <FormSection title="Guardian / Parent" color="cyan">
+                      <FormField label="Guardian name">
+                        <Input value={form.guardianName} maxLength={200} onChange={(e) => setForm((f) => ({ ...f, guardianName: e.target.value }))} placeholder="Parent or guardian full name" />
+                      </FormField>
+                      <FormField label="Guardian phone">
+                        <Input value={form.guardianPhone} maxLength={50} onChange={(e) => setForm((f) => ({ ...f, guardianPhone: e.target.value }))} placeholder="Phone number" />
+                      </FormField>
+                      <FormField label="Guardian email">
+                        <Input value={form.guardianEmail} maxLength={150} onChange={(e) => setForm((f) => ({ ...f, guardianEmail: e.target.value }))} placeholder="Email address" />
+                      </FormField>
+                    </FormSection>
+                  )}
 
                   <FormSection title="Notes" color="slate" columns={1}>
                     <FormField label="Notes">

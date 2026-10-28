@@ -229,5 +229,60 @@ namespace PoultryFarmAPIWeb.Business
             CreatedAt                = r.GetDateTime(r.GetOrdinal("CreatedAt")),
             UpdatedAt                = r.IsDBNull(r.GetOrdinal("UpdatedAt")) ? null : r.GetDateTime(r.GetOrdinal("UpdatedAt")),
         };
+
+        // ====================================================================
+        // UOM conversions (migration 364)
+        // ====================================================================
+        public async Task<List<GenericUomConversionModel>> GetUomConversionsAsync(string farmId, int? productId)
+        {
+            await using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT * FROM spgenericuomconversion_list(@p_farmid, @p_productid)";
+            cmd.Parameters.AddWithValue("p_farmid", farmId);
+            cmd.Parameters.AddWithValue("p_productid", (object?)productId ?? DBNull.Value);
+
+            var list = new List<GenericUomConversionModel>();
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                list.Add(new GenericUomConversionModel
+                {
+                    GenericUomConversionId = r.GetInt32(r.GetOrdinal("genericuomconversionid")),
+                    FarmId = r.GetString(r.GetOrdinal("farmid")),
+                    GenericProductId = r.IsDBNull(r.GetOrdinal("genericproductid")) ? null : r.GetInt32(r.GetOrdinal("genericproductid")),
+                    FromUnit = r.GetString(r.GetOrdinal("fromunit")),
+                    ToUnit = r.GetString(r.GetOrdinal("tounit")),
+                    ConversionFactor = r.GetDecimal(r.GetOrdinal("conversionfactor")),
+                    IsActive = r.GetBoolean(r.GetOrdinal("isactive")),
+                });
+            }
+            return list;
+        }
+
+        public async Task<int> UpsertUomConversionAsync(string farmId, int? productId, string fromUnit, string toUnit, decimal factor)
+        {
+            await using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT spgenericuomconversion_upsert(@p_farmid, @p_productid, @p_fromunit, @p_tounit, @p_factor)";
+            cmd.Parameters.AddWithValue("p_farmid", farmId);
+            cmd.Parameters.AddWithValue("p_productid", (object?)productId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("p_fromunit", fromUnit);
+            cmd.Parameters.AddWithValue("p_tounit", toUnit);
+            cmd.Parameters.AddWithValue("p_factor", factor);
+            return (int)(await cmd.ExecuteScalarAsync())!;
+        }
+
+        public async Task DeleteUomConversionAsync(int id, string farmId)
+        {
+            await using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT spgenericuomconversion_delete(@p_id, @p_farmid)";
+            cmd.Parameters.AddWithValue("p_id", id);
+            cmd.Parameters.AddWithValue("p_farmid", farmId);
+            await cmd.ExecuteNonQueryAsync();
+        }
     }
 }

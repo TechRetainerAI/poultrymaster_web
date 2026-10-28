@@ -270,6 +270,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [ApiController]
     [Route("api/generic-company/{farmId}/cash")]
     [RequireCompanyType("Generic")]
+    [RequireGenericModule("EnableCashAccounts")]
     public class GenericCashController : ControllerBase
     {
         private readonly IGenericCashTransactionService _cash;

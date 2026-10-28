@@ -35,6 +35,21 @@ namespace PoultryFarmAPIWeb.Models
         public const string MembershipBusiness = "MembershipBusiness";
         public const string Retail = "Retail";
         public const string Other = "Other";
+        // Phase B: expanded business types (migration 362)
+        public const string ProduceSeller = "ProduceSeller";
+        public const string Grocery = "Grocery";
+        public const string Barbershop = "Barbershop";
+        public const string Salon = "Salon";
+        public const string HardwareShop = "HardwareShop";
+        public const string ElectronicsShop = "ElectronicsShop";
+        public const string Wholesaler = "Wholesaler";
+        public const string Bakery = "Bakery";
+        public const string CarDealership = "CarDealership";
+        public const string AutoRepair = "AutoRepair";
+        public const string Tailor = "Tailor";
+        public const string Laundry = "Laundry";
+        public const string Pharmacy = "Pharmacy";
+        public const string Freelancer = "Freelancer";
     }
 
     public static class BillingFrequencies

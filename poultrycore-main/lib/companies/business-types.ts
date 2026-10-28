@@ -17,6 +17,8 @@ import type {
 
 export type CompanyType = "Poultry" | "Water" | "Generic" | "Hotel" | "Restaurant"
 
+export type BusinessCategory = "retail" | "service" | "subscription" | "other"
+
 export interface BusinessType {
   /** Stable id used as the <SelectItem> value. */
   id: string
@@ -27,6 +29,8 @@ export interface BusinessType {
   /** Set only for Generic-based types. */
   businessTemplate?: BusinessTemplate
   industryTemplate?: IndustryTemplate
+  /** Wizard grouping category for searchable display. */
+  category?: BusinessCategory
 }
 
 export const BUSINESS_TYPES: BusinessType[] = [
@@ -64,6 +68,7 @@ export const BUSINESS_TYPES: BusinessType[] = [
     companyType: "Generic",
     businessTemplate: "SubscriptionServiceBusiness",
     industryTemplate: "SaaS",
+    category: "subscription",
   },
   {
     id: "gym",
@@ -72,14 +77,16 @@ export const BUSINESS_TYPES: BusinessType[] = [
     companyType: "Generic",
     businessTemplate: "SubscriptionServiceBusiness",
     industryTemplate: "Gym",
+    category: "subscription",
   },
   {
     id: "school",
-    label: "School",
+    label: "School / training centre",
     description: "Students, termly fees, fee notes",
     companyType: "Generic",
     businessTemplate: "SubscriptionServiceBusiness",
     industryTemplate: "School",
+    category: "subscription",
   },
   {
     id: "cleaning",
@@ -88,6 +95,7 @@ export const BUSINESS_TYPES: BusinessType[] = [
     companyType: "Generic",
     businessTemplate: "SubscriptionServiceBusiness",
     industryTemplate: "CleaningService",
+    category: "subscription",
   },
   {
     id: "security",
@@ -96,6 +104,7 @@ export const BUSINESS_TYPES: BusinessType[] = [
     companyType: "Generic",
     businessTemplate: "SubscriptionServiceBusiness",
     industryTemplate: "SecurityService",
+    category: "subscription",
   },
   {
     id: "agency",
@@ -104,6 +113,7 @@ export const BUSINESS_TYPES: BusinessType[] = [
     companyType: "Generic",
     businessTemplate: "SubscriptionServiceBusiness",
     industryTemplate: "Agency",
+    category: "subscription",
   },
   {
     id: "retainer",
@@ -112,6 +122,7 @@ export const BUSINESS_TYPES: BusinessType[] = [
     companyType: "Generic",
     businessTemplate: "SubscriptionServiceBusiness",
     industryTemplate: "RetainerBusiness",
+    category: "subscription",
   },
   {
     id: "membership",
@@ -120,24 +131,166 @@ export const BUSINESS_TYPES: BusinessType[] = [
     companyType: "Generic",
     businessTemplate: "SubscriptionServiceBusiness",
     industryTemplate: "MembershipBusiness",
+    category: "subscription",
   },
 
-  // ---- everything else ----------------------------------------------------
+  // ---- retail / stock businesses --------------------------------------------
+  {
+    id: "produce",
+    label: "Yam & produce seller",
+    description: "Yams, tomatoes, vegetables — purchases, sales and spoilage",
+    companyType: "Generic",
+    businessTemplate: "RetailBusiness",
+    industryTemplate: "ProduceSeller",
+    category: "retail",
+  },
+  {
+    id: "grocery",
+    label: "Grocery shop / mini-mart",
+    description: "Packaged goods, stock alerts, daily cash closing",
+    companyType: "Generic",
+    businessTemplate: "RetailBusiness",
+    industryTemplate: "Grocery",
+    category: "retail",
+  },
+  {
+    id: "clothing",
+    label: "Clothing & shoe shop",
+    description: "Fashion, accessories — stock by size and style",
+    companyType: "Generic",
+    businessTemplate: "RetailBusiness",
+    industryTemplate: "Retail", // shares Retail template — no unique seeding yet
+    category: "retail",
+  },
+  {
+    id: "hardware",
+    label: "Hardware & building materials",
+    description: "Cement, iron rods, paint — bulk and unit sales",
+    companyType: "Generic",
+    businessTemplate: "RetailBusiness",
+    industryTemplate: "HardwareShop",
+    category: "retail",
+  },
+  {
+    id: "electronics",
+    label: "Phone & electronics shop",
+    description: "Phones, accessories, repairs — serial tracking",
+    companyType: "Generic",
+    businessTemplate: "RetailBusiness",
+    industryTemplate: "ElectronicsShop",
+    category: "retail",
+  },
+  {
+    id: "wholesaler",
+    label: "Wholesaler / distributor",
+    description: "Bulk buying and reselling — customer credit, supplier payments",
+    companyType: "Generic",
+    businessTemplate: "RetailBusiness",
+    industryTemplate: "Wholesaler",
+    category: "retail",
+  },
+  {
+    id: "bakery",
+    label: "Bakery",
+    description: "Bread, pastries — daily production and sales",
+    companyType: "Generic",
+    businessTemplate: "RetailBusiness",
+    industryTemplate: "Bakery",
+    category: "retail",
+  },
+  {
+    id: "pharmacy",
+    label: "Pharmacy",
+    description: "Medicines, health products — stock and expiry tracking",
+    companyType: "Generic",
+    businessTemplate: "RetailBusiness",
+    industryTemplate: "Pharmacy",
+    category: "retail",
+  },
+  {
+    id: "car-dealership",
+    label: "Car dealership",
+    description: "Vehicle sales — purchases, deposits, customer balances",
+    companyType: "Generic",
+    businessTemplate: "RetailBusiness",
+    industryTemplate: "CarDealership",
+    category: "retail",
+  },
   {
     id: "retail",
-    label: "Shop / retail",
-    description: "Stock, counter sales, suppliers",
+    label: "Other shop / retail",
+    description: "Any store selling physical goods",
     companyType: "Generic",
     businessTemplate: "RetailBusiness",
     industryTemplate: "Retail",
+    category: "retail",
+  },
+
+  // ---- service businesses --------------------------------------------------
+  {
+    id: "barbershop",
+    label: "Barbershop",
+    description: "Haircuts, shaves — walk-in sales, staff commissions",
+    companyType: "Generic",
+    businessTemplate: "GeneralBusiness",
+    industryTemplate: "Barbershop",
+    category: "service",
   },
   {
+    id: "salon",
+    label: "Hair salon & beauty",
+    description: "Hair, nails, skincare — services, retail products, staff",
+    companyType: "Generic",
+    businessTemplate: "GeneralBusiness",
+    industryTemplate: "Salon",
+    category: "service",
+  },
+  {
+    id: "auto-repair",
+    label: "Auto repair garage",
+    description: "Car repairs — job tracking, parts, labour",
+    companyType: "Generic",
+    businessTemplate: "GeneralBusiness",
+    industryTemplate: "AutoRepair",
+    category: "service",
+  },
+  {
+    id: "tailor",
+    label: "Tailor / fashion designer",
+    description: "Custom clothing — measurements, deposits, job tracking",
+    companyType: "Generic",
+    businessTemplate: "GeneralBusiness",
+    industryTemplate: "Tailor",
+    category: "service",
+  },
+  {
+    id: "laundry",
+    label: "Laundry & dry cleaning",
+    description: "Wash, iron, dry clean — customer items and pickup",
+    companyType: "Generic",
+    businessTemplate: "GeneralBusiness",
+    industryTemplate: "Laundry",
+    category: "service",
+  },
+  {
+    id: "freelancer",
+    label: "Freelancer / consultant",
+    description: "Client invoicing, project billing, expenses",
+    companyType: "Generic",
+    businessTemplate: "SubscriptionServiceBusiness",
+    industryTemplate: "Freelancer",
+    category: "service",
+  },
+
+  // ---- catch-all -----------------------------------------------------------
+  {
     id: "other",
-    label: "Other small business",
-    description: "Salon, pharmacy, workshop — sales, expenses and cash",
+    label: "Other business",
+    description: "Any business not listed above",
     companyType: "Generic",
     businessTemplate: "GeneralBusiness",
     industryTemplate: "Other",
+    category: "other",
   },
 ]
 
@@ -172,6 +325,21 @@ const LEGACY_CATEGORY_BY_INDUSTRY: Record<IndustryTemplate, string> = {
   School: "School",
   Retail: "Retail Shop",
   Other: "Other",
+  // Phase B
+  ProduceSeller: "Retail Shop",
+  Grocery: "Retail Shop",
+  HardwareShop: "Retail Shop",
+  ElectronicsShop: "Retail Shop",
+  Wholesaler: "Retail Shop",
+  Bakery: "Retail Shop",
+  CarDealership: "Retail Shop",
+  Pharmacy: "Retail Shop",
+  Barbershop: "Other",
+  Salon: "Other",
+  AutoRepair: "Other",
+  Tailor: "Other",
+  Laundry: "Other",
+  Freelancer: "Services Business",
 }
 
 /**

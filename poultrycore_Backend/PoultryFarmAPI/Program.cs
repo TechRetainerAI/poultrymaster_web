@@ -448,6 +448,8 @@ builder.Services.AddScoped<IGenericMoneyOutService>(sp => new GenericMoneyOutSer
 // Phase 7: the read side (migration 250) -- the subscription dashboard and the
 // reports that were not already answerable from an existing function.
 builder.Services.AddScoped<IGenericSubscriptionReportService>(sp => new GenericSubscriptionReportService(connectionString));
+// Phase C: school-specific classes and academic terms (migration 366).
+builder.Services.AddScoped<IGenericSchoolService>(sp => new GenericSchoolService(connectionString));
 
 // Phase 4: Suppliers + Purchases + Expenses + Cash Transfers (the money-out
 // side). Purchase_Approve mirrors Sale_Approve; Expense_Approve branches on
@@ -579,10 +581,12 @@ builder.Services.AddControllers(options =>
     // Filters/IamEnforcementFilter.cs before switching it on.
     options.Filters.AddService<PoultryFarmAPIWeb.Filters.IamEnforcementFilter>();
     options.Filters.AddService<PoultryFarmAPIWeb.Filters.CompanyTypeFilter>();
+    options.Filters.AddService<PoultryFarmAPIWeb.Filters.GenericModuleFilter>();
     options.Filters.AddService<AuditLogActionFilter>();
 });
 builder.Services.AddScoped<PoultryFarmAPIWeb.Filters.IamEnforcementFilter>();
 builder.Services.AddScoped<PoultryFarmAPIWeb.Filters.CompanyTypeFilter>();
+builder.Services.AddScoped<PoultryFarmAPIWeb.Filters.GenericModuleFilter>();
 builder.Services.AddScoped<AuditLogActionFilter>();
 builder.Services.AddSignalR();
 

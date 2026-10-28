@@ -23,6 +23,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [ApiController]
     [Route("api/generic-company/{farmId}/reports")]
     [RequireCompanyType("Generic")]
+    [RequireGenericModule("EnableSubscriptions")]
     public class GenericSubscriptionReportsController : ControllerBase
     {
         private readonly IGenericSubscriptionReportService _reports;

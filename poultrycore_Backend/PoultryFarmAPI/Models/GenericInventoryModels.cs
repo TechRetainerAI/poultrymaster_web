@@ -113,6 +113,12 @@ namespace PoultryFarmAPIWeb.Models
         [StringLength(1000)]
         public string? Notes { get; set; }
 
+        /// <summary>Optional expiry/best-before date (migration 363). Null = no expiry.</summary>
+        public DateTime? ExpiryDate { get; set; }
+
+        /// <summary>Whether this product tracks expiry dates (migration 363).</summary>
+        public bool TrackExpiry { get; set; }
+
         // Set by the controller from the auth context. Not validated here.
         public string? CreatedBy { get; set; }
 
@@ -291,5 +297,33 @@ namespace PoultryFarmAPIWeb.Models
         [Required]
         [StringLength(500)]
         public string RejectionReason { get; set; } = string.Empty;
+    }
+
+    // =========================================================================
+    // UOM conversions (migration 364)
+    // =========================================================================
+    public class GenericUomConversionModel
+    {
+        public int GenericUomConversionId { get; set; }
+        public string FarmId { get; set; } = string.Empty;
+        public int? GenericProductId { get; set; }
+        [Required] [StringLength(50)]
+        public string FromUnit { get; set; } = string.Empty;
+        [Required] [StringLength(50)]
+        public string ToUnit { get; set; } = string.Empty;
+        [Range(0.0001, double.MaxValue)]
+        public decimal ConversionFactor { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+
+    public class GenericUomConversionUpsertRequest
+    {
+        public int? GenericProductId { get; set; }
+        [Required] [StringLength(50)]
+        public string FromUnit { get; set; } = string.Empty;
+        [Required] [StringLength(50)]
+        public string ToUnit { get; set; } = string.Empty;
+        [Range(0.0001, double.MaxValue)]
+        public decimal ConversionFactor { get; set; }
     }
 }

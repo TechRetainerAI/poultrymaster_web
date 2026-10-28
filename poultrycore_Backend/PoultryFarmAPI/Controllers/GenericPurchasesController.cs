@@ -156,6 +156,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [ApiController]
     [Route("api/generic-company/{farmId}/purchases")]
     [RequireCompanyType("Generic")]
+    [RequireGenericModule("EnablePurchases")]
     public class GenericPurchaseController : ControllerBase
     {
         private readonly IGenericPurchaseService _purchases;
@@ -309,6 +310,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [ApiController]
     [Route("api/generic-company/{farmId}/cash-transfers")]
     [RequireCompanyType("Generic")]
+    [RequireGenericModule("EnableCashAccounts")]
     public class GenericCashTransferController : ControllerBase
     {
         private readonly IGenericCashTransferService _transfers;

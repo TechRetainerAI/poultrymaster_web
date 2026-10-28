@@ -127,6 +127,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [ApiController]
     [Route("api/generic-company/{farmId}")]
     [RequireCompanyType("Generic")]
+    [RequireGenericModule("EnableSubscriptions")]
     public class GenericSubscriptionsController : ControllerBase
     {
         private readonly IGenericSubscriptionService _svc;
@@ -214,6 +215,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [ApiController]
     [Route("api/generic-company/{farmId}/billing-runs")]
     [RequireCompanyType("Generic")]
+    [RequireGenericModule("EnableSubscriptions")]
     public class GenericBillingRunsController : ControllerBase
     {
         private readonly IGenericBillingService _svc;
@@ -280,6 +282,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [ApiController]
     [Route("api/generic-company/{farmId}/invoices")]
     [RequireCompanyType("Generic")]
+    [RequireGenericModule("EnableInvoices")]
     public class GenericInvoicesController : ControllerBase
     {
         private readonly IGenericBillingService _svc;

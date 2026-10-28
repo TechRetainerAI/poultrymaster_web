@@ -244,6 +244,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [ApiController]
     [Route("api/generic-company/internal-usage")]
     [RequireCompanyType("Generic")]
+    [RequireGenericModule("EnableInternalUse")]
     public class GenericInternalUsageController : ControllerBase
     {
         private readonly IGenericInternalUsageService _svc;

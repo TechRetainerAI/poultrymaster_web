@@ -17,7 +17,8 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { getMyCompanies, createCompany, sendCompanyWelcomeEmail, switchCompany, type Company, type CompanyType } from "@/lib/api/companies"
-import { BUSINESS_TYPES, findBusinessType, needsTemplate } from "@/lib/companies/business-types"
+import { BUSINESS_TYPES, findBusinessType, needsTemplate, businessTypeForIndustry } from "@/lib/companies/business-types"
+import { useGenericModules } from "@/hooks/use-generic-modules"
 import { useRouter } from "next/navigation"
 import { fmtInstant } from "@/lib/utils/company-datetime"
 
@@ -41,6 +42,19 @@ export default function CompaniesPage() {
   const activeFarmId = useAuthStore((s) => s.activeFarmId)
   const userEmail = useAuthStore((s) => s.user?.email)
   const logout = useLogout()
+  const genericModules = useGenericModules()
+
+  // For Generic companies, show the actual business type label (e.g., "School")
+  // instead of just "Generic". Uses the cached template for the active company.
+  const companyTypeLabel = (c: Company): string => {
+    if (c.type !== "Generic") return c.type
+    // For the active Generic company, use the cached industry template
+    if (c.farmId === activeFarmId && genericModules.industry) {
+      const bt = businessTypeForIndustry(genericModules.industry)
+      return bt?.label ?? "Business"
+    }
+    return "Business"
+  }
 
   const [companies, setLocal] = useState<Company[]>([])
   const pg = usePagination(companies)
@@ -157,7 +171,7 @@ export default function CompaniesPage() {
                   )}
                   secondary={(c) => (
                     <>
-                      <span>{c.type}</span>
+                      <span>{companyTypeLabel(c)}</span>
                       <span>·</span>
                       <span className="text-xs">{c.role}</span>
                     </>
@@ -196,7 +210,7 @@ export default function CompaniesPage() {
                             <TableRow key={c.farmId}>
                               <TableCell><CompanyIcon type={c.type} /></TableCell>
                               <TableCell className="font-medium">{c.name}</TableCell>
-                              <TableCell>{c.type}</TableCell>
+                              <TableCell>{companyTypeLabel(c)}</TableCell>
                               <TableCell>{c.role}</TableCell>
                               <TableCell className="text-slate-500">{fmtInstant(c.createdAt)}</TableCell>
                               <TableCell className="text-right">
