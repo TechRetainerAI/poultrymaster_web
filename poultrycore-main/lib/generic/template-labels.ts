@@ -174,17 +174,36 @@ const LABELS: Record<IndustryTemplate, TemplateLabels> = {
   Grocery: labels("Customer", "Service / Plan", "Subscription"),
   HardwareShop: labels("Customer", "Service / Plan", "Subscription"),
   ElectronicsShop: labels("Customer", "Service / Plan", "Subscription"),
-  Wholesaler: labels("Customer", "Service / Plan", "Subscription"),
+  Wholesaler: labels("Customer", "Service / Plan", "Subscription", {
+    customerBalance: "Customer Balances",
+    overdueCustomer: "Overdue Customer",
+  }),
   Bakery: labels("Customer", "Service / Plan", "Subscription"),
-  CarDealership: labels("Customer", "Service / Plan", "Subscription"),
+  CarDealership: labels("Customer", "Service / Plan", "Subscription", {
+    invoice: "Vehicle Invoice",
+    invoicePlural: "Vehicle Invoices",
+    payment: "Vehicle Payment",
+    paymentPlural: "Vehicle Payments",
+  }),
   Pharmacy: labels("Customer", "Service / Plan", "Subscription"),
 
   // Phase B: expanded business types — service-focused
   Barbershop: labels("Customer", "Service / Plan", "Subscription / Contract"),
   Salon: labels("Customer", "Service / Plan", "Subscription / Contract"),
-  AutoRepair: labels("Customer", "Service / Plan", "Subscription / Contract"),
-  Tailor: labels("Customer", "Service / Plan", "Subscription / Contract"),
-  Laundry: labels("Customer", "Service / Plan", "Subscription / Contract"),
+  AutoRepair: labels("Customer", "Service / Plan", "Subscription / Contract", {
+    invoice: "Job Invoice",
+    invoicePlural: "Job Invoices",
+  }),
+  Tailor: labels("Customer", "Service / Plan", "Subscription / Contract", {
+    invoice: "Job Invoice",
+    invoicePlural: "Job Invoices",
+    payment: "Job Payment",
+    paymentPlural: "Job Payments",
+  }),
+  Laundry: labels("Customer", "Service / Plan", "Subscription / Contract", {
+    invoice: "Service Invoice",
+    invoicePlural: "Service Invoices",
+  }),
   Freelancer: labels("Client", "Retainer Package", "Retainer", {
     payment: "Client Payment",
     paymentPlural: "Client Payments",

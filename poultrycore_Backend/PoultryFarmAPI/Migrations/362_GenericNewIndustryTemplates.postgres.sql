@@ -85,6 +85,62 @@ BEGIN
             SELECT p_farmid, v_row.name, TRUE, FALSE, NOW(), NOW()
             WHERE NOT EXISTS (SELECT 1 FROM genericservicecategories c WHERE c.farmid = p_farmid AND c.name = v_row.name);
         END LOOP;
+    ELSIF p_industrytemplate = 'HardwareShop' THEN
+        FOR v_row IN SELECT unnest(ARRAY['Building Materials Sales','Electrical Supplies Sales','Plumbing Supplies Sales','Paint & Finishes Sales','Tools & Equipment Sales']) AS name
+        LOOP
+            INSERT INTO genericservicecategories (farmid, name, isactive, isdeleted, createdat, updatedat)
+            SELECT p_farmid, v_row.name, TRUE, FALSE, NOW(), NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM genericservicecategories c WHERE c.farmid = p_farmid AND c.name = v_row.name);
+        END LOOP;
+    ELSIF p_industrytemplate = 'ElectronicsShop' THEN
+        FOR v_row IN SELECT unnest(ARRAY['Phone Sales','Accessories Sales','Gadget Sales','Repair Services Income']) AS name
+        LOOP
+            INSERT INTO genericservicecategories (farmid, name, isactive, isdeleted, createdat, updatedat)
+            SELECT p_farmid, v_row.name, TRUE, FALSE, NOW(), NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM genericservicecategories c WHERE c.farmid = p_farmid AND c.name = v_row.name);
+        END LOOP;
+    ELSIF p_industrytemplate = 'Wholesaler' THEN
+        FOR v_row IN SELECT unnest(ARRAY['Wholesale Sales','Bulk Order Sales','Distribution Income','Retail Markup Sales']) AS name
+        LOOP
+            INSERT INTO genericservicecategories (farmid, name, isactive, isdeleted, createdat, updatedat)
+            SELECT p_farmid, v_row.name, TRUE, FALSE, NOW(), NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM genericservicecategories c WHERE c.farmid = p_farmid AND c.name = v_row.name);
+        END LOOP;
+    ELSIF p_industrytemplate = 'Bakery' THEN
+        FOR v_row IN SELECT unnest(ARRAY['Bread Sales','Pastry Sales','Cake & Custom Orders','Wholesale Bakery Sales']) AS name
+        LOOP
+            INSERT INTO genericservicecategories (farmid, name, isactive, isdeleted, createdat, updatedat)
+            SELECT p_farmid, v_row.name, TRUE, FALSE, NOW(), NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM genericservicecategories c WHERE c.farmid = p_farmid AND c.name = v_row.name);
+        END LOOP;
+    ELSIF p_industrytemplate = 'CarDealership' THEN
+        FOR v_row IN SELECT unnest(ARRAY['Vehicle Sales','Parts & Accessories Sales','Service & Repair Income','Finance & Insurance Income']) AS name
+        LOOP
+            INSERT INTO genericservicecategories (farmid, name, isactive, isdeleted, createdat, updatedat)
+            SELECT p_farmid, v_row.name, TRUE, FALSE, NOW(), NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM genericservicecategories c WHERE c.farmid = p_farmid AND c.name = v_row.name);
+        END LOOP;
+    ELSIF p_industrytemplate = 'AutoRepair' THEN
+        FOR v_row IN SELECT unnest(ARRAY['Repair & Labour Income','Parts Sales','Diagnostic Services','Bodywork & Painting Income']) AS name
+        LOOP
+            INSERT INTO genericservicecategories (farmid, name, isactive, isdeleted, createdat, updatedat)
+            SELECT p_farmid, v_row.name, TRUE, FALSE, NOW(), NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM genericservicecategories c WHERE c.farmid = p_farmid AND c.name = v_row.name);
+        END LOOP;
+    ELSIF p_industrytemplate = 'Tailor' THEN
+        FOR v_row IN SELECT unnest(ARRAY['Custom Clothing Income','Alterations Income','Fabric Sales','Uniform Orders Income']) AS name
+        LOOP
+            INSERT INTO genericservicecategories (farmid, name, isactive, isdeleted, createdat, updatedat)
+            SELECT p_farmid, v_row.name, TRUE, FALSE, NOW(), NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM genericservicecategories c WHERE c.farmid = p_farmid AND c.name = v_row.name);
+        END LOOP;
+    ELSIF p_industrytemplate = 'Laundry' THEN
+        FOR v_row IN SELECT unnest(ARRAY['Washing Services','Dry Cleaning Services','Ironing Services','Special Items / Bulk Cleaning']) AS name
+        LOOP
+            INSERT INTO genericservicecategories (farmid, name, isactive, isdeleted, createdat, updatedat)
+            SELECT p_farmid, v_row.name, TRUE, FALSE, NOW(), NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM genericservicecategories c WHERE c.farmid = p_farmid AND c.name = v_row.name);
+        END LOOP;
     END IF;
 
     -- Industry-specific EXPENSE categories
@@ -111,6 +167,62 @@ BEGIN
         END LOOP;
     ELSIF p_industrytemplate = 'Pharmacy' THEN
         FOR v_row IN SELECT unnest(ARRAY['Shop Rent','Expired Medicine Disposal','Regulatory Fees & Licences','Cold Storage & Equipment']) AS name
+        LOOP
+            INSERT INTO genericexpensecategories (farmid, name, isactive, isdeleted, createdat, updatedat)
+            SELECT p_farmid, v_row.name, TRUE, FALSE, NOW(), NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM genericexpensecategories c WHERE c.farmid = p_farmid AND c.name = v_row.name);
+        END LOOP;
+    ELSIF p_industrytemplate = 'HardwareShop' THEN
+        FOR v_row IN SELECT unnest(ARRAY['Shop Rent','Warehouse Rent','Delivery & Transport','Breakage & Damage','Heavy Equipment Hire']) AS name
+        LOOP
+            INSERT INTO genericexpensecategories (farmid, name, isactive, isdeleted, createdat, updatedat)
+            SELECT p_farmid, v_row.name, TRUE, FALSE, NOW(), NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM genericexpensecategories c WHERE c.farmid = p_farmid AND c.name = v_row.name);
+        END LOOP;
+    ELSIF p_industrytemplate = 'ElectronicsShop' THEN
+        FOR v_row IN SELECT unnest(ARRAY['Shop Rent','Warranty Claims & Returns','Display & Demo Units','Repair Parts & Tools','Shop Security']) AS name
+        LOOP
+            INSERT INTO genericexpensecategories (farmid, name, isactive, isdeleted, createdat, updatedat)
+            SELECT p_farmid, v_row.name, TRUE, FALSE, NOW(), NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM genericexpensecategories c WHERE c.farmid = p_farmid AND c.name = v_row.name);
+        END LOOP;
+    ELSIF p_industrytemplate = 'Wholesaler' THEN
+        FOR v_row IN SELECT unnest(ARRAY['Warehouse Rent','Delivery & Distribution','Loading & Offloading','Packaging Materials','Vehicle Maintenance']) AS name
+        LOOP
+            INSERT INTO genericexpensecategories (farmid, name, isactive, isdeleted, createdat, updatedat)
+            SELECT p_farmid, v_row.name, TRUE, FALSE, NOW(), NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM genericexpensecategories c WHERE c.farmid = p_farmid AND c.name = v_row.name);
+        END LOOP;
+    ELSIF p_industrytemplate = 'Bakery' THEN
+        FOR v_row IN SELECT unnest(ARRAY['Bakery Rent','Raw Ingredients','Packaging','Oven & Equipment Maintenance','Expired / Unsold Stock']) AS name
+        LOOP
+            INSERT INTO genericexpensecategories (farmid, name, isactive, isdeleted, createdat, updatedat)
+            SELECT p_farmid, v_row.name, TRUE, FALSE, NOW(), NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM genericexpensecategories c WHERE c.farmid = p_farmid AND c.name = v_row.name);
+        END LOOP;
+    ELSIF p_industrytemplate = 'CarDealership' THEN
+        FOR v_row IN SELECT unnest(ARRAY['Showroom Rent','Vehicle Preparation & Cleaning','Vehicle Registration & Paperwork','Advertising & Marketing','Transport & Towing']) AS name
+        LOOP
+            INSERT INTO genericexpensecategories (farmid, name, isactive, isdeleted, createdat, updatedat)
+            SELECT p_farmid, v_row.name, TRUE, FALSE, NOW(), NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM genericexpensecategories c WHERE c.farmid = p_farmid AND c.name = v_row.name);
+        END LOOP;
+    ELSIF p_industrytemplate = 'AutoRepair' THEN
+        FOR v_row IN SELECT unnest(ARRAY['Workshop Rent','Tools & Equipment','Spare Parts Purchases','Vehicle Towing','Waste Disposal (Oil, Tyres)']) AS name
+        LOOP
+            INSERT INTO genericexpensecategories (farmid, name, isactive, isdeleted, createdat, updatedat)
+            SELECT p_farmid, v_row.name, TRUE, FALSE, NOW(), NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM genericexpensecategories c WHERE c.farmid = p_farmid AND c.name = v_row.name);
+        END LOOP;
+    ELSIF p_industrytemplate = 'Tailor' THEN
+        FOR v_row IN SELECT unnest(ARRAY['Workshop Rent','Fabric & Materials','Thread & Accessories','Sewing Machine Maintenance','Pattern & Design Supplies']) AS name
+        LOOP
+            INSERT INTO genericexpensecategories (farmid, name, isactive, isdeleted, createdat, updatedat)
+            SELECT p_farmid, v_row.name, TRUE, FALSE, NOW(), NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM genericexpensecategories c WHERE c.farmid = p_farmid AND c.name = v_row.name);
+        END LOOP;
+    ELSIF p_industrytemplate = 'Laundry' THEN
+        FOR v_row IN SELECT unnest(ARRAY['Shop Rent','Detergents & Chemicals','Water & Utilities','Machine Maintenance','Packaging & Hangers']) AS name
         LOOP
             INSERT INTO genericexpensecategories (farmid, name, isactive, isdeleted, createdat, updatedat)
             SELECT p_farmid, v_row.name, TRUE, FALSE, NOW(), NOW()
