@@ -38,6 +38,8 @@ export interface PoultryRawMaterialItem {
   costRecognitionSource?: CostRecognitionSource
   /** Which farm setting this item's category listens to, if any. Read-only. */
   costRecognitionCategoryGroup?: CostRecognitionGroup
+  /** One of the seeded default feeds / ingredients (migration 388). Read-only. */
+  isDefault?: boolean
 
   createdAt: string
   updatedAt?: string | null

@@ -42,6 +42,17 @@ const COST_LABELS: Record<string, string> = { MachineMaintenance: "Machine Maint
 const costLabel = (c: string) => COST_LABELS[c] ?? c
 const PAYMENT_STATUSES: PaymentStatus[] = ["Paid", "Unpaid", "Partial"]
 
+// One colour per ingredient row, cycled, so neighbouring rows are easy to tell
+// apart. Full class names so Tailwind keeps them.
+const LINE_TONES = [
+  { card: "border-l-sky-500 bg-sky-50/50", badge: "bg-sky-500" },
+  { card: "border-l-amber-500 bg-amber-50/50", badge: "bg-amber-500" },
+  { card: "border-l-violet-500 bg-violet-50/50", badge: "bg-violet-500" },
+  { card: "border-l-emerald-500 bg-emerald-50/50", badge: "bg-emerald-500" },
+  { card: "border-l-rose-500 bg-rose-50/50", badge: "bg-rose-500" },
+  { card: "border-l-teal-500 bg-teal-50/50", badge: "bg-teal-500" },
+]
+
 const num = (v: string | number | null | undefined) => (typeof v === "number" ? v : Number(v) || 0)
 const rid = () => Math.random().toString(36).slice(2)
 
@@ -767,7 +778,8 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
                 : "250 / 150 / 100"}. Quantities that already add up to the batch are used as they are.
             </div>
           )}
-          {lineCalcs.map(({ l, d }) => {
+          {lineCalcs.map(({ l, d }, idx) => {
+            const tone = LINE_TONES[idx % LINE_TONES.length]
             const it = l.ingredientItemId ? itemById.get(l.ingredientItemId) : undefined
             const shortBy = it && d.invQty > it.availableFromLots ? roundQty(d.invQty - it.availableFromLots) : 0
             const fromFormula = l.formulaLineId !== null
@@ -781,12 +793,14 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
             const isBought = l.sourceType === "BoughtDuringProduction"
             const buying = d.hasPurchase
             return (
-              <div key={l.key} className={cn("rounded-lg border p-3 bg-white space-y-2", shortBy > 0 ? "border-red-300" : "border-slate-200")}>
+              <div key={l.key} className={cn("rounded-lg border border-l-4 p-3 space-y-2", shortBy > 0 ? "border-red-300" : "border-slate-200", tone.card)}>
                 {/* Row status, kept above the fields. These messages come and go
                     as the row is filled in; underneath the inputs they shifted
                     everything below them down the page, cards included. */}
-                {(it || scaledTo !== null || isBought) && (
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] leading-tight">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] leading-tight">
+                    <span className={cn("inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full text-[11px] font-semibold text-white", tone.badge)}>
+                      {idx + 1}
+                    </span>
                     {it && !isBought && (
                       shortBy > 0 ? (
                         <span className="text-red-600 font-medium">
@@ -804,9 +818,10 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
                       </span>
                     )}
                     {isBought && <span className="text-slate-400">Cost comes from the purchase you record</span>}
-                  </div>
-                )}
-                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
+                </div>
+                {/* Top-aligned so every label and input sits on one line; the
+                    notes under Cost no longer push the inputs out of line. */}
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-x-4 gap-y-2 items-start">
                   <div className="sm:col-span-4">
                     <label className="text-xs text-slate-500">Ingredient</label>
                     <Select value={l.ingredientItemId ? String(l.ingredientItemId) : ""} onValueChange={(v) => pickIngredient(l.key, Number(v))}>
@@ -822,7 +837,21 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
                     </Select>
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="text-xs text-slate-500">Qty used{l.unitOfMeasure ? ` (${l.unitOfMeasure})` : ""}</label>
+                    {/* The formula share sits beside the label, not under the
+                        input, so the input lines up with the rest of the row. */}
+                    <div className="h-6 flex items-center justify-between gap-2 min-w-0">
+                      <label className="text-xs text-slate-500 whitespace-nowrap">Qty used{l.unitOfMeasure ? ` (${l.unitOfMeasure})` : ""}</label>
+                      {l.qtyOverridden ? (
+                        <span className="text-[11px] text-amber-600 whitespace-nowrap">
+                          ✎ edited —{" "}
+                          <button type="button" className="underline hover:text-amber-700" onClick={() => setLine(l.key, { qtyOverridden: false })}>reset</button>
+                        </span>
+                      ) : fromFormula ? (
+                        <span className="text-[11px] text-slate-500 bg-white border border-slate-200 rounded px-1.5 leading-4 truncate" title={shareOf(l) ?? "Follows the quantity produced"}>
+                          {shareOf(l) ?? "Follows the quantity produced"}
+                        </span>
+                      ) : null}
+                    </div>
                     {/* Always editable. Typing over a formula row detaches it:
                         it keeps the number you gave it and stops following the
                         batch until it's reset, here or from the button below. */}
@@ -833,14 +862,6 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
                         ? setLine(l.key, { quantityUsed: e.target.value, qtyOverridden: true })
                         : setLine(l.key, { enteredQty: e.target.value })}
                     />
-                    {l.qtyOverridden ? (
-                      <div className="text-[11px] text-amber-600 mt-0.5">
-                        ✎ edited —{" "}
-                        <button type="button" className="underline hover:text-amber-700" onClick={() => setLine(l.key, { qtyOverridden: false })}>reset</button>
-                      </div>
-                    ) : fromFormula ? (
-                      <div className="text-[11px] text-slate-400 mt-0.5">{shareOf(l) ?? "Follows the quantity produced"}</div>
-                    ) : null}
                   </div>
                   <div className="sm:col-span-3">
                     {isBought ? (
@@ -860,7 +881,7 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
                       </>
                     )}
                   </div>
-                  <div className="sm:col-span-1 flex sm:justify-end">
+                  <div className="sm:col-span-1 flex sm:justify-end sm:pt-6">
                     <Button variant="ghost" size="sm" onClick={() => removeLine(l.key)} disabled={lines.length <= 1}><Trash2 className="w-4 h-4 text-red-600" /></Button>
                   </div>
                 </div>

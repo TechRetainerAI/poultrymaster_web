@@ -227,7 +227,7 @@ export function PoultryPurchaseDialog({
           <FormField label="Raw material item *" full>
             <Select value={f.poultryRawMaterialItemId ? String(f.poultryRawMaterialItemId) : ""} onValueChange={(v) => { const id = Number(v); const it = itemById.get(id); setF({ ...f, poultryRawMaterialItemId: id, purchaseUnit: it?.purchaseUnitOfMeasure || it?.unitOfMeasure || f.purchaseUnit, productionUnit: it?.unitOfMeasure || f.productionUnit }) }}>
               <SelectTrigger><SelectValue placeholder="Pick item" /></SelectTrigger>
-              <SelectContent>{items.filter((i) => i.isActive).map((i) => <SelectItem key={i.poultryRawMaterialItemId} value={String(i.poultryRawMaterialItemId)}>{i.itemName}{i.unitOfMeasure ? ` (${i.unitOfMeasure})` : ""}</SelectItem>)}</SelectContent>
+              <SelectContent>{items.filter((i) => i.isActive).map((i) => <SelectItem key={i.poultryRawMaterialItemId} value={String(i.poultryRawMaterialItemId)}>{i.itemName}{i.unitOfMeasure ? ` (${i.unitOfMeasure})` : ""}{i.category === "FeedIngredient" ? " · Feed Ingredient" : i.category === "FinishedFeed" ? " · Finished Feed" : ""}{i.isDefault ? " · Default" : ""}</SelectItem>)}</SelectContent>
             </Select>
           </FormField>
           <FormField label="Supplier" full>

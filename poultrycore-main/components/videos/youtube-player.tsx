@@ -38,8 +38,11 @@ function loadYouTubeApi(): Promise<any> {
  * a hint: it still drops lower on a slow connection, and a fresh upload has
  * only low qualities until YouTube finishes processing it.
  */
-export function YouTubePlayer({ videoId, title }: { videoId: string; title: string }) {
+export function YouTubePlayer({ videoId, title, onEnded }: { videoId: string; title: string; onEnded?: () => void }) {
   const hostRef = useRef<HTMLDivElement>(null)
+  // Kept in a ref so a new callback does not rebuild the player.
+  const onEndedRef = useRef(onEnded)
+  onEndedRef.current = onEnded
 
   useEffect(() => {
     let player: any = null
@@ -81,6 +84,7 @@ export function YouTubePlayer({ videoId, title }: { videoId: string; title: stri
                 askedWhilePlaying = true
                 askForHd(e.target)
               }
+              if (e.data === YT.PlayerState.ENDED) onEndedRef.current?.()
             },
           },
         })
@@ -102,7 +106,7 @@ export function YouTubePlayer({ videoId, title }: { videoId: string; title: stri
       try {
         player?.destroy()
       } catch {
-        // Already gone with the dialog.
+        // Already gone with the page.
       }
       if (hostRef.current) hostRef.current.innerHTML = ""
     }
