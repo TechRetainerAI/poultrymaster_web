@@ -21,6 +21,8 @@ export interface ChannelVideo {
   description: string
   /** ISO date the video went up. */
   published: string
+  /** YouTube's view count, when the feed carries one. */
+  views?: number
 }
 
 export interface ChannelFeed {
@@ -86,6 +88,11 @@ function tag(xml: string, name: string): string {
   return m ? decode(m[1]) : ""
 }
 
+function views(entry: string): number | undefined {
+  const m = entry.match(/<media:statistics\s[^>]*views="(\d+)"/)
+  return m ? Number(m[1]) : undefined
+}
+
 /** The videos in a channel's Atom feed (youtube.com/feeds/videos.xml), newest first. */
 export function parseChannelFeed(xml: string): ChannelFeed {
   const [head] = xml.split("<entry>")
@@ -96,6 +103,7 @@ export function parseChannelFeed(xml: string): ChannelFeed {
       title: tag(entry, "title"),
       description: tag(entry, "media:description"),
       published: tag(entry, "published"),
+      views: views(entry),
     }))
     .filter((v) => /^[A-Za-z0-9_-]{11}$/.test(v.id))
     .sort((a, b) => b.published.localeCompare(a.published))

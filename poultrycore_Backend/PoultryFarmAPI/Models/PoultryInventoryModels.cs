@@ -48,6 +48,9 @@ namespace PoultryFarmAPIWeb.Models
         /// </summary>
         public string? CostRecognitionCategoryGroup { get; set; }
 
+        /// <summary>One of the seeded default feeds / ingredients (migration 388). Read-only.</summary>
+        public bool IsDefault { get; set; }
+
         /// <summary>
         /// Whether this write means to set CostRecognitionOverride at all. False
         /// leaves the item's existing choice alone, so editing a name or a

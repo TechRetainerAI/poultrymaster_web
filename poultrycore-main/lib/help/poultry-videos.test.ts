@@ -56,6 +56,10 @@ const FEED = `<?xml version="1.0" encoding="UTF-8"?>
    <media:title>Older: Feed &amp; Water</media:title>
    <media:description>Line one
 Line two &quot;quoted&quot;</media:description>
+   <media:community>
+    <media:starRating count="12" average="5.00" min="1" max="5"/>
+    <media:statistics views="1234"/>
+   </media:community>
   </media:group>
  </entry>
  <entry>
@@ -78,7 +82,7 @@ describe("parseChannelFeed", () => {
   it("lists the videos newest first, with entities decoded", () => {
     expect(feed.videos).toEqual([
       { id: "bbbbbbbbbbb", title: "Newer: Egg sorting", description: "", published: "2026-10-01T10:00:00+00:00" },
-      { id: "aaaaaaaaaaa", title: "Older: Feed & Water", description: 'Line one\nLine two "quoted"', published: "2026-09-01T10:00:00+00:00" },
+      { id: "aaaaaaaaaaa", title: "Older: Feed & Water", description: 'Line one\nLine two "quoted"', published: "2026-09-01T10:00:00+00:00", views: 1234 },
     ])
   })
 

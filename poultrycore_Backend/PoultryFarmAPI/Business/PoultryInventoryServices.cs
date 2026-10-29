@@ -64,6 +64,7 @@ namespace PoultryFarmAPIWeb.Business
             EffectiveCostRecognitionMethod = HasColumn(r, "EffectiveCostRecognitionMethod") && !r.IsDBNull(r.GetOrdinal("EffectiveCostRecognitionMethod")) ? r.GetString(r.GetOrdinal("EffectiveCostRecognitionMethod")) : null,
             CostRecognitionSource = HasColumn(r, "CostRecognitionSource") && !r.IsDBNull(r.GetOrdinal("CostRecognitionSource")) ? r.GetString(r.GetOrdinal("CostRecognitionSource")) : null,
             CostRecognitionCategoryGroup = HasColumn(r, "CostRecognitionCategoryGroup") && !r.IsDBNull(r.GetOrdinal("CostRecognitionCategoryGroup")) ? r.GetString(r.GetOrdinal("CostRecognitionCategoryGroup")) : null,
+            IsDefault = HasColumn(r, "IsDefault") && !r.IsDBNull(r.GetOrdinal("IsDefault")) && r.GetBoolean(r.GetOrdinal("IsDefault")),
             CreatedAt = r.GetDateTime(r.GetOrdinal("CreatedAt")),
             UpdatedAt = r.IsDBNull(r.GetOrdinal("UpdatedAt")) ? null : r.GetDateTime(r.GetOrdinal("UpdatedAt")),
         };
