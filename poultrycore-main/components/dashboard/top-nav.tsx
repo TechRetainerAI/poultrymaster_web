@@ -401,13 +401,16 @@ function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePerm
           />
         )}
 
-        {/* Money + People + Admin combined */}
+        {/* Money + People (if any) + Admin combined */}
         <NavMegaMenu
           label="More" icon={Wallet}
-          title="Money, People & Admin"
-          blurb="Cash accounts, staff, payroll, reports and settings."
+          title={nav.people.length > 0 ? "Money, Employees & Admin" : "Money & Admin"}
+          blurb={nav.people.length > 0
+            ? "Cash accounts, employees, payroll, reports and settings."
+            : "Cash accounts, reports and settings."}
           groups={[...nav.money, ...nav.people, ...nav.admin]}
-          columns={3} widthRem={42} layout="grid" accent="emerald"
+          columns={nav.people.length > 0 ? 3 : 2} widthRem={nav.people.length > 0 ? 42 : 30}
+          layout="grid" accent="emerald"
         />
 
         <div className="ml-auto flex items-center gap-1">

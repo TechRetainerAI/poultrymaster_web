@@ -81,7 +81,7 @@ import { buildRestaurantNavConfig } from "@/lib/nav/restaurant-nav-config"
 import { buildGenericNavConfig } from "@/lib/nav/generic-nav-config"
 import { useQuickLinkHrefs } from "@/lib/store/quick-links-store"
 import { QuickLinksDialog } from "@/components/dashboard/quick-links-dialog"
-import { navPathActive, type MegaMenuGroup, type NavGroup } from "@/lib/nav/nav-model"
+import { navPathActive, type MegaMenuGroup, type NavAccent, type NavGroup } from "@/lib/nav/nav-model"
 import { SidebarFlyoutMenu } from "@/components/dashboard/nav/sidebar-flyout-menu"
 import { POULTRY_REPORT_NAV_GROUPS, WATER_REPORT_NAV_GROUPS, HOTEL_REPORT_NAV_GROUPS, RESTAURANT_REPORT_NAV_GROUPS } from "@/lib/nav/report-nav-adapters"
 
@@ -576,6 +576,8 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
    * `inlineLead` is rows only the drawer needs -- beside the rail the same
    * thing is the header's "View all" link.
    */
+  const sidebarAccent: NavAccent = isWater ? "sky" : isGeneric ? "emerald" : isHotel ? "violet" : isRestaurant ? "rose" : "orange"
+
   const renderMenu = (
     label: string, Icon: any, groups: MegaMenuGroup[], menuKey: string,
     panel: MenuPanel, inlineLead: SidebarGroup[] = [],
@@ -588,7 +590,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
           columns={panel.columns} viewAll={panel.viewAll}
           activeHrefs={panel.activeHrefs} highlightActiveRow={panel.highlightActiveRow}
           collapsed={isCollapsed}
-          accent="orange"
+          accent={sidebarAccent}
         />
       )
     }
@@ -833,43 +835,50 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
           </>
         ) : isGeneric ? (
           <>
-            {/* Generic Company — Catalog. Gone entirely for a company with no
-                stock modules on, rather than an empty heading. */}
-            {genericCatalogItems.length > 0 && (
-              <>
-                {renderGroup("Catalog", genericCatalogItems, "genericCatalog")}
-
-                <div className="border-t border-slate-800 mx-2" />
-              </>
-            )}
-
-            {genericSubscriptionItems.length > 0 && (
-              <>
-                {renderGroup(genericNav.billing[0]?.label ?? "Billing", genericSubscriptionItems, "genericSubscriptions")}
-                <div className="border-t border-slate-800 mx-2" />
-              </>
-            )}
-
-            {renderGroup(genericNav.salesOrStudents[0]?.label ?? "Sales", genericSalesItems, "genericSales")}
-            <div className="border-t border-slate-800 mx-2" />
-
-            {renderGroup(genericNav.expenses[0]?.label ?? "Expenses", genericPurchasingItems, "genericPurchasing")}
-            <div className="border-t border-slate-800 mx-2" />
-
-            {renderGroup(genericNav.money[0]?.label ?? "Money", genericMoneyItems, "genericMoney")}
-            <div className="border-t border-slate-800 mx-2" />
-
-            {renderGroup(genericNav.people[0]?.label ?? "People", genericPeopleItems, "genericPeople")}
-
-            {genericSchoolItems.length > 0 && (
-              <>
-                <div className="border-t border-slate-800 mx-2" />
-                {renderGroup("School", genericSchoolItems, "genericSchool")}
-              </>
-            )}
-
-            <div className="border-t border-slate-800 mx-2" />
-            {renderGroup("Admin", genericAdminItems, "genericAdmin")}
+            {/* Generic Company — same flyout-menu pattern as Water/Hotel/Restaurant.
+                Groups come from buildGenericNavConfig, accent is emerald. */}
+            <div className="space-y-1">
+              {genericNav.catalog.length > 0 && renderMenu(
+                "Catalog & Stock", ShoppingBag, genericNav.catalog, "menu:genericCatalog", {
+                  blurb: "Products, inventory, stock adjustments and internal use.",
+                  columns: 1,
+                })}
+              {genericNav.billing.length > 0 && renderMenu(
+                genericNav.billing[0]?.label ?? "Billing", Receipt, genericNav.billing, "menu:genericBilling", {
+                  blurb: `${genericModules.labels.planPlural}, ${genericModules.labels.subscriptionPlural.toLowerCase()} and billing runs.`,
+                  columns: 1,
+                })}
+              {renderMenu(
+                genericNav.salesOrStudents[0]?.label ?? "Sales", isSub ? Users : ShoppingCart, genericNav.salesOrStudents, "menu:genericSales", {
+                  blurb: isSub ? `${genericModules.labels.customerPlural}, payments and balances.` : "Sales, customers and payments.",
+                  columns: 1,
+                })}
+              {renderMenu(
+                genericNav.expenses[0]?.label ?? "Expenses", DollarSign, genericNav.expenses, "menu:genericExpenses", {
+                  blurb: isSub ? "Vendors, expenses and recurring costs." : "Suppliers, purchases and expenses.",
+                  columns: 1,
+                })}
+              {renderMenu(
+                genericNav.money[0]?.label ?? "Money", Wallet, genericNav.money, "menu:genericMoney", {
+                  blurb: "Cash accounts, transfers, daily closing and owner funds.",
+                  columns: 1,
+                })}
+              {genericNav.people.length > 0 && renderMenu(
+                genericNav.people[0]?.label ?? "People", Users2, genericNav.people, "menu:genericPeople", {
+                  blurb: "Employees, attendance, payroll and payments.",
+                  columns: 1,
+                })}
+              {genericNav.school.length > 0 && renderMenu(
+                "School", GraduationCap, genericNav.school, "menu:genericSchool", {
+                  blurb: "Classes, academic terms and student attendance.",
+                  columns: 1,
+                })}
+              {renderMenu(
+                "Admin", Settings, genericNav.admin, "menu:genericAdmin", {
+                  blurb: "Reports, setup and settings.",
+                  columns: 1,
+                })}
+            </div>
           </>
         ) : (
           <>

@@ -7,6 +7,7 @@ import { Building2, ChevronsUpDown, Check, Loader2, Plus, Bird, Droplets, Briefc
 import { cn } from "@/lib/utils"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { getMyCompanies, switchCompany, type Company } from "@/lib/api/companies"
+import { invalidateGenericModules } from "@/hooks/use-generic-modules"
 import { useToast } from "@/hooks/use-toast"
 
 // Icon + colour are driven by the company TYPE (never the name, never a Poultry
@@ -104,6 +105,8 @@ export function CompanySwitcher({ fullWidth = false }: { fullWidth?: boolean } =
     setSwitchingId(c.farmId)
     try {
       const res = await switchCompany(c.farmId)
+      // Clear the Generic module cache so the new company's template/settings load fresh
+      invalidateGenericModules()
       setActiveCompany(res.farmId, res.farmName, c.type, res.accessToken.token)
       toast({ title: `Switched to ${c.name}`, description: c.type === "Water" ? "Water company" : `${c.type} company`, duration: 2000 })
       setOpen(false)

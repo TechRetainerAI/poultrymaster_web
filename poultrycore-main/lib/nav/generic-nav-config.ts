@@ -120,17 +120,20 @@ export function buildGenericNavConfig(modules: GenericModulesResult): GenericNav
   }]
 
   // ---- People / Staff ----
-  const people: MegaMenuGroup[] = [{
+  // Only show when staff payments are explicitly enabled in module settings.
+  // A solo yam seller can turn this off in Settings to hide the section.
+  const hasStaff = Boolean(modules.settings?.enableStaffPayments) || isSchool
+  const people: MegaMenuGroup[] = hasStaff ? [{
     key: "people",
-    label: isSchool ? "Staff & Teachers" : "People",
+    label: isSchool ? "Staff & Teachers" : "Employees",
     items: [
-      item("/generic-staff",      "Staff",      Users2),
+      item("/generic-staff",      isSchool ? "Staff" : "Employees",  Users2),
       item("/generic-attendance", "Attendance", Activity),
       item("/generic-payroll",    "Payroll",    Banknote),
       ...(showExisting("enableStaffPayments")
-        ? [item("/generic-staff-payments", "Staff payments", Banknote)] : []),
+        ? [item("/generic-staff-payments", isSchool ? "Staff payments" : "Employee payments", Banknote)] : []),
     ],
-  }]
+  }] : []
 
   // ---- School ----
   const school: MegaMenuGroup[] = isSchool ? [{
