@@ -8,6 +8,7 @@ using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Controllers
 {
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Authorize]
     [Route("api/Restaurant/menu")]
@@ -153,6 +154,7 @@ namespace PoultryFarmAPIWeb.Controllers
             return NoContent();
         }
 
+        [PoultryFarmAPIWeb.Filters.AllowStaffSetupWrite]
         [HttpPatch("items/{id}/availability")]
         public async Task<IActionResult> ToggleAvailability(int id, [FromQuery] string farmId, [FromQuery] bool isAvailable)
         {

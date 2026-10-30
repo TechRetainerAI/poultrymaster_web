@@ -211,7 +211,7 @@ const Map<String, PageHeaderDef> pageHeaders = {
   "water-stock-transactions": PageHeaderDef(title: "Water Stock", description: "", action: "New entry"),
   "water-supplier-balances": PageHeaderDef(title: "Supplier Balances", description: ""),
   "water-supplier-payments": PageHeaderDef(title: "Supplier Payments", description: ""),
-  "water-suppliers": PageHeaderDef(title: "Suppliers", description: "", action: "New supplier"),
+  "water-suppliers": PageHeaderDef(title: "Suppliers", description: "Master list of vendors, service providers and anyone you pay. Used as the \"Paid To\" picker on Expenses and as the Supplier dropdown on Inventory & supply purchases.", action: "New supplier"),
   "water-vehicle-loadings": PageHeaderDef(title: "Water Reports/Vehicle Usage", description: ""),
   "water-vehicles": PageHeaderDef(title: "Vehicles", description: "", action: "New vehicle"),
 };

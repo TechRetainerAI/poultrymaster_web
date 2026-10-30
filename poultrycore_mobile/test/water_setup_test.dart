@@ -24,6 +24,8 @@ import 'package:poultrycore_mobile/state/session.dart';
 import 'support/harness.dart';
 
 final water = Company(farmId: 'farm-1', name: 'Win Water', type: CompanyType.water);
+// Financial Settings is gated on water.financial-settings.view / .edit, which an admin holds.
+final waterAdmin = Company(farmId: 'farm-1', name: 'Win Water', type: CompanyType.water, role: 'Admin');
 
 FormScreen formFor(Session s, String key, {Map<String, dynamic>? existing}) => FormScreen(
       def: formForSpec(key)!,
@@ -273,7 +275,7 @@ void main() {
             'costRecognitionSource': 'FarmDefault', 'costRecognitionCategoryGroup': 'Unconfigured',
           },
         ];
-      await open(tester, WaterFinancialSettingsScreen(session: await sessionFor(api), company: water), size: phone);
+      await open(tester, WaterFinancialSettingsScreen(session: await sessionFor(api), company: waterAdmin), size: phone);
       expect(find.text('Expense-when-consumed is not available yet'), findsOneWidget);
       // The deferred option is shown, disabled with its reason.
       await tester.drag(find.byType(Scrollable).first, const Offset(0, -400));

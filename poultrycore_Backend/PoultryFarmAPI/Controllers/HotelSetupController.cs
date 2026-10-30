@@ -7,6 +7,7 @@ using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Controllers
 {
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Authorize]
     [Route("api/Hotel/setup")]

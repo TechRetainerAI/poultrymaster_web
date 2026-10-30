@@ -19,6 +19,8 @@ export interface Sale {
   /** Link to the customer (migration 223); null for a walk-in. */
   customerId?: number | null
   flockId: number
+  /** 366: the bird batch the sale is attributed to (optional; a flock implies its batch). */
+  batchId?: number | null
   saleDescription: string
   paid?: boolean
   /** Running total of payments recorded against this sale (migration 145). */
@@ -60,6 +62,8 @@ export interface SaleInput {
   paymentMethod: string
   customerName: string
   flockId: number
+  /** 366: optional batch attribution. */
+  batchId?: number | null
   saleDescription: string
   paid?: boolean
   size?: string | null
@@ -499,6 +503,7 @@ export async function createSale(sale: SaleInput): Promise<ApiResponse<Sale>> {
       paymentMethod: sale.paymentMethod,
       customerName: sale.customerName,
       flockId: sale.flockId,
+      batchId: sale.batchId ?? null,
       saleDescription: sale.saleDescription,
       paid: sale.paid ?? true,
       size: sale.size ?? null,
@@ -757,12 +762,20 @@ export interface SaleGroupInput {
   paid: boolean
   saleDescription: string | null
   flockId: number | null
+  /** 366: optional batch attribution; the server checks the flock belongs to it. */
+  batchId?: number | null
   /** 351: Correct Sale -- the reversed sale this new one replaces. */
   correctsSaleId?: number | null
   /** 358: one id per Add Sale form; a retry with the same key returns the sale already posted. */
   requestKey?: string | null
   /** Part payment: with paid = false, what the customer paid now. The rest stays owed. */
   amountPaidNow?: number | null
+  /**
+   * Pay with customer credit: with paid = false, how much of the customer's
+   * held credit settles this sale. Allocation only -- no new payment, no cash.
+   * Applied in the same transaction as the sale.
+   */
+  customerCreditAmount?: number | null
   lines: SaleGroupLineInput[]
 }
 

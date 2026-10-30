@@ -1,4 +1,5 @@
 "use client"
+import { CANCEL_REASONS, REOPEN_REASONS } from "@/lib/reversal-reasons"
 import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -851,6 +852,7 @@ export default function HotelPayrollPage() {
             open={!!cancelTarget}
             onOpenChange={(v) => { if (!v) setCancelTarget(null) }}
             title="Cancel Payroll Run"
+            options={CANCEL_REASONS}
             description={`Cancel run for period ${cancelTarget?.periodstart?.slice(0, 10)} — ${cancelTarget?.periodend?.slice(0, 10)}? Any staff loan repayments it recorded are reversed.`}
             label="Reason (optional)"
             placeholder="e.g. Duplicate run, incorrect period"
@@ -875,6 +877,7 @@ export default function HotelPayrollPage() {
             open={!!reopenTarget}
             onOpenChange={(v) => { if (!v) setReopenTarget(null) }}
             title="Reopen Payroll Run"
+            options={REOPEN_REASONS}
             description="The run goes back to Draft so its lines can be corrected. Any staff loan repayments it recorded are reversed, and come back when it is approved again."
             label="Reason"
             placeholder="e.g. Wrong bonus for one staff member"

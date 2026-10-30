@@ -21,6 +21,7 @@ namespace PoultryFarmAPIWeb.Business
         Task<PoultryFeedFormulaModel?> GetByIdAsync(string farmId, int id);
         Task<int> UpsertAsync(PoultryFeedFormulaUpsertRequest req);
         Task DeleteAsync(string farmId, int id);
+        Task<PoultryFeedDefaultsResult> EnsureDefaultsAsync(string farmId, string? userId, bool force);
     }
 
     public class PoultryFeedFormulaService : IPoultryFeedFormulaService
@@ -43,6 +44,8 @@ namespace PoultryFarmAPIWeb.Business
             UpdatedAt = r.DateN("UpdatedAt"),
             LineCount = r.Has("LineCount") ? r.Int("LineCount") : 0,
             PercentageTotal = r.Has("PercentageTotal") ? r.Dec("PercentageTotal") : 0,
+            // 385. Absent until that migration is applied -- read as "not a default".
+            IsDefault = r.Has("IsDefault") && r.Bool("IsDefault"),
         };
 
         private static PoultryFeedFormulaLineModel MapLine(NpgsqlDataReader r) => new()
@@ -116,6 +119,26 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@PoultryFeedFormulaId", id);
             await c.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
+        }
+
+        // 385. Seeds the default ingredients, age-named finished feeds and 1-tonne
+        // formulas once per farm; force re-adds whichever defaults are missing.
+        public async Task<PoultryFeedDefaultsResult> EnsureDefaultsAsync(string farmId, string? userId, bool force)
+        {
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryfeed_ensuredefaults(p_farmid => @FarmId::text, p_userid => @UserId::text, p_force => @Force::boolean)", c);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@UserId", (object?)userId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Force", force);
+            await c.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            if (!await r.ReadAsync()) return new PoultryFeedDefaultsResult();
+            return new PoultryFeedDefaultsResult
+            {
+                ItemsCreated = r.Int("ItemsCreated"),
+                FormulasCreated = r.Int("FormulasCreated"),
+                AlreadyApplied = r.Bool("AlreadyApplied"),
+            };
         }
     }
 

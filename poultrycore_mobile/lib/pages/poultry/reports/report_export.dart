@@ -50,6 +50,7 @@ class ReportDocument {
     this.recordLabel,
     this.subtitle,
     this.notes = const [],
+    this.rose = false,
   });
   final String title;
   final String filename;
@@ -71,6 +72,10 @@ class ReportDocument {
 
   /// Printed after the tables.
   final List<String> notes;
+
+  /// Restaurant's palette (the web's module-report-shell accent, rose-600)
+  /// rather than Poultry's emerald.
+  final bool rose;
 
   int get rowCount => sections.fold(0, (n, s) => n + s.rows.length);
 }
@@ -182,6 +187,10 @@ class ReportExport {
   }
 
   static Future<Uint8List> buildPdf(ReportDocument d) async {
+    final brand = d.rose ? const PdfColor.fromInt(0xFFE11D48) : _brand;
+    final band = d.rose ? const PdfColor.fromInt(0xFFBE123C) : _band;
+    final zebra = d.rose ? const PdfColor.fromInt(0xFFFFF1F2) : _zebra;
+    final totalsBg = d.rose ? const PdfColor.fromInt(0xFFFFE4E6) : _totalsBg;
     final wide = d.landscape ?? d.sections.any((s) => s.columns.length > 7);
     final format = wide ? PdfPageFormat.a4.landscape : PdfPageFormat.a4;
     final generated = DateTime.now().toString().substring(0, 16);
@@ -217,7 +226,7 @@ class ReportExport {
         pw.Container(
           margin: const pw.EdgeInsets.only(left: -40, right: -40, bottom: 18),
           padding: const pw.EdgeInsets.fromLTRB(40, 14, 40, 12),
-          color: _band,
+          color: band,
           child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
             pw.Expanded(
               child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
@@ -238,11 +247,11 @@ class ReportExport {
                 pw.Container(
                   padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                   decoration: pw.BoxDecoration(
-                    color: _zebra,
+                    color: zebra,
                     border: pw.Border.all(color: const PdfColor.fromInt(0xFFA7F3D0), width: 0.4),
                     borderRadius: pw.BorderRadius.circular(8),
                   ),
-                  child: pw.Text(latin('$label: $value'), style: t(7.5, color: _band)),
+                  child: pw.Text(latin('$label: $value'), style: t(7.5, color: band)),
                 ),
             ]),
           ),
@@ -275,11 +284,11 @@ class ReportExport {
                 if (s.totals != null) [for (final v in s.totals!) latin(v)],
               ],
               headerStyle: t(8, color: PdfColors.white, bold: true),
-              headerDecoration: const pw.BoxDecoration(color: _brand),
+              headerDecoration: pw.BoxDecoration(color: brand),
               cellStyle: t(8),
               cellPadding: const pw.EdgeInsets.all(4),
               border: pw.TableBorder.all(color: _rule, width: 0.3),
-              oddRowDecoration: const pw.BoxDecoration(color: _zebra),
+              oddRowDecoration: pw.BoxDecoration(color: zebra),
               cellAlignments: {
                 for (final (i, c) in s.columns.indexed) i: c.right ? pw.Alignment.centerRight : pw.Alignment.centerLeft,
               },
@@ -289,7 +298,7 @@ class ReportExport {
               // The totals row: bold on the totals fill.
               cellDecoration: s.totals == null
                   ? null
-                  : (index, data, rowNum) => rowNum == s.rows.length + 1 ? const pw.BoxDecoration(color: _totalsBg) : const pw.BoxDecoration(),
+                  : (index, data, rowNum) => rowNum == s.rows.length + 1 ? pw.BoxDecoration(color: totalsBg) : const pw.BoxDecoration(),
               textStyleBuilder: s.totals == null
                   ? null
                   : (index, data, rowNum) => rowNum == s.rows.length + 1 ? t(8, bold: true) : t(8),

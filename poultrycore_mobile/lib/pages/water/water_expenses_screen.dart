@@ -15,6 +15,7 @@ import '../poultry/trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../poultry/trackers/tracker_widgets.dart';
 import '../shared/business_dates.dart';
 import '../shared/company_clock.dart';
+import '../shared/reason_select.dart' show cancelReasons;
 import 'water_payroll_screen.dart' show showWaterPayrollPrompt;
 
 /// Water → Expenses → Expenses, as `app/water-expenses/page.tsx`: one ledger
@@ -125,7 +126,7 @@ Widget waterPaymentBadge(Map e) {
   if (type.isEmpty || id == null || id == 0) return null;
   return switch (type) {
     'ProductionBatch' => ('Production', '/water-production-batches/$id'),
-    'RawMaterialPurchase' => ('Raw Materials & Supplies Purchase', '/water-raw-materials?purchaseId=$id'),
+    'RawMaterialPurchase' => ('Inventory & Supply Purchase', '/water-supply-purchases?purchaseId=$id'),
     'Payroll' => ('Payroll Run #$id', '/water-payroll/$id'),
     _ => ('$type #$id', null),
   };
@@ -225,6 +226,7 @@ class _WaterExpensesScreenState extends State<WaterExpensesScreen> {
   Future<void> _cancel(Map d) => showWaterPayrollPrompt(
         context,
         title: 'Cancel expense',
+        options: cancelReasons,
         description: 'Expense #${tStr(d['waterExpenseId'])} will be moved to Cancelled. Optionally tell the team why.',
         label: 'Reason (optional)',
         placeholder: 'e.g. duplicate entry, wrong amount, supplier refunded…',

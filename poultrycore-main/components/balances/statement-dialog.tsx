@@ -8,12 +8,15 @@
 // balances page, which is the whole reason this feature exists.
 
 import { Fragment, useEffect, useState } from "react"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader } from "@/components/ui/dialog"
+import { FORM_DIALOG_CONTENT, FORM_DIALOG_PRIMARY, FormDialogFooter, FormDialogTitle } from "@/components/ui/form-dialog"
+import { FormSection } from "@/components/ui/form-section"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ChevronDown, ChevronRight, Loader2, Printer } from "lucide-react"
+import { ChevronDown, ChevronRight, FileText, Loader2, Printer } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { useFmt } from "@/lib/currency"
 import { useToast } from "@/hooks/use-toast"
 import {
@@ -34,6 +37,10 @@ const SOURCE_LABEL: Record<string, string> = {
   ImportedPayment: "Imported",
   Backfill: "Backfill",
   Counter: "Counter",
+  // 363: credit added by hand on Customer Credits.
+  OpeningCredit: "Opening credit",
+  Deposit: "Customer advance",
+  CreditNote: "Credit note",
 }
 // A Sale line has no source worth printing \u2014 it IS the source.
 const sourceLabel = (s?: string | null) =>
@@ -95,32 +102,41 @@ export function StatementDialog({ open, onOpenChange, module, side, party }: Pro
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] max-w-[95vw] max-h-[92vh] overflow-y-auto p-4 sm:max-w-6xl sm:p-6 print:max-w-none">
+      <DialogContent className={cn(FORM_DIALOG_CONTENT, "sm:max-w-6xl print:max-w-none")}>
         <DialogHeader>
-          <DialogTitle>{isCustomer ? "Customer statement" : "Supplier statement"}</DialogTitle>
-          <DialogDescription>
+          <FormDialogTitle icon={FileText} color="blue">{isCustomer ? "Customer statement" : "Supplier statement"}</FormDialogTitle>
+          <DialogDescription className="text-left">
             {party?.partyName}
             {party?.contactPhone ? ` · ${party.contactPhone}` : ""}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-wrap items-end gap-3 print:hidden">
-          <div className="space-y-1.5">
-            <Label htmlFor="stmt-from">From</Label>
-            <Input id="stmt-from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+        <div className="min-w-0 space-y-4">
+        {/* The period is a screen control; the printed statement is just the table. */}
+        <FormSection title="Period" color="blue" tinted columns={1} className="print:hidden">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="stmt-from">From</Label>
+              <Input id="stmt-from" type="date" className="bg-white" value={from} onChange={(e) => setFrom(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="stmt-to">To</Label>
+              <Input id="stmt-to" type="date" className="bg-white" value={to} onChange={(e) => setTo(e.target.value)} />
+            </div>
+            {(from || to) && (
+              <Button variant="ghost" size="sm" onClick={() => { setFrom(""); setTo("") }}>
+                All history
+              </Button>
+            )}
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="stmt-to">To</Label>
-            <Input id="stmt-to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-          </div>
-          {(from || to) && (
-            <Button variant="ghost" size="sm" onClick={() => { setFrom(""); setTo("") }}>
-              All history
-            </Button>
-          )}
-        </div>
+        </FormSection>
 
-        <div className="rounded-md border">
+        {/* Printed plain, as before: no band, no tint, no border. */}
+        <FormSection
+          title={isCustomer ? "Charges & payments" : "Bills & payments"} color="green" tinted columns={1}
+          className="print:rounded-none print:border-0 print:[&>div:first-child]:hidden print:[&>div:last-child]:bg-white print:[&>div:last-child]:p-0"
+        >
+        <div className="rounded-md border bg-white">
           {loading ? (
             <div className="flex items-center gap-2 p-6 text-slate-500">
               <Loader2 className="h-4 w-4 animate-spin" /> Loading statement…
@@ -224,13 +240,18 @@ export function StatementDialog({ open, onOpenChange, module, side, party }: Pro
             </Table>
           )}
         </div>
+        </FormSection>
+        </div>
 
-        <DialogFooter className="print:hidden">
-          <Button variant="outline" onClick={() => window.print()} disabled={loading || lines.length === 0}>
-            <Printer className="mr-2 h-4 w-4" /> Print
-          </Button>
-          <Button onClick={() => onOpenChange(false)}>Close</Button>
-        </DialogFooter>
+        {/* `contents` keeps the footer sticky inside the dialog; print:hidden keeps it off paper. */}
+        <div className="contents print:hidden">
+          <FormDialogFooter onCancel={() => onOpenChange(false)} cancelLabel="Close">
+            <Button onClick={() => window.print()} disabled={loading || lines.length === 0}
+                    className={cn("px-6", FORM_DIALOG_PRIMARY.blue)}>
+              <Printer className="mr-2 h-4 w-4" /> Print
+            </Button>
+          </FormDialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   )

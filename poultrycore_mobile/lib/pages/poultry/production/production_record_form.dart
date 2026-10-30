@@ -96,6 +96,11 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
   /// Crates and loose per pick: first … sixth.
   final _crates = List<num>.filled(6, 0), _loose = List<num>.filled(6, 0);
 
+  /// 372: Keep = into Broken Eggs / Dead Birds stock; Disposed = gone at once.
+  /// "" on an edit whose record came back without it (an older API): not sent,
+  /// so the saved choice is left as it is.
+  String _brokenDisposition = 'Keep', _mortalityDisposition = 'Keep';
+
   /// The saved totals per pick until the picks are touched (edit), as the web keeps them.
   final _pickTotals = List<num>.filled(6, 0);
 
@@ -295,6 +300,9 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
     _notes.text = tStr(rec['notes']);
     _medication.text = tStr(rec['medication']);
     _eggGrade = productionEggGrade(rec['eggGrade']);
+    String disp(Object? v) => v == 'Disposed' ? 'Disposed' : (v == 'Keep' ? 'Keep' : '');
+    _brokenDisposition = disp(rec['brokenEggDisposition']);
+    _mortalityDisposition = disp(rec['mortalityDisposition']);
     _silent = false;
 
     final feeds = rowsOf(rec['feeds']);
@@ -409,6 +417,10 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
     } else if (numBirds - mortality < 0) {
       _fail('Birds left cannot be negative. Check your deaths and number of birds.', title: 'Double-check numbers');
       problem = 'x';
+    } else if (_int(_broken) > _total) {
+      // The box clamps as you type, but the picks can be lowered afterwards.
+      _fail('Broken eggs (${loc(_int(_broken))}) cannot be more than the eggs picked (${loc(_total)}).', title: 'Double-check numbers');
+      problem = 'x';
     } else if (_flockId.isEmpty) {
       _fail('Choose which flock this production entry is for.');
       problem = 'x';
@@ -452,6 +464,8 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
       'production5thPick': _pick(4),
       'production6thPick': _pick(5),
       'brokenEggs': _int(_broken),
+      if (_brokenDisposition.isNotEmpty) 'brokenEggDisposition': _brokenDisposition,
+      if (_mortalityDisposition.isNotEmpty) 'mortalityDisposition': _mortalityDisposition,
       'totalProduction': _total,
       'FlockId': int.tryParse(_flockId),
       'eggGrade': eggGradeToApi(_eggGrade),
@@ -492,7 +506,13 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
       widget.onSaved?.call(savedId, input);
       return;
     } on ApiException catch (e) {
-      if (mounted) setState(() => _error = e.message.isNotEmpty ? e.message : 'Failed to save');
+      if (mounted) {
+        setState(() => _error = productionRefusal(
+            e,
+            _edit
+                ? 'Could not save the changes to this production record. Please try again.'
+                : 'Could not save the production record. Please check the details and try again.'));
+      }
     }
     if (mounted) setState(() => _saving = false);
     _report();
@@ -632,7 +652,7 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
                 Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
                   Expanded(child: ProdNumField(label: 'Crates', value: _crates[i], onChanged: (v) => _setPick(i, crates: v))),
                   const SizedBox(width: 8),
-                  Expanded(child: ProdNumField(label: 'Loose eggs', value: _loose[i], onChanged: (v) => _setPick(i, loose: v))),
+                  Expanded(child: ProdNumField(label: 'Loose eggs', value: _loose[i], max: eggsPerCrate - 1, onChanged: (v) => _setPick(i, loose: v))),
                   const SizedBox(width: 8),
                   Expanded(child: CalcField(label: 'Total eggs', value: loc(_pick(i)))),
                 ]),
@@ -677,9 +697,16 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
         accent: ProdAccent.rose,
         icon: Icons.warning_amber_outlined,
         child: _gap([
-          _pair(ProdTextField(label: 'Broken eggs', controller: _broken), ProdTextField(label: 'Meaty eggs', controller: _meaty)),
+          _pair(ProdTextField(label: 'Broken eggs', controller: _broken, max: _total), ProdTextField(label: 'Meaty eggs', controller: _meaty)),
           _pair(ProdTextField(label: 'Soft eggs', controller: _soft), ProdTextField(label: 'Lost eggs', controller: _lost)),
           CalcField(label: 'Net sellable', value: loc(net), tone: CalcTone.good),
+          DispositionField(
+            count: _int(_broken),
+            value: _brokenDisposition.isEmpty ? 'Keep' : _brokenDisposition,
+            onChanged: (v) => _set(() => _brokenDisposition = v),
+            keepText: '${loc(_int(_broken))} broken egg${_int(_broken) == 1 ? '' : 's'} will be added to Broken Egg stock.',
+            disposedText: '${loc(_int(_broken))} broken egg${_int(_broken) == 1 ? '' : 's'} recorded and disposed of. Nothing is added to stock.',
+          ),
         ]),
       ),
       const SizedBox(height: 14),
@@ -691,6 +718,13 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
         child: _gap([
           _pair(ProdTextField(label: 'Number of birds', controller: _numBirds), ProdTextField(label: 'Deaths', controller: _mortality)),
           CalcField(label: 'Birds left', value: loc(_birdsLeft), tone: _birdsLeft < 0 ? CalcTone.bad : null),
+          DispositionField(
+            count: _int(_mortality),
+            value: _mortalityDisposition.isEmpty ? 'Keep' : _mortalityDisposition,
+            onChanged: (v) => _set(() => _mortalityDisposition = v),
+            keepText: '${loc(_int(_mortality))} live bird${_int(_mortality) == 1 ? '' : 's'} removed; kept as Dead Birds stock.',
+            disposedText: '${loc(_int(_mortality))} live bird${_int(_mortality) == 1 ? '' : 's'} removed; recorded and disposed of, nothing kept.',
+          ),
           if (_manualAge) ...[
             _pair(ProdTextField(label: 'Age (weeks)', controller: _manualWeeks), ProdTextField(label: 'Age (days)', controller: _manualDays)),
             ProdTextField(label: 'Age (years)', controller: _manualYears),

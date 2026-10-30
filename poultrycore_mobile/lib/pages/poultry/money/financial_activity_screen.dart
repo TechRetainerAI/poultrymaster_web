@@ -82,6 +82,24 @@ String positionLabel(Object? t) => _positionLabels[tStr(t)] ?? tStr(t);
   };
 }
 
+/// restaurantActivitySourceLink (lib/api/restaurant-financial-activity.ts).
+(String, String)? restaurantActivitySourceLink(Map r) => switch (tStr(r['sourceType'])) {
+      'Order' || 'OrderRefund' => ('/restaurant-orders', 'View orders'),
+      'OrderPayment' || 'OrderPaymentReversal' || 'CustomerPayment' || 'CustomerPaymentReversal' => ('/restaurant-payments', 'View payment'),
+      'SupplierPayment' || 'SupplierPaymentReversal' => ('/restaurant-supplier-payments', 'View supplier payment'),
+      'Expense' || 'ExpenseReversal' => ('/restaurant-expenses', 'View expense'),
+      'StockPurchase' || 'StockPurchaseReversal' => ('/restaurant-inventory?tab=purchases', 'View purchase'),
+      'StockUse' => ('/restaurant-deferred-costs', 'View deferred inventory cost'),
+      'LoanReceived' || 'LoanReceivedReversal' || 'LoanRepayment' || 'LoanRepaymentReversal' => ('/restaurant-loans', 'View loan'),
+      'OwnerContribution' || 'OwnerDraw' => ('/restaurant-owner-money', 'View owner money'),
+      'CashTransfer' => ('/restaurant-cash-transfers', 'View transfer'),
+      'AssetPurchase' || 'AssetPurchaseReversal' || 'AssetDisposal' || 'Depreciation' => ('/restaurant-assets', 'View capital assets'),
+      'Payroll' => ('/restaurant-payroll', 'View payroll'),
+      'EmployeeLoanDisbursement' || 'EmployeeLoanReversal' || 'EmployeeLoanRepayment' || 'EmployeeLoanRepaymentReversal' =>
+        ('/restaurant-staff-loans', 'View staff loan'),
+      _ => null,
+    };
+
 /// formatActivityMoment: "10/05/2026 2:30 PM". The business date's own time,
 /// else the entry time on the company clock, else the date alone.
 String formatActivityMoment(Object? occurredAt, Object? createdAt, Duration offset) {
@@ -172,11 +190,15 @@ String activityCsv(List<Map> rows, Duration offset) {
 /// Poultry → Money → Financial Activity, as
 /// `app/poultry-financial-activity/page.tsx`: how each event affected cash,
 /// revenue, expense, profit and financial position (GET
-/// /Poultry/financial-activity, migration 290). Phone layout.
+/// /Poultry/financial-activity, migration 290). Phone layout. Restaurant passes
+/// [restaurant] (`app/restaurant-financial-activity/page.tsx`, migration 335):
+/// the same page in rose, over /Restaurant/financial-activity, with its own
+/// links.
 class FinancialActivityScreen extends StatefulWidget {
-  const FinancialActivityScreen({super.key, required this.session, required this.company});
+  const FinancialActivityScreen({super.key, required this.session, required this.company, this.restaurant = false});
   final Session session;
   final Company company;
+  final bool restaurant;
   @override
   State<FinancialActivityScreen> createState() => _FinancialActivityScreenState();
 }
@@ -224,7 +246,7 @@ class _FinancialActivityScreenState extends State<FinancialActivityScreen> {
       if (first) _loading = true;
     });
     try {
-      final res = await _api.get('/api/Poultry/financial-activity', query: {
+      final res = await _api.get(widget.restaurant ? '/api/Restaurant/financial-activity' : '/api/Poultry/financial-activity', query: {
         'farmId': widget.company.farmId,
         if (_from.isNotEmpty) 'fromDate': _from,
         if (_to.isNotEmpty) 'toDate': _to,
@@ -258,7 +280,8 @@ class _FinancialActivityScreenState extends State<FinancialActivityScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final lead = sidebarLeading(context, widget.session, widget.company, href: '/poultry-financial-activity');
+    final lead = sidebarLeading(context, widget.session, widget.company, href: widget.restaurant ? '/restaurant-financial-activity' : '/poultry-financial-activity');
+    final rest = widget.restaurant;
     final rows = rowsOf(_data?['rows']);
     final s = _data?['summary'] is Map ? _data!['summary'] as Map : null;
     final types = {for (final r in rows) if (tStr(r['type']).isNotEmpty) tStr(r['type'])}.toList()..sort();
@@ -297,8 +320,8 @@ class _FinancialActivityScreenState extends State<FinancialActivityScreen> {
               Container(
                 width: 40,
                 height: 40,
-                decoration: BoxDecoration(color: const Color(0xFFE0E7FF), borderRadius: BorderRadius.circular(8)),
-                child: const Icon(Icons.show_chart, size: 20, color: Color(0xFF4338CA)),
+                decoration: BoxDecoration(color: rest ? const Color(0xFFFFE4E6) : const Color(0xFFE0E7FF), borderRadius: BorderRadius.circular(8)),
+                child: Icon(Icons.show_chart, size: 20, color: rest ? const Color(0xFFE11D48) : const Color(0xFF4338CA)),
               ),
               const SizedBox(width: 12),
               const Expanded(
@@ -312,12 +335,12 @@ class _FinancialActivityScreenState extends State<FinancialActivityScreen> {
             const SizedBox(height: 10),
             Wrap(spacing: 8, runSpacing: 8, children: [
               OutlinedButton.icon(
-                onPressed: () => _go('/cash-flow', 'Cash Flow'),
+                onPressed: () => _go(rest ? '/restaurant-cash-flow' : '/cash-flow', 'Cash Flow'),
                 icon: const Icon(Icons.swap_horiz, size: 16),
                 label: const Text('Cash Flow'),
               ),
               OutlinedButton.icon(
-                onPressed: () => _go('/poultry-profit-loss', 'Profit & Loss'),
+                onPressed: () => _go(rest ? '/restaurant-profit-loss' : '/poultry-profit-loss', 'Profit & Loss'),
                 icon: const Icon(Icons.bar_chart, size: 16),
                 label: const Text('Profit & Loss'),
               ),
@@ -338,13 +361,13 @@ class _FinancialActivityScreenState extends State<FinancialActivityScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: const Color(0xFFEEF2FF),
-                border: Border.all(color: const Color(0xFFC7D2FE)),
+                color: rest ? const Color(0xFFFFF1F2) : const Color(0xFFEEF2FF),
+                border: Border.all(color: rest ? const Color(0xFFFECDD3) : const Color(0xFFC7D2FE)),
                 borderRadius: BorderRadius.circular(6),
               ),
-              child: const Text(
+              child: Text(
                 'Financial Activity combines cash movement and profit recognition so you can see why cash flow and profit may differ.',
-                style: TextStyle(fontSize: 12, color: Color(0xFF312E81)),
+                style: TextStyle(fontSize: 12, color: rest ? const Color(0xFF881337) : const Color(0xFF312E81)),
               ),
             ),
             const SizedBox(height: 12),
@@ -551,7 +574,7 @@ class _FinancialActivityScreenState extends State<FinancialActivityScreen> {
         child: Text('This event did not change any tracked financial position.', style: TextStyle(fontSize: 13, color: TColors.slate500)),
       );
     }
-    final link = activitySourceLink(r);
+    final link = widget.restaurant ? restaurantActivitySourceLink(r) : activitySourceLink(r);
     const sm = TextStyle(fontSize: 11, color: TColors.slate500);
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Tooltip(
@@ -592,7 +615,8 @@ class _FinancialActivityScreenState extends State<FinancialActivityScreen> {
         if (link != null)
           InkWell(
             onTap: () => _go(link.$1, link.$2),
-            child: Text('${link.$2} →', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: TColors.blue600)),
+            child: Text('${link.$2} →',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: widget.restaurant ? TColors.rose700 : TColors.blue600)),
           ),
       ]),
     ]);

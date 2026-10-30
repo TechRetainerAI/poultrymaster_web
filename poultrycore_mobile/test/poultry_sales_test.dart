@@ -346,7 +346,7 @@ void main() {
         {'product': 'Fresh Eggs', 'eggProductId': 12, 'quantity': 30, 'unitPrice': 50, 'totalAmount': 76.92},
       ]);
       expect(api.writes.where((w) => w.url.path == '/api/Poultry/payments'), isEmpty, reason: 'the group posts its own payment');
-      expect(find.text('Sale SG-00009 created — 2 lines, one sale. Paid GHC 50.00, owed GHC 150.00.'), findsOneWidget);
+      expect(find.text('Sale SG-00009 created — 2 lines, one sale. Paid GHC 50.00. Owed GHC 150.00.'), findsOneWidget);
     });
 
     testWidgets('other product and customer, override, pay later, a short stock needs Sell it anyway', (tester) async {
@@ -387,6 +387,85 @@ void main() {
       final item = tester.widget<DropdownMenuItem<int?>>(find.ancestor(
           of: find.text('Broilers B (200 birds) · Closed').last, matching: find.byType(DropdownMenuItem<int?>)));
       expect(item.enabled, isFalse);
+    });
+
+    testWidgets('Pay later: no payment method or cash account, stored as Pay later', (tester) async {
+      final api = salesApi();
+      await open(tester, await screen(api), size: phone);
+      await tester.tap(find.text('Add Sale'));
+      await tester.pumpAndSettle();
+      await choose(tester, 'Fresh Eggs', 'Chicken');
+      await choose(tester, 'Select a customer', 'Ama');
+      await type(tester, 'Quantity', '2');
+      await type(tester, 'Unit price', '20');
+      await tapSeen(tester, find.text('Pay later'));
+      expect(find.text('Payment method *'), findsNothing);
+      expect(find.text('Receive into cash account *'), findsNothing);
+      expect(find.textContaining('No money is received now'), findsOneWidget);
+      await tapPinned(tester, 'Record sale');
+      final body = api.lastBody('/api/Sale');
+      expect((body['paymentMethod'], body['paid']), ('Pay later', false));
+    });
+
+    testWidgets('Use customer credit: part from credit, the rest paid now, one group post', (tester) async {
+      final api = salesApi()..gets['/api/Poultry/customer-payments/credit/1'] = [{'unapplied': 30}];
+      await open(tester, await screen(api), size: phone);
+      await tester.tap(find.text('Add Sale'));
+      await tester.pumpAndSettle();
+      await choose(tester, 'Fresh Eggs', 'Chicken');
+      await choose(tester, 'Select a customer', 'Ama');
+      expect(find.text('Available customer credit: GHC 30.00'), findsOneWidget);
+      await type(tester, 'Quantity', '2');
+      await type(tester, 'Unit price', '20');
+      await tapSeen(tester, find.text('Use customer credit'));
+      expect(find.text('Rest to pay: GHC 10.00', findRichText: true), findsOneWidget);
+      expect(find.text('The rest'), findsOneWidget);
+      await choose(tester, 'Select payment method', 'Cash');
+      await tapPinned(tester, 'Record sale');
+      final body = api.lastBody('/api/Sale/group');
+      expect((body['customerCreditAmount'], body['paid'], body['amountPaidNow'], body['paymentMethod'], body['poultryCashAccountId']),
+          (30, false, 10, 'Cash', 5));
+    });
+
+    testWidgets('Batch narrows the flocks; byproducts follow the company settings and their price', (tester) async {
+      final api = salesApi()
+        ..gets['/api/Flock'] = [
+          {'flockId': 1, 'name': 'Layers A', 'quantity': 500, 'batchId': 3},
+          {'flockId': 2, 'name': 'Broilers B', 'quantity': 200, 'batchId': 4},
+        ]
+        ..gets['/api/MainFlockBatch'] = [
+          {'batchId': 3, 'batchName': 'Batch Three'},
+          {'batchId': 4, 'batchName': 'Batch Four'},
+        ]
+        ..gets['/api/Poultry/stock/byproduct-settings'] = {'brokenEggsInSales': false, 'deadBirdsInSales': true}
+        ..gets['/api/Poultry/products'] = [
+          {'poultryProductId': 1, 'name': 'Eggs', 'isRawEggProduct': true, 'stockOnHand': 100},
+          {'poultryProductId': 7, 'name': 'Dead Birds', 'unit': 'bird', 'unitPrice': 5, 'stockOnHand': 7},
+        ];
+      await open(tester, await screen(api), size: phone);
+      await tester.tap(find.text('Add Sale'));
+      await tester.pumpAndSettle();
+      await choose(tester, 'All batches', 'Batch Three');
+      await see(tester, find.text('All flocks'));
+      await tester.tap(find.text('All flocks'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Broilers B'), findsNothing, reason: 'another batch');
+      await tester.tap(find.text('Layers A (500 birds)').last);
+      await tester.pumpAndSettle();
+
+      await see(tester, find.text('Fresh Eggs'));
+      await tester.tap(find.text('Fresh Eggs'));
+      await tester.pumpAndSettle();
+      expect(find.text('Broken Eggs'), findsNothing, reason: 'turned off for this company');
+      await tester.tap(find.text('Dead Birds').last);
+      await tester.pumpAndSettle();
+      expect(find.text('In stock: 7 birds', findRichText: true), findsOneWidget);
+      await choose(tester, 'Select a customer', 'Ama');
+      await type(tester, 'Quantity', '2');
+      await choose(tester, 'Select payment method', 'Cash');
+      await tapPinned(tester, 'Record sale');
+      final body = api.lastBody('/api/Sale');
+      expect((body['product'], body['unitPrice'], body['totalAmount'], body['batchId'], body['flockId']), ('Dead Birds', 5, 10, 3, 1));
     });
   });
 
@@ -448,14 +527,15 @@ void main() {
       expect(find.text('Before GHC 500.00'), findsOneWidget);
       await tester.tap(find.text('Reverse').last);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Reverse payment'));
-      await tester.pumpAndSettle();
-      expect(api.writes, isEmpty, reason: 'a reason is required');
-      await enter(tester, 'Why is this being reversed?', 'entered twice');
-      await tester.tap(find.text('Reverse payment'));
+      // Its own window, with the reason from the list.
+      expect(find.text('Reverse PAY-0007?'), findsOneWidget);
+      final confirm = find.widgetWithText(FilledButton, 'Reverse payment');
+      expect(tester.widget<FilledButton>(confirm).onPressed, isNull, reason: 'a reason is required');
+      await choose(tester, 'Select a reason', 'Duplicate entry');
+      await tester.tap(confirm);
       await tester.pumpAndSettle();
       final body = api.lastBody('/api/Poultry/customer-payments/abcd1234-ef/reverse');
-      expect((body['reason'], body['farmId'], body['reversedBy']), ('entered twice', 'farm-1', 'user-1'));
+      expect((body['reason'], body['farmId'], body['reversedBy']), ('Duplicate entry', 'farm-1', 'user-1'));
     });
 
     testWidgets('Invoice: a multi-line sale prints its lines under its SG number', (tester) async {
@@ -522,7 +602,7 @@ void main() {
       expect(find.text('Sale #1 reversed — Revenue and stock undone. GHC 75.00 paid back out of cash.'), findsOneWidget);
     });
 
-    testWidgets('Correct sale: reversed, re-entered linked to it, then the credit is offered', (tester) async {
+    testWidgets('Correct sale: reversed, re-entered linked to it, the kept credit used in the form', (tester) async {
       final api = salesApi()
         ..gets['/api/Sale/2/reversal-preview'] = {
           'found': true, 'saleId': 2, 'customerName': 'Kofi', 'total': 500, 'paid': 200, 'outstanding': 300, 'fingerprint': 'fp2',
@@ -547,13 +627,14 @@ void main() {
       expect(find.text('Chicken'), findsOneWidget, reason: 'pre-filled');
       await type(tester, 'Unit price', '45');
       await tapPinned(tester, 'Record sale');
-      final body = api.lastBody('/api/Sale');
-      expect((body['correctsSaleId'], body['product'], body['quantity'], body['totalAmount'], body['paid']), (2, 'Chicken', 10, 450, false));
-      expect(find.text('Apply customer credit'), findsOneWidget, reason: 'saved on credit: the credit is offered');
-      await tester.tap(find.widgetWithText(FilledButton, 'Apply credit'));
-      await tester.pumpAndSettle();
-      final apply = api.lastBody('/api/Poultry/customer-payments/apply-credit');
-      expect((apply['customerId'], apply['saleId'], apply['amount']), (2, 99, 200));
+      // The money kept at the reversal pays the corrected sale from the form
+      // (Use customer credit), in the same Sale/group post; nothing is offered after.
+      final body = api.lastBody('/api/Sale/group');
+      expect((body['correctsSaleId'], body['customerCreditAmount'], body['paid'], body['amountPaidNow'], body['paymentMethod']),
+          (2, 200, false, null, 'Pay later'));
+      final line = (body['lines'] as List).single as Map;
+      expect((line['product'], line['quantity'], line['totalAmount']), ('Chicken', 10, 450));
+      expect(find.text('Apply customer credit'), findsNothing);
     });
 
     testWidgets('Edit & repost a reversed sale opens it pre-filled', (tester) async {

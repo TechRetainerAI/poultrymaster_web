@@ -139,8 +139,11 @@ void main() {
 
     await tapSeen(tester, find.text('Skip').last);
     expect(find.text('Skip Electricity (2026-10-05)?'), findsOneWidget);
-    expect(tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Skip')).onPressed, isNull, reason: 'a reason is needed');
-    await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextFormField)), 'no power this month');
+    // As the web's PromptDialog with options: Skip says a reason is needed.
+    await tester.tap(find.widgetWithText(FilledButton, 'Skip'));
+    await tester.pumpAndSettle();
+    expect(find.text('Why? is required.'), findsOneWidget);
+    await reasonOther(tester, 'no power this month');
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Skip'));
     await tester.pumpAndSettle();
@@ -172,10 +175,12 @@ void main() {
 
     await tapSeen(tester, find.text('End').first);
     expect(find.text('End "Office rent"?'), findsOneWidget);
+    // END_REASONS: the reason is picked from the list (it was optional free text).
+    await reasonPick(tester, 'No longer needed');
     await tester.tap(find.widgetWithText(FilledButton, 'End it'));
     await tester.pumpAndSettle();
     final end = a.lastBody('/api/recurring-expenses/templates/7/status', 'PUT');
-    expect((end['action'], end['reason']), ('End', null), reason: 'the reason is optional');
+    expect((end['action'], end['reason']), ('End', 'No longer needed'));
   });
 
   testWidgets('a new template: the checks, the preview, then the body', (tester) async {

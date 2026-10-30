@@ -1,5 +1,7 @@
 "use client"
 
+import { STOCK_REVERSAL_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -130,7 +132,7 @@ export default function FeedProductionBatchDetailPage() {
           <p className="text-sm text-slate-600">This restores the ingredients consumed from inventory, removes the produced feed from stock, and reverses any cash posted. Blocked if any produced feed has already been used.</p>
           <div className="space-y-1">
             <label className="text-xs text-slate-500">Reason (optional)</label>
-            <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why is this being reversed?" />
+            <ReasonSelect options={STOCK_REVERSAL_REASONS} value={reason} onChange={setReason} />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setReverseOpen(false)} disabled={reversing}>Cancel</Button>

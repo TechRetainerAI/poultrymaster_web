@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 
 namespace PoultryFarmAPIWeb.Controllers
 {
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/[controller]")]
     [RequireCompanyType("Poultry")]
@@ -55,6 +56,7 @@ namespace PoultryFarmAPIWeb.Controllers
         }
 
         // POST: api/House
+        [PoultryFarmAPIWeb.Filters.AllowStaffSetupWrite]
         [HttpPost]
         public ActionResult Create([FromBody] HouseModel model)
         {
@@ -76,6 +78,7 @@ namespace PoultryFarmAPIWeb.Controllers
         // Reusable on purpose: the Farm Setup Wizard and the Batch-to-Flock
         // allocation screen can post the same body. Only `source` differs, and it
         // exists so the audit trail says which screen a batch came from.
+        [PoultryFarmAPIWeb.Filters.AllowStaffSetupWrite]
         [HttpPost("bulk")]
         public async Task<ActionResult<BulkHouseCreateResult>> CreateBulk([FromBody] BulkHouseCreateRequest request)
         {

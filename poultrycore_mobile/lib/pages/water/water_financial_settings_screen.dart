@@ -7,6 +7,7 @@ import '../../design/ui/inputs.dart';
 import '../../models/company.dart';
 import '../../state/session.dart';
 import '../../widgets/module_sidebar.dart';
+import '../shared/iam_permissions.dart';
 
 /// Water → Setup → Company → Financial Settings ("Cost Recognition"), as
 /// `app/water-financial-settings/page.tsx`: when packaging costs and when
@@ -79,10 +80,26 @@ class _WaterFinancialSettingsScreenState extends State<WaterFinancialSettingsScr
   /// offered and then withdrawn.
   bool get _deferralAvailable => _saved?['deferralAvailable'] == true;
 
+  // water.financial-settings.view / .edit: null until read. Without view the
+  // page is a locked card; without edit everything is shown but disabled.
+  bool? _canView;
+  bool _canEdit = false;
+
   @override
   void initState() {
     super.initState();
     _load();
+    _loadPerms();
+  }
+
+  Future<void> _loadPerms() async {
+    const view = 'water.financial-settings.view', edit = 'water.financial-settings.edit';
+    final held = await canDoAll(widget.session, widget.company, const [view, edit]);
+    if (!mounted) return;
+    setState(() {
+      _canView = held.contains(view);
+      _canEdit = held.contains(edit);
+    });
   }
 
   static String _day(DateTime? d) => d == null
@@ -190,7 +207,17 @@ class _WaterFinancialSettingsScreenState extends State<WaterFinancialSettingsScr
     final now = DateTime.now();
     return Scaffold(
       appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: const Text('Cost Recognition')),
-      body: _loading
+      body: _canView == false
+          ? ListView(padding: const EdgeInsets.fromLTRB(14, 12, 14, 28), children: [
+              AppCard(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Text('You do not have access to financial settings.',
+                      textAlign: TextAlign.center, style: TextStyle(color: tokens.mutedForeground)),
+                ),
+              ),
+            ])
+          : _loading || _canView == null
           ? const Center(child: CircularProgressIndicator())
           : ListView(
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
@@ -233,7 +260,7 @@ class _WaterFinancialSettingsScreenState extends State<WaterFinancialSettingsScr
                   value: _packaging,
                   hints: _packagingHint,
                   deferralAvailable: _deferralAvailable,
-                  onChanged: (m) => setState(() => _packaging = m),
+                  onChanged: _canEdit ? (m) => setState(() => _packaging = m) : null,
                 ),
                 const SizedBox(height: 12),
                 _MethodSection(
@@ -244,7 +271,7 @@ class _WaterFinancialSettingsScreenState extends State<WaterFinancialSettingsScr
                   value: _treatment,
                   hints: _treatmentHint,
                   deferralAvailable: _deferralAvailable,
-                  onChanged: (m) => setState(() => _treatment = m),
+                  onChanged: _canEdit ? (m) => setState(() => _treatment = m) : null,
                 ),
                 const SizedBox(height: 12),
                 AppCard(
@@ -282,10 +309,11 @@ class _WaterFinancialSettingsScreenState extends State<WaterFinancialSettingsScr
                               hintText: 'Apply immediately',
                               // A past date is refused, as on the web.
                               firstDate: DateTime(now.year, now.month, now.day),
+                              enabled: _canEdit,
                               onChanged: (d) => setState(() => _from = d),
                             ),
                           ),
-                          if (_from != null)
+                          if (_from != null && _canEdit)
                             IconButton(
                               tooltip: 'Clear',
                               icon: const Icon(Icons.close),
@@ -332,7 +360,7 @@ class _WaterFinancialSettingsScreenState extends State<WaterFinancialSettingsScr
                         size: AppButtonSize.lg,
                         fullWidth: true,
                         busy: _saving,
-                        onPressed: !_dirty || _saving ? null : _save,
+                        onPressed: !_canEdit || !_dirty || _saving ? null : _save,
                       ),
                     ),
                     if (_dirty) ...[
@@ -346,6 +374,11 @@ class _WaterFinancialSettingsScreenState extends State<WaterFinancialSettingsScr
                     ],
                   ],
                 ),
+                if (!_canEdit) ...[
+                  const SizedBox(height: 6),
+                  Text('You can see this setting but not change it.',
+                      style: TextStyle(fontSize: 12, color: tokens.mutedForeground)),
+                ],
                 ..._itemTable(context),
               ],
             ),
@@ -453,14 +486,14 @@ class _WaterFinancialSettingsScreenState extends State<WaterFinancialSettingsScr
                         label: 'Clear',
                         variant: AppButtonVariant.ghost,
                         size: AppButtonSize.sm,
-                        onPressed: () => _setOverride(id, null),
+                        onPressed: _canEdit ? () => _setOverride(id, null) : null,
                       )
                     : Wrap(spacing: 6, children: [
                         AppButton(
                           label: 'On purchase',
                           variant: AppButtonVariant.outline,
                           size: AppButtonSize.sm,
-                          onPressed: () => _setOverride(id, _purchased),
+                          onPressed: _canEdit ? () => _setOverride(id, _purchased) : null,
                         ),
                         // Locked for the same reason the settings are.
                         Tooltip(
@@ -469,7 +502,7 @@ class _WaterFinancialSettingsScreenState extends State<WaterFinancialSettingsScr
                             label: 'On use',
                             variant: AppButtonVariant.outline,
                             size: AppButtonSize.sm,
-                            onPressed: _deferralAvailable ? () => _setOverride(id, _consumed) : null,
+                            onPressed: _canEdit && _deferralAvailable ? () => _setOverride(id, _consumed) : null,
                           ),
                         ),
                       ]),
@@ -500,7 +533,9 @@ class _MethodSection extends StatelessWidget {
   final String value;
   final Map<String, String> hints;
   final bool deferralAvailable;
-  final ValueChanged<String> onChanged;
+
+  /// Null when the user may not edit: shown, but nothing can be picked.
+  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -528,7 +563,7 @@ class _MethodSection extends StatelessWidget {
                 opacity: locked ? 0.6 : 1,
                 child: InkWell(
                   borderRadius: BorderRadius.circular(8),
-                  onTap: locked ? null : () => onChanged(m),
+                  onTap: locked || onChanged == null ? null : () => onChanged!(m),
                   child: Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(

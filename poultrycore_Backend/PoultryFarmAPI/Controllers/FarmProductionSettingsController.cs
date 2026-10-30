@@ -5,6 +5,7 @@ using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Controllers
 {
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/[controller]")]
     [RequireCompanyType("Poultry")]

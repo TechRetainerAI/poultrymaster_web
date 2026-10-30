@@ -40,6 +40,9 @@ namespace PoultryFarmAPIWeb.Business
 
         Task<PoultryReportResponse<PoultryEggStockBalanceReportSummary, PoultryEggStockBalanceReportRow>>
             GetEggStockBalanceAsync(PoultryReportFilterDto filter);
+        // 375
+        Task<PoultryReportResponse<PoultryByproductReportSummary, PoultryByproductReportRow>>
+            GetByproductInventoryAsync(PoultryReportFilterDto filter);
 
         Task<PoultryReportResponse<PoultryEggSalesReportSummary, PoultryEggSalesReportRow>>
             GetEggSalesAsync(PoultryReportFilterDto filter);

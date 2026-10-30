@@ -6,7 +6,9 @@ import '../../../models/company.dart';
 import '../../../state/session.dart';
 import '../../../widgets/module_sidebar.dart';
 import '../../shared/business_dates.dart';
+import '../../shared/iam_permissions.dart';
 import '../reports/report_format.dart';
+import '../reports/report_routes.dart' show openAppHref;
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, loc;
 import '../trackers/tracker_widgets.dart';
 import 'balances_logic.dart';
@@ -54,6 +56,9 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
   /// has no permission flags, so Staff are the ones left out.
   bool get _canReverse => (widget.company.role ?? '').toLowerCase() != 'staff';
 
+  /// 367: Record customer payment (poultry.customer-payments.create).
+  bool _canRecord = false;
+
   @override
   void initState() {
     super.initState();
@@ -61,6 +66,15 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
       if (mounted) setState(() => _fmt = m);
     });
     _load();
+    if (widget.rail.isPoultry) {
+      canDo(widget.session, widget.company, 'poultry.customer-payments.create').then((v) {
+        if (mounted) setState(() => _canRecord = v);
+      });
+    }
+  }
+
+  Future<void> _recordPayment() async {
+    if (await recordPartyPayment(context, session: widget.session, company: widget.company, side: BalanceSide.customer)) _load();
   }
 
   @override
@@ -145,7 +159,10 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
   }
 
   /// saleHref: Poultry's Sales page, or `/water-sales?saleId=`, focused on the sale.
-  void _openSale(int saleId) => Navigator.of(context).push(MaterialPageRoute(
+  void _openSale(int saleId) => widget.rail.isRestaurant
+      // restaurantOrderHref: the Restaurant Sales page, on that order.
+      ? openAppHref(context, widget.session, widget.company, '/restaurant-sales?orderId=$saleId', label: 'Sales')
+      : Navigator.of(context).push(MaterialPageRoute(
         builder: (_) => widget.rail.isWater
             ? WaterSalesScreen(session: widget.session, company: widget.company, focusSaleId: saleId)
             : SalesScreen(session: widget.session, company: widget.company, focusSaleId: saleId),
@@ -249,6 +266,18 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
                     style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TColors.slate900)),
               ),
             ]),
+            if (_canRecord) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0284C7)),
+                  onPressed: _recordPayment,
+                  icon: const Icon(Icons.payments_outlined, size: 16),
+                  label: const Text('Record customer payment'),
+                ),
+              ),
+            ],
             const SizedBox(height: 4),
             const Text(
               'One row per payment the customer actually made. A payment spread over several sales is one payment here — open it to see how much each sale received. A sale that was part-paid keeps one row too, with its earlier payments inside it.',
@@ -434,6 +463,7 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
                   reversed
                       ? const TBadge('Reversed', bg: Colors.white, fg: TColors.slate500, border: TColors.slate200)
                       : const TBadge('Posted', bg: TColors.slate100, fg: TColors.slate800),
+                  if (widget.rail.isPoultry) paymentPLBadge(row),
                 ]),
                 const SizedBox(height: 2),
                 Text(tStr(row['partyName']).isEmpty ? 'Walk-in' : tStr(row['partyName']),
@@ -503,7 +533,7 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
               '${tStr(row['reversedAt']).isNotEmpty ? ' on ${fmtDateTimeLike(row['reversedAt'])}' : ''}: ${row['reversalReason']}',
               style: sm),
         ],
-        if (!widget.rail.isWater) ...[
+        if (widget.rail.isPoultry) ...[
           const SizedBox(height: 8),
           OutlinedButton.icon(
             key: ValueKey('sale-details-$id'),
@@ -513,7 +543,7 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
             label: const Text('Sale details'),
           ),
         ],
-        if (_canReverse && !reversed) ...[
+        if (_canReverse && !reversed && !isManualCreditPayment(row)) ...[
           const SizedBox(height: 8),
           OutlinedButton.icon(
             style: OutlinedButton.styleFrom(backgroundColor: Colors.white, minimumSize: const Size.fromHeight(40)),
@@ -522,6 +552,12 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
             label: const Text('Reverse'),
           ),
         ],
+        if (widget.rail.isPoultry)
+          ...() {
+            final t = paymentPLToggle(context,
+                session: widget.session, company: widget.company, row: row, side: BalanceSide.customer, onChanged: _load);
+            return t == null ? const <Widget>[] : [const SizedBox(height: 8), SizedBox(height: 40, child: t)];
+          }(),
         if (open && !multi && sid != null) ...[
           const SizedBox(height: 8),
           _trail(sid, id),
@@ -612,7 +648,7 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
             padding: EdgeInsets.only(top: 4),
             child: Text('Reversed', style: TextStyle(fontSize: 11, color: TColors.slate400)),
           )
-        else if (_canReverse)
+        else if (_canReverse && !isManualCreditPayment(p))
           Padding(
             padding: const EdgeInsets.only(top: 6),
             child: OutlinedButton.icon(

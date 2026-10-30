@@ -89,10 +89,14 @@ export function isFinancialNavItemVisible(
   // they summarise: anyone who can see the sales or the customers can see what
   // is outstanding on them. Taking the payment is gated separately, inside the
   // page, on `poultry.customer-payments.create`.
-  if (href === "/customer-balances") {
+  // Customer Credits (351) is the other half of the same customer ledger --
+  // money held for them rather than owed by them -- so it reads to the same people.
+  if (href === "/customer-balances" || href === "/customer-credits") {
     return isAdmin || f.canViewFinancial || f.canEnterSales || f.canViewCustomers
   }
-  if (href === "/supplier-balances") {
+  // Supplier Credits (370) is the other half of the supplier ledger -- money
+  // a supplier holds for us -- so it reads to the same people.
+  if (href === "/supplier-balances" || href === "/supplier-credits") {
     return isAdmin || f.canViewFinancial || f.canEnterExpenses || f.canViewCustomers
   }
   // Supplier Payments is the same audience as Supplier Balances -- it is the

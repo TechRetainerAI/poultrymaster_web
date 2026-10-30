@@ -20,6 +20,7 @@ import 'sales/balances_logic.dart' show pageSlice;
 import 'sales/balances_widgets.dart';
 import 'trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import 'trackers/tracker_widgets.dart';
+import '../shared/reason_select.dart' show stockReversalReasons;
 
 /// Poultry → Tools → Receive Purchase, as `app/poultry-purchase-receipts/page.tsx`
 /// with `components/poultry/receive-purchase-dialog.tsx` (migration 345): one
@@ -468,6 +469,7 @@ class _ReceiptDetailDialogState extends State<_ReceiptDetailDialog> {
         description:
             'The stock comes back out, any payment made on this receipt is reversed and its cash returns to the account, and the supplier no longer owes anything for it. Nothing is deleted: the receipt stays here marked Reversed.',
         placeholder: 'e.g. Entered against the wrong supplier',
+        options: stockReversalReasons,
         confirmLabel: 'Reverse receipt',
         onSubmit: (reason) async {
           try {
@@ -772,8 +774,21 @@ class _ReceivePurchaseScreenState extends State<ReceivePurchaseScreen> {
     if (mounted) setState(() => _saving = false);
   }
 
-  Widget _label(String text, Widget child, {String? hint}) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Text(text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: TColors.slate700)),
+  /// FormField: the label held to one line, with an optional info tooltip
+  /// (tap the icon) in place of a hint under the box.
+  Widget _label(String text, Widget child, {String? hint, String? info}) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          Flexible(
+            child: Text(text,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: TColors.slate700)),
+          ),
+          if (info != null) ...[
+            const SizedBox(width: 4),
+            Tooltip(message: info, triggerMode: TooltipTriggerMode.tap, child: const Icon(Icons.info_outline, size: 14, color: TColors.slate400)),
+          ],
+        ]),
         const SizedBox(height: 4),
         child,
         if (hint != null) ...[
@@ -843,7 +858,7 @@ class _ReceivePurchaseScreenState extends State<ReceivePurchaseScreen> {
               ),
             ),
             _label('Invoice / reference', AppInput(controller: _reference, hintText: 'e.g. INV-2041'),
-                hint: "The same invoice can't be received twice from one supplier."),
+                info: "The same invoice can't be received twice from one supplier."),
           ]),
           const SizedBox(height: 12),
           formSection('Items received', _blue, [
@@ -867,7 +882,7 @@ class _ReceivePurchaseScreenState extends State<ReceivePurchaseScreen> {
             _label(
               'Amount',
               _NumField(value: _additional, decimal: true, onChanged: (v) => setState(() => _additional = v)),
-              hint: 'Transport, offloading … spread over the items by value, so it becomes part of their stock cost.',
+              info: 'Transport, offloading … spread over the items by value, so it becomes part of their stock cost.',
             ),
             _label('What it was for', AppInput(controller: _additionalNote, hintText: 'e.g. Transport', enabled: _additional > 0)),
           ]),
@@ -922,7 +937,7 @@ class _ReceivePurchaseScreenState extends State<ReceivePurchaseScreen> {
                   firstDate: DateTime.tryParse(_purchaseDate),
                   onChanged: (d) => setState(() => _dueDate = d == null ? '' : isoDay(d)),
                 ),
-                hint: "Empty = the supplier's payment terms.",
+                info: "Leave empty to use the supplier's payment terms.",
               ),
           ]),
           const SizedBox(height: 12),
@@ -1087,15 +1102,28 @@ class _ReceivePurchaseScreenState extends State<ReceivePurchaseScreen> {
         Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
           Expanded(
             child: _label(unit.isNotEmpty ? '$unit per unit' : 'Units per purchase unit',
+                info: 'How many stock units one purchase unit holds, e.g. 50 kg per bag',
                 _NumField(key: ValueKey('upu-${l.key}'), value: l.unitsPerPurchaseUnit, decimal: true, onChanged: (v) => setState(() => l.unitsPerPurchaseUnit = v))),
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              const Text('Line total', style: TextStyle(fontSize: 12, color: TColors.slate500)),
-              const SizedBox(height: 14),
-              Text(_gh(p?.total ?? 0), style: const TextStyle(fontWeight: FontWeight.w600)),
-            ]),
+            // Same height and frame as the inputs beside it, read-only; a big
+            // figure is cut inside the frame, the full one on long-press.
+            child: _label(
+              'Line total',
+              Tooltip(
+                message: _gh(p?.total ?? 0),
+                child: Container(
+                  height: 44,
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  decoration: BoxDecoration(
+                      color: TColors.slate50, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+                  child: Text(_gh(p?.total ?? 0),
+                      maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                ),
+              ),
+            ),
           ),
         ]),
         if (p != null && (p.allocatedAdditional > 0 || (l.unitsPerPurchaseUnit != 0 && l.unitsPerPurchaseUnit != 1))) ...[

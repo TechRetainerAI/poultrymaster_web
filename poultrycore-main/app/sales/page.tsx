@@ -11,6 +11,7 @@ import { Pagination, PaginationContent, PaginationItem, PaginationLink, Paginati
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { NumberInput } from "@/components/ui/number-input"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -19,9 +20,10 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Plus, Eye, Undo2, RotateCcw, ShoppingCart, DollarSign, TrendingUp, Package, FileText, Printer, Loader2, Info, Search, Filter, ChevronDown, ChevronUp, Mail, Wallet, History } from "lucide-react"
 import { getSales, createSale, updateSale, getFlocks, getCustomers, createCustomer, type Sale, type SaleInput, type SaleLine } from "@/lib/api"
+import { getFlockBatches, type FlockBatch } from "@/lib/api/flock-batch"
 import { isFlockClosed } from "@/lib/utils/flock-eligibility"
 import { listPoultryCashAccounts, recordPoultryPayment, type PoultryCashAccount } from "@/lib/api/poultry-finance"
-import { listPoultryProducts, type PoultryProduct } from "@/lib/api/poultry-inventory"
+import { listPoultryProducts, getPoultryByproductSettings, type PoultryProduct, type PoultryByproductSettings } from "@/lib/api/poultry-inventory"
 import { createSaleGroup, getSaleReversal } from "@/lib/api/sale"
 import { ReverseSaleDialog, type ReverseSaleResult } from "@/components/sales/reverse-sale-dialog"
 import { SaleDetailsDialog } from "@/components/sales/sale-details-dialog"
@@ -42,7 +44,8 @@ import {
   type ExtraEggLine,
   type ReturnedEggs,
 } from "@/components/sales/egg-class-fields"
-import { SALE_PRODUCT_OPTIONS, SaleItemRow, SaleItemsHeader, isEggProduct } from "@/components/sales/sale-item-row"
+import { SALE_PRODUCT_OPTIONS, SaleItemRow, SaleItemsHeader, isEggProduct, saleProductOptions } from "@/components/sales/sale-item-row"
+import { byproductRole } from "@/lib/poultry/byproducts"
 import { useToast } from "@/hooks/use-toast"
 import { getUserContext } from "@/lib/utils/user-context"
 import Link from "next/link"
@@ -170,6 +173,11 @@ function toSaleRows(sales: Sale[]): SaleRow[] {
 function saleStockProduct(products: PoultryProduct[], product: string | null | undefined): PoultryProduct | null {
   const name = (product ?? "").trim().toLowerCase()
   if (!name) return null
+  // 374: Broken Eggs / Dead Birds sell out of their own stock.
+  const role = byproductRole(product)
+  if (role) {
+    return products.find((p) => byproductRole(p.name) === role) ?? null
+  }
   if (name.includes("egg")) {
     return products.find((p) => p.isRawEggProduct) ?? products.find((p) => p.name.toLowerCase().includes("egg")) ?? null
   }
@@ -184,7 +192,8 @@ function stockUnitLabel(product: PoultryProduct | null): string {
   if (!product) return "units"
   if (product.isRawEggProduct) return "eggs"
   if (product.isBirdProduct) return "birds"
-  return (product.unit || "units").toLowerCase()
+  const unit = (product.unit || "units").toLowerCase()
+  return unit === "egg" ? "eggs" : unit === "bird" ? "birds" : unit
 }
 
 /**
@@ -271,6 +280,9 @@ export default function SalesPage() {
   const [payNote, setPayNote] = useState("")
   const [paySaving, setPaySaving] = useState(false)
   const [flocks, setFlocks] = useState<any[]>([])
+  // 366: Batch comes before Flock. Both optional -- eggs are often pooled.
+  const [batches, setBatches] = useState<FlockBatch[]>([])
+  const [saleBatchId, setSaleBatchId] = useState(0)
   const [customers, setCustomers] = useState<any[]>([])
   const [cashAccounts, setCashAccounts] = useState<PoultryCashAccount[]>([])
   const [showNewCustomerInput, setShowNewCustomerInput] = useState(false)
@@ -310,7 +322,9 @@ export default function SalesPage() {
     poultryCashAccountId: null,
   })
 
-  const productOptions = ["Fresh Eggs", "Chicken", "Manure", "Other"]
+  // 374: Broken Eggs (on) / Dead Birds (off) are offered per company.
+  const [byproductSettings, setByproductSettings] = useState<PoultryByproductSettings | null>(null)
+  const productOptions = useMemo(() => saleProductOptions(byproductSettings), [byproductSettings])
   const paymentMethodOptions = ["Cash", "Credit Card", "Bank Transfer", "Check", "Mobile Money"]
 
   const [productSelection, setProductSelection] = useState<string | undefined>(undefined)
@@ -362,7 +376,7 @@ export default function SalesPage() {
   const [extraEggLines, setExtraEggLines] = useState<ExtraEggLine[]>([])
 
   // Check if current product is eggs (for crates input)
-  const isEggsProduct = (formData.product ?? "").toLowerCase().includes("egg")
+  const isEggsProduct = isEggProduct(formData.product)
 
   // The class's default price per crate (344), offered when a class is chosen.
   const classPrice = (eggProductId: number | null | undefined): number | undefined => {
@@ -395,6 +409,45 @@ export default function SalesPage() {
   const calculatedSaleTotal = Math.round((firstLineAmount + extraEggLines.reduce((s, l) => s + extraLineTotal(l), 0)) * 100) / 100
   const allLinesAmount = hasOverride ? Math.round(overrideAmount! * 100) / 100 : calculatedSaleTotal
   const isEditingGroup = editingLines.length > 1
+
+  // Pay with customer credit: money the customer already paid and the business
+  // still holds (e.g. kept when a sale was reversed). Allocated to the new sale
+  // in the same transaction -- no new payment, no cash. The rest is paid now,
+  // part paid or owed as usual.
+  const [useCredit, setUseCredit] = useState(false)
+  const [creditAmount, setCreditAmount] = useState<number | undefined>(undefined)
+  const [customerCredit, setCustomerCredit] = useState<{ customerId: number; available: number } | null>(null)
+  const saleCustomerId = useMemo(() => {
+    const name = (formData.customerName ?? "").toString().trim().toLowerCase()
+    if (!name) return null
+    const c = customers.find((x: any) => (x.name ?? x.customerName ?? "").trim().toLowerCase() === name)
+    const id = Number(c?.customerId ?? c?.id)
+    return id > 0 ? id : null
+  }, [customers, formData.customerName])
+  useEffect(() => {
+    if (!isCreateDialogOpen || !saleCustomerId) { setCustomerCredit(null); return }
+    let live = true
+    customerCreditTotal(saleCustomerId)
+      .then((available) => { if (live) setCustomerCredit({ customerId: saleCustomerId, available }) })
+      .catch(() => { if (live) setCustomerCredit(null) })
+    return () => { live = false }
+  }, [isCreateDialogOpen, saleCustomerId])
+  const creditAvailable = customerCredit && customerCredit.customerId === saleCustomerId ? customerCredit.available : 0
+  const creditUsed = useCredit && creditAvailable > 0
+    ? Math.round(Math.max(0, Math.min(Number(creditAmount) || 0, creditAvailable, allLinesAmount)) * 100) / 100
+    : 0
+  /** What is left to pay after the credit: paid now, part paid or owed. */
+  const restAfterCredit = Math.round((allLinesAmount - creditUsed) * 100) / 100
+  const creditCoversAll = creditUsed > 0 && restAfterCredit <= 0.005
+  // Pay later: nothing is received now, so there is no payment method or cash
+  // account to ask for. The sale still keeps the default account behind the
+  // scenes -- a later Pay on the sale is received into the sale's account.
+  const payLater = formData.paid === false && !partPayment
+  const noMoneyNow = creditCoversAll || payLater
+  // What the sale stores as its method: never a cash method for money not received.
+  const saleMethodToStore = creditCoversAll ? "Customer Credit"
+    : payLater ? "Pay later"
+    : (formData.paymentMethod ?? "").toString() || null
   // Editing: the eggs the sale (every line of it) already took are back on
   // the shelf while it is changed, per class.
   const editReturned = useMemo<ReturnedEggs | undefined>(() => {
@@ -432,7 +485,7 @@ export default function SalesPage() {
     if (editingSale?.flockId === flock.flockId) return false
     const sellsBirds = (p: string | null | undefined) => {
       const name = (p ?? "").toString().trim().toLowerCase()
-      return /bird|chick|cockerel/.test(name) && !name.includes("egg")
+      return /bird|chick|cockerel/.test(name) && !name.includes("egg") && byproductRole(name) == null
     }
     return sellsBirds(formData.product) || extraEggLines.some((l) => !extraLineIsEggs(l) && sellsBirds(l.product))
   }
@@ -451,7 +504,7 @@ export default function SalesPage() {
     const editedIsSameEggStock =
       editingSale != null &&
       isEggsProduct &&
-      (editingSale.product ?? "").toLowerCase().includes("egg") &&
+      isEggProduct(editingSale.product) &&
       (editingSale.eggProductId ?? null) === (formData.eggProductId ?? null)
     const addBack = editedIsSameEggStock ? Number(editingSale?.quantity) || 0 : 0
     return (Number(stockProduct.stockOnHand) || 0) + addBack
@@ -547,6 +600,8 @@ export default function SalesPage() {
       if (result.success && result.data) {
         setFlocks(result.data)
       }
+      const b = await getFlockBatches(userId, farmId).catch(() => null)
+      if (b?.success && b.data) setBatches(b.data)
     }
   }
   
@@ -562,6 +617,8 @@ export default function SalesPage() {
     } catch {
       setPoultryProducts([])
     }
+    // 374: which byproducts this company sells. Unreadable = the defaults.
+    getPoultryByproductSettings().then(setByproductSettings).catch(() => setByproductSettings(null))
     try {
       setEggClasses(await getEggClasses())
     } catch {
@@ -641,7 +698,7 @@ export default function SalesPage() {
       
       if (!validateSaleForm()) return
 
-      if (!formData.poultryCashAccountId) {
+      if (!noMoneyNow && !formData.poultryCashAccountId) {
         toast({
           title: "Cash account required",
           description: "Choose which cash account this sale is received into.",
@@ -665,15 +722,30 @@ export default function SalesPage() {
           toastFormGuide(toast, "Enter the amount the customer paid now.")
           return
         }
-        if (paidNow >= allLinesAmount) {
-          toastFormGuide(toast, "That covers the whole sale. Choose Paid now instead.")
+        if (paidNow >= restAfterCredit) {
+          toastFormGuide(toast, creditUsed > 0
+            ? "With the credit, that covers the whole sale. Choose Paid now instead."
+            : "That covers the whole sale. Choose Paid now instead.")
           return
         }
       }
 
+      if (useCredit && creditAvailable > 0 && creditUsed <= 0) {
+        toastFormGuide(toast, "Enter how much of the customer's credit to use, or untick Use customer credit.")
+        return
+      }
+      if (useCredit && (Number(creditAmount) || 0) > Math.min(creditAvailable, allLinesAmount) + 0.005) {
+        toastFormGuide(toast, `Use at most ${formatCurrency(Math.min(creditAvailable, allLinesAmount), currencyCode)} of credit.`)
+        return
+      }
+      // Credit pays some of it: the sale is saved owed, the credit is allocated
+      // to it, and "Paid now" pays the rest in cash -- one transaction.
+      const restPaidNow = creditUsed > 0 && !partPayment && formData.paid !== false && restAfterCredit > 0
+        ? restAfterCredit : 0
+
       // Several lines (egg sizes and/or other products), or a part payment:
       // one sale number, one payment, all or nothing.
-      if (extraEggLines.length > 0 || partPayment) {
+      if (extraEggLines.length > 0 || partPayment || creditUsed > 0) {
         if (extraEggLines.some((l) => !(l.product ?? "eggs").trim() || extraLineQuantity(l) <= 0 || l.unitPrice <= 0)) {
           toastFormGuide(toast, "Every added line needs a product, a quantity and a price, or remove it.")
           return
@@ -688,12 +760,16 @@ export default function SalesPage() {
           userId,
           saleDate: formData.saleDate!,
           customerName: (formData.customerName ?? "").toString() || null,
-          paymentMethod: (formData.paymentMethod ?? "").toString() || null,
+          paymentMethod: saleMethodToStore,
           poultryCashAccountId: formData.poultryCashAccountId ?? null,
-          paid: partPayment ? false : (formData.paid ?? true),
-          amountPaidNow: partPayment ? Math.round((Number(partPaidAmount) || 0) * 100) / 100 : null,
+          paid: partPayment || creditUsed > 0 ? false : (formData.paid ?? true),
+          amountPaidNow: partPayment
+            ? Math.round((Number(partPaidAmount) || 0) * 100) / 100
+            : restPaidNow > 0 ? restPaidNow : null,
+          customerCreditAmount: creditUsed > 0 ? creditUsed : null,
           saleDescription: formData.saleDescription || null,
           flockId: formData.flockId || null,
+          batchId: saleBatchId || null,
           correctsSaleId: correcting?.saleId ?? null,
           requestKey: saleRequestKeyRef.current,
           lines: (() => {
@@ -715,14 +791,20 @@ export default function SalesPage() {
         }
         const saleCount = res.data?.saleCount ?? 1
         const groupTotal = Number(res.data?.totalAmount ?? 0)
-        const partNote = partPayment
-          ? ` Paid ${formatCurrency(Number(partPaidAmount) || 0, currencyCode)}, owed ${formatCurrency(Math.max(0, groupTotal - (Number(partPaidAmount) || 0)), currencyCode)}.`
-          : ""
+        const cashNow = partPayment ? Number(partPaidAmount) || 0 : restPaidNow
+        const partNote = [
+          creditUsed > 0 ? ` ${formatCurrency(creditUsed, currencyCode)} paid from customer credit.` : "",
+          partPayment ? ` Paid ${formatCurrency(cashNow, currencyCode)}.` : "",
+          partPayment || (creditUsed > 0 && formData.paid === false && restAfterCredit > 0)
+            ? ` Owed ${formatCurrency(Math.max(0, groupTotal - creditUsed - cashNow), currencyCode)}.` : "",
+        ].join("")
         toast(saleCount > 1
           ? { title: `${saleCount} sales created: ${res.data?.saleGroupNo ?? ""}`, description: `One sale per product, as each product is its own sale.${partNote}` }
           : { title: `Sale ${res.data?.saleGroupNo ?? ""} created`, description: `${extraEggLines.length + 1} line${extraEggLines.length ? "s" : ""}, one sale.${partNote}` })
         const firstId = res.data?.saleId ?? res.data?.saleIds?.[0]
-        await afterCorrectionSaved(firstId, res.data?.saleGroupNo || (firstId ? `#${firstId}` : ""), groupTotal, !partPayment && !!(formData.paid ?? true))
+        // Credit already used in the form: nothing more to offer afterwards.
+        await afterCorrectionSaved(firstId, res.data?.saleGroupNo || (firstId ? `#${firstId}` : ""), groupTotal,
+          creditUsed > 0 || (!partPayment && !!(formData.paid ?? true)))
         setIsCreateDialogOpen(false)
         resetForm()
         loadSales()
@@ -739,9 +821,10 @@ export default function SalesPage() {
         quantity,
         unitPrice,
         totalAmount,
-        paymentMethod: (formData.paymentMethod ?? "").toString(),
+        paymentMethod: saleMethodToStore ?? "",
         customerName: (formData.customerName ?? "").toString(),
         flockId: formData.flockId ?? 0,
+        batchId: saleBatchId || null,
         saleDescription: formData.saleDescription ?? "",
         paid: formData.paid ?? true,
         size: formData.size?.trim() ? formData.size.trim() : null,
@@ -888,6 +971,7 @@ export default function SalesPage() {
     const first = row.lines?.[0]
     const firstQty = Number(first?.quantity ?? sale.quantity) || 0
     resetForm()
+    setSaleBatchId(Number(sale.batchId) || batchOfFlock(sale.flockId))
     setFormData({
       saleDate: sale.saleDate.split('T')[0],
       product: sale.product,
@@ -922,10 +1006,12 @@ export default function SalesPage() {
     const selection = productOptions.includes(sale.product) ? sale.product : "Other"
     setProductSelection(selection)
     setProductOther(selection === "Other" ? sale.product : "")
-    const isEgg = (sale.product ?? "").toLowerCase().includes("egg")
+    const isEgg = isEggProduct(sale.product)
     setCrates(isEgg ? Math.floor(firstQty / EGGS_PER_CRATE) : 0)
     setLooseEggs(isEgg ? firstQty % EGGS_PER_CRATE : 0)
     setCorrecting({ saleId: sale.saleId, label: row.lines ? (row.saleGroupNo ?? `#${sale.saleId}`) : `#${sale.saleId}`, creditKept })
+    // The money kept at the reversal pays the corrected sale, from the form.
+    if (creditKept > 0) { setUseCredit(true); setCreditAmount(creditKept) }
     setIsCreateDialogOpen(true)
   }
 
@@ -969,6 +1055,7 @@ export default function SalesPage() {
 
   const resetForm = () => {
     saleRequestKeyRef.current = crypto.randomUUID()
+    setSaleBatchId(0)
     setFormData({
       saleDate: new Date().toISOString().split('T')[0],
       product: "Fresh Eggs",
@@ -994,6 +1081,8 @@ export default function SalesPage() {
     setOverrideStock(false)
     setPartPayment(false)
     setPartPaidAmount(undefined)
+    setUseCredit(false)
+    setCreditAmount(undefined)
     setCrates(0)
     setLooseEggs(0)
   }
@@ -1046,12 +1135,21 @@ export default function SalesPage() {
         // The quantity is eggs on an egg line and units otherwise, so it does
         // not carry across a switch between the two.
         quantity: egg ? crates * EGGS_PER_CRATE + looseEggs : wasEgg ? 0 : prev.quantity,
+        // 374: a byproduct starts at the price set on its product.
+        unitPrice: byproductPrice(value) ?? prev.unitPrice,
       }
     })
     if (!egg) {
       setCrates(0)
       setLooseEggs(0)
     }
+  }
+
+  /** The Broken Eggs / Dead Birds price set under Products, if any. */
+  const byproductPrice = (product: string): number | null => {
+    const role = byproductRole(product)
+    const p = role ? poultryProducts.find((x) => byproductRole(x.name) === role) : null
+    return p && Number(p.unitPrice) > 0 ? Number(p.unitPrice) : null
   }
 
   const updateSaleLine = (key: string, patch: Partial<ExtraEggLine>) =>
@@ -1128,7 +1226,7 @@ export default function SalesPage() {
     else if (!customerName) message = "Enter or select who bought from you."
     else if (!Number.isFinite(quantity) || quantity <= 0) message = "Enter how many units were sold — use a number greater than zero."
     else if (!Number.isFinite(unitPrice) || unitPrice <= 0) message = "Enter the price per unit — it must be greater than zero."
-    else if (!paymentMethod) message = "Select how the customer paid (cash, mobile money, bank, etc.)."
+    else if (!paymentMethod && !noMoneyNow) message = "Select how the customer paid (cash, mobile money, bank, etc.)."
     // Selling more than the farm has is refused, not warned about — but the
     // override on the form lifts it, because a real sale that the records have
     // not caught up with still has to be recordable.
@@ -1426,6 +1524,14 @@ export default function SalesPage() {
   const totalQuantity = useMemo(() => filteredSales.filter((s) => s.status !== "Reversed").reduce((sum, sale) => sum + (sale.quantity || 0), 0), [filteredSales])
   const selectedFlockId = formData.flockId ?? null
   const selectedFlockIdString = selectedFlockId !== null ? selectedFlockId.toString() : ""
+  /** The batch a flock came from (flock.batchid), or 0. */
+  const batchOfFlock = (flockId: number | null | undefined) =>
+    Number(flocks.find((f) => f.flockId === flockId)?.batchId) || 0
+  // A chosen batch narrows the flocks to its own; the flock already on the
+  // form stays listed so an edit can still show it.
+  const shownFlocks = saleBatchId
+    ? flocks.filter((f) => Number(f.batchId) === saleBatchId || f.flockId === selectedFlockId)
+    : flocks
 
   useEffect(() => {
     setCurrentPage(1)
@@ -1498,7 +1604,7 @@ export default function SalesPage() {
               {/* Who bought, when, and from which flock. */}
               <div className="overflow-hidden rounded-xl border border-blue-200">
                 <div className="bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Customer &amp; Date</div>
-              <div className="grid grid-cols-1 gap-3 bg-blue-50/40 p-4 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 bg-blue-50/40 p-4 sm:grid-cols-2 lg:grid-cols-[3fr_2fr_2.5fr_2.5fr]">
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-2">
                     <Label htmlFor="customerName">Customer *</Label>
@@ -1547,6 +1653,11 @@ export default function SalesPage() {
                       }}
                     />
                   )}
+                  {saleCustomerId && creditAvailable > 0 && (
+                    <p className="text-xs font-medium text-emerald-700">
+                      Available customer credit: {formatCurrency(creditAvailable, currencyCode)}
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="saleDate">Sale date *</Label>
@@ -1558,22 +1669,49 @@ export default function SalesPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
+                  <Label htmlFor="batchId">Batch</Label>
+                  <Select
+                    value={String(saleBatchId)}
+                    onValueChange={(value) => {
+                      const b = Number(value) || 0
+                      setSaleBatchId(b)
+                      // A flock from another batch no longer fits: back to All flocks.
+                      if (b && formData.flockId && batchOfFlock(formData.flockId) !== b) {
+                        setFormData(prev => ({ ...prev, flockId: 0 }))
+                      }
+                    }}
+                  >
+                    <SelectTrigger id="batchId">
+                      <SelectValue placeholder="All batches" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">All batches</SelectItem>
+                      {batches.map((b) => (
+                        <SelectItem key={b.batchId} value={String(b.batchId)}>
+                          {b.batchName || b.batchCode || `Batch #${b.batchId}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
                   <Label htmlFor="flockId">Flock</Label>
                   <Select
                     value={selectedFlockIdString}
-                    onValueChange={(value) =>
-                      setFormData(prev => ({
-                        ...prev,
-                        flockId: value ? Number(value) : undefined,
-                      }))
-                    }
+                    onValueChange={(value) => {
+                      const f = value ? Number(value) : 0
+                      setFormData(prev => ({ ...prev, flockId: f }))
+                      // Picking a flock picks its batch too.
+                      const b = batchOfFlock(f)
+                      if (f && b) setSaleBatchId(b)
+                    }}
                   >
                     <SelectTrigger id="flockId">
-                      <SelectValue placeholder="Select a flock" />
+                      <SelectValue placeholder="All flocks" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="0">All flocks</SelectItem>
-                      {flocks.map((flock) => (
+                      {shownFlocks.map((flock) => (
                         <SelectItem
                           key={flock.flockId}
                           value={flock.flockId.toString()}
@@ -1626,6 +1764,7 @@ export default function SalesPage() {
                     unitPrice={Number(formData.unitPrice) || 0}
                     onUnitPriceChange={(n) => setFormData(prev => ({ ...prev, unitPrice: n }))}
                     lineTotal={firstLineAmount}
+                    options={productOptions}
                     onRemove={hasExtraEggLines ? removeFirstSaleLine : undefined}
                     note={
                       <StockCheckNotice
@@ -1647,7 +1786,7 @@ export default function SalesPage() {
                         product={l.product ?? "Fresh Eggs"}
                         onProductChange={(v) => updateSaleLine(l.key, isEggProduct(v)
                           ? { product: v, quantity: undefined }
-                          : { product: v, crates: 0, loose: 0, eggProductId: null })}
+                          : { product: v, crates: 0, loose: 0, eggProductId: null, unitPrice: byproductPrice(v) ?? l.unitPrice })}
                         classes={eggClasses}
                         eggProductId={l.eggProductId}
                         onClassChange={(v) => updateSaleLine(l.key, { eggProductId: v, unitPrice: classPrice(v) ?? l.unitPrice })}
@@ -1660,6 +1799,7 @@ export default function SalesPage() {
                         unitPrice={l.unitPrice}
                         onUnitPriceChange={(n) => updateSaleLine(l.key, { unitPrice: n })}
                         lineTotal={extraLineTotal(l)}
+                        options={productOptions}
                         onRemove={() => setExtraEggLines(prev => prev.filter((x) => x.key !== l.key))}
                         note={st && (
                           <p className={st.short ? "text-rose-700" : undefined}>
@@ -1734,8 +1874,61 @@ export default function SalesPage() {
               <div className="overflow-hidden rounded-xl border border-green-200">
                 <div className="bg-green-600 px-4 py-2 text-sm font-semibold text-white">Payment</div>
               <div className="space-y-3 bg-green-50/40 p-4">
+                {/* Only when this customer holds credit: money they already
+                    paid, kept for them (e.g. from a reversed sale). */}
+                {creditAvailable > 0 && (
+                  <div className={cn("rounded-lg border px-3 py-2.5", useCredit ? "border-blue-300 bg-blue-50" : "border-slate-200 bg-white")}>
+                    <label className="flex cursor-pointer items-start gap-2.5">
+                      <Checkbox
+                        checked={useCredit}
+                        onCheckedChange={(v) => {
+                          const on = v === true
+                          setUseCredit(on)
+                          if (on) setCreditAmount(Math.round(Math.min(creditAvailable, allLinesAmount) * 100) / 100)
+                        }}
+                        className="mt-0.5"
+                      />
+                      <span className="text-sm">
+                        <span className="flex items-center gap-1.5 font-medium text-slate-900">
+                          <Wallet className="h-4 w-4 text-blue-600" /> Use customer credit
+                        </span>
+                        <span className="block text-xs text-slate-600">
+                          {(formData.customerName ?? "").toString()} has{" "}
+                          <b className="tabular-nums text-blue-700">{formatCurrency(creditAvailable, currencyCode)}</b> of credit.
+                          {" "}No new payment is recorded and no cash moves.
+                        </span>
+                      </span>
+                    </label>
+                    {useCredit && (
+                      <div className="mt-2.5 flex flex-wrap items-end gap-4 pl-6">
+                        <div className="space-y-1">
+                          <Label htmlFor="creditAmount" className="text-xs font-medium text-blue-800">Credit to use</Label>
+                          <NumberInput
+                            id="creditAmount"
+                            className="h-9 w-40 bg-white text-right tabular-nums"
+                            step="0.01"
+                            value={creditAmount ?? ""}
+                            onChange={(e) => setCreditAmount(e.target.value ? Number(e.target.value) : undefined)}
+                            placeholder="0.00"
+                          />
+                        </div>
+                        <div className="text-sm text-blue-900">
+                          {creditCoversAll
+                            ? <>Paid in full from credit.</>
+                            : <>Rest to pay: <b className="tabular-nums">{formatCurrency(restAfterCredit, currencyCode)}</b></>}
+                          {(Number(creditAmount) || 0) > Math.min(creditAvailable, allLinesAmount) + 0.005 && (
+                            <span className="ml-2 text-xs text-red-600">
+                              at most {formatCurrency(Math.min(creditAvailable, allLinesAmount), currencyCode)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {!creditCoversAll && (
                 <div>
-                  <Label className="mb-2 block text-sm">Payment status</Label>
+                  <Label className="mb-2 block text-sm">{creditUsed > 0 ? "The rest" : "Payment status"}</Label>
                   {/* Two big choices rather than small radios: the colour says
                       which one is on (green = cash in now, amber = owed). */}
                   <div className="grid grid-cols-3 gap-2 sm:max-w-lg">
@@ -1780,8 +1973,12 @@ export default function SalesPage() {
                     {partPayment
                       ? "Records what the customer paid now as a payment; the rest stays owed on Customer Balances."
                       : formData.paid === false
-                        ? "Records the full amount as owed — record payments later."
-                        : "Records the sale as fully paid and posts a cash-in."}
+                        ? creditUsed > 0
+                          ? `Records the ${formatCurrency(restAfterCredit, currencyCode)} left after the credit as owed — record payments later.`
+                          : "Records the full amount as owed — record payments later."
+                        : creditUsed > 0
+                          ? `Records the ${formatCurrency(restAfterCredit, currencyCode)} left after the credit as paid and posts a cash-in.`
+                          : "Records the sale as fully paid and posts a cash-in."}
                   </p>
                   {partPayment && (
                     <div className="mt-3 flex flex-wrap items-end gap-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
@@ -1799,15 +1996,22 @@ export default function SalesPage() {
                       <div className="text-sm text-blue-900">
                         Still owed:{" "}
                         <b className="tabular-nums">
-                          {formatCurrency(Math.max(0, allLinesAmount - (Number(partPaidAmount) || 0)), currencyCode)}
+                          {formatCurrency(Math.max(0, restAfterCredit - (Number(partPaidAmount) || 0)), currencyCode)}
                         </b>
-                        {(Number(partPaidAmount) || 0) >= allLinesAmount && allLinesAmount > 0 && (
+                        {(Number(partPaidAmount) || 0) >= restAfterCredit && restAfterCredit > 0 && (
                           <span className="ml-2 text-xs text-red-600">covers the whole sale — choose Paid now</span>
                         )}
                       </div>
                     </div>
                   )}
                 </div>
+                )}
+                {noMoneyNow ? (
+                  <p className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
+                    No money is received now, so there is no payment method or cash account to choose.
+                    {payLater && " When the customer pays, record it from Customer Balances or Payments Received."}
+                  </p>
+                ) : (
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label htmlFor="paymentMethod">Payment method *</Label>
@@ -1843,6 +2047,7 @@ export default function SalesPage() {
                     </Select>
                   </div>
                 </div>
+                )}
               </div>
               </div>
 
@@ -2265,7 +2470,7 @@ export default function SalesPage() {
                           <TableCell>{getFlockLabel(sale.flockId)}</TableCell>
                           <TableCell className="whitespace-nowrap">
                             {sale.quantity}
-                            {sale.product?.toLowerCase().includes("egg") && eggCrateBreakdown(sale.quantity) && (
+                            {isEggProduct(sale.product) && eggCrateBreakdown(sale.quantity) && (
                               // Inline, not `block`: the crate breakdown reads as a
                               // unit of the number it follows, so stacking it made
                               // the row two lines tall for one value.
@@ -2508,7 +2713,7 @@ export default function SalesPage() {
         farmId={getUserContext().farmId}
         currencyCode={currencyCode}
         flockLabel={getFlockLabel}
-        lineLabel={(l) => `${l.product}${(l.product ?? "").toLowerCase().includes("egg") ? ` · ${eggClassLabel(l.eggProductId)} ${eggCrateBreakdown(Number(l.quantity) || 0) ?? l.quantity}` : ` · ${l.quantity}`}`}
+        lineLabel={(l) => `${l.product}${isEggProduct(l.product) ? ` · ${eggClassLabel(l.eggProductId)} ${eggCrateBreakdown(Number(l.quantity) || 0) ?? l.quantity}` : ` · ${l.quantity}`}`}
         canReverse={can("poultry.sales.approve") || can("poultry.sales.delete")}
         onOpenChange={(o) => { if (!o) setViewSale(null) }}
         onSaveNote={saveSaleNote}

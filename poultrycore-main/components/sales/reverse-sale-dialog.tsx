@@ -15,9 +15,9 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { AlertTriangle, CheckCircle2, Loader2, RotateCcw, Undo2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader } from "@/components/ui/dialog"
+import { FORM_DIALOG_CONTENT, FORM_DIALOG_PRIMARY, FormDialogFooter, FormDialogTitle } from "@/components/ui/form-dialog"
+import { FormSection } from "@/components/ui/form-section"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
@@ -49,10 +49,6 @@ interface Props {
   currencyCode: string
   onOpenChange: (open: boolean) => void
   onReversed: (result: ReverseSaleResult) => void
-}
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{children}</p>
 }
 
 function Figure({ label, value, tone }: { label: string; value: string; tone?: "warn" | "good" }) {
@@ -141,12 +137,11 @@ export function ReverseSaleDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!saving) onOpenChange(o) }}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className={cn(FORM_DIALOG_CONTENT, "sm:max-w-2xl")}>
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            {mode === "correct" ? <RotateCcw className="h-5 w-5 text-blue-600" /> : <Undo2 className="h-5 w-5 text-red-600" />}
+          <FormDialogTitle icon={mode === "correct" ? RotateCcw : Undo2} color={mode === "correct" ? "blue" : "red"}>
             {title}
-          </DialogTitle>
+          </FormDialogTitle>
           <DialogDescription>
             {mode === "correct"
               ? "A posted sale is not edited. It is reversed, and a new sale is opened filled in from it for you to fix and save."
@@ -159,7 +154,7 @@ export function ReverseSaleDialog({
         ) : loadError ? (
           <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{loadError}</div>
         ) : preview ? (
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             {staleNotice && (
               <div className="flex gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -174,18 +169,14 @@ export function ReverseSaleDialog({
               </div>
             )}
 
-            <section className="space-y-2">
-              <SectionLabel>The sale</SectionLabel>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <Figure label="Customer" value={preview.customerName || "Walk-in"} />
-                <Figure label="Sale total" value={money(preview.total)} />
-                <Figure label="Paid" value={money(preview.paid)} tone={preview.paid > 0 ? "good" : undefined} />
-                <Figure label="Outstanding" value={money(preview.outstanding)} tone={preview.outstanding > 0 ? "warn" : undefined} />
-              </div>
-            </section>
+            <FormSection title="The sale" color="blue" tinted columns={4}>
+              <Figure label="Customer" value={preview.customerName || "Walk-in"} />
+              <Figure label="Sale total" value={money(preview.total)} />
+              <Figure label="Paid" value={money(preview.paid)} tone={preview.paid > 0 ? "good" : undefined} />
+              <Figure label="Outstanding" value={money(preview.outstanding)} tone={preview.outstanding > 0 ? "warn" : undefined} />
+            </FormSection>
 
-            <section className="space-y-2">
-              <SectionLabel>This reversal will</SectionLabel>
+            <FormSection title="This reversal will" color="amber" tinted columns={1}>
               <ul className="space-y-1 text-sm text-slate-700">
                 <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" /> Reverse the sale's revenue of {money(preview.total)}</li>
                 {restoreLines.length > 0 && (
@@ -199,11 +190,10 @@ export function ReverseSaleDialog({
                 )}
                 <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" /> Keep the sale, its payments and its stock movements in the history</li>
               </ul>
-            </section>
+            </FormSection>
 
             {preview.payments.length > 0 ? (
-              <section className="space-y-2">
-                <SectionLabel>Payment handling</SectionLabel>
+              <FormSection title="Payment handling" color="green" tinted columns={1}>
                 <p className="text-sm text-slate-600">
                   Reversing a sale does not by itself mean the money left the business. Choose what happened to it.
                 </p>
@@ -211,7 +201,7 @@ export function ReverseSaleDialog({
                   const action = effectiveAction(p, handling)
                   const both = p.allowed.includes("KeepAsCredit") && p.allowed.includes("ReversePayment")
                   return (
-                    <div key={p.key} className="space-y-2 rounded-md border p-3">
+                    <div key={p.key} className="space-y-2 rounded-md border bg-white p-3">
                       <div className="flex flex-wrap items-baseline justify-between gap-2">
                         <p className="text-sm font-medium text-slate-900">
                           {p.paymentNumbers || "Money received at the sale"}
@@ -229,21 +219,21 @@ export function ReverseSaleDialog({
                           onValueChange={(v) => setHandling((h) => ({ ...h, [p.key]: v as PaymentAction }))}
                           className="gap-2"
                         >
-                          <label className={cn("flex cursor-pointer gap-2 rounded-md border p-2.5", action === "KeepAsCredit" && "border-blue-400 bg-blue-50/60")}>
-                            <RadioGroupItem value="KeepAsCredit" className="mt-0.5" />
-                            <span className="text-sm">
-                              <span className="font-medium">Keep it as customer credit</span>
-                              <span className="block text-xs text-slate-600">
-                                The money stays received. {money(p.allocated)} becomes credit the customer can use on another sale. The cash account does not change.
-                              </span>
-                            </span>
-                          </label>
                           <label className={cn("flex cursor-pointer gap-2 rounded-md border p-2.5", action === "ReversePayment" && "border-red-300 bg-red-50/60")}>
                             <RadioGroupItem value="ReversePayment" className="mt-0.5" />
                             <span className="text-sm">
                               <span className="font-medium">Reverse the payment</span>
                               <span className="block text-xs text-slate-600">
                                 {p.paymentNumbers ? `Payment ${p.paymentNumbers}` : "The money received"} is reversed. {p.cashAccountName || "Its cash account"} decreases by {money(p.allocated)}, shown in Cash Flow as a payment reversal (not an expense).
+                              </span>
+                            </span>
+                          </label>
+                          <label className={cn("flex cursor-pointer gap-2 rounded-md border p-2.5", action === "KeepAsCredit" && "border-blue-400 bg-blue-50/60")}>
+                            <RadioGroupItem value="KeepAsCredit" className="mt-0.5" />
+                            <span className="text-sm">
+                              <span className="font-medium">Keep it as customer credit</span>
+                              <span className="block text-xs text-slate-600">
+                                The money stays received. {money(p.allocated)} becomes credit the customer can use on another sale. The cash account does not change.
                               </span>
                             </span>
                           </label>
@@ -267,20 +257,19 @@ export function ReverseSaleDialog({
                     <Figure label="Money out of cash" value={money(outcome.cashOut)} tone={outcome.cashOut > 0 ? "warn" : undefined} />
                   </div>
                 )}
-              </section>
+              </FormSection>
             ) : (
               <p className="rounded-md bg-slate-50 p-3 text-sm text-slate-600">
                 Nothing was paid on this sale, so no money moves.
               </p>
             )}
 
-            <section className="space-y-2">
-              <SectionLabel>Reason</SectionLabel>
+            <FormSection title="Reason" color="slate" tinted columns={1}>
               <div className="grid gap-2 sm:grid-cols-[200px_1fr]">
                 <div>
                   <Label className="sr-only">Reason</Label>
                   <Select value={reasonCode} onValueChange={setReasonCode}>
-                    <SelectTrigger><SelectValue placeholder="Choose a reason" /></SelectTrigger>
+                    <SelectTrigger className="w-full bg-white"><SelectValue placeholder="Choose a reason" /></SelectTrigger>
                     <SelectContent>
                       {REVERSAL_REASONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
                     </SelectContent>
@@ -293,25 +282,26 @@ export function ReverseSaleDialog({
                     ? "Say what happened (needed for Other)"
                     : mode === "correct" ? "Note (optional), e.g. price should have been 25 per crate" : "Note (optional)"}
                   rows={2}
+                  className="bg-white"
                 />
               </div>
-            </section>
+            </FormSection>
 
             {error && <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
           </div>
         ) : null}
 
-        <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>
+        <FormDialogFooter onCancel={() => onOpenChange(false)} cancelDisabled={saving}>
           <Button
             onClick={confirm}
             disabled={!canConfirm}
-            className={mode === "correct" ? "bg-blue-600 hover:bg-blue-700" : "bg-red-600 hover:bg-red-700"}
+            className={cn("px-6", FORM_DIALOG_PRIMARY[mode === "correct" ? "blue" : "red"])}
           >
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {mode === "correct" ? "Reverse and correct" : "Reverse sale"}
+            {preview ? ` · ${money(preview.total)}` : ""}
           </Button>
-        </DialogFooter>
+        </FormDialogFooter>
       </DialogContent>
     </Dialog>
   )

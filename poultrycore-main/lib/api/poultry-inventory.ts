@@ -482,6 +482,9 @@ export const ensurePoultryDefaults = () =>
 export interface PoultryStockTransaction {
   poultryStockTransactionId: number; farmId: string; poultryProductId: number; productName?: string | null
   txnType: string; quantity: number; unitCost?: number | null; relatedId?: number | null; note?: string | null; createdDate: string
+  // 373: provenance of manual movements (and the byproducts they made)
+  batchId?: number | null; batchCode?: string | null; flockId?: number | null; flockName?: string | null
+  effectiveDate?: string | null; reason?: string | null; manualMovementId?: number | null; manualReversal?: boolean
 }
 
 export const listPoultryProducts = () =>
@@ -547,6 +550,164 @@ export const listPoultryBirdAdjustments = () =>
 /** quantity is SIGNED; flockId null adjusts the batch's birds not yet placed in a flock. */
 export const postPoultryBirdAdjustment = (input: { batchId: number; flockId: number | null; movementType: string; quantity: number; note?: string | null; createdBy?: string | null }) =>
   jsend<{ birdAdjustmentId: number }>(`/Poultry/stock/birds/adjustments`, "POST", { ...input, farmId: activeFarmId() })
+
+// ===================== Manual stock movements (migration 373) =====================
+// Every movement entered on the Stock page: batch -> flock, effective date and
+// a reason, reversed by appending the opposite. The server checks every link.
+
+/** The reasons the server accepts (fnpoultrymanualmovement_reasons). */
+export const MANUAL_MOVEMENT_REASONS = [
+  "Opening Inventory", "Opening Bird Count", "Historical Mortality", "Historical Production",
+  "Stock Count Correction", "Unrecorded Breakage", "Cull", "Historical Sale / Use", "Disposal",
+  "Transfer Adjustment", "Migration", "Data Correction", "Damage", "Loss", "Other",
+] as const
+export type ManualMovementReason = (typeof MANUAL_MOVEMENT_REASONS)[number]
+
+export interface PoultryManualMovementInput {
+  /** Exactly one of the two. */
+  poultryProductId?: number | null
+  rawMaterialItemId?: number | null
+  movementType: string
+  /** Positive; the movement type gives the direction. */
+  quantity: number
+  unitCost?: number | null
+  batchId?: number | null
+  /** null with a batch = the batch's birds not placed in a flock. */
+  flockId?: number | null
+  /** yyyy-MM-dd business date. */
+  effectiveDate: string
+  reason: string
+  /** Birds + Historical Mortality only. */
+  disposition?: "Keep" | "Disposed" | null
+  note?: string | null
+  requestKey?: string | null
+}
+
+export interface PoultryManualMovementResult {
+  movementId: number
+  movementNo: string
+  repeated: boolean
+  itemBefore?: number | null
+  itemAfter?: number | null
+  farmLiveBirds?: number | null
+}
+
+export interface PoultryManualMovementPreview {
+  isBirds: boolean
+  systemRole: "BrokenEggs" | "DeadBirds" | null
+  isEgg: boolean
+  itemOnHand: number | null
+  flockLiveBirds: number | null
+  unplacedBirds: number | null
+  farmLiveBirds: number
+  deadBirdsOnHand: number
+  brokenEggsOnHand: number
+  businessDate: string
+}
+
+export interface PoultryManualMovement {
+  movementId: number
+  movementNo: string
+  itemKind: "Product" | "Birds" | "RawMaterial"
+  poultryProductId: number | null
+  rawMaterialItemId: number | null
+  itemName: string
+  movementType: string
+  /** Signed. */
+  quantity: number
+  unitCost: number | null
+  batchId: number | null
+  batchCode: string | null
+  flockId: number | null
+  flockName: string | null
+  effectiveDate: string
+  reason: string
+  disposition: "Keep" | "Disposed" | null
+  convertedToBroken: boolean
+  note: string | null
+  itemBefore: number | null
+  itemAfter: number | null
+  birdAdjustmentId: number | null
+  rawAdjustmentId: number | null
+  status: "Posted" | "Reversed"
+  createdBy: string | null
+  createdAt: string
+  reversedAt: string | null
+  reversedBy: string | null
+  reversalReason: string | null
+}
+
+export const listPoultryManualMovements = () =>
+  jget<PoultryManualMovement[]>(`/Poultry/stock/manual-movements?farmId=${encodeURIComponent(activeFarmId())}`)
+export const previewPoultryManualMovement = (q: { productId?: number | null; rawItemId?: number | null; batchId?: number | null; flockId?: number | null }) => {
+  const qs = new URLSearchParams({ farmId: activeFarmId() })
+  if (q.productId) qs.append("productId", String(q.productId))
+  if (q.rawItemId) qs.append("rawItemId", String(q.rawItemId))
+  if (q.batchId) qs.append("batchId", String(q.batchId))
+  if (q.flockId) qs.append("flockId", String(q.flockId))
+  return jget<PoultryManualMovementPreview>(`/Poultry/stock/manual-movements/preview?${qs.toString()}`)
+}
+export const postPoultryManualMovement = (input: PoultryManualMovementInput) =>
+  jsend<PoultryManualMovementResult>(`/Poultry/stock/manual-movements`, "POST", { ...input, farmId: activeFarmId(), createdBy: activeUserId() })
+// 374: whether Broken Eggs / Dead Birds are offered in Add Sale.
+export interface PoultryByproductSettings {
+  brokenEggsInSales: boolean
+  deadBirdsInSales: boolean
+  cutoverAt?: string | null
+}
+export const getPoultryByproductSettings = () =>
+  jget<PoultryByproductSettings>(`/Poultry/stock/byproduct-settings?farmId=${encodeURIComponent(activeFarmId())}`)
+export const setPoultryByproductSettings = (input: { brokenEggsInSales?: boolean; deadBirdsInSales?: boolean }) =>
+  jsend<PoultryByproductSettings>(`/Poultry/stock/byproduct-settings`, "PUT", { ...input, farmId: activeFarmId() })
+
+// Broken Eggs / Dead Birds trackers: on hand now, the period by flock (pooled
+// entries on a row with no flock), and every movement in the period.
+export type ByproductRole = "BrokenEggs" | "DeadBirds"
+export type ByproductMovementCategory = "Generated" | "Sold" | "Disposed" | "InternalUse" | "ManualIn" | "ManualOut" | "Reversal"
+export interface ByproductTrackerFlockRow {
+  flockId: number | null
+  flockName: string | null
+  batchCode: string | null
+  opening: number
+  generated: number
+  sold: number
+  disposed: number
+  internalUse: number
+  manualIn: number
+  manualOut: number
+  reversals: number
+  closing: number
+  revenue: number
+}
+export interface ByproductTrackerMovement {
+  txnId: number
+  date: string
+  category: ByproductMovementCategory | string
+  txnType: string
+  quantity: number
+  flockId: number | null
+  flockName: string | null
+  batchCode: string | null
+  saleId: number | null
+  revenue: number
+  manualMovementId: number | null
+  movementNo: string | null
+  note: string | null
+}
+export interface ByproductTracker {
+  role: ByproductRole
+  onHand: number
+  flocks: ByproductTrackerFlockRow[]
+  movements: ByproductTrackerMovement[]
+}
+export const getByproductTracker = (role: ByproductRole, opts: { fromDate: string; toDate: string; flockId?: number | null }) => {
+  const q = new URLSearchParams({ farmId: activeFarmId(), role, fromDate: opts.fromDate, toDate: opts.toDate })
+  if (opts.flockId) q.set("flockId", String(opts.flockId))
+  return jget<ByproductTracker>(`/Poultry/stock/byproduct-tracker?${q.toString()}`)
+}
+
+export const reversePoultryManualMovement = (movementId: number, reason: string) =>
+  jsend<{ movementId: number; movementNo: string; status: string }>(`/Poultry/stock/manual-movements/${movementId}/reverse`, "POST", { farmId: activeFarmId(), reason, reversedBy: activeUserId() })
 
 // ===================== Recipes (slice 3) =====================
 export interface PoultryRecipeItem {

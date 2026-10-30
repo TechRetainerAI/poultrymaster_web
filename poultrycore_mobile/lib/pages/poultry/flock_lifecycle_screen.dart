@@ -15,6 +15,7 @@ import 'sales/balances_logic.dart' show pageSlice;
 import 'sales/balances_widgets.dart';
 import 'trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import 'trackers/tracker_widgets.dart';
+import '../shared/reason_select.dart';
 
 /// Poultry → Tools → Flock Lifecycle, as `app/poultry-lifecycle/page.tsx`
 /// (migration 347): reminders for the milestones the FARM defines, worked out
@@ -194,6 +195,7 @@ class _FlockLifecycleScreenState extends State<FlockLifecycleScreen> {
         title: 'Skip "${tStr(t['title'])}"?',
         description: "${tStr(t['flockName'])}. The reason is kept in the task's history.",
         label: 'Why is it being skipped?',
+        options: skipReasons,
         confirmLabel: 'Skip task',
         onSubmit: (note) async {
           try {
@@ -219,6 +221,7 @@ class _FlockLifecycleScreenState extends State<FlockLifecycleScreen> {
         description: 'It goes back to the list with its current status. The earlier completion stays in the history.',
         label: 'Note (optional)',
         allowEmpty: true,
+        options: taskReopenReasons,
         confirmLabel: 'Reopen',
         onSubmit: (note) async {
           try {
@@ -810,12 +813,16 @@ class LifecyclePromptDialog extends StatefulWidget {
     required this.confirmLabel,
     required this.onSubmit,
     this.allowEmpty = false,
+    this.options,
   });
   final String title;
   final String? description;
   final String label, confirmLabel;
   final bool allowEmpty;
   final Future<void> Function(String value) onSubmit;
+
+  /// PromptDialog `options`: picked from this list; "Other" opens the box.
+  final List<String>? options;
 
   @override
   State<LifecyclePromptDialog> createState() => _LifecyclePromptDialogState();
@@ -825,6 +832,7 @@ class _LifecyclePromptDialogState extends State<LifecyclePromptDialog> {
   final _text = TextEditingController();
   String? _error;
   bool _busy = false;
+  String _choice = '';
 
   @override
   void dispose() {
@@ -833,8 +841,9 @@ class _LifecyclePromptDialogState extends State<LifecyclePromptDialog> {
   }
 
   Future<void> _go() async {
-    final v = _text.text.trim();
-    if (!widget.allowEmpty && v.isEmpty) return setState(() => _error = '${widget.label} is required.');
+    final r = promptReasonValue(widget.options, _choice, _text.text, label: widget.label, allowEmpty: widget.allowEmpty);
+    if (r.error != null) return setState(() => _error = r.error);
+    final v = r.value!;
     setState(() {
       _busy = true;
       _error = null;
@@ -863,7 +872,20 @@ class _LifecyclePromptDialogState extends State<LifecyclePromptDialog> {
               ],
               Text(widget.label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
               const SizedBox(height: 6),
-              AppTextarea(controller: _text, rows: 4),
+              if (widget.options != null)
+                AppSelect<String>(
+                  value: _choice.isEmpty ? null : _choice,
+                  hintText: 'Select a reason',
+                  items: [for (final o in widget.options!) AppSelectItem(value: o, label: o)],
+                  onChanged: (v) => setState(() {
+                    _choice = v ?? '';
+                    _error = null;
+                  }),
+                ),
+              if (widget.options == null || _choice == 'Other') ...[
+                if (widget.options != null) const SizedBox(height: 8),
+                AppTextarea(controller: _text, rows: 4),
+              ],
               if (_error != null) ...[
                 const SizedBox(height: 6),
                 Text(_error!, style: const TextStyle(fontSize: 13, color: TColors.rose700)),

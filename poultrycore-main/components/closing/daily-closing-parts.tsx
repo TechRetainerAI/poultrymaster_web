@@ -70,7 +70,7 @@ export function ClosingSections({ ws, fmt }: { ws: ClosingWorkspace; fmt: Money 
   const inventoryIssues = inv.lowFeed.length + inv.lowStock.length + inv.negativeStock.length
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
       <Section title="Production">
         <Stat
           label="Production records"
@@ -180,36 +180,83 @@ const STATUS_STYLE = {
   block: { icon: Ban, cls: "text-rose-600" },
 } as const
 
-/** CLOSING CHECKLIST — blocking first, then warnings, then complete (server order). */
-export function ClosingChecklist({ checks, businessDate }: { checks: ClosingCheck[]; businessDate: string }) {
+// The checklist is split into side-by-side columns (Must fix / Warnings /
+// Complete) so every alert is in view on arrival, not below a long list.
+const CHECK_COLUMNS = [
+  { status: "Blocking", title: "Must fix", empty: "Nothing blocking.", box: "border-rose-200 bg-rose-50/50", head: "text-rose-700" },
+  { status: "Warning", title: "Warnings", empty: "No warnings.", box: "border-amber-200 bg-amber-50/50", head: "text-amber-800" },
+  { status: "Complete", title: "Complete", empty: "Nothing complete yet.", box: "border-emerald-200 bg-emerald-50/40", head: "text-emerald-700" },
+] as const
+
+/**
+ * CLOSING CHECKLIST — blocking, warnings, complete (server order within each).
+ * "columns" puts the three side by side; "stack" (the page's side panel) stacks
+ * them and folds Complete away so the alerts stay short.
+ */
+export function ClosingChecklist({
+  checks, businessDate, layout = "columns",
+}: { checks: ClosingCheck[]; businessDate: string; layout?: "columns" | "stack" }) {
   return (
-    <ul className="divide-y divide-slate-100">
-      {checks.map((c) => {
-        const s = STATUS_STYLE[checkIcon(c.status)]
-        const href = c.status === "Complete" ? null : closingActionHref(c.action, businessDate)
+    <div className={cn("grid grid-cols-1 gap-3", layout === "columns" && "md:grid-cols-3")}>
+      {CHECK_COLUMNS.map((col) => {
+        const items = checks.filter((c) => c.status === col.status)
+        if (layout === "stack" && col.status === "Complete") {
+          return (
+            <details key={col.status} className={cn("rounded-lg border p-3", col.box)}>
+              <summary className={cn("cursor-pointer text-xs font-semibold uppercase tracking-wider", col.head)}>
+                {col.title} ({items.length})
+              </summary>
+              <ul className="mt-1 divide-y divide-slate-200/70">
+                {items.map((c) => (
+                  <li key={c.key} className="flex items-start gap-2 py-1.5 text-sm text-slate-600">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" aria-label={c.status} />
+                    {c.title}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )
+        }
         return (
-          <li key={c.key} className="flex items-start justify-between gap-3 py-2">
-            <div className="flex min-w-0 items-start gap-2">
-              <s.icon className={cn("mt-0.5 h-4 w-4 shrink-0", s.cls)} aria-label={c.status} />
-              <div className="min-w-0">
-                <p className={cn("text-sm", c.status === "Complete" ? "text-slate-600" : "font-medium text-slate-900")}>
-                  {c.title}
-                  <span className="ml-2 text-[11px] font-normal uppercase tracking-wide text-slate-400">
-                    {SECTION_LABELS[c.section] ?? c.section}
-                  </span>
-                </p>
-                {c.description && <p className="text-xs text-slate-500">{c.description}</p>}
-              </div>
-            </div>
-            {href && (
-              <Link href={href} className="shrink-0 text-sm font-medium text-sky-700 hover:underline">
-                {c.status === "Blocking" ? "Resolve" : "Review"}
-              </Link>
+          <div key={col.status} className={cn("rounded-lg border p-3", col.box)}>
+            <h3 className={cn("mb-1 text-xs font-semibold uppercase tracking-wider", col.head)}>
+              {col.title} ({items.length})
+            </h3>
+            {items.length === 0 ? (
+              <p className="py-1 text-sm text-slate-500">{col.empty}</p>
+            ) : (
+              <ul className="divide-y divide-slate-200/70">
+                {items.map((c) => {
+                  const s = STATUS_STYLE[checkIcon(c.status)]
+                  const href = c.status === "Complete" ? null : closingActionHref(c.action, businessDate)
+                  return (
+                    <li key={c.key} className="flex items-start justify-between gap-2 py-2">
+                      <div className="flex min-w-0 items-start gap-2">
+                        <s.icon className={cn("mt-0.5 h-4 w-4 shrink-0", s.cls)} aria-label={c.status} />
+                        <div className="min-w-0">
+                          <p className={cn("text-sm", c.status === "Complete" ? "text-slate-600" : "font-medium text-slate-900")}>
+                            {c.title}
+                          </p>
+                          <p className="text-[11px] uppercase tracking-wide text-slate-400">
+                            {SECTION_LABELS[c.section] ?? c.section}
+                          </p>
+                          {c.description && <p className="text-xs text-slate-500">{c.description}</p>}
+                        </div>
+                      </div>
+                      {href && (
+                        <Link href={href} className="shrink-0 text-sm font-medium text-sky-700 hover:underline">
+                          {c.status === "Blocking" ? "Resolve" : "Review"}
+                        </Link>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
             )}
-          </li>
+          </div>
         )
       })}
-    </ul>
+    </div>
   )
 }
 

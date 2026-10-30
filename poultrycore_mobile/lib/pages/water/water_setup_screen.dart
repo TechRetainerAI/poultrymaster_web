@@ -154,9 +154,9 @@ final _tabs = <_Tab>[
     ],
   ),
   _Tab(
-    key: 'raw-materials', label: 'Raw materials & supplies', icon: Icons.inventory_2_outlined,
+    key: 'raw-materials', label: 'Inventory & supply purchases', icon: Icons.inventory_2_outlined,
     path: '/api/Water/raw-material-items', idKey: 'waterRawMaterialItemId', title: (i) => '${i['itemName'] ?? ''}',
-    page: const NavLink('Raw materials & supplies', '/water-raw-materials', 'water-raw-material-purchases'),
+    page: const NavLink('Inventory & supply purchases', '/water-supply-purchases', 'water-raw-material-purchases'),
     columns: [
       ('Item', (i, _) => _dash(i['itemName'])),
       ('Category', (i, _) => _dash(i['category'])),

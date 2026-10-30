@@ -18,7 +18,9 @@ import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
-import { Plus, Pencil, Loader2, UserCog, CalendarCheck, Trash2 } from "lucide-react"
+import { Plus, Pencil, Loader2, UserCog, CalendarCheck, Trash2, KeyRound } from "lucide-react"
+import { useStaffEmployeeLink } from "@/hooks/use-staff-employee-link"
+import { EmployeeBadge } from "@/components/employees/link-badges"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -60,6 +62,17 @@ export default function PoultryStaffPage() {
   const [saving, setSaving] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<PoultryStaff | null>(null)
 
+  // Employee link (362): opened from Employees -> prefilled New staff form.
+  const link = useStaffEmployeeLink({
+    onFromEmployee: (p) => {
+      setEditId(null)
+      setForm({ ...emptyForm, firstName: p.firstName, lastName: p.lastName, phoneNumber: p.phoneNumber ?? "", email: p.email ?? "" })
+      setOpen(true)
+    },
+  })
+  const makeEmployee = (s: PoultryStaff) =>
+    link.makeEmployee(s.poultryStaffId, { firstName: s.firstName, lastName: s.lastName, phoneNumber: s.phoneNumber, email: s.email })
+
   const [attDlg, setAttDlg] = useState<{ open: boolean; staff?: PoultryStaff }>({ open: false })
   const [att, setAtt] = useState({ attendanceDate: today(), status: "Present", shift: "", notes: "" })
   const [attSaving, setAttSaving] = useState(false)
@@ -77,7 +90,7 @@ export default function PoultryStaffPage() {
     finally { setLoading(false) }
   }
 
-  function openNew() { setEditId(null); setForm({ ...emptyForm }); setOpen(true) }
+  function openNew() { link.clearPending(); setEditId(null); setForm({ ...emptyForm }); setOpen(true) }
   function openEdit(s: PoultryStaff) {
     setEditId(s.poultryStaffId)
     setForm({
@@ -98,7 +111,7 @@ export default function PoultryStaffPage() {
         commissionRate: Number(form.commissionRate) || null, isActive: form.isActive, notes: form.notes || null,
       }
       if (editId) { await updatePoultryStaff(editId, payload); toast({ title: "Staff updated" }) }
-      else { await createPoultryStaff(payload); toast({ title: "Staff added" }) }
+      else { const created = await createPoultryStaff(payload); toast({ title: "Staff added" }); await link.linkCreated(created?.poultryStaffId) }
       setOpen(false); await load()
     } catch (e: any) { toast({ title: "Save failed", description: e?.message, variant: "destructive" }) }
     finally { setSaving(false) }
@@ -156,7 +169,7 @@ export default function PoultryStaffPage() {
                   pagination={pg.paginationProps}
                   getKey={(s) => s.poultryStaffId}
                   primary={(s) => `${s.firstName} ${s.lastName}`}
-                  secondary={(s) => (<><span>{s.role}</span>{s.isActive ? <Badge className="bg-green-100 text-green-700">Active</Badge> : <Badge variant="outline">Inactive</Badge>}</>)}
+                  secondary={(s) => (<><span>{s.role}</span>{link.isEmployee(s.poultryStaffId) && <EmployeeBadge />}{s.isActive ? <Badge className="bg-green-100 text-green-700">Active</Badge> : <Badge variant="outline">Inactive</Badge>}</>)}
                   details={(s) => [
                     { label: "Role", value: s.role },
                     { label: "Salary type", value: s.salaryType },
@@ -167,6 +180,9 @@ export default function PoultryStaffPage() {
                     <>
                       <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => openAttendance(s)}><CalendarCheck className="h-4 w-4 mr-1" /> Attendance</Button>
                       <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => openEdit(s)}>Edit</Button>
+                      {!link.isEmployee(s.poultryStaffId) && (
+                        <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => makeEmployee(s)}><KeyRound className="h-4 w-4 mr-1" /> Make employee</Button>
+                      )}
                       <Button size="sm" variant="outline" className="flex-1 h-10 text-red-600 border-red-200" onClick={() => setDeleteTarget(s)}><Trash2 className="h-4 w-4 mr-1" /> Delete</Button>
                     </>
                   )}
@@ -187,7 +203,7 @@ export default function PoultryStaffPage() {
                         <TableBody>
                           {pg.pageItems.map((s) => (
                             <TableRow key={s.poultryStaffId}>
-                              <TableCell className="font-medium">{s.firstName} {s.lastName}</TableCell>
+                              <TableCell className="font-medium">{s.firstName} {s.lastName}{link.isEmployee(s.poultryStaffId) && <EmployeeBadge className="ml-2" />}</TableCell>
                               <TableCell>{s.role}</TableCell>
                               <TableCell>{s.salaryType}</TableCell>
                               <TableCell className="text-right tabular-nums">{s.basePay.toFixed(2)}</TableCell>
@@ -196,6 +212,9 @@ export default function PoultryStaffPage() {
                               <TableCell className="text-right">
                                 <Button size="sm" variant="ghost" onClick={() => openAttendance(s)} title="Record attendance"><CalendarCheck className="h-4 w-4" /></Button>
                                 <Button size="sm" variant="ghost" onClick={() => openEdit(s)}>Edit</Button>
+                                {!link.isEmployee(s.poultryStaffId) && (
+                                  <Button size="sm" variant="ghost" onClick={() => makeEmployee(s)} title="Make employee (give a login)"><KeyRound className="h-4 w-4" /></Button>
+                                )}
                                 <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(s)} title="Remove staff"><Trash2 className="h-4 w-4 text-red-500" /></Button>
                               </TableCell>
                             </TableRow>
@@ -292,6 +311,8 @@ export default function PoultryStaffPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {link.dialog}
 
       <ConfirmDeleteDialog
         open={!!deleteTarget}

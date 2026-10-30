@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
+using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Controllers
@@ -86,10 +87,19 @@ namespace PoultryFarmAPIWeb.Controllers
             if (!ModelState.IsValid) return BadRequest(ModelState);
             if (string.IsNullOrWhiteSpace(r.FarmId)) return BadRequest("Company ID is required.");
             if (r.PartyId is null or 0) return BadRequest("A customer is required to receive a payment.");
-            if (r.Allocations.Count == 0) return BadRequest("Select at least one sale to apply this payment to.");
-
-            var groupId = await _svc.RecordCustomerPayment(r);
-            return Ok(new { paymentId = groupId });
+            // 367: a payment need not be applied in full -- what is left is kept
+            // as the customer's credit, and a payment with no sale is an advance.
+            // The database needs a cash account for that part.
+            if (r.ExcludeFromPL && !await CanSetPL()) return PLForbidden();
+            try
+            {
+                var groupId = await _svc.RecordCustomerPayment(r);
+                return Ok(new { paymentId = groupId });
+            }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001")
+            {
+                return BadRequest(new { message = ex.MessageText });
+            }
         }
 
         [HttpPost("customer-payments/{paymentId:guid}/reverse")]
@@ -99,6 +109,34 @@ namespace PoultryFarmAPIWeb.Controllers
             var count = await _svc.ReverseCustomerPayment(r.FarmId, paymentId, r.Reason, r.ReversedBy);
             return Ok(new { reversedAllocations = count });
         }
+
+        // 382: a payment on a customer debt is revenue unless the owner / an admin excludes it.
+        [HttpPost("customer-payments/{paymentId:guid}/pl-exclusion")]
+        [SetupAdminOnly]
+        public async Task<ActionResult> SetCustomerPaymentPLExclusion(Guid paymentId, [FromBody] PLExclusionRequest r)
+        {
+            if (string.IsNullOrWhiteSpace(r.FarmId)) return BadRequest("Company ID is required.");
+            try
+            {
+                await _svc.SetCustomerPaymentPLExclusion(r.FarmId, paymentId, r.Exclude, Me());
+                return Ok(new { paymentId, excludedFromPL = r.Exclude });
+            }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001")
+            {
+                return BadRequest(new { message = ex.MessageText });
+            }
+        }
+
+        private async Task<bool> CanSetPL()
+        {
+            var me = Me();
+            return !string.IsNullOrWhiteSpace(me) && await SetupAdminOnlyAttribute.IsSetupAdminAsync(HttpContext, me);
+        }
+
+        private ObjectResult PLForbidden() => StatusCode(403, new
+        {
+            message = "Only the account owner or an admin can keep a payment off Profit & Loss.",
+        });
 
         [HttpGet("customer-payments")]
         public async Task<ActionResult<IEnumerable<PaymentHistoryRow>>> GetCustomerPayments(
@@ -183,11 +221,124 @@ namespace PoultryFarmAPIWeb.Controllers
             }
         }
 
+        // 367: reversing a refund puts money back into the account and the credit
+        // back on the customer -- owner / admin only, like manual credit.
+        [HttpPost("customer-payments/refunds/{refundId:int}/reverse")]
+        [SetupAdminOnly]
+        public async Task<ActionResult> ReverseCustomerRefund(int refundId, [FromBody] CustomerRefundReverseRequest r)
+        {
+            if (r is null || string.IsNullOrWhiteSpace(r.FarmId)) return BadRequest(new { message = "Company ID is required." });
+            if (string.IsNullOrWhiteSpace(r.Reason)) return BadRequest(new { message = "Give a reason for reversing the refund." });
+            r.ReversedBy = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? r.ReversedBy;
+            try
+            {
+                return Ok(new { refundId = await _svc.ReverseCustomerRefund(refundId, r) });
+            }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001")
+            {
+                return BadRequest(new { message = ex.MessageText });
+            }
+        }
+
+        // 369: customer debt -- owed without a sale. Recording or reversing one is
+        // the owner's / an admin's call, like manual credit.
+        [HttpGet("customer-debts")]
+        public async Task<ActionResult<IEnumerable<CustomerDebtRow>>> GetCustomerDebts([FromQuery] string farmId, [FromQuery] int? customerId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest(new { message = "Company ID is required." });
+            return Ok(await _svc.GetCustomerDebts(farmId, customerId));
+        }
+
+        [HttpPost("customer-debts")]
+        [SetupAdminOnly]
+        public async Task<ActionResult> CreateCustomerDebt([FromBody] CustomerDebtRequest r)
+        {
+            if (r is null || string.IsNullOrWhiteSpace(r.FarmId)) return BadRequest(new { message = "Company ID is required." });
+            if (string.IsNullOrWhiteSpace(r.Description)) return BadRequest(new { message = "Describe what the debt is for." });
+            r.CreatedBy = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? r.CreatedBy;
+            try
+            {
+                return Content(await _svc.CreateCustomerDebt(r), "application/json");
+            }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001")
+            {
+                return BadRequest(new { message = ex.MessageText });
+            }
+        }
+
+        [HttpPost("customer-debts/{debtId:int}/reverse")]
+        [SetupAdminOnly]
+        public async Task<ActionResult> ReverseCustomerDebt(int debtId, [FromBody] CustomerDebtReverseRequest r)
+        {
+            if (r is null || string.IsNullOrWhiteSpace(r.FarmId)) return BadRequest(new { message = "Company ID is required." });
+            if (string.IsNullOrWhiteSpace(r.Reason)) return BadRequest(new { message = "Give a reason for reversing the debt." });
+            r.ReversedBy = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? r.ReversedBy;
+            try
+            {
+                return Ok(new { debtId = await _svc.ReverseCustomerDebt(debtId, r) });
+            }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001")
+            {
+                return BadRequest(new { message = ex.MessageText });
+            }
+        }
+
+        [HttpGet("customer-payments/credit/events")]
+        public async Task<ActionResult<IEnumerable<CustomerCreditEventRow>>> GetCustomerCreditEvents([FromQuery] string farmId, [FromQuery] int? customerId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest(new { message = "Company ID is required." });
+            return Ok(await _svc.GetCustomerCreditEvents(farmId, customerId));
+        }
+
         [HttpGet("customer-payments/refunds")]
         public async Task<ActionResult<IEnumerable<CustomerRefundRow>>> GetCustomerRefunds([FromQuery] string farmId, [FromQuery] int? customerId)
         {
             if (string.IsNullOrWhiteSpace(farmId)) return BadRequest(new { message = "Company ID is required." });
             return Ok(await _svc.GetCustomerRefunds(farmId, customerId));
+        }
+
+        // 363: credit created by hand. Owner / admin only, like Setup: a typed-in
+        // credit could otherwise pay for goods nobody paid for.
+
+        [HttpGet("customer-payments/credit/manual")]
+        public async Task<ActionResult<IEnumerable<ManualCreditRow>>> GetManualCredits([FromQuery] string farmId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest(new { message = "Company ID is required." });
+            return Ok(await _svc.GetManualCredits(farmId));
+        }
+
+        [HttpPost("customer-payments/credit/manual")]
+        [SetupAdminOnly]
+        public async Task<ActionResult> CreateManualCredit([FromBody] ManualCreditRequest r)
+        {
+            if (r is null || string.IsNullOrWhiteSpace(r.FarmId)) return BadRequest(new { message = "Company ID is required." });
+            if (string.IsNullOrWhiteSpace(r.Reason)) return BadRequest(new { message = "Give a reason for the credit." });
+            r.CreatedBy = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? r.CreatedBy;
+            try
+            {
+                return Content(await _svc.CreateManualCredit(r), "application/json");
+            }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001")
+            {
+                return BadRequest(new { message = ex.MessageText });
+            }
+        }
+
+        [HttpPost("customer-payments/credit/manual/{paymentGroupId:guid}/reverse")]
+        [SetupAdminOnly]
+        public async Task<ActionResult> ReverseManualCredit(Guid paymentGroupId, [FromBody] ManualCreditReverseRequest r)
+        {
+            if (r is null || string.IsNullOrWhiteSpace(r.FarmId)) return BadRequest(new { message = "Company ID is required." });
+            if (string.IsNullOrWhiteSpace(r.Reason)) return BadRequest(new { message = "Give a reason for reversing the credit." });
+            r.ReversedBy = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? r.ReversedBy;
+            try
+            {
+                return Ok(new { reversed = await _svc.ReverseManualCredit(paymentGroupId, r) });
+            }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001")
+            {
+                return BadRequest(new { message = ex.MessageText });
+            }
         }
 
         // ------------------------------------------------------ supplier balances
@@ -224,10 +375,129 @@ namespace PoultryFarmAPIWeb.Controllers
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
             if (string.IsNullOrWhiteSpace(r.FarmId)) return BadRequest("Company ID is required.");
-            if (r.Allocations.Count == 0) return BadRequest("Select at least one purchase to apply this payment to.");
+            // 370: a payment need not be applied in full -- the rest is the
+            // supplier's credit, and a payment applied to nothing is an advance.
+            if (r.ExcludeFromPL && !await CanSetPL()) return PLForbidden();
+            try
+            {
+                var id = await _svc.RecordSupplierPayment(r);
+                return Ok(new { paymentId = id });
+            }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001")
+            {
+                return BadRequest(new { message = ex.MessageText });
+            }
+        }
 
-            var id = await _svc.RecordSupplierPayment(r);
-            return Ok(new { paymentId = id });
+        // ------------------------------------------------- 370 supplier credit
+        // Reading, paying an advance (through supplier-payments), applying and
+        // a supplier refund need the supplier-payment right; anything added by
+        // hand, and every reversal or unapply, is the owner's / an admin's call.
+
+        private string? Me() => User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        private async Task<ActionResult> Run(Func<Task<object>> f)
+        {
+            try { return Ok(await f()); }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001") { return BadRequest(new { message = ex.MessageText }); }
+        }
+
+        [HttpGet("supplier-credits")]
+        public async Task<ActionResult<IEnumerable<SupplierCreditSummaryRow>>> GetSupplierCredits([FromQuery] string farmId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest(new { message = "Company ID is required." });
+            return Ok(await _svc.GetSupplierCreditSummary(farmId));
+        }
+
+        [HttpGet("supplier-credits/events")]
+        public async Task<ActionResult<IEnumerable<SupplierCreditEventRow>>> GetSupplierCreditEvents([FromQuery] string farmId, [FromQuery] int? supplierId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest(new { message = "Company ID is required." });
+            return Ok(await _svc.GetSupplierCreditEvents(farmId, supplierId));
+        }
+
+        [HttpGet("supplier-credits/applications")]
+        public async Task<ActionResult<IEnumerable<SupplierCreditApplicationRow>>> GetSupplierCreditApplications([FromQuery] string farmId, [FromQuery] int? supplierId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest(new { message = "Company ID is required." });
+            return Ok(await _svc.GetSupplierCreditApplications(farmId, supplierId));
+        }
+
+        [HttpPost("supplier-credits/manual")]
+        [SetupAdminOnly]
+        public Task<ActionResult> CreateSupplierCredit([FromBody] SupplierCreditCreateRequest r)
+        {
+            r.CreatedBy = Me() ?? r.CreatedBy;
+            return Run(async () => new { paymentId = await _svc.CreateSupplierCredit(r) });
+        }
+
+        [HttpPost("supplier-credits/{paymentId:int}/reverse")]
+        [SetupAdminOnly]
+        public Task<ActionResult> ReverseSupplierCredit(int paymentId, [FromBody] SupplierReasonRequest r)
+        {
+            r.By = Me() ?? r.By;
+            return Run(async () => new { reversed = await _svc.ReverseSupplierCredit(paymentId, r) });
+        }
+
+        [HttpPost("supplier-credits/apply")]
+        public Task<ActionResult> ApplySupplierCredit([FromBody] SupplierCreditApplyRequest r)
+        {
+            r.CreatedBy = Me() ?? r.CreatedBy;
+            return Run(async () => new { allocationId = await _svc.ApplySupplierCredit(r) });
+        }
+
+        [HttpPost("supplier-credits/applications/{allocationId:int}/reverse")]
+        [SetupAdminOnly]
+        public Task<ActionResult> UnapplySupplierCredit(int allocationId, [FromBody] SupplierReasonRequest r)
+        {
+            r.By = Me() ?? r.By;
+            return Run(async () => new { allocationId = await _svc.UnapplySupplierCredit(allocationId, r) });
+        }
+
+        [HttpGet("supplier-credits/refunds")]
+        public async Task<ActionResult<IEnumerable<SupplierRefundRow>>> GetSupplierRefunds([FromQuery] string farmId, [FromQuery] int? supplierId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest(new { message = "Company ID is required." });
+            return Ok(await _svc.GetSupplierRefunds(farmId, supplierId));
+        }
+
+        [HttpPost("supplier-credits/refunds")]
+        public Task<ActionResult> RecordSupplierRefund([FromBody] SupplierRefundRequest r)
+        {
+            r.CreatedBy = Me() ?? r.CreatedBy;
+            return Run(async () => new { refundId = await _svc.RecordSupplierRefund(r) });
+        }
+
+        [HttpPost("supplier-credits/refunds/{refundId:int}/reverse")]
+        [SetupAdminOnly]
+        public Task<ActionResult> ReverseSupplierRefund(int refundId, [FromBody] SupplierReasonRequest r)
+        {
+            r.By = Me() ?? r.By;
+            return Run(async () => new { refundId = await _svc.ReverseSupplierRefund(refundId, r) });
+        }
+
+        [HttpGet("supplier-debts")]
+        public async Task<ActionResult<IEnumerable<SupplierDebtRow>>> GetSupplierDebts([FromQuery] string farmId, [FromQuery] int? supplierId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest(new { message = "Company ID is required." });
+            return Ok(await _svc.GetSupplierDebts(farmId, supplierId));
+        }
+
+        [HttpPost("supplier-debts")]
+        [SetupAdminOnly]
+        public async Task<ActionResult> CreateSupplierDebt([FromBody] SupplierDebtRequest r)
+        {
+            r.CreatedBy = Me() ?? r.CreatedBy;
+            try { return Content(await _svc.CreateSupplierDebt(r), "application/json"); }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001") { return BadRequest(new { message = ex.MessageText }); }
+        }
+
+        [HttpPost("supplier-debts/{debtId:int}/reverse")]
+        [SetupAdminOnly]
+        public Task<ActionResult> ReverseSupplierDebt(int debtId, [FromBody] SupplierReasonRequest r)
+        {
+            r.By = Me() ?? r.By;
+            return Run(async () => new { debtId = await _svc.ReverseSupplierDebt(debtId, r) });
         }
 
         [HttpPost("supplier-payments/{paymentId:int}/reverse")]
@@ -237,6 +507,16 @@ namespace PoultryFarmAPIWeb.Controllers
             var count = await _svc.ReverseSupplierPayment(r.FarmId, paymentId, r.Reason, r.ReversedBy);
             return Ok(new { reversedAllocations = count });
         }
+
+        // 382: a payment on a supplier debt is an operating expense unless the owner / an admin excludes it.
+        [HttpPost("supplier-payments/{paymentId:int}/pl-exclusion")]
+        [SetupAdminOnly]
+        public Task<ActionResult> SetSupplierPaymentPLExclusion(int paymentId, [FromBody] PLExclusionRequest r)
+            => Run(async () =>
+            {
+                await _svc.SetSupplierPaymentPLExclusion(r.FarmId, paymentId, r.Exclude, Me());
+                return new { paymentId, excludedFromPL = r.Exclude };
+            });
 
         [HttpGet("supplier-payments")]
         public async Task<ActionResult<IEnumerable<PaymentHistoryRow>>> GetSupplierPayments(

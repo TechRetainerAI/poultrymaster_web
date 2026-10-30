@@ -10,6 +10,7 @@
 //   * /water-expenses Source column → Payroll #{id} link
 //     (components/water/expense-source-link.tsx already routes here)
 
+import { REOPEN_REASONS } from "@/lib/reversal-reasons"
 import { useEffect, useMemo, useState } from "react"
 import { useRouter, useParams } from "next/navigation"
 import Link from "next/link"
@@ -351,6 +352,7 @@ export default function WaterPayrollDetailsPage() {
         open={unapproveOpen}
         onOpenChange={setUnapproveOpen}
         title="Reopen payroll run"
+        options={REOPEN_REASONS}
         description={run ? `Run ${period} will be reopened. The linked payroll expense will be reversed${run.status === "Paid" ? " and the cash account refunded" : ""}.` : ""}
         label="Reason *"
         placeholder="e.g. wrong amount for Kofi, missed bonus, correcting period…"

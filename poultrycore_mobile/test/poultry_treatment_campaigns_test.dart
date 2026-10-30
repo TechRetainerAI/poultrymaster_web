@@ -241,7 +241,7 @@ void main() {
     expect(find.textContaining('“Morning water”'), findsOneWidget);
     expect(find.text('1 L (suggested 1 L) · GHC 20.00'), findsOneWidget);
     await tapText(tester, 'Reverse');
-    await tester.enterText(find.byType(TextField).last, 'Wrong day');
+    await reasonOther(tester, 'Wrong day');
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Reverse'));
     await tester.pumpAndSettle();
@@ -261,7 +261,7 @@ void main() {
 
     await tester.tap(find.text('Cancel campaign').first);
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField).last, 'Vet stopped it');
+    await reasonOther(tester, 'Vet stopped it');
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Cancel campaign'));
     await tester.pumpAndSettle();

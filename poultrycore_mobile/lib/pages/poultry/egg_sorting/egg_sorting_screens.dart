@@ -28,6 +28,7 @@ import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../trackers/tracker_widgets.dart';
 import 'egg_sorting_logic.dart';
 import 'egg_sorting_widgets.dart';
+import '../../shared/reason_select.dart' show stockReversalReasons;
 
 typedef PickLabels = ({String first, String second, String third, String fourth, String fifth, String sixth});
 
@@ -347,6 +348,7 @@ class _EggSortingWorkspaceScreenState extends State<EggSortingWorkspaceScreen> {
     final reason = await showReasonDialog(
       context,
       title: 'Reverse ${s['sessionNo'] ?? 'this sorting'}?',
+      options: stockReversalReasons,
       description:
           'The sized eggs go back into Unsorted and the picks can be sorted again. The sorting stays in the history, marked Reversed. If any of its sized eggs were already sold or used, reverse those first.',
       confirmLabel: 'Reverse',

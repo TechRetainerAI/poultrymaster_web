@@ -53,7 +53,7 @@ void main() {
     for (final h in ['PRODUCTION', 'INVENTORY', 'DELIVERY']) {
       expect(find.text(h), findsOneWidget, reason: h);
     }
-    for (final p in ['Water Production', 'Batch Production', 'Maintenance', 'Stock movement', 'Inventory', 'Raw materials & supplies',
+    for (final p in ['Water Production', 'Batch Production', 'Maintenance', 'Stock movement', 'Inventory', 'Inventory & supply purchases',
       'Damages & loss', 'Production losses', 'Deliveries', 'Driver collection report']) {
       expect(find.text(p), findsOneWidget, reason: p);
     }

@@ -18,6 +18,7 @@ import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, loc;
 import '../trackers/tracker_widgets.dart';
 import 'sales_logic.dart';
 import 'balances_logic.dart' show BalanceSide;
+import 'credit_widgets.dart' show showReverseWithReason;
 
 // ------------------------------------------------------------------ record payment
 
@@ -173,7 +174,14 @@ const _sourceLabel = {
   'SupplierBalances': 'Balances',
   'SaleEntry': 'Sale',
   'PurchaseEntry': 'Purchase',
+  // 363: credit added by hand on Customer Credits.
+  'OpeningCredit': 'Opening credit',
+  'Deposit': 'Customer advance',
+  'CreditNote': 'Credit note',
 };
+
+/// 363: a credit added by hand is reversed from Customer Credits (owner / admin).
+const _manualCreditSources = {'OpeningCredit', 'Deposit', 'CreditNote'};
 
 String _paymentRef(Map row) {
   final n = tStr(row['paymentNumber']).trim();
@@ -262,8 +270,6 @@ class _PaymentHistoryState extends State<_PaymentHistory> {
   bool _loading = true;
   String? _expanded;
   final Map<String, List<Map>> _allocations = {};
-  String? _reversing;
-  final _reason = TextEditingController();
 
   ApiClient get _api => widget.session.farmClient;
   String get _farmId => widget.company.farmId;
@@ -272,12 +278,6 @@ class _PaymentHistoryState extends State<_PaymentHistory> {
   void initState() {
     super.initState();
     _load();
-  }
-
-  @override
-  void dispose() {
-    _reason.dispose();
-    super.dispose();
   }
 
   Future<void> _load() async {
@@ -311,30 +311,33 @@ class _PaymentHistoryState extends State<_PaymentHistory> {
     }
   }
 
+  /// The payment being reversed, in its own window with a reason from the list
+  /// (the same shape as reversing a customer debt). An error stays in the
+  /// window so the reason is not lost.
   Future<void> _reverse(Map row) async {
-    if (_reason.text.trim().isEmpty) {
-      trackerToast(context, 'A reason is required',
-          description: 'Say why this payment is being reversed — it is written to the audit trail.', error: true);
-      return;
-    }
     final money = await FarmMoney.load(widget.session, widget.company);
-    try {
-      await _api.post('${widget.api}/${widget.side.paymentsPath}/${Uri.encodeComponent(tStr(row['paymentId']))}/reverse', body: {
-        'farmId': _farmId,
-        'reason': _reason.text.trim(),
-        'reversedBy': widget.session.tokens.userId,
-      });
-      if (!mounted) return;
-      trackerToast(context, 'Payment reversed', description: '${money(tNum(row['totalAmount']))} put back on the balance.');
-      setState(() {
-        _reversing = null;
-        _reason.clear();
-      });
-      await _load();
-      widget.onReversed();
-    } on ApiException catch (e) {
-      if (mounted) trackerToast(context, 'Could not reverse payment', description: e.message, error: true);
-    }
+    if (!mounted) return;
+    final customer = widget.side.isCustomer;
+    final who = tStr(row['partyName']).isNotEmpty
+        ? tStr(row['partyName'])
+        : ((widget.partyName ?? '').isNotEmpty ? widget.partyName! : (customer ? 'the customer' : 'the supplier'));
+    final ok = await showReverseWithReason(
+      context,
+      title: 'Reverse ${tStr(row['paymentNumber']).isEmpty ? 'this payment' : tStr(row['paymentNumber'])}?',
+      description: '${money(tNum(row['totalAmount']))} ${customer ? 'from' : 'to'} $who. '
+          'The balance goes back onto the ${customer ? 'sales' : 'purchases'} it was applied to and the cash '
+          'movement is undone. The payment stays in the history, marked Reversed.',
+      body: const [],
+      action: 'Reverse payment',
+      onConfirm: (reason) => _api.post(
+        '${widget.api}/${widget.side.paymentsPath}/${Uri.encodeComponent(tStr(row['paymentId']))}/reverse',
+        body: {'farmId': _farmId, 'reason': reason, 'reversedBy': widget.session.tokens.userId},
+      ),
+    );
+    if (!ok || !mounted) return;
+    trackerToast(context, 'Payment reversed', description: '${money(tNum(row['totalAmount']))} put back on the balance.');
+    await _load();
+    widget.onReversed();
   }
 
   @override
@@ -443,42 +446,13 @@ class _PaymentHistoryState extends State<_PaymentHistory> {
                 '${tStr(row['reversedAt']).isNotEmpty ? ' on ${_shortDate(row['reversedAt'])}' : ''}: ${row['reversalReason']}',
                 style: sm),
           ],
-          if (widget.canReverse && !reversed && _reversing != id) ...[
+          if (widget.canReverse && !reversed && !_manualCreditSources.contains(tStr(row['sourceType']))) ...[
             const SizedBox(height: 8),
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(backgroundColor: Colors.white, minimumSize: const Size.fromHeight(40)),
-              onPressed: () => setState(() {
-                _reversing = id;
-                _reason.clear();
-              }),
+              onPressed: () => _reverse(row),
               icon: const Icon(Icons.undo, size: 16),
               label: const Text('Reverse'),
-            ),
-          ],
-          if (_reversing == id) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: TColors.amber50, borderRadius: BorderRadius.circular(8)),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                FilterLabel('Why is this being reversed?', AppInput(controller: _reason, hintText: 'e.g. entered twice')),
-                const SizedBox(height: 8),
-                Row(children: [
-                  Expanded(
-                    child: FilledButton(
-                      style: FilledButton.styleFrom(backgroundColor: TColors.red600),
-                      onPressed: () => _reverse(row),
-                      child: const Text('Reverse payment'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(child: TextButton(onPressed: () => setState(() => _reversing = null), child: const Text('Cancel'))),
-                ]),
-                const SizedBox(height: 8),
-                Text(
-                    'The balance goes back onto the ${widget.side.isCustomer ? 'sales' : 'purchases'} it was applied to and the cash movement is undone. The payment is kept and marked reversed, never deleted.',
-                    style: const TextStyle(fontSize: 12, color: TColors.slate500)),
-              ]),
             ),
           ],
           if (open) ...[

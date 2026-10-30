@@ -19,7 +19,7 @@ import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poul
 import { listPoultryRawMaterialItems, type PoultryRawMaterialItem } from "@/lib/api/poultry-inventory"
 import { PoultryPurchaseDialog } from "@/components/raw-materials/poultry-purchase-dialog"
 import {
-  listFeedProductionItems, listFeedFormulas, getFeedFormula, saveFeedProductionBatch, postFeedProductionBatch,
+  listFeedProductionItems, listFeedFormulas, getFeedFormula, saveFeedProductionBatch, postFeedProductionBatch, ensureDefaultFeedFormulas,
   type FeedBatchItem, type FeedFormula, type FeedFormulaLine, type FeedProductionBatch, type FeedProductionBatchLine,
   type FeedProductionBatchLineInput, type FeedProductionSourceType, type PaymentStatus,
 } from "@/lib/api/poultry-feed-production"
@@ -266,6 +266,8 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
       setLoading(true)
       try {
         const savedFormulaId = existing?.formulaId ?? null
+        // 385: the default feeds and formulas, once per farm. Silent on failure.
+        await ensureDefaultFeedFormulas().catch(() => {})
         const [it, f, ca, raw, full] = await Promise.all([
           listFeedProductionItems(),
           listFeedFormulas(),

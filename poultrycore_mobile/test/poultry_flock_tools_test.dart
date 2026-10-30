@@ -252,7 +252,7 @@ void main() {
 
       await tapText(tester, 'Reopen flock');
       expect(find.textContaining('Also reverse the closeout sales.', findRichText: true), findsOneWidget);
-      await tester.enterText(find.byType(TextFormField).last, 'Closed the wrong flock');
+      await reasonOther(tester, 'Closed the wrong flock');
       await tester.pumpAndSettle();
       await tapText(tester, 'Reopen');
       final body = api.lastBody('/api/flock-closeout/9/reverse');
@@ -322,7 +322,7 @@ void main() {
       await tester.tap(find.text('Skip task'));
       await tester.pumpAndSettle();
       expect(find.text('Why is it being skipped? is required.'), findsOneWidget);
-      await tester.enterText(find.byType(TextFormField).last, 'Vet said not needed');
+      await reasonOther(tester, 'Vet said not needed');
       await tester.tap(find.text('Skip task'));
       await tester.pumpAndSettle();
       final skip = api.lastBody('/api/Poultry/lifecycle/tasks/status', 'PUT');

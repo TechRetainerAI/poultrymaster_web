@@ -20,6 +20,7 @@ import { getMyCompanies, createCompany, sendCompanyWelcomeEmail, switchCompany, 
 import { BUSINESS_TYPES, findBusinessType, needsTemplate, businessTypeForIndustry } from "@/lib/companies/business-types"
 import { useGenericModules } from "@/hooks/use-generic-modules"
 import { useRouter } from "next/navigation"
+import { useCanCreateCompany } from "@/hooks/use-setup-access"
 import { fmtInstant } from "@/lib/utils/company-datetime"
 
 /** The business's own mark — same icon and colour wherever a company is named. */
@@ -60,6 +61,8 @@ export default function CompaniesPage() {
   const pg = usePagination(companies)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
+  // Account owner only: creating a company makes the caller its owner.
+  const canCreateCompany = useCanCreateCompany()
 
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -136,7 +139,7 @@ export default function CompaniesPage() {
             <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
               <Building2 className="h-6 w-6 text-orange-500" /> My companies
             </h1>
-            <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4 mr-1" /> New company</Button>
+            {canCreateCompany && <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4 mr-1" /> New company</Button>}
           </div>
 
           <p className="text-sm text-slate-500 mb-4">

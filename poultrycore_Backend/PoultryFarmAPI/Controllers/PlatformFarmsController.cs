@@ -40,7 +40,7 @@ namespace PoultryFarmAPI.Controllers
                 await conn.OpenAsync();
 
                 string? farmName;
-                await using (var check = new NpgsqlCommand("SELECT farmname FROM farms WHERE farmid = @id", conn))
+                await using (var check = new NpgsqlCommand("SELECT name FROM farms WHERE farmid = @id::text", conn))
                 {
                     check.Parameters.AddWithValue("id", farmId);
                     farmName = (string?)await check.ExecuteScalarAsync();

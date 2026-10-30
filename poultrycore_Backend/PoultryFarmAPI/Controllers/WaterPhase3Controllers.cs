@@ -438,6 +438,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // Migration 068 — currency settings on the Water company. The Login API
     // owns the rest of the Farms row (Name, Type, OwnerUserId) but currency is
     // read/written here so the Water UI doesn't need cross-API plumbing.
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/Water/farm-settings")]
     [RequireCompanyType("Water")]

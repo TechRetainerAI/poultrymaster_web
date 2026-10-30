@@ -9,6 +9,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // Mirrors the Water distribution controllers; every request carries farmId.
     // SPs: migrations 139 + 140.
 
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/Poultry/drivers")]
     [RequireCompanyType("Poultry")]
@@ -43,6 +44,7 @@ namespace PoultryFarmAPIWeb.Controllers
         }
     }
 
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/Poultry/vehicles")]
     [RequireCompanyType("Poultry")]
@@ -67,6 +69,7 @@ namespace PoultryFarmAPIWeb.Controllers
         { if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required."); await _svc.DeleteVehicleAsync(id, farmId); return NoContent(); }
     }
 
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/Poultry/routes")]
     [RequireCompanyType("Poultry")]

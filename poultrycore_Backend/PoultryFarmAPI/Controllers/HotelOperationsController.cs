@@ -8,7 +8,10 @@ using System.Security.Cryptography;
 
 namespace PoultryFarmAPIWeb.Controllers
 {
-    public class CreateStaffRequest { public string FarmId { get; set; } = ""; public string FirstName { get; set; } = ""; public string LastName { get; set; } = ""; public string? Email { get; set; } public string? Phone { get; set; } public string Role { get; set; } = "Other"; public string Department { get; set; } = "Other"; public decimal SalaryAmount { get; set; } public string? HireDate { get; set; } public bool IsActive { get; set; } = true; }
+    public class CreateStaffRequest { public string FarmId { get; set; } = ""; public string FirstName { get; set; } = ""; public string LastName { get; set; } = ""; public string? Email { get; set; } public string? Phone { get; set; } public string Role { get; set; } = "Other"; public string Department { get; set; } = "Other"; public decimal SalaryAmount { get; set; } public string? HireDate { get; set; } public bool IsActive { get; set; } = true;
+        // 362: the staff row is being made FROM an existing employee, so make no login
+        // here; the page links that employee through StaffUserLink afterwards.
+        public bool SkipLogin { get; set; } }
     public class UpdateStaffRequest { public string FarmId { get; set; } = ""; public string FirstName { get; set; } = ""; public string LastName { get; set; } = ""; public string? Email { get; set; } public string? Phone { get; set; } public string Role { get; set; } = ""; public string Department { get; set; } = ""; public decimal SalaryAmount { get; set; } public bool IsActive { get; set; } = true; }
     public class CreateInventoryRequest { public string FarmId { get; set; } = ""; public string Name { get; set; } = ""; public string Category { get; set; } = ""; public string Unit { get; set; } = "pcs"; public int StockOnHand { get; set; } public int ReorderLevel { get; set; } public decimal UnitCost { get; set; } }
     public class CreateMaintenanceReq { public string FarmId { get; set; } = ""; public int? HotelRoomId { get; set; } public string AssetDescription { get; set; } = "General"; public string IssueDescription { get; set; } = ""; public string Priority { get; set; } = "Normal"; public decimal EstimatedCost { get; set; } }
@@ -50,8 +53,8 @@ namespace PoultryFarmAPIWeb.Controllers
             string password = GeneratePassword();
             string? userId = null;
 
-            // --- 2. Create user account if email is provided ---
-            if (!string.IsNullOrWhiteSpace(req.Email))
+            // --- 2. Create user account if email is provided (and the person has none yet) ---
+            if (!req.SkipLogin && !string.IsNullOrWhiteSpace(req.Email))
             {
                 using var connU = new NpgsqlConnection(_cs); await connU.OpenAsync();
 
@@ -513,6 +516,7 @@ namespace PoultryFarmAPIWeb.Controllers
             return Ok(await ReadAll(cmd));
         }
 
+        [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
         [HttpPost("room-rates")]
         public async Task<IActionResult> CreateRoomRate([FromBody] CreateRoomRateRequest req)
         {
@@ -527,6 +531,7 @@ namespace PoultryFarmAPIWeb.Controllers
             return await rd.ReadAsync() ? Ok(ReadRow(rd)) : StatusCode(500);
         }
 
+        [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
         [HttpDelete("room-rates/{id}")]
         public async Task<IActionResult> DeleteRoomRate(int id, [FromQuery] string farmId)
         {

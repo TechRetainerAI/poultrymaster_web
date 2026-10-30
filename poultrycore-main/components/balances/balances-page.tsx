@@ -90,9 +90,19 @@ export interface BalancesPageProps {
   pagerVariant?: "compact" | "records"
   /**
    * Shown under the summary cards. Poultry's customer side passes its
-   * Customer Credit panel (351); everyone else passes nothing.
+   * Customer Credit panel (351); everyone else passes nothing. A function gets
+   * the page's reload, for panels that change balances (369 customer debts).
    */
-  afterSummary?: ReactNode
+  afterSummary?: ReactNode | ((reload: () => void) => ReactNode)
+  /** Buttons beside the page title (Poultry customers: Record customer debt). */
+  headerActions?: (reload: () => void) => ReactNode
+  /** Shown under the balances table (Poultry customers: Customer Credit). */
+  afterTable?: ReactNode | ((reload: () => void) => ReactNode)
+  /**
+   * Extra actions on one open document's row (Poultry customers: reverse a
+   * customer debt). `compact` = the desktop table row, icon-sized.
+   */
+  documentActions?: (doc: OpenDocumentRow, party: { partyName?: string | null }, compact: boolean, reload: () => void) => ReactNode
   /**
    * Show what is inside one open document (Poultry: the sale's lines). When
    * given, a document row is clickable and gets a Details button.
@@ -102,7 +112,7 @@ export interface BalancesPageProps {
 
 export function BalancesPage({
   module, side, companyType, loadCashAccounts, partyHref, documentHref, permissions, wording, iconClassName, pagerVariant,
-  afterSummary, onDocumentDetails,
+  afterSummary, onDocumentDetails, headerActions, afterTable, documentActions,
 }: BalancesPageProps) {
   const fmt = useFmt()
   const router = useRouter()
@@ -118,6 +128,11 @@ export function BalancesPage({
   const partyWord = wording?.party ?? (isCustomer ? "customer" : "supplier")
   const partyWordPlural = wording?.partyPlural ?? `${partyWord}s`
   const docWord = wording?.document ?? (isCustomer ? "sale" : "purchase")
+  // "Bulk" only when there is more than one thing to spread the money over; with
+  // one open item the summary row's button is just a payment against it.
+  const payLabel = (party: PartyBalanceRow) => party.openDocumentCount > 1
+    ? (isCustomer ? "Receive bulk payment" : "Record bulk payment")
+    : (isCustomer ? "Receive payment" : "Record payment")
   const pageTitle = wording?.title ?? (isCustomer ? "Customer Balances" : "Supplier Balances")
 
   const [rows, setRows] = useState<PartyBalanceRow[]>([])
@@ -326,12 +341,15 @@ export function BalancesPage({
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <DashboardHeader />
         <main className="flex-1 overflow-auto p-4 md:p-6">
-          <h1 className="mb-1 flex items-center gap-2 text-2xl font-semibold text-slate-900">
-            {isCustomer
-              ? <Users className={cn("h-6 w-6", iconClassName ?? "text-sky-600")} />
-              : <Wallet className={cn("h-6 w-6", iconClassName ?? "text-amber-600")} />}
-            {pageTitle}
-          </h1>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <h1 className="mb-1 flex items-center gap-2 text-2xl font-semibold text-slate-900">
+              {isCustomer
+                ? <Users className={cn("h-6 w-6", iconClassName ?? "text-sky-600")} />
+                : <Wallet className={cn("h-6 w-6", iconClassName ?? "text-amber-600")} />}
+              {pageTitle}
+            </h1>
+            {headerActions?.(() => { void load() })}
+          </div>
           <p className="mb-4 text-sm text-slate-500">
             {isCustomer
               ? "Who owes money, which sales it is owed on, and how to collect it. Payments recorded here apply straight back to those sales."
@@ -356,7 +374,7 @@ export function BalancesPage({
             )}
           </div>
 
-          {afterSummary}
+          {typeof afterSummary === "function" ? afterSummary(() => { void load() }) : afterSummary}
 
           {/* Two rows of four, not one wrapping row of eight. The controls grew
               one at a time into a flex-wrap bar with four different fixed widths,
@@ -540,7 +558,7 @@ export function BalancesPage({
                               <div className="grid grid-cols-2 gap-2 pt-2">
                                 {canPay && (
                                   <Button size="sm" className="col-span-2 h-10 w-full" onClick={(e) => { e.stopPropagation(); setPayFor({ party, doc: null }) }}>
-                                    <Wallet className="mr-2 h-4 w-4" /> {isCustomer ? "Receive bulk payment" : "Record bulk payment"}
+                                    <Wallet className="mr-2 h-4 w-4" /> {payLabel(party)}
                                   </Button>
                                 )}
                                 {canStatement && (
@@ -602,9 +620,12 @@ export function BalancesPage({
                                         <Button size="sm" variant="ghost" className="h-10 w-full" onClick={(e) => { e.stopPropagation(); openDocument(d) }}>
                                           <ExternalLink className="mr-2 h-4 w-4" /> Open
                                         </Button>
-                                        <Button size="sm" variant="ghost" className="h-10 w-full" onClick={(e) => { e.stopPropagation(); setHistoryFor({ party, doc: d }) }}>
-                                          <History className="mr-2 h-4 w-4" /> History
-                                        </Button>
+                                        {d.documentType !== "CustomerDebt" && (
+                                          <Button size="sm" variant="ghost" className="h-10 w-full" onClick={(e) => { e.stopPropagation(); setHistoryFor({ party, doc: d }) }}>
+                                            <History className="mr-2 h-4 w-4" /> History
+                                          </Button>
+                                        )}
+                                        {documentActions?.(d, party, false, () => { void load() })}
                                       </div>
                                     </div>
                                   ))}
@@ -668,7 +689,7 @@ export function BalancesPage({
                                 <div className="flex justify-end gap-1">
                                   {canPay && (
                                     <Button size="sm" onClick={() => setPayFor({ party, doc: null })}>
-                                      {isCustomer ? "Receive bulk payment" : "Record bulk payment"}
+                                      {payLabel(party)}
                                     </Button>
                                   )}
                                   {canStatement && (
@@ -766,10 +787,14 @@ export function BalancesPage({
                                                   <ExternalLink className="h-3.5 w-3.5" />
                                                   <span className="sr-only">Open {docWord}</span>
                                                 </Button>
-                                                <Button size="sm" variant="ghost" onClick={() => setHistoryFor({ party, doc: d })}>
-                                                  <History className="h-3.5 w-3.5" />
-                                                  <span className="sr-only">Payment history</span>
-                                                </Button>
+                                                {/* 369: a customer debt has no per-document history here. */}
+                                                {d.documentType !== "CustomerDebt" && (
+                                                  <Button size="sm" variant="ghost" onClick={() => setHistoryFor({ party, doc: d })}>
+                                                    <History className="h-3.5 w-3.5" />
+                                                    <span className="sr-only">Payment history</span>
+                                                  </Button>
+                                                )}
+                                                {documentActions?.(d, party, true, () => { void load() })}
                                               </div>
                                             </TableCell>
                                           </TableRow>
@@ -792,6 +817,12 @@ export function BalancesPage({
               )}
             </CardContent>
           </Card>
+
+          {afterTable && (
+            <div className="mt-4">
+              {typeof afterTable === "function" ? afterTable(() => { void load() }) : afterTable}
+            </div>
+          )}
         </main>
       </div>
 

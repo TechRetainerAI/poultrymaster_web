@@ -199,9 +199,9 @@ class _DeferredCostsScreenState extends State<WaterDeferredCostsScreen> {
           rows: _history[tIntOrNull(p['waterRawMaterialPurchaseId']) ?? 0],
           fmt: _gh,
           offset: _offset,
-          onOpenItems: () => _href('/water-raw-materials?tab=items', 'Raw materials'),
+          onOpenItems: () => _href('/water-supply-purchases?tab=items', 'Inventory & supply purchases'),
           onOpenPurchase: () =>
-              _href('/water-raw-materials?tab=purchases&purchaseId=${tStr(p['waterRawMaterialPurchaseId'])}', 'Raw materials'),
+              _href('/water-supply-purchases?tab=purchases&purchaseId=${tStr(p['waterRawMaterialPurchaseId'])}', 'Inventory & supply purchases'),
         ),
       );
 

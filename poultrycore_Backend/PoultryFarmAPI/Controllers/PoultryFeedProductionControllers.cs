@@ -9,6 +9,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // via the frontend same-origin proxy. Writes auto-audit via the global
     // AuditLogActionFilter. Farm scoping is enforced by @FarmId in every SP.
 
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/Poultry/feed-formulas")]
     [RequireCompanyType("Poultry")]
@@ -41,6 +42,15 @@ namespace PoultryFarmAPIWeb.Controllers
             if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
             await _svc.DeleteAsync(farmId, id);
             return NoContent();
+        }
+
+        // 385. Default ingredients, age-named finished feeds and 1-tonne formulas.
+        // Once per farm; force=true re-adds any default the farm has removed.
+        [HttpPost("ensure-defaults")] public async Task<ActionResult<PoultryFeedDefaultsResult>> EnsureDefaults(
+            [FromQuery] string farmId, [FromQuery] string? userId, [FromQuery] bool force = false)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            return Ok(await _svc.EnsureDefaultsAsync(farmId, userId, force));
         }
     }
 

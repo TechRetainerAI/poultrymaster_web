@@ -199,13 +199,16 @@ void main() {
     await see(tester, find.text('2 items'));
 
     await tap(tester, find.widgetWithText(OutlinedButton, 'Reverse'));
-    await see(tester, find.text('Reverse payment'));
-    await tester.tap(find.text('Reverse payment'));
+    // Its own window, with the reason from the list.
+    final confirm = find.widgetWithText(FilledButton, 'Reverse payment');
+    expect(tester.widget<FilledButton>(confirm).onPressed, isNull, reason: 'a reason is required');
+    await tester.tap(find.text('Select a reason'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('A reason is required'), findsOneWidget);
-    await tester.enterText(find.descendant(of: find.ancestor(of: find.text('Why is this being reversed?'), matching: find.byType(Column)).first,
-        matching: find.byType(TextFormField)), 'Paid the wrong supplier');
-    await tester.tap(find.text('Reverse payment'));
+    await tester.tap(find.text('Other').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextFormField)).last, 'Paid the wrong supplier');
+    await tester.pumpAndSettle();
+    await tester.tap(confirm);
     await tester.pumpAndSettle();
     final w = a.writes.single;
     expect(w.url.path, '/api/Poultry/supplier-payments/17/reverse');

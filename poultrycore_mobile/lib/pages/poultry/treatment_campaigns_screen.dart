@@ -14,6 +14,7 @@ import 'sales/balances_widgets.dart' show LoadingLine;
 import 'trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import 'trackers/tracker_widgets.dart';
 import 'treatment_campaign_logic.dart';
+import '../shared/reason_select.dart';
 
 /// Poultry → Tools → Treatment Campaigns, as `app/poultry-treatment-campaigns/page.tsx`
 /// (migration 339): one medication, vaccine or treatment given to many flocks
@@ -531,7 +532,7 @@ class _NewTreatmentCampaignScreenState extends State<NewTreatmentCampaignScreen>
                   ),
                 ),
                 const SizedBox(height: 12),
-                _field('Reason', AppInput(controller: _reason, hintText: 'e.g. Vet diagnosis, routine vaccination')),
+                _field('Reason', ReasonSelectField(controller: _reason, options: treatmentReasons)),
                 const SizedBox(height: 12),
                 Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Expanded(
@@ -1003,6 +1004,7 @@ class _TreatmentCampaignScreenState extends State<TreatmentCampaignScreen> {
           'No more treatment can be recorded on it. Days already recorded stay recorded — those birds were treated. To take a wrong day back, reverse it under Treatment days.',
       confirmLabel: 'Cancel campaign',
       destructive: true,
+      options: cancelReasons,
     );
     if (reason != null) await _run(() => _api.cancel(_id, reason), 'Campaign cancelled');
   }
@@ -1015,6 +1017,7 @@ class _TreatmentCampaignScreenState extends State<TreatmentCampaignScreen> {
           "The medication comes off each flock's production record for that day and goes back into stock. The day stays in the history, marked Reversed, and can be recorded again.",
       confirmLabel: 'Reverse',
       destructive: true,
+      options: stockReversalReasons,
     );
     if (reason == null) return;
     final pid = tIntOrNull(d['poultryTreatmentCampaignPostId']) ?? 0;

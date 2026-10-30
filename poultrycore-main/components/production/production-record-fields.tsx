@@ -82,13 +82,15 @@ export function FormSectionCard({
  * meaty / soft / lost eggs, which are nullable columns.
  */
 export function NumField({
-  label, value, onChange, text = false, min = 0, disabled,
+  label, value, onChange, text = false, min = 0, max, disabled,
 }: {
   label: string
   value: number | string
   onChange: (value: number | string) => void
   text?: boolean
   min?: number
+  /** Typing past this is clamped back to it, so the box can never hold more. */
+  max?: number
   disabled?: boolean
 }) {
   return (
@@ -97,12 +99,14 @@ export function NumField({
       <Input
         type="number"
         min={min}
+        max={max}
         inputMode="numeric"
         disabled={disabled}
         className="h-9 tabular-nums"
         value={text ? (value as string) : String(value ?? 0)}
         onChange={(e) => {
-          const raw = e.target.value
+          let raw = e.target.value
+          if (max !== undefined && raw !== "" && Number(raw) > max) raw = String(max)
           onChange(text ? raw : Number(raw) || 0)
         }}
       />
@@ -137,6 +141,49 @@ export function CalcField({
       >
         {value}
       </output>
+    </div>
+  )
+}
+
+/**
+ * 372: what happens to a record's broken eggs / dead birds. "Keep" puts them into
+ * the Broken Eggs / Dead Birds stock; "Disposed" records them as generated and
+ * disposed at once, so nothing is left in stock. Shown only when there are some.
+ */
+export function DispositionField({
+  label, count, value, onChange, keepText, disposedText,
+}: {
+  /** Names the choice, e.g. "Broken Egg Stock allocation". */
+  label: string
+  count: number
+  value: "Keep" | "Disposed"
+  onChange: (value: "Keep" | "Disposed") => void
+  keepText: string
+  disposedText: string
+}) {
+  if (count <= 0) return null
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+      {/* Own line on a phone, inline beside the buttons from sm up. */}
+      <span className="w-full font-semibold text-slate-700 sm:w-auto">{label}</span>
+      <div className="inline-flex overflow-hidden rounded-md border border-slate-300" role="radiogroup" aria-label={label}>
+        {(["Keep", "Disposed"] as const).map((v) => (
+          <button
+            key={v}
+            type="button"
+            role="radio"
+            aria-checked={value === v}
+            onClick={() => onChange(v)}
+            className={cn(
+              "px-2.5 py-1 font-medium",
+              value === v ? "bg-slate-800 text-white" : "bg-white text-slate-600 hover:bg-slate-50",
+            )}
+          >
+            {v === "Keep" ? "Keep" : "Disposed immediately"}
+          </button>
+        ))}
+      </div>
+      <span>{value === "Keep" ? keepText : disposedText}</span>
     </div>
   )
 }

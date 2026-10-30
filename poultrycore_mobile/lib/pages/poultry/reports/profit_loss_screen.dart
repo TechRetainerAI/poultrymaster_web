@@ -514,7 +514,7 @@ class _ProfitLossScreenState extends State<ProfitLossScreen> {
     final legacy = legacyNote(_n('legacyExpenses'), _n('classifiedExpenses'));
     return [
       twoColumns([
-        _Kpi(
+        PlKpi(
           label: 'Total revenue',
           value: _gh(_n('totalRevenue')),
           tone: 'slate',
@@ -522,48 +522,48 @@ class _ProfitLossScreenState extends State<ProfitLossScreen> {
           tip: 'Eggs, birds, manure and feed sold in this period, whether or not the customer has paid yet. Money a customer still owes you is revenue; money they paid for a sale in an earlier period is not.',
           hint: const Text('Eggs, birds, manure and feed sold', style: TextStyle(fontSize: 11, color: slate500)),
         ),
-        _Kpi(
+        PlKpi(
           label: 'Total expenses',
           value: _gh(_totalExpenses),
           tone: 'red',
           term: 'Everything taken off revenue',
           tip: 'Every cost in this period: the direct cost of what you produced (feed, medication, birds, direct labour), the cost of running the business (payroll, utilities, transport, repairs, admin) and depreciation plus the interest and fees on borrowing. Revenue minus this figure is Net profit. It does NOT include owner draws, loan principal or capital purchases — those are money moving, not costs.',
-          hint: _Formula(op: '+', money: _money, terms: [
+          hint: PlFormula(op: '+', money: _money, terms: [
             ('Direct costs', _n('totalDirectCosts'), _direct),
             ('Operating expenses', _n('totalOperatingExpenses'), _operating),
             ('Depreciation & financing', _n('totalOtherCosts'), _other),
           ]),
         ),
-        _Kpi(
+        PlKpi(
           label: 'Gross profit',
           value: _gh(_n('grossProfit')),
           tone: _n('grossProfit') >= 0 ? 'emerald' : 'red',
           term: d['grossMarginPercent'] != null ? '${d['grossMarginPercent']}% of sales' : 'No sales this period',
           tip: 'What the FARMING made, before any of the cost of running a business. Revenue minus the direct cost of producing what you sold: feed, medication, the birds themselves and direct labour. Negative here means the flock cost more to feed than its output sold for.',
-          hint: _Formula(op: '−', money: _money, terms: [
+          hint: PlFormula(op: '−', money: _money, terms: [
             ('Revenue', _n('totalRevenue'), _revenue),
             ('Direct costs', _n('totalDirectCosts'), _direct),
           ]),
         ),
-        _Kpi(
+        PlKpi(
           label: 'Operating profit',
           value: _gh(_n('operatingProfit')),
           tone: _n('operatingProfit') >= 0 ? 'emerald' : 'red',
           term: 'Before depreciation and financing',
           tip: 'What the BUSINESS made. Gross profit minus the cost of running it: payroll, utilities, transport, repairs, admin and marketing. It stops short of wear on assets and the cost of borrowing, so it answers whether the operation itself pays for itself.',
-          hint: _Formula(op: '−', money: _money, terms: [
+          hint: PlFormula(op: '−', money: _money, terms: [
             ('Gross profit', _n('grossProfit'), _subtotal),
             ('Operating expenses', _n('totalOperatingExpenses'), _operating),
           ]),
         ),
-        _Kpi(
+        PlKpi(
           label: net < 0 ? 'Net loss' : 'Net profit',
           value: _gh(net),
           tone: net > 0 ? 'emerald' : net < 0 ? 'red' : 'slate',
           strong: true,
           term: d['netMarginPercent'] != null ? '${d['netMarginPercent']}% of sales' : '${d['status'] ?? ''}',
           tip: 'What is actually left. Operating profit minus depreciation — the wear on buildings, machines and equipment — and the interest and fees on borrowing. Owner money, loan principal and capital purchases are NOT in this figure; they are money moving, not profit, and they are shown separately below.',
-          hint: _Formula(op: '−', money: _money, terms: [
+          hint: PlFormula(op: '−', money: _money, terms: [
             ('Operating profit', _n('operatingProfit'), _subtotal),
             ('Depreciation & financing', _n('totalOtherCosts'), _other),
           ]),
@@ -704,8 +704,8 @@ const _other = Color(0xFF6D28D9);
 const _subtotal = Color(0xFF334155);
 
 /// A tile's arithmetic, names over numbers; a negative term is bracketed.
-class _Formula extends StatelessWidget {
-  const _Formula({required this.op, required this.terms, required this.money});
+class PlFormula extends StatelessWidget {
+  const PlFormula({super.key, required this.op, required this.terms, required this.money});
   final String op;
   final List<(String, num, Color)> terms;
   final FarmMoney money;
@@ -730,8 +730,8 @@ class _Formula extends StatelessWidget {
   }
 }
 
-class _Kpi extends StatelessWidget {
-  const _Kpi({required this.label, required this.value, required this.tone, this.term, this.tip, this.hint, this.strong = false});
+class PlKpi extends StatelessWidget {
+  const PlKpi({super.key, required this.label, required this.value, required this.tone, this.term, this.tip, this.hint, this.strong = false});
   final String label;
   final String value;
   final String tone;

@@ -13,6 +13,7 @@ import 'balances_logic.dart';
 import 'balances_widgets.dart';
 import 'payments_received_screen.dart' show fmtDateTimeLike;
 import 'sale_dialogs.dart';
+import 'debt_dialogs.dart';
 import 'sale_reversal.dart';
 import 'sales_screen.dart';
 import '../../water/water_sales_screen.dart';
@@ -73,7 +74,23 @@ class _CustomerBalancesScreenState extends State<CustomerBalancesScreen> {
 
   /// Poultry's customer side: the Customer Credit panel (351) and a sale's
   /// Details (358 lines). Every other balances page passes neither.
-  bool get _poultryCustomer => _side.isCustomer && !widget.rail.isWater;
+  bool get _poultryCustomer => _side.isCustomer && widget.rail.isPoultry;
+
+  /// 369 / 370: Poultry records and reverses debts by hand (owner / admin --
+  /// usePermissions().isAdmin, anyone who is not plain staff).
+  bool get _debts => widget.rail.isPoultry && (widget.company.role ?? '').toLowerCase() != 'staff';
+
+  bool _isDebt(Map d) => d['documentType'] == debtDocumentType(_side);
+
+  Future<void> _recordDebt() async {
+    if (await showRecordDebt(context, session: widget.session, company: widget.company, side: _side)) _afterPayment();
+  }
+
+  Future<void> _reverseDebt(Map party, Map d) async {
+    if (await reverseDebt(context, session: widget.session, company: widget.company, side: _side, doc: d, partyName: tStr(party['partyName']))) {
+      _afterPayment();
+    }
+  }
 
   bool get _filtersEmpty =>
       _from.isEmpty && _to.isEmpty && _party == 'all' && _status == 'All' && _min.text.isEmpty && _search.text.trim().isEmpty;
@@ -168,16 +185,16 @@ class _CustomerBalancesScreenState extends State<CustomerBalancesScreen> {
       return;
     }
     try {
-      final res = await _api.get('${widget.rail.api}/cash-accounts', query: {'farmId': _farmId});
+      final res = await _api.get(widget.rail.cashAccountsPath, query: {'farmId': _farmId});
       if (mounted) {
         setState(() => _accounts = [
               for (final a in rowsOf(res))
                 if (a['isActive'] == true)
                   {
                     'id': a[widget.rail.cashAccountIdKey],
-                    'name': a['accountName'],
+                    'name': a[widget.rail.cashAccountNameKey],
                     'currentBalance': a['currentBalance'],
-                    'allowNegativeBalance': a['allowNegativeBalance'],
+                    'allowNegativeBalance': a[widget.rail.allowNegativeKey],
                   },
             ]);
       }
@@ -250,13 +267,27 @@ class _CustomerBalancesScreenState extends State<CustomerBalancesScreen> {
   /// its batch page; any other purchase the raw-material purchases tab.
   void _openDocument(Map d) {
     final id = tIntOrNull(d['documentId']);
+    // 369 / 370: a debt has no page of its own.
+    if (widget.rail.isPoultry && _isDebt(d)) {
+      trackerToast(context, 'No page for this record', description: '${d['documentType']} #${d['documentId']} has no detail page.');
+      return;
+    }
     if (!_side.isCustomer) {
       final href = widget.rail.supplierBalanceDocHref(d);
+      if (href.isEmpty) {
+        trackerToast(context, 'No page for this record', description: '${d['documentType']} #${d['documentId']} has no detail page.');
+        return;
+      }
       openAppHref(context, widget.session, widget.company, href, label: _side.docTitle);
       return;
     }
     if (id == null) {
       trackerToast(context, 'No page for this record', description: '${d['documentType']} #${d['documentId']} has no detail page.');
+      return;
+    }
+    // restaurantOrderHref: the Restaurant Sales page, on that order.
+    if (widget.rail.isRestaurant) {
+      openAppHref(context, widget.session, widget.company, '/restaurant-sales?orderId=$id', label: 'Sales');
       return;
     }
     Navigator.of(context).push(MaterialPageRoute(
@@ -269,7 +300,8 @@ class _CustomerBalancesScreenState extends State<CustomerBalancesScreen> {
   /// Click a sale row: what was sold on it (358 lines), without leaving the page.
   void _documentDetails(Map d) {
     final id = tIntOrNull(d['documentId']);
-    if (id == null) return;
+    // 369: a customer debt is not a sale -- no sale lines.
+    if (id == null || _isDebt(d)) return;
     Navigator.of(context).push(MaterialPageRoute(
       builder: (ctx) => SaleLinesScreen(
         session: widget.session,
@@ -320,6 +352,18 @@ class _CustomerBalancesScreenState extends State<CustomerBalancesScreen> {
                 child: Text(_side.title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TColors.slate900)),
               ),
             ]),
+            if (_debts) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(backgroundColor: TColors.amber600),
+                  onPressed: _recordDebt,
+                  icon: const Icon(Icons.add, size: 16),
+                  label: Text(_side.isCustomer ? 'Record customer debt' : 'Record supplier debt'),
+                ),
+              ),
+            ],
             const SizedBox(height: 4),
             Text(
               _side.isCustomer
@@ -368,8 +412,6 @@ class _CustomerBalancesScreenState extends State<CustomerBalancesScreen> {
                 ),
               const SizedBox(height: 14),
             ],
-            // 351: money held for customers, beside (never netted into) what they owe.
-            if (_poultryCustomer) CustomerCreditPanel(session: widget.session, company: widget.company, canRefund: _can),
             TCard(
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 FilterLabel(
@@ -507,6 +549,16 @@ class _CustomerBalancesScreenState extends State<CustomerBalancesScreen> {
                           ]),
                         ),
             ),
+            // 351 / 370: money held for customers, or by suppliers for us, beside
+            // (never netted into) what is owed -- under the balances table.
+            if (_poultryCustomer) ...[
+              const SizedBox(height: 14),
+              CustomerCreditPanel(session: widget.session, company: widget.company, canRefund: _can),
+            ],
+            if (!_side.isCustomer && widget.rail.isPoultry) ...[
+              const SizedBox(height: 14),
+              SupplierCreditPanel(session: widget.session, company: widget.company),
+            ],
           ],
         ),
       ),
@@ -530,6 +582,8 @@ class _CustomerBalancesScreenState extends State<CustomerBalancesScreen> {
         onOpenDoc: _openDocument,
         onHistoryDoc: (d) => _history(party: party, doc: d),
         onDetailsDoc: _poultryCustomer ? _documentDetails : null,
+        isDebt: widget.rail.isPoultry ? _isDebt : (_) => false,
+        onReverseDebt: _debts ? (d) => _reverseDebt(party, d) : null,
         side: _side,
       );
 }
@@ -552,9 +606,15 @@ class _PartyCard extends StatefulWidget {
     required this.onOpenDoc,
     required this.onHistoryDoc,
     this.onDetailsDoc,
+    required this.isDebt,
+    this.onReverseDebt,
     required this.side,
   });
   final BalanceSide side;
+
+  /// A debt row: no History; Reverse debt instead (owner / admin).
+  final bool Function(Map) isDebt;
+  final ValueChanged<Map>? onReverseDebt;
   final bool striped;
   final Map party;
   final FarmMoney fmt;
@@ -748,14 +808,30 @@ class _PartyCardState extends State<_PartyCard> {
               label: const Text('Open'),
             ),
           ),
-          Expanded(
-            child: TextButton.icon(
-              onPressed: () => widget.onHistoryDoc(d),
-              icon: const Icon(Icons.history, size: 16),
-              label: const Text('History'),
+          // 369: a debt has no per-document history here.
+          if (!widget.isDebt(d))
+            Expanded(
+              child: TextButton.icon(
+                onPressed: () => widget.onHistoryDoc(d),
+                icon: const Icon(Icons.history, size: 16),
+                label: const Text('History'),
+              ),
+            ),
+        ]),
+        if (widget.isDebt(d) && widget.onReverseDebt != null) ...[
+          const SizedBox(height: 6),
+          Tooltip(
+            message: tNum(d['amountPaid']) > 0
+                ? 'Reverse the payments on it first (${widget.side.isCustomer ? 'Payments Received' : 'Supplier Payments'}).'
+                : 'Reverse this debt',
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(40)),
+              onPressed: tNum(d['amountPaid']) > 0 ? null : () => widget.onReverseDebt!(d),
+              icon: const Icon(Icons.undo, size: 16),
+              label: const Text('Reverse debt'),
             ),
           ),
-        ]),
+        ],
       ]),
       ),
     );

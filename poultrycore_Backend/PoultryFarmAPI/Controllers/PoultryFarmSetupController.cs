@@ -21,6 +21,7 @@ namespace PoultryFarmAPIWeb.Controllers
     /// and establishes the opening position that makes them honest from day one.
     /// </para>
     /// </summary>
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/[controller]")]
     [RequireCompanyType("Poultry")]

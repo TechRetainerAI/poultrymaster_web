@@ -6,6 +6,13 @@ namespace User.Management.Data.Models
     {
         public string FarmId { get; set; } = string.Empty;
         public string? FarmName { get; set; }
+
+        /// <summary>Owner / company contact email (from the farms row).</summary>
+        public string? Email { get; set; }
+
+        /// <summary>Owner / company contact phone (from the farms row).</summary>
+        public string? PhoneNumber { get; set; }
+
         public int TotalUsers { get; set; }
         public int StaffCount { get; set; }
 

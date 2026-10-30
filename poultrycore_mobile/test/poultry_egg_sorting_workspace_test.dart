@@ -191,7 +191,7 @@ void main() {
 
     await tapSeen(tester, find.text('Reverse'));
     expect(find.text('Reverse ES-0005?'), findsOneWidget);
-    await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)), 'wrong sizes');
+    await reasonOther(tester, 'wrong sizes');
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Reverse'));
     await tester.pumpAndSettle();

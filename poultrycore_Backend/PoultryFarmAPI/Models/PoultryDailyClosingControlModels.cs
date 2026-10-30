@@ -89,6 +89,21 @@ namespace PoultryFarmAPIWeb.Models
         public decimal? EggsProduced { get; set; }
         public int? MissingFlocks { get; set; }
         public bool HasSnapshot { get; set; }
+        // 365: every row has figures -- as closed, or live (IsLive) for a day not closed.
+        public bool IsLive { get; set; }
+        public int? SalesCount { get; set; }
+        public decimal? CashSales { get; set; }
+        public decimal? CreditSales { get; set; }
+        public decimal? PaymentsReceived { get; set; }
+        public decimal? Expenses { get; set; }
+        public decimal? OpeningCash { get; set; }
+        public decimal? ClosingCash { get; set; }
+        public decimal? CashDifference { get; set; }
+        public decimal? EggsDamaged { get; set; }
+        public decimal? Mortality { get; set; }
+        public decimal? FeedKg { get; set; }
+        public int? BlockingCount { get; set; }
+        public int? WarningCount { get; set; }
     }
 
     public class PoultryClosingPolicy

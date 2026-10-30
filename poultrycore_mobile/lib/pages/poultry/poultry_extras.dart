@@ -39,13 +39,19 @@ final Map<String, List<ListExtra>> poultryListExtras = {
   ],
 };
 
+/// Products that may not be deleted: 372's system products (Broken Eggs / Dead Birds).
+final Map<String, bool Function(Map<String, dynamic> row)> poultryDeleteGuards = {
+  'poultry-products': (row) => !isSystemProduct(row),
+};
+
 final Map<String, List<RecordExtra>> poultryRecordExtras = {
   // app/poultry-products/page.tsx — the row's Add stock and Recipe buttons.
   'poultry-products': [
-    // 359: birds are adjusted per flock / batch on the Stock page.
+    // 359: birds are adjusted per flock / batch on the Stock page; 372: system
+    // products get their stock from production records.
     RecordExtra('Add stock', Icons.add_box_outlined,
         (s, c, row) => ProductStockScreen(session: s, company: c, product: row),
-        when: (row) => !(row['isBirdProduct'] == true || row['name'] == 'Birds')),
+        when: (row) => !(row['isBirdProduct'] == true || row['name'] == 'Birds') && !isSystemProduct(row)),
     RecordExtra('Recipe', Icons.checklist,
         (s, c, row) => ProductRecipeScreen(session: s, company: c, product: row),
         when: (row) => row['requiresRecipeSetup'] == true && row['isRawEggProduct'] != true),

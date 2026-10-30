@@ -24,6 +24,8 @@
 // Built on the same module/side props as BalancesPage, so poultry and water are
 // two thin route wrappers rather than two copies of this file.
 
+import { REVERSAL_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -38,6 +40,12 @@ import {
   SelectSeparator, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog"
+import { cn } from "@/lib/utils"
+import { FORM_DIALOG_CONTENT, FORM_DIALOG_PRIMARY, FormDialogFooter, FormDialogTitle } from "@/components/ui/form-dialog"
+import { FormSection } from "@/components/ui/form-section"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { usePagination } from "@/hooks/use-pagination"
 import { PERIOD_GROUPS, periodToRange, rangeToPeriod } from "@/lib/date-ranges"
@@ -48,6 +56,7 @@ import {
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/use-permissions"
+import { PaymentPLBadge, PaymentPLToggle } from "@/components/balances/payment-pl-control"
 import { useFmt } from "@/lib/currency"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { exportTableToPdf } from "@/lib/utils/pdf-export"
@@ -117,10 +126,12 @@ export interface PaymentsLedgerPageProps {
    * Omitted (Poultry, Water, Generic) = unchanged.
    */
   pagerVariant?: "compact" | "records"
+  /** 370: extra header actions (Poultry: Record supplier payment); reload refreshes the list. */
+  headerActions?: (reload: () => void) => React.ReactNode
 }
 
 export function PaymentsLedgerPage({
-  module, companyType, partyHref, documentHref, loadCashAccounts, permissions, iconClassName, pagerVariant,
+  module, companyType, partyHref, documentHref, loadCashAccounts, permissions, iconClassName, pagerVariant, headerActions,
 }: PaymentsLedgerPageProps) {
   const fmt = useFmt()
   const router = useRouter()
@@ -140,8 +151,12 @@ export function PaymentsLedgerPage({
   const [allocations, setAllocations] = useState<Record<string, PaymentAllocationRow[]>>({})
   const [expanded, setExpanded] = useState<string | null>(null)
 
-  const [reversing, setReversing] = useState<string | null>(null)
+  // The payment being reversed, in a modal (the same shape as reversing a customer debt).
+  const [reversing, setReversing] = useState<PaymentHistoryRow | null>(null)
   const [reason, setReason] = useState("")
+  const [reverseBusy, setReverseBusy] = useState(false)
+  const [reverseError, setReverseError] = useState<string | null>(null)
+  const openReverse = (row: PaymentHistoryRow) => { setReversing(row); setReason(""); setReverseError(null) }
 
   const [search, setSearch] = useState("")
   const [period, setPeriod] = useState("all")
@@ -209,6 +224,8 @@ export function PaymentsLedgerPage({
     for (const r of rows) if (r.partyId) seen.set(r.partyId, r.partyName ?? `Supplier #${r.partyId}`)
     return [...seen].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
   }, [rows])
+  // Payments with no supplier get their own option, like Walk-in on Customer Payments.
+  const hasNoSupplier = useMemo(() => rows.some((r) => !r.partyId), [rows])
 
   const methodOptions = useMemo(
     () => [...new Set(rows.map((r) => (r.paymentMethod ?? "").trim()).filter(Boolean))].sort(),
@@ -221,7 +238,7 @@ export function PaymentsLedgerPage({
     const max = maxAmount.trim() === "" ? null : Number(maxAmount)
 
     return rows.filter((r) => {
-      if (supplierFilter !== "all" && String(r.partyId ?? "") !== supplierFilter) return false
+      if (supplierFilter === "none" ? !!r.partyId : supplierFilter !== "all" && String(r.partyId ?? "") !== supplierFilter) return false
       if (methodFilter !== "all" && (r.paymentMethod ?? "") !== methodFilter) return false
       if (accountFilter !== "all" && String(r.cashAccountId ?? "") !== accountFilter) return false
       if (sourceFilter !== "all" && (r.sourceType ?? "") !== sourceFilter) return false
@@ -321,15 +338,10 @@ export function PaymentsLedgerPage({
     return allocs && allocs.length === 1 ? allocs[0] : null
   }
 
-  const doReverse = async (row: PaymentHistoryRow) => {
-    if (!reason.trim()) {
-      toast({
-        title: "A reason is required",
-        description: "Say why this payment is being reversed — it is written to the audit trail.",
-        variant: "destructive",
-      })
-      return
-    }
+  const doReverse = async () => {
+    const row = reversing
+    if (!row || !reason.trim()) return
+    setReverseBusy(true); setReverseError(null)
     try {
       await reversePayment(module, "supplier", row.paymentId, reason.trim())
       toast({ title: "Payment reversed", description: `${fmt(row.totalAmount)} put back on the balance.` })
@@ -337,7 +349,10 @@ export function PaymentsLedgerPage({
       setReason("")
       await load()
     } catch (e: any) {
-      toast({ title: "Could not reverse payment", description: e?.message ?? String(e), variant: "destructive" })
+      // Kept in the modal so the reason is not lost and they can try again.
+      setReverseError(e?.message ?? String(e))
+    } finally {
+      setReverseBusy(false)
     }
   }
 
@@ -505,6 +520,7 @@ export function PaymentsLedgerPage({
                     {isReversed
                       ? <Badge variant="outline" className="text-slate-500">Reversed</Badge>
                       : <Badge variant="secondary">Posted</Badge>}
+                    {module === "poultry" && <PaymentPLBadge row={row} side="supplier" className="mt-1 block w-fit" />}
                   </TableCell>
                   <TableCell className="text-right whitespace-nowrap">
                     {!multi && a && documentHref(a) && (
@@ -512,8 +528,11 @@ export function PaymentsLedgerPage({
                         <ExternalLink className="h-3.5 w-3.5" />
                       </Button>
                     )}
+                    {module === "poultry" && (
+                      <PaymentPLToggle row={row} side="supplier" onChanged={() => { void load() }} className="mr-1" />
+                    )}
                     {canReverse && !isReversed && (
-                      <Button variant="ghost" size="sm" onClick={() => { setReversing(row.paymentId); setReason("") }}>
+                      <Button variant="ghost" size="sm" onClick={() => openReverse(row)}>
                         <Undo2 className="mr-1.5 h-3.5 w-3.5" /> Reverse
                       </Button>
                     )}
@@ -526,32 +545,6 @@ export function PaymentsLedgerPage({
                     <TableCell colSpan={10} className="py-1 text-xs text-slate-500">
                       Reversed{row.reversedBy ? ` by ${row.reversedBy}` : ""}
                       {row.reversedAt ? ` on ${fmtInstant(row.reversedAt)}` : ""}: {row.reversalReason}
-                    </TableCell>
-                  </TableRow>
-                )}
-
-                {reversing === row.paymentId && (
-                  <TableRow className="bg-amber-50">
-                    <TableCell />
-                    <TableCell colSpan={10} className="py-3">
-                      <div className="flex flex-wrap items-end gap-2">
-                        <div className="min-w-[18rem] flex-1 space-y-1.5">
-                          <Label htmlFor={`sp-reason-${row.paymentId}`}>Why is this being reversed?</Label>
-                          <Input
-                            id={`sp-reason-${row.paymentId}`}
-                            value={reason}
-                            onChange={(e) => setReason(e.target.value)}
-                            placeholder="e.g. paid the wrong supplier"
-                          />
-                        </div>
-                        <Button size="sm" variant="destructive" onClick={() => doReverse(row)}>Reverse payment</Button>
-                        <Button size="sm" variant="ghost" onClick={() => setReversing(null)}>Cancel</Button>
-                      </div>
-                      <p className="mt-2 text-xs text-slate-500">
-                        This reverses the whole payment and restores the balance on
-                        {row.allocationCount === 1 ? " the item" : ` all ${row.allocationCount} items`} it was applied to.
-                        The cash movement is undone. The payment is kept and marked reversed, never deleted.
-                      </p>
                     </TableCell>
                   </TableRow>
                 )}
@@ -634,10 +627,13 @@ export function PaymentsLedgerPage({
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <DashboardHeader />
         <main className="flex-1 overflow-auto p-4 md:p-6">
-          <h1 className="mb-1 flex items-center gap-2 text-2xl font-semibold text-slate-900">
-            <Receipt className={iconClassName ? `h-6 w-6 ${iconClassName}` : "h-6 w-6 text-amber-600"} />
-            Supplier Payments
-          </h1>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <h1 className="mb-1 flex items-center gap-2 text-2xl font-semibold text-slate-900">
+              <Receipt className={iconClassName ? `h-6 w-6 ${iconClassName}` : "h-6 w-6 text-amber-600"} />
+              Supplier Payments
+            </h1>
+            {headerActions?.(() => { void load() })}
+          </div>
           <p className="mb-4 text-sm text-slate-500">
             Track payments made to suppliers and apply them to unpaid or partially paid purchases and expenses.
           </p>
@@ -690,6 +686,7 @@ export function PaymentsLedgerPage({
                       {supplierOptions.map((s) => (
                         <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
                       ))}
+                      {hasNoSupplier && <SelectItem value="none">No supplier</SelectItem>}
                     </SelectContent>
                   </Select>
                 </div>
@@ -865,11 +862,14 @@ export function PaymentsLedgerPage({
                       accent: "violet",
                     },
                   ]}
-                  trailing={(r) =>
-                    r.status === "Reversed"
-                      ? <Badge variant="outline" className="text-slate-500">Reversed</Badge>
-                      : <Badge variant="secondary">Posted</Badge>
-                  }
+                  trailing={(r) => (
+                    <span className="flex flex-col items-end gap-1">
+                      {r.status === "Reversed"
+                        ? <Badge variant="outline" className="text-slate-500">Reversed</Badge>
+                        : <Badge variant="secondary">Posted</Badge>}
+                      {module === "poultry" && <PaymentPLBadge row={r} side="supplier" />}
+                    </span>
+                  )}
                   details={(r) => {
                     const a = soleAllocation(r)
                     const multi = r.allocationCount > 1
@@ -886,16 +886,21 @@ export function PaymentsLedgerPage({
                       { label: "Paid by", value: r.createdBy ?? "—" },
                     ]
                   }}
-                  actions={(r) =>
-                    canReverse && r.status === "Posted" ? (
-                      <Button
-                        size="sm" variant="outline" className="h-10 flex-1"
-                        onClick={() => { setReversing(r.paymentId); setReason("") }}
-                      >
-                        <Undo2 className="mr-1.5 h-3.5 w-3.5" /> Reverse
-                      </Button>
-                    ) : null
-                  }
+                  actions={(r) => (
+                    <>
+                      {canReverse && r.status === "Posted" && (
+                        <Button
+                          size="sm" variant="outline" className="h-10 flex-1"
+                          onClick={() => openReverse(r)}
+                        >
+                          <Undo2 className="mr-1.5 h-3.5 w-3.5" /> Reverse
+                        </Button>
+                      )}
+                      {module === "poultry" && (
+                        <PaymentPLToggle row={r} side="supplier" onChanged={() => { void load() }} className="h-10 flex-1" />
+                      )}
+                    </>
+                  )}
                   emptyState={
                     <div className="p-8 text-center text-slate-500">
                       No supplier payments match these filters.
@@ -908,6 +913,46 @@ export function PaymentsLedgerPage({
           </Card>
         </main>
       </div>
+
+      <Dialog open={!!reversing} onOpenChange={(o) => { if (!o && !reverseBusy) setReversing(null) }}>
+        <DialogContent className={cn(FORM_DIALOG_CONTENT, "sm:max-w-lg")}>
+          <DialogHeader>
+            <FormDialogTitle icon={Undo2} color="red">
+              Reverse {reversing?.paymentNumber ?? "this payment"}?
+            </FormDialogTitle>
+            <DialogDescription>
+              {reversing && `${fmt(reversing.totalAmount)} to ${reversing.partyName ?? "the supplier"}. `}
+              {!reversing?.allocationCount
+                ? "It was not applied to any purchase, so only the cash movement is undone. "
+                : `The balance is restored on ${reversing.allocationCount === 1 ? "the item" : `all ${reversing.allocationCount} items`} it paid and the cash movement is undone. `}
+              The payment stays in the history, marked Reversed.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="min-w-0 space-y-4 text-sm">
+            {reversing && (
+              <FormSection title="This reversal will" color="amber" tinted columns={1}>
+                <div className="flex items-center justify-between gap-2 rounded-md border bg-white p-3">
+                  <span className="text-slate-500">{reversing.partyName ?? "the supplier"}</span>
+                  <span className="font-semibold tabular-nums">{fmt(reversing.totalAmount)}</span>
+                </div>
+              </FormSection>
+            )}
+            <FormSection title="Reason" color="slate" tinted columns={1}>
+              <div className="space-y-1">
+                <Label htmlFor="sp-reverse-reason">Reason *</Label>
+                <ReasonSelect id="sp-reverse-reason" options={REVERSAL_REASONS} value={reason} onChange={setReason} />
+              </div>
+            </FormSection>
+            {reverseError && <p className="rounded-md bg-red-50 p-2.5 text-red-700">{reverseError}</p>}
+          </div>
+          <FormDialogFooter onCancel={() => setReversing(null)} cancelDisabled={reverseBusy}>
+            <Button className={cn("px-6", FORM_DIALOG_PRIMARY.red)} onClick={doReverse} disabled={reverseBusy || !reason.trim()}>
+              {reverseBusy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Reverse payment{reversing ? ` · ${fmt(reversing.totalAmount)}` : ""}
+            </Button>
+          </FormDialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

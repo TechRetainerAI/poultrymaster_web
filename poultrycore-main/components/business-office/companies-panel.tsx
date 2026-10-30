@@ -17,6 +17,7 @@ import { Building2, Bird, Droplets, ShoppingBag, Plus, Loader2, ArrowRight, Penc
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/use-permissions"
+import { useCanCreateCompany } from "@/hooks/use-setup-access"
 import {
   getMyCompanies, createCompany, updateCompany, deleteCompany, sendCompanyWelcomeEmail, switchCompany,
   dashboardHomeForType, type Company, type CompanyType,
@@ -41,6 +42,9 @@ export function CompaniesPanel({ showHeading = true }: { showHeading?: boolean }
   const { toast } = useToast()
   const permissions = usePermissions()
   const isAdmin = permissions.isAdmin
+  // Account owner only: creating a company makes the caller its owner.
+  // Admin-flagged staff keep Edit.
+  const canCreateCompany = useCanCreateCompany()
   const setCompanies = useAuthStore((s) => s.setCompanies)
   const setActiveCompany = useAuthStore((s) => s.setActiveCompany)
   const activeFarmId = useAuthStore((s) => s.activeFarmId)
@@ -165,7 +169,7 @@ export function CompaniesPanel({ showHeading = true }: { showHeading?: boolean }
         ) : (
           <p className="text-sm text-slate-500">All companies in your Business Office. Open one to work inside it.</p>
         )}
-        {isAdmin && <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4 mr-1" /> New company</Button>}
+        {canCreateCompany && <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4 mr-1" /> New company</Button>}
       </div>
 
       <div className="flex gap-2">
@@ -186,7 +190,7 @@ export function CompaniesPanel({ showHeading = true }: { showHeading?: boolean }
       ) : companies.length === 0 ? (
         <Card><CardContent className="p-10 text-center">
           <Building2 className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-          {isAdmin ? (<><p className="text-slate-600 mb-4">Create your first company to get started.</p><Button onClick={() => setOpen(true)}><Plus className="h-4 w-4 mr-1" /> Create company</Button></>)
+          {canCreateCompany ? (<><p className="text-slate-600 mb-4">Create your first company to get started.</p><Button onClick={() => setOpen(true)}><Plus className="h-4 w-4 mr-1" /> Create company</Button></>)
             : (<p className="text-slate-600">You don&apos;t currently have access to any company. Contact your Business Office administrator.</p>)}
         </CardContent></Card>
       ) : visible.length === 0 ? (

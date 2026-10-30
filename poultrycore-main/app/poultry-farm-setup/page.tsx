@@ -1107,7 +1107,13 @@ export default function PoultryFarmSetupPage() {
                     {step === 0 && (
                       <Section icon={Home} title="Where are your birds housed?"
                         description="Create a run of new pens, then edit any of them. Pens you already have are listed so you can allocate to them — this step never deletes a pen from your farm.">
-                        <div className="grid grid-cols-1 md:grid-cols-5 gap-3 p-4 bg-slate-50 border-b border-slate-200">
+                        {/* The New sale look (app/sales/page.tsx): a blue band for
+                            the generator, an amber one for the pens themselves. */}
+                        <div className="overflow-hidden rounded-xl border border-blue-200">
+                        <div className="flex items-center gap-2 bg-blue-600 px-4 py-2 text-sm font-semibold text-white">
+                          <Wand2 className="h-4 w-4" /> Create New Houses/Pens
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-5 gap-3 p-4 bg-blue-50/40 [&_input]:bg-white">
                           <Field label="Number of Pens"><NumberInput min="1" value={penCount} onChange={(e) => setPenCount(e.target.value)} /></Field>
                           <Field label="Naming Prefix"><Input value={penPrefix} onChange={(e) => setPenPrefix(e.target.value)} placeholder="Pen" /></Field>
                           <Field label="Starting Number"
@@ -1117,19 +1123,32 @@ export default function PoultryFarmSetupPage() {
                           </Field>
                           <Field label="Default Capacity"><NumberInput min="0" value={penCapacity} onChange={(e) => setPenCapacity(e.target.value)} placeholder="5000" /></Field>
                           <Field label="Default Location"><Input value={penLocation} onChange={(e) => setPenLocation(e.target.value)} placeholder="Layer House A" /></Field>
-                          <div className="md:col-span-5">
-                            <Button type="button" onClick={generateHouses} className="bg-indigo-600 hover:bg-indigo-700 gap-2">
+                          <div className="md:col-span-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                            <Button type="button" onClick={generateHouses} className="bg-blue-600 text-white hover:bg-blue-700 gap-2 self-start">
                               <Wand2 className="w-4 h-4" /> Create New Houses/Pens
                             </Button>
-                            <span className="text-xs text-slate-500 ml-3">
+                            <span className="text-xs text-blue-900/70">
                               Replaces the new rows below; houses you already have are kept. Everything stays editable.
                             </span>
                           </div>
                         </div>
+                        </div>
+
+                        <div className="overflow-hidden rounded-xl border border-amber-200">
+                        <div className="flex items-center justify-between gap-2 bg-amber-500 px-4 py-1.5 text-white">
+                          <span className="text-sm font-semibold">
+                            Houses/Pens <span className="ml-1 rounded-full bg-white/25 px-2 py-0.5 text-xs">{draft.houses.length.toLocaleString()}</span>
+                          </span>
+                          <Button type="button" size="sm" onClick={() => setDraft((d) => ({ ...d, houses: [emptyHouse(penCapacity, penLocation), ...d.houses] }))}
+                            className="h-8 bg-white text-amber-700 shadow-sm hover:bg-amber-50">
+                            <Plus className="mr-1 h-3.5 w-3.5" /> Add Another Row
+                          </Button>
+                        </div>
+                        <div className="space-y-3 bg-amber-50/40 p-3 sm:p-4">
                         {/* Pens filtered out by "Empty" are hidden, not dropped: they
                             stay in the draft and are still reused by id. */}
                         {draft.houses.length > 0 && (
-                          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm">
                             <span className="text-slate-600">
                               {houseFilter === "all"
                                 ? houseSummary.occupied > 0
@@ -1149,18 +1168,12 @@ export default function PoultryFarmSetupPage() {
                               ] as const).map(([value, label]) => (
                                 <button key={value} type="button" aria-pressed={houseFilter === value}
                                   onClick={() => setHouseFilter(value)}
-                                  className={`rounded px-3 py-1 text-xs font-medium transition-colors ${houseFilter === value ? "bg-indigo-600 text-white" : "text-slate-700 hover:bg-slate-100"}`}>
+                                  className={`rounded px-3 py-1 text-xs font-medium transition-colors ${houseFilter === value ? "bg-amber-500 text-white" : "text-slate-700 hover:bg-amber-50"}`}>
                                   {label}
                                 </button>
                               ))}
                             </div>
                           </div>
-                        )}
-                        {visibleHouses.length > 0 && (
-                          <GridHeader columns={[
-                            ["col-span-4", "House/Pen Name *"], ["col-span-2", "Capacity"],
-                            ["col-span-5", "Location"], ["col-span-1", ""],
-                          ]} />
                         )}
                         {draft.houses.length === 0 && (
                             <p className="text-slate-600 text-sm">No houses/pens yet. Create some above, or add one row at a time.</p>
@@ -1172,18 +1185,27 @@ export default function PoultryFarmSetupPage() {
                                 : "None of your pens are empty. Add a new one above, or choose “All houses/pens” to see them."}
                             </p>
                           )}
-                          {visibleHouses.map(({ row: h, index: i, isExisting, load }) => (
-                            <div key={h.key} className={`rounded-lg border px-3 py-3 md:grid md:grid-cols-12 md:gap-3 [&_input]:bg-white [&_button[role=combobox]]:bg-white [&_[data-slot=select-trigger]]:bg-white ${rowShell(i, submitted ? fieldErrors.houses?.[i] : undefined, serverErrors.houses?.[i])}`}>
-                              <RowHeader
+                          {/* Cards, about three to a row: a full-width row per pen
+                              made a handful of pens fill the whole screen. */}
+                          {visibleHouses.length > 0 && (
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                          {visibleHouses.map(({ row: h, index: i, isExisting, load }, n) => (
+                            <div key={h.key} className={`relative rounded-lg border border-l-4 p-3 shadow-sm [&_input]:bg-white ${lineCardShell(isExisting, submitted ? fieldErrors.houses?.[i] : undefined, serverErrors.houses?.[i])}`}>
+                              <LineNumber n={n + 1} existing={isExisting} />
+                              {/* Only a pen this setup is CREATING can be taken
+                                  out of it. One the farm already has is not this
+                                  wizard's to discard — and a bin next to it reads
+                                  like it would delete the pen from the farm, which
+                                  it never did. Deleting a real pen is the Houses
+                                  page's job, and it refuses while birds are in it. */}
+                              <RowHeader alwaysShow
                                 label={h.houseName || `House ${i + 1}`}
-                                badge={isExisting
-                                  ? <Badge variant="secondary" className="h-6 px-1.5 text-[10px]">Existing</Badge>
-                                  : <Badge variant="outline" className="h-6 px-1.5 text-[10px] border-blue-300 text-blue-700">New</Badge>}
+                                badge={<NewExistingBadge existing={isExisting} />}
                                 onRemove={isExisting ? undefined : () => removeHouse(i)}
                               />
-                              <div className="grid grid-cols-12 gap-3 md:contents">
-                              <Field className="col-span-12 md:col-span-4"
-                                label="House/Pen Name *" mobileOnlyLabel error={errorFor("houses", i, "houseName")}
+                              <div className="grid grid-cols-2 gap-3">
+                              <Field className="col-span-2"
+                                label="House/Pen Name *" error={errorFor("houses", i, "houseName")}
                                 hint={(() => {
                                   // Only pens that hold something say anything. The
                                   // "Empty" filter lists only empty pens, so labelling
@@ -1195,32 +1217,19 @@ export default function PoultryFarmSetupPage() {
                                 <Input value={h.houseName} disabled={isExisting}
                                   onChange={(e) => patchHouse(i, { houseName: e.target.value })} placeholder="Pen 1" />
                               </Field>
-                              <Field className="col-span-12 sm:col-span-6 md:col-span-2" label="Capacity" mobileOnlyLabel error={errorFor("houses", i, "capacity")}>
+                              <Field className="col-span-1" label="Capacity" error={errorFor("houses", i, "capacity")}>
                                 <NumberInput min="0" value={h.capacity} onChange={(e) => patchHouse(i, { capacity: e.target.value })} placeholder="5000" />
                               </Field>
-                              <Field className="col-span-12 md:col-span-5" label="Location" mobileOnlyLabel>
+                              <Field className="col-span-1" label="Location">
                                 <Input value={h.location} onChange={(e) => patchHouse(i, { location: e.target.value })} placeholder="Layer House A" />
                               </Field>
                               </div>
-                              <div className="col-span-12 md:col-span-1 hidden md:flex items-end justify-end">
-                                {/* Only a pen this setup is CREATING can be taken
-                                    out of it. One the farm already has is not this
-                                    wizard's to discard — and a bin next to it reads
-                                    like it would delete the pen from the farm, which
-                                    it never did. Deleting a real pen is the Houses
-                                    page's job, and it refuses while birds are in it. */}
-                                {!isExisting && (
-                                  <Button type="button" variant="ghost" size="icon" onClick={() => removeHouse(i)}
-                                    className="h-9 w-9 shrink-0 text-red-600 hover:bg-red-50" aria-label="Remove house">
-                                    <Trash2 className="w-4 h-4" />
-                                  </Button>
-                                )}
-                              </div>
                             </div>
                           ))}
-                          <Button type="button" variant="outline" size="sm" onClick={() => setDraft((d) => ({ ...d, houses: [emptyHouse(penCapacity, penLocation), ...d.houses] }))}>
-                            <Plus className="w-4 h-4 mr-1" /> Add Another Row
-                          </Button>
+                          </div>
+                          )}
+                        </div>
+                        </div>
                       </Section>
                     )}
 
@@ -1228,7 +1237,11 @@ export default function PoultryFarmSetupPage() {
                     {step === 1 && (
                       <Section icon={Boxes} title="What batches/groups of birds do you currently have?"
                         description="Create a run of new batches, then edit any of them. Purchase cost and supplier are optional — if you do not know what you paid, leave them blank. Nothing here posts cash or revenue for a historical purchase.">
-                        <div className="grid grid-cols-1 md:grid-cols-6 gap-3 p-4 bg-slate-50 border-b border-slate-200 -mx-4 -mt-4 mb-1">
+                        <div className="overflow-hidden rounded-xl border border-blue-200">
+                        <div className="flex items-center gap-2 bg-blue-600 px-4 py-2 text-sm font-semibold text-white">
+                          <Wand2 className="h-4 w-4" /> Create New Batches
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-6 gap-3 p-4 bg-blue-50/40 [&_input]:bg-white [&_button[role=combobox]]:bg-white">
                           <Field label="Number of Batches"><NumberInput min="1" value={batchCount} onChange={(e) => setBatchCount(e.target.value)} /></Field>
                           <Field label="Name Prefix"><Input value={batchPrefix} onChange={(e) => setBatchPrefix(e.target.value)} placeholder="Batch" /></Field>
                           <Field label="Code Prefix"><Input value={batchCodePrefix} onChange={(e) => setBatchCodePrefix(e.target.value)} placeholder="B" /></Field>
@@ -1249,14 +1262,15 @@ export default function PoultryFarmSetupPage() {
                           <Field className="md:col-span-2" label="Default Arrival Date">
                             <Input type="date" value={batchDate} onChange={(e) => setBatchDate(e.target.value)} />
                           </Field>
-                          <div className="md:col-span-6">
-                            <Button type="button" onClick={generateBatchRows} className="bg-blue-600 hover:bg-blue-700 gap-2">
+                          <div className="md:col-span-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                            <Button type="button" onClick={generateBatchRows} className="bg-blue-600 text-white hover:bg-blue-700 gap-2 self-start">
                               <Wand2 className="w-4 h-4" /> Create New Batches
                             </Button>
-                            <span className="text-xs text-slate-500 ml-3">
+                            <span className="text-xs text-blue-900/70">
                               Replaces the new rows below; batches you already have are kept. Everything stays editable.
                             </span>
                           </div>
+                        </div>
                         </div>
                         {/* Encouraged, not demanded. The optional fields are visible
                             by default (not tucked behind a collapsed panel) because
@@ -1271,8 +1285,19 @@ export default function PoultryFarmSetupPage() {
                         {/* A CARD per batch, not a row. Every field the normal Flock
                             Purchases form captures belongs here, and a dozen of them
                             in one horizontal strip is unreadable. */}
+                        <div className="overflow-hidden rounded-xl border border-amber-200">
+                        <div className="flex items-center justify-between gap-2 bg-amber-500 px-4 py-1.5 text-white">
+                          <span className="text-sm font-semibold">
+                            Batches <span className="ml-1 rounded-full bg-white/25 px-2 py-0.5 text-xs">{draft.batches.length.toLocaleString()}</span>
+                          </span>
+                          <Button type="button" size="sm" onClick={() => setDraft((d) => ({ ...d, batches: [emptyBatch(), ...d.batches] }))}
+                            className="h-8 bg-white text-amber-700 shadow-sm hover:bg-amber-50">
+                            <Plus className="mr-1 h-3.5 w-3.5" /> Add Another Batch
+                          </Button>
+                        </div>
+                        <div className="space-y-4 bg-amber-50/40 p-3 sm:p-4">
                         {batchEditSummary.existing > 0 && (
-                          <label className="flex items-center gap-2 text-sm text-slate-700">
+                          <label className="flex w-fit items-center gap-2 rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-slate-700">
                             <Checkbox checked={showExistingBatches}
                               onCheckedChange={(v) => setShowExistingBatches(v === true)} />
                             Show the {batchEditSummary.existing.toLocaleString()} batch
@@ -1284,16 +1309,15 @@ export default function PoultryFarmSetupPage() {
                             No new batches yet. Create some above, or add one at a time.
                           </p>
                         )}
-                        {visibleBatchEdits.map(({ row: b, index: i, isExisting: existing }) => {
+                        {visibleBatchEdits.map(({ row: b, index: i, isExisting: existing }, n) => {
                             const locked = existing
                             return (
-                            <div key={b.key} className={`rounded-lg border px-3 py-3 space-y-3 [&_input]:bg-white [&_button[role=combobox]]:bg-white [&_[data-slot=select-trigger]]:bg-white ${rowShell(i, submitted ? fieldErrors.batches?.[i] : undefined, serverErrors.batches?.[i])}`}>
+                            <div key={b.key} className={`relative rounded-lg border border-l-4 p-3 space-y-3 shadow-sm [&_input]:bg-white [&_button[role=combobox]]:bg-white [&_[data-slot=select-trigger]]:bg-white ${lineCardShell(existing, submitted ? fieldErrors.batches?.[i] : undefined, serverErrors.batches?.[i])}`}>
+                              <LineNumber n={n + 1} existing={existing} />
                               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
                                 <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
                                   {b.batchCode || b.batchName || `Batch ${i + 1}`}
-                                  {existing
-                                    ? <Badge variant="secondary" className="h-6 px-1.5 text-[10px]">Existing</Badge>
-                                    : <Badge variant="outline" className="h-6 px-1.5 text-[10px] border-blue-300 text-blue-700">New</Badge>}
+                                  <NewExistingBadge existing={existing} />
                                 </span>
                                 <Button type="button" variant="ghost" size="sm" onClick={() => removeBatch(i)}
                                   className="h-8 px-2 text-red-600 hover:bg-red-50" aria-label="Remove batch">
@@ -1388,9 +1412,8 @@ export default function PoultryFarmSetupPage() {
                             </div>
                             )
                           })}
-                          <Button type="button" variant="outline" size="sm" onClick={() => setDraft((d) => ({ ...d, batches: [emptyBatch(), ...d.batches] }))}>
-                            <Plus className="w-4 h-4 mr-1" /> Add Another Batch
-                          </Button>
+                        </div>
+                        </div>
                       </Section>
                     )}
 
@@ -1408,7 +1431,7 @@ export default function PoultryFarmSetupPage() {
                             wizard's batch list is that dialog's, so a farmer who
                             has used one already knows this one. */}
                         {allocPhase === "batch" && (
-                        <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
+                        <div className="rounded-xl border border-blue-200 overflow-hidden bg-blue-50/40 [&_button[role=combobox]]:bg-white">
                           <div className="bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Select a Batch</div>
                           <div className="p-4 space-y-3">
                             {visibleBatches.length === 0 ? (
@@ -1455,13 +1478,13 @@ export default function PoultryFarmSetupPage() {
                             pens and numbers below all belong to it, so it is
                             changed only on purpose, through "Change batch". */}
                         {activeBatch && allocPhase !== "batch" && (
-                          <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
+                          <div className="rounded-xl border border-blue-200 overflow-hidden bg-blue-50/40">
                             <div className="bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Selected Batch</div>
                             <div className="p-4 space-y-2">
                               <Label htmlFor="setup-alloc-batch-readonly">Batch</Label>
                               <div className="flex flex-wrap items-center gap-2">
                                 <Input id="setup-alloc-batch-readonly" readOnly aria-readonly="true" tabIndex={-1}
-                                  className="flex-1 min-w-[12rem] cursor-default bg-slate-100 text-slate-700 focus-visible:ring-0"
+                                  className="flex-1 min-w-[12rem] cursor-default bg-white text-slate-700 focus-visible:ring-0"
                                   value={[
                                     activeBatch.batch.batchCode || activeBatch.batch.batchName || `Batch ${activeBatch.index + 1}`,
                                     activeBatch.batch.batchName && activeBatch.batch.batchCode ? activeBatch.batch.batchName : "",
@@ -1477,9 +1500,9 @@ export default function PoultryFarmSetupPage() {
                         )}
 
                         {activeBatch && allocPhase !== "batch" && (
-                          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
                             <div className="flex flex-wrap items-center justify-between gap-2">
-                              <span className="text-sm font-semibold text-slate-900">
+                              <span className="text-sm font-semibold text-emerald-900">
                                 {activeBatch.batch.batchCode || activeBatch.batch.batchName}
                                 {activeBatch.batch.breed ? ` · ${activeBatch.batch.breed}` : ""}
                               </span>
@@ -1507,12 +1530,12 @@ export default function PoultryFarmSetupPage() {
                                 working out how many go in each is arithmetic, and
                                 arithmetic is what the application is for. */}
                             {allocPhase === "pens" && (
-                            <div className="mt-3 rounded-xl border border-slate-200 overflow-hidden">
-                              <div className="bg-blue-600 px-4 py-2 text-sm font-semibold text-white flex items-center justify-between">
+                            <div className="mt-3 rounded-xl border border-amber-200 overflow-hidden">
+                              <div className="bg-amber-500 px-4 py-2 text-sm font-semibold text-white flex items-center justify-between">
                                 <span>Choose Houses/Pens</span>
-                                <span className="font-normal">{activeBatchFlocks.length} selected</span>
+                                <span className="rounded-full bg-white/25 px-2 py-0.5 text-xs">{activeBatchFlocks.length} selected</span>
                               </div>
-                              <div className="p-4 bg-white">
+                              <div className="p-4 bg-amber-50/40">
                               <div className="flex flex-wrap items-center gap-2">
                                 <Button type="button" variant="outline" size="sm"
                                   onClick={() => selectAllPens(true)}>Select all</Button>
@@ -1541,7 +1564,7 @@ export default function PoultryFarmSetupPage() {
                                     <label key={v.row.key}
                                       title={locked ? "This pen is full" : undefined}
                                       className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
-                                        on ? "cursor-pointer border-blue-400 bg-blue-50"
+                                        on ? "cursor-pointer border-amber-400 border-l-4 border-l-amber-500 bg-white shadow-sm"
                                           : locked ? "cursor-not-allowed border-slate-200 bg-slate-100"
                                           : "cursor-pointer border-slate-200 bg-white hover:bg-slate-50"
                                       }`}>
@@ -1650,9 +1673,9 @@ export default function PoultryFarmSetupPage() {
                         {allocPhase === "allocate" && (
                         <>
                         {/* The two fills, and the way back to the pen list. */}
-                        <div className="rounded-xl border border-slate-200 overflow-hidden">
-                          <div className="bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Allocation</div>
-                          <div className="flex flex-wrap items-center gap-2 p-3 bg-white">
+                        <div className="rounded-xl border border-green-200 overflow-hidden">
+                          <div className="bg-green-600 px-4 py-2 text-sm font-semibold text-white">Allocation</div>
+                          <div className="flex flex-wrap items-center gap-2 p-3 bg-green-50/40">
                           <Button type="button" variant="outline" size="sm"
                             onClick={() => autoFill("capacity")}
                             disabled={activeBatchFlocks.length === 0 || (activeBatch?.available ?? 0) === 0}>
@@ -1710,7 +1733,17 @@ export default function PoultryFarmSetupPage() {
 
                         {/* Each flock card carries its own labels, so every row
                             reads on its own however far down the list it is. */}
-                        {activeBatchFlocks.map(({ row: f, index: i }) => {
+                        <div className="overflow-hidden rounded-xl border border-amber-200">
+                        <div className="flex items-center justify-between gap-2 bg-amber-500 px-4 py-2 text-white">
+                          <span className="text-sm font-semibold">
+                            Flocks <span className="ml-1 rounded-full bg-white/25 px-2 py-0.5 text-xs">{activeBatchFlocks.length}</span>
+                          </span>
+                        </div>
+                        <div className="space-y-4 bg-amber-50/40 p-3 sm:p-4">
+                        {activeBatchFlocks.length === 0 && (
+                          <p className="text-sm text-slate-600">No pens chosen yet — use “Change House/Pen” above.</p>
+                        )}
+                        {activeBatchFlocks.map(({ row: f, index: i }, n) => {
                             const reduction = historicalReduction(f)
                             // The pen is the first field on the row, so what it is
                             // carrying is known before the bird counts are typed --
@@ -1748,7 +1781,8 @@ export default function PoultryFarmSetupPage() {
                               </>
                             ) : null
                             return (
-                              <div key={f.key} className={`rounded-lg border px-3 py-3 md:grid md:grid-cols-12 md:gap-3 [&_input]:bg-white [&_button[role=combobox]]:bg-white [&_[data-slot=select-trigger]]:bg-white ${rowShell(i, submitted ? fieldErrors.flocks?.[i] : undefined, serverErrors.flocks?.[i])}`}>
+                              <div key={f.key} className={`relative rounded-lg border border-l-4 p-3 shadow-sm md:grid md:grid-cols-12 md:gap-3 [&_input]:bg-white [&_button[role=combobox]]:bg-white [&_[data-slot=select-trigger]]:bg-white ${lineCardShell(false, submitted ? fieldErrors.flocks?.[i] : undefined, serverErrors.flocks?.[i])}`}>
+                                <LineNumber n={n + 1} existing={false} />
                                 <RowHeader
                                   label={f.name || `Flock ${i + 1}`}
                                   badge={reduction > 0
@@ -1860,6 +1894,8 @@ export default function PoultryFarmSetupPage() {
                               </div>
                             )
                           })}
+                        </div>
+                        </div>
 
                           {/* Moving between batches is selection, not saving: the
                               whole setup is posted once, at the end, in one
@@ -1883,23 +1919,34 @@ export default function PoultryFarmSetupPage() {
                     {step === 3 && (
                       <Section icon={ClipboardList} title="What happened to the missing birds?"
                         description="We have assumed the missing birds died — change any flock where that is wrong. These losses happened before tracking began, so they are recorded as an opening position and never appear as today’s deaths.">
-                        <div className="p-4 space-y-4">
+                        <div className="space-y-4">
                           {needsReconciliation.length === 0 ? (
-                            <div className="text-center py-8">
+                            <div className="rounded-xl border border-emerald-200 bg-emerald-50 text-center py-8">
                               <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto mb-2" />
-                              <p className="text-slate-700">Every flock balances. No reconciliation needed.</p>
+                              <p className="font-medium text-emerald-800">Every flock balances. No reconciliation needed.</p>
                             </div>
                           ) : (
-                            <>
-                              {draft.flocks.map((f, i) => {
+                            <div className="overflow-hidden rounded-xl border border-amber-200">
+                            <div className="flex items-center justify-between gap-2 bg-amber-500 px-4 py-2 text-white">
+                              <span className="text-sm font-semibold">
+                                Flocks to reconcile <span className="ml-1 rounded-full bg-white/25 px-2 py-0.5 text-xs">{needsReconciliation.length}</span>
+                              </span>
+                            </div>
+                            <div className="space-y-4 bg-amber-50/40 p-3 sm:p-4">
+                              {(() => {
+                                // Numbered over the cards actually shown, not over every flock.
+                                let n = 0
+                                return draft.flocks.map((f, i) => {
                                 const b = breakdown(f)
                                 if (b.difference === 0) return null
+                                n += 1
                                 return (
-                                  <div key={f.key} className={`rounded-lg border p-4 space-y-3 [&_input]:bg-white [&_button[role=combobox]]:bg-white [&_[data-slot=select-trigger]]:bg-white ${
-                                    i % 2 === 0
-                                      ? "bg-blue-200 border-blue-300 border-l-4 border-l-blue-600"
-                                      : "bg-white border-slate-200 border-l-4 border-l-slate-300"
+                                  <div key={f.key} className={`relative rounded-lg border border-l-4 p-4 space-y-3 shadow-sm [&_input]:bg-white [&_button[role=combobox]]:bg-white [&_[data-slot=select-trigger]]:bg-white ${
+                                    b.overStated
+                                      ? "border-red-300 bg-red-50 border-l-red-500"
+                                      : "bg-white border-amber-200 border-l-amber-500"
                                   }`}>
+                                    <LineNumber n={n} existing={false} />
                                     <div className="flex flex-wrap items-center justify-between gap-3">
                                       <div className="min-w-0">
                                         <p className="font-medium text-slate-900">{f.name || "(unnamed flock)"}</p>
@@ -1908,9 +1955,9 @@ export default function PoultryFarmSetupPage() {
                                           {Number(f.currentLiveBirds || 0).toLocaleString()} standing today
                                         </p>
                                       </div>
-                                      <div className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-right shadow-sm">
-                                        <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Remaining to account</p>
-                                        <p className="text-lg font-bold tabular-nums text-amber-600">{b.difference.toLocaleString()}</p>
+                                      <div className="shrink-0 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-right">
+                                        <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">Remaining to account</p>
+                                        <p className="text-xl font-bold tabular-nums text-amber-700">{b.difference.toLocaleString()}</p>
                                       </div>
                                     </div>
 
@@ -1940,7 +1987,7 @@ export default function PoultryFarmSetupPage() {
                                           <Field label="Culled"><NumberInput min="0" value={f.historicalCulled} onChange={(e) => patchFlock(i, balanceBreakdown(f, { historicalCulled: e.target.value }))} /></Field>
                                           <Field label="Transferred out"><NumberInput min="0" value={f.historicalTransferred} onChange={(e) => patchFlock(i, balanceBreakdown(f, { historicalTransferred: e.target.value }))} /></Field>
                                           <Field label="Other / unknown">
-                                            <div className="h-10 flex items-center px-3 rounded-md border border-slate-200 bg-slate-100 text-slate-700 tabular-nums">
+                                            <div className="h-10 flex items-center px-3 rounded-md border border-slate-200 bg-slate-50 text-slate-700 tabular-nums">
                                               {b.other.toLocaleString()}
                                             </div>
                                           </Field>
@@ -1959,8 +2006,10 @@ export default function PoultryFarmSetupPage() {
                                     )}
                                   </div>
                                 )
-                              })}
-                            </>
+                                })
+                              })()}
+                            </div>
+                            </div>
                           )}
                         </div>
                       </Section>
@@ -2281,23 +2330,28 @@ export default function PoultryFarmSetupPage() {
 // Small presentational helpers. Local because nothing else needs them.
 // ---------------------------------------------------------------------------
 
-/**
- * A row's shell. Invalid rows go red. Otherwise rows alternate amber/white --
- * the daily-closing card list's stripe, applied at every width. A dozen rows of
- * identical fields are hard to tell apart without it, which is exactly what the
- * desktop grid looked like before.
- */
-const rowShell = (index: number, live?: Record<string, string>, server?: Record<string, string>) => {
+/** The numbered corner circle of a New sale line, on a wizard card (amber new, sky existing). */
+function LineNumber({ n, existing }: { n: number; existing: boolean }) {
+  return (
+    <span className={`absolute -left-2.5 -top-2.5 flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white shadow ${existing ? "bg-sky-500" : "bg-amber-500"}`}>
+      {n}
+    </span>
+  )
+}
+
+function NewExistingBadge({ existing }: { existing: boolean }) {
+  return existing
+    ? <Badge variant="outline" className="h-6 px-1.5 text-[10px] border-sky-300 bg-sky-50 text-sky-700">Existing</Badge>
+    : <Badge variant="outline" className="h-6 px-1.5 text-[10px] border-amber-300 bg-amber-50 text-amber-700">New</Badge>
+}
+
+/** A wizard card (pen, batch, flock) styled like a New sale line: white, coloured left edge. */
+const lineCardShell = (isExisting: boolean, live?: Record<string, string>, server?: Record<string, string>) => {
   const invalid = (live && Object.keys(live).length > 0) || (server && Object.keys(server).length > 0)
-  if (invalid) return "border-red-300 bg-red-50 border-l-4 border-l-red-500"
-  // Blue at -200. blue-50 and blue-100 both washed out against the white card
-  // behind them; -200 is the first step that separates a striped row from a
-  // plain one at a glance. Every control inside sits on its own white fill
-  // (see the row's [&_input] utilities), so nothing loses contrast as the tint
-  // deepens.
-  return index % 2 === 0
-    ? "bg-blue-200 border-blue-300 border-l-4 border-l-blue-600"
-    : "bg-white border-slate-200 border-l-4 border-l-slate-300"
+  if (invalid) return "border-red-300 bg-red-50 border-l-red-500"
+  return isExisting
+    ? "bg-white border-sky-200 border-l-sky-500"
+    : "bg-white border-amber-200 border-l-amber-500"
 }
 
 function sectionForStep(step: Step): string {
@@ -2406,13 +2460,15 @@ function Section({ title, description, icon: Icon, children }: {
 }
 
 /** The column headings for a grid step. Desktop only -- on mobile each field carries its own. */
-function RowHeader({ label, badge, onRemove }: {
+function RowHeader({ label, badge, onRemove, alwaysShow }: {
   label: string; badge: React.ReactNode
   /** Omitted for a row that is not this setup's to remove. */
   onRemove?: () => void
+  /** For a card layout, which has no desktop grid row to carry the badge and bin. */
+  alwaysShow?: boolean
 }) {
   return (
-    <div className="mb-3 flex items-center justify-between gap-2 border-b border-slate-100 pb-2 md:hidden">
+    <div className={`mb-3 flex items-center justify-between gap-2 border-b border-slate-100 pb-2 ${alwaysShow ? "" : "md:hidden"}`}>
       <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</span>
       <span className="flex items-center gap-1">
         {badge}
@@ -2502,14 +2558,6 @@ const normalizeMoney = (raw: string | null | undefined) => {
   const t = (raw ?? "").trim()
   if (!t || !Number.isFinite(Number(t))) return ""
   return Number(t).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
-
-function GridHeader({ columns }: { columns: [string, string][] }) {
-  return (
-    <div className="hidden md:grid grid-cols-12 gap-3 px-3 pb-1 text-xs font-medium text-slate-500">
-      {columns.map(([span, label]) => <div key={label} className={span}>{label}</div>)}
-    </div>
-  )
 }
 
 function Field({ label, error, hint, note, className, children, mobileOnlyLabel }: {

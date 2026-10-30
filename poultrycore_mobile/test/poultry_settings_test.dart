@@ -121,11 +121,16 @@ void main() {
     await tap(tester, find.text('Change billing market'));
     expect(find.textContaining('Estimated new total', findRichText: true), findsOneWidget);
     await choose(tester, 'Nigeria — NGN', 'United States — USD', within: find.byType(AlertDialog));
-    await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)), 'Relocated');
+    // MARKET_CHANGE_REASONS: Other + the typed reason.
+    await reasonOther(tester, 'Relocated');
     await tester.tap(find.text('Confirm request'));
     await tester.pumpAndSettle();
     expect(jsonDecode(a.writes.last.body), {'userId': 'user-1', 'marketCode': 'US', 'reason': 'Relocated'});
 
+    // Companies are grouped by business type, all folded; open both types.
+    await see(tester, find.text('1 company · 0 billed'));
+    await tap(tester, find.text('Water'));
+    await tap(tester, find.text('Poultry'));
     await see(tester, find.text('Pricing pending'));
     await tester.tap(find.byTooltip('Why this price?').first);
     await tester.pumpAndSettle();

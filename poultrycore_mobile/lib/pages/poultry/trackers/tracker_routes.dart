@@ -5,6 +5,7 @@ import '../../../state/session.dart';
 import '../../custom_form.dart';
 import 'analytical_report_screen.dart';
 import 'birds_tracker_screen.dart';
+import 'byproduct_tracker_screen.dart';
 import 'egg_tracker_screen.dart';
 import 'feed_inventory_tracker_screen.dart';
 import 'feed_stock_tracker_screen.dart';
@@ -17,9 +18,11 @@ import 'tracker_logic.dart';
 /// the Flocks list, Analytical Report the production records) or the web page.
 final Map<String, PageScreenBuilder> poultryTrackerScreens = {
   '/egg-tracker': (s, c) => EggTrackerScreen(session: s, company: c),
+  '/broken-eggs-tracker': (s, c) => ByproductTrackerScreen(session: s, company: c, role: ByproductRole.brokenEggs),
   '/feed-tracker': (s, c) => FeedStockTrackerScreen(session: s, company: c, kind: FeedKind.finishedFeed),
   '/feed-inventory-tracker': (s, c) => FeedInventoryTrackerScreen(session: s, company: c),
   '/birds-left-tracker': (s, c) => BirdsTrackerScreen(session: s, company: c),
+  '/dead-birds-tracker': (s, c) => ByproductTrackerScreen(session: s, company: c, role: ByproductRole.deadBirds),
   '/medication-tracker': (s, c) => MedicationTrackerScreen(session: s, company: c),
   '/weekly-report': (s, c) => AnalyticalReportScreen(session: s, company: c),
   '/feed-ingredient-tracker': (s, c) => FeedStockTrackerScreen(session: s, company: c, kind: FeedKind.ingredient),

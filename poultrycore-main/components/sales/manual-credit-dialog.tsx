@@ -1,0 +1,218 @@
+"use client"
+
+// Add customer credit by hand (migration 363), owner / admin only.
+//
+// The user never types a balance. They say WHERE the money came from, and
+// that decides what else moves:
+//   Opening balance  credit held before the farm used the system -- no cash, no P&L
+//   Customer advance paid in advance, no sale yet -- real cash in to an account
+//   Credit note      goodwill credit -- no cash; a cost on Profit & Loss
+
+import { CUSTOMER_CREDIT_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
+import { useEffect, useState } from "react"
+import { Loader2, PiggyBank } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogHeader } from "@/components/ui/dialog"
+import { FORM_DIALOG_CONTENT, FORM_DIALOG_PRIMARY, FormDialogFooter, FormDialogTitle } from "@/components/ui/form-dialog"
+import { FormField, FormSection } from "@/components/ui/form-section"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { cn } from "@/lib/utils"
+import { formatCurrency } from "@/lib/utils/currency"
+import { getCustomers } from "@/lib/api"
+import { getUserContext } from "@/lib/api/config"
+import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poultry-finance"
+import { createManualCredit, type ManualCreditKind } from "@/lib/api/customer-credit"
+
+const KINDS: { value: ManualCreditKind; title: string; body: string }[] = [
+  {
+    value: "OpeningCredit",
+    title: "Opening balance",
+    body: "Credit the customer already had before you started using the system. No cash moves and profit is not affected.",
+  },
+  {
+    value: "Deposit",
+    title: "Customer advance",
+    body: "The customer paid in advance, before buying anything. The money goes into the cash account you choose and shows in Cash Flow.",
+  },
+  {
+    value: "CreditNote",
+    title: "Credit note",
+    body: "Credit you give the customer, e.g. for broken eggs or a late delivery. No cash moves; it is a cost, shown on Profit & Loss.",
+  },
+]
+
+const METHODS = ["Cash", "Mobile Money", "Bank Transfer", "Check"]
+
+interface Props {
+  open: boolean
+  currencyCode: string
+  onOpenChange: (open: boolean) => void
+  onCreated: (summary: { customerName: string; kind: ManualCreditKind; amount: number; paymentNumber: string | null }) => void
+}
+
+function today(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+}
+
+export function ManualCreditDialog({ open, currencyCode, onOpenChange, onCreated }: Props) {
+  const [customers, setCustomers] = useState<{ id: number; name: string }[]>([])
+  const [accounts, setAccounts] = useState<PoultryCashAccount[]>([])
+  const [customerId, setCustomerId] = useState("")
+  const [kind, setKind] = useState<ManualCreditKind>("OpeningCredit")
+  const [amount, setAmount] = useState("")
+  const [date, setDate] = useState(today())
+  const [accountId, setAccountId] = useState("")
+  const [method, setMethod] = useState("Cash")
+  const [reference, setReference] = useState("")
+  const [reason, setReason] = useState("")
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    setCustomerId(""); setKind("OpeningCredit"); setAmount(""); setDate(today())
+    setMethod("Cash"); setReference(""); setReason(""); setError(null)
+    const { userId, farmId } = getUserContext()
+    getCustomers(userId, farmId)
+      .then((r: any) => {
+        const list = (r?.success ? r.data : r) ?? []
+        setCustomers((Array.isArray(list) ? list : [])
+          .map((c: any) => ({ id: Number(c.customerId ?? c.id), name: String(c.name ?? c.customerName ?? "") }))
+          .filter((c: { id: number; name: string }) => c.id > 0 && c.name)
+          .sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name)))
+      })
+      .catch(() => setCustomers([]))
+    listPoultryCashAccounts()
+      .then((a) => {
+        const active = a.filter((x) => x.isActive !== false)
+        setAccounts(active)
+        setAccountId(active[0] ? String(active[0].poultryCashAccountId) : "")
+      })
+      .catch(() => setAccounts([]))
+  }, [open])
+
+  const value = Math.round((Number(amount) || 0) * 100) / 100
+  const isDeposit = kind === "Deposit"
+  const valid = !!customerId && value > 0 && reason.trim().length > 0 && !!date && (!isDeposit || !!accountId)
+  const customerName = customers.find((c) => String(c.id) === customerId)?.name ?? ""
+
+  const save = async () => {
+    if (!valid) return
+    setSaving(true); setError(null)
+    try {
+      const res = await createManualCredit({
+        customerId: Number(customerId),
+        kind,
+        amount: value,
+        creditDate: date,
+        poultryCashAccountId: isDeposit ? Number(accountId) : null,
+        paymentMethod: isDeposit ? method : null,
+        reference: reference.trim() || null,
+        reason: reason.trim(),
+      })
+      onCreated({ customerName, kind, amount: value, paymentNumber: res?.paymentNumber ?? null })
+    } catch (e: any) {
+      setError(e?.message ?? String(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!saving) onOpenChange(o) }}>
+      <DialogContent className={cn(FORM_DIALOG_CONTENT, "sm:max-w-2xl")}>
+        <DialogHeader>
+          <FormDialogTitle icon={PiggyBank} color="blue">Add customer credit</FormDialogTitle>
+          <DialogDescription>
+            Money held for a customer, to use on their next sales or refund. Say where it came from — that decides whether cash or profit moves.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="min-w-0 space-y-4">
+          <FormSection title="Customer & Date" color="blue" tinted stackOnMobile>
+            <FormField label="Customer *">
+              <Select value={customerId} onValueChange={setCustomerId}>
+                <SelectTrigger className="w-full bg-white"><SelectValue placeholder={customers.length ? "Choose the customer" : "Loading customers…"} /></SelectTrigger>
+                <SelectContent>
+                  {customers.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </FormField>
+            <FormField label={kind === "OpeningCredit" ? "As at *" : "Date *"}>
+              <Input id="mc-date" type="date" className="bg-white" value={date} onChange={(e) => setDate(e.target.value)} />
+            </FormField>
+          </FormSection>
+
+          <FormSection title="Where the credit came from *" color="amber" tinted columns={1}>
+            {KINDS.map((k) => (
+              <label key={k.value}
+                     className={cn("flex cursor-pointer gap-2.5 rounded-md border p-2.5", kind === k.value ? "border-amber-400 bg-amber-50" : "border-slate-200 bg-white")}>
+                <input type="radio" name="manual-credit-kind" className="mt-1" checked={kind === k.value} onChange={() => { setKind(k.value); setReason("") }} />
+                <span className="text-sm">
+                  <span className="font-medium text-slate-900">{k.title}</span>
+                  <span className="block text-xs text-slate-600">{k.body}</span>
+                </span>
+              </label>
+            ))}
+          </FormSection>
+
+          <FormSection title="Amount" color="green" tinted>
+            <FormField label="Amount *">
+              <Input id="mc-amount" type="number" min={0} step="0.01" className="bg-white text-right font-semibold tabular-nums"
+                     value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" />
+            </FormField>
+            <FormField label="Reference">
+              <Input id="mc-ref" className="bg-white" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Optional, e.g. receipt" />
+            </FormField>
+            {isDeposit && (
+              <>
+                <FormField label="Received into *">
+                  <Select value={accountId} onValueChange={setAccountId}>
+                    <SelectTrigger className="w-full bg-white"><SelectValue placeholder="Cash account" /></SelectTrigger>
+                    <SelectContent>
+                      {accounts.map((a) => (
+                        <SelectItem key={a.poultryCashAccountId} value={String(a.poultryCashAccountId)}>{a.accountName}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormField>
+                <FormField label="Method">
+                  <Select value={method} onValueChange={setMethod}>
+                    <SelectTrigger className="w-full bg-white"><SelectValue /></SelectTrigger>
+                    <SelectContent>{METHODS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                  </Select>
+                </FormField>
+              </>
+            )}
+          </FormSection>
+
+          <FormSection title="Reason" color="slate" tinted columns={1}>
+            <ReasonSelect id="mc-reason" options={CUSTOMER_CREDIT_REASONS[kind]} value={reason} onChange={setReason} />
+          </FormSection>
+
+          {value > 0 && customerName && (
+            <p className="rounded-md border border-blue-200 bg-blue-50 p-2.5 text-sm text-blue-900">
+              {customerName} will hold <b className="tabular-nums">{formatCurrency(value, currencyCode)}</b> of credit.{" "}
+              {isDeposit
+                ? `${accounts.find((a) => String(a.poultryCashAccountId) === accountId)?.accountName ?? "The account"} goes up by the same amount.`
+                : kind === "CreditNote"
+                  ? "Profit & Loss shows it as a credit note (a cost). No cash moves."
+                  : "No cash moves and profit is not affected."}
+            </p>
+          )}
+          {error && <p className="rounded-md bg-red-50 p-2.5 text-sm text-red-700">{error}</p>}
+        </div>
+
+        <FormDialogFooter onCancel={() => onOpenChange(false)} cancelDisabled={saving}>
+          <Button onClick={save} disabled={!valid || saving} className={cn("px-6", FORM_DIALOG_PRIMARY.blue)}>
+            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {value > 0 ? `Add credit · ${formatCurrency(value, currencyCode)}` : "Add credit"}
+          </Button>
+        </FormDialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}

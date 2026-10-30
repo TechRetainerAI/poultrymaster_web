@@ -11,6 +11,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // Same FarmId-from-query pattern as the existing WaterControllers.cs.
     // =========================================================================
 
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/Water/boreholes")]
     [RequireCompanyType("Water")]
@@ -63,6 +64,7 @@ namespace PoultryFarmAPIWeb.Controllers
         }
     }
 
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/Water/machines")]
     [RequireCompanyType("Water")]
@@ -246,6 +248,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // Production Recipes — per-finished-product bill of materials.
     // Route shape matches the prompt: /products/{productId}/recipe
     // =========================================================================
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/Water/products/{productId:int}/recipe")]
     [RequireCompanyType("Water")]

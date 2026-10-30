@@ -714,8 +714,8 @@ class _WaterInventoryScreenState extends State<WaterInventoryScreen> {
             else
               _panel(
                 'Sachet rolls, caps, labels. Stock updated by raw-material purchases + production usage.',
-                'Manage raw materials',
-                () => _href('/water-raw-materials', 'Raw materials & supplies'),
+                'Inventory & supply purchases',
+                () => _href('/water-supply-purchases', 'Inventory & supply purchases'),
                 _loading
                     ? const Padding(padding: EdgeInsets.all(16), child: LoadingLine('Loading…'))
                     : raw.isEmpty

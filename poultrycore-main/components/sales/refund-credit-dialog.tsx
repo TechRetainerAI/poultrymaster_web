@@ -5,15 +5,17 @@
 // the one the money came in on. Not an expense, and no stock moves (a pure
 // refund is not a sales return).
 
+import { CUSTOMER_REFUND_REASONS } from "@/lib/reversal-reasons"
+import { ReasonSelect } from "@/components/ui/reason-select"
 import { useEffect, useState } from "react"
 import { HandCoins, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader } from "@/components/ui/dialog"
+import { FORM_DIALOG_CONTENT, FORM_DIALOG_PRIMARY, FormDialogFooter, FormDialogTitle } from "@/components/ui/form-dialog"
+import { FormSection } from "@/components/ui/form-section"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
+import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { formatCurrency } from "@/lib/utils/currency"
 import { recordCustomerRefund } from "@/lib/api/customer-credit"
@@ -23,6 +25,10 @@ export interface RefundTarget {
   customerId: number
   customerName: string
   availableCredit: number
+  /** 367: refund out of this one credit (its payment row). Absent = oldest credit first. */
+  poultryPaymentId?: number | null
+  /** e.g. "PAY-0012 · Customer advance", shown on the dialog. */
+  creditLabel?: string | null
 }
 
 interface Props {
@@ -70,6 +76,7 @@ export function RefundCreditDialog({ target, currencyCode, onOpenChange, onRefun
         poultryCashAccountId: Number(accountId),
         paymentMethod: method,
         reason: reason.trim(),
+        poultryPaymentId: target.poultryPaymentId ?? null,
       })
       onRefunded()
     } catch (e: any) {
@@ -79,57 +86,65 @@ export function RefundCreditDialog({ target, currencyCode, onOpenChange, onRefun
 
   return (
     <Dialog open={!!target} onOpenChange={(o) => { if (!saving) onOpenChange(o) }}>
-      <DialogContent className="max-w-md">
+      <DialogContent className={cn(FORM_DIALOG_CONTENT, "sm:max-w-lg")}>
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2"><HandCoins className="h-5 w-5 text-amber-600" /> Refund customer credit</DialogTitle>
+          <FormDialogTitle icon={HandCoins} color="amber">Refund customer credit</FormDialogTitle>
           <DialogDescription>
             Give {target?.customerName || "the customer"} back money they paid and you still hold. This is money going out of the
             account you choose; it is recorded as a refund, not an expense, and no stock moves.
           </DialogDescription>
         </DialogHeader>
         {target && (
-          <div className="space-y-3">
-            <p className="text-sm text-slate-600">Available credit: <span className="font-semibold tabular-nums">{money(target.availableCredit)}</span></p>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <Label htmlFor="refund-amount">Amount</Label>
-                <Input id="refund-amount" type="number" min={0} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          <div className="min-w-0 space-y-4">
+            <FormSection title="Customer" color="blue" tinted columns={1}>
+              <div className="space-y-1 text-sm text-slate-600">
+                <p>Customer: <span className="font-medium text-slate-900">{target.customerName}</span></p>
+                {target.creditLabel && <p>Credit: <span className="font-medium text-slate-900">{target.creditLabel}</span></p>}
+                <p>Available {target.poultryPaymentId ? "on this credit" : "credit"}: <span className="font-semibold tabular-nums text-slate-900">{money(target.availableCredit)}</span></p>
               </div>
-              <div className="space-y-1">
+            </FormSection>
+            <FormSection title="Refund" color="green" tinted stackOnMobile>
+              <div className="min-w-0 space-y-1">
+                <Label htmlFor="refund-amount">Amount</Label>
+                <Input id="refund-amount" type="number" min={0} step="0.01" className="bg-white text-right font-semibold tabular-nums"
+                       value={amount} onChange={(e) => setAmount(e.target.value)} />
+              </div>
+              <div className="min-w-0 space-y-1">
                 <Label>Method</Label>
                 <Select value={method} onValueChange={setMethod}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full bg-white"><SelectValue /></SelectTrigger>
                   <SelectContent>{METHODS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-            </div>
-            <div className="space-y-1">
-              <Label>Paid from</Label>
-              <Select value={accountId} onValueChange={setAccountId}>
-                <SelectTrigger><SelectValue placeholder="Choose a cash account" /></SelectTrigger>
-                <SelectContent>
-                  {accounts.map((a) => (
-                    <SelectItem key={a.poultryCashAccountId} value={String(a.poultryCashAccountId)}>
-                      {a.accountName} · {money(a.currentBalance)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="refund-reason">Reason</Label>
-              <Textarea id="refund-reason" rows={2} value={reason} onChange={(e) => setReason(e.target.value)}
-                        placeholder="e.g. Sale cancelled, customer asked for the money back" />
-            </div>
+              <div className="col-span-full min-w-0 space-y-1">
+                <Label>Paid from</Label>
+                <Select value={accountId} onValueChange={setAccountId}>
+                  <SelectTrigger className="w-full bg-white"><SelectValue placeholder="Choose a cash account" /></SelectTrigger>
+                  <SelectContent>
+                    {accounts.map((a) => (
+                      <SelectItem key={a.poultryCashAccountId} value={String(a.poultryCashAccountId)}>
+                        {a.accountName} · {money(a.currentBalance)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </FormSection>
+            <FormSection title="Reason" color="slate" tinted columns={1}>
+              <div className="min-w-0 space-y-1">
+                <Label htmlFor="refund-reason">Reason</Label>
+                <ReasonSelect id="refund-reason" options={CUSTOMER_REFUND_REASONS} value={reason} onChange={setReason} />
+              </div>
+            </FormSection>
             {error && <p className="rounded-md bg-red-50 p-2.5 text-sm text-red-700">{error}</p>}
           </div>
         )}
-        <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>
-          <Button onClick={save} disabled={!valid || saving} className="bg-amber-600 hover:bg-amber-700">
-            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Refund
+        <FormDialogFooter onCancel={() => onOpenChange(false)} cancelDisabled={saving}>
+          <Button onClick={save} disabled={!valid || saving} className={cn("px-6", FORM_DIALOG_PRIMARY.amber)}>
+            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {value > 0 ? `Refund · ${money(value)}` : "Refund"}
           </Button>
-        </DialogFooter>
+        </FormDialogFooter>
       </DialogContent>
     </Dialog>
   )

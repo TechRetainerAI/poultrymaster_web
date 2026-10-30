@@ -18,10 +18,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { EggClass } from "@/lib/api/egg-sorting"
 import { EGGS_PER_CRATE } from "@/lib/production/production-record-calc"
 import { UNSORTED_VALUE, classIdFrom, classValue } from "@/components/sales/egg-class-fields"
+import { byproductRole } from "@/lib/poultry/byproducts"
 
-export const SALE_PRODUCT_OPTIONS = ["Fresh Eggs", "Chicken", "Manure", "Other"]
+/** Every product the list can show. Broken Eggs / Dead Birds only when the company offers them (374). */
+export const SALE_PRODUCT_OPTIONS = ["Fresh Eggs", "Chicken", "Broken Eggs", "Dead Birds", "Manure", "Other"]
 
-export const isEggProduct = (product: string | null | undefined) => (product ?? "").toLowerCase().includes("egg")
+/** The list for this company: Broken Eggs on by default, Dead Birds off until turned on. */
+export function saleProductOptions(settings: { brokenEggsInSales?: boolean; deadBirdsInSales?: boolean } | null | undefined): string[] {
+  return SALE_PRODUCT_OPTIONS.filter((o) =>
+    o === "Broken Eggs" ? settings?.brokenEggsInSales !== false
+    : o === "Dead Birds" ? settings?.deadBirdsInSales === true
+    : true)
+}
+
+/** Eggs sold by size and crate. Broken Eggs are NOT: they are their own stock, sold by the egg. */
+export const isEggProduct = (product: string | null | undefined) =>
+  (product ?? "").toLowerCase().includes("egg") && byproductRole(product) == null
 
 /** Header and row share one grid so the columns line up. */
 export const SALE_ITEM_GRID =
@@ -48,7 +60,7 @@ export function SaleItemRow({
   crates, loose, onCratesChange, onLooseChange,
   quantity, onQuantityChange,
   unitPrice, onUnitPriceChange,
-  lineTotal, onRemove, note,
+  lineTotal, onRemove, note, options = SALE_PRODUCT_OPTIONS,
 }: {
   /** 1-based line number, shown on the card. */
   index?: number
@@ -73,10 +85,12 @@ export function SaleItemRow({
   onRemove?: () => void
   /** Stock and the like, under the row. */
   note?: ReactNode
+  /** The products offered (saleProductOptions). */
+  options?: string[]
 }) {
   const egg = isEggProduct(product)
   const hasSizes = classes.some((c) => c.classKind === "Size")
-  const selectValue = SALE_PRODUCT_OPTIONS.includes(product) ? product : "Other"
+  const selectValue = options.includes(product) ? product : "Other"
   const shownClasses = classes.filter((c) => c.classKind === "Unsorted" || c.isActive || c.poultryProductId === eggProductId)
 
   return (
@@ -95,7 +109,7 @@ export function SaleItemRow({
           <Select value={selectValue} onValueChange={(v) => onProductChange(v === "Other" ? "" : v)}>
             <SelectTrigger className="min-w-0"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {SALE_PRODUCT_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+              {options.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
             </SelectContent>
           </Select>
           {selectValue === "Other" && (

@@ -144,6 +144,15 @@ namespace PoultryFarmAPIWeb.Controllers
             return Ok(await _reports.GetEggStockBalanceAsync(filter));
         }
 
+        // 375
+        [HttpGet("byproduct-inventory")]
+        public async Task<IActionResult> ByproductInventory([FromQuery] PoultryReportFilterDto filter)
+        {
+            var guard = await EnsurePoultryAsync(filter.FarmId);
+            if (guard is not null) return guard;
+            return Ok(await _reports.GetByproductInventoryAsync(filter));
+        }
+
         // 11
         [HttpGet("egg-sales")]
         public async Task<IActionResult> EggSales([FromQuery] PoultryReportFilterDto filter)

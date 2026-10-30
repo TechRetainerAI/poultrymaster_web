@@ -22,18 +22,28 @@ import '../sales/payments_received_screen.dart' show fmtDateTimeLike;
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../trackers/tracker_widgets.dart';
 import 'recurring_logic.dart';
+import '../../shared/reason_select.dart';
 
 typedef RecurringOption = ({int id, String name});
 
-/// ModuleLookups for Poultry: free-text categories, its suppliers and active
-/// cash accounts; Poultry posts without an approval step.
+/// ModuleLookups (lib/api/recurring-expenses.ts loadModuleLookups). Poultry:
+/// free-text categories, its suppliers and active cash accounts, and it posts
+/// without an approval step. Water: its category table, and a posted expense
+/// then waits for approval on Water Expenses.
 class RecurringLookups {
-  const RecurringLookups({this.suppliers = const [], this.cashAccounts = const []});
+  const RecurringLookups(
+      {this.suppliers = const [], this.cashAccounts = const [], this.categories = const [], this.water = false, this.restaurant = false});
   final List<RecurringOption> suppliers;
   final List<RecurringOption> cashAccounts;
-  bool get moduleApproves => false;
-  String get expensesHref => '/expenses';
-  List<String> get textCategories => poultryRecurringCategories;
+  final List<RecurringOption> categories;
+  final bool water;
+
+  /// Restaurant: its category table, and no approval step (moduleApproves false).
+  final bool restaurant;
+  bool get categoriesAreText => !water && !restaurant;
+  bool get moduleApproves => water;
+  String get expensesHref => water ? '/water-expenses' : restaurant ? '/restaurant-expenses' : '/expenses';
+  List<String> get textCategories => categoriesAreText ? poultryRecurringCategories : const [];
 }
 
 class RecurringExpensesScreen extends StatefulWidget {
@@ -90,7 +100,12 @@ class _RecurringExpensesScreenState extends State<RecurringExpensesScreen> {
     if (mounted) setState(() => _loading = false);
   }
 
+  bool get _water => widget.company.type == CompanyType.water;
+  bool get _restaurant => widget.company.type == CompanyType.restaurant;
+
   Future<void> _loadLookups() async {
+    if (_water) return _loadWaterLookups();
+    if (_restaurant) return _loadRestaurantLookups();
     List<Map> cash = [], sup = [];
     try {
       cash = rowsOf(await _api.get('/api/Poultry/cash-accounts', query: _q()));
@@ -108,6 +123,64 @@ class _RecurringExpensesScreenState extends State<RecurringExpensesScreen> {
           cashAccounts: [
             for (final a in cash)
               if (a['isActive'] == true) (id: tIntOrNull(a['poultryCashAccountId']) ?? 0, name: tStr(a['accountName'])),
+          ],
+        ));
+  }
+
+  Future<void> _loadWaterLookups() async {
+    Future<List<Map>> rows(String path) async {
+      try {
+        return rowsOf(await _api.get(path, query: _q()));
+      } on ApiException {
+        return [];
+      }
+    }
+
+    final cats = await rows('/api/Water/expense-categories');
+    final sups = await rows('/api/Water/suppliers');
+    final cash = await rows('/api/Water/cash-accounts');
+    if (!mounted) return;
+    setState(() => _lookups = RecurringLookups(
+          water: true,
+          categories: [
+            for (final c in cats)
+              if (c['isActive'] != false) (id: tIntOrNull(c['waterExpenseCategoryId']) ?? 0, name: tStr(c['name'])),
+          ],
+          suppliers: [for (final s in sups) (id: tIntOrNull(s['waterSupplierId']) ?? 0, name: tStr(s['supplierName']))],
+          cashAccounts: [
+            for (final a in cash)
+              if (a['isActive'] != false) (id: tIntOrNull(a['waterCashAccountId']) ?? 0, name: tStr(a['accountName'])),
+          ],
+        ));
+  }
+
+  /// loadModuleLookups("restaurant"): its categories, suppliers and the active
+  /// finance accounts.
+  Future<void> _loadRestaurantLookups() async {
+    Future<List<Map>> rows(String path) async {
+      try {
+        return rowsOf(await _api.get(path, query: _q()));
+      } on ApiException {
+        return [];
+      }
+    }
+
+    final cats = await rows('/api/Restaurant/expenses/categories');
+    final sups = await rows('/api/Restaurant/setup/suppliers');
+    final cash = await rows('/api/Restaurant/finance/accounts');
+    if (!mounted) return;
+    setState(() => _lookups = RecurringLookups(
+          restaurant: true,
+          categories: [
+            for (final c in cats)
+              if (c['isActive'] != false) (id: tIntOrNull(c['expenseCategoryId']) ?? 0, name: tStr(c['name'])),
+          ],
+          suppliers: [
+            for (final s in sups) (id: tIntOrNull(s['restaurantsupplierid'] ?? s['restaurantSupplierId']) ?? 0, name: tStr(s['name'])),
+          ],
+          cashAccounts: [
+            for (final a in cash)
+              if (a['isActive'] != false) (id: tIntOrNull(a['cashAccountId']) ?? 0, name: tStr(a['name'])),
           ],
         ));
   }
@@ -193,6 +266,7 @@ class _RecurringExpensesScreenState extends State<RecurringExpensesScreen> {
       description: 'Nothing is recorded for this period. You can restore it later.',
       label: 'Why?',
       confirm: 'Skip',
+      options: skipReasons,
     );
     if (reason == null) return;
     try {
@@ -250,6 +324,7 @@ class _RecurringExpensesScreenState extends State<RecurringExpensesScreen> {
       description: 'No more drafts will be raised. Drafts already waiting stay for review, and posted expenses are not touched.',
       label: 'Reason (optional)',
       confirm: 'End it',
+      options: endReasons,
       allowEmpty: true,
       destructive: true,
     );
@@ -297,11 +372,14 @@ class _RecurringExpensesScreenState extends State<RecurringExpensesScreen> {
     bool allowEmpty = false,
     bool singleLine = false,
     bool destructive = false,
+    List<String>? options,
   }) =>
       showDialog<String>(
         context: context,
         builder: (ctx) {
           final c = TextEditingController();
+          var choice = '';
+          String? err;
           return StatefulBuilder(
             builder: (ctx, set) => AlertDialog(
               scrollable: true,
@@ -311,23 +389,50 @@ class _RecurringExpensesScreenState extends State<RecurringExpensesScreen> {
                 child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   Text(description, style: const TextStyle(fontSize: 13, color: TColors.slate500)),
                   const SizedBox(height: 12),
-                  FilterLabel(
-                    label,
-                    AppInput(
-                      controller: c,
-                      minLines: singleLine ? 1 : 2,
-                      maxLines: singleLine ? 1 : 4,
-                      keyboardType: singleLine ? TextInputType.number : null,
-                      onChanged: (_) => set(() {}),
+                  if (options != null)
+                    FilterLabel(
+                      label,
+                      AppSelect<String>(
+                        value: choice.isEmpty ? null : choice,
+                        hintText: 'Select a reason',
+                        items: [for (final o in options) AppSelectItem(value: o, label: o)],
+                        onChanged: (v) => set(() {
+                          choice = v ?? '';
+                          err = null;
+                        }),
+                      ),
                     ),
-                  ),
+                  if (options == null || choice == 'Other') ...[
+                    if (options != null) const SizedBox(height: 8),
+                    FilterLabel(
+                      options != null ? 'Say what happened' : label,
+                      AppInput(
+                        controller: c,
+                        minLines: singleLine ? 1 : 2,
+                        maxLines: singleLine ? 1 : 4,
+                        keyboardType: singleLine ? TextInputType.number : null,
+                        onChanged: (_) => set(() {}),
+                      ),
+                    ),
+                  ],
+                  if (err != null) ...[
+                    const SizedBox(height: 6),
+                    Text(err!, style: const TextStyle(fontSize: 13, color: TColors.rose700)),
+                  ],
                 ]),
               ),
               actions: [
                 OutlinedButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
                 FilledButton(
                   style: destructive ? FilledButton.styleFrom(backgroundColor: TColors.red600) : null,
-                  onPressed: !allowEmpty && c.text.trim().isEmpty ? null : () => Navigator.pop(ctx, c.text.trim()),
+                  onPressed: () {
+                    final r = promptReasonValue(options, choice, c.text, label: label, allowEmpty: allowEmpty);
+                    if (r.value != null) {
+                      Navigator.pop(ctx, r.value);
+                    } else {
+                      set(() => err = r.error);
+                    }
+                  },
                   child: Text(confirm),
                 ),
               ],
@@ -340,7 +445,7 @@ class _RecurringExpensesScreenState extends State<RecurringExpensesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final lead = sidebarLeading(context, widget.session, widget.company, href: '/recurring-expenses');
+    final lead = sidebarLeading(context, widget.session, widget.company, href: _water ? '/water-recurring-expenses' : _restaurant ? '/restaurant-recurring-expenses' : '/recurring-expenses');
     final drafts = [for (final o in _occurrences) if (o['status'] == 'Draft' || o['status'] == 'Posting') o];
     final draftTotal = drafts.fold<num>(0, (s, o) => s + tNum(o['amount']));
     final upcomingTotal = _upcoming.fold<num>(0, (s, u) => s + tNum(u['amount']));
@@ -358,13 +463,25 @@ class _RecurringExpensesScreenState extends State<RecurringExpensesScreen> {
               Expanded(child: Text('Recurring Expenses', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TColors.slate900))),
             ]),
             const SizedBox(height: 4),
-            const Text.rich(
+            Text.rich(
               TextSpan(children: [
-                TextSpan(text: 'Rent, security, internet, software, waste collection — set it up once. When one falls due it waits here as a'),
-                TextSpan(text: ' draft', style: TextStyle(fontWeight: FontWeight.w700)),
-                TextSpan(text: ' for you to check and post; nothing is paid or recorded until you do.'),
+                const TextSpan(text: 'Rent, security, internet, software, waste collection — set it up once. When one falls due it waits here as a'),
+                const TextSpan(text: ' draft', style: TextStyle(fontWeight: FontWeight.w700)),
+                const TextSpan(text: ' for you to check and post; nothing is paid or recorded until you do.'),
+                if (_lookups?.moduleApproves == true) ...[
+                  const TextSpan(text: ' Posted expenses then follow the normal approval on '),
+                  WidgetSpan(
+                    alignment: PlaceholderAlignment.baseline,
+                    baseline: TextBaseline.alphabetic,
+                    child: GestureDetector(
+                      onTap: () => openAppHref(context, widget.session, widget.company, _lookups!.expensesHref, label: 'Expenses'),
+                      child: const Text('Expenses', style: TextStyle(fontSize: 13, color: Color(0xFF1D4ED8))),
+                    ),
+                  ),
+                  const TextSpan(text: '.'),
+                ],
               ]),
-              style: TextStyle(fontSize: 13, color: TColors.slate600),
+              style: const TextStyle(fontSize: 13, color: TColors.slate600),
             ),
             if (_canWrite) ...[
               const SizedBox(height: 12),
@@ -474,7 +591,7 @@ class _RecurringExpensesScreenState extends State<RecurringExpensesScreen> {
             ? const Row(mainAxisSize: MainAxisSize.min, children: [
                 Icon(Icons.check_circle_outline, size: 16, color: TColors.emerald600),
                 SizedBox(width: 6),
-                Text('Nothing waiting for review.'),
+                Flexible(child: Text('Nothing waiting for review.')),
               ])
             : const Text('Nothing here.')),
       ];
@@ -690,6 +807,8 @@ class _RecurringTemplateEditorState extends State<RecurringTemplateEditor> {
   late final _amount = TextEditingController(text: t == null ? '0' : tNum(t!['amount']).toString().replaceFirst(RegExp(r'\.0$'), ''));
   late final _desc = TextEditingController(text: tStr(t?['description']));
   late String? _category = tStr(t?['categoryName']).isEmpty ? null : tStr(t?['categoryName']);
+  // A module with a category table (Water) picks by id.
+  late int? _categoryId = tIntOrNull(t?['categoryId']);
   late int? _supplier = tIntOrNull(t?['supplierId']);
   late bool _variable = t?['isVariable'] == true;
   late String _frequency = tStr(t?['frequency']).isEmpty ? 'Monthly' : tStr(t?['frequency']);
@@ -728,7 +847,7 @@ class _RecurringTemplateEditorState extends State<RecurringTemplateEditor> {
       frequency: _frequency,
       startDate: _start,
       endDate: _end.isEmpty ? null : _end,
-      categoryOk: (_category ?? '').isNotEmpty,
+      categoryOk: widget.lookups.categoriesAreText ? (_category ?? '').isNotEmpty : (_categoryId ?? 0) > 0,
       paymentMethod: _method,
       supplierId: _supplier,
       cashAccountId: _cash,
@@ -740,8 +859,10 @@ class _RecurringTemplateEditorState extends State<RecurringTemplateEditor> {
     final farmId = widget.company.farmId;
     final body = {
       'name': _name.text,
-      'categoryId': null,
-      'categoryName': _category,
+      'categoryId': widget.lookups.categoriesAreText ? null : _categoryId,
+      'categoryName': widget.lookups.categoriesAreText
+          ? _category
+          : [for (final c in widget.lookups.categories) if (c.id == _categoryId) c.name].firstOrNull,
       'supplierId': _supplier,
       'payeeName': t?['payeeName'],
       'amount': _amt,
@@ -810,12 +931,19 @@ class _RecurringTemplateEditorState extends State<RecurringTemplateEditor> {
           _field('Name *', AppInput(controller: _name, hintText: 'e.g. Office rent')),
           _field(
             'Category *',
-            AppSelect<String>(
-              value: _category,
-              hintText: 'Choose',
-              items: [for (final c in lk.textCategories) AppSelectItem(value: c, label: c)],
-              onChanged: (v) => setState(() => _category = v),
-            ),
+            lk.categoriesAreText
+                ? AppSelect<String>(
+                    value: _category,
+                    hintText: 'Choose',
+                    items: [for (final c in lk.textCategories) AppSelectItem(value: c, label: c)],
+                    onChanged: (v) => setState(() => _category = v),
+                  )
+                : AppSelect<int>(
+                    value: lk.categories.any((c) => c.id == _categoryId) ? _categoryId : null,
+                    hintText: 'Choose',
+                    items: [for (final c in lk.categories) AppSelectItem(value: c.id, label: c.name)],
+                    onChanged: (v) => setState(() => _categoryId = v),
+                  ),
           ),
           _field(
             'Supplier / payee',

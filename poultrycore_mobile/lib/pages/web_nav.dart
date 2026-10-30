@@ -74,12 +74,15 @@ const Map<String, List<NavGroup>> webNavGroups = {
         NavLink('Sales', '/sales', 'sales'),
         NavLink('Payments', '/poultry-payments', 'poultry-payments'),
         NavLink('Customer Balances', '/customer-balances', 'poultry-customer-balances'),
+        // Money held FOR customers (351): its own page, beside what they owe.
+        NavLink('Customer Credits', '/customer-credits', null),
       ]),
       NavSubGroup('Expenses', [
         NavLink('Expenses', '/expenses', null),
         // Right under Expenses: paying a bill and seeing what is still owed.
         NavLink('Supplier Payments', '/supplier-payments', null),
         NavLink('Supplier Balances', '/supplier-balances', null),
+        NavLink('Supplier Credits', '/supplier-credits', null),
         NavLink('Internal Use', '/poultry-internal-use', null),
         NavLink('Payroll', '/poultry-payroll', null),
         NavLink('Employee Loans & Advances', '/poultry-employee-loans', null),
@@ -100,9 +103,12 @@ const Map<String, List<NavGroup>> webNavGroups = {
     NavGroup('Trackers', [
       NavSubGroup('Trackers', [
         NavLink('Egg tracker', '/egg-tracker', null),
+        // Byproduct stock: never part of the egg or live-bird figures.
+        NavLink('Broken eggs tracker', '/broken-eggs-tracker', null),
         NavLink('Feed tracker', '/feed-tracker', null),
         NavLink('Feed inventory tracker', '/feed-inventory-tracker', null),
         NavLink('Birds tracker', '/birds-left-tracker', null),
+        NavLink('Dead birds tracker', '/dead-birds-tracker', null),
         NavLink('Medication tracker', '/medication-tracker', null),
         NavLink('Analytical Report', '/weekly-report', null),
         NavLink('Ingredients only tracker', '/feed-ingredient-tracker', null),
@@ -135,6 +141,7 @@ const Map<String, List<NavGroup>> webNavGroups = {
         NavLink('Hen-Day Production', '/poultry/reports/hen-day-production', 'poultry-reports-hen-day-production'),
         NavLink('Batch Production Summary', '/poultry/reports/batch-production-summary', 'mainflockbatch'),
         NavLink('Egg Stock Balance', '/poultry/reports/egg-stock-balance', 'poultry-reports-egg-stock-balance'),
+        NavLink('Byproduct Inventory & Disposition', '/poultry/reports/byproduct-inventory', null),
         NavLink('Missing Daily Records', '/poultry/reports/missing-daily-records', 'poultry-reports-missing-daily-records'),
       ]),
       NavSubGroup('Feed, Birds & Health', [
@@ -244,7 +251,7 @@ const Map<String, List<NavGroup>> webNavGroups = {
       NavSubGroup('Inventory', [
         NavLink('Stock movement', '/water-stock', 'water-stock-transactions'),
         NavLink('Inventory', '/water-inventory', 'water-products'),
-        NavLink('Raw materials & supplies', '/water-raw-materials', 'water-raw-material-purchases'),
+        NavLink('Inventory & supply purchases', '/water-supply-purchases', 'water-raw-material-purchases'),
         NavLink('Damages & loss', '/water-loss-records', 'water-loss-records'),
         NavLink('Production losses', '/water-production-losses', 'water-production-losses'),
       ]),
@@ -261,6 +268,7 @@ const Map<String, List<NavGroup>> webNavGroups = {
       ]),
       NavSubGroup('Expenses', [
         NavLink('Expenses', '/water-expenses', 'water-expenses'),
+        NavLink('Recurring Expenses', '/water-recurring-expenses', null),
         NavLink('Internal Use', '/water-internal-use', 'water-internal-usage'),
         NavLink('Payroll', '/water-payroll', 'water-payroll-runs'),
         NavLink('Employee Loans & Advances', '/water-employee-loans', 'water-employee-loans'),
@@ -549,6 +557,7 @@ const Map<String, List<NavGroup>> webNavGroups = {
     NavGroup('Inventory', [
       NavSubGroup('', [
         NavLink('Ingredients & Stock', '/restaurant-inventory', 'restaurant-inventory-ingredients'),
+        NavLink('Record Purchase', '/restaurant-inventory?purchase=1', null),
       ]),
     ]),
     NavGroup('Sales, Expenses & Money', [
@@ -559,11 +568,12 @@ const Map<String, List<NavGroup>> webNavGroups = {
       ]),
       NavSubGroup('Expenses', [
         NavLink('Expenses', '/restaurant-expenses', 'restaurant-expenses'),
+        NavLink('Supplier Payments', '/restaurant-supplier-payments', null),
+        NavLink('Supplier Balances', '/restaurant-supplier-balances', null),
+        NavLink('Recurring Expenses', '/restaurant-recurring-expenses', null),
         NavLink('Internal Use', '/restaurant-internal-use', null),
         NavLink('Payroll', '/restaurant-payroll', 'restaurant-payroll-runs'),
         NavLink('Employee Loans & Advances', '/restaurant-staff-loans', 'restaurant-staff-loans'),
-        NavLink('Supplier Payments', '/restaurant-supplier-payments', null),
-        NavLink('Supplier Balances', '/restaurant-supplier-balances', null),
         NavLink('Deferred inventory cost', '/restaurant-deferred-costs', null),
         NavLink('Capital Investments/Assets', '/restaurant-assets', null),
       ]),
@@ -603,6 +613,8 @@ const Map<String, List<NavGroup>> webNavGroups = {
       NavSubGroup('', [
         NavLink('Users & Permissions', '/employees', 'admin-company-employees'),
         NavLink('Account', '/profile', 'authentication-get-current-user'),
+        // An action, not a page: opens "System Alerts and Notifications".
+        NavLink('Alerts', '#alerts', null),
         NavLink('Companies', '/companies', 'companies-mine'),
         NavLink('Billing', '/business-office/billing', 'payments-subscription-tiers'),
         NavLink('Activity Log', '/audit-logs', 'auditlogs'),
@@ -616,7 +628,6 @@ const Map<String, List<NavGroup>> webNavGroups = {
         NavLink('Suppliers', '/restaurant-suppliers', 'restaurant-setup-suppliers'),
         NavLink('QR / Customer Order', '/restaurant-order-online', 'restaurant-public-menu'),
         NavLink('QR Codes', '/restaurant-qr-print', 'restaurant-online-qr-codes'),
-        NavLink('Record Purchase', '/restaurant-inventory?purchase=1', null),
       ]),
     ]),
   ],

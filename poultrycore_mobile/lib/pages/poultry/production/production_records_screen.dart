@@ -17,6 +17,7 @@ import '../../shared/business_dates.dart';
 import '../../shared/company_clock.dart';
 import '../reports/dashboard_screen.dart' show latestRecordForFlock, birdsLeftFromRecord, sumLatestBirdsLeftByFlock;
 import '../reports/report_export.dart';
+import '../reports/report_format.dart' show periodGroups, periodToRange, rangeToPeriod;
 import '../reports/report_routes.dart' show openAppHref;
 import '../money/money_widgets.dart' show twoUp;
 import '../sales/sales_logic.dart' show pageNumbers, salePageSizes;
@@ -271,8 +272,9 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
                             _load();
                           } on ApiException catch (e) {
                             if (mounted) {
+                              // 372: a refusal (e.g. its broken eggs / dead birds were already used) is a sentence.
                               trackerToast(context, 'Delete failed',
-                                  description: e.message.isNotEmpty ? e.message : 'Something went wrong. Please try again.', error: true);
+                                  description: productionRefusal(e, 'Could not delete this production record. Please try again.'), error: true);
                             }
                           }
                           if (ctx.mounted) Navigator.pop(ctx);
@@ -437,6 +439,26 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
               const SizedBox(height: 14),
               const Text('Date range', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: TColors.slate700)),
               const SizedBox(height: 10),
+              // Period presets drive the dates. No dates is this page's
+              // unfiltered default, so it reads as All Time (and picking All
+              // Time clears them); hand-picked dates read as Custom.
+              AppSelect<String>(
+                value: from.isEmpty && to.isEmpty ? 'allTime' : rangeToPeriod(from, to),
+                items: [for (final (_, opts) in periodGroups) for (final (k, l) in opts) AppSelectItem(value: k, label: l)],
+                onChanged: (p) => set(() {
+                  if (p == 'allTime') {
+                    from = '';
+                    to = '';
+                  } else if (p != null) {
+                    final r = periodToRange(p);
+                    if (r != null) {
+                      from = r.from;
+                      to = r.to;
+                    }
+                  }
+                }),
+              ),
+              const SizedBox(height: 12),
               FilterLabel('Start date', FilterDate(value: from, hint: 'Start date', onChanged: (v) => set(() => from = v))),
               const SizedBox(height: 12),
               FilterLabel('End date', FilterDate(value: to, hint: 'End date', onChanged: (v) => set(() => to = v))),

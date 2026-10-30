@@ -6,6 +6,7 @@ import '../custom_form.dart';
 import '../form_spec.dart';
 import '../form_screen.dart';
 import '../registry.dart';
+import '../poultry/expenses/recurring_expenses_screen.dart';
 import '../poultry/sales/balances_logic.dart' show BalanceRail, BalanceSide;
 import '../poultry/expenses/supplier_payments_screen.dart';
 import '../poultry/sales/customer_balances_screen.dart';
@@ -256,6 +257,8 @@ const Map<String, PageScreenBuilder> waterPageScreens = {
   '/water-employee-loans': _employeeLoans,
   '/water-payroll': _payroll,
   '/water-expenses': _expenses,
+  // 348: the shared recurring-expense page, under Water's own route.
+  '/water-recurring-expenses': _recurringExpenses,
   // Supplier Payments and Balances: the shared pages on the Water rail, as
   // the web's thin page files do.
   '/water-supplier-payments': _supplierPayments,
@@ -272,6 +275,9 @@ const Map<String, PageScreenBuilder> waterPageScreens = {
   // Operations → Inventory.
   '/water-stock': _stock,
   '/water-inventory': _inventory,
+  // Inventory & supply purchases. The old address still opens it, as the
+  // web redirects /water-raw-materials there.
+  '/water-supply-purchases': _rawMaterials,
   '/water-raw-materials': _rawMaterials,
   '/water-loss-records': _lossRecords,
   '/water-production-losses': _productionLosses,
@@ -310,6 +316,7 @@ Widget _supplierBalances(Session s, Company c) =>
     CustomerBalancesScreen(session: s, company: c, side: BalanceSide.supplier, rail: BalanceRail.water);
 
 Widget _expenses(Session s, Company c) => WaterExpensesScreen(session: s, company: c);
+Widget _recurringExpenses(Session s, Company c) => RecurringExpensesScreen(session: s, company: c);
 
 Widget _payroll(Session s, Company c) => WaterPayrollScreen(session: s, company: c);
 

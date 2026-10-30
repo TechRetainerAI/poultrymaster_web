@@ -8,6 +8,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // =========================================================================
     // Products
     // =========================================================================
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/Water/products")]
     [RequireCompanyType("Water")]
@@ -39,6 +40,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
         // Set a finished product's stock to a physical count (writes a correcting
         // Adjust transaction for the difference).
+        [PoultryFarmAPIWeb.Filters.AllowStaffSetupWrite]
         [HttpPost("{id:int}/set-stock")]
         public async Task<ActionResult<object>> SetStock(int id, [FromBody] ProductSetStockRequest body)
         {
@@ -82,6 +84,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // =========================================================================
     // Customers
     // =========================================================================
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/Water/customers")]
     [RequireCompanyType("Water")]
@@ -105,6 +108,7 @@ namespace PoultryFarmAPIWeb.Controllers
             return c is null ? NotFound() : Ok(c);
         }
 
+        [PoultryFarmAPIWeb.Filters.AllowStaffSetupWrite]
         [HttpPost]
         public async Task<ActionResult<WaterCustomerModel>> Create([FromBody] WaterCustomerModel m)
         {

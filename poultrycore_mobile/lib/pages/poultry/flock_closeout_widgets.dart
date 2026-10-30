@@ -13,6 +13,7 @@ import 'flock_closeout_logic.dart';
 import 'reports/report_format.dart';
 import 'trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, jsNum;
 import 'trackers/tracker_widgets.dart';
+import '../shared/reason_select.dart';
 
 /// REST client for FlockCloseoutController. farmId rides in the query on every
 /// call, writes included: that is where the API's IAM filter reads it from.
@@ -1447,7 +1448,7 @@ class _FlockLifetimeViewState extends State<FlockLifetimeView> {
               const SizedBox(height: 8),
               const Text('Reason for reopening', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: TColors.slate700)),
               const SizedBox(height: 4),
-              AppTextarea(controller: _reopenReason, rows: 2, onChanged: (_) => setState(() {})),
+              ReasonSelectField(controller: _reopenReason, options: flockReopenReasons, multiline: true, onChanged: (_) => setState(() {})),
               const SizedBox(height: 8),
               Wrap(spacing: 8, children: [
                 OutlinedButton(

@@ -5,6 +5,7 @@ using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Controllers
 {
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/Water/drivers")]
     [RequireCompanyType("Water")]
@@ -83,6 +84,7 @@ namespace PoultryFarmAPIWeb.Controllers
         public string? RolesCsv { get; set; }
     }
 
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/Water/vehicles")]
     [RequireCompanyType("Water")]
@@ -127,6 +129,7 @@ namespace PoultryFarmAPIWeb.Controllers
         }
     }
 
+    [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/Water/routes")]
     [RequireCompanyType("Water")]

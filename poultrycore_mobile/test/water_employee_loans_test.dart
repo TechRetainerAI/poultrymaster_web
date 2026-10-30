@@ -134,7 +134,7 @@ void main() {
     await tester.tap(inDialog(find.text('Reverse')));
     await tester.pumpAndSettle();
     expect(find.text('Reverse this repayment'), findsOneWidget);
-    await enterIn(tester, 'Reason', 'Counted twice');
+    await reasonOther(tester, 'Counted twice');
     await tapIn(tester, inDialog(find.text('Undo it')));
     expect(body(a, '/api/Water/employee-loans/repayments/11/reverse'), {'farmId': 'farm-1', 'reason': 'Counted twice', 'actionBy': 'user-1'});
     expect(find.textContaining('Done'), findsOneWidget);

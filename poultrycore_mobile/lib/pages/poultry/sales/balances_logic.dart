@@ -15,7 +15,15 @@ const paymentsSourceLabels = {
   'PaymentsPage': 'Payments',
   'ImportedPayment': 'Imported',
   'Backfill': 'Backfill',
+  // 363: credit added by hand on Customer Credits.
+  'OpeningCredit': 'Opening credit',
+  'Deposit': 'Customer advance',
+  'CreditNote': 'Credit note',
 };
+
+/// 363: a credit added by hand is reversed from Customer Credits (owner / admin).
+const manualCreditSources = {'OpeningCredit', 'Deposit', 'CreditNote'};
+bool isManualCreditPayment(Map row) => manualCreditSources.contains(tStr(row['sourceType']));
 String paymentsSourceLabel(Object? s) {
   final v = tStr(s);
   return v.isEmpty ? '—' : (paymentsSourceLabels[v] ?? v);
@@ -25,7 +33,15 @@ String paymentsSourceLabel(Object? s) {
 String statementSourceLabel(Object? s) {
   final v = tStr(s);
   if (v.isEmpty || v == 'Sale') return '—';
-  return {...paymentsSourceLabels, 'Counter': 'Counter'}[v] ?? v;
+  return {
+        ...paymentsSourceLabels,
+        'Counter': 'Counter',
+        // 363: credit added by hand on Customer Credits.
+        'OpeningCredit': 'Opening credit',
+        'Deposit': 'Customer advance',
+        'CreditNote': 'Credit note',
+      }[v] ??
+      v;
 }
 
 /// PAY-0001, else the first block of the group uuid.
@@ -91,8 +107,12 @@ class AllocationValidation {
 }
 
 /// validateAllocations, with the web's messages.
+///
+/// [allowUnallocated] (367, poultry): the payment need not be applied in full.
+/// What is left is kept as the customer's / supplier's credit, so it needs a
+/// cash account to land in; over-allocating is still refused.
 AllocationValidation validateAllocations(num amount, List<Map> documents, Map<String, num> allocation,
-    {bool cashAccountRequired = false, int? cashAccountId}) {
+    {bool cashAccountRequired = false, int? cashAccountId, bool allowUnallocated = false}) {
   final problems = <(String?, String)>[];
   final over = <String, num>{};
   final byKey = {for (final d in documents) docKey(d): d};
@@ -118,7 +138,13 @@ AllocationValidation validateAllocations(num amount, List<Map> documents, Map<St
     }
   });
   if (amountP <= 0) problems.add((null, 'Enter a payment amount greater than 0.'));
-  if (allocatedP == 0 && amountP > 0) {
+  if (allowUnallocated && amountP > 0) {
+    if (allocatedP > amountP) {
+      problems.add((null, 'Applied amounts exceed the payment by ${fromPesewas(allocatedP - amountP).toStringAsFixed(2)}.'));
+    } else if (allocatedP < amountP && cashAccountId == null) {
+      problems.add((null, 'Choose the cash account: the part not applied is kept as credit.'));
+    }
+  } else if (allocatedP == 0 && amountP > 0) {
     problems.add((null, 'Apply this payment to at least one line.'));
   } else if (amountP > 0 && allocatedP != amountP) {
     problems.add((
@@ -289,22 +315,42 @@ class BalanceRail {
   final bool customerCashAccounts;
 
   bool get isWater => api == '/api/Water';
+  bool get isRestaurant => api == '/api/Restaurant';
+
+  /// Poultry alone has supplier / customer debts, the P&L badge and the
+  /// credit panels; Water and Restaurant pass none of those.
+  bool get isPoultry => api == '/api/Poultry';
 
   String balancesHref(BalanceSide side) => side.isCustomer ? customerBalancesHref : supplierBalancesHref;
 
-  String get supplierPaymentsHref => isWater ? '/water-supplier-payments' : '/supplier-payments';
+  String get supplierPaymentsHref => isWater ? '/water-supplier-payments' : isRestaurant ? '/restaurant-supplier-payments' : '/supplier-payments';
 
   /// partyHref on the supplier pages.
-  String get suppliersHref => isWater ? '/water-suppliers' : '/suppliers';
+  String get suppliersHref => isWater ? '/water-suppliers' : isRestaurant ? '/restaurant-suppliers' : '/suppliers';
 
   /// The module's cash-accounts id key.
-  String get cashAccountIdKey => isWater ? 'waterCashAccountId' : 'poultryCashAccountId';
+  String get cashAccountIdKey => isWater ? 'waterCashAccountId' : isRestaurant ? 'cashAccountId' : 'poultryCashAccountId';
+
+  /// Where the cash accounts are listed: Restaurant's live under /finance
+  /// (listCashAccounts), with `name` and `allowNegative`.
+  String get cashAccountsPath => isRestaurant ? '/api/Restaurant/finance/accounts' : '$api/cash-accounts';
+  String get cashAccountNameKey => isRestaurant ? 'name' : 'accountName';
+  String get allowNegativeKey => isRestaurant ? 'allowNegative' : 'allowNegativeBalance';
 
   /// documentHref for a supplier payable. Water payables are a single table
   /// (raw-material purchases); Poultry's also span flock batches and expenses.
   String supplierDocumentHref(Map a) {
     final type = '${a['documentType'] ?? ''}', id = '${a['documentId'] ?? ''}';
-    if (isWater) return '/water-raw-materials?tab=purchases&purchaseId=$id';
+    if (isWater) return '/water-supply-purchases?tab=purchases&purchaseId=$id';
+    // restaurantPayableHref (lib/restaurant/payables.ts, migration 329).
+    if (isRestaurant) {
+      return switch (type) {
+        'Purchase' => '/restaurant-inventory?tab=purchases&purchaseId=$id',
+        'Expense' => '/restaurant-expenses?expenseId=$id',
+        'AssetCost' => '/restaurant-assets',
+        _ => '',
+      };
+    }
     return switch (type) {
       'FlockBatch' => '/flock-batch/$id',
       'Expense' => '/expenses?expenseId=$id',
@@ -314,10 +360,12 @@ class BalanceRail {
 
   /// The Supplier Balances doc link: Poultry's has no Expense branch.
   String supplierBalanceDocHref(Map d) =>
-      !isWater && '${d['documentType']}' == 'Expense'
+      isPoultry && '${d['documentType']}' == 'Expense'
           ? '/poultry-supply-purchases?tab=purchases&purchaseId=${d['documentId'] ?? ''}'
           : supplierDocumentHref(d);
 
   static const poultry = BalanceRail._('/api/Poultry', '/poultry-payments', '/customer-balances', '/supplier-balances', true);
   static const water = BalanceRail._('/api/Water', '/water-payments', '/water-customer-balances', '/water-supplier-balances', false);
+  static const restaurant =
+      BalanceRail._('/api/Restaurant', '/restaurant-payments', '/restaurant-customer-balances', '/restaurant-supplier-balances', true);
 }

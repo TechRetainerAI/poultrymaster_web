@@ -137,6 +137,7 @@ class _ListScreenState extends State<ListScreen> {
       final res = await client.get(path, query: query);
       final rows = _rowsFrom(res, spec.itemsAt);
       await _resolve(rows);
+      await rowEnrich[spec.key]?.call(widget.session, widget.company, rows).catchError((_) {});
       if (!mounted) return;
       setState(() {
         _rows = rows;
@@ -925,6 +926,10 @@ class _RecordCard extends StatelessWidget {
                             ),
                           ),
                         ),
+                        if (rowBadges[spec.key]?.call(row) case final badge?) ...[
+                          const SizedBox(width: 6),
+                          badge,
+                        ],
                         if (status != null && '$status'.isNotEmpty) ...[
                           const SizedBox(width: 8),
                           _StatusChip(value: '$status'),

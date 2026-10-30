@@ -20,6 +20,7 @@ import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, loc;
 import '../trackers/tracker_widgets.dart';
 import 'feed_production_form.dart';
 import 'production_records_screen.dart' show ProdCard;
+import '../../shared/reason_select.dart';
 
 const feedSourceLabels = {'FromInventory': 'From inventory', 'BoughtDuringProduction': 'Bought during production', 'MixedSource': 'Mixed source'};
 
@@ -600,7 +601,7 @@ class _FeedProductionBatchScreenState extends State<FeedProductionBatchScreen> {
                     const SizedBox(height: 12),
                     const Text('Reason (optional)', style: TextStyle(fontSize: 12, color: TColors.slate500)),
                     const SizedBox(height: 4),
-                    AppInput(controller: reason, hintText: 'Why is this being reversed?'),
+                    ReasonSelectField(controller: reason, options: stockReversalReasons),
                   ],
                 ),
               ),

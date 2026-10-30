@@ -217,7 +217,7 @@ void main() {
     await tester.tap(find.byTooltip('Reverse this cost'));
     await tester.pumpAndSettle();
     expect(find.textContaining("the asset's value falls by GHC 2,000.00"), findsOneWidget);
-    await tester.enterText(inDialog(find.byType(TextFormField)), 'Wrong asset');
+    await reasonOther(tester, 'Wrong asset');
     await tapIn(tester, inDialog(find.widgetWithText(FilledButton, 'Reverse cost')));
     expect(a.writes.lastWhere((w) => w.method == 'DELETE').url.path, '/api/Water/assets/1/costs/12');
   });
@@ -231,7 +231,7 @@ void main() {
     await see(tester, find.byTooltip('Reverse this charge'));
     await tester.tap(find.byTooltip('Reverse this charge'));
     await tester.pumpAndSettle();
-    await tester.enterText(inDialog(find.byType(TextFormField)), 'Wrong month');
+    await reasonOther(tester, 'Wrong month');
     await tapIn(tester, inDialog(find.widgetWithText(FilledButton, 'Reverse')));
     expect(body(a, '/api/Water/asset-depreciation/31/reverse')['reason'], 'Wrong month');
   });
