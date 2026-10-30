@@ -36,7 +36,8 @@ function Pager({ page, total, onPage }: { page: number; total: number; onPage: (
 }
 
 // ---------------------------------------------------------------- Farms
-type FarmSort = "name-asc" | "name-desc" | "users-desc" | "staff-desc"
+type SortKey = "name" | "email" | "phone" | "users" | "staff"
+type SortDir = "asc" | "desc"
 
 export function FarmsPage({ farms, onAudit, token, onDeleted }: {
   farms: FarmSummary[]; onAudit: (farmId: string) => void; token: string; onDeleted: () => void
@@ -75,55 +76,81 @@ export function FarmsPage({ farms, onAudit, token, onDeleted }: {
 
   const [q, setQ] = useState("")
   const [status, setStatus] = useState<"all" | "paid" | "unpaid">("all")
-  const [sort, setSort] = useState<FarmSort>("name-asc")
+  const [contact, setContact] = useState<"all" | "has-email" | "has-phone" | "missing">("all")
+  const [sortKey, setSortKey] = useState<SortKey>("name")
+  const [sortDir, setSortDir] = useState<SortDir>("asc")
   const [page, setPage] = useState(0)
+
+  function toggleSort(k: SortKey) {
+    if (k === sortKey) { setSortDir((d) => (d === "asc" ? "desc" : "asc")); return }
+    setSortKey(k)
+    setSortDir(k === "users" || k === "staff" ? "desc" : "asc")
+  }
 
   const filtered = useMemo(() => {
     let rows = farms
     const needle = q.trim().toLowerCase()
-    if (needle) rows = rows.filter((f) => `${f.farmName || ""} ${f.farmId}`.toLowerCase().includes(needle))
+    if (needle) rows = rows.filter((f) => `${f.farmName || ""} ${f.farmId} ${f.email || ""} ${f.phoneNumber || ""}`.toLowerCase().includes(needle))
     if (status === "paid") rows = rows.filter((f) => f.hasPaidSubscription === true)
     if (status === "unpaid") rows = rows.filter((f) => f.hasPaidSubscription !== true)
-    const name = (f: FarmSummary) => (f.farmName || "").toLowerCase()
-    rows = [...rows].sort((a, b) =>
-      sort === "name-asc" ? name(a).localeCompare(name(b)) :
-      sort === "name-desc" ? name(b).localeCompare(name(a)) :
-      sort === "users-desc" ? b.totalUsers - a.totalUsers : b.staffCount - a.staffCount
-    )
-    return rows
-  }, [farms, q, status, sort])
+    const hasEmail = (f: FarmSummary) => !!(f.email && f.email.trim())
+    const hasPhone = (f: FarmSummary) => !!(f.phoneNumber && f.phoneNumber.trim())
+    if (contact === "has-email") rows = rows.filter(hasEmail)
+    if (contact === "has-phone") rows = rows.filter(hasPhone)
+    if (contact === "missing") rows = rows.filter((f) => !hasEmail(f) || !hasPhone(f))
+    const s = (v?: string | null) => (v || "").toLowerCase()
+    const cmp = (a: FarmSummary, b: FarmSummary) => {
+      let r = 0
+      if (sortKey === "name") r = s(a.farmName).localeCompare(s(b.farmName))
+      else if (sortKey === "email") r = s(a.email).localeCompare(s(b.email))
+      else if (sortKey === "phone") r = s(a.phoneNumber).localeCompare(s(b.phoneNumber))
+      else if (sortKey === "users") r = a.totalUsers - b.totalUsers
+      else r = a.staffCount - b.staffCount
+      return sortDir === "asc" ? r : -r
+    }
+    return [...rows].sort(cmp)
+  }, [farms, q, status, contact, sortKey, sortDir])
 
-  useEffect(() => setPage(0), [q, status, sort])
+  useEffect(() => setPage(0), [q, status, contact, sortKey, sortDir])
   const visible = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+  const arrow = (k: SortKey) => (sortKey === k ? (sortDir === "asc" ? " ▲" : " ▼") : "")
 
   return (
     <div className="card">
       <div className="page-filter-bar">
         <label className="filter-search">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-          <input type="search" placeholder="Search farm by name or ID…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input type="search" placeholder="Search name, ID, email or phone…" value={q} onChange={(e) => setQ(e.target.value)} />
         </label>
         <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)} aria-label="Subscription status">
           <option value="all">Status: All</option>
           <option value="paid">Subscribed</option>
           <option value="unpaid">Not subscribed</option>
         </select>
-        <select value={sort} onChange={(e) => setSort(e.target.value as FarmSort)} aria-label="Sort">
-          <option value="name-asc">Sort by: Name A–Z</option>
-          <option value="name-desc">Name Z–A</option>
-          <option value="users-desc">Most users</option>
-          <option value="staff-desc">Most staff</option>
+        <select value={contact} onChange={(e) => setContact(e.target.value as typeof contact)} aria-label="Contact details">
+          <option value="all">Contact: All</option>
+          <option value="has-email">Has email</option>
+          <option value="has-phone">Has phone</option>
+          <option value="missing">Missing contact</option>
         </select>
       </div>
       {deleteErr && <div className="error">{deleteErr}</div>}
       <div style={{ overflowX: "auto" }}>
         <table>
           <thead>
-            <tr><th>Farm</th><th>Status</th><th>Users</th><th>Staff</th><th>Actions</th></tr>
+            <tr>
+              <th onClick={() => toggleSort("name")} style={{ cursor: "pointer", userSelect: "none" }} title="Click to sort">Farm{arrow("name")}</th>
+              <th onClick={() => toggleSort("email")} style={{ cursor: "pointer", userSelect: "none" }} title="Click to sort">Email{arrow("email")}</th>
+              <th onClick={() => toggleSort("phone")} style={{ cursor: "pointer", userSelect: "none" }} title="Click to sort">Phone{arrow("phone")}</th>
+              <th>Status</th>
+              <th onClick={() => toggleSort("users")} style={{ cursor: "pointer", userSelect: "none" }} title="Click to sort">Users{arrow("users")}</th>
+              <th onClick={() => toggleSort("staff")} style={{ cursor: "pointer", userSelect: "none" }} title="Click to sort">Staff{arrow("staff")}</th>
+              <th>Actions</th>
+            </tr>
           </thead>
           <tbody>
             {visible.length === 0 ? (
-              <tr><td colSpan={5} style={{ color: "#64748b" }}>No farms match this view.</td></tr>
+              <tr><td colSpan={7} style={{ color: "#64748b" }}>No farms match this view.</td></tr>
             ) : visible.map((f) => (
               <tr key={f.farmId}>
                 <td>
@@ -135,6 +162,8 @@ export function FarmsPage({ farms, onAudit, token, onDeleted }: {
                     </div>
                   </div>
                 </td>
+                <td>{f.email ? <a href={`mailto:${f.email}`}>{f.email}</a> : <span style={{ color: "#94a3b8" }}>—</span>}</td>
+                <td>{f.phoneNumber ? <a href={`tel:${f.phoneNumber}`}>{f.phoneNumber}</a> : <span style={{ color: "#94a3b8" }}>—</span>}</td>
                 <td>{f.hasPaidSubscription === true
                   ? <span className="badge badge-yes">Subscribed</span>
                   : <span className="badge badge-no">Unpaid</span>}</td>
