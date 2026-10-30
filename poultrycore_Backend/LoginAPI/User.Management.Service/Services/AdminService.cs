@@ -381,10 +381,14 @@ namespace User.Management.Service.Services
                         .Where(x => string.Equals(x.FarmId, farmId, StringComparison.OrdinalIgnoreCase))
                         .ToList();
 
+                    dalByFarmId.TryGetValue(farmId, out var contactRow);
+
                     results.Add(new FarmSummary
                     {
                         FarmId = farmId,
                         FarmName = farmName,
+                        Email = string.IsNullOrWhiteSpace(contactRow?.Email) ? null : contactRow!.Email,
+                        PhoneNumber = string.IsNullOrWhiteSpace(contactRow?.PhoneNumber) ? null : contactRow!.PhoneNumber,
                         TotalUsers = people.Count,
                         StaffCount = people.Count(p => p.IsStaff),
                         HasPaidSubscription = people.Any(p => p.IsSubscriber),
