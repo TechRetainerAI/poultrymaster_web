@@ -412,6 +412,10 @@ export function buildPoultryNavConfig(
         items: [
           { id: "houses", title: "Houses",       icon: Building2, href: "/houses" },
           { id: "flocks", title: "Flock Groups", icon: Bird,      href: "/flocks" },
+          // Also in Operations > Purchase. Listed here too so the batches sit
+          // beside the houses and flock groups they are divided into. Same page;
+          // the Quick Links picker keeps the first occurrence of an href.
+          { id: "flock-batch-setup", title: "Flock Purchases (Batches)", icon: Boxes, href: "/flock-batch" },
         ],
       },
       {

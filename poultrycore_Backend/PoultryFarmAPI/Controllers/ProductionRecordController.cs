@@ -86,6 +86,8 @@ namespace PoultryFarmAPIWeb.Controllers
 
             try { await _service.Update(model); }
             catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001") { return BadRequest(new { message = ex.MessageText }); }
+            // 389: the production form completed a feed-only record.
+            if (model.MarkRecorded) await _service.MarkRecorded(id, model.FarmId);
             return NoContent();
         }
 

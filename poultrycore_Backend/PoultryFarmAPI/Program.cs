@@ -344,6 +344,8 @@ builder.Services.AddScoped<IPoultryDailyClosingControlService>(sp => new Poultry
 builder.Services.AddScoped<IDailyClosingStatusProvider, PoultryDailyClosingStatusProvider>();
 // Distribute Feed (335): posts feed lines through spproductionrecord_update.
 builder.Services.AddScoped<IPoultryFeedDistributionService>(sp => new PoultryFeedDistributionService(connectionString));
+// 389: Feed Usage draws feed from stock as production-record feed lines.
+builder.Services.AddScoped<IPoultryFeedUsageEntryService>(sp => new PoultryFeedUsageEntryService(connectionString));
 // Days of supply (337): how long each raw material lasts at its actual usage.
 builder.Services.AddScoped<IPoultryStockSupplyService>(sp => new PoultryStockSupplyService(connectionString));
 // Flock anomaly detection (338): deterministic signals, one alert per flock per
