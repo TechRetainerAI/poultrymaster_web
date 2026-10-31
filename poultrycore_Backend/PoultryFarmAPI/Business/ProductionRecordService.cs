@@ -529,6 +529,7 @@ namespace PoultryFarmAPIWeb.Business
                         FlockId = reader.IsDBNull(reader.GetOrdinal("FlockId")) ? (int?)null : reader.GetInt32(reader.GetOrdinal("FlockId")),
                         BrokenEggs = reader.IsDBNull(reader.GetOrdinal("BrokenEggs")) ? (int?)null : reader.GetInt32(reader.GetOrdinal("BrokenEggs")),
                         Notes = reader.GetNullableStringIfPresent("Notes"),
+                        SourceType = reader.GetNullableStringIfPresent("SourceType"),
                         EggCount = reader.IsDBNull(reader.GetOrdinal("EggCount")) ? totalProd : reader.GetInt32(reader.GetOrdinal("EggCount")),
                         EggGrade = reader.GetNullableStringIfPresent("EggGrade"),
                         MeatyEggs = GetNullableIntIfPresent(reader, "MeatyEggs"),
@@ -600,6 +601,7 @@ namespace PoultryFarmAPIWeb.Business
                         FlockId = reader.IsDBNull(reader.GetOrdinal("FlockId")) ? (int?)null : reader.GetInt32(reader.GetOrdinal("FlockId")),
                         BrokenEggs = reader.IsDBNull(reader.GetOrdinal("BrokenEggs")) ? (int?)null : reader.GetInt32(reader.GetOrdinal("BrokenEggs")),
                         Notes = reader.GetNullableStringIfPresent("Notes"),
+                        SourceType = reader.GetNullableStringIfPresent("SourceType"),
                         EggCount = reader.IsDBNull(reader.GetOrdinal("EggCount")) ? totalProd : reader.GetInt32(reader.GetOrdinal("EggCount")),
                         EggGrade = reader.GetNullableStringIfPresent("EggGrade"),
                         MeatyEggs = GetNullableIntIfPresent(reader, "MeatyEggs"),
@@ -632,6 +634,17 @@ namespace PoultryFarmAPIWeb.Business
             }
 
             return records;
+        }
+
+        public async Task MarkRecorded(int recordId, string farmId)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand(
+                "SELECT sppoultryproductionrecord_markrecorded(p_recordid => @Id::int, p_farmid => @FarmId::text)", conn);
+            cmd.Parameters.AddWithValue("@Id", recordId);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
         }
 
         public async Task Delete(int recordId, string userId, string farmId)

@@ -1267,7 +1267,15 @@ export default function ProductionRecordsPage() {
                                 columns would scroll visibly through it. Match
                                 the stripe rather than always white. */}
                             <TableCell className={cn("px-3 py-2 whitespace-nowrap min-w-[100px]", isMobile && (idx % 2 === 0 ? "sticky-col-date bg-white" : "sticky-col-date bg-slate-100"))}>{isMobile ? formatDateShort(r.date) : fmtDateTime(r.date, r)}</TableCell>
-                            <TableCell className="px-3 py-2 whitespace-nowrap min-w-[120px] font-medium text-slate-800">{resolveFlockLabel(r)}</TableCell>
+                            <TableCell className="px-3 py-2 whitespace-nowrap min-w-[120px] font-medium text-slate-800">
+                              {resolveFlockLabel(r)}
+                              {/* 389: feed recorded from Feed Usage, production not filled in yet. */}
+                              {r.sourceType === "FeedUsage" && (
+                                <span className="ml-1.5 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800" title="Feed was recorded from Feed Usage. Click Edit to fill in production.">
+                                  Production not filled
+                                </span>
+                              )}
+                            </TableCell>
                             <TableCell className="px-3 py-2 whitespace-nowrap min-w-[120px] text-slate-600">{resolveBatchLabel(r)}</TableCell>
                             <TableCell className="px-3 py-2">{formatAge(r)}</TableCell>
                             <TableCell className="text-right px-3 py-2 text-blue-700 bg-blue-50/40 rounded-sm">{r.production9AM ?? 0}</TableCell>

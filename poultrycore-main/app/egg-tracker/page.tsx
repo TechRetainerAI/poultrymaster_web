@@ -47,6 +47,24 @@ import { FlowBreakdownCard } from "@/components/cash/flow-breakdown-card"
 import { EggBreakdownDrillDialog, type EggDrill } from "@/components/egg-tracker/egg-breakdown-drill-dialog"
 import { EggClassLedger } from "@/components/egg-sorting/egg-class-ledger"
 import { getEggClasses } from "@/lib/api/egg-sorting"
+import { cratesEquivalent } from "@/lib/production/production-record-calc"
+import { useEggsPerCrate } from "@/hooks/use-eggs-per-crate"
+
+/**
+ * "962 crates + 10 pieces" under an egg total, at the farm's crate size (344).
+ * Display only -- the ledger stays in eggs. Keeps the sign, because Eggs on
+ * hand can go negative and cratesEquivalent clamps to zero.
+ */
+function CratesLine({ eggs, perCrate, className }: { eggs: number; perCrate: number; className?: string }) {
+  const n = Math.round(eggs)
+  const { crates, pieces } = cratesEquivalent(Math.abs(n), perCrate)
+  return (
+    <div className={cn("mt-0.5 text-xs font-medium text-slate-500 tabular-nums", className)}>
+      {n < 0 ? "−" : ""}
+      {crates.toLocaleString()} {crates === 1 ? "crate" : "crates"} + {pieces} {pieces === 1 ? "piece" : "pieces"}
+    </div>
+  )
+}
 
 
 const ADJ_TYPES = [
@@ -61,6 +79,7 @@ export default function EggTrackerPage() {
   const router = useRouter()
   const { toast } = useToast()
   const isMobile = useIsMobile()
+  const eggsPerCrate = useEggsPerCrate()
   const [eggProductions, setEggProductions] = useState<EggProduction[]>([])
   const [flocks, setFlocks] = useState<Flock[]>([])
   const [sales, setSales] = useState<Sale[]>([])
@@ -635,18 +654,21 @@ export default function EggTrackerPage() {
                             <Copy className="h-4 w-4" />
                           </Button>
                         </div>
+                        <CratesLine eggs={currentEggsAtHand} perCrate={eggsPerCrate} />
                       </div>
                       <div className="min-w-0">
                         <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Egg produced</div>
                         <div className="mt-1 text-2xl font-bold text-sky-700 tabular-nums">
                           {totalEggsProducedLedger.toLocaleString()}
                         </div>
+                        <CratesLine eggs={totalEggsProducedLedger} perCrate={eggsPerCrate} />
                       </div>
                       <div className="min-w-0">
                         <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Egg sales (units)</div>
                         <div className="mt-1 text-2xl font-bold text-amber-800 tabular-nums">
                           {totalEggsSoldLedger.toLocaleString()}
                         </div>
+                        <CratesLine eggs={totalEggsSoldLedger} perCrate={eggsPerCrate} />
                       </div>
                       {/* Same tile shape as the figures around it, and the
                           table's own date format, so the row reads as one band
@@ -665,24 +687,28 @@ export default function EggTrackerPage() {
                         <div className="mt-1 text-2xl font-bold text-emerald-700 tabular-nums">
                           {adjustmentTotals.in.toLocaleString()}
                         </div>
+                        <CratesLine eggs={adjustmentTotals.in} perCrate={eggsPerCrate} />
                       </div>
                       <div className="min-w-0">
                         <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Eggs out (adjustments)</div>
                         <div className="mt-1 text-2xl font-bold text-rose-600 tabular-nums">
                           {adjustmentTotals.out.toLocaleString()}
                         </div>
+                        <CratesLine eggs={adjustmentTotals.out} perCrate={eggsPerCrate} />
                       </div>
                       <div className="min-w-0">
                         <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Total eggs in</div>
                         <div className="mt-1 text-2xl font-bold text-emerald-600 tabular-nums">
                           {totalEggsInLedger.toLocaleString()}
                         </div>
+                        <CratesLine eggs={totalEggsInLedger} perCrate={eggsPerCrate} />
                       </div>
                       <div className="min-w-0">
                         <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Total eggs out</div>
                         <div className="mt-1 text-2xl font-bold text-red-600 tabular-nums">
                           {totalEggsOutLedger.toLocaleString()}
                         </div>
+                        <CratesLine eggs={totalEggsOutLedger} perCrate={eggsPerCrate} />
                       </div>
                     </div>
                     <p className="text-xs text-slate-500 mt-2">
@@ -993,9 +1019,11 @@ export default function EggTrackerPage() {
                               </TableCell>
                               <TableCell className="text-right font-bold text-emerald-700 tabular-nums">
                                 {filteredLedgerInTotal.toLocaleString()}
+                                <CratesLine eggs={filteredLedgerInTotal} perCrate={eggsPerCrate} className="font-normal" />
                               </TableCell>
                               <TableCell className="text-right font-bold text-red-700 tabular-nums">
                                 {filteredLedgerOutTotal.toLocaleString()}
+                                <CratesLine eggs={filteredLedgerOutTotal} perCrate={eggsPerCrate} className="font-normal" />
                               </TableCell>
                               <TableCell />
                             </TableRow>
