@@ -8,6 +8,7 @@ import { usePermissions } from "@/hooks/use-permissions"
 import { useGenericModules } from "@/hooks/use-generic-modules"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
 import { filterWaterNavItems } from "@/lib/utils/water-nav-access"
+import { useBillingNavVisible } from "@/hooks/use-billing-nav"
 import { isSetupAdminRoute } from "@/lib/nav/setup-admin-routes"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useAlertsStore } from "@/lib/store/alerts-store"
@@ -208,6 +209,9 @@ export function MobileBottomNav() {
   // only after mount so SSR and the first client paint agree.
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
+
+  // Admin-controlled "billing_nav" flag: hide the Billing button when off.
+  const billingVisible = useBillingNavVisible()
 
   // The water rail's own config, for its Quick Links section. Only that
   // section reads it -- the rest of the water tree in here is still
@@ -623,10 +627,21 @@ export function MobileBottomNav() {
   // Setup pages are admin-only for every company type (lib/nav/setup-admin-
   // routes). One pass over whatever the per-type branches built, rather than a
   // gate in each of their hand-written lists.
-  const config = permissions.isAdmin ? builtConfig : {
+  // Drop the Billing button first when the admin flag is off, then apply the
+  // existing setup-admin gating on top.
+  const isBilling = (href: string) => href === "/business-office/billing"
+  const baseConfig = billingVisible ? builtConfig : {
     ...builtConfig,
-    mainTabs: builtConfig.mainTabs.filter((t) => !isSetupAdminRoute(t.href)),
+    mainTabs: builtConfig.mainTabs.filter((t) => !isBilling(t.href)),
     moreGroups: compactSections(builtConfig.moreGroups.map((sec) => ({
+      ...sec,
+      groups: sec.groups.map((g) => ({ ...g, items: g.items.filter((i) => !isBilling(i.href)) })),
+    }))),
+  }
+  const config = permissions.isAdmin ? baseConfig : {
+    ...baseConfig,
+    mainTabs: baseConfig.mainTabs.filter((t) => !isSetupAdminRoute(t.href)),
+    moreGroups: compactSections(baseConfig.moreGroups.map((sec) => ({
       ...sec,
       groups: sec.groups.map((g) => ({ ...g, items: g.items.filter((i) => !isSetupAdminRoute(i.href)) })),
     }))),
