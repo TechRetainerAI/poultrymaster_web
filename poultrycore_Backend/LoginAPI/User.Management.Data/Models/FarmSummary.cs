@@ -13,6 +13,9 @@ namespace User.Management.Data.Models
         /// <summary>Owner / company contact phone (from the farms row).</summary>
         public string? PhoneNumber { get; set; }
 
+        /// <summary>When the company/farm was created (signup date), from the farms row. Null if unknown.</summary>
+        public DateTime? CreatedAt { get; set; }
+
         public int TotalUsers { get; set; }
         public int StaffCount { get; set; }
 

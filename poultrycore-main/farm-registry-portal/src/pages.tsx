@@ -36,8 +36,21 @@ function Pager({ page, total, onPage }: { page: number; total: number; onPage: (
 }
 
 // ---------------------------------------------------------------- Farms
-type SortKey = "name" | "email" | "phone" | "users" | "staff"
+type SortKey = "name" | "email" | "phone" | "joined" | "users" | "staff"
 type SortDir = "asc" | "desc"
+
+function joinedTime(f: FarmSummary): number {
+  const t = f.createdAt ? Date.parse(f.createdAt) : NaN
+  return Number.isNaN(t) ? 0 : t
+}
+function joinedLabel(f: FarmSummary): string {
+  const t = joinedTime(f)
+  if (!t) return "—"
+  const d = new Date(t)
+  const days = Math.floor((Date.now() - t) / 86400000)
+  const ago = days <= 0 ? "today" : days === 1 ? "1 day ago" : days < 30 ? `${days} days ago` : days < 365 ? `${Math.floor(days / 30)} mo ago` : `${Math.floor(days / 365)} yr ago`
+  return `${d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })} · ${ago}`
+}
 
 export function FarmsPage({ farms, onAudit, token, onDeleted }: {
   farms: FarmSummary[]; onAudit: (farmId: string) => void; token: string; onDeleted: () => void
@@ -77,6 +90,7 @@ export function FarmsPage({ farms, onAudit, token, onDeleted }: {
   const [q, setQ] = useState("")
   const [status, setStatus] = useState<"all" | "paid" | "unpaid">("all")
   const [contact, setContact] = useState<"all" | "has-email" | "has-phone" | "missing">("all")
+  const [signedUp, setSignedUp] = useState<"all" | "7" | "30" | "90">("all")
   const [sortKey, setSortKey] = useState<SortKey>("name")
   const [sortDir, setSortDir] = useState<SortDir>("asc")
   const [page, setPage] = useState(0)
@@ -84,8 +98,11 @@ export function FarmsPage({ farms, onAudit, token, onDeleted }: {
   function toggleSort(k: SortKey) {
     if (k === sortKey) { setSortDir((d) => (d === "asc" ? "desc" : "asc")); return }
     setSortKey(k)
-    setSortDir(k === "users" || k === "staff" ? "desc" : "asc")
+    setSortDir(k === "users" || k === "staff" || k === "joined" ? "desc" : "asc")
   }
+
+  // "Most recent signups": one click sorts the whole list newest-first.
+  function showNewest() { setSortKey("joined"); setSortDir("desc") }
 
   const filtered = useMemo(() => {
     let rows = farms
@@ -98,20 +115,25 @@ export function FarmsPage({ farms, onAudit, token, onDeleted }: {
     if (contact === "has-email") rows = rows.filter(hasEmail)
     if (contact === "has-phone") rows = rows.filter(hasPhone)
     if (contact === "missing") rows = rows.filter((f) => !hasEmail(f) || !hasPhone(f))
+    if (signedUp !== "all") {
+      const cutoff = Date.now() - Number(signedUp) * 86400000
+      rows = rows.filter((f) => joinedTime(f) >= cutoff)
+    }
     const s = (v?: string | null) => (v || "").toLowerCase()
     const cmp = (a: FarmSummary, b: FarmSummary) => {
       let r = 0
       if (sortKey === "name") r = s(a.farmName).localeCompare(s(b.farmName))
       else if (sortKey === "email") r = s(a.email).localeCompare(s(b.email))
       else if (sortKey === "phone") r = s(a.phoneNumber).localeCompare(s(b.phoneNumber))
+      else if (sortKey === "joined") r = joinedTime(a) - joinedTime(b)
       else if (sortKey === "users") r = a.totalUsers - b.totalUsers
       else r = a.staffCount - b.staffCount
       return sortDir === "asc" ? r : -r
     }
     return [...rows].sort(cmp)
-  }, [farms, q, status, contact, sortKey, sortDir])
+  }, [farms, q, status, contact, signedUp, sortKey, sortDir])
 
-  useEffect(() => setPage(0), [q, status, contact, sortKey, sortDir])
+  useEffect(() => setPage(0), [q, status, contact, signedUp, sortKey, sortDir])
   const visible = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
   const arrow = (k: SortKey) => (sortKey === k ? (sortDir === "asc" ? " ▲" : " ▼") : "")
 
@@ -133,6 +155,13 @@ export function FarmsPage({ farms, onAudit, token, onDeleted }: {
           <option value="has-phone">Has phone</option>
           <option value="missing">Missing contact</option>
         </select>
+        <select value={signedUp} onChange={(e) => setSignedUp(e.target.value as typeof signedUp)} aria-label="Signed up">
+          <option value="all">Signed up: Any time</option>
+          <option value="7">Last 7 days</option>
+          <option value="30">Last 30 days</option>
+          <option value="90">Last 90 days</option>
+        </select>
+        <button type="button" className="link-btn" onClick={showNewest} title="Sort by newest signups">↓ Newest signups</button>
       </div>
       {deleteErr && <div className="error">{deleteErr}</div>}
       <div style={{ overflowX: "auto" }}>
@@ -142,6 +171,7 @@ export function FarmsPage({ farms, onAudit, token, onDeleted }: {
               <th onClick={() => toggleSort("name")} style={{ cursor: "pointer", userSelect: "none" }} title="Click to sort">Farm{arrow("name")}</th>
               <th onClick={() => toggleSort("email")} style={{ cursor: "pointer", userSelect: "none" }} title="Click to sort">Email{arrow("email")}</th>
               <th onClick={() => toggleSort("phone")} style={{ cursor: "pointer", userSelect: "none" }} title="Click to sort">Phone{arrow("phone")}</th>
+              <th onClick={() => toggleSort("joined")} style={{ cursor: "pointer", userSelect: "none" }} title="Click to sort by signup date">Joined{arrow("joined")}</th>
               <th>Status</th>
               <th onClick={() => toggleSort("users")} style={{ cursor: "pointer", userSelect: "none" }} title="Click to sort">Users{arrow("users")}</th>
               <th onClick={() => toggleSort("staff")} style={{ cursor: "pointer", userSelect: "none" }} title="Click to sort">Staff{arrow("staff")}</th>
@@ -150,7 +180,7 @@ export function FarmsPage({ farms, onAudit, token, onDeleted }: {
           </thead>
           <tbody>
             {visible.length === 0 ? (
-              <tr><td colSpan={7} style={{ color: "#64748b" }}>No farms match this view.</td></tr>
+              <tr><td colSpan={8} style={{ color: "#64748b" }}>No farms match this view.</td></tr>
             ) : visible.map((f) => (
               <tr key={f.farmId}>
                 <td>
@@ -164,6 +194,7 @@ export function FarmsPage({ farms, onAudit, token, onDeleted }: {
                 </td>
                 <td>{f.email ? <a href={`mailto:${f.email}`}>{f.email}</a> : <span style={{ color: "#94a3b8" }}>—</span>}</td>
                 <td>{f.phoneNumber ? <a href={`tel:${f.phoneNumber}`}>{f.phoneNumber}</a> : <span style={{ color: "#94a3b8" }}>—</span>}</td>
+                <td style={{ whiteSpace: "nowrap", color: "#475569" }}>{joinedLabel(f)}</td>
                 <td>{f.hasPaidSubscription === true
                   ? <span className="badge badge-yes">Subscribed</span>
                   : <span className="badge badge-no">Unpaid</span>}</td>
