@@ -97,7 +97,7 @@ namespace PoultryFarmAPIWeb.Business
         {
             if (string.IsNullOrWhiteSpace(model.MortalityDisposition) && string.IsNullOrWhiteSpace(model.BrokenEggDisposition)
                 && model.BrokenEggsDisposed is null && model.MortalityDisposed is null) return;
-            // 386 / 387: BrokenEggsDisposed / MortalityDisposed (how many were disposed
+            // 390 / 391: BrokenEggsDisposed / MortalityDisposed (how many were disposed
             // at once) win over Keep / Disposed.
             using var cmd = new NpgsqlCommand(
                 "SELECT sppoultryproduction_setdisposition(p_farmid => @FarmId::text, p_recordid => @Id::int, " +
@@ -114,7 +114,7 @@ namespace PoultryFarmAPIWeb.Business
         }
 
         /// <summary>372: each record's dead-bird / broken-egg choice (only the non-default ones);
-        /// 386 / 387: + how many broken eggs / dead birds were disposed at once.</summary>
+        /// 390 / 391: + how many broken eggs / dead birds were disposed at once.</summary>
         private static async Task<Dictionary<int, (string Mort, string Broken, int? BrokenDisposed, int? MortDisposed)>> GetDispositionsAsync(NpgsqlConnection conn, string farmId)
         {
             var map = new Dictionary<int, (string, string, int?, int?)>();
@@ -125,8 +125,8 @@ namespace PoultryFarmAPIWeb.Business
                 using var r = await cmd.ExecuteReaderAsync();
                 while (await r.ReadAsync())
                     map[r.GetInt32(0)] = (r.GetString(1), r.GetString(2),
-                        r.FieldCount > 3 && !r.IsDBNull(3) ? r.GetInt32(3) : null,    // 386 column
-                        r.FieldCount > 4 && !r.IsDBNull(4) ? r.GetInt32(4) : null);   // 387 column
+                        r.FieldCount > 3 && !r.IsDBNull(3) ? r.GetInt32(3) : null,    // 390 column
+                        r.FieldCount > 4 && !r.IsDBNull(4) ? r.GetInt32(4) : null);   // 391 column
             }
             catch (PostgresException ex) when (ex.SqlState == "42883")
             {

@@ -33,8 +33,9 @@ export default function CustomerBalancesPage() {
         <ReverseCustomerDebtButton doc={doc} partyName={party.partyName} compact={compact} onChanged={reload} />
       )}
       // 351: money held for customers, beside (never netted into) what they
-      // owe -- under the balances table.
-      afterTable={<CustomerCreditPanel />}
+      // owe -- under the balances table. Reloads after a payment, which can
+      // leave credit behind.
+      afterTable={(_reload, paymentsVersion) => <CustomerCreditPanel refreshKey={paymentsVersion} />}
       loadCashAccounts={async () => {
         const accounts = await listPoultryCashAccounts()
         return accounts

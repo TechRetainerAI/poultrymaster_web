@@ -1,6 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useState, useMemo } from "react"
+import { useEggPackaging } from "@/hooks/use-egg-packaging"
+import { boxSize, toBoxesCratesPieces } from "@/lib/poultry/egg-packaging"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -57,6 +59,18 @@ import { useEggsPerCrate } from "@/hooks/use-eggs-per-crate"
  */
 function CratesLine({ eggs, perCrate, className }: { eggs: number; perCrate: number; className?: string }) {
   const n = Math.round(eggs)
+  const packaging = useEggPackaging()
+  // 393: a farm with Boxes on (and box display) sees boxes first. An
+  // equivalent of the egg count, never a separate box stock.
+  if (boxSize(packaging) != null && packaging.display === "BoxesCratesPieces") {
+    const q = toBoxesCratesPieces(Math.abs(n), packaging)
+    return (
+      <div className={cn("mt-0.5 text-xs font-medium text-slate-500 tabular-nums", className)} title="Equivalent of the egg count; not packed stock">
+        {n < 0 ? "−" : ""}
+        {q.boxes.toLocaleString()} {q.boxes === 1 ? "box" : "boxes"} + {q.crates} {q.crates === 1 ? "crate" : "crates"} + {q.pieces} {q.pieces === 1 ? "piece" : "pieces"}
+      </div>
+    )
+  }
   const { crates, pieces } = cratesEquivalent(Math.abs(n), perCrate)
   return (
     <div className={cn("mt-0.5 text-xs font-medium text-slate-500 tabular-nums", className)}>

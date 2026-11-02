@@ -62,6 +62,10 @@ namespace PoultryFarmAPIWeb.Models
         public DateTime? EndDate { get; set; }
         public DateTime GeneratedAt { get; set; } = DateTime.UtcNow;
         public int EggsPerCrate { get; set; } = PoultryReportConstants.DefaultEggsPerCrate;
+        /// <summary>393: the farm's crates per box TODAY (null = boxes off). Equivalents use it; posted sales keep their own.</summary>
+        public int? CratesPerBox { get; set; }
+        /// <summary>393: eggs in one box today (null = boxes off).</summary>
+        public int? EggsPerBox { get; set; }
         public TSummary? Summary { get; set; }
         public List<TRow> Rows { get; set; } = new();
         /// <summary>Non-fatal notices, e.g. "Medicine cost is not tracked yet."</summary>
@@ -414,6 +418,15 @@ namespace PoultryFarmAPIWeb.Models
         // 375: Broken Eggs sold, kept apart from the eggs sold
         public decimal BrokenEggsSold { get; set; }
         public decimal BrokenEggsRevenue { get; set; }
+        // 396: what was ACTUALLY sold as boxes / crates / pieces, from the lines
+        // entered that way (394). Lines entered before 394 are not counted here.
+        public long ActualBoxesSold { get; set; }
+        public long ActualCratesSold { get; set; }
+        public long ActualPiecesSold { get; set; }
+        /// <summary>Eggs on lines that recorded their packaging (the rest were entered before 394).</summary>
+        public decimal EggsWithPackaging { get; set; }
+        /// <summary>Whole boxes the eggs sold make in TODAY's box size -- an equivalent, not boxes sold. Null when boxes are off.</summary>
+        public long? EquivalentBoxes { get; set; }
     }
 
     public class PoultryEggSalesReportRow
@@ -425,6 +438,12 @@ namespace PoultryFarmAPIWeb.Models
         public decimal QuantitySold { get; set; }
         public string? Unit { get; set; }
         public long? EggsEquivalent { get; set; }
+        /// <summary>396: the line as entered (null before 394).</summary>
+        public int? BoxesSold { get; set; }
+        public int? CratesSold { get; set; }
+        public int? PiecesSold { get; set; }
+        /// <summary>The box size the line was sold with (null = no boxes on the line).</summary>
+        public int? CratesPerBox { get; set; }
         public decimal UnitPrice { get; set; }
         public decimal TotalAmount { get; set; }
         public decimal AmountPaid { get; set; }

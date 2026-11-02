@@ -19,6 +19,8 @@
  */
 
 import { useEffect, useState } from "react"
+import { useEggBoxesSuffix } from "@/components/poultry/egg-quantity"
+import { EGGS_PER_CRATE } from "@/lib/production/production-record-calc"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -76,6 +78,7 @@ const EMPTY_INCOME = {
 }
 
 export default function PoultryDailyBusinessSummaryPage() {
+  const eggBoxes = useEggBoxesSuffix()   // 393: " (≈ 20 boxes)" on a box farm, else ""
   const fmtMoney = useFmt()
   const router = useRouter()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
@@ -174,7 +177,9 @@ export default function PoultryDailyBusinessSummaryPage() {
               bank: dayReturns.reduce((s: number, r: any) => s + (r.bankCollected ?? 0), 0),
               creditSales: dayReturns.reduce((s: number, r: any) => s + (r.creditSalesAmount ?? 0), 0),
               customerCollections: 0,
-              eggsSold: dayReturns.reduce((s: number, r: any) => s + (r.cratesSold ?? 0), 0),
+              // Driver returns count CRATES; "eggs sold" is eggs. Was adding the
+              // crates as if they were eggs (50 crates read as 50 eggs).
+              eggsSold: dayReturns.reduce((s: number, r: any) => s + (r.cratesSold ?? 0) * EGGS_PER_CRATE, 0),
               driverShortages: dayReturns.reduce((s: number, r: any) => s + (r.shortageAmount ?? 0), 0),
               source: "returns" as const,
             }
@@ -250,7 +255,7 @@ export default function PoultryDailyBusinessSummaryPage() {
                     <SumCard label="Bank" value={fmtMoney(summary.income.bank)} />
                     <SumCard label="Credit sales" value={fmtMoney(summary.income.creditSales)} />
                     <SumCard label="Customer collections" value={fmtMoney(summary.income.customerCollections)} />
-                    <SumCard label="Eggs sold" value={summary.income.eggsSold.toLocaleString()} />
+                    <SumCard label="Eggs sold" value={`${summary.income.eggsSold.toLocaleString()}${eggBoxes(summary.income.eggsSold)}`} />
                     <SumCard label="Driver shortages" value={fmtMoney(summary.income.driverShortages)} accent={summary.income.driverShortages ? "rose" : undefined} />
                   </div>
                   <p className="text-xs text-slate-500 mt-2">
@@ -265,9 +270,9 @@ export default function PoultryDailyBusinessSummaryPage() {
                 <section className="mb-4">
                   <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-600 mb-2">Production</h2>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 print:gap-2">
-                    <SumCard label="Eggs produced" value={summary.eggsProduced.toLocaleString()} />
+                    <SumCard label="Eggs produced" value={`${summary.eggsProduced.toLocaleString()}${eggBoxes(summary.eggsProduced)}`} />
                     <SumCard label="Broken eggs" value={summary.brokenEggs.toLocaleString()} accent={summary.brokenEggs ? "rose" : undefined} />
-                    <SumCard label="Closing egg stock" value={summary.closingStock.toLocaleString()} />
+                    <SumCard label="Closing egg stock" value={`${summary.closingStock.toLocaleString()}${eggBoxes(summary.closingStock)}`} />
                     <SumCard label="Mortality" value={summary.mortality.toLocaleString()} accent={summary.mortality ? "rose" : undefined} />
                   </div>
                 </section>

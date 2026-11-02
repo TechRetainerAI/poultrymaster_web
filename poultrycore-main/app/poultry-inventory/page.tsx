@@ -41,6 +41,8 @@ import { SetProductStockButton } from "@/components/inventory/set-product-stock-
 import { ReconcileProductStockButton } from "@/components/inventory/reconcile-product-stock-button"
 import { exportTableToPdf, emailTableAsPdf, type PdfExportOptions } from "@/lib/utils/pdf-export"
 import { byproductRole } from "@/lib/poultry/byproducts"
+import { useEggPackaging } from "@/hooks/use-egg-packaging"
+import { formatEggQuantity, formatEggs } from "@/lib/poultry/egg-packaging"
 
 type Tone = "ok" | "low" | "out" | "inactive"
 
@@ -128,16 +130,17 @@ export default function PoultryInventoryPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFarmType])
 
-  // Egg stock is counted in individual eggs everywhere (production records count
-  // eggs; the sales form converts crates × 30 + loose into pieces before saving).
-  // Crates are still how the farm thinks, so show the equivalent beside the count
-  // — same 30/crate the Egg Stock Balance report uses.
-  const EGGS_PER_CRATE = 30
+  // Egg stock is counted in individual eggs everywhere. The farm thinks in
+  // crates (and boxes, 393), so the equivalent sits beside the count -- with
+  // the farm's own crate and box size, never a hardcoded 30. An equivalent,
+  // not packed stock: "≈" says so.
+  const packaging = useEggPackaging()
+  const isEggStock = (p: { name: string; isRawEggProduct?: boolean | null }) =>
+    !!p.isRawEggProduct || (p.name.toLowerCase().includes("egg") && byproductRole(p.name) == null)
   const crateEquivalent = (eggs: number): string | null => {
-    if (eggs < EGGS_PER_CRATE) return null
-    const crates = Math.floor(eggs / EGGS_PER_CRATE)
-    const loose = eggs % EGGS_PER_CRATE
-    return `${crates.toLocaleString()} crate${crates === 1 ? "" : "s"}${loose ? ` + ${loose}` : ""}`
+    const n = Math.trunc(eggs)
+    const text = formatEggQuantity(n, packaging, packaging.display === "Pieces" ? "BoxesCratesPieces" : packaging.display)
+    return text === formatEggs(n) ? null : `≈ ${text}`
   }
 
   // Status helpers.
@@ -383,7 +386,7 @@ export default function PoultryInventoryPage() {
                           { label: "Unit price", value: gh(p.unitPrice) },
                           {
                             label: "In stock",
-                            value: p.isRawEggProduct && crateEquivalent(p.stockOnHand ?? 0)
+                            value: isEggStock(p) && crateEquivalent(p.stockOnHand ?? 0)
                               ? `${(p.stockOnHand ?? 0).toLocaleString()} (${crateEquivalent(p.stockOnHand ?? 0)})`
                               : (p.stockOnHand ?? 0).toLocaleString(),
                           },
@@ -420,7 +423,7 @@ export default function PoultryInventoryPage() {
                                     <TableCell className="text-right tabular-nums">{gh(p.unitPrice)}</TableCell>
                                     <TableCell className="text-right tabular-nums font-semibold">
                                       {(p.stockOnHand ?? 0).toLocaleString()}
-                                      {p.isRawEggProduct && crateEquivalent(p.stockOnHand ?? 0) && (
+                                      {isEggStock(p) && crateEquivalent(p.stockOnHand ?? 0) && (
                                         <div className="text-xs font-normal text-slate-500">{crateEquivalent(p.stockOnHand ?? 0)}</div>
                                       )}
                                     </TableCell>

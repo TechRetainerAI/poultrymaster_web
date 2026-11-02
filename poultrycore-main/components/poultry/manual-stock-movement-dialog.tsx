@@ -8,6 +8,11 @@
 //   Products       the stock ledger (eggs, Broken Eggs, Dead Birds, others)
 //   Raw materials  the item's stock, dated to the effective date
 // The "now -> after" figures come from the server's preview; posting checks again.
+//
+// 395: on a farm with Boxes on, an intact-egg item is entered as Boxes +
+// Crates + Pieces. It is still ONE movement of eggs (1 box + 2 crates + 5 pcs
+// at 14 crates/box = +485); the server converts with the company's packaging.
+// Broken Eggs, Dead Birds, birds and everything else keep their own units.
 
 import { useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -18,6 +23,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Loader2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { useEggPackaging } from "@/hooks/use-egg-packaging"
+import { boxSize, formatEggQuantity, formatPackaged, packagedQuantityError, toEggPieces } from "@/lib/poultry/egg-packaging"
 import {
   listPoultryBirdAdjustmentOptions, previewPoultryManualMovement, postPoultryManualMovement,
   MANUAL_MOVEMENT_REASONS,
@@ -63,6 +70,7 @@ const fmtN = (n: number | null | undefined) => (n == null ? "—" : Number(n).to
 
 const EMPTY = {
   target: "", movementType: "Increase", quantity: 0, unitCost: 0, note: "",
+  boxes: 0, crates: 0, pieces: 0,
   batchId: "", flockId: "", effectiveDate: "", reason: "", disposition: "Keep" as "Keep" | "Disposed",
 }
 
@@ -97,9 +105,11 @@ export function ManualStockMovementDialog({
   const product = tKind === "p" ? products.find((p) => p.poultryProductId === Number(tId)) ?? null : null
   const kind: Kind | null = !form.target ? null : tKind === "r" ? "raw" : product && isBirdProduct(product) ? "birds" : "product"
   const sign = MANUAL_MOVEMENTS.find((m) => m.value === form.movementType)?.sign ?? 1
-  const qty = Math.abs(Number(form.quantity) || 0)
   const role = preview?.systemRole ?? (product?.name === "Broken Eggs" ? "BrokenEggs" : product?.name === "Dead Birds" ? "DeadBirds" : null)
   const isEgg = preview?.isEgg ?? false
+  // 395: intact eggs on a box farm are entered as boxes + crates + pieces.
+  const packaging = useEggPackaging()
+  const packagedEntry = kind === "product" && isEgg && role == null && boxSize(packaging) != null
 
   const batches = useMemo(() => {
     const seen = new Map<number, PoultryBirdAdjustmentOption>()
@@ -136,6 +146,8 @@ export function ManualStockMovementDialog({
     return () => { cancelled = true }
   }, [open, kind, tId, form.flockId, batchIdNum, flockIdNum])
 
+  const packagedQty = { boxes: form.boxes, crates: form.crates, pieces: form.pieces }
+  const qty = packagedEntry ? toEggPieces(packagedQty, packaging) : Math.abs(Number(form.quantity) || 0)
   const maxDate = preview?.businessDate ?? localToday()
   const histMortality = kind === "birds" && form.reason === "Historical Mortality"
   const signed = sign * qty
@@ -166,7 +178,11 @@ export function ManualStockMovementDialog({
 
   async function save() {
     if (!kind) { toast({ title: "Pick an item", variant: "destructive" }); return }
-    if (qty <= 0) { toast({ title: "Quantity must be greater than 0", variant: "destructive" }); return }
+    if (packagedEntry) {
+      const err = packagedQuantityError(packagedQty, packaging)
+      if (err) { toast({ title: err, variant: "destructive" }); return }
+    }
+    if (qty <= 0) { toast({ title: packagedEntry ? "Enter at least one box, crate or egg" : "Quantity must be greater than 0", variant: "destructive" }); return }
     if (!form.reason) { toast({ title: "Choose the reason", variant: "destructive" }); return }
     if (!form.effectiveDate) { toast({ title: "Enter the effective date", variant: "destructive" }); return }
     if (form.effectiveDate > maxDate) { toast({ title: "The effective date is in the future", variant: "destructive" }); return }
@@ -194,8 +210,14 @@ export function ManualStockMovementDialog({
         disposition: histMortality ? form.disposition : null,
         note: form.note.trim() || null,
         requestKey,
+        // 395: the server converts these with the company's packaging.
+        ...(packagedEntry ? packagedQty : {}),
       })
-      toast({ title: `${res.movementNo} posted`, description: res.repeated ? "This movement was already saved." : undefined })
+      toast({
+        title: `${res.movementNo} posted`,
+        description: res.repeated ? "This movement was already saved."
+          : res.packaging ? `${res.packaging} = ${(res.eggs ?? qty).toLocaleString()} eggs` : undefined,
+      })
       onOpenChange(false)
       onSaved()
     } catch (e: any) {
@@ -243,9 +265,25 @@ export function ManualStockMovementDialog({
               <SelectContent>{reasons.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
             </Select>
           </FormField>
-          <FormField label={kind === "birds" ? "Birds *" : "Quantity *"} hint="Always positive; the movement type sets the direction.">
-            <NumberInput min={0} step={kind === "birds" ? "1" : "0.001"} value={form.quantity} onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) || 0 })} />
-          </FormField>
+          {packagedEntry ? (
+            <FormField label="Quantity *" hint={`= ${qty.toLocaleString()} eggs. Always positive; the movement type sets the direction.`}>
+              <div className="grid grid-cols-3 gap-1.5">
+                {(["boxes", "crates", "pieces"] as const).map((k) => (
+                  <div key={k}>
+                    <NumberInput min={0} step="1" value={form[k]} aria-label={k}
+                      onChange={(e) => setForm({ ...form, [k]: Math.max(0, Math.trunc(Number(e.target.value) || 0)) })} />
+                    <span className="text-[11px] text-slate-500">
+                      {k === "boxes" ? `boxes (${packaging.cratesPerBox}×${packaging.eggsPerCrate})` : k === "crates" ? `crates (${packaging.eggsPerCrate})` : "pieces"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </FormField>
+          ) : (
+            <FormField label={kind === "birds" ? "Birds *" : "Quantity *"} hint="Always positive; the movement type sets the direction.">
+              <NumberInput min={0} step={kind === "birds" ? "1" : "0.001"} value={form.quantity} onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) || 0 })} />
+            </FormField>
+          )}
           {kind !== "birds"
             ? <FormField label="Unit cost / value"><NumberInput min={0} step="0.01" value={form.unitCost} onChange={(e) => setForm({ ...form, unitCost: Number(e.target.value) || 0 })} /></FormField>
             : <div />}
@@ -330,6 +368,12 @@ export function ManualStockMovementDialog({
             )}
             {form.reason === "Unrecorded Breakage" && isEgg && sign < 0 && (
               <p className="mt-1 text-xs text-slate-500">The eggs are not lost: they move to Broken Eggs.</p>
+            )}
+            {packagedEntry && preview && (
+              <p className="mt-1 text-xs text-slate-500">
+                {formatPackaged(packagedQty)} = {sign < 0 ? "−" : "+"}{qty.toLocaleString()} eggs. After: {formatEggQuantity((preview.itemOnHand ?? 0) + signed, packaging, "BoxesCratesPieces")}
+                {" "}(an equivalent; nothing is packed).
+              </p>
             )}
           </div>
         )}

@@ -95,10 +95,10 @@ export interface ProductionRecord {
   /** 372: Keep (into Dead Birds / Broken Eggs stock) or Disposed immediately. */
   mortalityDisposition?: ByproductDisposition
   brokenEggDisposition?: ByproductDisposition
-  /** 386: how many broken eggs were disposed at once; the rest go to Broken Eggs
+  /** 390: how many broken eggs were disposed at once; the rest go to Broken Eggs
    *  stock. Wins over brokenEggDisposition. Absent from an older API. */
   brokenEggsDisposed?: number | null
-  /** 387: the same for the dead birds. Wins over mortalityDisposition. */
+  /** 391: the same for the dead birds. Wins over mortalityDisposition. */
   mortalityDisposed?: number | null
   totalProduction: number
   /** Free-text notes for the production entry. */
@@ -161,10 +161,10 @@ export interface ProductionRecordInput {
   /** 372: Keep (into Dead Birds / Broken Eggs stock) or Disposed immediately. */
   mortalityDisposition?: ByproductDisposition
   brokenEggDisposition?: ByproductDisposition
-  /** 386: how many broken eggs were disposed at once; the rest go to Broken Eggs
+  /** 390: how many broken eggs were disposed at once; the rest go to Broken Eggs
    *  stock. Wins over brokenEggDisposition. Absent from an older API. */
   brokenEggsDisposed?: number | null
-  /** 387: the same for the dead birds. Wins over mortalityDisposition. */
+  /** 391: the same for the dead birds. Wins over mortalityDisposition. */
   mortalityDisposed?: number | null
   totalProduction: number
   /** Free-text notes for the production entry. */

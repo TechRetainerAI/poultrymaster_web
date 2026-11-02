@@ -162,6 +162,7 @@ export function ProductionRecordModal({
                 <>
                   <Stat label="Total eggs" value={s.totalEggs.toLocaleString()} />
                   <Stat label="Crates" value={`${s.totalCrates} + ${s.totalPieces}`} />
+                  {s.boxesText && <Stat label="Boxes" value={s.boxesText} />}
                   <Stat label="Net sellable" value={s.netSellableEggs.toLocaleString()} tone="good" />
                   <Stat label="Deaths" value={s.deaths.toLocaleString()} tone={s.deaths > 0 ? "bad" : undefined} />
                   <Stat label="Birds left" value={s.birdsLeft.toLocaleString()} tone={s.birdsLeft < 0 ? "bad" : undefined} />

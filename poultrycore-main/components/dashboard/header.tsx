@@ -1,6 +1,7 @@
 "use client"
 
 import { EggsPerCrateLoader } from "@/hooks/use-eggs-per-crate"
+import { EggPackagingLoader } from "@/hooks/use-egg-packaging"
 import { useFarmAlertCount } from "@/hooks/use-farm-alert-count"
 
 import { Button } from "@/components/ui/button"
@@ -45,6 +46,7 @@ export function DashboardHeader() {
     <div className="flex flex-col min-w-0 overflow-x-hidden">
       {/* Loads the farm's eggs per crate (344) once, for every egg screen. */}
       <EggsPerCrateLoader />
+      <EggPackagingLoader />
       <header className="bg-slate-900 border-b border-slate-800 px-2 sm:px-6 py-3 min-w-0">
         <div className="hidden lg:flex items-center justify-between gap-4">
           {/* VisibilityCore branding - visible when sidebar doesn't show its own */}

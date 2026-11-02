@@ -1,9 +1,11 @@
 -- =============================================================================
--- 387_PoultryDeadBirdPartialDisposal.postgres.sql
+-- 391_PoultryDeadBirdPartialDisposal.postgres.sql
+-- Renumbered from 387 on 2026-11-02 (387 was taken on dev / Gyimah). Already applied to
+-- dev under the old number 387; the body is unchanged -- do not re-apply there.
 --
 -- Purpose
 -- -------
--- 386 for dead birds. A production record's mortality was all-or-nothing
+-- 390 for dead birds. A production record's mortality was all-or-nothing
 -- (372): Keep put every dead bird into Dead Birds stock, "Disposed
 -- immediately" disposed every one. A farm that buries some of the day's dead
 -- birds and keeps the rest (to sell or use) could not record that.
@@ -37,7 +39,7 @@ BEGIN
 END $$;
 
 -- How many of a record's broken eggs / dead birds are disposed at once. The
--- 386 rule (fnpoultry_brokeneggsdisposed) under a name that fits both; the 386
+-- 390 rule (fnpoultry_brokeneggsdisposed) under a name that fits both; the 390
 -- function stays, as a wrapper, for anything already calling it.
 CREATE OR REPLACE FUNCTION public.fnpoultry_disposedatonce(p_count integer, p_disposed integer,
     p_disposition text, p_hist boolean)
@@ -56,7 +58,7 @@ RETURNS integer LANGUAGE sql IMMUTABLE AS $f$
     SELECT fnpoultry_disposedatonce(p_broken, p_disposed, p_disposition, p_hist);
 $f$;
 
--- ------------------------------------------------------- the sync (body of 386) --
+-- ------------------------------------------------------- the sync (body of 390) --
 CREATE OR REPLACE FUNCTION public.sppoultrybyproduct_syncforproduction(p_farmid text, p_recordid integer,
     p_remove boolean DEFAULT false, p_by text DEFAULT NULL::text)
 RETURNS void LANGUAGE plpgsql AS $function$
@@ -83,7 +85,7 @@ BEGIN
     IF NOT p_remove THEN
         v_broken := GREATEST(COALESCE(v_pr.brokeneggs, 0), 0);
         v_dead   := GREATEST(COALESCE(v_pr.mortality, 0), 0);
-        -- 386 / 387: some, all or none disposed at once.
+        -- 390 / 391: some, all or none disposed at once.
         v_bout   := fnpoultry_disposedatonce(v_pr.brokeneggs, v_pr.brokeneggsdisposed, v_pr.brokeneggdisposition, v_hist);
         v_dout   := fnpoultry_disposedatonce(v_pr.mortality,  v_pr.mortalitydisposed,  v_pr.mortalitydisposition,  v_hist);
     END IF;
@@ -150,7 +152,7 @@ BEGIN
             USING ERRCODE = 'P0001';
     END IF;
 
-    -- 386: broken eggs. A count wins over the Keep / Disposed choice.
+    -- 390: broken eggs. A count wins over the Keep / Disposed choice.
     IF p_brokeneggsdisposed IS NOT NULL THEN
         IF p_brokeneggsdisposed < 0 THEN
             RAISE EXCEPTION 'Broken eggs disposed cannot be negative.' USING ERRCODE = 'P0001';
@@ -166,7 +168,7 @@ BEGIN
         v_bout := v_pr.brokeneggsdisposed;                                                  -- not sent: unchanged
     END IF;
 
-    -- 387: dead birds, the same way.
+    -- 391: dead birds, the same way.
     IF p_mortalitydisposed IS NOT NULL THEN
         IF p_mortalitydisposed < 0 THEN
             RAISE EXCEPTION 'Dead birds disposed cannot be negative.' USING ERRCODE = 'P0001';
@@ -201,7 +203,7 @@ END
 $function$;
 
 -- ------------------------------------------------------- dispositions reader --
--- 387: + mortalitydisposed (trailing, after 386's brokeneggsdisposed).
+-- 391: + mortalitydisposed (trailing, after 390's brokeneggsdisposed).
 CREATE FUNCTION public.sppoultryproduction_dispositions(p_farmid text)
 RETURNS TABLE(id integer, mortalitydisposition text, brokeneggdisposition text,
               brokeneggsdisposed integer, mortalitydisposed integer)

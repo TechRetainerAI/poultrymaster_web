@@ -1,15 +1,15 @@
 ﻿# =============================================================================
-# Apply migration 386 (broken eggs partly disposed: a production record can
+# Apply migration 390 (broken eggs partly disposed: a production record can
 # dispose SOME of its broken eggs at once and keep the rest in Broken Eggs stock).
 #
 # DEPLOY ORDER: this script FIRST, then the API, then the web app. The old API
-# keeps working against 386 (defaulted parameter, trailing reader column).
+# keeps working against 390 (defaulted parameter, trailing reader column).
 #
 # Four phases, as the other apply scripts:
 #   1. MEASURE   stock ledger and byproduct on hand per company.
-#   2. DRY RUN   386 + checks/broken-egg-partial-disposal.test.sql (+ byproduct
+#   2. DRY RUN   390 + checks/broken-egg-partial-disposal.test.sql (+ byproduct
 #                checks) inside one transaction that is ROLLED BACK.
-#   3. APPLY     386 in its own transaction.
+#   3. APPLY     390 in its own transaction.
 #   4. MEASURE   again: nothing may move -- no record changes its disposal.
 #
 #   $env:PGPASSWORD = '<password>'
@@ -37,7 +37,7 @@ if (-not (Test-Path $Psql)) { throw "psql not found at $Psql" }
 if (-not (Test-Path $MigrationsDir)) { throw "Migrations dir not found: $MigrationsDir" }
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
-$files  = @('386_PoultryBrokenEggPartialDisposal.postgres.sql')
+$files  = @('390_PoultryBrokenEggPartialDisposal.postgres.sql')
 $checks = @('broken-egg-partial-disposal.test.sql', 'byproduct-history.test.sql', 'byproduct-foundation.test.sql', 'byproduct-reports.test.sql')
 $passMarkers = @('broken egg partial disposal: all checks passed', 'byproduct history: all checks passed', 'byproduct foundation: all checks passed', 'byproduct reports: all checks passed')
 foreach ($f in $files)  { if (-not (Test-Path (Join-Path $MigrationsDir $f))) { throw "Missing migration: $f" } }
@@ -151,7 +151,7 @@ if (-not $diff) {
     Write-Host "No money moved. ($((Get-Content $after).Count) lines compared)" -ForegroundColor Green
 } else {
     $diff | Select-Object -First 40 | Format-Table -AutoSize | Out-String | Write-Host
-    Write-Host 'Any line here is a bug -- 386 changes no existing record.' -ForegroundColor Red
+    Write-Host 'Any line here is a bug -- 390 changes no existing record.' -ForegroundColor Red
 }
 
 Write-Host ''

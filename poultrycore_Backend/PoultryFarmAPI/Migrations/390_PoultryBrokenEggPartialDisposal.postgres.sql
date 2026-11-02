@@ -1,5 +1,7 @@
 -- =============================================================================
--- 386_PoultryBrokenEggPartialDisposal.postgres.sql
+-- 390_PoultryBrokenEggPartialDisposal.postgres.sql
+-- Renumbered from 386 on 2026-11-02 (386 was taken on dev / Gyimah). Already applied to
+-- dev under the old number 386; the body is unchanged -- do not re-apply there.
 --
 -- Purpose
 -- -------
@@ -78,7 +80,7 @@ BEGIN
     IF NOT p_remove THEN
         v_broken := GREATEST(COALESCE(v_pr.brokeneggs, 0), 0);
         v_dead   := GREATEST(COALESCE(v_pr.mortality, 0), 0);
-        -- 386: some, all or none of the broken eggs disposed at once.
+        -- 390: some, all or none of the broken eggs disposed at once.
         v_bout   := fnpoultry_brokeneggsdisposed(v_pr.brokeneggs, v_pr.brokeneggsdisposed, v_pr.brokeneggdisposition, v_hist);
     END IF;
     v_label := CASE WHEN v_hist THEN 'History (before tracking) - ' ELSE '' END
@@ -140,7 +142,7 @@ BEGIN
             USING ERRCODE = 'P0001';
     END IF;
 
-    -- 386: a count wins over the Keep / Disposed choice.
+    -- 390: a count wins over the Keep / Disposed choice.
     IF p_brokeneggsdisposed IS NOT NULL THEN
         IF p_brokeneggsdisposed < 0 THEN
             RAISE EXCEPTION 'Broken eggs disposed cannot be negative.' USING ERRCODE = 'P0001';
@@ -176,7 +178,7 @@ END
 $function$;
 
 -- ------------------------------------------------------- dispositions reader --
--- 386: + brokeneggsdisposed, the count actually disposed (trailing column, so
+-- 390: + brokeneggsdisposed, the count actually disposed (trailing column, so
 -- the old API's reads by position still work).
 CREATE FUNCTION public.sppoultryproduction_dispositions(p_farmid text)
 RETURNS TABLE(id integer, mortalitydisposition text, brokeneggdisposition text, brokeneggsdisposed integer)

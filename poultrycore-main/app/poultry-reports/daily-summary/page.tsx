@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useState } from "react"
+import { EGGS_PER_CRATE } from "@/lib/production/production-record-calc"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -140,7 +141,8 @@ export default function PoultryDailyBusinessSummaryPage() {
               bank: dayReturns.reduce((s: number, r: any) => s + (r.bankCollected ?? 0), 0),
               creditSales: dayReturns.reduce((s: number, r: any) => s + (r.creditSalesAmount ?? 0), 0),
               customerCollections: 0,
-              eggsSold: dayReturns.reduce((s: number, r: any) => s + (r.cratesSold ?? r.quantitySold ?? 0), 0),
+              // Driver returns count CRATES; "eggs sold" is eggs (was crates read as eggs).
+              eggsSold: dayReturns.reduce((s: number, r: any) => s + (r.cratesSold != null ? r.cratesSold * EGGS_PER_CRATE : (r.quantitySold ?? 0)), 0),
               driverShortages: dayReturns.reduce((s: number, r: any) => s + (r.shortageAmount ?? 0), 0),
               source: "returns" as const,
             }

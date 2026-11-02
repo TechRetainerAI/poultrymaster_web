@@ -14,6 +14,8 @@
 // =============================================================================
 
 import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { EGGS_PER_CRATE } from "@/lib/production/production-record-calc"
+import { useEggsPerCrate } from "@/hooks/use-eggs-per-crate"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -60,6 +62,7 @@ export const DASHBOARD_VIEW_META: Record<DashboardView, { title: string; descrip
 // used by the four sections. Owns the filter state too.
 // -----------------------------------------------------------------------------
 export function usePoultryDashboardData() {
+  useEggsPerCrate()   // crate figures follow the farm's setting (was a fixed 30)
   const { toast } = useToast()
   const currencyCode = getSelectedCurrency()
 
@@ -172,8 +175,8 @@ export function usePoultryDashboardData() {
 
   // ---------- Production metrics ----------
   const totalEggs = useMemo(() => filteredRecords.reduce((s, r: any) => s + (r.totalProduction || 0), 0), [filteredRecords])
-  const totalCrates = Math.floor(totalEggs / 30)
-  const looseEggs = totalEggs % 30
+  const totalCrates = Math.floor(totalEggs / EGGS_PER_CRATE)
+  const looseEggs = totalEggs % EGGS_PER_CRATE
   const avgDaily = filteredRecords.length ? Math.round(totalEggs / filteredRecords.length) : 0
   const totalMortality = useMemo(() => filteredRecords.reduce((s, r: any) => s + (r.mortality || 0), 0), [filteredRecords])
   /** Latest `noOfBirdsLeft` per flock from full production history (not date-filtered). */
@@ -217,8 +220,8 @@ export function usePoultryDashboardData() {
           m4: r.production4PM || 0,
           m4th: r.production4thPick || 0,
           total,
-          crates: Math.floor(total / 30),
-          loose: total % 30,
+          crates: Math.floor(total / EGGS_PER_CRATE),
+          loose: total % EGGS_PER_CRATE,
         }
       })
       .sort((a, b) => a.rawDate - b.rawDate),
@@ -267,8 +270,8 @@ export function usePoultryDashboardData() {
       .map(([date, value]) => ({
         date,
         eggs: value.eggs,
-        crates: Math.floor(value.eggs / 30),
-        looseEggs: value.eggs % 30,
+        crates: Math.floor(value.eggs / EGGS_PER_CRATE),
+        looseEggs: value.eggs % EGGS_PER_CRATE,
         expenses: value.expenses,
         eggsPerExpenseUnit: value.expenses > 0 ? value.eggs / value.expenses : value.eggs,
       }))

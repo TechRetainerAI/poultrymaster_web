@@ -1175,7 +1175,7 @@ function AddCostDialog({ asset, onClose, cashAccounts, onSaved }: {
                 Back to capitalising
               </Button>
               <Button size="sm" asChild>
-                <Link href="C:/Program Files/Git/expenses">Go to Expenses</Link>
+                <Link href="/expenses">Go to Expenses</Link>
               </Button>
             </div>
           </div>

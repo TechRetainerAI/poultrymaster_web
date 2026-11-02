@@ -1,5 +1,5 @@
 -- =============================================================================
--- broken-egg-partial-disposal.test.sql -- checks for migration 386.
+-- broken-egg-partial-disposal.test.sql -- checks for migration 390 (was 386).
 --
 -- Self-contained and ROLLED BACK: safe to run bare (psql -f).
 -- Some of a record's broken eggs disposed at once, the rest kept in stock.
@@ -17,7 +17,7 @@ DECLARE
 
     c_disp CONSTANT text := 'Broken Egg Disposal';
 BEGIN
-    -- 0. Records untouched by 386 keep exactly what they had: the disposal
+    -- 0. Records untouched by 390 keep exactly what they had: the disposal
     --    posted for each matches the old Keep / Disposed rule.
     SELECT count(*) INTO v_bad
     FROM   productionrecords pr

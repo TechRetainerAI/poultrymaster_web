@@ -76,6 +76,19 @@
         public decimal Quantity { get; set; }
         public decimal UnitPrice { get; set; }
         public decimal TotalAmount { get; set; }
+
+        // 394: what the line was entered and priced as, with the conversion of
+        // the day it was posted. All null on older lines (show derived only).
+        public int? Boxes { get; set; }
+        public int? Crates { get; set; }
+        public int? Pieces { get; set; }
+        public int? EggsPerCrate { get; set; }
+        public int? CratesPerBox { get; set; }
+        public decimal? PricePerBox { get; set; }
+        public decimal? PricePerCrate { get; set; }
+        public decimal? PricePerPiece { get; set; }
+        public decimal? CalculatedAmount { get; set; }
+        public bool? AmountOverridden { get; set; }
     }
 
     /// <summary>POST api/Sale/{id}/reverse.</summary>

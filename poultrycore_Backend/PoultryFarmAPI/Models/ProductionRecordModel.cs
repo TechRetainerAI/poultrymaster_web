@@ -68,11 +68,11 @@ namespace PoultryFarmAPIWeb.Models
         /// <summary>372: the same for its broken eggs (Broken Eggs stock).</summary>
         public string? BrokenEggDisposition { get; set; }
         /// <summary>
-        /// 386: how many of the broken eggs were disposed at once; the rest go into
+        /// 390: how many of the broken eggs were disposed at once; the rest go into
         /// Broken Eggs stock. Wins over BrokenEggDisposition. Null = unchanged.
         /// </summary>
         public int? BrokenEggsDisposed { get; set; }
-        /// <summary>387: the same for the dead birds (Dead Birds stock). Wins over MortalityDisposition.</summary>
+        /// <summary>391: the same for the dead birds (Dead Birds stock). Wins over MortalityDisposition.</summary>
         public int? MortalityDisposed { get; set; }
         public string? Notes { get; set; }
         /// <summary>

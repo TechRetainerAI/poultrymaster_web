@@ -1,16 +1,16 @@
 ﻿# =============================================================================
-# Apply migration 387 (dead birds partly disposed: a production record can
+# Apply migration 391 (dead birds partly disposed: a production record can
 # dispose SOME of its dead birds at once and keep the rest in Dead Birds stock).
-# 386 must already be applied.
+# 390 must already be applied.
 #
 # DEPLOY ORDER: this script FIRST, then the API, then the web app. The old API
-# keeps working against 387 (defaulted parameter, trailing reader column).
+# keeps working against 391 (defaulted parameter, trailing reader column).
 #
 # Four phases, as the other apply scripts:
 #   1. MEASURE   stock ledger and byproduct on hand per company.
-#   2. DRY RUN   387 + checks/dead-bird-partial-disposal.test.sql (+ 386 / byproduct
+#   2. DRY RUN   391 + checks/dead-bird-partial-disposal.test.sql (+ 390 / byproduct
 #                checks) inside one transaction that is ROLLED BACK.
-#   3. APPLY     387 in its own transaction.
+#   3. APPLY     391 in its own transaction.
 #   4. MEASURE   again: nothing may move -- no record changes its disposal.
 #
 #   $env:PGPASSWORD = '<password>'
@@ -38,7 +38,7 @@ if (-not (Test-Path $Psql)) { throw "psql not found at $Psql" }
 if (-not (Test-Path $MigrationsDir)) { throw "Migrations dir not found: $MigrationsDir" }
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
-$files  = @('387_PoultryDeadBirdPartialDisposal.postgres.sql')
+$files  = @('391_PoultryDeadBirdPartialDisposal.postgres.sql')
 $checks = @('dead-bird-partial-disposal.test.sql', 'broken-egg-partial-disposal.test.sql', 'byproduct-history.test.sql', 'byproduct-foundation.test.sql', 'byproduct-reports.test.sql')
 $passMarkers = @('dead bird partial disposal: all checks passed', 'broken egg partial disposal: all checks passed', 'byproduct history: all checks passed', 'byproduct foundation: all checks passed', 'byproduct reports: all checks passed')
 foreach ($f in $files)  { if (-not (Test-Path (Join-Path $MigrationsDir $f))) { throw "Missing migration: $f" } }
@@ -152,7 +152,7 @@ if (-not $diff) {
     Write-Host "No money moved. ($((Get-Content $after).Count) lines compared)" -ForegroundColor Green
 } else {
     $diff | Select-Object -First 40 | Format-Table -AutoSize | Out-String | Write-Host
-    Write-Host 'Any line here is a bug -- 387 changes no existing record.' -ForegroundColor Red
+    Write-Host 'Any line here is a bug -- 391 changes no existing record.' -ForegroundColor Red
 }
 
 Write-Host ''

@@ -145,11 +145,11 @@ export function CalcField({
   )
 }
 
-/** 386 / 387: keep all, dispose some, or dispose all of a record's broken eggs / dead birds. */
+/** 390 / 391: keep all, dispose some, or dispose all of a record's broken eggs / dead birds. */
 export type DisposalMode = "keep" | "some" | "all"
 
 /**
- * 386 / 387: what happens to a record's broken eggs / dead birds. Some can be
+ * 390 / 391: what happens to a record's broken eggs / dead birds. Some can be
  * disposed at once and the rest added to Broken Eggs / Dead Birds stock (to
  * sell or use). Shown only when there are some.
  */

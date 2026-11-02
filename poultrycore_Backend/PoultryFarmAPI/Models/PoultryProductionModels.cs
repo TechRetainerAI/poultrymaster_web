@@ -73,6 +73,11 @@ namespace PoultryFarmAPIWeb.Models
         /// <summary>Same key = same movement (a double click posts once).</summary>
         [StringLength(100)] public string? RequestKey { get; set; }
         public string? CreatedBy { get; set; }
+        // 395: an egg movement entered as Boxes / Crates / Pieces. Any set = the
+        // database converts them with the company's packaging; Quantity is ignored.
+        public int? Boxes { get; set; }
+        public int? Crates { get; set; }
+        public int? Pieces { get; set; }
     }
 
     /// <summary>374: whether Broken Eggs / Dead Birds are offered in Add Sale.</summary>
@@ -169,6 +174,12 @@ namespace PoultryFarmAPIWeb.Models
         public DateTime? ReversedAt { get; set; }
         public string? ReversedBy { get; set; }
         public string? ReversalReason { get; set; }
+        // 395: how an egg movement was entered, with that day's conversion (null otherwise).
+        public int? Boxes { get; set; }
+        public int? Crates { get; set; }
+        public int? Pieces { get; set; }
+        public int? EggsPerCrate { get; set; }
+        public int? CratesPerBox { get; set; }
     }
 
     /// <summary>

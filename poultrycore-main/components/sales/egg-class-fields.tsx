@@ -16,6 +16,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { EggClass } from "@/lib/api/egg-sorting"
 import { EGGS_PER_CRATE } from "@/lib/production/production-record-calc"
 import { byproductRole } from "@/lib/poultry/byproducts"
+import { getEggPackagingNow } from "@/hooks/use-egg-packaging"
+import { boxSize, packagedLineAmount, toEggPieces } from "@/lib/poultry/egg-packaging"
 
 /** Select value for Unsorted / General (sent to the API as 0). */
 export const UNSORTED_VALUE = "unsorted"
@@ -88,22 +90,41 @@ export interface ExtraEggLine {
   product?: string
   /** Units sold when the product is not eggs (eggs use crates + loose). */
   quantity?: number
+  /** 394: boxes, on a farm with Boxes on. */
+  boxes?: number
+  /** 394: null = crates per box x the crate price. */
+  pricePerBox?: number | null
+  /** 394: null = the crate price shared over the crate. */
+  pricePerPiece?: number | null
 }
 
 // 374: Broken Eggs is not an egg line (no size, no crates): it is its own stock.
 export const extraLineIsEggs = (l: ExtraEggLine) =>
   l.product == null || (l.product.toLowerCase().includes("egg") && byproductRole(l.product) == null)
 
-export const extraLineEggs = (l: ExtraEggLine) => l.crates * EGGS_PER_CRATE + l.loose
+export const extraLineEggs = (l: ExtraEggLine) => {
+  const p = getEggPackagingNow()
+  // Boxes only count while the farm has a box size (393); never invent them.
+  return boxSize(p) != null
+    ? toEggPieces({ boxes: l.boxes ?? 0, crates: l.crates, pieces: l.loose }, p)
+    : l.crates * EGGS_PER_CRATE + l.loose
+}
 
 /** What the line sells: eggs for an egg line, else its quantity. */
 export const extraLineQuantity = (l: ExtraEggLine) => (extraLineIsEggs(l) ? extraLineEggs(l) : Number(l.quantity) || 0)
 
 /** Same pricing as the main line: eggs per crate (loose pro rata), else quantity x price. */
-export const extraLineTotal = (l: ExtraEggLine) =>
-  extraLineIsEggs(l)
-    ? Math.round(((extraLineEggs(l) / EGGS_PER_CRATE) * l.unitPrice) * 100) / 100
-    : Math.round((Number(l.quantity) || 0) * l.unitPrice * 100) / 100
+export const extraLineTotal = (l: ExtraEggLine) => {
+  if (!extraLineIsEggs(l)) return Math.round((Number(l.quantity) || 0) * l.unitPrice * 100) / 100
+  const p = getEggPackagingNow()
+  // 394: a box farm prices each part at its own price (the database's rule);
+  // otherwise the old per-crate, loose pro-rata rule, unchanged.
+  if (boxSize(p) != null) {
+    return packagedLineAmount({ boxes: l.boxes ?? 0, crates: l.crates, pieces: l.loose },
+      { pricePerCrate: l.unitPrice, pricePerBox: l.pricePerBox, pricePerPiece: l.pricePerPiece }, p)
+  }
+  return Math.round(((extraLineEggs(l) / EGGS_PER_CRATE) * l.unitPrice) * 100) / 100
+}
 
 export function ExtraEggLines({
   classes, lines, onChange, mainEggs, mainClass, returned,
