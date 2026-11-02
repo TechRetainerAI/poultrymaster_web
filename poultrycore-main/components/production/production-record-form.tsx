@@ -29,6 +29,8 @@
 // =============================================================================
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useEggPackaging } from "@/hooks/use-egg-packaging"
+import { boxSize, formatEggQuantity } from "@/lib/poultry/egg-packaging"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -90,6 +92,8 @@ export interface ProductionRecordFormState {
     totalEggs: number
     totalCrates: number
     totalPieces: number
+    /** 393: "20 boxes" on a box farm, else null. Display only. */
+    boxesText?: string | null
     brokenEggs: number
     meatyEggs: number
     softEggs: number
@@ -179,7 +183,7 @@ export function ProductionRecordForm({
     // "" on an edit whose record came back without it (an older API): not sent,
     // so the saved choice is left as it is.
     brokenEggDisposition: "Keep" as "Keep" | "Disposed" | "",
-    // 386 / 387: keep all / dispose some / dispose all; *Disposed is the
+    // 390 / 391: keep all / dispose some / dispose all; *Disposed is the
     // "some" count as typed.
     brokenEggMode: "keep" as DisposalMode,
     brokenEggsDisposed: "",
@@ -320,6 +324,8 @@ export function ProductionRecordForm({
     // hiding the input must not quietly subtract eggs somebody already counted.
     (parseInt(form.fifth) || 0) + (parseInt(form.sixth) || 0)
   const { crates: totalCrates, pieces: totalPieces } = cratesEquivalent(total)
+  const packaging = useEggPackaging()
+  const boxesText = boxSize(packaging) != null ? formatEggQuantity(total, packaging, "BoxesCratesPieces") : null
 
   const brokenEggs = parseInt(form.brokenEggs) || 0
   const meatyEggs = parseInt(form.meatyEggs) || 0
@@ -593,12 +599,12 @@ export function ProductionRecordForm({
 
   // ------------------------------------------------------------ lift state
   const summary = useMemo(() => ({
-    totalEggs: total, totalCrates, totalPieces,
+    totalEggs: total, totalCrates, totalPieces, boxesText,
     brokenEggs, meatyEggs, softEggs, lostEggs,
     totalLosses, netSellableEggs,
     deaths: mortalityNum, birdsLeft,
     feedCost: totalFeedCost, medicationCost: totalMedicationCost, totalCost: totalCostOfProduction,
-  }), [total, totalCrates, totalPieces, brokenEggs, meatyEggs, softEggs, lostEggs,
+  }), [total, totalCrates, totalPieces, boxesText, brokenEggs, meatyEggs, softEggs, lostEggs,
        totalLosses, netSellableEggs, mortalityNum, birdsLeft,
        totalFeedCost, totalMedicationCost, totalCostOfProduction])
 
@@ -914,6 +920,13 @@ export function ProductionRecordForm({
               {totalCrates} crate{totalCrates === 1 ? "" : "s"}{totalPieces > 0 ? ` + ${totalPieces} egg${totalPieces === 1 ? "" : "s"}` : ""}
             </b>
           </span>
+          {/* 393: a box farm also sees boxes. Display only -- production is
+              still recorded in eggs, and no figure here changes. */}
+          {boxesText && (
+            <span className="text-slate-500">
+              Boxes equivalent <b className="ml-1 text-slate-900 tabular-nums">{boxesText}</b>
+            </span>
+          )}
         </div>
         {eggsOverBirds && (
           <div className="mt-2 flex items-start gap-2 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
@@ -1110,6 +1123,7 @@ export function ProductionRecordForm({
         <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3 lg:grid-cols-4">
           <SummaryItem label="Total eggs" value={total.toLocaleString()} />
           <SummaryItem label="Total crates" value={`${totalCrates} + ${totalPieces}`} />
+          {boxesText && <SummaryItem label="Boxes equivalent" value={boxesText} />}
           <SummaryItem label="Broken" value={brokenEggs.toLocaleString()} />
           <SummaryItem label="Meaty" value={meatyEggs.toLocaleString()} />
           <SummaryItem label="Soft" value={softEggs.toLocaleString()} />
@@ -1148,7 +1162,7 @@ function SummaryItem({ label, value, strong }: { label: string; value: string; s
 }
 
 /**
- * 386 / 387: the form's disposal mode from a saved record. An older API sends
+ * 390 / 391: the form's disposal mode from a saved record. An older API sends
  * no count, so the Keep / Disposed choice decides (none / all).
  */
 function disposalModeFrom(
@@ -1161,7 +1175,7 @@ function disposalModeFrom(
 }
 
 /**
- * 386 / 387: what the save sends for the broken eggs or the dead birds. The
+ * 390 / 391: what the save sends for the broken eggs or the dead birds. The
  * count is the authority; Keep / Disposed rides along for none / all only, so
  * an older API never reads "some" as "all". An edit whose record came back
  * without a choice ("") sends nothing until the user picks one, so the saved

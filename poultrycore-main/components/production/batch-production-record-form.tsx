@@ -22,6 +22,8 @@
 // =============================================================================
 
 import { EGGS_PER_CRATE } from "@/lib/production/production-record-calc"
+import { useEggPackaging } from "@/hooks/use-egg-packaging"
+import { boxSize, formatEggQuantity } from "@/lib/poultry/egg-packaging"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -103,6 +105,8 @@ export interface BatchProductionRecordFormState {
     totalEggs: number
     totalCrates: number
     totalPieces: number
+    /** 393: "5 boxes" on a box farm, else null. Display only. */
+    boxesText?: string | null
     totalLosses: number
     netSellableEggs: number
     deaths: number
@@ -276,6 +280,8 @@ export function BatchProductionRecordForm({
   // actually entered, not against what is currently on offer.
   const totalEggs = firstTotal + secondTotal + thirdTotal + fourthTotal + fifthTotal + sixthTotal
   const { crates: totalCrates, pieces: totalPieces } = cratesEquivalent(totalEggs)
+  const packaging = useEggPackaging()
+  const boxesText = boxSize(packaging) != null ? formatEggQuantity(totalEggs, packaging, "BoxesCratesPieces") : null
 
   const brokenEggs = parseInt(form.brokenEggs) || 0
   const meatyEggs = parseInt(form.meatyEggs) || 0
@@ -391,11 +397,11 @@ export function BatchProductionRecordForm({
         : specificBatch?.batchName ?? specificBatch?.batchCode ?? null
 
   const summary = useMemo(() => ({
-    totalEggs, totalCrates, totalPieces, totalLosses, netSellableEggs,
+    totalEggs, totalCrates, totalPieces, boxesText, totalLosses, netSellableEggs,
     deaths: parseInt(form.deaths) || 0,
     birdsLeft: form.birdsLeft === "" ? null : parseInt(form.birdsLeft) || 0,
     feedCost: totalFeedCost, medicationCost: totalMedicationCost, totalCost: totalCostOfProduction,
-  }), [totalEggs, totalCrates, totalPieces, totalLosses, netSellableEggs,
+  }), [totalEggs, totalCrates, totalPieces, boxesText, totalLosses, netSellableEggs,
        form.deaths, form.birdsLeft, totalFeedCost, totalMedicationCost, totalCostOfProduction])
 
   useEffect(() => {
@@ -701,6 +707,13 @@ export function BatchProductionRecordForm({
               {totalCrates} crate{totalCrates === 1 ? "" : "s"}{totalPieces > 0 ? ` + ${totalPieces} egg${totalPieces === 1 ? "" : "s"}` : ""}
             </b>
           </span>
+          {/* 393: a box farm also sees boxes. Display only -- production is
+              still recorded in eggs, and no figure here changes. */}
+          {boxesText && (
+            <span className="text-slate-600">
+              Boxes equivalent <b className="ml-1 tabular-nums text-slate-900">{boxesText}</b>
+            </span>
+          )}
         </div>
         {eggsOverBirds && (
           <div className="mt-2 flex items-start gap-2 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
@@ -824,6 +837,7 @@ export function BatchProductionRecordForm({
         <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3 lg:grid-cols-4">
           <SummaryItem label="Total eggs" value={totalEggs.toLocaleString()} />
           <SummaryItem label="Total crates" value={`${totalCrates} + ${totalPieces}`} />
+          {boxesText && <SummaryItem label="Boxes equivalent" value={boxesText} />}
           <SummaryItem label="Broken" value={brokenEggs.toLocaleString()} />
           <SummaryItem label="Meaty" value={meatyEggs.toLocaleString()} />
           <SummaryItem label="Soft" value={softEggs.toLocaleString()} />

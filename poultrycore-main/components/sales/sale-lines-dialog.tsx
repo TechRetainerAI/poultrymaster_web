@@ -8,6 +8,7 @@
 // Each sale is fetched fresh (GET Sale/{id} carries its lines).
 
 import { useEffect, useState } from "react"
+import { formatPackaged } from "@/lib/poultry/egg-packaging"
 import { ExternalLink, Loader2, ShoppingCart } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -37,9 +38,13 @@ interface Props {
 const isEgg = (product: string | null | undefined) => (product ?? "").toLowerCase().includes("egg") && byproductRole(product) == null
 
 /** "10 crates + 5 pcs" for eggs; the plain number otherwise. */
-export function saleLineQuantityLabel(line: Pick<SaleLine, "product" | "quantity">): string {
+export function saleLineQuantityLabel(line: Pick<SaleLine, "product" | "quantity" | "boxes" | "crates" | "pieces">): string {
   const q = Number(line.quantity) || 0
   if (!isEgg(line.product) || EGGS_PER_CRATE <= 0) return q.toLocaleString()
+  // 394: a line saved with its packaging reads exactly as it was entered.
+  if (line.crates != null) {
+    return `${formatPackaged({ boxes: line.boxes ?? 0, crates: line.crates, pieces: line.pieces ?? 0 })} (${q.toLocaleString()} eggs)`
+  }
   const crates = Math.floor(q / EGGS_PER_CRATE)
   const pieces = q % EGGS_PER_CRATE
   const parts: string[] = []

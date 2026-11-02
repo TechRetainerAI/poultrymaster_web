@@ -32,6 +32,9 @@ import {
   type PoultryProduct, type PoultryStockTransaction, type PoultryRawMaterialItem, type PoultryManualMovement,
 } from "@/lib/api/poultry-inventory"
 import { ManualStockMovementDialog } from "@/components/poultry/manual-stock-movement-dialog"
+import { boxSize, formatEggQuantity, formatEggs, formatPackaged } from "@/lib/poultry/egg-packaging"
+import { useEggPackaging } from "@/hooks/use-egg-packaging"
+import { byproductRole } from "@/lib/poultry/byproducts"
 import { usePermissions } from "@/hooks/use-permissions"
 import { RecalculateStockButton } from "@/components/poultry/recalculate-stock-button"
 import { SetProductStockButton } from "@/components/inventory/set-product-stock-button"
@@ -165,6 +168,23 @@ export default function PoultryStockPage() {
   }
 
   const manualById = useMemo(() => new Map(manual.map((m) => [m.movementId, m])), [manual])
+  const eggPackaging = useEggPackaging()
+  /**
+   * The packaging line under an egg movement's quantity:
+   *   - a movement entered in boxes (395): exactly as entered, "32 boxes + 8 crates + 20 pcs";
+   *   - any other intact-egg movement (production, sale, sorting, adjustment):
+   *     the same eggs in the farm's packaging, "≈ 32 boxes + 8 crates + 20 pcs".
+   * Broken Eggs, birds and raw materials keep their own units (null).
+   */
+  const enteredAs = (m: Move): string | null => {
+    const h = m.manualMovementId != null && !m.isReversal ? manualById.get(m.manualMovementId) : undefined
+    if (h && h.crates != null) return formatPackaged({ boxes: h.boxes ?? 0, crates: h.crates, pieces: h.pieces ?? 0 })
+    const isEgg = m.parentType === "Finished Product" && m.item.toLowerCase().includes("egg") && byproductRole(m.item) == null
+    if (!isEgg) return null
+    const n = Math.abs(Math.trunc(m.qty))
+    const text = formatEggQuantity(n, eggPackaging, boxSize(eggPackaging) != null ? "BoxesCratesPieces" : "CratesPieces")
+    return text === formatEggs(n) ? null : `≈ ${text}`
+  }
   const moves: Move[] = useMemo(() => {
     const prod: Move[] = txns.map((t) => ({
       key: `pt${t.poultryStockTransactionId}`, date: t.createdDate, item: t.productName ?? "", parentType: "Finished Product",
@@ -240,6 +260,8 @@ export default function PoultryStockPage() {
         { header: "Batch / Flock" },
         { header: "Reason" },
         { header: "Qty", align: "right" },
+        // Egg rows: as entered (boxes / crates / pcs) or "≈" the equivalent.
+        { header: "Packaging" },
         { header: "Unit Price", align: "right" },
         { header: "Total Value", align: "right" },
         { header: "Source" },
@@ -255,6 +277,7 @@ export default function PoultryStockPage() {
         // Keep the sign the table shows: "+120" and "-40" are the whole point
         // of a movements list.
         `${m.qty > 0 ? "+" : ""}${m.qty.toLocaleString()}`,
+        enteredAs(m) ?? "—",
         m.unitCost != null ? gh(m.unitCost) : "—",
         m.total != null ? gh(m.total) : "—",
         m.source,
@@ -438,7 +461,10 @@ export default function PoultryStockPage() {
                         <TableCell><Badge className={MOVE_COLORS[m.movementType] ?? MOVE_COLOR_FALLBACK}>{m.movementType}</Badge></TableCell>
                         <TableCell className="text-slate-600">{m.batchFlock || "—"}</TableCell>
                         <TableCell className="text-slate-600">{m.reason ?? "—"}</TableCell>
-                        <TableCell className={`text-right ${m.qty < 0 ? "text-red-600" : "text-green-700"}`}>{m.qty > 0 ? "+" : ""}{m.qty.toLocaleString()}</TableCell>
+                        <TableCell className={`text-right ${m.qty < 0 ? "text-red-600" : "text-green-700"}`}>
+                          {m.qty > 0 ? "+" : ""}{m.qty.toLocaleString()}
+                          {enteredAs(m) && <div className="text-[11px] font-normal text-slate-500">{enteredAs(m)}</div>}
+                        </TableCell>
                         <TableCell className="text-right">{m.unitCost != null ? gh(m.unitCost) : "—"}</TableCell>
                         <TableCell className="text-right">{m.total != null ? gh(m.total) : "—"}</TableCell>
                         <TableCell className="text-slate-500">{m.source}</TableCell>
@@ -454,7 +480,7 @@ export default function PoultryStockPage() {
                   : pg.pageItems.map((m) => (
                     <FieldCard key={m.key} title={m.item}
                       badge={<Badge className={MOVE_COLORS[m.movementType] ?? MOVE_COLOR_FALLBACK}>{m.movementType}</Badge>}
-                      fields={[["Date", fmtDateTime(m.date, m)], ["Type", m.parentType], ["Qty", <span className={m.qty < 0 ? "text-red-600" : "text-green-700"}>{m.qty > 0 ? "+" : ""}{m.qty.toLocaleString()}</span>], ["Unit price", m.unitCost != null ? gh(m.unitCost) : "—"], ["Total", m.total != null ? gh(m.total) : "—"], ["Source", m.source],
+                      fields={[["Date", fmtDateTime(m.date, m)], ["Type", m.parentType], ["Qty", <span className={m.qty < 0 ? "text-red-600" : "text-green-700"}>{m.qty > 0 ? "+" : ""}{m.qty.toLocaleString()}{enteredAs(m) ? ` (${enteredAs(m)})` : ""}</span>], ["Unit price", m.unitCost != null ? gh(m.unitCost) : "—"], ["Total", m.total != null ? gh(m.total) : "—"], ["Source", m.source],
                         ...(m.batchFlock ? [["Batch / Flock", m.batchFlock] as [string, string]] : []), ...(m.reason ? [["Reason", m.reason] as [string, string]] : [])]}
                       actions={reverseButton(m)} />
                   ))}
@@ -478,6 +504,9 @@ export default function PoultryStockPage() {
             <div className="space-y-3 text-sm">
               <p className="text-slate-600">
                 {reverseTarget.itemName}: {reverseTarget.quantity > 0 ? "+" : ""}{Number(reverseTarget.quantity).toLocaleString()}
+                {reverseTarget.crates != null
+                  ? ` (entered as ${formatPackaged({ boxes: reverseTarget.boxes ?? 0, crates: reverseTarget.crates, pieces: reverseTarget.pieces ?? 0 })} — the reversal undoes exactly this many eggs, whatever the box size is now)`
+                  : ""}
                 {" · "}{reverseTarget.reason}{" · "}{reverseTarget.effectiveDate.slice(0, 10)}
                 {batchFlockLabel(reverseTarget.batchCode, reverseTarget.flockName) ? ` · ${batchFlockLabel(reverseTarget.batchCode, reverseTarget.flockName)}` : ""}
               </p>

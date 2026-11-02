@@ -1,6 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { useEggPackaging } from "@/hooks/use-egg-packaging"
+import { boxSize, formatEggQuantity } from "@/lib/poultry/egg-packaging"
 import { parseDateParam } from "@/lib/utils/date-param"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -454,6 +456,9 @@ export default function ProductionRecordsPage() {
   const EGGS_PER_CRATE = useEggsPerCrate()
   const totalEggsCrates = Math.floor(totalEggs / EGGS_PER_CRATE)
   const totalEggsPieces = totalEggs % EGGS_PER_CRATE
+  // 393: the box equivalent on a box farm (display only), else null.
+  const eggPackaging = useEggPackaging()
+  const totalEggsBoxes = boxSize(eggPackaging) != null ? formatEggQuantity(totalEggs, eggPackaging, "BoxesCratesPieces") : null
 
   // Sort filtered data
   const sortedFiltered = useMemo(() => {
@@ -637,7 +642,7 @@ export default function ProductionRecordsPage() {
     // Summary row
     doc.setFontSize(9)
     doc.text(
-      `Total Eggs: ${totalEggs.toLocaleString()} (${totalEggsCrates} crates + ${totalEggsPieces} pcs)  |  Feed: ${totalFeed.toFixed(2)} kg  |  Deaths (active flocks): ${totalDeaths}  |  Deaths (all logs): ${totalDeathsAllRowsFarmWide}  |  Placed birds: ${farmOverallTotalBirds}  |  Birds left: ${farmTotalBirdsLeft}`,
+      `Total Eggs: ${totalEggs.toLocaleString()} (${totalEggsCrates} crates + ${totalEggsPieces} pcs${totalEggsBoxes ? ` = ${totalEggsBoxes}` : ""})  |  Feed: ${totalFeed.toFixed(2)} kg  |  Deaths (active flocks): ${totalDeaths}  |  Deaths (all logs): ${totalDeathsAllRowsFarmWide}  |  Placed birds: ${farmOverallTotalBirds}  |  Birds left: ${farmTotalBirdsLeft}`,
       14, 31
     )
 
@@ -1043,7 +1048,7 @@ export default function ProductionRecordsPage() {
                   label="Total Eggs"
                   value={totalEggs.toLocaleString()}
                   valueClass="text-emerald-600"
-                  suffix={`${totalEggsCrates}c + ${totalEggsPieces}p`}
+                  suffix={totalEggsBoxes ?? `${totalEggsCrates}c + ${totalEggsPieces}p`}
                 />
                 <StatTile
                   isMobile={isMobile}
@@ -1332,7 +1337,7 @@ export default function ProductionRecordsPage() {
                               )
                             })}
                             <TableCell className="text-right font-semibold px-3 py-2 text-red-700 bg-red-50 border border-red-100 rounded">{totalBrokens.toLocaleString()}<div className="text-xs font-normal text-red-500">{Math.floor(totalBrokens / EGGS_PER_CRATE)}c + {totalBrokens % EGGS_PER_CRATE}p</div></TableCell>
-                            <TableCell className="text-right font-semibold px-3 py-2 text-emerald-700">{totalEggs.toLocaleString()}<div className="text-xs font-normal text-slate-500">{totalEggsCrates}c + {totalEggsPieces}p</div></TableCell>
+                            <TableCell className="text-right font-semibold px-3 py-2 text-emerald-700">{totalEggs.toLocaleString()}<div className="text-xs font-normal text-slate-500">{totalEggsCrates}c + {totalEggsPieces}p</div>{totalEggsBoxes && <div className="text-xs font-normal text-slate-500">≈ {totalEggsBoxes}</div>}</TableCell>
                             {/* Egg% — no meaningful total */}
                             <TableCell></TableCell>
                             <TableCell className="text-right font-semibold px-3 py-2">{totalFeed.toFixed(2)}</TableCell>

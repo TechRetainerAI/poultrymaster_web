@@ -16,9 +16,12 @@ import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { applyEggsPerCrate } from "@/hooks/use-eggs-per-crate"
 import { useAuthStore } from "@/lib/store/auth-store"
+import { useEggPackaging } from "@/hooks/use-egg-packaging"
+import { boxSize } from "@/lib/poultry/egg-packaging"
 import {
   saveEggSize,
   saveEggSortingSettings,
+  setEggClassPrices,
   setEggSizePrice,
   type ClosingPolicy,
   type EggClass,
@@ -26,6 +29,7 @@ import {
 } from "@/lib/api/egg-sorting"
 import { cratesText, fmtCount } from "@/lib/production/egg-sorting"
 import { EggSortingAuditList } from "@/components/egg-sorting/egg-sorting-audit-list"
+import { EggPackagingCard } from "@/components/egg-sorting/egg-packaging-card"
 
 const POLICY_TEXT: Record<ClosingPolicy, string> = {
   Off: "Say nothing about unsorted eggs",
@@ -38,6 +42,13 @@ const parsePrice = (t: string): number | null | "bad" => {
   if (t.trim() === "") return null
   const n = Number(t)
   return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : "bad"
+}
+
+/** A price per egg can need more than two decimals (150 / 30 = 5; 140 / 30 = 4.6667). */
+const parsePiecePrice = (t: string): number | null | "bad" => {
+  if (t.trim() === "") return null
+  const n = Number(t)
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 10000) / 10000 : "bad"
 }
 
 export function SizesSettingsPanel({
@@ -53,6 +64,14 @@ export function SizesSettingsPanel({
   const [busy, setBusy] = useState<string | null>(null)
   const [names, setNames] = useState<Record<number, string>>({})
   const [prices, setPrices] = useState<Record<number, string>>({})
+  // 394: box and egg prices per size, shown when the farm has Boxes on.
+  const [boxPrices, setBoxPrices] = useState<Record<number, string>>({})
+  const [piecePrices, setPiecePrices] = useState<Record<number, string>>({})
+  const [unsortedBox, setUnsortedBox] = useState("")
+  const [unsortedPiece, setUnsortedPiece] = useState("")
+  const packaging = useEggPackaging()
+  const boxesOn = boxSize(packaging) != null
+  const unsortedClass = classes.find((c) => c.classKind === "Unsorted")
   const [newName, setNewName] = useState("")
   const [crate, setCrate] = useState("30")
   const [unsortedPrice, setUnsortedPrice] = useState("")
@@ -62,12 +81,27 @@ export function SizesSettingsPanel({
   useEffect(() => {
     setNames(Object.fromEntries(sizes.map((s) => [s.eggSizeId as number, s.name])))
     setPrices(Object.fromEntries(sizes.map((s) => [s.eggSizeId as number, priceText(s.pricePerCrate)])))
+    setBoxPrices(Object.fromEntries(sizes.map((s) => [s.eggSizeId as number, priceText(s.pricePerBox)])))
+    setPiecePrices(Object.fromEntries(sizes.map((s) => [s.eggSizeId as number, priceText(s.pricePerPiece)])))
+    setUnsortedBox(priceText(unsortedClass?.pricePerBox))
+    setUnsortedPiece(priceText(unsortedClass?.pricePerPiece))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classes])
   useEffect(() => {
     setCrate(String(settings?.eggsPerCrate ?? 30))
     setUnsortedPrice(priceText(settings?.unsortedPricePerCrate))
   }, [settings])
+
+  // Placeholders: what an empty box / egg price falls back to.
+  const derivedBox = (crate: number | null | undefined) =>
+    crate != null && boxesOn ? (crate * (packaging.cratesPerBox ?? 0)).toFixed(2) : "Not set"
+  const derivedPiece = (crate: number | null | undefined) =>
+    crate != null ? (crate / Math.max(1, packaging.eggsPerCrate)).toFixed(4).replace(/0+$/, "").replace(/\.$/, "") : "Not set"
+  /** A size's crate / box / egg prices: one call when any changed (394), else the 344 crate-price call. */
+  const savePrices = async (s: EggClass, crate: number | null, box: number | null, piece: number | null) => {
+    if (boxesOn) await setEggClassPrices(s.poultryProductId, { pricePerCrate: crate, pricePerBox: box, pricePerPiece: piece })
+    else await setEggSizePrice(s.eggSizeId as number, crate)
+  }
 
   const run = async (key: string, fn: () => Promise<unknown>, ok: string) => {
     setBusy(key)
@@ -95,8 +129,12 @@ export function SizesSettingsPanel({
       applyEggsPerCrate(farmId, next.eggsPerCrate)
     }, ok)
 
-  const settingsDirty = crateValid && unsortedParsed !== "bad"
-    && (crateN !== (settings?.eggsPerCrate ?? 30) || unsortedParsed !== (settings?.unsortedPricePerCrate ?? null))
+  const unsortedBoxParsed = parsePrice(unsortedBox)
+  const unsortedPieceParsed = parsePiecePrice(unsortedPiece)
+  const unsortedPackagingDirty = boxesOn && !!unsortedClass && unsortedBoxParsed !== "bad" && unsortedPieceParsed !== "bad"
+    && (unsortedBoxParsed !== (unsortedClass.pricePerBox ?? null) || unsortedPieceParsed !== (unsortedClass.pricePerPiece ?? null))
+  const settingsDirty = crateValid && unsortedParsed !== "bad" && unsortedBoxParsed !== "bad" && unsortedPieceParsed !== "bad"
+    && (crateN !== (settings?.eggsPerCrate ?? 30) || unsortedParsed !== (settings?.unsortedPricePerCrate ?? null) || unsortedPackagingDirty)
 
   return (
     <div className="space-y-4">
@@ -144,15 +182,50 @@ export function SizesSettingsPanel({
               <p className="text-[11px] text-slate-500">Offered as the price on a sale of unsorted eggs; you can still change it on the sale.</p>
               {unsortedParsed === "bad" && <p className="text-xs text-rose-700">Enter a price of 0 or more.</p>}
             </div>
+            {boxesOn && (
+              <div className="grid min-w-0 grid-cols-2 gap-2">
+                <div className="grid min-w-0 grid-cols-1 gap-1">
+                  <Label htmlFor="es-ubox" className="text-xs text-slate-500">Unsorted price per box</Label>
+                  <Input id="es-ubox" inputMode="decimal" value={unsortedBox} disabled={!canEdit}
+                    placeholder={derivedBox(unsortedParsed === "bad" ? null : unsortedParsed)}
+                    onChange={(e) => setUnsortedBox(e.target.value)} />
+                </div>
+                <div className="grid min-w-0 grid-cols-1 gap-1">
+                  <Label htmlFor="es-upiece" className="text-xs text-slate-500">Unsorted price per egg</Label>
+                  <Input id="es-upiece" inputMode="decimal" value={unsortedPiece} disabled={!canEdit}
+                    placeholder={derivedPiece(unsortedParsed === "bad" ? null : unsortedParsed)}
+                    onChange={(e) => setUnsortedPiece(e.target.value)} />
+                </div>
+                <p className="col-span-2 text-[11px] text-slate-500">Empty = the crate price × {packaging.cratesPerBox} per box, and the crate price shared over {packaging.eggsPerCrate} eggs.</p>
+                {(unsortedBoxParsed === "bad" || unsortedPieceParsed === "bad") && <p className="col-span-2 text-xs text-rose-700">Enter a price of 0 or more.</p>}
+              </div>
+            )}
             <div className="flex items-end">
               <Button size="sm" className="w-full sm:w-auto" disabled={!canEdit || !settingsDirty || busy === "settings"}
-                onClick={() => void saveSettings({ eggsPerCrate: crateN, unsortedPricePerCrate: unsortedParsed === "bad" ? null : unsortedParsed }, "Settings saved")}>
+                onClick={() => void run("settings", async () => {
+                  const next = {
+                    enableEggSorting: on, closingPolicy: policy, eggsPerCrate: crateN,
+                    unsortedPricePerCrate: unsortedParsed === "bad" ? null : unsortedParsed,
+                  }
+                  await saveEggSortingSettings(next)
+                  applyEggsPerCrate(farmId, next.eggsPerCrate)
+                  // 394: Unsorted box / egg prices, with its crate price.
+                  if (unsortedPackagingDirty && unsortedClass) {
+                    await setEggClassPrices(unsortedClass.poultryProductId, {
+                      pricePerCrate: next.unsortedPricePerCrate,
+                      pricePerBox: unsortedBoxParsed as number | null,
+                      pricePerPiece: unsortedPieceParsed as number | null,
+                    })
+                  }
+                }, "Settings saved")}>
                 {busy === "settings" && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Save
               </Button>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      <EggPackagingCard canEdit={canEdit} onChanged={() => setAuditKey((k) => k + 1)} />
 
       <Card className="rounded-xl border border-slate-200 bg-white shadow-sm">
         <CardContent className="p-0">
@@ -170,7 +243,10 @@ export function SizesSettingsPanel({
               const id = s.eggSizeId as number
               const nameChanged = (names[id] ?? s.name).trim() !== s.name
               const p = parsePrice(prices[id] ?? "")
-              const priceChanged = p !== "bad" && p !== (s.pricePerCrate ?? null)
+              const bp = parsePrice(boxPrices[id] ?? "")
+              const pp = parsePiecePrice(piecePrices[id] ?? "")
+              const priceChanged = p !== "bad" && bp !== "bad" && pp !== "bad"
+                && (p !== (s.pricePerCrate ?? null) || (boxesOn && (bp !== (s.pricePerBox ?? null) || pp !== (s.pricePerPiece ?? null))))
               return (
                 <div key={id} className={cn("space-y-2 px-4 py-3", !s.isActive && "bg-slate-50 text-slate-500")}>
                   <div className="flex items-center justify-between gap-3">
@@ -196,12 +272,26 @@ export function SizesSettingsPanel({
                         onChange={(e) => setPrices((x) => ({ ...x, [id]: e.target.value }))} />
                     </div>
                   </div>
-                  {p === "bad" && <div className="text-[11px] text-rose-700">Price must be 0 or more</div>}
+                  {boxesOn && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-slate-500">Price / box</Label>
+                        <Input className="h-9" inputMode="decimal" placeholder={derivedBox(p === "bad" ? null : p)} value={boxPrices[id] ?? ""} disabled={!canEdit}
+                          onChange={(e) => setBoxPrices((x) => ({ ...x, [id]: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-slate-500">Price / egg</Label>
+                        <Input className="h-9" inputMode="decimal" placeholder={derivedPiece(p === "bad" ? null : p)} value={piecePrices[id] ?? ""} disabled={!canEdit}
+                          onChange={(e) => setPiecePrices((x) => ({ ...x, [id]: e.target.value }))} />
+                      </div>
+                    </div>
+                  )}
+                  {(p === "bad" || bp === "bad" || pp === "bad") && <div className="text-[11px] text-rose-700">Price must be 0 or more</div>}
                   {(nameChanged || priceChanged) && (
                     <Button size="sm" variant="outline" className="w-full" disabled={!canEdit || busy === `size:${id}` || !(names[id] ?? "").trim()}
                       onClick={() => void run(`size:${id}`, async () => {
                         if (nameChanged) await saveEggSize({ eggSizeId: id, name: names[id].trim(), sortOrder: s.sortOrder, isActive: s.isActive })
-                        if (priceChanged) await setEggSizePrice(id, p as number | null)
+                        if (priceChanged) await savePrices(s, p as number | null, bp as number | null, pp as number | null)
                       }, "Size saved")}>
                       Save
                     </Button>
@@ -211,11 +301,13 @@ export function SizesSettingsPanel({
             })}
           </div>
           <div className="hidden overflow-x-auto sm:block">
-            <table className="w-full min-w-[44rem] text-sm">
+            <table className={cn("w-full text-sm", boxesOn ? "min-w-[58rem]" : "min-w-[44rem]")}>
               <thead className="bg-slate-50 text-left text-xs uppercase tracking-wider text-slate-500">
                 <tr>
                   <th className="px-4 py-2 font-medium">Size</th>
                   <th className="px-4 py-2 font-medium">Price per crate</th>
+                  {boxesOn && <th className="px-4 py-2 font-medium">Price per box</th>}
+                  {boxesOn && <th className="px-4 py-2 font-medium">Price per egg</th>}
                   <th className="px-4 py-2 text-right font-medium">On hand</th>
                   <th className="px-4 py-2 font-medium">Active</th>
                   <th className="px-4 py-2" />
@@ -223,13 +315,16 @@ export function SizesSettingsPanel({
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {sizes.length === 0 && (
-                  <tr><td colSpan={5} className="px-4 py-4 text-slate-500">No sizes yet. Turning sorting on adds the standard list.</td></tr>
+                  <tr><td colSpan={boxesOn ? 7 : 5} className="px-4 py-4 text-slate-500">No sizes yet. Turning sorting on adds the standard list.</td></tr>
                 )}
                 {sizes.map((s) => {
                   const id = s.eggSizeId as number
                   const nameChanged = (names[id] ?? s.name).trim() !== s.name
                   const p = parsePrice(prices[id] ?? "")
-                  const priceChanged = p !== "bad" && p !== (s.pricePerCrate ?? null)
+                  const bp = parsePrice(boxPrices[id] ?? "")
+                  const pp = parsePiecePrice(piecePrices[id] ?? "")
+                  const priceChanged = p !== "bad" && bp !== "bad" && pp !== "bad"
+                    && (p !== (s.pricePerCrate ?? null) || (boxesOn && (bp !== (s.pricePerBox ?? null) || pp !== (s.pricePerPiece ?? null))))
                   return (
                     <tr key={id} className={s.isActive ? "" : "bg-slate-50 text-slate-500"}>
                       <td className="px-4 py-2">
@@ -241,6 +336,20 @@ export function SizesSettingsPanel({
                           onChange={(e) => setPrices((x) => ({ ...x, [id]: e.target.value }))} />
                         {p === "bad" && <div className="text-[11px] text-rose-700">0 or more</div>}
                       </td>
+                      {boxesOn && (
+                        <td className="px-4 py-2">
+                          <Input className="h-8 w-28" inputMode="decimal" placeholder={derivedBox(p === "bad" ? null : p)} value={boxPrices[id] ?? ""} disabled={!canEdit}
+                            onChange={(e) => setBoxPrices((x) => ({ ...x, [id]: e.target.value }))} />
+                          {bp === "bad" && <div className="text-[11px] text-rose-700">0 or more</div>}
+                        </td>
+                      )}
+                      {boxesOn && (
+                        <td className="px-4 py-2">
+                          <Input className="h-8 w-24" inputMode="decimal" placeholder={derivedPiece(p === "bad" ? null : p)} value={piecePrices[id] ?? ""} disabled={!canEdit}
+                            onChange={(e) => setPiecePrices((x) => ({ ...x, [id]: e.target.value }))} />
+                          {pp === "bad" && <div className="text-[11px] text-rose-700">0 or more</div>}
+                        </td>
+                      )}
                       <td className="px-4 py-2 text-right tabular-nums">
                         {fmtCount(s.onHand)} <span className="text-xs text-slate-500">({cratesText(s.onHand)})</span>
                       </td>
@@ -254,7 +363,7 @@ export function SizesSettingsPanel({
                           <Button size="sm" variant="outline" disabled={!canEdit || busy === `size:${id}` || !(names[id] ?? "").trim()}
                             onClick={() => void run(`size:${id}`, async () => {
                               if (nameChanged) await saveEggSize({ eggSizeId: id, name: names[id].trim(), sortOrder: s.sortOrder, isActive: s.isActive })
-                              if (priceChanged) await setEggSizePrice(id, p as number | null)
+                              if (priceChanged) await savePrices(s, p as number | null, bp as number | null, pp as number | null)
                             }, "Size saved")}>
                             Save
                           </Button>

@@ -4,7 +4,9 @@
 // Product | Egg size | Quantity | Price | Line total | remove.
 //
 // Eggs are counted as crates + loose eggs and priced per crate; every other
-// product is a plain quantity at a unit price. The parent owns the numbers --
+// product is a plain quantity at a unit price. A farm with Boxes on (393/394)
+// also gets a Boxes field plus an optional price per box and per egg; stock is
+// still taken in eggs. The parent owns the numbers --
 // this only draws them -- so the first line can stay bound to the page's form
 // state while added lines live in a list.
 
@@ -19,6 +21,9 @@ import type { EggClass } from "@/lib/api/egg-sorting"
 import { EGGS_PER_CRATE } from "@/lib/production/production-record-calc"
 import { UNSORTED_VALUE, classIdFrom, classValue } from "@/components/sales/egg-class-fields"
 import { byproductRole } from "@/lib/poultry/byproducts"
+import {
+  boxSize, effectiveBoxPrice, effectivePiecePrice, formatPackaged, toEggPieces, type EggPackaging,
+} from "@/lib/poultry/egg-packaging"
 
 /** Every product the list can show. Broken Eggs / Dead Birds only when the company offers them (374). */
 export const SALE_PRODUCT_OPTIONS = ["Fresh Eggs", "Chicken", "Broken Eggs", "Dead Birds", "Manure", "Other"]
@@ -61,6 +66,7 @@ export function SaleItemRow({
   quantity, onQuantityChange,
   unitPrice, onUnitPriceChange,
   lineTotal, onRemove, note, options = SALE_PRODUCT_OPTIONS,
+  packaging, boxes = 0, onBoxesChange, pricePerBox = null, onPricePerBoxChange, pricePerPiece = null, onPricePerPieceChange,
 }: {
   /** 1-based line number, shown on the card. */
   index?: number
@@ -87,11 +93,51 @@ export function SaleItemRow({
   note?: ReactNode
   /** The products offered (saleProductOptions). */
   options?: string[]
+  /** 393: the farm's packaging. With boxes on, the line takes Boxes too. */
+  packaging?: EggPackaging
+  boxes?: number
+  onBoxesChange?: (n: number) => void
+  /** 394: null = crates per box x the crate price. */
+  pricePerBox?: number | null
+  onPricePerBoxChange?: (n: number | null) => void
+  /** 394: null = the crate price shared over the crate. */
+  pricePerPiece?: number | null
+  onPricePerPieceChange?: (n: number | null) => void
 }) {
   const egg = isEggProduct(product)
   const hasSizes = classes.some((c) => c.classKind === "Size")
   const selectValue = options.includes(product) ? product : "Other"
   const shownClasses = classes.filter((c) => c.classKind === "Unsorted" || c.isActive || c.poultryProductId === eggProductId)
+  const boxesOn = egg && !!packaging && boxSize(packaging) != null && !!onBoxesChange
+  const perCrate = packaging?.eggsPerCrate ?? EGGS_PER_CRATE
+  const optionalPrice = (v: string): number | null => (v.trim() === "" ? null : Math.max(0, Number(v) || 0))
+
+  const boxField = boxesOn && (
+    <div key="boxes">
+      <NumberInput className="text-right tabular-nums" min="0" value={boxes}
+        onChange={(e) => onBoxesChange!(Math.max(0, parseInt(e.target.value) || 0))} aria-label="Boxes" />
+      <span className="text-[11px] text-slate-500">boxes ({packaging!.cratesPerBox}×{perCrate})</span>
+    </div>
+  )
+  const crateField = (
+    <div key="crates">
+      <NumberInput className="text-right tabular-nums" min="0" value={crates}
+        onChange={(e) => onCratesChange(parseInt(e.target.value) || 0)} aria-label="Crates" />
+      <span className="text-[11px] text-slate-500">crates ({perCrate})</span>
+    </div>
+  )
+  const pieceField = (
+    <div key="pieces">
+      <NumberInput className="text-right tabular-nums" min="0" max={String(perCrate - 1)} value={loose}
+        onChange={(e) => onLooseChange(parseInt(e.target.value) || 0)} aria-label={boxesOn ? "Pieces" : "Loose eggs"} />
+      <span className="text-[11px] text-slate-500">{boxesOn ? "pieces" : "loose eggs"}</span>
+    </div>
+  )
+  // The farm chooses which comes first (393: Add Sale puts first). Order only.
+  const qtyFields = boxesOn
+    ? (packaging!.saleEntryUnit === "Boxes" ? [boxField, crateField, pieceField] : [crateField, boxField, pieceField])
+    : [crateField, pieceField]
+  const eggs = boxesOn ? toEggPieces({ boxes, crates, pieces: loose }, packaging!) : crates * perCrate + loose
 
   return (
     // A card per line: amber edge for eggs, sky for anything else, so a mixed
@@ -147,17 +193,8 @@ export function SaleItemRow({
         <div className="col-span-12 min-w-0 sm:col-span-6 md:col-auto">
           <Label className="text-xs text-slate-500 md:hidden">Quantity</Label>
           {egg ? (
-            <div className="grid grid-cols-2 gap-1.5">
-              <div>
-                <NumberInput className="text-right tabular-nums" min="0" value={crates}
-                  onChange={(e) => onCratesChange(parseInt(e.target.value) || 0)} aria-label="Crates" />
-                <span className="text-[11px] text-slate-500">crates ({EGGS_PER_CRATE})</span>
-              </div>
-              <div>
-                <NumberInput className="text-right tabular-nums" min="0" max={String(EGGS_PER_CRATE - 1)} value={loose}
-                  onChange={(e) => onLooseChange(parseInt(e.target.value) || 0)} aria-label="Loose eggs" />
-                <span className="text-[11px] text-slate-500">loose eggs</span>
-              </div>
+            <div className={`grid gap-1.5 ${boxesOn ? "grid-cols-3" : "grid-cols-2"}`}>
+              {qtyFields}
             </div>
           ) : (
             <NumberInput className="text-right tabular-nums" min="0" value={quantity}
@@ -190,10 +227,30 @@ export function SaleItemRow({
       </div>
       {(egg || note) && (
         <div className="space-y-1 px-1 text-xs text-slate-500">
-          {egg && crates + loose > 0 && (
+          {boxesOn && (
+            // Box and egg prices: optional. Empty = the crate price scaled up
+            // (box) or shared over the crate (egg) -- shown as the placeholder.
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <label className="flex items-center gap-1">
+                <span>Price / box</span>
+                <Input className="h-7 w-24 text-right tabular-nums" inputMode="decimal"
+                  value={pricePerBox ?? ""} placeholder={effectiveBoxPrice({ pricePerCrate: unitPrice }, packaging!).toFixed(2)}
+                  onChange={(e) => onPricePerBoxChange?.(optionalPrice(e.target.value))} aria-label="Price per box" />
+              </label>
+              <label className="flex items-center gap-1">
+                <span>Price / egg</span>
+                <Input className="h-7 w-20 text-right tabular-nums" inputMode="decimal"
+                  value={pricePerPiece ?? ""} placeholder={effectivePiecePrice({ pricePerCrate: unitPrice }, packaging!).toFixed(2)}
+                  onChange={(e) => onPricePerPieceChange?.(optionalPrice(e.target.value))} aria-label="Price per egg" />
+              </label>
+            </div>
+          )}
+          {egg && eggs > 0 && (
             <p>
-              {crates} crate{crates === 1 ? "" : "s"}{loose > 0 ? ` + ${loose} loose` : ""} = {(crates * EGGS_PER_CRATE + loose).toLocaleString()} eggs
-              {loose > 0 ? " — loose eggs charged pro rata" : ""}
+              {boxesOn
+                ? formatPackaged({ boxes, crates, pieces: loose })
+                : `${crates} crate${crates === 1 ? "" : "s"}${loose > 0 ? ` + ${loose} loose` : ""}`} = {eggs.toLocaleString()} eggs
+              {!boxesOn && loose > 0 ? " — loose eggs charged pro rata" : ""}
             </p>
           )}
           {note}

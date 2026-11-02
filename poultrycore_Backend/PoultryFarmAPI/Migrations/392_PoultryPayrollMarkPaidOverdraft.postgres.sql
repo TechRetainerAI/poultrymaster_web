@@ -1,5 +1,7 @@
 -- =============================================================================
--- 389_PoultryPayrollMarkPaidOverdraft.postgres.sql
+-- 392_PoultryPayrollMarkPaidOverdraft.postgres.sql
+-- Renumbered from 389 on 2026-11-02 (389 was taken on dev / Gyimah). Already applied to
+-- dev under the old number 389; the body is unchanged -- do not re-apply there.
 --
 -- Purpose
 -- -------
@@ -46,7 +48,7 @@ BEGIN
         RAISE EXCEPTION 'Payroll run is %; only Approved can be marked paid.', v_status;
     END IF;
 
-    -- 389: refuse to overdraw an account that does not allow it, before
+    -- 392: refuse to overdraw an account that does not allow it, before
     -- anything is written. Locked so two payouts cannot both pass the check.
     IF (v_acctid IS NOT NULL AND v_net > 0) THEN
         SELECT a.allownegativebalance, a.currentbalance INTO v_allowneg, v_bal
@@ -77,7 +79,7 @@ BEGIN
         FROM   poultrycashaccounts a
         WHERE  a.poultrycashaccountid = v_acctid;
 
-        -- 389: dated to the pay date (business date, midnight), not the click.
+        -- 392: dated to the pay date (business date, midnight), not the click.
         INSERT INTO poultrycashtransactions
             (farmid, poultrycashaccountid, transactiondate, transactiontype, sourcetype, sourceid,
              amount, balanceaftertransaction, description, createdby, approvedby, approvedat)

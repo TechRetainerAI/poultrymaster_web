@@ -28,6 +28,40 @@ namespace PoultryFarmAPIWeb.Models
         public decimal? UnsortedPricePerCrate { get; set; }
     }
 
+    /// <summary>
+    /// 393: egg packaging -- Boxes of N crates. A box is a quantity unit only;
+    /// stock stays in individual eggs. Not a poultry Batch.
+    /// </summary>
+    public class EggPackagingSettings
+    {
+        public string FarmId { get; set; } = string.Empty;
+        public int EggsPerCrate { get; set; } = 30;
+        public bool EnableBoxes { get; set; }
+        /// <summary>In force: null when boxes are off.</summary>
+        public int? CratesPerBox { get; set; }
+        /// <summary>CratesPerBox x EggsPerCrate; null when boxes are off.</summary>
+        public int? EggsPerBox { get; set; }
+        /// <summary>BoxesCratesPieces | CratesPieces | Pieces (in force).</summary>
+        public string EggDisplay { get; set; } = "CratesPieces";
+        /// <summary>Boxes | Crates -- which field Add Sale puts first (in force).</summary>
+        public string SaleEntryUnit { get; set; } = "Crates";
+        /// <summary>Bumps whenever the conversion changes.</summary>
+        public int PackagingVersion { get; set; } = 1;
+        /// <summary>What the settings screen edits (kept while boxes are off).</summary>
+        public int? StoredCratesPerBox { get; set; }
+        public string StoredDisplay { get; set; } = "CratesPieces";
+        public string StoredEntryUnit { get; set; } = "Crates";
+    }
+
+    public class EggPackagingRequest
+    {
+        public string FarmId { get; set; } = string.Empty;
+        public bool EnableBoxes { get; set; }
+        public int? CratesPerBox { get; set; }
+        public string EggDisplay { get; set; } = "CratesPieces";
+        public string SaleEntryUnit { get; set; } = "Crates";
+    }
+
     /// <summary>One egg class: Unsorted (EggSizeId null) or a size.</summary>
     public class EggClass
     {
@@ -42,12 +76,25 @@ namespace PoultryFarmAPIWeb.Models
         public decimal OnHand { get; set; }
         /// <summary>Default selling price per crate (344); null = none set.</summary>
         public decimal? PricePerCrate { get; set; }
+        /// <summary>394: price per box; null = crates per box x the crate price.</summary>
+        public decimal? PricePerBox { get; set; }
+        /// <summary>394: price per egg; null = the crate price shared over the crate.</summary>
+        public decimal? PricePerPiece { get; set; }
     }
 
     public class EggSizePriceRequest
     {
         public string FarmId { get; set; } = string.Empty;
         public decimal? PricePerCrate { get; set; }
+    }
+
+    /// <summary>394: one egg class's crate, box and piece prices (null = not set).</summary>
+    public class EggClassPricesRequest
+    {
+        public string FarmId { get; set; } = string.Empty;
+        public decimal? PricePerCrate { get; set; }
+        public decimal? PricePerBox { get; set; }
+        public decimal? PricePerPiece { get; set; }
     }
 
     /// <summary>Breakage / loss (eggs out) or a stock-take / correction (signed) against one egg class.</summary>
@@ -309,8 +356,22 @@ namespace PoultryFarmAPIWeb.Models
         public int? EggProductId { get; set; }
         /// <summary>In eggs (pieces) for egg lines.</summary>
         public decimal Quantity { get; set; }
+        /// <summary>Per crate for egg lines.</summary>
         public decimal UnitPrice { get; set; }
         public decimal TotalAmount { get; set; }
+
+        // 394: an egg line entered as Boxes / Crates / Pieces. Any of the three
+        // set = the database converts them with the company's packaging and
+        // keeps the conversion on the line. All null = the old crates + loose path.
+        public int? Boxes { get; set; }
+        public int? Crates { get; set; }
+        public int? Pieces { get; set; }
+        /// <summary>Null = crates per box x the crate price.</summary>
+        public decimal? PricePerBox { get; set; }
+        /// <summary>Null = the crate price shared over the crate.</summary>
+        public decimal? PricePerPiece { get; set; }
+        /// <summary>True when Add Sale's total override set this line's amount.</summary>
+        public bool? AmountOverridden { get; set; }
     }
 
     public class SaleGroupResult

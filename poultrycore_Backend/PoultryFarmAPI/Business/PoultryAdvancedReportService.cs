@@ -39,6 +39,37 @@ namespace PoultryFarmAPIWeb.Business
                 AppliedFilters = BuildFilters(f, start, end),
             };
 
+        /// <summary>
+        /// 393: the farm's crate and box size TODAY, stamped on the response.
+        /// Returns eggs per crate (30 when not set or before 344). Run it before
+        /// the report's own reader opens on the same connection.
+        /// </summary>
+        private static async Task<int> StampPackagingAsync<TS, TR>(NpgsqlConnection conn, PoultryReportResponse<TS, TR> resp, string? farmId)
+        {
+            try
+            {
+                using var pk = new NpgsqlCommand("SELECT eggspercrate, cratesperbox, eggsperbox FROM fnpoultry_eggpackaging(@FarmId::text)", conn);
+                pk.Parameters.AddWithValue("@FarmId", farmId ?? "");
+                using var r = await pk.ExecuteReaderAsync();
+                if (await r.ReadAsync())
+                {
+                    resp.EggsPerCrate = Math.Max(1, r.IsDBNull(0) ? 30 : r.GetInt32(0));
+                    resp.CratesPerBox = r.IsDBNull(1) ? null : r.GetInt32(1);
+                    resp.EggsPerBox = r.IsDBNull(2) ? null : r.GetInt32(2);
+                }
+                return resp.EggsPerCrate;
+            }
+            catch (PostgresException)
+            {
+                // Before 393: crates as the farm has them, no boxes.
+                using var pc = new NpgsqlCommand("SELECT fnpoultry_eggspercrate(@FarmId::text)", conn);
+                pc.Parameters.AddWithValue("@FarmId", farmId ?? "");
+                var v = await pc.ExecuteScalarAsync();
+                resp.EggsPerCrate = v is null || v is DBNull ? 30 : Math.Max(1, Convert.ToInt32(v));
+                return resp.EggsPerCrate;
+            }
+        }
+
         private static Dictionary<string, string?> BuildFilters(PoultryReportFilterDto f, DateTime start, DateTime end)
         {
             var d = new Dictionary<string, string?>
@@ -575,6 +606,7 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@IncludeClosedFlocks", f.IncludeClosedFlocks);
 
             await conn.OpenAsync();
+            var perCrate = await StampPackagingAsync(conn, resp, f.FarmId);
             using var r = await cmd.ExecuteReaderAsync();
             while (await r.ReadAsync())
             {
@@ -592,7 +624,7 @@ namespace PoultryFarmAPIWeb.Business
                     TotalFeedCost = feedCost,
                     EggsProduced = eggs,
                     FeedCostPerEgg = perEgg,
-                    FeedCostPerCrate = PerCrateFromPerEgg(perEgg),
+                    FeedCostPerCrate = PerCrateFromPerEgg(perEgg, perCrate),
                     ProductionPercent = Percent(eggs, birdDays),
                     Status = perEgg == null ? "N/A" : "OK",
                 });
@@ -606,7 +638,7 @@ namespace PoultryFarmAPIWeb.Business
                 TotalFeedCost = resp.Rows.Any(x => x.TotalFeedCost != null) ? totalFeedCost : (decimal?)null,
                 TotalEggs = totalEggs,
                 AverageFeedCostPerEgg = avgPerEgg,
-                AverageFeedCostPerCrate = PerCrateFromPerEgg(avgPerEgg),
+                AverageFeedCostPerCrate = PerCrateFromPerEgg(avgPerEgg, perCrate),
                 MostExpensiveFlock = resp.Rows.Where(x => x.FeedCostPerEgg != null)
                                              .OrderByDescending(x => x.FeedCostPerEgg).FirstOrDefault()?.FlockName,
             };
@@ -631,17 +663,8 @@ namespace PoultryFarmAPIWeb.Business
 
             await conn.OpenAsync();
 
-            // The farm's own crate (344); 30 when not set or before 344.
-            var perCrate = EggsPerCrate;
-            try
-            {
-                using var pc = new NpgsqlCommand("SELECT fnpoultry_eggspercrate(@FarmId::text)", conn);
-                pc.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
-                var v = await pc.ExecuteScalarAsync();
-                if (v is not null && v is not DBNull) perCrate = Math.Max(1, Convert.ToInt32(v));
-            }
-            catch (PostgresException) { /* function missing: keep the default */ }
-            resp.EggsPerCrate = perCrate;
+            // The farm's own crate (344) and box (393) sizes; 30 / none by default.
+            var perCrate = await StampPackagingAsync(conn, resp, f.FarmId);
             long CratesOf(long eggs) => eggs / perCrate;
             int LooseOf(long eggs) => (int)(eggs % perCrate);
 
@@ -848,6 +871,7 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@CustomerName", (object?)f.CustomerName ?? DBNull.Value);
 
             await conn.OpenAsync();
+            await StampPackagingAsync(conn, resp, f.FarmId);
             using var r = await cmd.ExecuteReaderAsync();
             while (await r.ReadAsync())
             {
@@ -868,6 +892,11 @@ namespace PoultryFarmAPIWeb.Business
                     QuantitySold = DecOr(r, "QuantitySold"),
                     Unit = Str(r, "Size"),
                     EggsEquivalent = null,
+                    // 396: how the line was sold (null before 394 / before 396).
+                    BoxesSold = IntN(r, "QtyBoxes"),
+                    CratesSold = IntN(r, "QtyCrates"),
+                    PiecesSold = IntN(r, "QtyPieces"),
+                    CratesPerBox = IntN(r, "CratesPerBox"),
                     UnitPrice = DecOr(r, "UnitPrice"),
                     TotalAmount = total,
                     AmountPaid = amountPaid,
@@ -898,12 +927,22 @@ namespace PoultryFarmAPIWeb.Business
                 TotalEggsSold = resp.Rows.Where(x => x.ProductGrade != "Broken Eggs").Sum(x => x.QuantitySold),
                 BrokenEggsSold = brokenRows.Sum(x => x.QuantitySold),
                 BrokenEggsRevenue = brokenRows.Sum(x => x.TotalAmount),
-                TotalCratesSold = 0,
+                // Whole crates the eggs sold make at the farm's crate size (an equivalent).
+                TotalCratesSold = (long)Math.Floor(resp.Rows.Where(x => x.ProductGrade != "Broken Eggs").Sum(x => x.QuantitySold) / Math.Max(1, resp.EggsPerCrate)),
+                ActualBoxesSold = resp.Rows.Sum(x => (long)(x.BoxesSold ?? 0)),
+                ActualCratesSold = resp.Rows.Sum(x => (long)(x.CratesSold ?? 0)),
+                ActualPiecesSold = resp.Rows.Sum(x => (long)(x.PiecesSold ?? 0)),
+                EggsWithPackaging = resp.Rows.Where(x => x.CratesSold != null).Sum(x => x.QuantitySold),
+                EquivalentBoxes = resp.EggsPerBox is int ebx && ebx > 0
+                    ? (long)Math.Floor(resp.Rows.Where(x => x.ProductGrade != "Broken Eggs").Sum(x => x.QuantitySold) / ebx)
+                    : null,
                 TotalPaid = resp.Rows.Sum(x => x.AmountPaid),
                 TotalUnpaid = resp.Rows.Sum(x => x.Balance),
                 TopCustomer = topCustomer,
             };
-            resp.Warnings.Add("Sale quantity unit is recorded free-form; crate/egg equivalents are not derived automatically.");
+            // 396: "boxes sold" counts only lines entered in boxes; the equivalent is labelled as such.
+            if (resp.EggsPerBox is int && resp.Rows.Any(x => x.CratesSold == null && x.ProductGrade != "Broken Eggs"))
+                resp.Notes.Add("Boxes / crates / pieces sold count only sales entered that way. Older sales were entered in eggs or crates; they are included in Equivalent boxes, never in Boxes sold.");
             if (excludedCount > 0)
                 resp.Warnings.Add($"Egg products only — {excludedCount} non-egg sale(s) worth {excludedAmount:N2} (bird, manure or other) were excluded from these totals.");
             return resp;
@@ -1523,6 +1562,7 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@IncludeClosedFlocks", f.IncludeClosedFlocks);
 
             await conn.OpenAsync();
+            var perCrate = await StampPackagingAsync(conn, resp, f.FarmId);
             using var r = await cmd.ExecuteReaderAsync();
             while (await r.ReadAsync())
             {
@@ -1545,7 +1585,7 @@ namespace PoultryFarmAPIWeb.Business
                     OtherAllocatedCost = other,
                     TotalCost = totalCost,
                     CostPerEgg = perEgg,
-                    CostPerCrate = PerCrateFromPerEgg(perEgg),
+                    CostPerCrate = PerCrateFromPerEgg(perEgg, perCrate),
                     SellingPricePerEgg = price,
                     MarginPerEgg = price.HasValue && perEgg.HasValue ? price - perEgg : null,
                 });
@@ -1560,7 +1600,7 @@ namespace PoultryFarmAPIWeb.Business
                 TotalDirectCosts = resp.Rows.Sum(x => x.FeedCost ?? 0) + resp.Rows.Sum(x => x.MedicineVaccineCost ?? 0),
                 TotalAllocatedCosts = totalCostAll,
                 AverageCostPerEgg = avgPerEgg,
-                AverageCostPerCrate = PerCrateFromPerEgg(avgPerEgg),
+                AverageCostPerCrate = PerCrateFromPerEgg(avgPerEgg, perCrate),
             };
             resp.Warnings.Add("Cost per egg uses flock-allocated expenses only. Labour and overheads are included only when categorised and allocated to the flock.");
             return resp;

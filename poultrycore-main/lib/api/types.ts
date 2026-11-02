@@ -63,6 +63,19 @@ export interface SaleLine {
   quantity: number
   unitPrice: number
   totalAmount: number
+  // 394: what the line was entered and priced as, with the conversion of the
+  // day it was posted. Null on older lines: show a DERIVED equivalent, never
+  // "boxes sold".
+  boxes?: number | null
+  crates?: number | null
+  pieces?: number | null
+  eggsPerCrate?: number | null
+  cratesPerBox?: number | null
+  pricePerBox?: number | null
+  pricePerCrate?: number | null
+  pricePerPiece?: number | null
+  calculatedAmount?: number | null
+  amountOverridden?: boolean | null
 }
 
 export interface Sale {
