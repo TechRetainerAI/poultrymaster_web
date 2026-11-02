@@ -133,7 +133,7 @@ export function SaleItemRow({
       <span className="text-[11px] text-slate-500">{boxesOn ? "pieces" : "loose eggs"}</span>
     </div>
   )
-  // The farm chooses which comes first (393: Add Sale puts first). Order only.
+  // The farm chooses which comes first (393: "Order of quantity fields on a sale"). Order only.
   const qtyFields = boxesOn
     ? (packaging!.saleEntryUnit === "Boxes" ? [boxField, crateField, pieceField] : [crateField, boxField, pieceField])
     : [crateField, pieceField]

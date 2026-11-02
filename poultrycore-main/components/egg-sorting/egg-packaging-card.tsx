@@ -149,15 +149,15 @@ export function EggPackagingCard({ canEdit, onChanged }: { canEdit: boolean; onC
             </p>
           </div>
           <div className="grid min-w-0 grid-cols-1 gap-1">
-            <Label className="text-xs text-slate-500">Add Sale puts first</Label>
+            <Label className="text-xs text-slate-500">Order of quantity fields on a sale</Label>
             <Select value={entry} disabled={!canEdit || !on} onValueChange={(v) => setEntry(v as SaleEntryUnit)}>
-              <SelectTrigger className="w-full min-w-0"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full min-w-0 [&>span]:truncate"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="Boxes">Boxes</SelectItem>
-                <SelectItem value="Crates">Crates</SelectItem>
+                <SelectItem value="Boxes">Boxes, then crates, then pieces</SelectItem>
+                <SelectItem value="Crates">Crates, then boxes, then pieces</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-[11px] text-slate-500">Only the order of the quantity fields; stock works the same either way.</p>
+            <p className="text-[11px] text-slate-500">A sale line asks for boxes, crates and pieces. This only sets which comes first; the eggs sold are the same either way.</p>
           </div>
         </div>
 

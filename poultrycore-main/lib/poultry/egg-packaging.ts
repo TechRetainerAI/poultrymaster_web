@@ -14,7 +14,7 @@
 /** How a farm wants egg quantities written. */
 export type EggDisplay = "BoxesCratesPieces" | "CratesPieces" | "Pieces"
 
-/** Which packaging field Add Sale puts first. Presentation only. */
+/** Which packaging field comes first on a sale line (boxes or crates). Presentation only. */
 export type SaleEntryUnit = "Boxes" | "Crates"
 
 export interface EggPackaging {
