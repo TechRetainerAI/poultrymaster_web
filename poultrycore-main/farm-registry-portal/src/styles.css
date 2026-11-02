@@ -751,7 +751,7 @@ button.ghost {
   padding: 14px 16px 6px; font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; color: #7fa8a5;
 }
 .admin-sidebar .dev-farm-btn { margin: 0 10px; }
-.admin-sidebar .dev-farm-list { padding: 0 0 12px; }
+.admin-sidebar .dev-farm-list { padding: 0 0 12px; max-height: 42vh; overflow-y: auto; scrollbar-width: thin; }
 
 .admin-user {
   margin-top: auto; display: flex; align-items: center; gap: 10px;

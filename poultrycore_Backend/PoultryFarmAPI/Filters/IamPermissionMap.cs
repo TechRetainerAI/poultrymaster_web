@@ -154,6 +154,8 @@ namespace PoultryFarmAPIWeb.Filters
             // records, so it rides the existing feed-usage keys. Reversal is
             // checked explicitly against .delete in the controller.
             ["poultry/feed-distributions"] = "poultry.feed-usage",
+            // 389. Feed Usage entries: the same feed-usage keys.
+            ["poultry/feed-usage-entries"] = "poultry.feed-usage",
             ["poultry/raw-material-items"] = "poultry.raw-materials",
             ["poultry/raw-material-adjustments"] = "poultry.raw-materials",
             ["poultry/raw-material-purchases"] = "poultry.raw-materials",

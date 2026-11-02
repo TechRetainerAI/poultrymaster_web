@@ -76,6 +76,8 @@ export interface FeedFormula {
   // List-view aggregates (present on list rows)
   lineCount?: number
   percentageTotal?: number
+  // 385: one of the farm's default formulas, not yet edited by the farm.
+  isDefault?: boolean
   // Detail (present on getFeedFormula)
   lines?: FeedFormulaLine[]
 }
@@ -115,6 +117,27 @@ export const upsertFeedFormula = (input: FeedFormulaUpsertInput) =>
 
 export const deleteFeedFormula = (id: number) =>
   jsend<void>(`/Poultry/feed-formulas/${id}?farmId=${encodeURIComponent(activeFarmId())}`, "DELETE")
+
+export interface FeedDefaultsResult {
+  itemsCreated: number
+  formulasCreated: number
+  alreadyApplied: boolean
+}
+
+/**
+ * Seeds the default ingredients, age-named finished feeds and 1-tonne formulas
+ * (migration 385). Once per farm -- a default the farm deletes stays deleted --
+ * unless `force`, which re-adds whichever defaults are missing.
+ */
+export const ensureDefaultFeedFormulas = (force = false) => {
+  const userId = activeUserId()
+  return jsend<FeedDefaultsResult>(
+    `/Poultry/feed-formulas/ensure-defaults?farmId=${encodeURIComponent(activeFarmId())}`
+      + (userId ? `&userId=${encodeURIComponent(userId)}` : "")
+      + (force ? "&force=true" : ""),
+    "POST",
+  )
+}
 
 // ---------------------------------------------------------------- Batches
 export type FeedProductionSourceType = "FromInventory" | "BoughtDuringProduction" | "MixedSource"

@@ -17,7 +17,7 @@ import {
   Activity, AlertTriangle, ArrowLeftRight, Banknote, BarChart3, Bell, Bird, BookOpen, Box, Boxes,
   Building2, Clock, CreditCard, DollarSign, Egg, Factory, FileText, HelpCircle, History, Hourglass,
   Coins, HandCoins, ListTodo, Package, PackageMinus, Pill, Receipt, Scale, Settings, ShoppingCart, Truck, User, UserCog, Users,
-  Users2, Wallet, Wheat, PiggyBank, TrendingUp, Sparkles, ClipboardCheck, CalendarCheck, Flag, Repeat, Skull,
+  Users2, Wallet, Wheat, PiggyBank, TrendingUp, Sparkles, ClipboardCheck, CalendarCheck, Flag, Repeat, Skull, PlayCircle,
 } from "lucide-react"
 import type { UserPermissions } from "@/hooks/use-permissions"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
@@ -412,6 +412,10 @@ export function buildPoultryNavConfig(
         items: [
           { id: "houses", title: "Houses",       icon: Building2, href: "/houses" },
           { id: "flocks", title: "Flock Groups", icon: Bird,      href: "/flocks" },
+          // Also in Operations > Purchase. Listed here too so the batches sit
+          // beside the houses and flock groups they are divided into. Same page;
+          // the Quick Links picker keeps the first occurrence of an href.
+          { id: "flock-batch-setup", title: "Flock Purchases (Batches)", icon: Boxes, href: "/flock-batch" },
         ],
       },
       {
@@ -500,6 +504,7 @@ export function buildPoultryNavConfig(
           { id: "audit-logs",  title: "Activity Log",        icon: Activity,   href: "/audit-logs", visible: featureAccess.canViewActivityLog },
           { id: "resources",   title: "Resources",           icon: BookOpen,   href: "/resources" },
           { id: "help",        title: "Help Center",         icon: HelpCircle, href: "/help" },
+          { id: "videos",      title: "Videos",              icon: PlayCircle, href: "/poultry-videos" },
           { id: "terms",       title: "Terms & Conditions",  icon: ListTodo,   href: "/terms" },
         ],
       },

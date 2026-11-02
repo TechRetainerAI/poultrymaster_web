@@ -131,6 +131,8 @@ export interface ProductionRecord {
   medications?: ProductionMedicationLine[] | null
   /** Migration 148: individual feed lines (each drawn from inventory). */
   feeds?: ProductionFeedLine[] | null
+  /** 389: ManualSingleFlock | BatchAllocation | FeedUsage (feed recorded, production not filled in yet). */
+  sourceType?: string | null
 }
 
 export interface ProductionRecordInput {
@@ -188,6 +190,8 @@ export interface ProductionRecordInput {
   medications?: ProductionMedicationLine[] | null
   /** Migration 148: individual feed lines (each drawn from inventory). */
   feeds?: ProductionFeedLine[] | null
+  /** 389: send on save from the production form, so a feed-only record becomes production. */
+  markRecorded?: boolean
 }
 
 /**
@@ -546,6 +550,8 @@ export async function updateProductionRecord(id: number, record: ProductionRecor
     if (record.brokenEggDisposition) payload.brokenEggDisposition = record.brokenEggDisposition
     if (record.brokenEggsDisposed != null) payload.brokenEggsDisposed = record.brokenEggsDisposed
     if (record.mortalityDisposed != null) payload.mortalityDisposed = record.mortalityDisposed
+    // 389: the production form completed a feed-only (Feed Usage) record.
+    if (record.markRecorded) payload.markRecorded = true
     attachCosting(payload, record)
 
     const response = await fetch(url, {

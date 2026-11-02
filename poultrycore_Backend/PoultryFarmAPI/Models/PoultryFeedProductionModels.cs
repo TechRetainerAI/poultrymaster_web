@@ -41,7 +41,17 @@ namespace PoultryFarmAPIWeb.Models
         // List-view aggregates (GetAll only)
         public int LineCount { get; set; }
         public decimal PercentageTotal { get; set; }
+        // 385: one of the farm's default formulas, not yet edited by the farm.
+        public bool IsDefault { get; set; }
         public List<PoultryFeedFormulaLineModel> Lines { get; set; } = new();
+    }
+
+    // 385: result of seeding the default feed formulas for a farm.
+    public class PoultryFeedDefaultsResult
+    {
+        public int ItemsCreated { get; set; }
+        public int FormulasCreated { get; set; }
+        public bool AlreadyApplied { get; set; }
     }
 
     public class PoultryFeedFormulaLineInput

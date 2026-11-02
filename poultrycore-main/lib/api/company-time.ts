@@ -81,8 +81,10 @@ async function jget<T>(path: string): Promise<T> {
 }
 
 /**
- * The API returns businessDate as "yyyy-MM-dd", but companyLocalDateTime and
- * utcNow are full timestamps. Trim to the date part without going through
+ * The API's BusinessDate is a .NET DateTime, so it arrives as
+ * "2026-10-30T00:00:00", not "yyyy-MM-dd" — and a date input given that shows
+ * blank. Every call below trims it here so no caller has to remember. (Same for
+ * companyLocalDateTime and utcNow when a date is wanted.) Trim without going through
  * `new Date()`, which would reinterpret the string in the BROWSER's zone and
  * re-introduce the exact bug this module exists to remove.
  */
@@ -113,12 +115,13 @@ export function toDateOnly(isoish: string): string {
  */
 export const getCompanyTimeContext = async () =>
   jget<CompanyTimeContext>(`/CompanyTime/context?farmId=${encodeURIComponent(activeFarmId())}`)
+    .then((c) => ({ ...c, businessDate: toDateOnly(c.businessDate) }))
 
 /** Just today's date, for callers that need nothing else. */
 export const getCompanyBusinessDate = async () =>
   jget<{ farmId: string; businessDate: string }>(
     `/CompanyTime/business-date?farmId=${encodeURIComponent(activeFarmId())}`,
-  ).then((r) => r.businessDate)
+  ).then((r) => toDateOnly(r.businessDate))
 
 /**
  * The zones a company may choose. Sourced from the same tz catalogue the server
@@ -157,5 +160,6 @@ export async function setCompanyTimeZone(
     // a fixed offset"). Surfacing it beats replacing it with a generic message.
     throw new Error(explainHttpError("PUT", path, res.status, t))
   }
-  return (await res.json()) as CompanyTimeZoneUpdateResult
+  const r = (await res.json()) as CompanyTimeZoneUpdateResult
+  return { ...r, businessDate: toDateOnly(r.businessDate) }
 }

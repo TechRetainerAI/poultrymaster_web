@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useEffect, useMemo, useState } from "react"
+import { Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -37,7 +37,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
 import Link from "next/link"
-import { Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet, AlertTriangle, Factory, History, MoreHorizontal, RefreshCw, PackageCheck } from "lucide-react"
+import { Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet, AlertTriangle, Factory, History, MoreHorizontal, RefreshCw, PackageCheck, Wheat, Package } from "lucide-react"
 import { feedItemKind } from "@/lib/utils/feed-item-ledger"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { cn } from "@/lib/utils"
@@ -54,6 +54,7 @@ import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poul
 import { RecalculateStockButton } from "@/components/poultry/recalculate-stock-button"
 import { PoultryPurchaseDialog } from "@/components/raw-materials/poultry-purchase-dialog"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
+import { ensureDefaultFeedFormulas } from "@/lib/api/poultry-feed-production"
 
 const CATEGORIES = ["FeedIngredient", "FinishedFeed", "Packaging", "Medication", "Vaccine", "Bedding", "Disinfectant", "Equipment", "SparePart", "Fuel", "Other"]
 // Readable labels for the camel-case category codes stored in the DB.
@@ -178,6 +179,32 @@ function StockLevel({ item }: { item: PoultryRawMaterialItem }) {
         </>
       )}
     </div>
+  )
+}
+
+/** Feed Ingredient and Finished Feed get their own colour and icon so the two
+ *  never read alike; every other category stays plain text. */
+function CategoryTag({ category }: { category: string }) {
+  if (category === "FeedIngredient") return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-1.5 py-px text-[11px] font-medium text-amber-800">
+      <Wheat className="h-3 w-3" />Feed Ingredient
+    </span>
+  )
+  if (category === "FinishedFeed") return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-1.5 py-px text-[11px] font-medium text-indigo-700">
+      <Package className="h-3 w-3" />Finished Feed
+    </span>
+  )
+  return <span>{categoryLabel(category)}</span>
+}
+
+/** Marks the feeds and ingredients the system set up for the farm. */
+function DefaultTag() {
+  return (
+    <span title="Set up for you by default. You can edit or delete it like any other item."
+      className="ml-1.5 inline-flex items-center rounded border border-slate-300 bg-slate-50 px-1 py-px align-middle text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+      Default
+    </span>
   )
 }
 
@@ -352,9 +379,16 @@ function PoultryRawMaterialsPageInner() {
     setFocusPurchaseId(Number.isFinite(pid) && pid > 0 ? pid : null)
   }, [searchParams])
 
+  // 385: the default feeds and ingredients, once per page visit (and once per farm on the server).
+  const feedDefaultsRef = useRef(false)
+
   async function load() {
     setLoading(true)
     try {
+      if (!feedDefaultsRef.current) {
+        feedDefaultsRef.current = true
+        await ensureDefaultFeedFormulas().catch(() => {})
+      }
       const [is, ps, cas, val] = await Promise.all([
         listPoultryRawMaterialItems(), listPoultryRawMaterialPurchases(),
         listPoultryCashAccounts().catch(() => []),
@@ -839,9 +873,9 @@ function PoultryRawMaterialsPageInner() {
                       ) : pgItems.pageItems.map((i) => (
                         <TableRow key={i.poultryRawMaterialItemId} className={cn(!i.isActive && "text-slate-500")}>
                           <TableCell>
-                            <div className="font-medium text-slate-900">{i.itemName}</div>
-                            <div className="text-xs text-slate-500">
-                              {categoryLabel(i.category)} · {methodShortLabel(i.effectiveCostRecognitionMethod)}
+                            <div className="font-medium text-slate-900">{i.itemName}{i.isDefault && <DefaultTag />}</div>
+                            <div className="mt-0.5 text-xs text-slate-500">
+                              <CategoryTag category={i.category} /> · {methodShortLabel(i.effectiveCostRecognitionMethod)}
                               {i.costRecognitionSource === "ItemOverride" && <span className="text-emerald-700"> (override)</span>}
                             </div>
                           </TableCell>
@@ -882,9 +916,9 @@ function PoultryRawMaterialsPageInner() {
                   <div className="md:hidden space-y-2">
                     {filteredItems.length === 0 ? <div className="text-center text-slate-500 py-6">{items.length === 0 ? "No items yet — add one with New Item." : "No items match these filters."}</div>
                       : pgItems.pageItems.map((i) => (
-                        <FieldCard key={i.poultryRawMaterialItemId} title={i.itemName}
+                        <FieldCard key={i.poultryRawMaterialItemId} title={<>{i.itemName}{i.isDefault && <DefaultTag />}</>}
                           badge={<ItemStatus item={i} />}
-                          fields={[["Category", categoryLabel(i.category)], ["Units", unitsText(i)], ["In stock", `${i.currentQuantity.toLocaleString()} ${i.unitOfMeasure ?? ""}`.trim()], ["Min alert", i.minimumStockAlert.toLocaleString()], ["Cost", `${methodShortLabel(i.effectiveCostRecognitionMethod)}${i.costRecognitionSource === "ItemOverride" ? " (override)" : ""}`], ["Stock value", (() => { const v = valuationByItem.get(i.poultryRawMaterialItemId); return v ? gh(v.operationalValue) : "—" })()]]}
+                          fields={[["Category", <CategoryTag category={i.category} />], ["Units", unitsText(i)], ["In stock", `${i.currentQuantity.toLocaleString()} ${i.unitOfMeasure ?? ""}`.trim()], ["Min alert", i.minimumStockAlert.toLocaleString()], ["Cost", `${methodShortLabel(i.effectiveCostRecognitionMethod)}${i.costRecognitionSource === "ItemOverride" ? " (override)" : ""}`], ["Stock value", (() => { const v = valuationByItem.get(i.poultryRawMaterialItemId); return v ? gh(v.operationalValue) : "—" })()]]}
                           actions={itemActions(i)} />
                       ))}
                   </div>

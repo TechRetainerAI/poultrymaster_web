@@ -100,10 +100,16 @@ function mapFlockBatch(raw: any): FlockBatch {
 
 export async function getFlockBatches(userId?: string, farmId?: string): Promise<ApiResponse<FlockBatch[]>> {
   try {
+    // Flock batches are poultry-only — skip the call for other company types.
+    const farmType = typeof window !== 'undefined' ? localStorage.getItem('farmType') : null
+    if (farmType && farmType !== 'Poultry') {
+      return { success: true, message: "Not a poultry company", data: [] }
+    }
+
     const params = new URLSearchParams();
     if (userId) params.append('userId', userId);
     if (farmId) params.append('farmId', farmId);
-    
+
     const url = `${buildApiUrl('/MainFlockBatch')}?${params.toString()}`;
     console.log("[v0] Fetching flock batches:", url);
 

@@ -66,10 +66,26 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@Notes",                (object?)req.Notes                ?? DBNull.Value);
 
             await c.OpenAsync();
-            using var r = await cmd.ExecuteReaderAsync();
-            // Unlike spwatercompany_setup_rs1, this returns a single result set
-            // (the profile), so there is no verification row to skip past.
-            return await r.ReadAsync() ? Read(r) : null;
+            PoultryCompanyProfileModel? profile;
+            using (var r = await cmd.ExecuteReaderAsync())
+            {
+                // Unlike spwatercompany_setup_rs1, this returns a single result set
+                // (the profile), so there is no verification row to skip past.
+                profile = await r.ReadAsync() ? Read(r) : null;
+            }
+
+            // 385. A new farm starts with the default feeds and formulas. Best
+            // effort: setup must not fail because of them (e.g. 385 not applied
+            // yet) -- the Feed Formulas page seeds them on first visit anyway.
+            try
+            {
+                using var seed = new NpgsqlCommand("SELECT * FROM sppoultryfeed_ensuredefaults(p_farmid => @FarmId::text)", c);
+                seed.Parameters.AddWithValue("@FarmId", req.FarmId);
+                await seed.ExecuteNonQueryAsync();
+            }
+            catch (PostgresException) { }
+
+            return profile;
         }
 
         public async Task<PoultryCompanyProfileModel?> UpdateProfileAsync(string farmId, PoultryCompanyUpdateRequest req)

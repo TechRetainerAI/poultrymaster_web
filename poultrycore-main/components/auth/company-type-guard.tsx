@@ -15,9 +15,9 @@
 // =============================================================================
 
 import { useEffect, useState } from "react"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname } from "next/navigation"
 import { useAuthStore } from "@/lib/store/auth-store"
-import { dashboardHomeForType, type CompanyType } from "@/lib/api/companies"
+import { type CompanyType } from "@/lib/api/companies"
 import { COMPANY_CHANGED_EVENT } from "@/lib/store/auth-store"
 import { CompanyTypeMismatch } from "./company-type-mismatch"
 
@@ -106,7 +106,6 @@ function requiredTypeForPath(pathname: string): CompanyType | null {
 
 export function CompanyTypeGuard() {
   const pathname = usePathname()
-  const router = useRouter()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const [blocked, setBlocked] = useState(false)
 
@@ -133,7 +132,7 @@ export function CompanyTypeGuard() {
     setBlocked(true)
   }, [pathname, activeFarmType])
 
-  // Listen for company-switch events and redirect if current page is incompatible
+  // Listen for company-switch events and re-evaluate the block state
   useEffect(() => {
     if (typeof window === "undefined") return
 
@@ -143,14 +142,16 @@ export function CompanyTypeGuard() {
 
       const required = requiredTypeForPath(window.location.pathname)
       if (required !== null && required !== newType) {
-        // Current page is not compatible with the new company type — redirect
-        router.replace(dashboardHomeForType(newType))
+        // Current page is not compatible with the new company type — block it
+        setBlocked(true)
+      } else {
+        setBlocked(false)
       }
     }
 
     window.addEventListener(COMPANY_CHANGED_EVENT, handleCompanyChanged)
     return () => window.removeEventListener(COMPANY_CHANGED_EVENT, handleCompanyChanged)
-  }, [router])
+  }, [])
 
   if (!blocked) return null
 

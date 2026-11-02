@@ -161,13 +161,13 @@ export function FeedLines({ lines, rows, feedItems, stockByItemId, onAdd, onRemo
         return (
           <div key={idx} className="grid grid-cols-12 gap-3 items-start rounded-lg border border-slate-200 bg-white px-3 py-3">
             <div className="col-span-12 md:col-span-4 space-y-1">
-              {idx === 0 && <Label className="text-xs">Specific Feed Used</Label>}
+              {idx === 0 && <Label className="text-xs h-8 flex items-end leading-tight">Specific Feed Used</Label>}
               <Select
                 value={line.specificFeedUsedId || "none"}
                 onValueChange={(v) => onChange(idx, { specificFeedUsedId: v === "none" ? "" : v })}
                 disabled={disabled}
               >
-                <SelectTrigger><SelectValue placeholder="Select feed from inventory" /></SelectTrigger>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Select feed from inventory" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">None</SelectItem>
                   {visibleItems.map((i) => {
@@ -191,7 +191,7 @@ export function FeedLines({ lines, rows, feedItems, stockByItemId, onAdd, onRemo
             </div>
 
             <div className="col-span-6 md:col-span-2 space-y-1">
-              {idx === 0 && <Label className="text-xs">Consumed</Label>}
+              {idx === 0 && <Label className="text-xs h-8 flex items-end leading-tight">Consumed</Label>}
               <Input
                 type="number"
                 step="0.001"
@@ -204,18 +204,18 @@ export function FeedLines({ lines, rows, feedItems, stockByItemId, onAdd, onRemo
 
             <div className="col-span-6 md:col-span-2 space-y-1">
               {idx === 0 && (
-                <Label className="text-xs">
+                <Label className="text-xs h-8 block content-end leading-tight">
                   Unit Cost <span className="text-slate-400 font-normal">({selectedFeed?.usageMethod ?? "FIFO"})</span>
                 </Label>
               )}
-              <div className="h-10 flex items-center px-3 rounded-md border border-slate-200 bg-slate-100 text-slate-700">
+              <div className="h-9 flex items-center px-3 rounded-md border border-slate-200 bg-slate-100 text-slate-700">
                 {preview && preview.unitCost !== null ? preview.unitCost.toFixed(4) : "—"}
               </div>
             </div>
 
             <div className="col-span-9 md:col-span-3 space-y-1">
-              {idx === 0 && <Label className="text-xs">Total Cost</Label>}
-              <div className="h-10 flex items-center px-3 rounded-md border border-slate-200 bg-white font-semibold text-slate-700">
+              {idx === 0 && <Label className="text-xs h-8 flex items-end leading-tight">Total Cost</Label>}
+              <div className="h-9 flex items-center px-3 rounded-md border border-slate-200 bg-white font-semibold text-slate-700">
                 {preview && preview.totalCost !== null ? preview.totalCost.toFixed(2) : "0.00"}
               </div>
             </div>
@@ -225,7 +225,7 @@ export function FeedLines({ lines, rows, feedItems, stockByItemId, onAdd, onRemo
                 type="button"
                 variant="ghost"
                 size="icon"
-                className={idx === 0 ? "mt-5 text-red-600 hover:text-red-700 hover:bg-red-50" : "text-red-600 hover:text-red-700 hover:bg-red-50"}
+                className={idx === 0 ? "mt-9 text-red-600 hover:text-red-700 hover:bg-red-50" : "text-red-600 hover:text-red-700 hover:bg-red-50"}
                 onClick={() => onRemove(idx)}
                 disabled={disabled}
                 aria-label="Remove feed line"

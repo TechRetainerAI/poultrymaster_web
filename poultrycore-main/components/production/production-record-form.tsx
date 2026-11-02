@@ -46,6 +46,8 @@ import {
   type ProductionRecordInput, type ProductionRecord,
 } from "@/lib/api/production-record"
 import { getFeedUsages } from "@/lib/api/feed-usage"
+import { getFeedUsageCandidates } from "@/lib/api/feed-usage-entries"
+import Link from "next/link"
 import {
   listPoultryRawMaterialItems, listPoultryRawMaterialPurchases,
   type PoultryRawMaterialItem, type PoultryRawMaterialPurchase,
@@ -702,6 +704,8 @@ export function ProductionRecordForm({
         totalMedicationConsumed: null, totalMedicationCost: null,
         medications: medComputed.medications,
         totalCostOfProduction: Number(totalCostOfProduction.toFixed(2)),
+        // 389: saving a feed-only record from this form makes it production.
+        markRecorded: isEdit && loadedRecord?.sourceType === "FeedUsage",
       }
 
       let savedId: number | null = null
@@ -738,6 +742,22 @@ export function ProductionRecordForm({
       setSaving(false)
     }
   }
+
+  // 389: Feed Usage may already have made a feed-only record for this flock-day.
+  // A new record for it completes that record on the server (its feed is kept),
+  // so say so here -- otherwise the same feed could be typed in twice.
+  const [feedOnlyHere, setFeedOnlyHere] = useState<{ recordId: number; feedLines: string | null } | null>(null)
+  useEffect(() => {
+    if (isEdit || !form.flockId || !form.date) { setFeedOnlyHere(null); return }
+    let live = true
+    getFeedUsageCandidates(form.date)
+      .then((cands) => {
+        const c = cands.find((x) => String(x.flockId) === form.flockId)
+        if (live) setFeedOnlyHere(c?.recordStatus === "FeedOnly" && c.productionRecordId ? { recordId: c.productionRecordId, feedLines: c.feedLines } : null)
+      })
+      .catch(() => { if (live) setFeedOnlyHere(null) })
+    return () => { live = false }
+  }, [isEdit, form.flockId, form.date])
 
   // ---------------------------------------------------------------- render
   if (loading) {
@@ -783,6 +803,22 @@ export function ProductionRecordForm({
       {flocksError && !error && (
         <Alert>
           <AlertDescription>{flocksError}</AlertDescription>
+        </Alert>
+      )}
+
+      {isEdit && loadedRecord?.sourceType === "FeedUsage" && (
+        <Alert className="border-amber-200 bg-amber-50">
+          <AlertDescription className="text-amber-900">
+            Feed was recorded for this day from Feed Usage, but production has not been filled in yet. Fill in the eggs, birds and deaths, then save. The day counts as recorded once you save.
+          </AlertDescription>
+        </Alert>
+      )}
+      {feedOnlyHere && (
+        <Alert className="border-amber-200 bg-amber-50">
+          <AlertDescription className="text-amber-900">
+            Feed is already recorded for this flock on this day{feedOnlyHere.feedLines ? ` (${feedOnlyHere.feedLines})` : ""}. It is kept, and any feed you add below is added to it. Do not enter it again.{" "}
+            <Link href={`/production-records/${feedOnlyHere.recordId}`} className="font-medium underline">Open that record instead</Link>
+          </AlertDescription>
         </Alert>
       )}
 
