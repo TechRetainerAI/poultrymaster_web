@@ -1649,7 +1649,7 @@ export default function SalesPage() {
                     Add Sale
                   </Button>
                 </DialogTrigger>
-          <DialogContent className="w-[95vw] sm:max-w-5xl max-h-[92vh] gap-4 p-4 pb-0 sm:p-6 sm:pb-0">
+          <DialogContent className="w-[95vw] sm:max-w-6xl max-h-[92vh] gap-4 p-4 pb-0 sm:p-6 sm:pb-0">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2.5">
                 <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white">
@@ -1811,7 +1811,7 @@ export default function SalesPage() {
                 </div>
                 <div className="space-y-3 bg-amber-50/40 p-3 sm:p-4">
                 <div className="space-y-2">
-                  <SaleItemsHeader />
+                  <SaleItemsHeader packaging={packaging} />
                   <SaleItemRow
                     index={1}
                     product={(formData.product ?? "").toString()}
