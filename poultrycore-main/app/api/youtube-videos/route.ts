@@ -7,7 +7,7 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 /** How long a fetched feed is reused before YouTube is asked again. */
-const REVALIDATE_SECONDS = 1800
+const REVALIDATE_SECONDS = 300
 
 /**
  * The playlist's (or channel's) latest videos for /poultry-videos. Public
@@ -28,7 +28,7 @@ export async function GET() {
         playlistUrl: `https://www.youtube.com/playlist?list=${channel.playlist}`,
       }
       return NextResponse.json(feed, {
-        headers: { "Cache-Control": `public, max-age=300, s-maxage=${REVALIDATE_SECONDS}` },
+        headers: { "Cache-Control": `public, max-age=60, s-maxage=${REVALIDATE_SECONDS}` },
       })
     }
 
@@ -48,7 +48,7 @@ export async function GET() {
     if (!res.ok) return NextResponse.json({ error: "feed-unavailable" }, { status: 502 })
 
     return NextResponse.json(parseChannelFeed(await res.text()), {
-      headers: { "Cache-Control": `public, max-age=300, s-maxage=${REVALIDATE_SECONDS}` },
+      headers: { "Cache-Control": `public, max-age=60, s-maxage=${REVALIDATE_SECONDS}` },
     })
   } catch {
     return NextResponse.json({ error: "feed-unavailable" }, { status: 502 })
