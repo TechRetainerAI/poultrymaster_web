@@ -171,6 +171,8 @@ export interface SaleInvoiceLine {
   quantity: number
   unitPrice: number
   totalAmount: number
+  /** 394: how the line was entered and priced ("2 boxes + 3 crates · 1 box = 14 crates…"). */
+  note?: string | null
 }
 
 export function SaleInvoiceDocument({ sale, farm, currencyCode, formatMoney, flockLabel, lines, invoiceNo }: Props) {
@@ -241,7 +243,9 @@ export function SaleInvoiceDocument({ sale, farm, currencyCode, formatMoney, flo
                   <tr key={i}>
                     <td>
                       <span className="strong">{sale.product}{ln.label ? ` — ${ln.label}` : ""}</span>
-                      {isEggs && ln.quantity > 0 ? (
+                      {"note" in ln && ln.note ? (
+                        <div className="inv-line-note">{ln.note}</div>
+                      ) : isEggs && ln.quantity > 0 ? (
                         <div className="inv-line-note">
                           {Math.floor(ln.quantity / EGGS_PER_CRATE)} crates + {ln.quantity % EGGS_PER_CRATE} loose
                         </div>

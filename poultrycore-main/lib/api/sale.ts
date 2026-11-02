@@ -748,8 +748,19 @@ export interface SaleGroupLineInput {
   /** Egg class product; null = Unsorted / General. */
   eggProductId: number | null
   quantity: number
+  /** Per crate for egg lines. */
   unitPrice: number
   totalAmount: number
+  // 394: an egg line entered as Boxes / Crates / Pieces. Send all three (0 for
+  // none) and the server converts them with the company's packaging; leave
+  // them out for the old crates + loose path.
+  boxes?: number
+  crates?: number
+  pieces?: number
+  pricePerBox?: number | null
+  pricePerPiece?: number | null
+  /** The total override set this line's amount (it may differ from the calculation). */
+  amountOverridden?: boolean
 }
 
 export interface SaleGroupInput {

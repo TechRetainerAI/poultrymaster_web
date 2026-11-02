@@ -8,10 +8,12 @@
 //   Plans        the farm's own templates and their milestones
 //   Assignments  which plan each batch (its flocks inherit) or flock follows
 //
-// VisibilityCore ships no milestones and recommends nothing: every week,
-// title and treatment here was typed by the farm. Tasks only LINK to the
-// ordinary pages (flock, health records, production, closeout); nothing is
-// executed from here.
+// The only built-in plans are the Ghana national vaccination schedule (387),
+// seeded once per farm as ordinary plans the farm edits, deletes or assigns --
+// never assigned for it. Everything else here was typed by the farm. A
+// milestone may repeat; each repeat is its own task (occurrence). Tasks only
+// LINK to the ordinary pages (flock, health records, production, closeout);
+// nothing is executed from here.
 
 import { SKIP_REASONS, TASK_REOPEN_REASONS } from "@/lib/reversal-reasons"
 import { Suspense, useEffect, useMemo, useState } from "react"
@@ -19,7 +21,7 @@ import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
   AlertTriangle, CalendarClock, CheckCircle2, ExternalLink, History, Loader2, Lock, Pencil, Plus,
-  RefreshCw, RotateCcw, SkipForward, Trash2, Unlink, ListChecks, ClipboardList, Link2,
+  RefreshCw, RotateCcw, SkipForward, Trash2, Unlink, ListChecks, ClipboardList, Link2, Repeat, Syringe,
 } from "lucide-react"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -49,7 +51,7 @@ import { fmtInstant } from "@/lib/utils/company-datetime"
 import { getFlocks, type Flock } from "@/lib/api/flock"
 import { getFlockBatches, type FlockBatch } from "@/lib/api/flock-batch"
 import {
-  assignLifecycleTemplate, createLifecycleTemplate, deleteLifecycleTemplate, getLifecycleSummary,
+  assignLifecycleTemplate, createLifecycleTemplate, deleteLifecycleTemplate, ensureDefaultLifecyclePlans, getLifecycleSummary,
   getLifecycleTaskHistory, getLifecycleTemplate, listLifecycleAssignments, listLifecycleTasks,
   listLifecycleTemplates, removeLifecycleAssignment, setLifecycleTaskStatus, updateLifecycleTemplate,
   type LifecycleActionType, type LifecycleAgeUnit, type LifecycleAssignment, type LifecycleMilestone,
@@ -57,7 +59,8 @@ import {
 } from "@/lib/api/poultry-lifecycle"
 import {
   ACTION_TYPES, AGE_UNITS, CATEGORY_SUGGESTIONS, STATUS_TONE, actionLabel, ageAtStartDays, dueLabel,
-  formatAgeDays, lifecycleActionHref, milestoneAgeLabel, sortTasks, taskSentence, validatePlan,
+  formatAgeDays, lifecycleActionHref, repeatFromParts, repeatLabel, repeatToParts, sortTasks, taskAgeLabel,
+  taskKey, taskSentence, validatePlan,
 } from "@/lib/poultry/lifecycle"
 
 const day = (v: string | null | undefined) => (v ? v.slice(0, 10) : "—")
@@ -106,12 +109,13 @@ function LifecycleInner() {
   const [deletingPlan, setDeletingPlan] = useState<LifecycleTemplate | null>(null)
   const [removingAssignment, setRemovingAssignment] = useState<LifecycleAssignment | null>(null)
   const [busyKey, setBusyKey] = useState<string | null>(null)
+  const [restoring, setRestoring] = useState(false)
 
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Poultry") { router.replace("/dashboard"); return }
     void loadAll()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeFarmType])
+  }, [activeFarmType, canCreate])
 
   useEffect(() => { void loadTasks() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [view, flockFilter])
 
@@ -131,6 +135,9 @@ function LifecycleInner() {
     setLoading(true)
     const { farmId, userId } = getUserContext()
     try {
+      // 387: the national vaccination plans, once per farm. Quiet: a farm
+      // without the migration, or a user who may not create plans, just skips it.
+      if (canCreate) await ensureDefaultLifecyclePlans().catch(() => {})
       const [tp, as, fl, bt] = await Promise.all([
         listLifecycleTemplates(),
         listLifecycleAssignments(),
@@ -148,11 +155,24 @@ function LifecycleInner() {
     }
   }
 
+  async function restoreDefaults() {
+    setRestoring(true)
+    try {
+      const r = await ensureDefaultLifecyclePlans(true)
+      toast(r.plansCreated === 0
+        ? { title: "Nothing to add", description: "Both national vaccination plans are already here." }
+        : { title: "National vaccination schedule added", description: `${r.plansCreated} plan${r.plansCreated === 1 ? "" : "s"} added. Assign them on the Assignments tab.` })
+      await loadAll()
+    } catch (e: any) {
+      toast({ title: "Could not add the national schedule", description: e?.message, variant: "destructive" })
+    } finally { setRestoring(false) }
+  }
+
   async function complete(t: LifecycleTask) {
-    const key = `${t.flockId}-${t.milestoneId}`
+    const key = taskKey(t)
     setBusyKey(key)
     try {
-      await setLifecycleTaskStatus({ flockId: t.flockId, milestoneId: t.milestoneId, status: "Completed" })
+      await setLifecycleTaskStatus({ flockId: t.flockId, milestoneId: t.milestoneId, occurrence: t.occurrence ?? 0, status: "Completed" })
       toast({ title: "Marked complete", description: `${t.title} — ${t.flockName}` })
       await loadTasks()
     } catch (e: any) {
@@ -183,9 +203,9 @@ function LifecycleInner() {
             <CalendarClock className="h-6 w-6 text-indigo-600" /> Flock Lifecycle
           </h1>
           <p className="text-sm text-slate-600 max-w-3xl">
-            Reminders for the milestones <strong>your farm</strong> defines — housing moves, reviews, treatments your vet
-            prescribes — worked out from each flock&apos;s age. VisibilityCore does not recommend any schedule; it only
-            reminds you of the one you write.
+            Reminders for vaccinations and the other milestones <strong>your farm</strong> follows — housing moves, reviews,
+            treatments your vet prescribes — worked out from each flock&apos;s age. The Ghana national vaccination schedule is
+            ready as two plans; assign one to a batch to start its reminders.
           </p>
         </div>
         <Button variant="outline" onClick={() => void loadAll()} disabled={loading} className="h-10">
@@ -253,7 +273,7 @@ function LifecycleInner() {
           ) : (
             <div className="space-y-2">
               {tasksPg.pageItems.map((t) => {
-                const key = `${t.flockId}-${t.milestoneId}`
+                const key = taskKey(t)
                 const href = lifecycleActionHref(t)
                 const done = t.status === "Completed" || t.status === "Skipped"
                 return (
@@ -265,11 +285,17 @@ function LifecycleInner() {
                       </div>
                       <div className="flex flex-wrap items-center gap-1.5">
                         <Badge variant="outline" className={STATUS_TONE[t.status]}>{t.status}</Badge>
+                        {(t.occurrence ?? 0) > 0 && (
+                          <Badge variant="outline" className="border-violet-300 text-violet-800 bg-violet-50" title={`Repeats ${repeatLabel(t.repeatEveryDays) ?? ""}`}>
+                            <Repeat className="h-3 w-3 mr-1" /> Repeat {t.occurrence}
+                          </Badge>
+                        )}
                         {t.isEstimated && <Badge variant="outline" className="border-amber-300 text-amber-800 bg-amber-50">Estimated</Badge>}
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-                      <span>{milestoneAgeLabel(t.ageUnit, t.ageValue)} · due {day(t.dueDate)}{t.ageUnit === "Week" ? `–${day(t.dueWindowEnd)}` : ""}</span>
+                      <span>{taskAgeLabel(t)} · due {day(t.dueDate)}{t.ageUnit === "Week" ? `–${day(t.dueWindowEnd)}` : ""}</span>
+                      {repeatLabel(t.repeatEveryDays) && <span>Repeats {repeatLabel(t.repeatEveryDays)}</span>}
                       <span>{dueLabel(t)}</span>
                       <span>Flock age {formatAgeDays(t.currentAgeDays)}</span>
                       <span>{t.templateName}{t.assignedVia === "Batch" ? ` (via batch ${t.batchCode ?? ""})` : ""}</span>
@@ -318,14 +344,40 @@ function LifecycleInner() {
 
         {/* ------------------------------------------------------------- plans */}
         <TabsContent value="plans" className="space-y-3">
-          <div className="flex justify-between items-center gap-2">
+          <div className="flex flex-wrap justify-between items-center gap-2">
             <p className="text-sm text-slate-600">Each plan is a list of milestones at ages your farm chooses.</p>
             {canCreate && (
               <Button onClick={() => setPlanEditor({ open: true, template: null })}><Plus className="h-4 w-4 mr-1" /> New plan</Button>
             )}
           </div>
+
+          {/* 387: the national schedule is a starting point, not a prescription -- say so where it appears. */}
+          <div className="flex flex-col gap-3 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex gap-3">
+              <Syringe className="mt-0.5 h-5 w-5 shrink-0 text-sky-600" />
+              <div className="space-y-1">
+                <p className="font-semibold">Ghana national vaccination schedule</p>
+                <p>
+                  Two plans — <b>Commercial Layers</b> and <b>Breeders</b> — follow the Veterinary Services national vaccination
+                  schedule, including the Newcastle boosters every 3 months. Assign one to a batch to get its reminders.
+                </p>
+                <p>
+                  Schedules differ by area, disease pressure and vaccine brand. <b>Confirm with your vet</b>, and edit the plan to
+                  match what your vet prescribes — an edited plan becomes your farm&apos;s own.
+                </p>
+              </div>
+            </div>
+            {canCreate && (
+              <Button variant="outline" size="sm" className="shrink-0 self-start border-sky-300 bg-white text-sky-800 hover:bg-sky-100"
+                onClick={() => void restoreDefaults()} disabled={restoring || loading}>
+                {restoring ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Plus className="mr-1 h-4 w-4" />}
+                Add missing national plans
+              </Button>
+            )}
+          </div>
+
           {templates.length === 0 ? (
-            <Card><CardContent className="p-8 text-center text-slate-500">No plans yet. Plans are written by your farm — none are built in.</CardContent></Card>
+            <Card><CardContent className="p-8 text-center text-slate-500">No plans yet. Write your own, or add the national vaccination plans above.</CardContent></Card>
           ) : (
             <div className="grid gap-3 md:grid-cols-2">
               {templates.map((t) => (
@@ -333,7 +385,14 @@ function LifecycleInner() {
                   <CardContent className="p-4 space-y-2">
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <div className="font-semibold text-slate-900">{t.name}</div>
+                        <div className="font-semibold text-slate-900 flex flex-wrap items-center gap-2">
+                          {t.name}
+                          {t.isDefault && (
+                            <Badge variant="outline" className="border-sky-300 bg-sky-50 text-sky-800" title="Built in from the national schedule. Editing it makes it your farm's own.">
+                              National schedule
+                            </Badge>
+                          )}
+                        </div>
                         <div className="text-xs text-slate-500">{t.breed ? `For ${t.breed}` : "Any breed"}{!t.isActive && " · Inactive"}</div>
                       </div>
                       <div className="flex gap-1">
@@ -431,7 +490,7 @@ function LifecycleInner() {
         onSubmit={async (note) => {
           if (!skipping) return
           try {
-            await setLifecycleTaskStatus({ flockId: skipping.flockId, milestoneId: skipping.milestoneId, status: "Skipped", note })
+            await setLifecycleTaskStatus({ flockId: skipping.flockId, milestoneId: skipping.milestoneId, occurrence: skipping.occurrence ?? 0, status: "Skipped", note })
             toast({ title: "Task skipped" }); setSkipping(null); await loadTasks()
           } catch (e: any) { toast({ title: "Could not skip the task", description: e?.message, variant: "destructive" }); throw e }
         }}
@@ -448,7 +507,7 @@ function LifecycleInner() {
         onSubmit={async (note) => {
           if (!reopening) return
           try {
-            await setLifecycleTaskStatus({ flockId: reopening.flockId, milestoneId: reopening.milestoneId, status: "Open", note: note || null })
+            await setLifecycleTaskStatus({ flockId: reopening.flockId, milestoneId: reopening.milestoneId, occurrence: reopening.occurrence ?? 0, status: "Open", note: note || null })
             toast({ title: "Task reopened" }); setReopening(null); await loadTasks()
           } catch (e: any) { toast({ title: "Could not reopen the task", description: e?.message, variant: "destructive" }); throw e }
         }}
@@ -528,7 +587,11 @@ function Tile({ label, value, tone, onClick }: { label: string; value?: number; 
 }
 
 // ------------------------------------------------------------- plan editor --
-interface MilestoneRow extends LifecycleMilestone { key: number }
+// The repeat is edited as a number + unit (0 = happens once) and saved as days.
+interface MilestoneRow extends LifecycleMilestone { key: number; repeatValue: number; repeatUnit: LifecycleAgeUnit }
+
+const rowRepeatDays = (r: MilestoneRow): number | null => (r.repeatValue > 0 ? repeatFromParts(r.repeatValue, r.repeatUnit) : null)
+const newRow = (key: number): MilestoneRow => ({ key, ageUnit: "Week", ageValue: 0, title: "", leadTimeDays: 3, repeatValue: 0, repeatUnit: "Week" })
 
 function PlanEditorDialog({ open, template, onOpenChange, onSaved }: {
   open: boolean; template: LifecycleTemplate | null; onOpenChange: (o: boolean) => void; onSaved: () => void | Promise<void>
@@ -547,22 +610,30 @@ function PlanEditorDialog({ open, template, onOpenChange, onSaved }: {
     if (!open) return
     setName(template?.name ?? ""); setBreed(template?.breed ?? ""); setDescription(template?.description ?? "")
     setIsActive(template?.isActive ?? true); setErrors([])
-    const ms = (template?.milestones ?? []).map((m, i) => ({ ...m, key: i + 1 }))
-    setRows(ms.length ? ms : [{ key: 1, ageUnit: "Week", ageValue: 0, title: "", leadTimeDays: 3 }])
+    const ms = (template?.milestones ?? []).map((m, i): MilestoneRow => {
+      const rep = repeatToParts(m.repeatEveryDays)
+      return { ...m, key: i + 1, repeatValue: rep?.value ?? 0, repeatUnit: rep?.unit ?? "Week" }
+    })
+    setRows(ms.length ? ms : [newRow(1)])
     setNextKey(ms.length + 2)
   }, [open, template])
 
   const set = (key: number, patch: Partial<MilestoneRow>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)))
 
   async function save() {
-    const errs = validatePlan(name, rows.map((r) => ({ title: r.title, ageUnit: r.ageUnit, ageValue: r.ageValue, leadTimeDays: r.leadTimeDays })))
+    const errs = validatePlan(name, rows.map((r) => ({
+      title: r.title, ageUnit: r.ageUnit, ageValue: r.ageValue, leadTimeDays: r.leadTimeDays, repeatEveryDays: rowRepeatDays(r),
+    })))
     setErrors(errs)
     if (errs.length) return
     setSaving(true)
     try {
       const input = {
         name: name.trim(), breed: breed.trim() || null, description: description.trim() || null, isActive,
-        milestones: rows.map(({ key, ...m }) => ({ ...m, title: m.title.trim(), actionType: m.actionType || null })),
+        milestones: rows.map((r) => {
+          const { key, repeatValue, repeatUnit, ...m } = r
+          return { ...m, title: m.title.trim(), actionType: m.actionType || null, repeatEveryDays: rowRepeatDays(r) }
+        }),
       }
       if (template) await updateLifecycleTemplate(template.templateId, input)
       else await createLifecycleTemplate(input)
@@ -582,6 +653,11 @@ function PlanEditorDialog({ open, template, onOpenChange, onSaved }: {
             Your farm&apos;s own milestones. Ages are the birds&apos; age, in days or weeks. Lead time is how many days ahead the reminder appears.
           </DialogDescription>
         </DialogHeader>
+        {template?.isDefault && (
+          <div className="rounded-md border border-sky-200 bg-sky-50 p-2.5 text-sm text-sky-900">
+            This is the national vaccination schedule. Saving changes makes it your farm&apos;s own plan — change it to match what your vet prescribes.
+          </div>
+        )}
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div><label className="text-xs text-slate-500">Plan name *</label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Our layer plan" /></div>
@@ -641,9 +717,26 @@ function PlanEditorDialog({ open, template, onOpenChange, onSaved }: {
                   <Input value={r.description ?? ""} onChange={(e) => set(r.key, { description: e.target.value })} placeholder="What to check or prepare" />
                 </div>
               </div>
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="w-24">
+                  <label className="text-xs text-slate-500">Repeat every</label>
+                  <NumberInput min={0} step="1" value={r.repeatValue} onChange={(e) => set(r.key, { repeatValue: Math.floor(Number(e.target.value) || 0) })} />
+                </div>
+                <div className="w-28">
+                  <Select value={r.repeatUnit} onValueChange={(v) => set(r.key, { repeatUnit: v as LifecycleAgeUnit })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{AGE_UNITS.map((u) => <SelectItem key={u} value={u}>{u === "Week" ? "Weeks" : "Days"}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <p className="text-xs text-slate-500 pb-2">
+                  {r.repeatValue > 0
+                    ? `Repeats ${repeatLabel(rowRepeatDays(r))} after this age, until the flock is closed.`
+                    : "0 = happens once. For a booster every 3 months, enter 13 weeks."}
+                </p>
+              </div>
             </div>
           ))}
-          <Button type="button" variant="outline" size="sm" onClick={() => { setRows((rs) => [...rs, { key: nextKey, ageUnit: "Week", ageValue: 0, title: "", leadTimeDays: 3 }]); setNextKey((k) => k + 1) }}>
+          <Button type="button" variant="outline" size="sm" onClick={() => { setRows((rs) => [...rs, newRow(nextKey)]); setNextKey((k) => k + 1) }}>
             <Plus className="h-4 w-4 mr-1" /> Add milestone
           </Button>
           {template && <p className="text-xs text-slate-500">Removing a milestone that already has task history retires it instead of deleting it.</p>}
@@ -765,7 +858,7 @@ function HistoryDialog({ task, onClose }: { task: LifecycleTask | null; onClose:
   useEffect(() => {
     setEvents(null)
     if (!task) return
-    getLifecycleTaskHistory(task.flockId, task.milestoneId).then(setEvents).catch(() => setEvents([]))
+    getLifecycleTaskHistory(task.flockId, task.milestoneId, undefined, task.occurrence ?? 0).then(setEvents).catch(() => setEvents([]))
   }, [task])
   return (
     <Dialog open={task != null} onOpenChange={(o) => { if (!o) onClose() }}>
@@ -774,7 +867,7 @@ function HistoryDialog({ task, onClose }: { task: LifecycleTask | null; onClose:
           <>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2"><History className="h-5 w-5" /> {task.title}</DialogTitle>
-              <DialogDescription>{task.flockName} · {milestoneAgeLabel(task.ageUnit, task.ageValue)} · due {day(task.dueDate)}</DialogDescription>
+              <DialogDescription>{task.flockName} · {taskAgeLabel(task)}{(task.occurrence ?? 0) > 0 ? ` (repeat ${task.occurrence})` : ""} · due {day(task.dueDate)}</DialogDescription>
             </DialogHeader>
             {events == null ? (
               <div className="p-4 text-slate-500 flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>

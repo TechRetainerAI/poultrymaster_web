@@ -16,6 +16,8 @@ namespace PoultryFarmAPIWeb.Business
         Task<LifecycleSummaryModel> GetSummaryAsync(string farmId);
         Task<List<LifecycleTaskEventModel>> GetHistoryAsync(string farmId, int flockId, int? milestoneId);
         Task<int> SetTaskStatusAsync(LifecycleTaskStatusRequest req, string? actor);
+        Task<List<LifecycleTaskEventModel>> GetHistoryAsync(string farmId, int flockId, int? milestoneId, int? occurrence);
+        Task<LifecycleDefaultsResult> EnsureDefaultsAsync(string farmId, string? actor, bool force);
 
         Task<List<LifecycleTemplateModel>> GetTemplatesAsync(string farmId);
         Task<LifecycleTemplateModel?> GetTemplateAsync(string farmId, int templateId);
@@ -37,6 +39,8 @@ namespace PoultryFarmAPIWeb.Business
         private static DateTime? NDate(NpgsqlDataReader r, string c) { var i = r.GetOrdinal(c); return r.IsDBNull(i) ? null : r.GetDateTime(i); }
         private static int Int(NpgsqlDataReader r, string c) => r.GetInt32(r.GetOrdinal(c));
         private static bool Bool(NpgsqlDataReader r, string c) { var i = r.GetOrdinal(c); return !r.IsDBNull(i) && r.GetBoolean(i); }
+        // 387 columns: read only when present, so this API also runs against a database without 387.
+        private static bool Has(NpgsqlDataReader r, string c) { for (var i = 0; i < r.FieldCount; i++) if (r.GetName(i) == c) return true; return false; }
 
         private static LifecycleTaskModel MapTask(NpgsqlDataReader r) => new()
         {
@@ -75,6 +79,8 @@ namespace PoultryFarmAPIWeb.Business
             ActedBy = Str(r, "actedby"),
             ActedAt = NDate(r, "actedat"),
             Today = r.GetDateTime(r.GetOrdinal("today")),
+            Occurrence = Has(r, "occurrence") ? Int(r, "occurrence") : 0,
+            RepeatEveryDays = Has(r, "repeateverydays") ? NInt(r, "repeateverydays") : null,
         };
 
         public async Task<List<LifecycleTaskModel>> GetTasksAsync(string farmId, string? view, int? flockId)
@@ -109,15 +115,21 @@ namespace PoultryFarmAPIWeb.Business
             };
         }
 
-        public async Task<List<LifecycleTaskEventModel>> GetHistoryAsync(string farmId, int flockId, int? milestoneId)
+        public Task<List<LifecycleTaskEventModel>> GetHistoryAsync(string farmId, int flockId, int? milestoneId)
+            => GetHistoryAsync(farmId, flockId, milestoneId, null);
+
+        public async Task<List<LifecycleTaskEventModel>> GetHistoryAsync(string farmId, int flockId, int? milestoneId, int? occurrence)
         {
             var list = new List<LifecycleTaskEventModel>();
             using var conn = new NpgsqlConnection(_cs);
+            // p_occurrence only exists from 387: name it only when asked for.
             using var cmd = new NpgsqlCommand(
-                "SELECT * FROM sppoultrylifecycle_taskhistory(p_farmid => @FarmId::text, p_flockid => @FlockId::int, p_milestoneid => @MilestoneId::int)", conn);
+                "SELECT * FROM sppoultrylifecycle_taskhistory(p_farmid => @FarmId::text, p_flockid => @FlockId::int, p_milestoneid => @MilestoneId::int"
+                + (occurrence is null ? ")" : ", p_occurrence => @Occurrence::int)"), conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@FlockId", flockId);
             cmd.Parameters.AddWithValue("@MilestoneId", (object?)milestoneId ?? DBNull.Value);
+            if (occurrence is not null) cmd.Parameters.AddWithValue("@Occurrence", occurrence.Value);
             await conn.OpenAsync();
             using var r = await cmd.ExecuteReaderAsync();
             while (await r.ReadAsync())
@@ -132,6 +144,7 @@ namespace PoultryFarmAPIWeb.Business
                     Note = Str(r, "note"),
                     Actor = Str(r, "actor"),
                     AtUtc = r.GetFieldValue<DateTimeOffset>(r.GetOrdinal("atutc")).UtcDateTime,
+                    Occurrence = Has(r, "occurrence") ? Int(r, "occurrence") : 0,
                 });
             return list;
         }
@@ -139,10 +152,13 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<int> SetTaskStatusAsync(LifecycleTaskStatusRequest req, string? actor)
         {
             using var conn = new NpgsqlConnection(_cs);
+            // p_occurrence only exists from 387; a one-off milestone (0) leaves it out.
             using var cmd = new NpgsqlCommand(@"
                 SELECT sppoultrylifecycle_settaskstatus(
                     p_farmid => @FarmId::text, p_flockid => @FlockId::int, p_milestoneid => @MilestoneId::int,
-                    p_status => @Status::text, p_note => @Note::text, p_actor => @Actor::text)", conn);
+                    p_status => @Status::text, p_note => @Note::text, p_actor => @Actor::text"
+                + (req.Occurrence > 0 ? ", p_occurrence => @Occurrence::int)" : ")"), conn);
+            if (req.Occurrence > 0) cmd.Parameters.AddWithValue("@Occurrence", req.Occurrence);
             cmd.Parameters.AddWithValue("@FarmId", req.FarmId);
             cmd.Parameters.AddWithValue("@FlockId", req.FlockId);
             cmd.Parameters.AddWithValue("@MilestoneId", req.MilestoneId);
@@ -176,6 +192,7 @@ namespace PoultryFarmAPIWeb.Business
                     CreatedAt = r.GetDateTime(r.GetOrdinal("createdat")),
                     UpdatedBy = Str(r, "updatedby"),
                     UpdatedAt = NDate(r, "updatedat"),
+                    IsDefault = Has(r, "isdefault") && Bool(r, "isdefault"),
                 });
             return list;
         }
@@ -205,6 +222,7 @@ namespace PoultryFarmAPIWeb.Business
                     LeadTimeDays = Int(r, "leadtimedays"),
                     ActionType = Str(r, "actiontype"),
                     SortOrder = Int(r, "sortorder"),
+                    RepeatEveryDays = Has(r, "repeateverydays") ? NInt(r, "repeateverydays") : null,
                 });
             return template;
         }
@@ -222,6 +240,7 @@ namespace PoultryFarmAPIWeb.Business
                 ["category"] = m.Category,
                 ["leadtimedays"] = m.LeadTimeDays,
                 ["actiontype"] = string.IsNullOrWhiteSpace(m.ActionType) ? null : m.ActionType,
+                ["repeateverydays"] = m.RepeatEveryDays,
             }));
             using var conn = new NpgsqlConnection(_cs);
             using var cmd = new NpgsqlCommand(@"
@@ -298,6 +317,22 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@Actor", (object?)actor ?? DBNull.Value);
             await conn.OpenAsync();
             return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        }
+
+        // 387. The national vaccination schedule as two plans. Once per farm;
+        // force=true re-adds a plan the farm removed.
+        public async Task<LifecycleDefaultsResult> EnsureDefaultsAsync(string farmId, string? actor, bool force)
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM sppoultrylifecycle_ensuredefaults(p_farmid => @FarmId::text, p_actor => @Actor::text, p_force => @Force::boolean)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@Actor", (object?)actor ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Force", force);
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            if (!await r.ReadAsync()) return new LifecycleDefaultsResult();
+            return new LifecycleDefaultsResult { PlansCreated = Int(r, "planscreated"), AlreadyApplied = Bool(r, "alreadyapplied") };
         }
 
         public async Task UnassignAsync(string farmId, int assignmentId, string? actor)

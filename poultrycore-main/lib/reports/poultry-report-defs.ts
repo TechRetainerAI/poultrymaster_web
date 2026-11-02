@@ -18,6 +18,14 @@ export interface FmtCtx {
   pct: (n: number | null | undefined) => string
   date: (s: string | null | undefined) => string
   text: (s: unknown) => string
+  /**
+   * 393: " · ≈ 20 boxes" after an egg count on a farm that shows boxes; "" on
+   * every other farm, so their reports read exactly as before. An equivalent
+   * in TODAY's box size, never "boxes sold".
+   */
+  eggsHint?: (n: number | null | undefined) => string
+  /** 394: a quantity as it was entered ("2 boxes + 3 crates + 10 pcs"). */
+  packaged?: (q: { boxes?: number | null; crates?: number | null; pieces?: number | null }) => string
 }
 
 export type Accent = "green" | "rose" | "indigo"
@@ -192,8 +200,8 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
     description: "High-level snapshot of poultry operations for the selected period.",
     filters: { flock: true, includeClosedFlocks: true },
     cards: [
-      { label: "Total eggs produced", value: (s, c) => c.num(s.totalEggsProduced) },
-      { label: "Saleable eggs", value: (s, c) => c.num(s.saleableEggs), accent: "green" },
+      { label: "Total eggs produced", value: (s, c) => `${c.num(s.totalEggsProduced)}${c.eggsHint?.(s.totalEggsProduced) ?? ""}` },
+      { label: "Saleable eggs", value: (s, c) => `${c.num(s.saleableEggs)}${c.eggsHint?.(s.saleableEggs) ?? ""}`, accent: "green" },
       { label: "Broken / rejected", value: (s, c) => c.num(s.brokenRejectedEggs), accent: "rose" },
       { label: "Active flocks", value: (s, c) => c.num(s.activeFlocks) },
       { label: "Active birds", value: (s, c) => c.num(s.activeBirds) },
@@ -230,7 +238,7 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
     description: "Egg production by day and flock, including collection times and breakages.",
     filters: { flock: true },
     cards: [
-      { label: "Total eggs", value: (s, c) => c.num(s.totalEggs), accent: "green" },
+      { label: "Total eggs", value: (s, c) => `${c.num(s.totalEggs)}${c.eggsHint?.(s.totalEggs) ?? ""}`, accent: "green" },
       { label: "Avg eggs / day", value: (s, c) => c.num(s.averageEggsPerDay) },
       { label: "Best day", value: (s, c) => `${c.date(s.bestProductionDay)} (${c.num(s.bestProductionDayEggs)})` },
       { label: "Lowest day", value: (s, c) => `${c.date(s.lowestProductionDay)} (${c.num(s.lowestProductionDayEggs)})` },
@@ -269,7 +277,7 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
       { label: "Active flocks", value: (s, c) => c.num(s.activeFlocks) },
       { label: "Best producing flock", value: (s, c) => c.text(s.bestProducingFlock) },
       { label: "Lowest producing flock", value: (s, c) => c.text(s.lowestProducingFlock) },
-      { label: "Total eggs", value: (s, c) => c.num(s.totalEggs), accent: "green" },
+      { label: "Total eggs", value: (s, c) => `${c.num(s.totalEggs)}${c.eggsHint?.(s.totalEggs) ?? ""}`, accent: "green" },
       { label: "Avg eggs / flock", value: (s, c) => c.num(s.averageEggsPerFlock) },
       { label: "Avg production %", value: (s, c) => c.pct(s.averageProductionPercent) },
       { label: "Broken eggs generated", value: (s, c) => c.num(s.brokenEggsGenerated), accent: "rose" },
@@ -462,10 +470,10 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
   "egg-stock-balance": {
     slug: "egg-stock-balance",
     title: "Poultry Egg Stock Balance Report",
-    description: "Egg inventory on hand, in eggs and crate equivalents.",
+    description: "Egg inventory on hand, in eggs with crate (and box) equivalents. Equivalents are counts, not packed stock.",
     filters: {},
     cards: [
-      { label: "Total eggs in stock", value: (s, c) => c.num(s.totalEggsInStock), accent: "green" },
+      { label: "Total eggs in stock", value: (s, c) => `${c.num(s.totalEggsInStock)}${c.eggsHint?.(s.totalEggsInStock) ?? ""}`, accent: "green" },
       { label: "Total crates", value: (s, c) => c.num(s.totalCrates) },
       { label: "Loose eggs", value: (s, c) => c.num(s.looseEggs) },
       { label: "Saleable eggs", value: (s, c) => c.num(s.saleableEggs) },
@@ -479,7 +487,7 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
       { header: "Produced", align: "right", cell: (r, c) => c.num(r.productionAdded) },
       { header: "Sold", align: "right", cell: (r, c) => c.num(r.salesRemoved) },
       { header: "Losses/adj.", align: "right", cell: (r, c) => c.num(r.lossesAdjustments) },
-      { header: "Current (eggs)", align: "right", cell: (r, c) => c.num(r.currentStockEggs) },
+      { header: "Current (eggs)", align: "right", cell: (r, c) => `${c.num(r.currentStockEggs)}${c.eggsHint?.(r.currentStockEggs) ?? ""}` },
       { header: "Crates", align: "right", cell: (r, c) => c.num(r.currentStockCrates) },
       { header: "Loose", align: "right", cell: (r, c) => c.num(r.looseEggs) },
       { header: "Status", cell: (r, c) => c.text(r.status), badge: true },
@@ -527,7 +535,21 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
     filters: { flock: true, customer: true },
     cards: [
       { label: "Total sales revenue", value: (s, c) => c.money(s.totalSalesRevenue), accent: "green" },
-      { label: "Total eggs sold", value: (s, c) => c.num(s.totalEggsSold) },
+      { label: "Total eggs sold", value: (s, c) => `${c.num(s.totalEggsSold)}${c.eggsHint?.(s.totalEggsSold) ?? ""}` },
+      // 396: two different questions (spec 30). Sold as = what customers were
+      // sold in boxes / crates / pieces; equivalent = the eggs in today's boxes.
+      {
+        label: "Sold as (entered)",
+        value: (s, c) => (s.actualBoxesSold || s.actualCratesSold || s.actualPiecesSold
+          ? c.packaged?.({ boxes: s.actualBoxesSold, crates: s.actualCratesSold, pieces: s.actualPiecesSold }) ?? "—"
+          : "—"),
+        note: "Only sales entered in boxes / crates / pieces",
+      },
+      {
+        label: "Equivalent boxes",
+        value: (s, c) => (s.equivalentBoxes == null ? "—" : c.num(s.equivalentBoxes)),
+        note: "All eggs sold, in today's box size — not boxes sold",
+      },
       { label: "Paid in period", value: (s, c) => c.money(s.totalPaid), accent: "green" },
       { label: "Unpaid in period", value: (s, c) => c.money(s.totalUnpaid), accent: "rose" },
       { label: "Top customer", value: (s, c) => c.text(s.topCustomer) },
@@ -540,6 +562,8 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
       { header: "Customer", cell: (r, c) => c.text(r.customer) },
       { header: "Product", cell: (r, c) => c.text(r.productGrade) },
       { header: "Qty", align: "right", cell: (r, c) => c.num(r.quantitySold) },
+      // 396: as entered, with its own box size; "—" for a sale entered before 394.
+      { header: "Sold as", cell: (r, c) => (r.cratesSold == null ? "—" : c.packaged?.({ boxes: r.boxesSold, crates: r.cratesSold, pieces: r.piecesSold }) ?? "—") },
       { header: "Unit price", align: "right", cell: (r, c) => c.money(r.unitPrice) },
       { header: "Total", align: "right", cell: (r, c) => c.money(r.totalAmount) },
       { header: "Paid", align: "right", cell: (r, c) => c.money(r.amountPaid) },
@@ -984,7 +1008,7 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
     cards: [
       { label: "Birds placed", value: (s, c) => c.num(s.birdsPlaced) },
       { label: "Birds remaining", value: (s, c) => c.num(s.birdsRemaining) },
-      { label: "Total eggs", value: (s, c) => c.num(s.totalEggs), accent: "green" },
+      { label: "Total eggs", value: (s, c) => `${c.num(s.totalEggs)}${c.eggsHint?.(s.totalEggs) ?? ""}`, accent: "green" },
       { label: "Total feed (kg)", value: (s, c) => c.num(s.totalFeedConsumedKg) },
       { label: "Total revenue", value: (s, c) => c.money(s.totalRevenue), accent: "green" },
       { label: "Total cost", value: (s, c) => c.money(s.totalCost), accent: "rose" },

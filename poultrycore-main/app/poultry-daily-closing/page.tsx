@@ -16,6 +16,7 @@
 // the browser's. ?date=yyyy-MM-dd opens a specific day.
 
 import { REJECT_REASONS, REOPEN_REASONS } from "@/lib/reversal-reasons"
+import { useEggBoxesSuffix } from "@/components/poultry/egg-quantity"
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
@@ -215,6 +216,8 @@ function PoultryDailyClosingInner() {
 
   const canSubmit = !isClosed && record?.status !== "Submitted"
 
+  // 393: " (≈ 20 boxes)" beside egg figures on a box farm. Display only.
+  const eggBoxes = useEggBoxesSuffix()
   // Previous closings cells: a missing figure is a dash, never 0.
   const money = (v: number | null | undefined) => (v != null ? fmt(v) : "—")
   const num = (v: number | null | undefined, digits = 0) =>
@@ -433,7 +436,7 @@ function PoultryDailyClosingInner() {
                           { label: "Money in / out", value: `${money(h.moneyIn)} / ${money(h.moneyOut)}` },
                           { label: "Opening → closing cash", value: `${money(h.openingCash)} → ${money(h.closingCash)}` },
                           { label: "Cash difference", value: money(h.cashDifference) },
-                          { label: "Eggs produced", value: num(h.eggsProduced) },
+                          { label: "Eggs produced", value: `${num(h.eggsProduced)}${eggBoxes(h.eggsProduced)}` },
                           { label: "Damaged eggs", value: num(h.eggsDamaged) },
                           { label: "Mortality", value: num(h.mortality) },
                           { label: "Feed used", value: h.feedKg != null ? `${num(h.feedKg, 2)} kg` : "—" },

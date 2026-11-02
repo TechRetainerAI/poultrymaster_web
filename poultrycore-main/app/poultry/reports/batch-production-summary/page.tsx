@@ -11,6 +11,8 @@
 // =============================================================================
 
 import { useEffect, useMemo, useState } from "react"
+import { EGGS_PER_CRATE } from "@/lib/production/production-record-calc"
+import { useEggsPerCrate } from "@/hooks/use-eggs-per-crate"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -37,7 +39,7 @@ import { cn } from "@/lib/utils"
 import { exportTableToPdf, emailTableAsPdf, type PdfExportColumn, type PdfExportOptions } from "@/lib/utils/pdf-export"
 import { PoultryReportExportButtons } from "@/components/poultry-reports/poultry-report-ui"
 
-const EGGS_PER_CRATE = 30
+// The farm's eggs per crate (344): a live binding, not a fixed 30.
 
 interface BatchRow {
   batchId: number
@@ -62,6 +64,7 @@ const num = (n: number) => Math.round(n).toLocaleString()
 const pct = (v: number | null) => (v == null ? "—" : `${v.toFixed(1)}%`)
 
 export default function BatchProductionSummaryReport() {
+  useEggsPerCrate()   // re-render when the farm's crate size loads
   const router = useRouter()
   const logout = useLogout()
   const { toast } = useToast()

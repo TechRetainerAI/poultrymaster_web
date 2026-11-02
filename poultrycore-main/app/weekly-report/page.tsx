@@ -1,6 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { EGGS_PER_CRATE } from "@/lib/production/production-record-calc"
+import { useEggsPerCrate } from "@/hooks/use-eggs-per-crate"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -26,7 +28,7 @@ import { useToast } from "@/hooks/use-toast"
 import { flockCountsTowardBirdTotals } from "@/lib/utils/flock-eligibility"
 import { byproductRole } from "@/lib/poultry/byproducts"
 
-const EGGS_PER_CRATE = 30
+// The farm's eggs per crate (344): a live binding, not a fixed 30.
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const
 type RangeMode = "week" | "month" | "range" | "all"
 /** Sentinel range that effectively means "no date filter". */
@@ -131,6 +133,7 @@ function parseDateKey(key: string): Date | null {
 const MAX_DAY_COLUMNS = 31
 
 export default function WeeklyReportPage() {
+  useEggsPerCrate()   // re-render when the farm's crate size loads
   const router = useRouter()
   const [flocks, setFlocks] = useState<Flock[]>([])
   const [houses, setHouses] = useState<House[]>([])

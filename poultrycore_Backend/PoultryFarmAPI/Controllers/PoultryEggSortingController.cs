@@ -49,6 +49,20 @@ namespace PoultryFarmAPIWeb.Controllers
             return await Refusals(async () => { await _svc.SaveSettingsAsync(req, Actor()); return NoContent(); });
         }
 
+        /// <summary>393: Boxes / Crates / Pieces. Any user may read it (every egg screen converts with it).</summary>
+        [HttpGet("packaging")]
+        public async Task<ActionResult<EggPackagingSettings>> GetPackaging([FromQuery] string farmId)
+            => string.IsNullOrWhiteSpace(farmId) ? BadRequest("Company ID is required.") : Ok(await _svc.GetPackagingAsync(farmId));
+
+        /// <summary>Changes only how quantities are entered and shown: never stock, sales or movements.</summary>
+        [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
+        [HttpPut("packaging")]
+        public async Task<IActionResult> SavePackaging([FromBody] EggPackagingRequest req)
+        {
+            if (string.IsNullOrWhiteSpace(req.FarmId)) return BadRequest("Company ID is required.");
+            return await Refusals(async () => Ok(new { packagingVersion = await _svc.SavePackagingAsync(req, Actor()) }));
+        }
+
         /// <summary>Unsorted + sizes with eggs on hand. ensure=true seeds the default sizes the first time.</summary>
         [HttpGet("classes")]
         public async Task<ActionResult<IEnumerable<EggClass>>> GetClasses(
@@ -62,6 +76,15 @@ namespace PoultryFarmAPIWeb.Controllers
         {
             if (string.IsNullOrWhiteSpace(req.FarmId)) return BadRequest("Company ID is required.");
             return await Refusals(async () => Ok(new { eggSizeId = await _svc.SaveSizeAsync(req, Actor()) }));
+        }
+
+        /// <summary>394: crate, box and piece prices of one class (Unsorted / General or a size), by product id.</summary>
+        [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
+        [HttpPut("classes/{productId:int}/prices")]
+        public async Task<IActionResult> SetClassPrices(int productId, [FromBody] EggClassPricesRequest req)
+        {
+            if (string.IsNullOrWhiteSpace(req.FarmId)) return BadRequest("Company ID is required.");
+            return await Refusals(async () => { await _svc.SetClassPricesAsync(req.FarmId, productId, req, Actor()); return NoContent(); });
         }
 
         /// <summary>Default selling price per crate for one size (344). Null clears it.</summary>

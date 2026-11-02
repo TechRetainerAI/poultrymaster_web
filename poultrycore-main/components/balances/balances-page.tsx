@@ -96,8 +96,12 @@ export interface BalancesPageProps {
   afterSummary?: ReactNode | ((reload: () => void) => ReactNode)
   /** Buttons beside the page title (Poultry customers: Record customer debt). */
   headerActions?: (reload: () => void) => ReactNode
-  /** Shown under the balances table (Poultry customers: Customer Credit). */
-  afterTable?: ReactNode | ((reload: () => void) => ReactNode)
+  /**
+   * Shown under the balances table (Poultry customers: Customer Credit). A
+   * function also gets `paymentsVersion`, which goes up whenever a payment is
+   * posted or reversed here, so a panel can reload what a payment changed.
+   */
+  afterTable?: ReactNode | ((reload: () => void, paymentsVersion: number) => ReactNode)
   /**
    * Extra actions on one open document's row (Poultry customers: reverse a
    * customer debt). `compact` = the desktop table row, icon-sized.
@@ -820,7 +824,7 @@ export function BalancesPage({
 
           {afterTable && (
             <div className="mt-4">
-              {typeof afterTable === "function" ? afterTable(() => { void load() }) : afterTable}
+              {typeof afterTable === "function" ? afterTable(() => { void load() }, paymentsVersion) : afterTable}
             </div>
           )}
         </main>

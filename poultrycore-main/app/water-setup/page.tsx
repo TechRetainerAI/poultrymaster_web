@@ -50,6 +50,7 @@ import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { CurrencySelect } from "@/components/ui/currency-select"
+import { currencySymbolFor } from "@/lib/constants/currencies"
 import {
   listWaterProducts, deleteWaterProduct,
   listWaterCustomers, deleteWaterCustomer,
@@ -593,7 +594,8 @@ function CompanySettingsCard() {
       // 2. Persist currency / display settings.
       const next = await updateFarmCurrency({
         currencyCode: code.trim() || "GHS",
-        currencySymbol: symbol.trim() || "GHC",
+        // An empty symbol means "the currency's own", never a hard-coded GHC.
+        currencySymbol: symbol.trim() || currencySymbolFor(code) || code,
         showCurrencySymbol: showSymbol,
       })
       if (next) apply(next)
@@ -716,8 +718,12 @@ function CompanySettingsCard() {
                 "GHC" rather than the ICU symbol "₵". */}
             <CurrencySelect value={code} onChange={(o) => { setCode(o.code); setSymbol(o.symbol) }} />
           </FormField>
-          <FormField label="Currency symbol" hint="Prefix rendered before amounts. e.g. GHC, ₵, $, ₦.">
-            <Input value={symbol} onChange={(e) => setSymbol(e.target.value)} maxLength={10} />
+          <FormField label="Currency symbol" hint="Prefix rendered before amounts. e.g. GHC, ₵, $, ₦. To hide it, turn off the switch below.">
+            {/* Clearing the box restores the currency's standard symbol: hiding
+                is the switch's job, and a blank symbol used to save as "GHC". */}
+            <Input value={symbol} onChange={(e) => setSymbol(e.target.value)}
+              onBlur={() => { if (!symbol.trim()) setSymbol(currencySymbolFor(code) || code) }}
+              maxLength={10} />
           </FormField>
           <FormField label="Show currency symbol on pages" full>
             <div className="flex items-center justify-between rounded border p-2">

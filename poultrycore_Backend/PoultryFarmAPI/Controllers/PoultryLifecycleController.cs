@@ -66,10 +66,10 @@ namespace PoultryFarmAPIWeb.Controllers
         public async Task<IActionResult> Summary([FromQuery] string farmId)
             => NeedFarm(farmId) ?? Ok(await _svc.GetSummaryAsync(farmId));
 
-        // GET api/Poultry/lifecycle/tasks/history?farmId=&flockId=&milestoneId=
+        // GET api/Poultry/lifecycle/tasks/history?farmId=&flockId=&milestoneId=&occurrence=
         [HttpGet("tasks/history")]
-        public async Task<IActionResult> History([FromQuery] string farmId, [FromQuery] int flockId, [FromQuery] int? milestoneId)
-            => NeedFarm(farmId) ?? Ok(await _svc.GetHistoryAsync(farmId, flockId, milestoneId));
+        public async Task<IActionResult> History([FromQuery] string farmId, [FromQuery] int flockId, [FromQuery] int? milestoneId, [FromQuery] int? occurrence)
+            => NeedFarm(farmId) ?? Ok(await _svc.GetHistoryAsync(farmId, flockId, milestoneId, occurrence));
 
         // PUT api/Poultry/lifecycle/tasks/status?farmId=
         [HttpPut("tasks/status")]
@@ -115,6 +115,16 @@ namespace PoultryFarmAPIWeb.Controllers
             if (NeedFarm(farmId) is { } bad) return bad;
             var outcome = await _svc.DeleteTemplateAsync(farmId, id, Actor());
             return Ok(new { outcome });
+        });
+
+        // POST api/Poultry/lifecycle/ensure-defaults?farmId=&force=
+        // 387. The Ghana national vaccination schedule as two built-in plans.
+        // Once per farm (poultry.lifecycle.create); force=true re-adds a removed one.
+        [HttpPost("ensure-defaults")]
+        public Task<IActionResult> EnsureDefaults([FromQuery] string farmId, [FromQuery] bool force = false) => Run(async () =>
+        {
+            if (NeedFarm(farmId) is { } bad) return bad;
+            return Ok(await _svc.EnsureDefaultsAsync(farmId, Actor(), force));
         });
 
         // ------------------------------------------------------- assignments

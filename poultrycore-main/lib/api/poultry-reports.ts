@@ -18,6 +18,9 @@ export interface PoultryReportResponse<TSummary = any, TRow = any> {
   endDate?: string | null
   generatedAt: string
   eggsPerCrate: number
+  /** 393: today's crates per box / eggs per box (null = boxes off). */
+  cratesPerBox?: number | null
+  eggsPerBox?: number | null
   summary: TSummary | null
   rows: TRow[]
   warnings: string[]

@@ -29,6 +29,8 @@
 // =============================================================================
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useEggPackaging } from "@/hooks/use-egg-packaging"
+import { boxSize, formatEggQuantity } from "@/lib/poultry/egg-packaging"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -46,6 +48,8 @@ import {
   type ProductionRecordInput, type ProductionRecord,
 } from "@/lib/api/production-record"
 import { getFeedUsages } from "@/lib/api/feed-usage"
+import { getFeedUsageCandidates } from "@/lib/api/feed-usage-entries"
+import Link from "next/link"
 import {
   listPoultryRawMaterialItems, listPoultryRawMaterialPurchases,
   type PoultryRawMaterialItem, type PoultryRawMaterialPurchase,
@@ -58,7 +62,7 @@ import { PRODUCTION_EGG_GRADE, eggGradeToApi, formatEggGradeLabel, productionEgg
 import { isFinishedFeedCategory } from "@/lib/utils/feed-item-ledger"
 import { useToast } from "@/hooks/use-toast"
 import { toastFormGuide } from "@/lib/utils/validation-toast"
-import { FormSectionCard, CalcField, NumField, DispositionField } from "./production-record-fields"
+import { FormSectionCard, CalcField, NumField, DisposalSplitField, disposedCount, type DisposalMode } from "./production-record-fields"
 import {
   EGGS_PER_CRATE, birdsLeft as calcBirdsLeft, cratesEquivalent, effectiveFeedKg as calcEffectiveFeedKg,
   eggsExceedBirdsLeft, flockAge as calcFlockAge, netSellableEggs as calcNetSellable, pickTotal, resolveAge,
@@ -88,6 +92,8 @@ export interface ProductionRecordFormState {
     totalEggs: number
     totalCrates: number
     totalPieces: number
+    /** 393: "20 boxes" on a box farm, else null. Display only. */
+    boxesText?: string | null
     brokenEggs: number
     meatyEggs: number
     softEggs: number
@@ -177,7 +183,13 @@ export function ProductionRecordForm({
     // "" on an edit whose record came back without it (an older API): not sent,
     // so the saved choice is left as it is.
     brokenEggDisposition: "Keep" as "Keep" | "Disposed" | "",
+    // 390 / 391: keep all / dispose some / dispose all; *Disposed is the
+    // "some" count as typed.
+    brokenEggMode: "keep" as DisposalMode,
+    brokenEggsDisposed: "",
     mortalityDisposition: "Keep" as "Keep" | "Disposed" | "",
+    mortalityMode: "keep" as DisposalMode,
+    mortalityDisposed: "",
   })
 
   // Mark dirty on any user edit. Hydration uses setForm directly so loading a
@@ -274,22 +286,26 @@ export function ProductionRecordForm({
   const effectiveFeedKg = calcEffectiveFeedKg(feedComputed.totalConsumed, form.feedKg)
 
   // ------------------------------------------------------------ crate entry
+  // 393: a box farm also enters whole boxes per pick. A box is just
+  // crates-per-box crates, so the stored figures do not change.
+  const packaging = useEggPackaging()
+  const cpb = boxSize(packaging) ?? 0
   const [picks, setPicks] = useState({
-    morningCrates: 0, morningLoose: 0,
-    noonCrates: 0, noonLoose: 0,
-    eveningCrates: 0, eveningLoose: 0,
-    fourthCrates: 0, fourthLoose: 0,
-    fifthCrates: 0, fifthLoose: 0,
-    sixthCrates: 0, sixthLoose: 0,
+    morningBoxes: 0, morningCrates: 0, morningLoose: 0,
+    noonBoxes: 0, noonCrates: 0, noonLoose: 0,
+    eveningBoxes: 0, eveningCrates: 0, eveningLoose: 0,
+    fourthBoxes: 0, fourthCrates: 0, fourthLoose: 0,
+    fifthBoxes: 0, fifthCrates: 0, fifthLoose: 0,
+    sixthBoxes: 0, sixthCrates: 0, sixthLoose: 0,
   })
   const setPick = (p: Partial<typeof picks>) => { setDirty(true); setPicks((prev) => ({ ...prev, ...p })) }
 
-  const morningTotal = pickTotal(picks.morningCrates, picks.morningLoose)
-  const noonTotal = pickTotal(picks.noonCrates, picks.noonLoose)
-  const eveningTotal = pickTotal(picks.eveningCrates, picks.eveningLoose)
-  const fourthTotal = pickTotal(picks.fourthCrates, picks.fourthLoose)
-  const fifthTotal = pickTotal(picks.fifthCrates, picks.fifthLoose)
-  const sixthTotal = pickTotal(picks.sixthCrates, picks.sixthLoose)
+  const morningTotal = pickTotal(picks.morningBoxes * cpb + picks.morningCrates, picks.morningLoose)
+  const noonTotal = pickTotal(picks.noonBoxes * cpb + picks.noonCrates, picks.noonLoose)
+  const eveningTotal = pickTotal(picks.eveningBoxes * cpb + picks.eveningCrates, picks.eveningLoose)
+  const fourthTotal = pickTotal(picks.fourthBoxes * cpb + picks.fourthCrates, picks.fourthLoose)
+  const fifthTotal = pickTotal(picks.fifthBoxes * cpb + picks.fifthCrates, picks.fifthLoose)
+  const sixthTotal = pickTotal(picks.sixthBoxes * cpb + picks.sixthCrates, picks.sixthLoose)
 
   // Crates/loose drive the stored per-pick egg counts. Guarded on change so
   // hydrating an edit (which sets the totals directly) is not overwritten by a
@@ -312,6 +328,7 @@ export function ProductionRecordForm({
     // hiding the input must not quietly subtract eggs somebody already counted.
     (parseInt(form.fifth) || 0) + (parseInt(form.sixth) || 0)
   const { crates: totalCrates, pieces: totalPieces } = cratesEquivalent(total)
+  const boxesText = boxSize(packaging) != null ? formatEggQuantity(total, packaging, "BoxesCratesPieces") : null
 
   const brokenEggs = parseInt(form.brokenEggs) || 0
   const meatyEggs = parseInt(form.meatyEggs) || 0
@@ -470,24 +487,30 @@ export function ProductionRecordForm({
       medication: rec.medication ?? "",
       eggGrade: productionEggGrade(r0.eggGrade),
       brokenEggDisposition: r0.brokenEggDisposition === "Disposed" ? "Disposed" : r0.brokenEggDisposition === "Keep" ? "Keep" : "",
+      ...((m) => ({ brokenEggMode: m.mode, brokenEggsDisposed: m.disposed }))(
+        disposalModeFrom(r0.brokenEggs ?? 0, r0.brokenEggsDisposed, r0.brokenEggDisposition)),
       mortalityDisposition: r0.mortalityDisposition === "Disposed" ? "Disposed" : r0.mortalityDisposition === "Keep" ? "Keep" : "",
+      ...((m) => ({ mortalityMode: m.mode, mortalityDisposed: m.disposed }))(
+        disposalModeFrom(rec.mortality ?? 0, r0.mortalityDisposed, r0.mortalityDisposition)),
     })
 
-    // Crate boxes reflect the stored egg counts so the breakdown is editable.
-    setPicks({
-      morningCrates: Math.floor((rec.production9AM ?? 0) / EGGS_PER_CRATE),
-      morningLoose: (rec.production9AM ?? 0) % EGGS_PER_CRATE,
-      noonCrates: Math.floor((rec.production12PM ?? 0) / EGGS_PER_CRATE),
-      noonLoose: (rec.production12PM ?? 0) % EGGS_PER_CRATE,
-      eveningCrates: Math.floor((rec.production4PM ?? 0) / EGGS_PER_CRATE),
-      eveningLoose: (rec.production4PM ?? 0) % EGGS_PER_CRATE,
-      fourthCrates: Math.floor((r0.production4thPick ?? 0) / EGGS_PER_CRATE),
-      fourthLoose: (r0.production4thPick ?? 0) % EGGS_PER_CRATE,
-      fifthCrates: Math.floor((r0.production5thPick ?? 0) / EGGS_PER_CRATE),
-      fifthLoose: (r0.production5thPick ?? 0) % EGGS_PER_CRATE,
-      sixthCrates: Math.floor((r0.production6thPick ?? 0) / EGGS_PER_CRATE),
-      sixthLoose: (r0.production6thPick ?? 0) % EGGS_PER_CRATE,
-    })
+    // Crate boxes reflect the stored egg counts so the breakdown is editable:
+    // whole boxes first on a box farm, then crates, then pieces.
+    const splitPick = (k: string, eggs: number) => {
+      const perBox = cpb * EGGS_PER_CRATE
+      const b = perBox > 0 ? Math.floor(eggs / perBox) : 0
+      const rest = eggs - b * perBox
+      return { [`${k}Boxes`]: b, [`${k}Crates`]: Math.floor(rest / EGGS_PER_CRATE), [`${k}Loose`]: rest % EGGS_PER_CRATE }
+    }
+    setPicks((prev) => ({
+      ...prev,
+      ...splitPick("morning", rec.production9AM ?? 0),
+      ...splitPick("noon", rec.production12PM ?? 0),
+      ...splitPick("evening", rec.production4PM ?? 0),
+      ...splitPick("fourth", r0.production4thPick ?? 0),
+      ...splitPick("fifth", r0.production5thPick ?? 0),
+      ...splitPick("sixth", r0.production6thPick ?? 0),
+    }))
 
     // Credit = what this record already consumed, so the edit preview reverses
     // it the way the server will on save. Fall back to the legacy single
@@ -581,12 +604,12 @@ export function ProductionRecordForm({
 
   // ------------------------------------------------------------ lift state
   const summary = useMemo(() => ({
-    totalEggs: total, totalCrates, totalPieces,
+    totalEggs: total, totalCrates, totalPieces, boxesText,
     brokenEggs, meatyEggs, softEggs, lostEggs,
     totalLosses, netSellableEggs,
     deaths: mortalityNum, birdsLeft,
     feedCost: totalFeedCost, medicationCost: totalMedicationCost, totalCost: totalCostOfProduction,
-  }), [total, totalCrates, totalPieces, brokenEggs, meatyEggs, softEggs, lostEggs,
+  }), [total, totalCrates, totalPieces, boxesText, brokenEggs, meatyEggs, softEggs, lostEggs,
        totalLosses, netSellableEggs, mortalityNum, birdsLeft,
        totalFeedCost, totalMedicationCost, totalCostOfProduction])
 
@@ -673,8 +696,10 @@ export function ProductionRecordForm({
         production5thPick: parseInt(form.fifth) || 0,
         production6thPick: parseInt(form.sixth) || 0,
         brokenEggs: parseInt(form.brokenEggs) || 0,
-        brokenEggDisposition: form.brokenEggDisposition || undefined,
-        mortalityDisposition: form.mortalityDisposition || undefined,
+        ...((p) => ({ brokenEggsDisposed: p.disposed, brokenEggDisposition: p.disposition }))(
+          disposalPayload(form.brokenEggMode, form.brokenEggsDisposed, form.brokenEggDisposition, parseInt(form.brokenEggs) || 0)),
+        ...((p) => ({ mortalityDisposed: p.disposed, mortalityDisposition: p.disposition }))(
+          disposalPayload(form.mortalityMode, form.mortalityDisposed, form.mortalityDisposition, parseInt(form.mortality) || 0)),
         meatyEggs: form.meatyEggs === "" ? null : parseInt(form.meatyEggs) || 0,
         softEggs: form.softEggs === "" ? null : parseInt(form.softEggs) || 0,
         lostEggs: form.lostEggs === "" ? null : parseInt(form.lostEggs) || 0,
@@ -690,6 +715,8 @@ export function ProductionRecordForm({
         totalMedicationConsumed: null, totalMedicationCost: null,
         medications: medComputed.medications,
         totalCostOfProduction: Number(totalCostOfProduction.toFixed(2)),
+        // 389: saving a feed-only record from this form makes it production.
+        markRecorded: isEdit && loadedRecord?.sourceType === "FeedUsage",
       }
 
       let savedId: number | null = null
@@ -727,6 +754,22 @@ export function ProductionRecordForm({
     }
   }
 
+  // 389: Feed Usage may already have made a feed-only record for this flock-day.
+  // A new record for it completes that record on the server (its feed is kept),
+  // so say so here -- otherwise the same feed could be typed in twice.
+  const [feedOnlyHere, setFeedOnlyHere] = useState<{ recordId: number; feedLines: string | null } | null>(null)
+  useEffect(() => {
+    if (isEdit || !form.flockId || !form.date) { setFeedOnlyHere(null); return }
+    let live = true
+    getFeedUsageCandidates(form.date)
+      .then((cands) => {
+        const c = cands.find((x) => String(x.flockId) === form.flockId)
+        if (live) setFeedOnlyHere(c?.recordStatus === "FeedOnly" && c.productionRecordId ? { recordId: c.productionRecordId, feedLines: c.feedLines } : null)
+      })
+      .catch(() => { if (live) setFeedOnlyHere(null) })
+    return () => { live = false }
+  }, [isEdit, form.flockId, form.date])
+
   // ---------------------------------------------------------------- render
   if (loading) {
     return (
@@ -737,26 +780,26 @@ export function ProductionRecordForm({
   }
 
   const pickRows = [
-    { key: "morning", label: pickLabelText.first, crates: picks.morningCrates, loose: picks.morningLoose,
+    { key: "morning", label: pickLabelText.first, boxes: picks.morningBoxes, setB: (v: number | string) => setPick({ morningBoxes: Number(v) || 0 }), crates: picks.morningCrates, loose: picks.morningLoose,
       setC: (v: number | string) => setPick({ morningCrates: Number(v) || 0 }), setL: (v: number | string) => setPick({ morningLoose: Number(v) || 0 }), total: morningTotal },
-    { key: "noon", label: pickLabelText.second, crates: picks.noonCrates, loose: picks.noonLoose,
+    { key: "noon", label: pickLabelText.second, boxes: picks.noonBoxes, setB: (v: number | string) => setPick({ noonBoxes: Number(v) || 0 }), crates: picks.noonCrates, loose: picks.noonLoose,
       setC: (v: number | string) => setPick({ noonCrates: Number(v) || 0 }), setL: (v: number | string) => setPick({ noonLoose: Number(v) || 0 }), total: noonTotal },
-    { key: "evening", label: pickLabelText.third, crates: picks.eveningCrates, loose: picks.eveningLoose,
+    { key: "evening", label: pickLabelText.third, boxes: picks.eveningBoxes, setB: (v: number | string) => setPick({ eveningBoxes: Number(v) || 0 }), crates: picks.eveningCrates, loose: picks.eveningLoose,
       setC: (v: number | string) => setPick({ eveningCrates: Number(v) || 0 }), setL: (v: number | string) => setPick({ eveningLoose: Number(v) || 0 }), total: eveningTotal },
     // Each later pick is shown when the farm has enabled it (Business office →
     // Egg pick settings) OR when this record already carries eggs for it —
     // otherwise turning a pick off would hide eggs that are still in the total
     // and still in the ledger, with no way to correct them.
     ...(enableFourthPick || fourthTotal > 0
-      ? [{ key: "fourth", label: pickLabelText.fourth, crates: picks.fourthCrates, loose: picks.fourthLoose,
+      ? [{ key: "fourth", label: pickLabelText.fourth, boxes: picks.fourthBoxes, setB: (v: number | string) => setPick({ fourthBoxes: Number(v) || 0 }), crates: picks.fourthCrates, loose: picks.fourthLoose,
            setC: (v: number | string) => setPick({ fourthCrates: Number(v) || 0 }), setL: (v: number | string) => setPick({ fourthLoose: Number(v) || 0 }), total: fourthTotal }]
       : []),
     ...(enableFifthPick || fifthTotal > 0
-      ? [{ key: "fifth", label: pickLabelText.fifth, crates: picks.fifthCrates, loose: picks.fifthLoose,
+      ? [{ key: "fifth", label: pickLabelText.fifth, boxes: picks.fifthBoxes, setB: (v: number | string) => setPick({ fifthBoxes: Number(v) || 0 }), crates: picks.fifthCrates, loose: picks.fifthLoose,
            setC: (v: number | string) => setPick({ fifthCrates: Number(v) || 0 }), setL: (v: number | string) => setPick({ fifthLoose: Number(v) || 0 }), total: fifthTotal }]
       : []),
     ...(enableSixthPick || sixthTotal > 0
-      ? [{ key: "sixth", label: pickLabelText.sixth, crates: picks.sixthCrates, loose: picks.sixthLoose,
+      ? [{ key: "sixth", label: pickLabelText.sixth, boxes: picks.sixthBoxes, setB: (v: number | string) => setPick({ sixthBoxes: Number(v) || 0 }), crates: picks.sixthCrates, loose: picks.sixthLoose,
            setC: (v: number | string) => setPick({ sixthCrates: Number(v) || 0 }), setL: (v: number | string) => setPick({ sixthLoose: Number(v) || 0 }), total: sixthTotal }]
       : []),
   ]
@@ -771,6 +814,22 @@ export function ProductionRecordForm({
       {flocksError && !error && (
         <Alert>
           <AlertDescription>{flocksError}</AlertDescription>
+        </Alert>
+      )}
+
+      {isEdit && loadedRecord?.sourceType === "FeedUsage" && (
+        <Alert className="border-amber-200 bg-amber-50">
+          <AlertDescription className="text-amber-900">
+            Feed was recorded for this day from Feed Usage, but production has not been filled in yet. Fill in the eggs, birds and deaths, then save. The day counts as recorded once you save.
+          </AlertDescription>
+        </Alert>
+      )}
+      {feedOnlyHere && (
+        <Alert className="border-amber-200 bg-amber-50">
+          <AlertDescription className="text-amber-900">
+            Feed is already recorded for this flock on this day{feedOnlyHere.feedLines ? ` (${feedOnlyHere.feedLines})` : ""}. It is kept, and any feed you add below is added to it. Do not enter it again.{" "}
+            <Link href={`/production-records/${feedOnlyHere.recordId}`} className="font-medium underline">Open that record instead</Link>
+          </AlertDescription>
         </Alert>
       )}
 
@@ -833,7 +892,7 @@ export function ProductionRecordForm({
       {/* --------------------------------------------- Egg Production */}
       <FormSectionCard
         title="Egg Production"
-        description={`Total = crates × ${EGGS_PER_CRATE} + loose eggs`}
+        description={`Total = ${cpb ? `boxes × ${cpb} crates + ` : ""}crates × ${EGGS_PER_CRATE} + pieces`}
         badge={`${total.toLocaleString()} eggs`}
         accent="amber"
         icon={Egg}
@@ -841,20 +900,18 @@ export function ProductionRecordForm({
         {/* Two picks per line from lg up (1st + 2nd, then 3rd + 4th); one per
             line below that. The field columns are capped rather than fixed so a
             half-width card shrinks them instead of overflowing. */}
-        <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-x-4 gap-y-3 lg:grid-cols-2">
           {pickRows.map((p) => (
-            <div key={p.key} className="grid grid-cols-1 items-end gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 sm:grid-cols-[minmax(7.5rem,1fr)_minmax(0,6.75rem)_minmax(0,6.75rem)_minmax(0,6.5rem)]">
-              {/* text-xs + nowrap keeps the longest label — "4th Pick (12:00 PM)"
-                  — on one line; the 7.5rem column minimum is what guarantees it
-                  the room, so the two must stay in step.
-                  The row is items-end, which would sit this flush with the foot
-                  of the inputs. sm:pb-2.5 lifts it by half the difference
-                  between the 36px input and this 16px line, centring it against
-                  the input rather than the whole cell. */}
-              <div className="whitespace-nowrap text-xs font-medium text-slate-700 sm:pb-2.5">{p.label}</div>
-              <NumField label="Crates" value={p.crates} onChange={p.setC} />
-              <NumField label="Loose eggs" value={p.loose} onChange={p.setL} max={EGGS_PER_CRATE - 1} />
-              <CalcField label="Total eggs" value={p.total.toLocaleString()} />
+            // The pick name sits above its card; the card holds only the
+            // numbers, in equal columns.
+            <div key={p.key} className="space-y-1">
+              <div className="px-0.5 text-xs font-semibold text-slate-700">{p.label}</div>
+              <div className={`grid items-end gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 ${cpb ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>
+                {cpb > 0 && <NumField label="Boxes" value={p.boxes} onChange={p.setB} />}
+                <NumField label="Crates" value={p.crates} onChange={p.setC} />
+                <NumField label="Pieces" value={p.loose} onChange={p.setL} max={EGGS_PER_CRATE - 1} />
+                <CalcField label="Total eggs" value={p.total.toLocaleString()} />
+              </div>
             </div>
           ))}
         </div>
@@ -863,9 +920,16 @@ export function ProductionRecordForm({
           <span className="text-slate-500">
             Crates equivalent
             <b className="ml-1 text-slate-900 tabular-nums">
-              {totalCrates} crate{totalCrates === 1 ? "" : "s"}{totalPieces > 0 ? ` + ${totalPieces} egg${totalPieces === 1 ? "" : "s"}` : ""}
+              {totalCrates} crate{totalCrates === 1 ? "" : "s"}{totalPieces > 0 ? ` + ${totalPieces} pcs` : ""}
             </b>
           </span>
+          {/* 393: a box farm also sees boxes. Display only -- production is
+              still recorded in eggs, and no figure here changes. */}
+          {boxesText && (
+            <span className="text-slate-500">
+              Boxes equivalent <b className="ml-1 text-slate-900 tabular-nums">{boxesText}</b>
+            </span>
+          )}
         </div>
         {eggsOverBirds && (
           <div className="mt-2 flex items-start gap-2 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
@@ -891,13 +955,19 @@ export function ProductionRecordForm({
           <CalcField label="Net sellable" value={netSellableEggs.toLocaleString()} tone="good" />
         </div>
         <div className="mt-3">
-          <DispositionField
+          <DisposalSplitField
             label="Broken Egg Stock allocation"
+            noun={["broken egg", "broken eggs"]}
+            stockName="Broken Egg stock"
             count={brokenEggs}
-            value={form.brokenEggDisposition || "Keep"}
-            onChange={(v) => patch({ brokenEggDisposition: v })}
-            keepText={`${brokenEggs.toLocaleString()} broken egg${brokenEggs === 1 ? "" : "s"} will be added to Broken Egg stock.`}
-            disposedText={`${brokenEggs.toLocaleString()} broken egg${brokenEggs === 1 ? "" : "s"} recorded and disposed of. Nothing is added to stock.`}
+            mode={form.brokenEggMode}
+            disposed={form.brokenEggsDisposed}
+            onChange={(p) => patch({
+              // Any choice here is a choice: lifts the "" (not loaded) marker.
+              ...(form.brokenEggDisposition === "" ? { brokenEggDisposition: "Keep" as const } : {}),
+              ...(p.mode ? { brokenEggMode: p.mode } : {}),
+              ...(p.disposed !== undefined ? { brokenEggsDisposed: p.disposed } : {}),
+            })}
           />
         </div>
       </FormSectionCard>
@@ -928,13 +998,19 @@ export function ProductionRecordForm({
           )}
         </div>
         <div className="mt-3">
-          <DispositionField
+          <DisposalSplitField
             label="Dead Bird Stock allocation"
+            noun={["dead bird", "dead birds"]}
+            stockName="Dead Bird stock"
             count={mortalityNum}
-            value={form.mortalityDisposition || "Keep"}
-            onChange={(v) => patch({ mortalityDisposition: v })}
-            keepText={`${mortalityNum.toLocaleString()} live bird${mortalityNum === 1 ? "" : "s"} removed; kept as Dead Birds stock.`}
-            disposedText={`${mortalityNum.toLocaleString()} live bird${mortalityNum === 1 ? "" : "s"} removed; recorded and disposed of, nothing kept.`}
+            mode={form.mortalityMode}
+            disposed={form.mortalityDisposed}
+            onChange={(p) => patch({
+              // Any choice here is a choice: lifts the "" (not loaded) marker.
+              ...(form.mortalityDisposition === "" ? { mortalityDisposition: "Keep" as const } : {}),
+              ...(p.mode ? { mortalityMode: p.mode } : {}),
+              ...(p.disposed !== undefined ? { mortalityDisposed: p.disposed } : {}),
+            })}
           />
         </div>
         <label className="mt-3 flex items-center gap-2 text-sm text-slate-600">
@@ -1050,6 +1126,7 @@ export function ProductionRecordForm({
         <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3 lg:grid-cols-4">
           <SummaryItem label="Total eggs" value={total.toLocaleString()} />
           <SummaryItem label="Total crates" value={`${totalCrates} + ${totalPieces}`} />
+          {boxesText && <SummaryItem label="Boxes equivalent" value={boxesText} />}
           <SummaryItem label="Broken" value={brokenEggs.toLocaleString()} />
           <SummaryItem label="Meaty" value={meatyEggs.toLocaleString()} />
           <SummaryItem label="Soft" value={softEggs.toLocaleString()} />
@@ -1085,4 +1162,34 @@ function SummaryItem({ label, value, strong }: { label: string; value: string; s
       <span className={cn("tabular-nums", strong ? "font-semibold text-slate-900" : "text-slate-800")}>{value}</span>
     </div>
   )
+}
+
+/**
+ * 390 / 391: the form's disposal mode from a saved record. An older API sends
+ * no count, so the Keep / Disposed choice decides (none / all).
+ */
+function disposalModeFrom(
+  count: number, disposed: number | null | undefined, disposition: string | undefined,
+): { mode: DisposalMode; disposed: string } {
+  const out = disposed ?? (disposition === "Disposed" ? count : 0)
+  if (out <= 0) return { mode: "keep", disposed: "" }
+  if (out >= count) return { mode: "all", disposed: "" }
+  return { mode: "some", disposed: String(out) }
+}
+
+/**
+ * 390 / 391: what the save sends for the broken eggs or the dead birds. The
+ * count is the authority; Keep / Disposed rides along for none / all only, so
+ * an older API never reads "some" as "all". An edit whose record came back
+ * without a choice ("") sends nothing until the user picks one, so the saved
+ * choice is left alone.
+ */
+function disposalPayload(
+  mode: DisposalMode, disposed: string, disposition: "Keep" | "Disposed" | "", count: number,
+): { disposed?: number; disposition?: "Keep" | "Disposed" } {
+  if (disposition === "") return {}
+  const out = disposedCount(mode, disposed, count)
+  if (out === 0) return { disposed: 0, disposition: "Keep" }
+  if (out === count) return { disposed: out, disposition: "Disposed" }
+  return { disposed: out }
 }

@@ -1,6 +1,8 @@
 "use client"
 
 import { useEggsPerCrate } from "@/hooks/use-eggs-per-crate"
+import { useEggPackaging } from "@/hooks/use-egg-packaging"
+import { boxSize, formatEggQuantity } from "@/lib/poultry/egg-packaging"
 import { useEffect, useMemo, useState } from "react"
 import { parseDateParam } from "@/lib/utils/date-param"
 import { useRouter } from "next/navigation"
@@ -299,6 +301,9 @@ export default function BatchProductionRecordsPage() {
   const EGGS_PER_CRATE = useEggsPerCrate()
   const totalEggsCrates = Math.floor(totalEggs / EGGS_PER_CRATE)
   const totalEggsPieces = totalEggs % EGGS_PER_CRATE
+  // 393: the box equivalent on a box farm (display only), else null.
+  const eggPackaging = useEggPackaging()
+  const totalEggsBoxes = boxSize(eggPackaging) != null ? formatEggQuantity(totalEggs, eggPackaging, "BoxesCratesPieces") : null
 
   // Sort filtered data
   const sortedFiltered = useMemo(() => {
@@ -483,7 +488,7 @@ export default function BatchProductionRecordsPage() {
 
     doc.setFontSize(9)
     doc.text(
-      `Total Eggs: ${totalEggs.toLocaleString()} (${totalEggsCrates} crates + ${totalEggsPieces} pcs)  |  Feed: ${totalFeed.toFixed(2)} kg  |  Deaths: ${totalDeaths}  |  Pending: ${pendingCount}  |  Posted: ${postedCount}`,
+      `Total Eggs: ${totalEggs.toLocaleString()} (${totalEggsCrates} crates + ${totalEggsPieces} pcs${totalEggsBoxes ? ` = ${totalEggsBoxes}` : ""})  |  Feed: ${totalFeed.toFixed(2)} kg  |  Deaths: ${totalDeaths}  |  Pending: ${pendingCount}  |  Posted: ${postedCount}`,
       14, 31,
     )
 
@@ -812,7 +817,7 @@ export default function BatchProductionRecordsPage() {
                 <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
                   <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Eggs</div>
                   <div className={cn("font-bold text-emerald-600", isMobile ? "text-lg mt-0.5" : "text-xl mt-1")}>{totalEggs.toLocaleString()}</div>
-                  <div className="text-xs text-slate-400 mt-0.5">{totalEggsCrates}c + {totalEggsPieces}p</div>
+                  <div className="text-xs text-slate-400 mt-0.5">{totalEggsCrates}c + {totalEggsPieces}p{totalEggsBoxes ? ` ≈ ${totalEggsBoxes}` : ""}</div>
                 </div>
                 <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
                   <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">Pending Allocation</div>

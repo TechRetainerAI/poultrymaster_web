@@ -38,6 +38,8 @@ export interface PoultryRawMaterialItem {
   costRecognitionSource?: CostRecognitionSource
   /** Which farm setting this item's category listens to, if any. Read-only. */
   costRecognitionCategoryGroup?: CostRecognitionGroup
+  /** One of the seeded default feeds / ingredients (migration 388). Read-only. */
+  isDefault?: boolean
 
   createdAt: string
   updatedAt?: string | null
@@ -581,12 +583,19 @@ export interface PoultryManualMovementInput {
   disposition?: "Keep" | "Disposed" | null
   note?: string | null
   requestKey?: string | null
+  /** 395: an egg movement entered as boxes / crates / pieces (the server converts; quantity is ignored). */
+  boxes?: number
+  crates?: number
+  pieces?: number
 }
 
 export interface PoultryManualMovementResult {
   movementId: number
   movementNo: string
   repeated: boolean
+  /** 395: eggs posted, and how they were entered ("1 box + 2 crates + 5 pcs"). */
+  eggs?: number
+  packaging?: string
   itemBefore?: number | null
   itemAfter?: number | null
   farmLiveBirds?: number | null
@@ -635,6 +644,12 @@ export interface PoultryManualMovement {
   reversedAt: string | null
   reversedBy: string | null
   reversalReason: string | null
+  /** 395: how an egg movement was entered, with that day's conversion (null otherwise). */
+  boxes?: number | null
+  crates?: number | null
+  pieces?: number | null
+  eggsPerCrate?: number | null
+  cratesPerBox?: number | null
 }
 
 export const listPoultryManualMovements = () =>

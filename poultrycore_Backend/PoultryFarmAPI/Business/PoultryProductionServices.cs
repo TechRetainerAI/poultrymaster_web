@@ -242,6 +242,7 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<string> PostManualMovementAsync(PoultryManualMovementRequest m)
         {
+            if (m.Boxes is not null || m.Crates is not null || m.Pieces is not null) return await PostPackagedMovementAsync(m);
             using var c = new NpgsqlConnection(_cs); using var cmd = new NpgsqlCommand(
                 "SELECT sppoultrymanualmovement_post(p_farmid => @FarmId::text, p_poultryproductid => @P::int, p_rawmaterialitemid => @R::int, " +
                 "p_movementtype => @Type::text, p_quantity => @Qty::numeric, p_unitcost => @Cost::numeric, p_batchid => @B::int, p_flockid => @F::int, " +
@@ -254,6 +255,27 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@B", (object?)m.BatchId ?? DBNull.Value); cmd.Parameters.AddWithValue("@F", (object?)m.FlockId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Date", m.EffectiveDate.HasValue ? m.EffectiveDate.Value.Date : DBNull.Value);
             cmd.Parameters.AddWithValue("@Reason", m.Reason ?? string.Empty); cmd.Parameters.AddWithValue("@Disp", (object?)m.Disposition ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Note", (object?)m.Note ?? DBNull.Value); cmd.Parameters.AddWithValue("@Key", (object?)m.RequestKey ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@By", (object?)m.CreatedBy ?? DBNull.Value);
+            await c.OpenAsync(); return (string?)await cmd.ExecuteScalarAsync() ?? "{}";
+        }
+
+        /// <summary>395: an egg movement entered as boxes / crates / pieces; the database converts and posts it.</summary>
+        private async Task<string> PostPackagedMovementAsync(PoultryManualMovementRequest m)
+        {
+            using var c = new NpgsqlConnection(_cs); using var cmd = new NpgsqlCommand(
+                "SELECT sppoultrymanualmovement_postpackaged(p_farmid => @FarmId::text, p_poultryproductid => @P::int, " +
+                "p_movementtype => @Type::text, p_boxes => @Bx::int, p_crates => @Cr::int, p_pieces => @Pc::int, " +
+                "p_unitcost => @Cost::numeric, p_batchid => @B::int, p_flockid => @F::int, p_effectivedate => @Date::date, " +
+                "p_reason => @Reason::text, p_note => @Note::text, p_requestkey => @Key::text, p_by => @By::text)::text", c);
+            cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
+            cmd.Parameters.AddWithValue("@P", (object?)m.PoultryProductId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Type", m.MovementType ?? string.Empty);
+            cmd.Parameters.AddWithValue("@Bx", m.Boxes ?? 0); cmd.Parameters.AddWithValue("@Cr", m.Crates ?? 0); cmd.Parameters.AddWithValue("@Pc", m.Pieces ?? 0);
+            cmd.Parameters.AddWithValue("@Cost", (object?)m.UnitCost ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@B", (object?)m.BatchId ?? DBNull.Value); cmd.Parameters.AddWithValue("@F", (object?)m.FlockId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Date", m.EffectiveDate.HasValue ? m.EffectiveDate.Value.Date : DBNull.Value);
+            cmd.Parameters.AddWithValue("@Reason", m.Reason ?? string.Empty);
             cmd.Parameters.AddWithValue("@Note", (object?)m.Note ?? DBNull.Value); cmd.Parameters.AddWithValue("@Key", (object?)m.RequestKey ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@By", (object?)m.CreatedBy ?? DBNull.Value);
             await c.OpenAsync(); return (string?)await cmd.ExecuteScalarAsync() ?? "{}";
@@ -355,6 +377,12 @@ namespace PoultryFarmAPIWeb.Business
                 BirdAdjustmentId = r.IntN("BirdAdjustmentId"), RawAdjustmentId = r.IntN("RawAdjustmentId"),
                 Status = r.Str("Status"), CreatedBy = r.StrN("CreatedBy"), CreatedAt = r.Date("CreatedAt"),
                 ReversedAt = r.DateN("ReversedAt"), ReversedBy = r.StrN("ReversedBy"), ReversalReason = r.StrN("ReversalReason"),
+                // 395 columns; absent before 395.
+                Boxes = r.Has("QtyBoxes") ? r.IntN("QtyBoxes") : null,
+                Crates = r.Has("QtyCrates") ? r.IntN("QtyCrates") : null,
+                Pieces = r.Has("QtyPieces") ? r.IntN("QtyPieces") : null,
+                EggsPerCrate = r.Has("EggsPerCrate") ? r.IntN("EggsPerCrate") : null,
+                CratesPerBox = r.Has("CratesPerBox") ? r.IntN("CratesPerBox") : null,
             });
             return list;
         }
