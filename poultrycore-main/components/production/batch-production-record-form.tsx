@@ -262,25 +262,29 @@ export function BatchProductionRecordForm({
   const effectiveFeedKg = calcEffectiveFeedKg(feedComputed.totalConsumed, form.feedKg)
 
   // ---- Crate entry --------------------------------------------------------
+  // 393: a box farm also enters whole boxes per pick. A box is just
+  // crates-per-box crates, so the stored figures do not change.
+  const packaging = useEggPackaging()
+  const cpb = boxSize(packaging) ?? 0
   const [picks, setPicks] = useState({
     firstCrates: 0, firstLoose: 0, secondCrates: 0, secondLoose: 0,
     thirdCrates: 0, thirdLoose: 0, fourthCrates: 0, fourthLoose: 0,
     fifthCrates: 0, fifthLoose: 0, sixthCrates: 0, sixthLoose: 0,
+    firstBoxes: 0, secondBoxes: 0, thirdBoxes: 0, fourthBoxes: 0, fifthBoxes: 0, sixthBoxes: 0,
   })
   const setPick = (p: Partial<typeof picks>) => { setDirty(true); setPicks((prev) => ({ ...prev, ...p })) }
 
-  const firstTotal = pickTotal(picks.firstCrates, picks.firstLoose)
-  const secondTotal = pickTotal(picks.secondCrates, picks.secondLoose)
-  const thirdTotal = pickTotal(picks.thirdCrates, picks.thirdLoose)
-  const fourthTotal = pickTotal(picks.fourthCrates, picks.fourthLoose)
-  const fifthTotal = pickTotal(picks.fifthCrates, picks.fifthLoose)
-  const sixthTotal = pickTotal(picks.sixthCrates, picks.sixthLoose)
+  const firstTotal = pickTotal(picks.firstBoxes * cpb + picks.firstCrates, picks.firstLoose)
+  const secondTotal = pickTotal(picks.secondBoxes * cpb + picks.secondCrates, picks.secondLoose)
+  const thirdTotal = pickTotal(picks.thirdBoxes * cpb + picks.thirdCrates, picks.thirdLoose)
+  const fourthTotal = pickTotal(picks.fourthBoxes * cpb + picks.fourthCrates, picks.fourthLoose)
+  const fifthTotal = pickTotal(picks.fifthBoxes * cpb + picks.fifthCrates, picks.fifthLoose)
+  const sixthTotal = pickTotal(picks.sixthBoxes * cpb + picks.sixthCrates, picks.sixthLoose)
   // Every pick counts towards the batch total, including one the farm has
   // since switched off — the allocation has to balance against what was
   // actually entered, not against what is currently on offer.
   const totalEggs = firstTotal + secondTotal + thirdTotal + fourthTotal + fifthTotal + sixthTotal
   const { crates: totalCrates, pieces: totalPieces } = cratesEquivalent(totalEggs)
-  const packaging = useEggPackaging()
   const boxesText = boxSize(packaging) != null ? formatEggQuantity(totalEggs, packaging, "BoxesCratesPieces") : null
 
   const brokenEggs = parseInt(form.brokenEggs) || 0
@@ -353,14 +357,19 @@ export function BatchProductionRecordForm({
             )
             setBatchName(r.batchName ?? "")
             setSelectedFlockIds((r.includedFlocks ?? []).map((f) => f.flockId))
-            setPicks({
-              firstCrates: r.firstPickCrates ?? 0, firstLoose: r.firstPickLooseEggs ?? 0,
-              secondCrates: r.secondPickCrates ?? 0, secondLoose: r.secondPickLooseEggs ?? 0,
-              thirdCrates: r.thirdPickCrates ?? 0, thirdLoose: r.thirdPickLooseEggs ?? 0,
-              fourthCrates: r.fourthPickCrates ?? 0, fourthLoose: r.fourthPickLooseEggs ?? 0,
-              fifthCrates: r.fifthPickCrates ?? 0, fifthLoose: r.fifthPickLooseEggs ?? 0,
-              sixthCrates: r.sixthPickCrates ?? 0, sixthLoose: r.sixthPickLooseEggs ?? 0,
-            })
+            // Stored crates come back as whole boxes + crates on a box farm.
+            const splitCrates = (k: string, c: number) => cpb > 0
+              ? { [`${k}Boxes`]: Math.floor(c / cpb), [`${k}Crates`]: c % cpb }
+              : { [`${k}Boxes`]: 0, [`${k}Crates`]: c }
+            setPicks((prev) => ({
+              ...prev,
+              ...splitCrates("first", r.firstPickCrates ?? 0), firstLoose: r.firstPickLooseEggs ?? 0,
+              ...splitCrates("second", r.secondPickCrates ?? 0), secondLoose: r.secondPickLooseEggs ?? 0,
+              ...splitCrates("third", r.thirdPickCrates ?? 0), thirdLoose: r.thirdPickLooseEggs ?? 0,
+              ...splitCrates("fourth", r.fourthPickCrates ?? 0), fourthLoose: r.fourthPickLooseEggs ?? 0,
+              ...splitCrates("fifth", r.fifthPickCrates ?? 0), fifthLoose: r.fifthPickLooseEggs ?? 0,
+              ...splitCrates("sixth", r.sixthPickCrates ?? 0), sixthLoose: r.sixthPickLooseEggs ?? 0,
+            }))
             setForm({
               date: (r.productionDate || "").split("T")[0] || today,
               brokenEggs: numStr(r.brokenEggs), meatyEggs: numStr(r.meatyEggs),
@@ -444,12 +453,12 @@ export function BatchProductionRecordForm({
         ageInWeeks: isSpecific ? ageWeeks : null,
         ageInDays: isSpecific ? ageDays : null,
         ageDisplay,
-        firstPickCrates: picks.firstCrates, firstPickLooseEggs: picks.firstLoose, firstPickTotal: firstTotal,
-        secondPickCrates: picks.secondCrates, secondPickLooseEggs: picks.secondLoose, secondPickTotal: secondTotal,
-        thirdPickCrates: picks.thirdCrates, thirdPickLooseEggs: picks.thirdLoose, thirdPickTotal: thirdTotal,
-        fourthPickCrates: picks.fourthCrates, fourthPickLooseEggs: picks.fourthLoose, fourthPickTotal: fourthTotal,
-        fifthPickCrates: picks.fifthCrates, fifthPickLooseEggs: picks.fifthLoose, fifthPickTotal: fifthTotal,
-        sixthPickCrates: picks.sixthCrates, sixthPickLooseEggs: picks.sixthLoose, sixthPickTotal: sixthTotal,
+        firstPickCrates: picks.firstBoxes * cpb + picks.firstCrates, firstPickLooseEggs: picks.firstLoose, firstPickTotal: firstTotal,
+        secondPickCrates: picks.secondBoxes * cpb + picks.secondCrates, secondPickLooseEggs: picks.secondLoose, secondPickTotal: secondTotal,
+        thirdPickCrates: picks.thirdBoxes * cpb + picks.thirdCrates, thirdPickLooseEggs: picks.thirdLoose, thirdPickTotal: thirdTotal,
+        fourthPickCrates: picks.fourthBoxes * cpb + picks.fourthCrates, fourthPickLooseEggs: picks.fourthLoose, fourthPickTotal: fourthTotal,
+        fifthPickCrates: picks.fifthBoxes * cpb + picks.fifthCrates, fifthPickLooseEggs: picks.fifthLoose, fifthPickTotal: fifthTotal,
+        sixthPickCrates: picks.sixthBoxes * cpb + picks.sixthCrates, sixthPickLooseEggs: picks.sixthLoose, sixthPickTotal: sixthTotal,
         brokenEggs: form.brokenEggs === "" ? null : parseInt(form.brokenEggs) || 0,
         meatyEggs: form.meatyEggs === "" ? null : parseInt(form.meatyEggs) || 0,
         softEggs: form.softEggs === "" ? null : parseInt(form.softEggs) || 0,
@@ -520,25 +529,25 @@ export function BatchProductionRecordForm({
   }
 
   const pickRows = [
-    { key: "first", label: pickLabelText.first, crates: picks.firstCrates, loose: picks.firstLoose,
+    { key: "first", label: pickLabelText.first, boxes: picks.firstBoxes, setB: (v: number | string) => setPick({ firstBoxes: Number(v) || 0 }), crates: picks.firstCrates, loose: picks.firstLoose,
       setC: (v: number | string) => setPick({ firstCrates: Number(v) || 0 }), setL: (v: number | string) => setPick({ firstLoose: Number(v) || 0 }), total: firstTotal },
-    { key: "second", label: pickLabelText.second, crates: picks.secondCrates, loose: picks.secondLoose,
+    { key: "second", label: pickLabelText.second, boxes: picks.secondBoxes, setB: (v: number | string) => setPick({ secondBoxes: Number(v) || 0 }), crates: picks.secondCrates, loose: picks.secondLoose,
       setC: (v: number | string) => setPick({ secondCrates: Number(v) || 0 }), setL: (v: number | string) => setPick({ secondLoose: Number(v) || 0 }), total: secondTotal },
-    { key: "third", label: pickLabelText.third, crates: picks.thirdCrates, loose: picks.thirdLoose,
+    { key: "third", label: pickLabelText.third, boxes: picks.thirdBoxes, setB: (v: number | string) => setPick({ thirdBoxes: Number(v) || 0 }), crates: picks.thirdCrates, loose: picks.thirdLoose,
       setC: (v: number | string) => setPick({ thirdCrates: Number(v) || 0 }), setL: (v: number | string) => setPick({ thirdLoose: Number(v) || 0 }), total: thirdTotal },
     // Shown when the farm has the pick enabled, or when this batch already
     // holds eggs for it — hiding an entered pick would leave a batch whose
     // allocation can never be made to balance.
     ...(enableFourthPick || fourthTotal > 0
-      ? [{ key: "fourth", label: pickLabelText.fourth, crates: picks.fourthCrates, loose: picks.fourthLoose,
+      ? [{ key: "fourth", label: pickLabelText.fourth, boxes: picks.fourthBoxes, setB: (v: number | string) => setPick({ fourthBoxes: Number(v) || 0 }), crates: picks.fourthCrates, loose: picks.fourthLoose,
            setC: (v: number | string) => setPick({ fourthCrates: Number(v) || 0 }), setL: (v: number | string) => setPick({ fourthLoose: Number(v) || 0 }), total: fourthTotal }]
       : []),
     ...(enableFifthPick || fifthTotal > 0
-      ? [{ key: "fifth", label: pickLabelText.fifth, crates: picks.fifthCrates, loose: picks.fifthLoose,
+      ? [{ key: "fifth", label: pickLabelText.fifth, boxes: picks.fifthBoxes, setB: (v: number | string) => setPick({ fifthBoxes: Number(v) || 0 }), crates: picks.fifthCrates, loose: picks.fifthLoose,
            setC: (v: number | string) => setPick({ fifthCrates: Number(v) || 0 }), setL: (v: number | string) => setPick({ fifthLoose: Number(v) || 0 }), total: fifthTotal }]
       : []),
     ...(enableSixthPick || sixthTotal > 0
-      ? [{ key: "sixth", label: pickLabelText.sixth, crates: picks.sixthCrates, loose: picks.sixthLoose,
+      ? [{ key: "sixth", label: pickLabelText.sixth, boxes: picks.sixthBoxes, setB: (v: number | string) => setPick({ sixthBoxes: Number(v) || 0 }), crates: picks.sixthCrates, loose: picks.sixthLoose,
            setC: (v: number | string) => setPick({ sixthCrates: Number(v) || 0 }), setL: (v: number | string) => setPick({ sixthLoose: Number(v) || 0 }), total: sixthTotal }]
       : []),
   ]
@@ -674,7 +683,7 @@ export function BatchProductionRecordForm({
       {/* --------------------------------------------- Egg Production */}
       <FormSectionCard
         title="Egg Production"
-        description={`Total = crates × ${EGGS_PER_CRATE} + loose eggs. These are BATCH totals, split across flocks at allocation.`}
+        description={`Total = ${cpb ? `boxes × ${cpb} crates + ` : ""}crates × ${EGGS_PER_CRATE} + pieces. These are BATCH totals, split across flocks at allocation.`}
         badge={`${totalEggs.toLocaleString()} eggs`}
         accent="amber"
         icon={Egg}
@@ -682,20 +691,18 @@ export function BatchProductionRecordForm({
         {/* Two picks per line from lg up (1st + 2nd, then 3rd + 4th); one per
             line below that. The field columns are capped rather than fixed so a
             half-width card shrinks them instead of overflowing. */}
-        <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-x-4 gap-y-3 lg:grid-cols-2">
           {pickRows.map((p) => (
-            <div key={p.key} className="grid grid-cols-1 items-end gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 sm:grid-cols-[minmax(7.5rem,1fr)_minmax(0,6.75rem)_minmax(0,6.75rem)_minmax(0,6.5rem)]">
-              {/* text-xs + nowrap keeps the longest label — "4th Pick (12:00 PM)"
-                  — on one line; the 7.5rem column minimum is what guarantees it
-                  the room, so the two must stay in step.
-                  The row is items-end, which would sit this flush with the foot
-                  of the inputs. sm:pb-2.5 lifts it by half the difference
-                  between the 36px input and this 16px line, centring it against
-                  the input rather than the whole cell. */}
-              <div className="whitespace-nowrap text-xs font-medium text-slate-700 sm:pb-2.5">{p.label}</div>
-              <NumField label="Crates" value={p.crates} onChange={p.setC} />
-              <NumField label="Loose eggs" value={p.loose} onChange={p.setL} />
-              <CalcField label="Total eggs" value={p.total.toLocaleString()} />
+            // The pick name sits above its card; the card holds only the
+            // numbers, in equal columns.
+            <div key={p.key} className="space-y-1">
+              <div className="px-0.5 text-xs font-semibold text-slate-700">{p.label}</div>
+              <div className={`grid items-end gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 ${cpb ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>
+                {cpb > 0 && <NumField label="Boxes" value={p.boxes} onChange={p.setB} />}
+                <NumField label="Crates" value={p.crates} onChange={p.setC} />
+                <NumField label="Pieces" value={p.loose} onChange={p.setL} />
+                <CalcField label="Total eggs" value={p.total.toLocaleString()} />
+              </div>
             </div>
           ))}
         </div>
@@ -704,7 +711,7 @@ export function BatchProductionRecordForm({
           <span className="text-slate-600">
             Crates equivalent
             <b className="ml-1 tabular-nums text-slate-900">
-              {totalCrates} crate{totalCrates === 1 ? "" : "s"}{totalPieces > 0 ? ` + ${totalPieces} egg${totalPieces === 1 ? "" : "s"}` : ""}
+              {totalCrates} crate{totalCrates === 1 ? "" : "s"}{totalPieces > 0 ? ` + ${totalPieces} pcs` : ""}
             </b>
           </span>
           {/* 393: a box farm also sees boxes. Display only -- production is
