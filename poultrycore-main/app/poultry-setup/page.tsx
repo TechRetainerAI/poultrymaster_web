@@ -487,7 +487,12 @@ function CompanySettingsCard() {
       if (hasProfile) await updatePoultryCompanyProfile(payload)
       else { await setupPoultryCompany(payload); setHasProfile(true) }
 
-      const updated = await updateFarmCurrency({ currencyCode: code, currencySymbol: symbol, showCurrencySymbol: showSymbol })
+      // An empty symbol means "the currency's own", never a hard-coded GHC.
+      const updated = await updateFarmCurrency({
+        currencyCode: code,
+        currencySymbol: symbol.trim() || currencySymbolFor(code) || code,
+        showCurrencySymbol: showSymbol,
+      })
       if (updated) apply(updated)
 
       toast({ title: hasProfile ? "Company settings saved" : "Poultry Company set up", description: hasProfile ? undefined : "Default cash accounts seeded." })
@@ -598,7 +603,12 @@ function CompanySettingsCard() {
               <CurrencySelect id="farm-currency" value={code}
                 onChange={(o) => { setCode(o.code); setSymbol(o.symbol) }} /></div>
             <div><Label>Symbol</Label>
-              <Input value={symbol} onChange={(e) => setSymbol(e.target.value)} placeholder="GHC" /></div>
+              {/* Clearing the box restores the currency's standard symbol: hiding
+                  is the switch's job, and a blank symbol used to save as "GHC". */}
+              <Input value={symbol} onChange={(e) => setSymbol(e.target.value)}
+                onBlur={() => { if (!symbol.trim()) setSymbol(currencySymbolFor(code) || code) }}
+                placeholder={currencySymbolFor(code) || "GHC"} maxLength={10} />
+              <p className="mt-1 text-xs text-slate-500">To hide it, turn off "Show symbol on amounts".</p></div>
             <div className="flex items-end gap-3 pb-2">
               <Switch checked={showSymbol} onCheckedChange={setShowSymbol} id="show-symbol" />
               <Label htmlFor="show-symbol" className="mb-0">Show symbol on amounts</Label>

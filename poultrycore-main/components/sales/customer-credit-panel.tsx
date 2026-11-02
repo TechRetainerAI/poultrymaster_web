@@ -21,7 +21,9 @@ import { useCurrency } from "@/lib/currency"
 import { listCustomerCredit, type CustomerCreditSummaryRow } from "@/lib/api/customer-credit"
 import { RefundCreditDialog, type RefundTarget } from "@/components/sales/refund-credit-dialog"
 
-export function CustomerCreditPanel() {
+// refreshKey: reload whenever it changes -- the page bumps it after a payment
+// is posted or reversed, since an overpayment becomes credit.
+export function CustomerCreditPanel({ refreshKey = 0 }: { refreshKey?: number }) {
   const { toast } = useToast()
   const { can } = usePermissions()
   const { code } = useCurrency()
@@ -38,7 +40,7 @@ export function CustomerCreditPanel() {
       .finally(() => setLoaded(true))
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load() }, [load, refreshKey])
 
   // Nothing held for anyone: say nothing, the page is about balances owed.
   if (!loaded || rows.length === 0) return null

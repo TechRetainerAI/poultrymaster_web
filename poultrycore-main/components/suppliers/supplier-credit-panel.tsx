@@ -16,7 +16,9 @@ import { formatCurrency, getSelectedCurrency } from "@/lib/utils/currency"
 import { useCurrency } from "@/lib/currency"
 import { listSupplierCredit, type SupplierCreditSummaryRow } from "@/lib/api/supplier-credit"
 
-export function SupplierCreditPanel() {
+// refreshKey: reload whenever it changes -- the page bumps it after a payment
+// is posted or reversed, since an overpayment becomes credit.
+export function SupplierCreditPanel({ refreshKey = 0 }: { refreshKey?: number }) {
   const { code } = useCurrency()
   const currencyCode = code || getSelectedCurrency()
   const [rows, setRows] = useState<SupplierCreditSummaryRow[]>([])
@@ -27,7 +29,7 @@ export function SupplierCreditPanel() {
       .then((r) => setRows(r.filter((x) => (Number(x.availableCredit) || 0) > 0)))
       .catch(() => setRows([]))
       .finally(() => setLoaded(true))
-  }, [])
+  }, [refreshKey])
 
   // Nothing held by any supplier: say nothing, the page is about what we owe.
   if (!loaded || rows.length === 0) return null
