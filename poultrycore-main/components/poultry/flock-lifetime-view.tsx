@@ -21,7 +21,7 @@ import { FLOCK_REOPEN_REASONS } from "@/lib/reversal-reasons"
 import { ReasonSelect } from "@/components/ui/reason-select"
 import { useEffect, useState, type ComponentType, type ReactNode } from "react"
 import {
-  AlertCircle, Bird, CalendarDays, Egg, HeartPulse, History, Loader2, Receipt, RotateCcw, Tag, TrendingUp, Wallet,
+  AlertCircle, Bird, CalendarDays, Drumstick, Egg, HeartPulse, History, Loader2, Receipt, RotateCcw, Tag, TrendingUp, Wallet,
 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -33,9 +33,11 @@ import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/utils/currency"
 import { getUserContext } from "@/lib/utils/user-context"
 import {
+  getFlockBroilerKpis,
   getFlockCloseoutHistory,
   getFlockLifetimeSummaries,
   reopenFlock,
+  type FlockBroilerKpis,
   type FlockCloseoutRecord,
   type FlockLifetimeSummary,
 } from "@/lib/api/flock-closeout"
@@ -107,6 +109,8 @@ export function FlockLifetimeView({
   const [error, setError] = useState("")
   const [summary, setSummary] = useState<FlockLifetimeSummary | null>(null)
   const [history, setHistory] = useState<FlockCloseoutRecord[]>([])
+  // 402: a broiler flock's meat figures replace the egg panel.
+  const [kpis, setKpis] = useState<FlockBroilerKpis | null>(null)
   const [reopening, setReopening] = useState(false)
   const [reopenReason, setReopenReason] = useState("")
   const [reopenOpen, setReopenOpen] = useState(false)
@@ -121,10 +125,14 @@ export function FlockLifetimeView({
     if (!farmId) return
     setLoading(true)
     setError("")
-    const [s, h] = await Promise.all([
+    const [s, h, k] = await Promise.all([
       getFlockLifetimeSummaries(farmId, { flockId }),
       getFlockCloseoutHistory(flockId, farmId),
+      // A database or API before 402 just has no broiler figures.
+      getFlockBroilerKpis(farmId, { flockId }).catch(() => null),
     ])
+    const kRow = k && k.success ? k.data?.[0] ?? null : null
+    setKpis(kRow && kRow.flockType === "Broiler" ? kRow : null)
     if (!s.success) setError(s.message || "Could not load this flock's performance.")
     else if (!s.data?.length) setError("This flock was not found on the current company.")
     const row = s.data?.[0] ?? null
@@ -246,6 +254,35 @@ export function FlockLifetimeView({
           hint={s.lifetimeMortalityRate == null ? "Opening losses unknown" : undefined} />
       </div>
     </Panel>,
+    kpis ? (
+      <Panel key="broiler" icon={Drumstick} iconTone="bg-orange-50 text-orange-600" title="Broiler performance"
+        note={[
+          kpis.kgIsEstimated ? "Part of the kg is estimated from an average weight (unweighed sales or birds still in the house)." : "",
+          kpis.missing ? `To complete: ${kpis.missing}.` : "",
+        ].filter(Boolean).join(" ") || "Live weight from the bird sales and weigh-ins; feed from the production records."}>
+        <div className={four}>
+          <Figure label="Age" value={`${n(kpis.ageInDays)} days`} />
+          <Figure label="Liveability" value={kpis.liveabilityPct == null ? "—" : `${Number(kpis.liveabilityPct).toFixed(2)}%`}
+            hint={`${n(kpis.deaths)} died of ${n(kpis.birdsStarted)}`} />
+          <Figure label="FCR" value={kpis.fcr == null ? "—" : Number(kpis.fcr).toFixed(3)}
+            hint={kpis.fcr == null ? "Needs feed and live weight" : "kg feed per kg live weight"} />
+          <Figure label="EPEF" value={kpis.epef == null ? "—" : n(kpis.epef)}
+            hint={kpis.epef == null ? undefined : "Liveability x weight / (age x FCR) x 100"} />
+          <Figure label="Kg produced" value={kpis.kgProduced == null ? "—" : `${n(Math.round(Number(kpis.kgProduced)))} kg`}
+            hint={kpis.kgIsEstimated ? "Partly estimated" : undefined} />
+          <Figure label="Average weight" value={kpis.avgLiveWeightKg == null ? "—" : `${Number(kpis.avgLiveWeightKg).toFixed(2)} kg`}
+            hint={kpis.latestWeighDate ? `Last weigh-in ${kpis.latestWeighDate.slice(0, 10)}` : "No weigh-in yet"} />
+          <Figure label="Feed consumed" value={`${n(Math.round(Number(kpis.feedKg)))} kg`} />
+          <Figure label="Kg sold" value={`${n(Math.round(Number(kpis.kgSoldWeighed) + Number(kpis.kgSoldEstimated ?? 0)))} kg`}
+            hint={kpis.birdsSold > kpis.birdsSoldWeighed ? `${n(kpis.birdsSold - kpis.birdsSoldWeighed)} birds sold without a weight` : undefined} />
+          <Figure label="Cost per kg" value={money(kpis.costPerKg)} tone="text-rose-700" hint="Chick cost included" />
+          <Figure label="Revenue per kg" value={money(kpis.revenuePerKg)} tone="text-emerald-700" />
+          <Figure label="Profit per kg" value={money(kpis.profitPerKg)}
+            tone={kpis.profitPerKg == null ? undefined : kpis.profitPerKg >= 0 ? "text-emerald-700" : "text-rose-700"} />
+          <Figure label="Birds in house" value={n(kpis.liveBirds)} />
+        </div>
+      </Panel>
+    ) :
     <Panel key="production" icon={Egg} iconTone="bg-amber-50 text-amber-600" title="Production">
       <div className={four}>
         <Figure label="Total eggs" value={n(s.totalEggs)} />

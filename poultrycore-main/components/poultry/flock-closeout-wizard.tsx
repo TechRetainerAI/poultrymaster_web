@@ -27,6 +27,10 @@ import { formatCurrency } from "@/lib/utils/currency"
 import { getUserContext } from "@/lib/utils/user-context"
 import { getCustomers } from "@/lib/api"
 import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poultry-finance"
+import { getMeatWithdrawal, type MeatWithdrawal } from "@/lib/api/sale"
+import { avgKgPerBird } from "@/lib/poultry/bird-pricing"
+import { isBroilerFlock } from "@/lib/poultry/flock-type"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   closeFlock,
   getFlockCloseoutContext,
@@ -45,6 +49,14 @@ import {
 } from "@/lib/flocks/closeout"
 
 const PAYMENT_METHODS = ["Cash", "Mobile Money", "Bank Transfer", "Check", "Credit Card"]
+// 403 (phase 5): a broiler flock ends at market, not at the end of lay.
+const BROILER_REASONS = [
+  "Sent to market (grow-out complete)",
+  "All birds sold",
+  "Depopulated",
+  "Disease outbreak",
+  "Other",
+]
 const REASONS = [
   "End of lay (spent layers)",
   "Depopulated",
@@ -88,6 +100,9 @@ export function FlockCloseoutWizard({ flockId, open, onOpenChange, onClosed }: P
   const [submitting, setSubmitting] = useState(false)
   const [serverErrors, setServerErrors] = useState<string[]>([])
   const [result, setResult] = useState<FlockCloseoutResult | null>(null)
+  // 401: meat withdrawal on the closing date, for this flock's sales.
+  const [withdrawals, setWithdrawals] = useState<MeatWithdrawal[]>([])
+  const [ackWithdrawal, setAckWithdrawal] = useState(false)
 
   useEffect(() => {
     if (!open || flockId == null) return
@@ -111,10 +126,11 @@ export function FlockCloseoutWizard({ flockId, open, onOpenChange, onClosed }: P
         setLoadError(ctx.message || "Could not load this flock's bird position.")
       } else {
         setContext(ctx.data)
-        setReasonChoice(REASONS[0])
+        const firstReason = (isBroilerFlock(ctx.data.flock) ? BROILER_REASONS : REASONS)[0]
+        setReasonChoice(firstReason)
         setDraft({
           closedDate: (ctx.data.businessDate || "").slice(0, 10),
-          reason: REASONS[0],
+          reason: firstReason,
           notes: "",
           sales: [],
           culls: [],
@@ -136,7 +152,22 @@ export function FlockCloseoutWizard({ flockId, open, onOpenChange, onClosed }: P
   const live = context?.position.currentLiveBirds ?? 0
   const totals = dispositionTotals(draft)
   const remaining = context ? unresolvedBirds(context.position, draft) : 0
-  const errors = context ? validateCloseoutDraft(draft, context) : []
+  const draftErrors = context ? validateCloseoutDraft(draft, context) : []
+
+  useEffect(() => {
+    if (!open || flockId == null || !draft.closedDate) { setWithdrawals([]); return }
+    let live = true
+    getMeatWithdrawal(draft.closedDate)
+      .then((w) => { if (live) setWithdrawals(w.filter((x) => x.flockId === flockId)) })
+      .catch(() => {})
+    return () => { live = false }
+  }, [open, flockId, draft.closedDate])
+  useEffect(() => { setAckWithdrawal(false) }, [withdrawals.length])
+  // A warning, acknowledged once -- only when birds are actually being sold.
+  const withdrawalBlocks = draft.sales.length > 0 && withdrawals.length > 0 && !ackWithdrawal
+  const errors = withdrawalBlocks
+    ? [...draftErrors, "This flock is inside a meat withdrawal period: tick the box on the Dispose step to record the sales anyway."]
+    : draftErrors
   const lines = context ? reconciliationLines(context.position) : []
 
   const patchSale = (i: number, patch: Partial<FlockCloseoutSaleLine>) =>
@@ -342,11 +373,31 @@ export function FlockCloseoutWizard({ flockId, open, onOpenChange, onClosed }: P
                     <Button type="button" variant="outline" size="sm" onClick={addSale}><Plus className="h-4 w-4 mr-1" /> Sale</Button>
                   </div>
                   <p className="text-xs text-slate-500">
-                    Spent-layer sales are recorded as ordinary {context.birdProductName} sales. There is no separate
+                    {isBroilerFlock(context.flock) ? "Broiler" : "Spent-layer"} sales are recorded as ordinary {context.birdProductName} sales{isBroilerFlock(context.flock) ? ", priced per bird or per kg" : ""}. There is no separate
                     save: each sale here is saved together with the closeout when you press{" "}
                     <span className="font-medium text-slate-700">Close flock &amp; record sales</span> on the last step,
                     so a sale can never be left behind on a flock that did not close.
                   </p>
+                  {withdrawals.length > 0 && draft.sales.length > 0 && (
+                    // 401: the farm's own withdrawal figures; a warning, not a refusal.
+                    <Alert className="border-amber-300 bg-amber-50 text-amber-900">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription className="space-y-1.5">
+                        <p className="font-semibold">This flock is still inside a meat withdrawal period on the closing date</p>
+                        <ul className="list-disc pl-4 text-xs">
+                          {withdrawals.map((w) => (
+                            <li key={w.itemName}>
+                              {w.itemName}: meat withdrawal until {new Date(`${w.withdrawalUntil.slice(0, 10)}T00:00:00`).toLocaleDateString()}
+                            </li>
+                          ))}
+                        </ul>
+                        <label className="flex items-center gap-2 text-xs font-medium">
+                          <Checkbox checked={ackWithdrawal} onCheckedChange={(v) => setAckWithdrawal(v === true)} />
+                          I have checked these birds can be sold. Record the sales anyway.
+                        </label>
+                      </AlertDescription>
+                    </Alert>
+                  )}
                   {draft.sales.map((s, i) => (
                     <div key={i} className="rounded-md border p-3 space-y-3">
                       <div className="flex items-center justify-between">
@@ -356,15 +407,42 @@ export function FlockCloseoutWizard({ flockId, open, onOpenChange, onClosed }: P
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                         <div className="space-y-1">
                           <Label className="text-xs">Birds</Label>
                           <Input type="number" min={0} value={s.quantity || ""} onChange={(e) => patchSale(i, { quantity: Number(e.target.value) })} />
                         </div>
                         <div className="space-y-1">
-                          <Label className="text-xs">Price per bird</Label>
-                          <Input type="number" min={0} step="0.01" value={s.unitPrice || ""}
-                            onChange={(e) => patchSale(i, { unitPrice: Number(e.target.value), totalAmount: null })} />
+                          <Label className="text-xs">Priced</Label>
+                          <Select value={s.pricingBasis === "PerKg" ? "PerKg" : "PerBird"}
+                            onValueChange={(v) => patchSale(i, { pricingBasis: v as "PerBird" | "PerKg", totalAmount: null })}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="PerBird">Per bird</SelectItem>
+                              <SelectItem value="PerKg">Per kg</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {s.pricingBasis === "PerKg" ? (
+                          <div className="space-y-1">
+                            <Label className="text-xs">Price per kg</Label>
+                            <Input type="number" min={0} step="0.01" value={s.pricePerKg ?? ""}
+                              onChange={(e) => patchSale(i, { pricePerKg: e.target.value === "" ? null : Number(e.target.value), totalAmount: null })} />
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            <Label className="text-xs">Price per bird</Label>
+                            <Input type="number" min={0} step="0.01" value={s.unitPrice || ""}
+                              onChange={(e) => patchSale(i, { unitPrice: Number(e.target.value), totalAmount: null })} />
+                          </div>
+                        )}
+                        <div className="space-y-1">
+                          <Label className="text-xs">Live weight (kg){s.pricingBasis === "PerKg" ? "" : " (optional)"}</Label>
+                          <Input type="number" min={0} step="0.1" value={s.liveWeightKg ?? ""}
+                            onChange={(e) => patchSale(i, { liveWeightKg: e.target.value === "" ? null : Number(e.target.value), ...(s.pricingBasis === "PerKg" ? { totalAmount: null } : {}) })} />
+                          {avgKgPerBird(s.quantity, s.liveWeightKg) != null && (
+                            <p className="text-[11px] text-slate-500">{avgKgPerBird(s.quantity, s.liveWeightKg)!.toFixed(2)} kg a bird</p>
+                          )}
                         </div>
                         <div className="space-y-1 col-span-2 sm:col-span-1">
                           <Label className="text-xs">Total price</Label>
@@ -505,7 +583,7 @@ export function FlockCloseoutWizard({ flockId, open, onOpenChange, onClosed }: P
                     <Label className="text-xs">Reason</Label>
                     <Select value={reasonChoice} onValueChange={(v) => { setReasonChoice(v); setDraft((d) => ({ ...d, reason: v === "Other" ? "" : v })) }}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>{REASONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
+                      <SelectContent>{(isBroilerFlock(context?.flock) ? BROILER_REASONS : REASONS).map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                 </div>

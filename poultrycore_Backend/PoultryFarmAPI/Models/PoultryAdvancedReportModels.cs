@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace PoultryFarmAPIWeb.Models
@@ -658,6 +658,8 @@ namespace PoultryFarmAPIWeb.Models
         public decimal MedicineVaccineCost { get; set; }
         public decimal LaborCost { get; set; }
         public decimal OtherExpenses { get; set; }
+        /// <summary>402: chick purchase shared to the flocks that started in the period.</summary>
+        public decimal BirdCost { get; set; }
     }
 
     public class PoultryProfitLossByFlockReportRow
@@ -671,6 +673,8 @@ namespace PoultryFarmAPIWeb.Models
         public decimal? MedicineVaccineCost { get; set; }
         public decimal? LaborCost { get; set; }
         public decimal OtherExpenses { get; set; }
+        /// <summary>402: the chick purchase, shared by birds placed, in the period the flock started.</summary>
+        public decimal BirdCost { get; set; }
         public decimal TotalRevenue { get; set; }
         public decimal TotalCost { get; set; }
         public decimal GrossProfit { get; set; }

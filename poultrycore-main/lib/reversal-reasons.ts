@@ -310,3 +310,14 @@ export const MARKET_CHANGE_REASONS: readonly ReasonOption[] = [
   opt("Billing currency change"),
   opt("Other"),
 ]
+
+/** Deleting a flock weigh-in (migration 400). */
+export const WEIGH_IN_DELETE_REASONS: readonly ReasonOption[] = [
+  opt("Duplicate entry"),
+  opt("Wrong flock"),
+  opt("Wrong date"),
+  opt("Wrong weights"),
+  opt("Entered by mistake"),
+  opt("Test or training entry"),
+  opt("Other"),
+]

@@ -17,7 +17,7 @@ import {
   Activity, AlertTriangle, ArrowLeftRight, Banknote, BarChart3, Bell, Bird, BookOpen, Box, Boxes,
   Building2, CreditCard, DollarSign, Egg, Factory, FileText, HelpCircle, History, Hourglass,
   Coins, HandCoins, ListTodo, Package, PackageMinus, Pill, Receipt, Scale, Settings, ShoppingCart, Truck, User, UserCog, Users,
-  Users2, Wallet, Wheat, PiggyBank, TrendingUp, Sparkles, ClipboardCheck, CalendarCheck, Flag, Repeat, Skull, PlayCircle,
+  Users2, Wallet, Wheat, PiggyBank, TrendingUp, Sparkles, ClipboardCheck, CalendarCheck, Flag, Repeat, Skull, PlayCircle, Drumstick,
 } from "lucide-react"
 import type { UserPermissions } from "@/hooks/use-permissions"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
@@ -37,7 +37,29 @@ export interface PoultryNavDeps {
    * cleared the bar, which is a different answer and must survive as one.
    */
   quickLinkHrefs?: string[] | null
+
+  /**
+   * False when the company runs only broilers (migration 399) -- see
+   * usePoultryEggFeatures. The egg pages are then hidden from every panel.
+   * Undefined means true: callers that do not know keep today's menus.
+   */
+  showEggFeatures?: boolean
+
+  /** False when the company has never had a broiler flock (402). Undefined = true. */
+  showBroilerFeatures?: boolean
 }
+
+/**
+ * Pages that only mean anything on a farm whose birds lay. Hidden, not
+ * removed: the routes still open, so a link from an old report still works.
+ */
+export const POULTRY_EGG_ONLY_HREFS: ReadonlySet<string> = new Set([
+  "/poultry-egg-sorting",
+  "/egg-production",
+  "/egg-tracker",
+  "/broken-eggs-tracker",
+  "/business-office/egg-pick-settings",
+])
 
 export interface PoultryNavConfig {
   /** Stays a narrow single-column dropdown — a shortcut bar, not a menu. */
@@ -59,7 +81,7 @@ export interface PoultryNavConfig {
 }
 
 export function buildPoultryNavConfig(
-  { permissions, onOpenAlerts, alertCount, quickLinkHrefs }: PoultryNavDeps,
+  { permissions, onOpenAlerts, alertCount, quickLinkHrefs, showEggFeatures = true, showBroilerFeatures = true }: PoultryNavDeps,
 ): PoultryNavConfig {
   const { featureAccess, isAdmin } = permissions
   const canSeeStaff = isAdmin || featureAccess.canSeeEmployees
@@ -148,6 +170,8 @@ export function buildPoultryNavConfig(
         items: [
           { id: "production-records", title: "Production Records", icon: FileText, href: "/production-records" },
           { id: "batch-production",   title: "Batch Production",   icon: Boxes,    href: "/batch-production-records" },
+          // 400: broilers phase 2. Any flock can be weighed; broilers come first.
+          { id: "weigh-ins",          title: "Weigh-ins",          icon: Scale,    href: "/poultry-weigh-ins" },
           // Egg Sorting Workspace (341-343): sorts Unsorted egg stock into
           // sizes, by pick or all at once. The legacy "Egg sorting" row
           // (/egg-production) is hidden from the menus; the page itself is
@@ -334,6 +358,8 @@ export function buildPoultryNavConfig(
           { id: "feed-tracker",       title: "Feed tracker",       icon: Wheat,     href: "/feed-tracker" },
           { id: "feed-inventory-tracker", title: "Feed inventory tracker", icon: History, href: "/feed-inventory-tracker" },
           { id: "birds-left",         title: "Birds tracker",      icon: Bird,      href: "/birds-left-tracker" },
+          // 402: FCR, liveability, EPEF and cost per kg per broiler flock.
+          { id: "broiler-performance", title: "Broiler performance", icon: Drumstick, href: "/poultry-broiler-performance", visible: showBroilerFeatures },
           { id: "dead-birds-tracker", title: "Dead birds tracker", icon: Skull,     href: "/dead-birds-tracker" },
           { id: "medication-tracker", title: "Medication tracker", icon: Pill,      href: "/medication-tracker" },
           { id: "weekly-report",      title: "Analytical Report",  icon: FileText,  href: "/weekly-report" },
@@ -518,6 +544,18 @@ export function buildPoultryNavConfig(
       if (!Array.isArray(section)) continue
       for (const group of section as MegaMenuGroup[]) {
         group.items = group.items.map((i) => (isSetupAdminRoute(i.href) ? { ...i, visible: false } : i))
+      }
+    }
+  }
+
+  // A broiler-only company (399): no egg sorting, egg trackers or egg settings.
+  // Before the quick links, so a pinned egg page is dropped with them.
+  if (!showEggFeatures) {
+    for (const section of Object.values(config)) {
+      if (!Array.isArray(section)) continue
+      for (const group of section as MegaMenuGroup[]) {
+        group.items = group.items.map((i) =>
+          i.href && POULTRY_EGG_ONLY_HREFS.has(i.href) ? { ...i, visible: false } : i)
       }
     }
   }

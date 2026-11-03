@@ -1,4 +1,4 @@
-using PoultryFarmAPIWeb.Models;
+﻿using PoultryFarmAPIWeb.Models;
 using System.Data;
 using Npgsql;
 using System;
@@ -33,6 +33,7 @@ namespace PoultryFarmAPIWeb.Business
             if (string.IsNullOrWhiteSpace(model.UserId)) throw new ArgumentException("UserId is required", nameof(model.UserId));
             if (string.IsNullOrWhiteSpace(model.FarmId)) throw new ArgumentException("FarmId is required", nameof(model.FarmId));
             if (model.BatchId <= 0) throw new ArgumentException("BatchId is required and must be greater than 0", nameof(model.BatchId));
+            model.FlockType = NormalizeFlockType(model.FlockType);
 
             try
             {
@@ -48,7 +49,9 @@ namespace PoultryFarmAPIWeb.Business
                             throw new Exception("Stored procedure did not return a FlockId");
                         }
 
-                        return Convert.ToInt32(result);
+                        var flockId = Convert.ToInt32(result);
+                        await ApplyFlockTypeAsync(conn, null, flockId, model);
+                        return flockId;
                     }
                 }
             }
@@ -90,6 +93,38 @@ namespace PoultryFarmAPIWeb.Business
         }
 
         /// <summary>
+        /// "Layer" / "Broiler" (migration 399), or null for "not sent". Anything
+        /// else is refused here, before a row is written, so the type step after
+        /// an insert cannot fail on its value and leave a half-made flock.
+        /// </summary>
+        internal static string? NormalizeFlockType(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return null;
+            var t = raw.Trim();
+            if (string.Equals(t, "Layer", StringComparison.OrdinalIgnoreCase)) return "Layer";
+            if (string.Equals(t, "Broiler", StringComparison.OrdinalIgnoreCase)) return "Broiler";
+            throw new ArgumentException("Flock type must be Layer or Broiler.", nameof(FlockModel.FlockType));
+        }
+
+        /// <summary>
+        /// Runs after every flock insert, on the same connection and transaction.
+        /// spflock_insert knows nothing of the type: when the caller sends none,
+        /// the insert trigger has already given the flock its default (broiler
+        /// breed, else the company's business type), so there is nothing to do.
+        /// </summary>
+        internal static async Task ApplyFlockTypeAsync(NpgsqlConnection conn, NpgsqlTransaction? transaction, int flockId, FlockModel model)
+        {
+            var type = NormalizeFlockType(model.FlockType);
+            if (type == null) return;
+            using var cmd = new NpgsqlCommand("SELECT spflock_settype(p_flockid => @FlockId::int, p_farmid => @FarmId::text, p_flocktype => @FlockType::text, p_userid => @UserId::text)", conn, transaction);
+            cmd.Parameters.AddWithValue("@FlockId", flockId);
+            cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
+            cmd.Parameters.AddWithValue("@FlockType", type);
+            cmd.Parameters.AddWithValue("@UserId", (object?)model.UserId ?? DBNull.Value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        /// <summary>
         /// Birds a batch has given out, written once so the public reader and the
         /// in-transaction re-check cannot drift apart. Same stored function either
         /// way.
@@ -121,6 +156,7 @@ namespace PoultryFarmAPIWeb.Business
         {
             if (flocks == null || flocks.Count == 0) return new List<FlockModel>();
 
+            foreach (var f in flocks) f.FlockType = NormalizeFlockType(f.FlockType);
             var requested = flocks.Sum(f => f.Quantity);
             var createdIds = new List<int>();
 
@@ -164,7 +200,9 @@ namespace PoultryFarmAPIWeb.Business
                         {
                             throw new Exception("Stored procedure did not return a FlockId");
                         }
-                        createdIds.Add(Convert.ToInt32(result));
+                        var newId = Convert.ToInt32(result);
+                        await ApplyFlockTypeAsync(conn, tx, newId, flock);
+                        createdIds.Add(newId);
                     }
 
                     await tx.CommitAsync();
@@ -191,6 +229,7 @@ namespace PoultryFarmAPIWeb.Business
             if (string.IsNullOrWhiteSpace(model.Name)) throw new ArgumentException("Name is required", nameof(model.Name));
             if (string.IsNullOrWhiteSpace(model.UserId)) throw new ArgumentException("UserId is required", nameof(model.UserId));
             if (string.IsNullOrWhiteSpace(model.FarmId)) throw new ArgumentException("FarmId is required", nameof(model.FarmId));
+            model.FlockType = NormalizeFlockType(model.FlockType);
 
             using (NpgsqlConnection conn = new NpgsqlConnection(_connectionString))
             using (NpgsqlCommand cmd = new NpgsqlCommand("SELECT * FROM spflock_update(p_flockid => @FlockId::int, p_name => @Name::text, p_breed => @Breed::text, p_startdate => @StartDate::timestamp, p_quantity => @Quantity::int, p_active => @Active::boolean, p_houseid => @HouseId::int, p_inactivationreason => @InactivationReason::text, p_otherreason => @OtherReason::text, p_userid => @UserId::text, p_farmid => @FarmId::text, p_batchid => @BatchId::int, p_notes => @Notes::text, p_hasarrived => @HasArrived::boolean)", conn))
@@ -211,7 +250,13 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.Parameters.AddWithValue("@HasArrived", model.HasArrived);
 
                 await conn.OpenAsync();
+                using var tx = await conn.BeginTransactionAsync();
+                cmd.Transaction = tx;
                 await cmd.ExecuteNonQueryAsync();
+                // 399: null = the form did not send a type -- leave it alone, so
+                // the auto-activate and other partial updates never retype a flock.
+                await ApplyFlockTypeAsync(conn, tx, model.FlockId, model);
+                await tx.CommitAsync();
             }
         }
 
@@ -254,6 +299,8 @@ namespace PoultryFarmAPIWeb.Business
                             ClosedBy = reader.OptionalString("ClosedBy"),
                             CloseReason = reader.OptionalString("CloseReason"),
                             CloseoutId = reader.OptionalInt32("CloseoutId"),
+                            // 399: absent until the migration runs -> Layer.
+                            FlockType = reader.OptionalString("FlockType") ?? "Layer",
                         };
                     }
                 }
@@ -311,6 +358,8 @@ namespace PoultryFarmAPIWeb.Business
                             ClosedBy = reader.OptionalString("ClosedBy"),
                             CloseReason = reader.OptionalString("CloseReason"),
                             CloseoutId = reader.OptionalInt32("CloseoutId"),
+                            // 399: absent until the migration runs -> Layer.
+                            FlockType = reader.OptionalString("FlockType") ?? "Layer",
                         };
                         flocks.Add(flock);
                     }
