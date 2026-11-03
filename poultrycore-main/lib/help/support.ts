@@ -6,8 +6,8 @@
  */
 
 export const SUPPORT_EMAIL = "techretainer@gmail.com"
-/** Display form, as on the old page. */
-export const SUPPORT_PHONES = ["+1 (917) 420-2946", "053 343 1086"]
+/** Display form, as on the old page. USA line first. */
+export const SUPPORT_PHONES = ["+1 (917) 420-2946", "+233 50 363 8419", "053 343 1086"]
 /** International form of the US line, for wa.me (digits only, no +). */
 export const SUPPORT_WHATSAPP = "19174202946"
 

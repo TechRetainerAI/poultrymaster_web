@@ -41,6 +41,17 @@ export const ContactSupport = forwardRef<ContactSupportHandle>(function ContactS
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
+        <div className="flex flex-wrap gap-x-6 gap-y-2 border-b border-indigo-100 pb-3 text-sm text-slate-600">
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="flex items-center gap-2 hover:text-indigo-700">
+            <Mail className="h-4 w-4 text-indigo-500" /> {SUPPORT_EMAIL}
+          </a>
+          {SUPPORT_PHONES.map((p) => (
+            <a key={p} href={`tel:${p.replace(/[^\d+]/g, "")}`} className="flex items-center gap-2 hover:text-indigo-700">
+              <Phone className="h-4 w-4 text-indigo-500" /> {p}
+            </a>
+          ))}
+        </div>
+
         <Textarea
           ref={boxRef}
           value={message}
@@ -60,17 +71,6 @@ export const ContactSupport = forwardRef<ContactSupportHandle>(function ContactS
               <Mail className="mr-1.5 h-4 w-4" /> Send by email
             </a>
           </Button>
-        </div>
-
-        <div className="flex flex-wrap gap-x-6 gap-y-2 border-t border-indigo-100 pt-3 text-sm text-slate-600">
-          <a href={`mailto:${SUPPORT_EMAIL}`} className="flex items-center gap-2 hover:text-indigo-700">
-            <Mail className="h-4 w-4 text-indigo-500" /> {SUPPORT_EMAIL}
-          </a>
-          {SUPPORT_PHONES.map((p) => (
-            <a key={p} href={`tel:${p.replace(/[^\d+]/g, "")}`} className="flex items-center gap-2 hover:text-indigo-700">
-              <Phone className="h-4 w-4 text-indigo-500" /> {p}
-            </a>
-          ))}
         </div>
       </CardContent>
     </Card>

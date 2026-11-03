@@ -1,13 +1,69 @@
 import { NextResponse } from "next/server"
-import { YOUTUBE_VIDEOS, channelIdFromPage, parseChannel, parseChannelFeed } from "@/lib/help/poultry-videos"
+import {
+  YOUTUBE_VIDEOS,
+  channelIdFromPage,
+  parseChannel,
+  parseChannelFeed,
+  type ChannelFeed,
+  type ChannelVideo,
+} from "@/lib/help/poultry-videos"
 
 export const runtime = "nodejs"
-// Run per request so the YOUTUBE_VIDEOS env var is read at runtime, not baked
-// in at build; the fetches below still cache YouTube's answer.
+// Run per request so the YOUTUBE_VIDEOS / YOUTUBE_API_KEY env vars are read at
+// runtime, not baked in at build; the fetches below still cache the answer.
 export const dynamic = "force-dynamic"
 
 /** How long a fetched feed is reused before YouTube is asked again. */
 const REVALIDATE_SECONDS = 300
+
+/**
+ * An empty, successful answer. No playlist set, a playlist that cannot be read,
+ * or YouTube being briefly unreachable are all just "no videos to show" --
+ * never a fault. We answer 200 with an empty list so the page shows its calm
+ * "No videos yet" state and the browser console stays clean (no 404 / 502).
+ */
+function emptyFeed() {
+  return NextResponse.json(
+    { channelTitle: "", channelUrl: "", videos: [] },
+    { headers: { "Cache-Control": "public, max-age=60, s-maxage=60" } },
+  )
+}
+
+const feedHeaders = { "Cache-Control": `public, max-age=60, s-maxage=${REVALIDATE_SECONDS}` }
+
+/**
+ * A playlist's videos through the YouTube Data API v3. Unlike the public RSS
+ * feed, this reads UNLISTED playlists too (given the playlist id + an API key),
+ * which is what our training playlist is. Needs env YOUTUBE_API_KEY.
+ */
+async function playlistViaDataApi(playlistId: string, key: string): Promise<ChannelFeed | null> {
+  const url =
+    `https://www.googleapis.com/youtube/v3/playlistItems` +
+    `?part=snippet,contentDetails&maxResults=50&playlistId=${encodeURIComponent(playlistId)}&key=${encodeURIComponent(key)}`
+  const res = await fetch(url, { next: { revalidate: REVALIDATE_SECONDS } })
+  if (!res.ok) return null
+  const data = (await res.json()) as {
+    items?: Array<{
+      snippet?: { title?: string; description?: string; publishedAt?: string; channelTitle?: string; resourceId?: { videoId?: string } }
+      contentDetails?: { videoId?: string; videoPublishedAt?: string }
+    }>
+  }
+  // Playlist order is the intended tutorial order, so keep it as returned.
+  const videos: ChannelVideo[] = (data.items ?? [])
+    .map((it) => ({
+      id: it.contentDetails?.videoId || it.snippet?.resourceId?.videoId || "",
+      title: it.snippet?.title ?? "",
+      description: it.snippet?.description ?? "",
+      published: it.contentDetails?.videoPublishedAt || it.snippet?.publishedAt || "",
+    }))
+    .filter((v) => /^[A-Za-z0-9_-]{11}$/.test(v.id) && v.title !== "Private video" && v.title !== "Deleted video")
+  return {
+    channelTitle: data.items?.[0]?.snippet?.channelTitle || "Videos",
+    channelUrl: "",
+    playlistUrl: `https://www.youtube.com/playlist?list=${playlistId}`,
+    videos,
+  }
+}
 
 /**
  * The playlist's (or channel's) latest videos for /poultry-videos. Public
@@ -15,21 +71,25 @@ const REVALIDATE_SECONDS = 300
  */
 export async function GET() {
   const channel = parseChannel(process.env.YOUTUBE_VIDEOS || YOUTUBE_VIDEOS)
-  if (!channel) return NextResponse.json({ error: "not-configured" }, { status: 404 })
+  if (!channel) return emptyFeed()
+  const key = process.env.YOUTUBE_API_KEY
 
   try {
     if ("playlist" in channel) {
+      // Prefer the Data API (reads unlisted playlists); fall back to the public RSS feed.
+      if (key) {
+        const feed = await playlistViaDataApi(channel.playlist, key)
+        if (feed && feed.videos.length) return NextResponse.json(feed, { headers: feedHeaders })
+      }
       const res = await fetch(`https://www.youtube.com/feeds/videos.xml?playlist_id=${channel.playlist}`, {
         next: { revalidate: REVALIDATE_SECONDS },
       })
-      if (!res.ok) return NextResponse.json({ error: "feed-unavailable" }, { status: 502 })
+      if (!res.ok) return emptyFeed()
       const feed = {
         ...parseChannelFeed(await res.text()),
         playlistUrl: `https://www.youtube.com/playlist?list=${channel.playlist}`,
       }
-      return NextResponse.json(feed, {
-        headers: { "Cache-Control": `public, max-age=60, s-maxage=${REVALIDATE_SECONDS}` },
-      })
+      return NextResponse.json(feed, { headers: feedHeaders })
     }
 
     let id = "id" in channel ? channel.id : null
@@ -39,18 +99,16 @@ export async function GET() {
         next: { revalidate: 86400 },
       })
       if (page.ok) id = channelIdFromPage(await page.text())
-      if (!id) return NextResponse.json({ error: "channel-not-found" }, { status: 502 })
+      if (!id) return emptyFeed()
     }
 
     const res = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${id}`, {
       next: { revalidate: REVALIDATE_SECONDS },
     })
-    if (!res.ok) return NextResponse.json({ error: "feed-unavailable" }, { status: 502 })
+    if (!res.ok) return emptyFeed()
 
-    return NextResponse.json(parseChannelFeed(await res.text()), {
-      headers: { "Cache-Control": `public, max-age=60, s-maxage=${REVALIDATE_SECONDS}` },
-    })
+    return NextResponse.json(parseChannelFeed(await res.text()), { headers: feedHeaders })
   } catch {
-    return NextResponse.json({ error: "feed-unavailable" }, { status: 502 })
+    return emptyFeed()
   }
 }

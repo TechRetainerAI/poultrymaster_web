@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Briefcase, Building2, Users, Megaphone, ArrowRight } from "lucide-react"
 import Link from "next/link"
 import { BusinessOfficeShell } from "@/components/dashboard/business-office-shell"
+import { ContactSupport } from "@/components/help/contact-support"
 
 const TOPICS = [
   { icon: Briefcase, title: "What is the Business Office?", body: "Your organization headquarters. From here you see every company you own or can access, open any of them, and manage people — without being stuck inside one company." },
@@ -45,6 +46,9 @@ export default function BusinessOfficeHelpPage() {
           </div>
           <Link href="/business-office" className="inline-flex items-center gap-1.5 text-sm font-semibold text-orange-600 hover:text-orange-700">Back to Business Office <ArrowRight className="h-4 w-4" /></Link>
         </CardContent></Card>
+
+        {/* Contact support — email + call lines and a quick message to us. */}
+        <ContactSupport />
       </main>
     </BusinessOfficeShell>
   )
