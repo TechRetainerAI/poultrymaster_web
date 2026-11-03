@@ -6,6 +6,7 @@
 // Each section falls back to empty when its call fails, and the failures are
 // named in one toast, as the web does.
 
+import 'restaurant_dashboard_charts.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -77,6 +78,9 @@ class _RestaurantDashboardViewState extends State<RestaurantDashboardView> {
     _load();
   }
 
+  /// Bumped on every load, so pull-to-refresh rebuilds the charts and they reload their expenses.
+  int _loads = 0;
+
   Future<void> _load() async {
     final api = widget.session.farmClient;
     final q = {'farmId': widget.company.farmId};
@@ -108,6 +112,7 @@ class _RestaurantDashboardViewState extends State<RestaurantDashboardView> {
       _waitlist = r[5] is Map ? r[5] as Map : null;
       _reservations = rows(r[6]).length;
       _loading = false;
+      _loads++;
     });
   }
 
@@ -123,7 +128,9 @@ class _RestaurantDashboardViewState extends State<RestaurantDashboardView> {
         const Text('Welcome back', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
         Text('${widget.company.name.isEmpty ? 'Restaurant' : widget.company.name} — ${DateFormat('EEEE, MMMM d, y').format(DateTime.now())}',
             style: const TextStyle(fontSize: 14, color: TColors.slate500)),
-        const SizedBox(height: 10),
+        const SizedBox(height: 14),
+        // The charts come first (an app addition, 2 Nov; the web has none).
+        RestaurantDashboardCharts(key: ValueKey(_loads), session: widget.session, company: widget.company, orders: _orders),
         roseButton('Open POS', () => _go('/restaurant-pos', 'POS / New Order'), icon: Icons.shopping_cart_outlined),
         const SizedBox(height: 14),
         twoColumns([

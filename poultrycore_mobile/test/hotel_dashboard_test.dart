@@ -166,8 +166,10 @@ void main() {
     }
     expect(find.text('occupied'), findsOneWidget);
     expect(find.text('of 10 rooms'), findsOneWidget);
+    expect(tester.getTopLeft(find.text('INSIGHTS')).dy, lessThan(tester.getTopLeft(find.text('ROOM STATUS')).dy),
+        reason: 'the charts come first, above the figures');
 
-    await tester.tap(find.text('Cleaning').last);
+    await tester.tap(find.descendant(of: find.byType(RoomMixDonut), matching: find.text('Cleaning')));
     await tester.pumpAndSettle();
     expect(find.text('cleaning'), findsOneWidget, reason: 'the middle now reads the tapped status');
 

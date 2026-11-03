@@ -1,6 +1,7 @@
 import 'custom_form.dart';
 import 'form_spec.dart';
 import 'generated_forms.dart';
+import 'generic/generic_forms.dart';
 import 'hotel/hotel_forms.dart';
 import 'hotel/reports/hotel_report_routes.dart';
 import 'page_extras.dart';
@@ -70,6 +71,7 @@ final Map<String, PageScreenBuilder> pageScreens = {
   ...restaurantReportScreens,
   ...hotelPageScreens,
   ...hotelReportScreens,
+  ...genericPageScreens,
 };
 
 /// The form for a spec: the curated one when there is one, else the extracted.

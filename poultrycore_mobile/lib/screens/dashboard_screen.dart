@@ -8,6 +8,9 @@ import '../design/web_mobile.dart';
 import '../state/session.dart';
 import '../pages/poultry/production/production_logic.dart' show loadEggsPerCrate;
 import '../pages/poultry/farm_alerts_screen.dart';
+import '../pages/poultry/poultry_dashboard_charts.dart';
+import '../pages/water/water_dashboard_charts.dart';
+import '../pages/generic/generic_dashboard_charts.dart';
 import '../pages/hotel/hotel_dashboard_view.dart';
 import '../pages/restaurant/restaurant_dashboard_view.dart';
 import '../widgets/app_header.dart';
@@ -167,6 +170,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   : ListView(
                       padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
                       children: [
+                        // Poultry's charts come first (an app addition, 2 Nov; the web has none).
+                        if (company.type == CompanyType.poultry)
+                          PoultryDashboardCharts(key: ValueKey(company.farmId), session: session, company: company),
+                        // Water's charts come first too (an app addition, 2 Nov; the web has none).
+                        if (company.type == CompanyType.water)
+                          WaterDashboardCharts(key: ValueKey(company.farmId), session: session, company: company),
+                        // Generic's charts come first too (an app addition, 2 Nov; the web has none).
+                        if (company.type == CompanyType.generic)
+                          GenericDashboardCharts(key: ValueKey(company.farmId), session: session, company: company),
                         if (_error != null)
                           _ErrorCard(message: _error!, onRetry: _load)
                         else ...[

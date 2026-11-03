@@ -31,17 +31,18 @@ String suggestUserName(EmployeePrefill p) => [p.firstName, p.lastName]
     .join('_');
 
 /// staffPagePath: the Staff page of each company type. The app has Poultry's,
-/// Water's, Restaurant's and Hotel's; Generic is not in the app.
+/// Water's, Generic's, Restaurant's and Hotel's.
 String? staffPagePath(CompanyType t) => switch (t) {
       CompanyType.poultry => '/poultry-staff',
       CompanyType.water => '/water-staff',
+      CompanyType.generic => '/generic-staff',
       CompanyType.restaurant => '/restaurant-staff',
       CompanyType.hotel => '/hotel-staff',
       _ => null,
     };
 
 /// Each Staff page's spec key and id field.
-const _staffIdKey = {'poultry-staff': 'poultryStaffId', 'water-staff': 'waterStaffId'};
+const _staffIdKey = {'poultry-staff': 'poultryStaffId', 'water-staff': 'waterStaffId', 'generic-staff': 'genericStaffId'};
 
 /// GET /api/StaffUserLink: (staffId, userId) pairs for the company.
 Future<List<({int staffId, String userId})>> getStaffUserLinks(Session s, Company c) async {
@@ -193,6 +194,21 @@ class _AddAsStaff extends StatelessWidget {
         company: company,
         prefill: p,
         onCreated: (created) => _link(context, created is Map ? int.tryParse('${created['waterStaffId']}') : null),
+      );
+    }
+    if (row[_staffPage] == '/generic-staff') {
+      // generic-staff/page.tsx: "New staff member", with the form's defaults.
+      return FormScreen(
+        def: formForSpec('generic-staff')!,
+        title: 'New staff member',
+        company: company,
+        session: session,
+        spec: PageRegistry.of('generic-staff'),
+        initial: {
+          'firstName': p.firstName, 'lastName': p.lastName, 'phoneNumber': p.phoneNumber, 'email': p.email,
+          'role': 'Other', 'salaryType': 'Monthly', 'basePay': '0', 'isActive': 'true',
+        },
+        onCreated: (created) => _link(context, created is Map ? int.tryParse('${created['genericStaffId']}') : null),
       );
     }
     return FormScreen(

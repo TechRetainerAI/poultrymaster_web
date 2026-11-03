@@ -10,7 +10,7 @@ import '../../models/company.dart';
 import '../../state/session.dart';
 import '../../widgets/module_sidebar.dart';
 import '../lookup_loader.dart';
-import '../web_page_screen.dart';
+import '../generic/generic_setup_wizard_screen.dart';
 
 /// Setup → Company → Companies ("My companies"), as `app/companies/page.tsx`.
 /// Shared by every company type: the owner's companies with the active one
@@ -136,11 +136,10 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
       if (await widget.session.setActive(company)) {
         nav.popUntil((r) => r.isFirst);
         nav.push(MaterialPageRoute(
-          builder: (_) => WebPageScreen(
-            label: 'Set up ${created.name}',
-            href: '/generic-setup/wizard?industry=${Uri.encodeComponent(t.industryTemplate!)}',
-            company: company,
+          builder: (_) => GenericSetupWizardScreen(
             session: widget.session,
+            company: company,
+            industry: t.industryTemplate,
           ),
         ));
       }

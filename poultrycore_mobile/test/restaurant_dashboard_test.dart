@@ -12,7 +12,8 @@ import 'package:poultrycore_mobile/pages/restaurant/restaurant_pos_screen.dart';
 import 'support/harness.dart';
 
 final rest = Company(farmId: 'farm-1', name: 'Rose Bistro', type: CompanyType.restaurant, role: 'Admin');
-const tall = Size(360, 3000);
+// Tall enough for the charts on top (2 Nov) and every panel below them.
+const tall = Size(360, 6000);
 
 String nowIso({int minus = 0}) => DateTime.now().subtract(Duration(minutes: minus)).toUtc().toIso8601String();
 

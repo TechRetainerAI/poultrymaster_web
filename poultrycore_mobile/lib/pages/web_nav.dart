@@ -393,14 +393,28 @@ const Map<String, List<NavGroup>> webNavGroups = {
         NavLink('Payroll', '/generic-payroll', 'generic-payroll-runs'),
       ]),
     ]),
+    // The web's Generic System block is sidebar.tsx's flat systemItems list,
+    // in its order (Reports, Resources, Farm Setup and Help are Poultry-only).
     NavGroup('System', [
       NavSubGroup('', [
+        NavLink('Users & Permissions', '/employees', 'admin-company-employees'),
+        NavLink('Account', '/profile', null),
+        // An action, not a page: opens "System Alerts and Notifications".
+        NavLink('Alerts', '#alerts', null),
+        NavLink('Companies', '/companies', null),
+        NavLink('Billing', '/business-office/billing', null),
+        NavLink('Activity Log', '/audit-logs', null),
+        NavLink('Terms & Conditions', '/terms', null),
+      ]),
+    ]),
+    // Not in the web's System block: the old generated rows, kept so the All
+    // pages sheet still reaches them until their own sections are mirrored.
+    NavGroup('More pages', [
+      NavSubGroup('', [
         NavLink('Generic Stock Adjustments', '/generic-stock-adjustments', 'generic-inventory-adjustments'),
-        NavLink('Generic Setup/Wizard', '/generic-setup/wizard', 'generic-business-template'),
         NavLink('Generic Owner Money', '/generic-owner-money', 'generic-owner-entries'),
         NavLink('Inventory', '/generic-inventory', 'generic-products'),
         NavLink('Generic Dashboard', '/generic-dashboard', 'generic-reports-dashboard'),
-        NavLink('Setup', '/generic-setup', 'generic-business-template'),
       ]),
     ]),
     NavGroup('Subscriptions', [
@@ -423,9 +437,13 @@ const Map<String, List<NavGroup>> webNavGroups = {
         NavLink('Daily Closing', '/generic-daily-closings', 'generic-daily-closings'),
       ]),
     ]),
-    NavGroup('Reports', [
+    // The web sidebar's genericAdminItems: Reports, then Setup (the company
+    // profile) and Settings (which modules, what defaults), both admin-only.
+    NavGroup('Admin', [
       NavSubGroup('', [
         NavLink('Reports', '/generic-reports', null),
+        NavLink('Setup', '/generic-setup', null),
+        NavLink('Settings', '/generic-settings', null),
       ]),
     ]),
   ],

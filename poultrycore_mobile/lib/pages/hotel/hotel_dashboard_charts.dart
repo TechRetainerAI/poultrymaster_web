@@ -14,6 +14,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../poultry/trackers/tracker_logic.dart' show tNum, tStr;
+import '../shared/chart_period.dart';
 
 const chartBlue = Color(0xFF2A78D6), chartOrange = Color(0xFFEB6834), chartAqua = Color(0xFF1BAF7A);
 const chartYellow = Color(0xFFEDA100), chartMagenta = Color(0xFFE87BA4);
@@ -27,11 +28,6 @@ String _iso(DateTime d) => d.toIso8601String().substring(0, 10);
 DateTime _parse(String iso) => DateTime.utc(int.parse(iso.substring(0, 4)), int.parse(iso.substring(5, 7)), int.parse(iso.substring(8, 10)));
 
 const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-String _nice(String iso) {
-  final d = _parse(iso);
-  return '${_weekdays[d.weekday - 1]} ${d.day} ${_months[d.month - 1]}';
-}
 
 /// 1234 → "1.2k", for axis ticks.
 String compactMoney(num n) {
@@ -100,11 +96,11 @@ const _methodOrder = ['Cash', 'Card', 'MobileMoney', 'BankTransfer'];
 const _methodLabels = {'Cash': 'Cash', 'Card': 'Card', 'MobileMoney': 'Mobile Money', 'BankTransfer': 'Bank Transfer'};
 
 /// Payments by method over the [days] days ending [today].
-List<ChartSlice> paymentMix(List<Map> payments, String today, {int days = 30}) {
-  final from = _iso(_parse(today).subtract(Duration(days: days - 1)));
+List<ChartSlice> paymentMix(List<Map> payments, String today, {int days = 30, String? from}) {
+  final start = from ?? _iso(_parse(today).subtract(Duration(days: days - 1)));
   final recent = payments.where((p) {
     final d = _day(_v(p, 'paymentDate'));
-    return d.compareTo(from) >= 0 && d.compareTo(today) <= 0;
+    return d.compareTo(start) >= 0 && d.compareTo(today) <= 0;
   });
   final sums = <String, num>{};
   for (final p in recent) {
@@ -182,22 +178,64 @@ mixin _Grow<T extends StatefulWidget> on State<T>, SingleTickerProviderStateMixi
 
 // ----------------------------------------------------------- 1. the room donut
 
-class RoomMixDonut extends StatefulWidget {
-  const RoomMixDonut({super.key, required this.slices});
+/// What the middle of a donut says: a big figure, a label, a small line.
+typedef DonutCentre = ({String value, String label, String sub});
+
+/// A pie (donut) chart with a tappable colour key. Tap a segment or a key row
+/// to single it out; the middle then reads that slice. Poultry, Water,
+/// Restaurant and Generic use it through [moneyDonut] (2026-11-02).
+class MixDonut extends StatefulWidget {
+  const MixDonut({super.key, required this.slices, this.valueText, this.centre, this.emptyText});
   final List<ChartSlice> slices;
 
+  /// How a slice's value reads in the key (default: as is).
+  final String Function(num v)? valueText;
+
+  /// What the middle says, for the whole or a picked slice. Null = the room
+  /// board's occupancy (Hotel's Room mix).
+  final DonutCentre Function(num total, ChartSlice? pick)? centre;
+
+  /// Shown instead of the chart when every slice is zero (null = an empty ring).
+  final String? emptyText;
+
   @override
-  State<RoomMixDonut> createState() => _RoomMixDonutState();
+  State<MixDonut> createState() => _RoomMixDonutState();
 }
 
-class _RoomMixDonutState extends State<RoomMixDonut> with SingleTickerProviderStateMixin, _Grow {
+/// Hotel's Room mix: rooms by status, occupancy in the middle.
+class RoomMixDonut extends MixDonut {
+  const RoomMixDonut({super.key, required super.slices});
+}
+
+/// A money breakdown as a donut: the total in the middle, each slice's amount
+/// and share in the key.
+MixDonut moneyDonut({
+  Key? key,
+  required List<ChartSlice> slices,
+  required String Function(num) money,
+  required String caption,
+  required String emptyText,
+  String period = 'last 30 days',
+}) =>
+    MixDonut(
+      key: key,
+      slices: slices,
+      valueText: money,
+      emptyText: emptyText,
+      centre: (total, pick) => pick == null
+          ? (value: money(total), label: caption, sub: period)
+          : (value: money(pick.value), label: pick.label, sub: '${total > 0 ? (pick.value / total * 100).round() : 0}% of the total'),
+    );
+
+class _RoomMixDonutState extends State<MixDonut> with SingleTickerProviderStateMixin, _Grow {
   int? _picked;
 
   num get _total => widget.slices.fold<num>(0, (s, x) => s + x.value);
 
   @override
-  void didUpdateWidget(RoomMixDonut old) {
+  void didUpdateWidget(MixDonut old) {
     super.didUpdateWidget(old);
+    if (old.slices.length != widget.slices.length) _picked = null;
     if ([for (final s in old.slices) s.value].join() != [for (final s in widget.slices) s.value].join()) grow.forward(from: 0);
   }
 
@@ -218,10 +256,21 @@ class _RoomMixDonutState extends State<RoomMixDonut> with SingleTickerProviderSt
   @override
   Widget build(BuildContext context) {
     final total = _total;
+    if (total <= 0 && widget.emptyText != null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        child: Text(widget.emptyText!, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: _muted)),
+      );
+    }
     final occupied = widget.slices.where((s) => s.label == 'Occupied').fold<num>(0, (a, s) => a + s.value);
     final pick = _picked != null && _picked! < widget.slices.length ? widget.slices[_picked!] : null;
-    final centreValue = pick == null ? (total > 0 ? '${(occupied / total * 100).round()}%' : '—') : '${pick.value}';
-    final centreLabel = pick == null ? 'occupied' : pick.label.toLowerCase();
+    final DonutCentre centre = widget.centre?.call(total, pick) ??
+        (
+          value: pick == null ? (total > 0 ? '${(occupied / total * 100).round()}%' : '—') : '${pick.value}',
+          label: pick == null ? 'occupied' : pick.label.toLowerCase(),
+          sub: 'of $total rooms',
+        );
+    final value = widget.valueText ?? (num v) => '$v';
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Center(
         child: SizedBox(
@@ -234,11 +283,20 @@ class _RoomMixDonutState extends State<RoomMixDonut> with SingleTickerProviderSt
               builder: (_, _) => CustomPaint(
                 painter: _DonutPainter(slices: widget.slices, t: eased.value, picked: _picked),
                 child: Center(
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    Text(centreValue, style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w800, color: _ink, height: 1.1)),
-                    Text(centreLabel, style: const TextStyle(fontSize: 12, color: _ink2)),
-                    Text('of $total rooms', style: const TextStyle(fontSize: 11, color: _muted)),
-                  ]),
+                  // Inside the ring: money figures shrink to fit rather than spill.
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 42),
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(centre.value, style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w800, color: _ink, height: 1.1)),
+                      ),
+                      Text(centre.label, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 12, color: _ink2)),
+                      Text(centre.sub, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 11, color: _muted)),
+                    ]),
+                  ),
                 ),
               ),
             ),
@@ -257,7 +315,7 @@ class _RoomMixDonutState extends State<RoomMixDonut> with SingleTickerProviderSt
               Container(width: 12, height: 12, decoration: BoxDecoration(color: s.color, borderRadius: BorderRadius.circular(4))),
               const SizedBox(width: 10),
               Expanded(child: Text(s.label, style: const TextStyle(fontSize: 13, color: _ink))),
-              Text('${s.value}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _ink)),
+              Text(value(s.value), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _ink)),
               SizedBox(
                 width: 48,
                 child: Text(total > 0 ? '${(s.value / total * 100).round()}%' : '0%', textAlign: TextAlign.right, style: const TextStyle(fontSize: 12, color: _muted)),
@@ -357,6 +415,8 @@ class _PairedColumnsState extends State<PairedColumns> with SingleTickerProvider
   @override
   void didUpdateWidget(PairedColumns old) {
     super.didUpdateWidget(old);
+    // A new period (Days → Years) changes the columns; a tapped column no longer exists.
+    if (old.days.length != widget.days.length || old.days.first != widget.days.first) _picked = null;
     if ('${old.a}${old.b}' != '${widget.a}${widget.b}') grow.forward(from: 0);
   }
 
@@ -540,9 +600,18 @@ class _ColumnsPainter extends CustomPainter {
 // ------------------------------------------------------ 4. the payment mix bar
 
 class PaymentMixBar extends StatefulWidget {
-  const PaymentMixBar({super.key, required this.slices, required this.money});
+  const PaymentMixBar({
+    super.key,
+    required this.slices,
+    required this.money,
+    this.caption = 'received in the last 30 days',
+    this.emptyText = 'No payments in the last 30 days',
+  });
   final List<ChartSlice> slices;
   final String Function(num) money;
+
+  /// The line under the total, and the text when there is nothing (Poultry reuses the bar).
+  final String caption, emptyText;
 
   @override
   State<PaymentMixBar> createState() => _PaymentMixBarState();
@@ -559,14 +628,14 @@ class _PaymentMixBarState extends State<PaymentMixBar> with SingleTickerProvider
   Widget build(BuildContext context) {
     final total = widget.slices.fold<num>(0, (s, x) => s + x.value);
     if (total <= 0) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 18),
-        child: Text('No payments in the last 30 days', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: _muted)),
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        child: Text(widget.emptyText, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: _muted)),
       );
     }
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Text(widget.money(total), style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: _ink)),
-      const Text('received in the last 30 days', style: TextStyle(fontSize: 12, color: _ink2)),
+      Text(widget.caption, style: const TextStyle(fontSize: 12, color: _ink2)),
       const SizedBox(height: 12),
       AnimatedBuilder(
         animation: eased,
@@ -603,8 +672,10 @@ class _PaymentMixBarState extends State<PaymentMixBar> with SingleTickerProvider
 
 // ------------------------------------------------------------- the section
 
-/// The four charts, as the dashboard shows them.
-class HotelDashboardCharts extends StatelessWidget {
+/// The four charts, as the dashboard shows them. The Days / Weeks / Months /
+/// Years picker (2 Nov) drives Money in & out and How guests pay; Room mix is
+/// "right now" and Arrivals & departures "the next 7 days", so they keep their own windows.
+class HotelDashboardCharts extends StatefulWidget {
   const HotelDashboardCharts({
     super.key,
     required this.statusSummary,
@@ -618,34 +689,48 @@ class HotelDashboardCharts extends StatelessWidget {
   final String today;
 
   @override
+  State<HotelDashboardCharts> createState() => _HotelDashboardChartsState();
+}
+
+class _HotelDashboardChartsState extends State<HotelDashboardCharts> {
+  // Opens on the last 12 months, so a business with no entries this fortnight still sees its figures.
+  ChartPeriod _period = ChartPeriod.months;
+
+  @override
   Widget build(BuildContext context) {
-    final money = dailyMoney(payments, expenses, today);
-    final moves = movementsAhead(bookings, today);
+    final today = widget.today;
+    final p = _period;
+    final b = p.buckets(_parse(today).toLocal());
+    final keys = [for (final x in b) x.from];
+    final revenue = bucketSums(b, widget.payments, (r) => _day(_v(r, 'paymentDate')), (r) => tNum(r['amount']));
+    final spent = bucketSums(b, widget.expenses, (r) => _day(_v(r, 'expenseDate')), (r) => tNum(r['amount']));
+    final moves = movementsAhead(widget.bookings, today);
     String fixed(num v) => v.toStringAsFixed(2);
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      ChartPeriodPicker(value: p, onChanged: (v) => setState(() => _period = v)),
       HotelChartCard(
         icon: Icons.donut_large,
         title: 'Room mix',
         subtitle: 'Every room by its status right now. Tap a colour to single it out.',
-        child: RoomMixDonut(slices: roomMix(statusSummary)),
+        child: RoomMixDonut(slices: roomMix(widget.statusSummary)),
       ),
       HotelChartCard(
         icon: Icons.bar_chart,
         title: 'Money in & out',
-        subtitle: 'Payments received and expenses, day by day, last 14 days. Tap a day.',
+        subtitle: 'Payments received and expenses, ${p.by}, ${p.window}. Tap a column.',
         child: PairedColumns(
-          days: [for (final d in money) d.day],
-          a: [for (final d in money) d.revenue],
-          b: [for (final d in money) d.expenses],
+          days: keys,
+          a: revenue,
+          b: spent,
           aLabel: 'Revenue',
           bLabel: 'Expenses',
-          dayLabel: (d) => d == today ? 'Today' : '${_parse(d).day}',
+          dayLabel: (k) => b[keys.indexOf(k)].short,
           valueText: fixed,
-          highlight: today,
+          highlight: keys.last,
           money: true,
           footer: (i) {
-            final net = money[i].revenue - money[i].expenses;
-            return Text('${_nice(money[i].day)} · net ${net >= 0 ? '+' : ''}${fixed(net)}',
+            final net = revenue[i] - spent[i];
+            return Text('${b[i].long} · net ${net >= 0 ? '+' : ''}${fixed(net)}',
                 textAlign: TextAlign.right, style: const TextStyle(fontSize: 12, color: _ink2));
           },
         ),
@@ -668,8 +753,13 @@ class HotelDashboardCharts extends StatelessWidget {
       HotelChartCard(
         icon: Icons.payments_outlined,
         title: 'How guests pay',
-        subtitle: 'Payments by method, last 30 days.',
-        child: PaymentMixBar(slices: paymentMix(payments, today), money: fixed),
+        subtitle: 'Payments by method, ${p.window}.',
+        child: PaymentMixBar(
+          slices: paymentMix(widget.payments, today, from: b.first.from),
+          money: fixed,
+          caption: 'received in the ${p.window}',
+          emptyText: 'No payments in the ${p.window}',
+        ),
       ),
     ]);
   }

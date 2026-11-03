@@ -272,6 +272,10 @@ class _HotelDashboardViewState extends State<HotelDashboardView> {
         if (_loading || f == null)
           const Padding(padding: EdgeInsets.symmetric(vertical: 60), child: Center(child: CircularProgressIndicator(color: hotelViolet)))
         else ...[
+          // The charts come first (user, 2 Nov): the app's addition sits above the web's figures.
+          _heading('Insights'),
+          HotelDashboardCharts(statusSummary: f.statusSummary, bookings: f.bookings, payments: f.payments, expenses: f.expenses, today: f.today),
+          const SizedBox(height: 14),
           _heading('Room Status'),
           twoUp([
             _stat('Total Rooms', f.totalRooms, Icons.door_front_door_outlined, href: '/hotel-rooms'),
@@ -302,9 +306,6 @@ class _HotelDashboardViewState extends State<HotelDashboardView> {
             _stat('Open Maintenance', f.openMaintenance, Icons.build_outlined, href: '/hotel-maintenance', color: f.openMaintenance > 0 ? 'red' : 'emerald'),
           ]),
           const SizedBox(height: 18),
-          _heading('Insights'),
-          HotelDashboardCharts(statusSummary: f.statusSummary, bookings: f.bookings, payments: f.payments, expenses: f.expenses, today: f.today),
-          const SizedBox(height: 4),
           _panel(Icons.people_outline, hotelViolet, 'In-House Guests (${f.checkedIn})', 'No guests currently checked in', [
             for (final g in f.balances) _row(g.guest, 'Room ${g.room} | ${g.ref}', _owes(g.balance), TColors.slate50, TColors.slate200),
           ]),
