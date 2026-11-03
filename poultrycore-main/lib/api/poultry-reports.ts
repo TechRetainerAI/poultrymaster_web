@@ -256,10 +256,14 @@ export interface PoultryProfitLossByFlockReportSummary {
   mostProfitableFlock: string | null; leastProfitableFlock: string | null
   eggRevenue: number; birdSalesRevenue: number; otherRevenue: number
   feedCost: number; medicineVaccineCost: number; laborCost: number; otherExpenses: number
+  /** 402: chick purchase shared to flocks that started in the period. Absent before it. */
+  birdCost?: number
 }
 export interface PoultryProfitLossByFlockReportRow {
   flockId: number | null; flockName: string; eggRevenue: number; birdSalesRevenue: number; otherRevenue: number
   feedCost: number | null; medicineVaccineCost: number | null; laborCost: number | null; otherExpenses: number
+  /** 402: the flock's share of its batch purchase, in the period the flock started. */
+  birdCost?: number
   totalRevenue: number; totalCost: number; grossProfit: number; netProfit: number
   profitPerBirdPlaced: number | null; profitPerEgg: number | null; status: string
 }

@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
@@ -28,6 +28,10 @@ namespace PoultryFarmAPIWeb.Controllers
     /// <para>farmId travels in the query string on every route, because that is
     /// where the IAM filter reads the company from.</para>
     /// </summary>
+    // Every route here reads or changes a company's flocks and money: sign-in
+    // required, like every other controller. (Missing since 338; found 2026-11-03
+    // when the broiler-kpis route answered an anonymous request.)
+    [Microsoft.AspNetCore.Authorization.Authorize]
     [ApiController]
     [Route("api/flock-closeout")]
     [RequireCompanyType("Poultry")]
@@ -66,6 +70,17 @@ namespace PoultryFarmAPIWeb.Controllers
         {
             if (string.IsNullOrEmpty(farmId)) return BadRequest("FarmId is required.");
             return Ok(await _closeout.GetHistoryAsync(flockId, farmId));
+        }
+
+        // GET api/flock-closeout/broiler-kpis?farmId=&flockId=&broilersOnly=
+        // 402: the meat-bird figures. Same view right as the lifetime summary
+        // it is built on.
+        [HttpGet("broiler-kpis")]
+        public async Task<ActionResult<List<FlockBroilerKpis>>> GetBroilerKpis(
+            [FromQuery] string farmId, [FromQuery] int? flockId, [FromQuery] bool broilersOnly = false)
+        {
+            if (string.IsNullOrEmpty(farmId)) return BadRequest("FarmId is required.");
+            return Ok(await _closeout.GetBroilerKpisAsync(farmId, flockId, broilersOnly));
         }
 
         // GET api/flock-closeout/lifetime?farmId=&flockId=&closedOnly=

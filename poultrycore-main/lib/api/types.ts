@@ -76,6 +76,11 @@ export interface SaleLine {
   pricePerPiece?: number | null
   calculatedAmount?: number | null
   amountOverridden?: boolean | null
+  // 401: a live-bird line. quantity is the bird count; unitPrice is per bird
+  // (amount / birds when priced per kg). Null on other lines and older ones.
+  pricingBasis?: "PerBird" | "PerKg" | null
+  liveWeightKg?: number | null
+  pricePerKg?: number | null
 }
 
 export interface Sale {

@@ -89,6 +89,27 @@
         public decimal? PricePerPiece { get; set; }
         public decimal? CalculatedAmount { get; set; }
         public bool? AmountOverridden { get; set; }
+
+        // 401: a bird line priced per bird or per kg of live weight. Quantity
+        // is always the bird count; UnitPrice is per bird (amount / birds when
+        // priced per kg). Null on lines that are not birds, or older lines.
+        public string? PricingBasis { get; set; }
+        public decimal? LiveWeightKg { get; set; }
+        public decimal? PricePerKg { get; set; }
+    }
+
+    /// <summary>401: one flock still inside a meat withdrawal period, and why.</summary>
+    public class MeatWithdrawalRow
+    {
+        public int FlockId { get; set; }
+        public string FlockName { get; set; } = string.Empty;
+        public string ItemName { get; set; } = string.Empty;
+        public DateTime LastDoseDate { get; set; }
+        public int WithdrawalDays { get; set; }
+        /// <summary>Inclusive: a sale dated on or before this day is inside the period.</summary>
+        public DateTime WithdrawalUntil { get; set; }
+        /// <summary>"Treatment campaign" or "Production record".</summary>
+        public string Source { get; set; } = string.Empty;
     }
 
     /// <summary>POST api/Sale/{id}/reverse.</summary>

@@ -21,6 +21,8 @@ namespace PoultryFarmAPIWeb.Business
         Task<string?> GetReversal(int saleId, string farmId);
         Task<int> Reverse(int saleId, SaleReverseRequest request);
         Task LinkCorrectionAsync(string farmId, int newSaleId, int correctsSaleId, string? by);
+        /// <summary>401: flocks inside a meat withdrawal period on a date (inclusive). A warning, never a refusal.</summary>
+        Task<List<MeatWithdrawalRow>> GetMeatWithdrawalAsync(string farmId, DateTime date);
     }
 
 }

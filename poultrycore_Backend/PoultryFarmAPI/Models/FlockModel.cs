@@ -35,6 +35,14 @@
         public string? CloseReason { get; set; }
         public int? CloseoutId { get; set; }
         public bool IsClosed => ClosedDate.HasValue;
+
+        /// <summary>
+        /// "Layer" or "Broiler" (migration 399). On create/update, null means
+        /// "not chosen": a new flock then gets the database default (broiler
+        /// breed, else the company's business type) and an existing flock keeps
+        /// its type.
+        /// </summary>
+        public string? FlockType { get; set; }
 }
 
 }

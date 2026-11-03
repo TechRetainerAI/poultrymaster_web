@@ -325,6 +325,15 @@ namespace PoultryFarmAPIWeb.Business
                     if (l.PricePerPiece is not null) line["pricePerPiece"] = l.PricePerPiece;
                     if (l.AmountOverridden == true) line["amountOverridden"] = true;
                 }
+                // 401: the bird pricing keys only when the line has them -- like
+                // the packaging keys, a key that is present switches the branch on.
+                if (!string.IsNullOrWhiteSpace(l.PricingBasis) || l.LiveWeightKg is not null)
+                {
+                    line["pricingBasis"] = string.IsNullOrWhiteSpace(l.PricingBasis) ? "PerBird" : l.PricingBasis!.Trim();
+                    if (l.LiveWeightKg is not null) line["liveWeightKg"] = l.LiveWeightKg;
+                    if (l.PricePerKg is not null) line["pricePerKg"] = l.PricePerKg;
+                    if (l.AmountOverridden == true) line["amountOverridden"] = true;
+                }
                 return line;
             }));
             // 360: different products in one entry are saved as one sale per
@@ -789,6 +798,32 @@ namespace PoultryFarmAPIWeb.Business
         }
 
         /// <summary>Links a corrected sale to the reversed sale it replaces.</summary>
+        public async Task<List<MeatWithdrawalRow>> GetMeatWithdrawalAsync(string farmId, DateTime date)
+        {
+            var rows = new List<MeatWithdrawalRow>();
+            await using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(
+                "SELECT * FROM fnpoultryflock_meatwithdrawal(p_farmid => @FarmId::text, p_date => @Date::date)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@Date", NpgsqlTypes.NpgsqlDbType.Date, date.Date);
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                rows.Add(new MeatWithdrawalRow
+                {
+                    FlockId = r.GetInt32(r.GetOrdinal("flockid")),
+                    FlockName = r.IsDBNull(r.GetOrdinal("flockname")) ? string.Empty : r.GetString(r.GetOrdinal("flockname")),
+                    ItemName = r.IsDBNull(r.GetOrdinal("itemname")) ? string.Empty : r.GetString(r.GetOrdinal("itemname")),
+                    LastDoseDate = r.GetDateTime(r.GetOrdinal("lastdosedate")),
+                    WithdrawalDays = r.GetInt32(r.GetOrdinal("withdrawaldays")),
+                    WithdrawalUntil = r.GetDateTime(r.GetOrdinal("withdrawaluntil")),
+                    Source = r.GetString(r.GetOrdinal("source")),
+                });
+            }
+            return rows;
+        }
+
         public async Task LinkCorrectionAsync(string farmId, int newSaleId, int correctsSaleId, string? by)
         {
             try

@@ -15,6 +15,7 @@ import { navPathActive, type NavAccent, type NavGroup, type NavItem } from "@/li
 import { NAV_SURFACE } from "./nav/nav-surface"
 import { WATER_REPORT_NAV_GROUPS, POULTRY_REPORT_NAV_GROUPS, HOTEL_REPORT_NAV_GROUPS, RESTAURANT_REPORT_NAV_GROUPS } from "@/lib/nav/report-nav-adapters"
 import { buildWaterNavConfig } from "@/lib/nav/water-nav-config"
+import { usePoultryBroilerFeatures, usePoultryEggFeatures } from "@/hooks/use-poultry-egg-features"
 import { useQuickLinkHrefs } from "@/lib/store/quick-links-store"
 import { QuickLinksDialog } from "@/components/dashboard/quick-links-dialog"
 import { buildPoultryNavConfig } from "@/lib/nav/poultry-nav-config"
@@ -574,6 +575,8 @@ export function TopNavigation() {
   const openAlerts = useAlertsStore((s) => s.open)
   const alertCount = useAlertsStore((s) => s.alerts.length)
   const quickLinkHrefs = useQuickLinkHrefs()
+  const showEggFeatures = usePoultryEggFeatures()
+  const showBroilerFeatures = usePoultryBroilerFeatures()
   const [customiseOpen, setCustomiseOpen] = useState(false)
 
   // Water and Generic companies each get their own nav rail — falling through
@@ -599,7 +602,7 @@ export function TopNavigation() {
   //
   // quickLinkHrefs and customiseOpen are read at the top of the function, above
   // the early returns — see the note there.
-  const nav = buildPoultryNavConfig({ permissions, onOpenAlerts: openAlerts, alertCount, quickLinkHrefs })
+  const nav = buildPoultryNavConfig({ permissions, onOpenAlerts: openAlerts, alertCount, quickLinkHrefs, showEggFeatures, showBroilerFeatures })
 
   return (
     <>

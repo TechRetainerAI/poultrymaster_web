@@ -31,13 +31,21 @@ export interface CloseoutDraft {
   transfers: FlockCloseoutTransferLine[]
 }
 
+import { birdPricingProblem } from "@/lib/poultry/bird-pricing"
+
 const qty = (n: unknown) => Math.max(0, Math.trunc(Number(n) || 0))
 const round2 = (n: number) => Math.round(n * 100) / 100
 
-/** Quantity x unit price unless a total was typed. The same default the server uses. */
-export function saleTotal(line: Pick<FlockCloseoutSaleLine, "quantity" | "unitPrice" | "totalAmount">): number {
-  if (line.totalAmount != null && Number.isFinite(Number(line.totalAmount))) return Number(line.totalAmount)
+/** The amount the prices give: per kg (401) weight x price per kg, else birds x price per bird. */
+export function calculatedSaleTotal(line: Pick<FlockCloseoutSaleLine, "quantity" | "unitPrice"> & Partial<Pick<FlockCloseoutSaleLine, "pricingBasis" | "liveWeightKg" | "pricePerKg">>): number {
+  if (line.pricingBasis === "PerKg") return round2((Number(line.liveWeightKg) || 0) * (Number(line.pricePerKg) || 0))
   return round2(qty(line.quantity) * (Number(line.unitPrice) || 0))
+}
+
+/** The calculated amount unless a total was typed. The same default the server uses. */
+export function saleTotal(line: Pick<FlockCloseoutSaleLine, "quantity" | "unitPrice" | "totalAmount"> & Partial<Pick<FlockCloseoutSaleLine, "pricingBasis" | "liveWeightKg" | "pricePerKg">>): number {
+  if (line.totalAmount != null && Number.isFinite(Number(line.totalAmount))) return Number(line.totalAmount)
+  return calculatedSaleTotal(line)
 }
 
 export interface DispositionTotals {
@@ -157,6 +165,13 @@ export function validateCloseoutDraft(draft: CloseoutDraft, context: FlockCloseo
     const n = `Sale ${i + 1}`
     if (qty(s.quantity) <= 0) errors.push(`${n}: enter how many birds were sold.`)
     if ((Number(s.unitPrice) || 0) < 0 || (Number(s.totalAmount) || 0) < 0) errors.push(`${n}: the price cannot be negative.`)
+    // 401: per kg needs the weight and the price per kg; the same limits as the database.
+    const bird = birdPricingProblem(qty(s.quantity), {
+      basis: s.pricingBasis === "PerKg" ? "PerKg" : "PerBird",
+      liveWeightKg: s.liveWeightKg ?? null,
+      pricePerKg: s.pricePerKg ?? null,
+    })
+    if (bird) errors.push(`${n}: ${bird.charAt(0).toLowerCase()}${bird.slice(1)}`)
     const total = saleTotal(s)
     const hasCustomer = s.customerId != null || !!(s.customerName ?? "").trim()
     if (s.paymentTerms !== "Credit" && s.poultryCashAccountId == null)

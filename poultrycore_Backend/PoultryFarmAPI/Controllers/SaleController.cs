@@ -27,6 +27,18 @@ namespace PoultryFarmAPIWeb.Controllers
             _saleService = saleService;
         }
 
+        // GET: api/Sale/meat-withdrawal?farmId=xxx&date=yyyy-MM-dd
+        // 401: flocks still inside a meat withdrawal period on the sale date.
+        // Under the Sale route (sales.view) on purpose: whoever can sell birds
+        // must be able to see the warning, health rights or not. Warning only.
+        [HttpGet("meat-withdrawal")]
+        public async Task<ActionResult<IEnumerable<MeatWithdrawalRow>>> GetMeatWithdrawal([FromQuery] string farmId, [FromQuery] DateTime? date)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("FarmId is required.");
+            if (date is null) return BadRequest("Date is required.");
+            return Ok(await _saleService.GetMeatWithdrawalAsync(farmId, date.Value));
+        }
+
         // GET: api/Sale?userId=xxx&farmId=xxx
         [HttpGet]
         public async Task<ActionResult<IEnumerable<SaleModel>>> GetAll([FromQuery] string userId, [FromQuery] string farmId,

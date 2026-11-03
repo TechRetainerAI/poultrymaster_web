@@ -41,6 +41,8 @@ export interface Flock {
   closedBy?: string | null
   closeReason?: string | null
   closeoutId?: number | null
+  /** "Layer" | "Broiler" (migration 399). Absent before it: treat as Layer. */
+  flockType?: string | null
 }
 
 export interface FlockInput {
@@ -58,6 +60,12 @@ export interface FlockInput {
   inactivationReason?: string
   otherReason?: string
   notes?: string
+  /**
+   * "Layer" | "Broiler". Omit to leave an existing flock's type alone, or to
+   * let a new flock take the database default (broiler breed, else the
+   * company's business type).
+   */
+  flockType?: string | null
 }
 
 export interface ApiResponse<T = any> {
@@ -228,6 +236,7 @@ export async function getFlocks(userId?: string, farmId?: string): Promise<ApiRe
         closedBy: flock.ClosedBy ?? flock.closedBy ?? null,
         closeReason: flock.CloseReason ?? flock.closeReason ?? null,
         closeoutId: flock.CloseoutId ?? flock.closeoutId ?? null,
+        flockType: flock.FlockType ?? flock.flockType ?? null,
       }
     })
 
@@ -422,6 +431,7 @@ export async function getFlock(id: number, userId?: string, farmId?: string): Pr
       inactivationReason: data.InactivationReason ?? data.inactivationReason ?? '',
       otherReason: data.OtherReason ?? data.otherReason ?? '',
       notes: data.Notes ?? data.notes ?? '',
+      flockType: data.FlockType ?? data.flockType ?? null,
       closedDate: data.ClosedDate ?? data.closedDate ?? null,
       closedAt: data.ClosedAt ?? data.closedAt ?? null,
       closedBy: data.ClosedBy ?? data.closedBy ?? null,
@@ -517,6 +527,8 @@ export async function createFlock(flock: FlockInput): Promise<ApiResponse<Flock>
       Active: flock.active,
       HasArrived: Boolean(flock.hasArrived),
       BatchId: flock.batchId,
+      // 399: omitted -> the database default (broiler breed, else company type)
+      ...(flock.flockType ? { FlockType: flock.flockType } : {}),
     }
     
     // Only add optional fields if they have values
@@ -680,6 +692,8 @@ export async function updateFlock(id: number, flock: Partial<FlockInput>): Promi
       HasArrived: Boolean(flock.hasArrived),
       HouseId: flock.houseId ?? null,
       BatchId: flock.batchId ?? 0,
+      // 399: omitted -> the flock keeps its type (auto-activate etc. never retype)
+      ...(flock.flockType ? { FlockType: flock.flockType } : {}),
       InactivationReason: flock.inactivationReason || '',
       OtherReason: flock.otherReason || '',
       Notes: flock.notes ?? '',
@@ -805,6 +819,8 @@ export interface AllocateBatchInput {
   breed?: string
   startDate?: string
   hasArrived?: boolean
+  /** "Layer" | "Broiler" for every flock created. Omitted: database default. */
+  flockType?: string
   /** Which screen this allocation came from; recorded in the audit trail. */
   source?: string
 }
@@ -949,6 +965,7 @@ export async function allocateBatchToFlocks(input: AllocateBatchInput): Promise<
       payload.StartDate = input.startDate.includes("T") ? input.startDate : `${input.startDate}T00:00:00`
     }
     if (input.hasArrived !== undefined) payload.HasArrived = input.hasArrived
+    if (input.flockType) payload.FlockType = input.flockType
 
     const endpoint = `/Flock/bulk-allocate`
     const url = IS_BROWSER ? buildApiUrl(endpoint) : `${DIRECT_API_BASE_URL}/api${endpoint}`
