@@ -22,6 +22,10 @@ export async function GET() {
       const res = await fetch(`https://www.youtube.com/feeds/videos.xml?playlist_id=${channel.playlist}`, {
         next: { revalidate: REVALIDATE_SECONDS },
       })
+      // A 404 here means the playlist does not exist or is private/empty --
+      // that is "no videos" for the page, not a fault. Only a real upstream
+      // error (5xx / network) is a 502.
+      if (res.status === 404) return NextResponse.json({ error: "not-found" }, { status: 404 })
       if (!res.ok) return NextResponse.json({ error: "feed-unavailable" }, { status: 502 })
       const feed = {
         ...parseChannelFeed(await res.text()),
@@ -39,12 +43,14 @@ export async function GET() {
         next: { revalidate: 86400 },
       })
       if (page.ok) id = channelIdFromPage(await page.text())
-      if (!id) return NextResponse.json({ error: "channel-not-found" }, { status: 502 })
+      // Could not resolve the handle to a channel id -- treat as "no videos".
+      if (!id) return NextResponse.json({ error: "channel-not-found" }, { status: 404 })
     }
 
     const res = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${id}`, {
       next: { revalidate: REVALIDATE_SECONDS },
     })
+    if (res.status === 404) return NextResponse.json({ error: "not-found" }, { status: 404 })
     if (!res.ok) return NextResponse.json({ error: "feed-unavailable" }, { status: 502 })
 
     return NextResponse.json(parseChannelFeed(await res.text()), {
