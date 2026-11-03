@@ -61,6 +61,7 @@ import {
 } from "@/lib/production/production-record-calc"
 import { isFinishedFeedCategory } from "@/lib/utils/feed-item-ledger"
 import { formatShortDate, type MissingProductionPrefill } from "@/lib/activity/completeness"
+import { isBroilerFlock } from "@/lib/poultry/flock-type"
 
 // Doc §4a: classify a raw-material item as Feed or Medication by its category.
 // Feed here means FINISHED feed only. /feed/i also matched "FeedIngredient", so
@@ -292,6 +293,10 @@ export function BatchProductionRecordForm({
   const softEggs = parseInt(form.softEggs) || 0
   const lostEggs = parseInt(form.lostEggs) || 0
   const totalLosses = calcTotalLosses({ broken: brokenEggs, meaty: meatyEggs, soft: softEggs, lost: lostEggs })
+  // 399: no egg sections when every flock in scope is a broiler flock -- unless
+  // this record already carries eggs, which must stay visible while saved.
+  const hideEggSections = includedFlocksList.length > 0 && includedFlocksList.every((f) => isBroilerFlock(f))
+    && totalEggs === 0 && totalLosses === 0
   const netSellableEggs = calcNetSellable(totalEggs, totalLosses)
 
   // Advisory only, exactly as on the single-flock form: a hen lays at most one
@@ -627,7 +632,7 @@ export function BatchProductionRecordForm({
               </datalist>
             )}
           </div>
-          <div className="space-y-1.5">
+          {!hideEggSections && <div className="space-y-1.5">
             <Label>Egg grade</Label>
             {/* Automatic since egg sorting: the day's collection is mixed
                 sizes; sizes are recorded in Egg Sorting. An
@@ -640,7 +645,7 @@ export function BatchProductionRecordForm({
                 ? "Set automatically. Sizes are recorded when the eggs are sorted."
                 : "Recorded before egg sorting; kept as it was."}
             </p>
-          </div>
+          </div>}
         </div>
 
         {batchSelectionType === "CustomBatch" && (
@@ -681,6 +686,7 @@ export function BatchProductionRecordForm({
       </FormSectionCard>
 
       {/* --------------------------------------------- Egg Production */}
+      {!hideEggSections && <>
       <FormSectionCard
         title="Egg Production"
         description={`Total = ${cpb ? `boxes × ${cpb} crates + ` : ""}crates × ${EGGS_PER_CRATE} + pieces. These are BATCH totals, split across flocks at allocation.`}
@@ -746,6 +752,7 @@ export function BatchProductionRecordForm({
           <CalcField label="Net sellable" value={netSellableEggs.toLocaleString()} tone="good" />
         </div>
       </FormSectionCard>
+      </>}
 
       {/* --------------------------------------------------- Birds */}
       <FormSectionCard

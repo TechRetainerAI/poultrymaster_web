@@ -15,6 +15,7 @@ import { useAlertsStore } from "@/lib/store/alerts-store"
 import { buildPoultryNavConfig } from "@/lib/nav/poultry-nav-config"
 import { buildWaterNavConfig } from "@/lib/nav/water-nav-config"
 import { buildHotelNavConfig } from "@/lib/nav/hotel-nav-config"
+import { usePoultryBroilerFeatures, usePoultryEggFeatures } from "@/hooks/use-poultry-egg-features"
 import { useQuickLinkHrefs } from "@/lib/store/quick-links-store"
 import { QuickLinksDialog } from "@/components/dashboard/quick-links-dialog"
 import { HOTEL_REPORT_NAV_GROUPS, POULTRY_REPORT_NAV_GROUPS, RESTAURANT_REPORT_NAV_GROUPS } from "@/lib/nav/report-nav-adapters"
@@ -185,6 +186,8 @@ export function MobileBottomNav() {
   const [sheetOpen, setSheetOpen] = useState(false)
   // 318. null = never customised = each config's own defaults.
   const quickLinkHrefs = useQuickLinkHrefs()
+  const showEggFeatures = usePoultryEggFeatures()
+  const showBroilerFeatures = usePoultryBroilerFeatures()
   const [customiseOpen, setCustomiseOpen] = useState(false)
   /**
    * The row that opens the picker, appended to whichever Quick Links section
@@ -224,7 +227,7 @@ export function MobileBottomNav() {
   // is spelled out here once rather than inferred twice.
   const isPoultry = !["Water", "Generic", "Hotel", "Restaurant"].includes(activeFarmType ?? "")
   const poultryNavForQuickLinks = buildPoultryNavConfig({
-    permissions, onOpenAlerts: openAlerts, alertCount, quickLinkHrefs,
+    permissions, onOpenAlerts: openAlerts, alertCount, quickLinkHrefs, showEggFeatures, showBroilerFeatures,
   })
 
   // Per-company-type bar config. The 4 main tabs are the most-used daily flow

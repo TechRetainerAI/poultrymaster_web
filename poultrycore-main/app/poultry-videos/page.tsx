@@ -92,11 +92,11 @@ export default function PoultryVideosPage() {
   const playerRef = useRef<HTMLDivElement>(null)
 
   // New videos arrive on their own: the route re-reads the playlist's feed
-  // every 30 minutes.
+  // every 5 minutes.
   const { data: feed, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ["poultry-videos"],
     queryFn: loadFeed,
-    staleTime: 10 * 60 * 1000,
+    staleTime: 60 * 1000,
   })
   const videos = useMemo(() => feed?.videos ?? [], [feed])
 

@@ -7,6 +7,7 @@ import { getDashboardSummary, type DashboardSummary } from "@/lib/api/dashboard"
 import { getSales } from "@/lib/api"
 import { getUserContext } from "@/lib/utils/user-context"
 import { formatCurrency } from "@/lib/utils/currency"
+import { usePoultryEggFeatures } from "@/hooks/use-poultry-egg-features"
 
 interface MetricCardProps {
   title: string
@@ -47,6 +48,8 @@ function MetricCard({ title, value, change, changeType, icon: Icon, iconColor }:
 }
 
 export function MetricsCards() {
+  // 399: a broiler-only company has no eggs to count or laying rate to show.
+  const showEggs = usePoultryEggFeatures()
   const [summary, setSummary] = useState<DashboardSummary | null>(null)
   const [salesData, setSalesData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -252,9 +255,13 @@ export function MetricsCards() {
     },
   ]
 
+  const shownMetrics = showEggs
+    ? allMetrics
+    : allMetrics.filter((m) => m.title !== "TOTAL EGGS" && m.title !== "PRODUCTION EFFICIENCY")
+
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-      {allMetrics.map((metric, index) => (
+      {shownMetrics.map((metric, index) => (
         <MetricCard key={index} {...metric} />
       ))}
     </div>

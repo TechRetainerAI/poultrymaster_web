@@ -1,4 +1,4 @@
-
+﻿
 using Npgsql;
 using PoultryFarmAPIWeb.Models;
 using static PoultryFarmAPIWeb.Business.PoultryReportHelpers;
@@ -1418,9 +1418,10 @@ namespace PoultryFarmAPIWeb.Business
                 var med = DecOr(r, "MedicineVaccineCost");
                 var labor = DecOr(r, "LaborCost");
                 var other = DecOr(r, "OtherExpenses");
+                var birdCost = DecOr(r, "BirdCost");      // 402; 0 before it
                 var eggs = LongOr(r, "EggsProduced");
                 var placed = IntOr(r, "BirdsPlaced");
-                var totalCost = feed + med + labor + other;
+                var totalCost = feed + med + labor + other + birdCost;
                 var net = revenue - totalCost;
                 resp.Rows.Add(new PoultryProfitLossByFlockReportRow
                 {
@@ -1433,6 +1434,7 @@ namespace PoultryFarmAPIWeb.Business
                     MedicineVaccineCost = med,
                     LaborCost = labor,
                     OtherExpenses = other,
+                    BirdCost = birdCost,
                     TotalRevenue = revenue,
                     TotalCost = totalCost,
                     GrossProfit = revenue - feed,
@@ -1460,7 +1462,9 @@ namespace PoultryFarmAPIWeb.Business
                 MedicineVaccineCost = resp.Rows.Sum(x => x.MedicineVaccineCost ?? 0),
                 LaborCost = resp.Rows.Sum(x => x.LaborCost ?? 0),
                 OtherExpenses = resp.Rows.Sum(x => x.OtherExpenses),
+                BirdCost = resp.Rows.Sum(x => x.BirdCost),
             };
+            resp.Warnings.Add("Chick cost is the flock's share of its batch purchase (by birds placed), charged in the period the flock started.");
             resp.Warnings.Add("Revenue and costs are allocated to a flock only when the sale/expense record has a flock id. Revenue is split by the sale's product name (egg / bird / other). Unallocated (farm-level) income and costs are not shown per flock.");
             return resp;
         }

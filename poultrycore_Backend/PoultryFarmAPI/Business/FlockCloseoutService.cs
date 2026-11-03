@@ -1,4 +1,4 @@
-using Npgsql;
+﻿using Npgsql;
 using PoultryFarmAPIWeb.Models;
 using System;
 using System.Collections.Generic;
@@ -15,6 +15,8 @@ namespace PoultryFarmAPIWeb.Business
         Task<FlockReopenResult> ReopenAsync(int flockId, FlockReopenRequest request);
         Task<List<FlockCloseoutRecord>> GetHistoryAsync(int flockId, string farmId);
         Task<List<FlockLifetimeSummary>> GetLifetimeSummaryAsync(string farmId, int? flockId, bool closedOnly);
+        /// <summary>402: FCR, liveability, EPEF, kg produced, cost per kg.</summary>
+        Task<List<FlockBroilerKpis>> GetBroilerKpisAsync(string farmId, int? flockId, bool broilersOnly);
     }
 
     /// <summary>
@@ -184,6 +186,60 @@ namespace PoultryFarmAPIWeb.Business
             return list;
         }
 
+        public async Task<List<FlockBroilerKpis>> GetBroilerKpisAsync(string farmId, int? flockId, bool broilersOnly)
+        {
+            var list = new List<FlockBroilerKpis>();
+            using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand("SELECT * FROM fnflock_broilerkpis(p_farmid => @FarmId::text, p_flockid => @FlockId::int, p_broilersonly => @Only::boolean)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@FlockId", (object?)flockId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Only", broilersOnly);
+            using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                list.Add(new FlockBroilerKpis
+                {
+                    FlockId = r.GetInt32(r.GetOrdinal("flockid")),
+                    FlockName = Str(r, "flockname") ?? string.Empty,
+                    FlockType = Str(r, "flocktype") ?? "Layer",
+                    Breed = Str(r, "breed"),
+                    Status = Str(r, "status") ?? string.Empty,
+                    StartDate = r.GetDateTime(r.GetOrdinal("startdate")),
+                    ClosedDate = Date(r, "closeddate"),
+                    AgeInDays = r.GetInt32(r.GetOrdinal("ageindays")),
+                    BirdsStarted = r.GetInt32(r.GetOrdinal("birdsstarted")),
+                    Deaths = r.GetInt32(r.GetOrdinal("deaths")),
+                    LiveabilityPct = Dec(r, "liveabilitypct"),
+                    BirdsSold = r.GetInt32(r.GetOrdinal("birdssold")),
+                    BirdsSoldWeighed = r.GetInt32(r.GetOrdinal("birdssoldweighed")),
+                    KgSoldWeighed = Dec(r, "kgsoldweighed") ?? 0,
+                    AvgSaleWeightKg = Dec(r, "avgsaleweightkg"),
+                    LiveBirds = r.GetInt32(r.GetOrdinal("livebirds")),
+                    LatestWeighDate = Date(r, "latestweighdate"),
+                    LatestAvgWeightKg = Dec(r, "latestavgweightkg"),
+                    KgSoldEstimated = Dec(r, "kgsoldestimated"),
+                    KgInHouseEstimated = Dec(r, "kginhouseestimated"),
+                    KgProduced = Dec(r, "kgproduced"),
+                    KgIsEstimated = r.GetBoolean(r.GetOrdinal("kgisestimated")),
+                    AvgLiveWeightKg = Dec(r, "avgliveweightkg"),
+                    FeedKg = Dec(r, "feedkg") ?? 0,
+                    Fcr = Dec(r, "fcr"),
+                    Epef = Dec(r, "epef"),
+                    BirdCost = Dec(r, "birdcost") ?? 0,
+                    BirdCostRecorded = r.GetBoolean(r.GetOrdinal("birdcostrecorded")),
+                    TotalCost = Dec(r, "totalcost") ?? 0,
+                    CostPerKg = Dec(r, "costperkg"),
+                    BirdSaleRevenue = Dec(r, "birdsalerevenue") ?? 0,
+                    RevenuePerKg = Dec(r, "revenueperkg"),
+                    Profit = Dec(r, "profit") ?? 0,
+                    ProfitPerKg = Dec(r, "profitperkg"),
+                    Missing = Str(r, "missing"),
+                });
+            }
+            return list;
+        }
+
         public async Task<List<FlockLifetimeSummary>> GetLifetimeSummaryAsync(string farmId, int? flockId, bool closedOnly)
         {
             var list = new List<FlockLifetimeSummary>();
@@ -282,7 +338,7 @@ namespace PoultryFarmAPIWeb.Business
                         SaleDate = closedDate,
                         Product = context.BirdProductName,
                         Quantity = line.Quantity,
-                        UnitPrice = line.UnitPrice,
+                        UnitPrice = FlockCloseoutValidator.SaleUnitPrice(line),
                         TotalAmount = FlockCloseoutValidator.SaleTotal(line),
                         PaymentMethod = string.IsNullOrWhiteSpace(line.PaymentMethod) ? null : line.PaymentMethod!.Trim(),
                         CustomerId = line.CustomerId,
@@ -295,6 +351,29 @@ namespace PoultryFarmAPIWeb.Business
                         PoultryCashAccountId = line.PoultryCashAccountId,
                     });
                     createdSaleIds.Add(saleId);
+
+                    // 401: how the birds were priced, and their live weight, on
+                    // the sale's line. Write-once and money-neutral in the
+                    // database; a refusal undoes the sales like any other.
+                    if (FlockCloseoutValidator.IsPerKg(line) || line.LiveWeightKg is > 0)
+                    {
+                        var perKg = FlockCloseoutValidator.IsPerKg(line);
+                        using var wconn = new NpgsqlConnection(_connectionString);
+                        await wconn.OpenAsync();
+                        using var wcmd = new NpgsqlCommand(
+                            "SELECT sppoultrysale_setliveweight(p_farmid => @FarmId::text, p_saleid => @SaleId::int, " +
+                            "p_pricingbasis => @Basis::text, p_liveweightkg => @Kg::numeric, p_priceperkg => @Ppk::numeric, " +
+                            "p_overridden => @Ovr::boolean, p_by => @By::text)", wconn);
+                        wcmd.Parameters.AddWithValue("@FarmId", request.FarmId);
+                        wcmd.Parameters.AddWithValue("@SaleId", saleId);
+                        wcmd.Parameters.AddWithValue("@Basis", perKg ? "PerKg" : "PerBird");
+                        wcmd.Parameters.AddWithValue("@Kg", (object?)line.LiveWeightKg ?? DBNull.Value);
+                        wcmd.Parameters.AddWithValue("@Ppk", perKg && line.PricePerKg is not null ? line.PricePerKg : DBNull.Value);
+                        wcmd.Parameters.AddWithValue("@Ovr", perKg && line.TotalAmount is not null
+                            && line.TotalAmount != FlockCloseoutValidator.CalculatedTotal(line));
+                        wcmd.Parameters.AddWithValue("@By", (object?)request.UserId ?? DBNull.Value);
+                        await wcmd.ExecuteNonQueryAsync();
+                    }
                 }
             }
             catch (Exception ex)

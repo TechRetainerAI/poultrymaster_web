@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace PoultryFarmAPIWeb.Models
@@ -42,6 +42,11 @@ namespace PoultryFarmAPIWeb.Models
         /// you do once they are there.
         /// </summary>
         public bool? HasArrived { get; set; }
+
+        /// <summary>"Layer" / "Broiler" for every flock created (migration 399).
+        /// Null: each flock gets the database default (broiler breed, else the
+        /// company's business type).</summary>
+        public string? FlockType { get; set; }
 
         /// <summary>
         /// Where the allocation came from — "Batch Allocation Tool", "Farm Setup

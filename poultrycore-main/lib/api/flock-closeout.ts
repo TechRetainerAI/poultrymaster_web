@@ -70,6 +70,10 @@ export interface FlockCloseoutSaleLine {
   paymentMethod?: string | null
   poultryCashAccountId?: number | null
   description?: string | null
+  /** 401: "PerBird" (default) or "PerKg". Per kg, total = liveWeightKg x pricePerKg. */
+  pricingBasis?: "PerBird" | "PerKg" | null
+  liveWeightKg?: number | null
+  pricePerKg?: number | null
 }
 
 export interface FlockCloseoutCullLine {
@@ -255,6 +259,57 @@ export function getFlockCloseoutContext(flockId: number, userId: string, farmId:
 export function getFlockCloseoutHistory(flockId: number, farmId: string) {
   const qs = new URLSearchParams({ farmId }).toString()
   return call<FlockCloseoutRecord[]>(`/flock-closeout/${flockId}/history?${qs}`)
+}
+
+/**
+ * 402: the meat-bird figures for a flock (fnflock_broilerkpis), built on the
+ * lifetime summary so cost and profit agree with it. Null = not knowable yet,
+ * never a guess; kgIsEstimated = part of the kg came from an average weight;
+ * missing = what would complete the figures.
+ */
+export interface FlockBroilerKpis {
+  flockId: number
+  flockName: string
+  flockType: string
+  breed?: string | null
+  status: string
+  startDate: string
+  closedDate?: string | null
+  ageInDays: number
+  birdsStarted: number
+  deaths: number
+  liveabilityPct: number | null
+  birdsSold: number
+  birdsSoldWeighed: number
+  kgSoldWeighed: number
+  avgSaleWeightKg: number | null
+  liveBirds: number
+  latestWeighDate: string | null
+  latestAvgWeightKg: number | null
+  kgSoldEstimated: number | null
+  kgInHouseEstimated: number | null
+  kgProduced: number | null
+  kgIsEstimated: boolean
+  avgLiveWeightKg: number | null
+  feedKg: number
+  fcr: number | null
+  epef: number | null
+  birdCost: number
+  birdCostRecorded: boolean
+  totalCost: number
+  costPerKg: number | null
+  birdSaleRevenue: number
+  revenuePerKg: number | null
+  profit: number
+  profitPerKg: number | null
+  missing: string | null
+}
+
+export function getFlockBroilerKpis(farmId: string, opts: { flockId?: number; broilersOnly?: boolean } = {}) {
+  const qs = new URLSearchParams({ farmId })
+  if (opts.flockId != null) qs.set("flockId", String(opts.flockId))
+  if (opts.broilersOnly) qs.set("broilersOnly", "true")
+  return call<FlockBroilerKpis[]>(`/flock-closeout/broiler-kpis?${qs.toString()}`)
 }
 
 export function getFlockLifetimeSummaries(farmId: string, opts: { flockId?: number; closedOnly?: boolean } = {}) {

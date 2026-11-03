@@ -796,6 +796,9 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
     columns: [
       { header: "Flock", cell: (r, c) => c.text(r.flockName) },
       { header: "Egg revenue", align: "right", cell: (r, c) => c.money(r.eggRevenue) },
+      // 402: broiler flocks earn from birds, not eggs.
+      { header: "Bird sales", align: "right", cell: (r, c) => c.money(r.birdSalesRevenue) },
+      { header: "Chick cost", align: "right", cell: (r, c) => c.money(r.birdCost ?? 0) },
       { header: "Feed cost", align: "right", cell: (r, c) => c.money(r.feedCost) },
       { header: "Medicine", align: "right", cell: (r, c) => c.money(r.medicineVaccineCost) },
       { header: "Labour", align: "right", cell: (r, c) => c.money(r.laborCost) },
@@ -822,6 +825,7 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
         accent: "rose",
         total: (s, c) => c.money(s.totalExpenses),
         items: [
+          { label: "Chick cost", value: (s, c) => c.money(s.birdCost ?? 0), percent: (s) => pctOf(s.birdCost ?? 0, s.totalExpenses) },
           { label: "Feed", value: (s, c) => c.money(s.feedCost), percent: (s) => pctOf(s.feedCost, s.totalExpenses) },
           { label: "Medicine & vaccines", value: (s, c) => c.money(s.medicineVaccineCost), percent: (s) => pctOf(s.medicineVaccineCost, s.totalExpenses) },
           { label: "Labour", value: (s, c) => c.money(s.laborCost), percent: (s) => pctOf(s.laborCost, s.totalExpenses) },

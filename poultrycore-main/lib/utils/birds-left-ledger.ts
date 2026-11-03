@@ -1,8 +1,8 @@
 import type { Flock } from "@/lib/api/flock"
 import type { ProductionRecord } from "@/lib/api/production-record"
+import { isLiveBirdProduct } from "@/lib/poultry/bird-pricing"
 import type { Sale } from "@/lib/api/sale"
 import { getBirdsLeftForFlockFromRecords } from "@/lib/utils/production-records"
-import { byproductRole } from "@/lib/poultry/byproducts"
 
 export type BirdsLeftLedgerRow = {
   id: string
@@ -26,14 +26,15 @@ export type FlockBirdsSummary = {
   birdsLeftFromLatestLog: number | null
 }
 
-/** Sales that reduce live bird count (not eggs). */
+/**
+ * Sales that reduce the live bird count. Since 403 this IS the database's rule
+ * (fnpoultrysale_isbirdsale, via isLiveBirdProduct), so the Birds tracker and
+ * the flock's bird position can never disagree about a sale. The old local
+ * pattern also matched "Broiler feed", "Layer mash" and "Poultry manure".
+ * Dead Birds (374) left the live count when they died, not when sold.
+ */
 export function isBirdSaleProduct(product: string | null | undefined): boolean {
-  const p = (product ?? "").trim().toLowerCase()
-  if (!p) return false
-  if (p.includes("egg")) return false
-  // 374: Dead Birds left the live count when they died, not when sold.
-  if (byproductRole(product) != null) return false
-  return /bird|chicken|broiler|layer|cull|live|poultry|hen|rooster/.test(p)
+  return isLiveBirdProduct(product)
 }
 
 export function buildBirdsLeftLedger(

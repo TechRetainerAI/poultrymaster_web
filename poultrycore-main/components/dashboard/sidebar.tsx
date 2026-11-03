@@ -77,6 +77,7 @@ import { buildPoultryNavConfig } from "@/lib/nav/poultry-nav-config"
 import { buildWaterNavConfig } from "@/lib/nav/water-nav-config"
 import { buildHotelNavConfig } from "@/lib/nav/hotel-nav-config"
 import { buildRestaurantNavConfig } from "@/lib/nav/restaurant-nav-config"
+import { usePoultryBroilerFeatures, usePoultryEggFeatures } from "@/hooks/use-poultry-egg-features"
 import { useQuickLinkHrefs } from "@/lib/store/quick-links-store"
 import { QuickLinksDialog } from "@/components/dashboard/quick-links-dialog"
 import { navPathActive, type MegaMenuGroup, type NavGroup } from "@/lib/nav/nav-model"
@@ -197,6 +198,8 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   // 318. null = never customised = the config's defaults, which is also what
   // renders while it loads.
   const quickLinkHrefs = useQuickLinkHrefs()
+  const showEggFeatures = usePoultryEggFeatures()
+  const showBroilerFeatures = usePoultryBroilerFeatures()
   const [customiseOpen, setCustomiseOpen] = useState(false)
 
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
@@ -341,7 +344,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   // Plain function calls, not hooks, so building one only for the active type
   // cannot change hook order.
   const poultryNav = (!isWater && !isGeneric && !isHotel && !isRestaurant)
-    ? buildPoultryNavConfig({ permissions, onOpenAlerts: openAlerts, alertCount: alerts.length, quickLinkHrefs })
+    ? buildPoultryNavConfig({ permissions, onOpenAlerts: openAlerts, alertCount: alerts.length, quickLinkHrefs, showEggFeatures, showBroilerFeatures })
     : null
   const waterNav = isWater
     ? buildWaterNavConfig({ permissions, onOpenAlerts: openAlerts, alertCount: alerts.length, quickLinkHrefs })
