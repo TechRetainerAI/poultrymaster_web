@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+import { cashShortfallMessage, explainCashShortfall } from "@/lib/api/http-error"
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
@@ -148,6 +149,16 @@ export default function NewExpensePage() {
       return
     }
 
+    // Paying more than the chosen account holds -- see app/expenses/page.tsx.
+    const acct = formData.poultryCashAccountId
+      ? cashAccounts.find((a) => a.poultryCashAccountId === Number(formData.poultryCashAccountId))
+      : undefined
+    if (acct && !acct.allowNegativeBalance && acct.currentBalance - Number(formData.amount) < 0) {
+      setError(cashShortfallMessage(acct.accountName, acct.currentBalance, Number(formData.amount)))
+      setLoading(false)
+      return
+    }
+
     let descriptionOut = formData.description.trim()
     if (receiptFile) {
       const up = await uploadExpenseReceipt(receiptFile, farmId)
@@ -176,7 +187,7 @@ export default function NewExpensePage() {
     if (result.success) {
       router.push("/expenses")
     } else {
-      setError(result.message)
+      setError(explainCashShortfall(result.message, acct?.accountName) ?? result.message ?? "Could not save the expense. Please try again.")
       setLoading(false)
     }
   }

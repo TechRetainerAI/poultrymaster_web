@@ -24,6 +24,7 @@ import {
   listPoultryRoutes, createPoultryRoute, updatePoultryRoute, deletePoultryRoute,
   listPoultryVehicles, type PoultryRoute, type PoultryVehicle, type PoultryRouteInput,
 } from "@/lib/api/poultry-distribution"
+import { validateRoute } from "@/lib/distribution/fleet-validation"
 
 type FormState = PoultryRouteInput
 const EMPTY: FormState = { routeName: "", areaCovered: null, defaultDriverId: null, defaultVehicleId: null, expectedCustomers: null, expectedCratesSold: null, notes: null }
@@ -83,7 +84,16 @@ export default function PoultryRoutesPage() {
   }
 
   async function save() {
-    if (!form.routeName.trim()) return toast({ title: "Route name required", variant: "destructive" })
+    // Name (with letters, not already used), the area it covers, the vehicle
+    // that runs it, and crates/day that vehicle can actually carry.
+    const problem = validateRoute(
+      { ...form, id: editId },
+      {
+        others: items.map((r) => ({ ...r, id: r.poultryRouteId })),
+        vehicles: vehicles.map((v) => ({ id: v.poultryVehicleId, vehicleName: v.vehicleName, capacityCrates: v.capacityCrates })),
+      },
+    )
+    if (problem) return toast({ title: "Check the route details", description: problem, variant: "destructive" })
     setSaving(true)
     try {
       if (editId) { await updatePoultryRoute(editId, form); toast({ title: "Route updated" }) }
@@ -196,13 +206,13 @@ export default function PoultryRoutesPage() {
               <FormField label="Route name *" full>
                 <Input value={form.routeName} onChange={(e) => setForm({ ...form, routeName: e.target.value })} placeholder="e.g. Kumasi East" />
               </FormField>
-              <FormField label="Area covered" full>
-                <Input value={form.areaCovered ?? ""} onChange={(e) => setForm({ ...form, areaCovered: e.target.value || null })} />
+              <FormField label="Area covered *" full>
+                <Input placeholder="e.g. Asafo, Adum, Bantama" value={form.areaCovered ?? ""} onChange={(e) => setForm({ ...form, areaCovered: e.target.value || null })} />
               </FormField>
             </FormSection>
 
             <FormSection title="Assignment" color="blue">
-              <FormField label="Default vehicle" full>
+              <FormField label="Default vehicle *" full>
                 <Select value={String(form.defaultVehicleId ?? "")} onValueChange={(v) => setForm({ ...form, defaultVehicleId: v ? Number(v) : null })}>
                   <SelectTrigger><SelectValue placeholder="(none)" /></SelectTrigger>
                   <SelectContent>
@@ -218,10 +228,10 @@ export default function PoultryRoutesPage() {
                 </Select>
               </FormField>
               <FormField label="Expected customers">
-                <NumberInput min={0} value={form.expectedCustomers ?? ""} onChange={(e) => setForm({ ...form, expectedCustomers: e.target.value ? Number(e.target.value) : null })} />
+                <NumberInput min={0} step={1} value={form.expectedCustomers ?? ""} onChange={(e) => setForm({ ...form, expectedCustomers: e.target.value ? Number(e.target.value) : null })} />
               </FormField>
               <FormField label="Expected crates/day">
-                <NumberInput min={0} value={form.expectedCratesSold ?? ""} onChange={(e) => setForm({ ...form, expectedCratesSold: e.target.value ? Number(e.target.value) : null })} />
+                <NumberInput min={0} step={1} value={form.expectedCratesSold ?? ""} onChange={(e) => setForm({ ...form, expectedCratesSold: e.target.value ? Number(e.target.value) : null })} />
               </FormField>
             </FormSection>
 

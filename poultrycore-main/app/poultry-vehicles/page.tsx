@@ -25,8 +25,9 @@ import {
   listPoultryVehicles, createPoultryVehicle, updatePoultryVehicle, deletePoultryVehicle,
   type PoultryVehicle, type PoultryVehicleInput,
 } from "@/lib/api/poultry-distribution"
+import { VEHICLE_TYPES, fuelsFor, maxCratesFor, validateVehicle } from "@/lib/distribution/fleet-validation"
 
-const TYPES = ["Truck", "Van", "Tricycle", "Motorbike", "Pickup", "Other"]
+const TYPES = VEHICLE_TYPES
 const STATUSES = ["Active", "Inactive", "UnderMaintenance"]
 const STATUS_COLOR: Record<string, string> = {
   Active: "bg-green-100 text-green-700",
@@ -91,7 +92,14 @@ export default function PoultryVehiclesPage() {
   }
 
   async function save() {
-    if (!form.vehicleName.trim()) return toast({ title: "Vehicle name required", variant: "destructive" })
+    // Name, registration (unique on this farm), and fuel + capacity that fit
+    // the vehicle type. The database also refuses a duplicate registration
+    // (migration 397), so a second tab cannot slip one past this.
+    const problem = validateVehicle(
+      { ...form, id: editId },
+      items.map((v) => ({ ...v, id: v.poultryVehicleId })),
+    )
+    if (problem) return toast({ title: "Check the vehicle details", description: problem, variant: "destructive" })
     setSaving(true)
     try {
       if (editId) { await updatePoultryVehicle(editId, form); toast({ title: "Vehicle updated" }) }
@@ -208,22 +216,30 @@ export default function PoultryVehiclesPage() {
                 <Input value={form.vehicleName} onChange={(e) => setForm({ ...form, vehicleName: e.target.value })} placeholder="e.g. Truck 1" />
               </FormField>
               <FormField label="Type">
-                <Select value={form.vehicleType ?? "Truck"} onValueChange={(v) => setForm({ ...form, vehicleType: v })}>
+                <Select
+                  value={form.vehicleType ?? "Truck"}
+                  // A fuel the new type cannot use is cleared rather than kept.
+                  onValueChange={(v) => setForm({ ...form, vehicleType: v, fuelType: form.fuelType && fuelsFor(v).includes(form.fuelType) ? form.fuelType : null })}
+                >
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>{TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
                 </Select>
               </FormField>
-              <FormField label="Registration #">
-                <Input value={form.registrationNumber ?? ""} onChange={(e) => setForm({ ...form, registrationNumber: e.target.value || null })} />
+              <FormField label="Registration # *">
+                <Input value={form.registrationNumber ?? ""} onChange={(e) => setForm({ ...form, registrationNumber: e.target.value || null })} placeholder="e.g. GR 1234-20" />
               </FormField>
             </FormSection>
 
             <FormSection title="Details" color="blue">
-              <FormField label="Capacity (crates)">
-                <NumberInput min={0} value={form.capacityCrates ?? ""} onChange={(e) => setForm({ ...form, capacityCrates: e.target.value ? Number(e.target.value) : null })} />
+              <FormField label="Capacity (crates) *">
+                <NumberInput min={1} max={maxCratesFor(form.vehicleType)} step={1} value={form.capacityCrates ?? ""} onChange={(e) => setForm({ ...form, capacityCrates: e.target.value ? Number(e.target.value) : null })} />
+                <div className="text-xs text-slate-500 mt-1">Up to {maxCratesFor(form.vehicleType).toLocaleString("en-US")} crates for {(form.vehicleType ?? "this type").toLowerCase()}.</div>
               </FormField>
               <FormField label="Fuel type">
-                <Input value={form.fuelType ?? ""} onChange={(e) => setForm({ ...form, fuelType: e.target.value || null })} placeholder="Petrol / Diesel" />
+                <Select value={form.fuelType ?? ""} onValueChange={(v) => setForm({ ...form, fuelType: v || null })}>
+                  <SelectTrigger><SelectValue placeholder="Choose fuel" /></SelectTrigger>
+                  <SelectContent>{fuelsFor(form.vehicleType).map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
+                </Select>
               </FormField>
               <FormField label="Status" full>
                 <Select value={form.status ?? "Active"} onValueChange={(v) => setForm({ ...form, status: v })}>
