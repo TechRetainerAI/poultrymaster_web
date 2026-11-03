@@ -10,23 +10,32 @@ export const dynamic = "force-dynamic"
 const REVALIDATE_SECONDS = 300
 
 /**
+ * An empty, successful answer. No playlist set, a playlist that does not exist
+ * yet, or YouTube being briefly unreachable are all just "no videos to show" --
+ * never a fault. We answer 200 with an empty list so the page shows its calm
+ * "No videos yet" state and the browser console stays clean (no 404 / 502).
+ */
+function emptyFeed() {
+  return NextResponse.json(
+    { channelTitle: "", channelUrl: "", videos: [] },
+    { headers: { "Cache-Control": "public, max-age=60, s-maxage=60" } },
+  )
+}
+
+/**
  * The playlist's (or channel's) latest videos for /poultry-videos. Public
  * content, so no auth: it only ever returns what anyone can see on YouTube.
  */
 export async function GET() {
   const channel = parseChannel(process.env.YOUTUBE_VIDEOS || YOUTUBE_VIDEOS)
-  if (!channel) return NextResponse.json({ error: "not-configured" }, { status: 404 })
+  if (!channel) return emptyFeed()
 
   try {
     if ("playlist" in channel) {
       const res = await fetch(`https://www.youtube.com/feeds/videos.xml?playlist_id=${channel.playlist}`, {
         next: { revalidate: REVALIDATE_SECONDS },
       })
-      // A 404 here means the playlist does not exist or is private/empty --
-      // that is "no videos" for the page, not a fault. Only a real upstream
-      // error (5xx / network) is a 502.
-      if (res.status === 404) return NextResponse.json({ error: "not-found" }, { status: 404 })
-      if (!res.ok) return NextResponse.json({ error: "feed-unavailable" }, { status: 502 })
+      if (!res.ok) return emptyFeed()
       const feed = {
         ...parseChannelFeed(await res.text()),
         playlistUrl: `https://www.youtube.com/playlist?list=${channel.playlist}`,
@@ -43,20 +52,18 @@ export async function GET() {
         next: { revalidate: 86400 },
       })
       if (page.ok) id = channelIdFromPage(await page.text())
-      // Could not resolve the handle to a channel id -- treat as "no videos".
-      if (!id) return NextResponse.json({ error: "channel-not-found" }, { status: 404 })
+      if (!id) return emptyFeed()
     }
 
     const res = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${id}`, {
       next: { revalidate: REVALIDATE_SECONDS },
     })
-    if (res.status === 404) return NextResponse.json({ error: "not-found" }, { status: 404 })
-    if (!res.ok) return NextResponse.json({ error: "feed-unavailable" }, { status: 502 })
+    if (!res.ok) return emptyFeed()
 
     return NextResponse.json(parseChannelFeed(await res.text()), {
       headers: { "Cache-Control": `public, max-age=60, s-maxage=${REVALIDATE_SECONDS}` },
     })
   } catch {
-    return NextResponse.json({ error: "feed-unavailable" }, { status: 502 })
+    return emptyFeed()
   }
 }
