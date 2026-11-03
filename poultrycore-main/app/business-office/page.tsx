@@ -37,6 +37,7 @@ import { usePermissions } from "@/hooks/use-permissions"
 import { useCanCreateCompany } from "@/hooks/use-setup-access"
 import { BusinessOfficeShell } from "@/components/dashboard/business-office-shell"
 import { MyTasks } from "@/components/business-office/my-tasks"
+import { ContactSupport } from "@/components/help/contact-support"
 import {
   getMyCompanies, createCompany, sendCompanyWelcomeEmail, switchCompany,
   dashboardHomeForType, type Company, type CompanyType,
@@ -428,6 +429,13 @@ export default function BusinessOfficePage() {
             <QuickLink onClick={() => router.push("/business-office/companies")} icon={Building2} label="All companies" />
             <QuickLink onClick={() => router.push("/business-office/help")} icon={HelpCircle} label="Help center" />
           </div>
+        </section>
+
+        {/* Contact support — the same card as the Help Center, so help (and our
+            call lines) is one tap away from the Business Office too. */}
+        <section>
+          <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2">Need help?</h3>
+          <ContactSupport />
         </section>
       </main>
 
