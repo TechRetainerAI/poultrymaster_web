@@ -17,6 +17,7 @@ import { Home } from "lucide-react"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useGenericModules } from "@/hooks/use-generic-modules"
 import { useAuthStore } from "@/lib/store/auth-store"
+import { usePoultryBroilerFeatures, usePoultryEggFeatures } from "@/hooks/use-poultry-egg-features"
 import { useQuickLinkHrefs } from "@/lib/store/quick-links-store"
 import { buildPoultryNavConfig } from "@/lib/nav/poultry-nav-config"
 import { buildWaterNavConfig } from "@/lib/nav/water-nav-config"
@@ -67,6 +68,8 @@ export function useSearchPages(): SearchPage[] {
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const genericModules = useGenericModules()
   const quickLinkHrefs = useQuickLinkHrefs()
+  const showEggFeatures = usePoultryEggFeatures()
+  const showBroilerFeatures = usePoultryBroilerFeatures()
 
   return useMemo(() => {
     const { featureAccess, isAdmin } = permissions
@@ -97,7 +100,7 @@ export function useSearchPages(): SearchPage[] {
       pages = flattenNavConfig(buildRestaurantNavConfig({}, permissions), gateReports(RESTAURANT_REPORT_NAV_GROUPS, gate))
     } else {
       // Poultry, and the first paint before the persisted farm type rehydrates.
-      const nav = buildPoultryNavConfig({ permissions, onOpenAlerts: noop, quickLinkHrefs })
+      const nav = buildPoultryNavConfig({ permissions, onOpenAlerts: noop, quickLinkHrefs, showEggFeatures, showBroilerFeatures })
       pages = flattenNavConfig(
         nav,
         featureAccess.canViewReports
@@ -110,7 +113,7 @@ export function useSearchPages(): SearchPage[] {
     }
     const home = homePage(activeFarmType)
     return [home, ...pages.filter((p) => p.href !== home.href)]
-  }, [permissions, activeFarmType, genericModules, quickLinkHrefs])
+  }, [permissions, activeFarmType, genericModules, quickLinkHrefs, showEggFeatures, showBroilerFeatures])
 }
 
 /** `/mock/` in the message = the API failed and the wrapper made data up. */

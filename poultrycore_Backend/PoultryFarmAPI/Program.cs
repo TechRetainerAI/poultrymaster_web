@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using System.Configuration;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Configuration;
@@ -354,6 +354,8 @@ builder.Services.AddScoped<IPoultryFlockAnomalyService>(sp => new PoultryFlockAn
 // Treatment campaigns (339): medication for many flocks over one or more days,
 // posted as medication lines through spproductionrecord_update.
 builder.Services.AddScoped<IPoultryTreatmentCampaignService>(sp => new PoultryTreatmentCampaignService(connectionString));
+// 400: flock weigh-ins (broilers phase 2).
+builder.Services.AddScoped<IFlockWeighInService>(sp => new FlockWeighInService(connectionString));
 // Egg Sorting Workspace (341-343): egg classes in the one stock ledger and the
 // Unsorted -> size transformation. Rules live in SQL; this only maps rows.
 builder.Services.AddScoped<IPoultryEggSortingService>(sp => new PoultryEggSortingService(connectionString));

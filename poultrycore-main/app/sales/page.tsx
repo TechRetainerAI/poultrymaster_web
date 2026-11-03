@@ -18,13 +18,13 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { Plus, Eye, Undo2, RotateCcw, ShoppingCart, DollarSign, TrendingUp, Package, FileText, Printer, Loader2, Info, Search, Filter, ChevronDown, ChevronUp, Mail, Wallet, History } from "lucide-react"
+import { Plus, Eye, Undo2, RotateCcw, ShoppingCart, DollarSign, TrendingUp, Package, FileText, Printer, Loader2, Info, Search, Filter, ChevronDown, ChevronUp, Mail, Wallet, History, AlertTriangle } from "lucide-react"
 import { getSales, createSale, updateSale, getFlocks, getCustomers, createCustomer, type Sale, type SaleInput, type SaleLine } from "@/lib/api"
 import { getFlockBatches, type FlockBatch } from "@/lib/api/flock-batch"
 import { isFlockClosed } from "@/lib/utils/flock-eligibility"
 import { listPoultryCashAccounts, recordPoultryPayment, type PoultryCashAccount } from "@/lib/api/poultry-finance"
 import { listPoultryProducts, getPoultryByproductSettings, type PoultryProduct, type PoultryByproductSettings } from "@/lib/api/poultry-inventory"
-import { createSaleGroup, getSaleReversal } from "@/lib/api/sale"
+import { createSaleGroup, getMeatWithdrawal, getSaleReversal, type MeatWithdrawal } from "@/lib/api/sale"
 import { ReverseSaleDialog, type ReverseSaleResult } from "@/components/sales/reverse-sale-dialog"
 import { SaleDetailsDialog } from "@/components/sales/sale-details-dialog"
 import { ApplyCreditDialog, type ApplyCreditTarget } from "@/components/sales/apply-credit-dialog"
@@ -48,6 +48,10 @@ import {
 } from "@/components/sales/egg-class-fields"
 import { SALE_PRODUCT_OPTIONS, SaleItemRow, SaleItemsHeader, isEggProduct, saleProductOptions } from "@/components/sales/sale-item-row"
 import { byproductRole } from "@/lib/poultry/byproducts"
+import {
+  EMPTY_BIRD_PRICING, birdLineAmount, birdLineNote, birdPricingFromLine, birdPricingPayload, birdPricingProblem,
+  hasBirdPricing, isLiveBirdProduct, perBirdPrice, type BirdPricing,
+} from "@/lib/poultry/bird-pricing"
 import { useToast } from "@/hooks/use-toast"
 import { getUserContext } from "@/lib/utils/user-context"
 import Link from "next/link"
@@ -386,9 +390,29 @@ export default function SalesPage() {
   const hasEggSizes = eggClasses.some((c) => c.classKind === "Size")
   // More egg classes on the same sale (343): saved as one sale number.
   const [extraEggLines, setExtraEggLines] = useState<ExtraEggLine[]>([])
+  // 401: the first line's bird pricing (per bird / per kg, and live weight),
+  // and the meat withdrawal warning for the flocks being sold from.
+  const [birdPricing, setBirdPricing] = useState<BirdPricing>({ ...EMPTY_BIRD_PRICING })
+  const [withdrawals, setWithdrawals] = useState<MeatWithdrawal[]>([])
+  const [ackWithdrawal, setAckWithdrawal] = useState(false)
 
   // Check if current product is eggs (for crates input)
   const isEggsProduct = isEggProduct(formData.product)
+  const isBirdProduct = isLiveBirdProduct(formData.product)
+  const anyBirdLine = isBirdProduct || extraEggLines.some((l) => isLiveBirdProduct(l.product))
+
+  // 401: birds still inside a meat withdrawal period on the sale date. A
+  // warning the seller must acknowledge, never a refusal: the farm decides.
+  useEffect(() => {
+    if (!anyBirdLine || !formData.saleDate || editingSale) { setWithdrawals([]); return }
+    let live = true
+    getMeatWithdrawal(String(formData.saleDate)).then((w) => { if (live) setWithdrawals(w) }).catch(() => {})
+    return () => { live = false }
+  }, [anyBirdLine, formData.saleDate, editingSale])
+  const shownWithdrawals = anyBirdLine
+    ? (formData.flockId ? withdrawals.filter((w) => w.flockId === formData.flockId) : withdrawals)
+    : []
+  useEffect(() => { setAckWithdrawal(false) }, [shownWithdrawals.length, formData.flockId])
 
   // The class's default price per crate (344), offered when a class is chosen.
   const classPrice = (eggProductId: number | null | undefined): number | undefined => {
@@ -765,9 +789,20 @@ export default function SalesPage() {
       // one sale number, one payment, all or nothing.
       // 394: a box farm's egg sale goes this way too -- it is the path that
       // keeps the boxes / crates / pieces and prices on the line.
-      if (extraEggLines.length > 0 || partPayment || creditUsed > 0 || (boxesOn && isEggsProduct)) {
-        if (extraEggLines.some((l) => !(l.product ?? "eggs").trim() || extraLineQuantity(l) <= 0 || l.unitPrice <= 0)) {
+      // 401: and a bird sale priced per kg or carrying its live weight -- the
+      // single-sale path has nowhere to keep either.
+      if (extraEggLines.length > 0 || partPayment || creditUsed > 0 || (boxesOn && isEggsProduct)
+          || (isBirdProduct && hasBirdPricing(birdPricing))) {
+        const extraPerKg = (l: ExtraEggLine) => isLiveBirdProduct(l.product) && l.birdPricing?.basis === "PerKg"
+        if (extraEggLines.some((l) => !(l.product ?? "eggs").trim() || extraLineQuantity(l) <= 0 || (!extraPerKg(l) && l.unitPrice <= 0))) {
           toastFormGuide(toast, "Every added line needs a product, a quantity and a price, or remove it.")
+          return
+        }
+        const birdProblem = extraEggLines
+          .map((l) => (isLiveBirdProduct(l.product) && l.birdPricing ? birdPricingProblem(extraLineQuantity(l), l.birdPricing) : null))
+          .find(Boolean)
+        if (birdProblem) {
+          toastFormGuide(toast, birdProblem)
           return
         }
         if ((extraLinesAnyShort || extraLinesShort(eggClasses, extraEggLines, isEggsProduct ? quantity : 0, isEggsProduct ? formData.eggProductId ?? null : null)) && !overrideStock) {
@@ -802,11 +837,15 @@ export default function SalesPage() {
                 : {}
             const lines = [
               { product, eggProductId: isEggsProduct ? formData.eggProductId ?? null : null, quantity, unitPrice, totalAmount: calculatedAmount,
-                ...(isEggsProduct ? packaged(boxes, crates, looseEggs, boxPrice, piecePrice) : {}) },
+                ...(isEggsProduct ? packaged(boxes, crates, looseEggs, boxPrice, piecePrice) : {}),
+                ...(isBirdProduct ? birdPricingPayload(birdPricing, hasOverride) : {}) },
               ...extraEggLines.map((l) => ({
                 product: (l.product ?? product).trim(),
                 eggProductId: extraLineIsEggs(l) ? l.eggProductId : null,
-                quantity: extraLineQuantity(l), unitPrice: l.unitPrice, totalAmount: extraLineTotal(l),
+                quantity: extraLineQuantity(l),
+                unitPrice: extraPerKg(l) ? perBirdPrice(extraLineTotal(l), extraLineQuantity(l)) : l.unitPrice,
+                totalAmount: extraLineTotal(l),
+                ...(isLiveBirdProduct(l.product) ? birdPricingPayload(l.birdPricing, hasOverride) : {}),
                 ...(extraLineIsEggs(l) ? packaged(l.boxes ?? 0, l.crates, l.loose, l.pricePerBox, l.pricePerPiece) : {}),
               })),
             ]
@@ -1046,6 +1085,7 @@ export default function SalesPage() {
         pricePerPiece: egg ? l.pricePerPiece ?? null : null,
         quantity: egg ? undefined : q,
         unitPrice: Number(l.unitPrice) || 0,
+        birdPricing: birdPricingFromLine(l),
       }
     }))
     const selection = productOptions.includes(sale.product) ? sale.product : "Other"
@@ -1059,6 +1099,7 @@ export default function SalesPage() {
     setBoxes(isEgg ? firstSplit.boxes : 0)
     setBoxPrice(isEgg ? first?.pricePerBox ?? null : null)
     setPiecePrice(isEgg ? first?.pricePerPiece ?? null : null)
+    setBirdPricing(birdPricingFromLine(first))
     if (rewritten) {
       toast({
         title: "Packaging has changed since this sale",
@@ -1131,6 +1172,8 @@ export default function SalesPage() {
     setEditingLines([])
     setBoxes(0)
     setBoxPrice(null)
+    setBirdPricing({ ...EMPTY_BIRD_PRICING })
+    setAckWithdrawal(false)
     setPiecePrice(null)
     setProductSelection(undefined)
     setProductOther("")
@@ -1245,6 +1288,7 @@ export default function SalesPage() {
     setBoxes(egg ? next.boxes ?? 0 : 0)
     setBoxPrice(egg ? next.pricePerBox ?? null : null)
     setPiecePrice(egg ? next.pricePerPiece ?? null : null)
+    setBirdPricing(next.birdPricing ?? { ...EMPTY_BIRD_PRICING })
     setFormData(prev => ({
       ...prev,
       product,
@@ -1291,7 +1335,9 @@ export default function SalesPage() {
     else if (!product) message = "Choose what was sold (eggs, chicken, manure, or other)."
     else if (!customerName) message = "Enter or select who bought from you."
     else if (!Number.isFinite(quantity) || quantity <= 0) message = "Enter how many units were sold — use a number greater than zero."
+    else if (isBirdProduct && birdPricingProblem(quantity, birdPricing)) message = birdPricingProblem(quantity, birdPricing)!
     else if (!Number.isFinite(unitPrice) || unitPrice <= 0) message = "Enter the price per unit — it must be greater than zero."
+    else if (shownWithdrawals.length > 0 && !ackWithdrawal) message = "These birds may still be inside a meat withdrawal period. Check them, then tick the box to record the sale anyway."
     else if (!paymentMethod && !noMoneyNow) message = "Select how the customer paid (cash, mobile money, bank, etc.)."
     // Selling more than the farm has is refused, not warned about — but the
     // override on the form lifts it, because a real sale that the records have
@@ -1352,6 +1398,8 @@ export default function SalesPage() {
 
   /** The first line's calculated amount (before any total override). */
   const firstLineCalculated = (quantity: number, unitPrice: number) =>
+    // 401: birds priced per kg are the weight times the price per kg.
+    isBirdProduct && birdPricing.basis === "PerKg" ? birdLineAmount(quantity, unitPrice, birdPricing) :
     // 394: a box farm prices boxes, crates and pieces each at their own price.
     isEggsProduct && boxesOn
       ? packagedLineAmount({ boxes, crates, pieces: looseEggs }, { pricePerCrate: unitPrice, pricePerBox: boxPrice, pricePerPiece: piecePrice }, packaging)
@@ -1360,13 +1408,16 @@ export default function SalesPage() {
   const calculateTotal = () => {
     const unitPrice = Number(formData.unitPrice) || 0
     const total = firstLineCalculated(Number(formData.quantity) || 0, unitPrice)
-    setFormData(prev => ({ ...prev, totalAmount: total }))
+    // 401: per kg, the per-bird price follows from the amount -- it is what
+    // the sale stores, so the quantity x price readers still agree.
+    const perKg = isBirdProduct && birdPricing.basis === "PerKg"
+    setFormData(prev => ({ ...prev, totalAmount: total, ...(perKg ? { unitPrice: perBirdPrice(total, Number(prev.quantity) || 0) } : {}) }))
   }
 
   useEffect(() => {
     calculateTotal()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData.quantity, formData.unitPrice, isEggsProduct, boxes, crates, looseEggs, boxPrice, piecePrice, boxesOn, packaging.version])
+  }, [formData.quantity, formData.unitPrice, isEggsProduct, boxes, crates, looseEggs, boxPrice, piecePrice, boxesOn, packaging.version, isBirdProduct, birdPricing])
 
   const openInvoiceDialog = (sale: SaleRow) => {
     setSelectedSale(sale)
@@ -1813,7 +1864,36 @@ export default function SalesPage() {
                 </div>
                 <div className="space-y-3 bg-amber-50/40 p-3 sm:p-4">
                 <div className="space-y-2">
-                  <SaleItemsHeader packaging={packaging} />
+                  {shownWithdrawals.length > 0 && (
+                    // 401: meat withdrawal. The farm's own figures, a warning only.
+                    <div role="alert" className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                        <div className="min-w-0 space-y-1.5">
+                          <p className="font-semibold">
+                            {formData.flockId ? "This flock is" : "Some flocks are"} still inside a meat withdrawal period
+                          </p>
+                          <ul className="list-disc space-y-0.5 pl-4 text-xs">
+                            {shownWithdrawals.map((w) => (
+                              <li key={`${w.flockId}-${w.itemName}`}>
+                                <b>{w.flockName}</b>: {w.itemName}, last given {new Date(`${w.lastDoseDate.slice(0, 10)}T00:00:00`).toLocaleDateString()},
+                                meat withdrawal until {new Date(`${w.withdrawalUntil.slice(0, 10)}T00:00:00`).toLocaleDateString()}
+                              </li>
+                            ))}
+                          </ul>
+                          <label className="flex items-center gap-2 text-xs font-medium">
+                            <Checkbox checked={ackWithdrawal} onCheckedChange={(v) => setAckWithdrawal(v === true)} />
+                            I have checked these birds can be sold. Record the sale anyway.
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  <SaleItemsHeader
+                    packaging={packaging}
+                    eggs={isEggsProduct || extraEggLines.some(extraLineIsEggs)}
+                    quantityLabel={anyBirdLine && [formData.product, ...extraEggLines.map((l) => l.product)].every((p) => isLiveBirdProduct(p)) ? "Birds" : "Quantity"}
+                  />
                   <SaleItemRow
                     index={1}
                     product={(formData.product ?? "").toString()}
@@ -1851,6 +1931,8 @@ export default function SalesPage() {
                     onQuantityChange={(n) => setFormData(prev => ({ ...prev, quantity: n }))}
                     unitPrice={Number(formData.unitPrice) || 0}
                     onUnitPriceChange={(n) => setFormData(prev => ({ ...prev, unitPrice: n }))}
+                    birdPricing={birdPricing}
+                    onBirdPricingChange={setBirdPricing}
                     lineTotal={firstLineAmount}
                     options={productOptions}
                     onRemove={hasExtraEggLines ? removeFirstSaleLine : undefined}
@@ -1897,6 +1979,8 @@ export default function SalesPage() {
                         onQuantityChange={(n) => updateSaleLine(l.key, { quantity: n })}
                         unitPrice={l.unitPrice}
                         onUnitPriceChange={(n) => updateSaleLine(l.key, { unitPrice: n })}
+                        birdPricing={l.birdPricing}
+                        onBirdPricingChange={(bp) => updateSaleLine(l.key, { birdPricing: bp })}
                         lineTotal={extraLineTotal(l)}
                         options={productOptions}
                         onRemove={() => setExtraEggLines(prev => prev.filter((x) => x.key !== l.key))}
@@ -2791,7 +2875,7 @@ export default function SalesPage() {
                           // 394: as entered, with the conversion of the day it was sold.
                           note: isEggProduct(l.product) && l.crates != null
                             ? [postedLineQuantity(l, packaging).text, postedLineConversion(l)].filter(Boolean).join(" · ")
-                            : null,
+                            : birdLineNote(l),
                           quantity: Number(l.quantity) || 0,
                           unitPrice: Number(l.unitPrice) || 0,
                           totalAmount: Number(l.totalAmount) || 0,

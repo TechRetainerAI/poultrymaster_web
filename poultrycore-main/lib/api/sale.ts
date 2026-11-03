@@ -1,6 +1,6 @@
 // API utility functions for Sale management
 
-import { farmApiUrl, getAuthHeaders } from './config'
+import { farmApiUrl, getAuthHeaders, getUserContext } from './config'
 import type { SaleLine } from './types'
 
 export type { SaleLine }
@@ -761,6 +761,11 @@ export interface SaleGroupLineInput {
   pricePerPiece?: number | null
   /** The total override set this line's amount (it may differ from the calculation). */
   amountOverridden?: boolean
+  // 401: a live-bird line. Per kg, the server checks the amount against
+  // liveWeightKg x pricePerKg and stores amount / birds as the unit price.
+  pricingBasis?: "PerBird" | "PerKg"
+  liveWeightKg?: number | null
+  pricePerKg?: number | null
 }
 
 export interface SaleGroupInput {
@@ -985,4 +990,30 @@ export async function reverseSale(
   } catch (error) {
     return { success: false, message: error instanceof Error ? error.message : "Network error" }
   }
+}
+
+// ---------------------------------------------------------------------------
+// 401: flocks still inside a meat withdrawal period on a date (inclusive).
+// A WARNING for the sale form -- the server never refuses a sale over it.
+// ---------------------------------------------------------------------------
+
+export interface MeatWithdrawal {
+  flockId: number
+  flockName: string
+  itemName: string
+  lastDoseDate: string
+  withdrawalDays: number
+  /** Inclusive: a sale dated on or before this day is inside the period. */
+  withdrawalUntil: string
+  source: "Treatment campaign" | "Production record" | string
+}
+
+export async function getMeatWithdrawal(date: string): Promise<MeatWithdrawal[]> {
+  const { farmId } = getUserContext()
+  if (!farmId || !date) return []
+  const res = await fetch(farmApiUrl(`Sale/meat-withdrawal?farmId=${encodeURIComponent(farmId)}&date=${encodeURIComponent(date.slice(0, 10))}`), {
+    headers: getAuthHeaders(),
+  })
+  if (!res.ok) return []        // a warning that cannot load must not block selling
+  return (await res.json().catch(() => [])) as MeatWithdrawal[]
 }

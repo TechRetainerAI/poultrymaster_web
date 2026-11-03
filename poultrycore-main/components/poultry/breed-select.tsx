@@ -82,9 +82,14 @@ export function BreedSelect({
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
         <SelectContent>
-          {groups.map(({ group, options }) => (
-            <SelectGroup key={group}>
-              <SelectLabel>{group}</SelectLabel>
+          {groups.map(({ group, options }, i) => (
+            <SelectGroup key={group} className={i > 0 ? "mt-1 border-t border-slate-100 pt-1" : undefined}>
+              {/* A heading, not a choice: the default muted label read as a
+                  disabled "Broilers" option (2026-11-03). Bold and uppercase
+                  so the breeds under it are plainly what gets picked. */}
+              <SelectLabel className="pt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-700">
+                {group}
+              </SelectLabel>
               {options.map((o) => (
                 <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
               ))}

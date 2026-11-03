@@ -11,7 +11,7 @@
 // line can stay bound to the page's form state while added lines live in a list.
 
 import { useState, type ReactNode } from "react"
-import { Package, X } from "lucide-react"
+import { Package, Scale, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -24,6 +24,9 @@ import { byproductRole } from "@/lib/poultry/byproducts"
 import {
   boxSize, effectiveBoxPrice, effectivePiecePrice, toEggPieces, type EggPackaging,
 } from "@/lib/poultry/egg-packaging"
+import {
+  EMPTY_BIRD_PRICING, avgKgPerBird, isLiveBirdProduct, perBirdPrice, type BirdPricing, type BirdPricingBasis,
+} from "@/lib/poultry/bird-pricing"
 
 /** Every product the list can show. Broken Eggs / Dead Birds only when the company offers them (374). */
 export const SALE_PRODUCT_OPTIONS = ["Fresh Eggs", "Chicken", "Broken Eggs", "Dead Birds", "Manure", "Other"]
@@ -59,15 +62,37 @@ const money = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many)
 
-export function SaleItemsHeader({ packaging }: { packaging?: EggPackaging }) {
+export function SaleItemsHeader({
+  packaging, eggs = true, quantityLabel = "Quantity",
+}: {
+  packaging?: EggPackaging
+  /**
+   * False when no line on the sale is eggs: a chicken (or manure) sale has no
+   * egg size, boxes, crates or pieces, so the header shows one quantity column
+   * over them. A sale with any egg line keeps the egg columns.
+   */
+  eggs?: boolean
+  /** The single column's name when eggs is false, e.g. "Birds". */
+  quantityLabel?: string
+}) {
   const boxes = farmHasBoxes(packaging)
   return (
     <div className={`hidden md:grid ${boxes ? GRID_BOXES : GRID_CRATES} gap-2 pl-[18px] pr-3 text-[11px] font-semibold uppercase tracking-wide text-amber-800`}>
       <div>Product</div>
-      <div>Egg size</div>
-      {boxes && <div className="text-center">Boxes</div>}
-      <div className="text-center">Crates</div>
-      <div className="text-center">Pieces</div>
+      {eggs ? (
+        <>
+          <div>Egg size</div>
+          {boxes && <div className="text-center">Boxes</div>}
+          <div className="text-center">Crates</div>
+          <div className="text-center">Pieces</div>
+        </>
+      ) : (
+        <>
+          <div />
+          {/* Same span as a non-egg row's quantity box (see the row below). */}
+          <div className={`${boxes ? "col-span-3" : "col-span-2"} text-center`}>{quantityLabel}</div>
+        </>
+      )}
       <div className="text-right">Unit price</div>
       <div>Price unit</div>
       <div className="text-right">Line total</div>
@@ -88,6 +113,7 @@ export function SaleItemRow({
   unitPrice, onUnitPriceChange,
   lineTotal, onRemove, note, options = SALE_PRODUCT_OPTIONS,
   packaging, boxes = 0, onBoxesChange, pricePerBox = null, onPricePerBoxChange, pricePerPiece = null, onPricePerPieceChange,
+  birdPricing, onBirdPricingChange,
 }: {
   /** 1-based line number, shown on the card. */
   index?: number
@@ -124,8 +150,19 @@ export function SaleItemRow({
   /** 394: null = the crate price shared over the crate. */
   pricePerPiece?: number | null
   onPricePerPieceChange?: (n: number | null) => void
+  /**
+   * 401: a live-bird line priced per bird or per kg, with its live weight.
+   * Omit the handler and a bird line stays the plain quantity x price row.
+   */
+  birdPricing?: BirdPricing
+  onBirdPricingChange?: (p: BirdPricing) => void
 }) {
   const egg = isEggProduct(product)
+  // 401: live birds -- quantity is the bird count; the price is per bird or per kg.
+  const bird = !egg && !!onBirdPricingChange && isLiveBirdProduct(product)
+  const bp = birdPricing ?? EMPTY_BIRD_PRICING
+  const perKg = bird && bp.basis === "PerKg"
+  const setBird = (patch: Partial<BirdPricing>) => onBirdPricingChange?.({ ...bp, ...patch })
   const hasSizes = classes.some((c) => c.classKind === "Size")
   const selectValue = options.includes(product) ? product : "Other"
   const shownClasses = classes.filter((c) => c.classKind === "Unsorted" || c.isActive || c.poultryProductId === eggProductId)
@@ -141,11 +178,13 @@ export function SaleItemRow({
   const prices = { pricePerCrate: unitPrice, pricePerBox, pricePerPiece }
   const boxPrice = boxesOn ? effectiveBoxPrice(prices, packaging!) : 0
   const eggPrice = packaging ? effectivePiecePrice(prices, packaging) : unitPrice / Math.max(1, perCrate)
-  const shownPrice = !egg ? unitPrice : unit === "Box" ? boxPrice : unit === "Egg" ? round2(eggPrice) : unitPrice
+  const shownPrice = perKg ? bp.pricePerKg ?? 0
+    : !egg ? unitPrice : unit === "Box" ? boxPrice : unit === "Egg" ? round2(eggPrice) : unitPrice
 
   // The typed price sets the other two, so a box, a crate and an egg are
   // always priced from the same figure (crate price kept to the cent, as saved).
   const setPrice = (v: number) => {
+    if (perKg) { setBird({ pricePerKg: v }); return }
     if (!egg || unit === "Crate") {
       onUnitPriceChange(v)
       if (egg) { onPricePerBoxChange?.(null); onPricePerPieceChange?.(null) }
@@ -234,9 +273,15 @@ export function SaleItemRow({
           </>
         ) : (
           <div className={`col-span-12 min-w-0 ${farmBoxes ? "md:col-span-3" : "md:col-span-2"}`}>
-            <Label className="text-xs text-slate-500 md:hidden">Quantity</Label>
+            <Label className="text-xs text-slate-500 md:hidden">{isLiveBirdProduct(product) ? "Birds" : "Quantity"}</Label>
             <NumberInput className={QTY_INPUT} min="0" value={quantity}
-              onChange={(e) => onQuantityChange(Number(e.target.value) || 0)} aria-label="Quantity" placeholder="0" />
+              onChange={(e) => onQuantityChange(Number(e.target.value) || 0)}
+              aria-label={isLiveBirdProduct(product) ? "Number of birds" : "Quantity"} placeholder="0" />
+            {/* Desktop: the header may be the egg columns (a mixed sale), so the
+                box says what it counts. */}
+            <div className="mt-0.5 hidden text-center text-[10px] text-slate-500 md:block">
+              {isLiveBirdProduct(product) ? "birds" : "units"}
+            </div>
           </div>
         )}
 
@@ -250,7 +295,15 @@ export function SaleItemRow({
         {/* Price unit */}
         <div className="col-span-6 min-w-0 md:col-auto">
           <Label className="text-xs text-slate-500 md:hidden">Price unit</Label>
-          {egg ? (
+          {bird ? (
+            <Select value={bp.basis} onValueChange={(v) => setBird({ basis: v as BirdPricingBasis })}>
+              <SelectTrigger className="min-w-0" aria-label="Price unit"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="PerBird">Per bird</SelectItem>
+                <SelectItem value="PerKg">Per kg</SelectItem>
+              </SelectContent>
+            </Select>
+          ) : egg ? (
             <Select value={unit} onValueChange={(v) => setPriceUnit(v as PriceUnit)}>
               <SelectTrigger className="min-w-0" aria-label="Price unit"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -303,6 +356,37 @@ export function SaleItemRow({
                 {loose > 0 && <div>Pieces charged pro rata from the crate price</div>}
               </>
             )}
+          </div>
+        </div>
+      )}
+      {bird && (
+        // 401: the live weight. Required per kg; per bird it is optional and
+        // feeds the flock's kg-sold and feed-conversion figures.
+        <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2 rounded-md border border-sky-100 bg-sky-50/70 px-3 py-2">
+          <div className="flex items-end gap-2.5">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-sky-100 text-sky-700">
+              <Scale className="h-4 w-4" />
+            </span>
+            <div className="w-36 space-y-1">
+              <Label className="text-xs text-slate-600">Live weight (kg){perKg ? " *" : ""}</Label>
+              <NumberInput className="h-9 text-right tabular-nums" min="0" step="0.1"
+                value={bp.liveWeightKg ?? ""} placeholder={perKg ? "0.0" : "Optional"}
+                onChange={(e) => setBird({ liveWeightKg: e.target.value === "" ? null : Math.max(0, Number(e.target.value) || 0) })}
+                aria-label="Total live weight in kg" />
+            </div>
+          </div>
+          <div className="text-xs leading-relaxed text-slate-600">
+            {(() => {
+              const avg = avgKgPerBird(quantity, bp.liveWeightKg)
+              return (
+                <>
+                  {avg != null && <div>Average {avg.toFixed(2)} kg a bird</div>}
+                  {perKg
+                    ? <div>{(bp.liveWeightKg ?? 0).toLocaleString()} kg × {money(bp.pricePerKg ?? 0)} = <b>{money(lineTotal)}</b>{quantity > 0 ? ` · ${money(perBirdPrice(lineTotal, quantity))} a bird` : ""}</div>
+                    : <div>{bp.liveWeightKg ? "Weight kept for the flock's kg sold and feed conversion." : "Add the weight to track kg sold and feed conversion."}</div>}
+                </>
+              )
+            })()}
           </div>
         </div>
       )}

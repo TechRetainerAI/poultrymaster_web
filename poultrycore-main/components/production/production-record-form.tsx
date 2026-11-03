@@ -62,6 +62,7 @@ import { PRODUCTION_EGG_GRADE, eggGradeToApi, formatEggGradeLabel, productionEgg
 import { isFinishedFeedCategory } from "@/lib/utils/feed-item-ledger"
 import { useToast } from "@/hooks/use-toast"
 import { toastFormGuide } from "@/lib/utils/validation-toast"
+import { isBroilerFlock } from "@/lib/poultry/flock-type"
 import { FormSectionCard, CalcField, NumField, DisposalSplitField, disposedCount, type DisposalMode } from "./production-record-fields"
 import {
   EGGS_PER_CRATE, birdsLeft as calcBirdsLeft, cratesEquivalent, effectiveFeedKg as calcEffectiveFeedKg,
@@ -367,6 +368,12 @@ export function ProductionRecordForm({
     () => allFlocks.find((f) => String(f.flockId) === form.flockId),
     [allFlocks, form.flockId],
   )
+
+  // 399: a broiler flock lays no eggs, so its record has no egg sections.
+  // Shown anyway when this record already HAS eggs (a flock retyped later, or
+  // eggs typed before switching flock) -- hiding them would hide data that is
+  // still about to be saved.
+  const hideEggSections = isBroilerFlock(selectedFlock) && total === 0 && totalLosses === 0
 
   const { ageWeeks, ageDays, ageYears } = useMemo(
     () => calcFlockAge(selectedFlock?.startDate, form.date),
@@ -872,7 +879,7 @@ export function ProductionRecordForm({
             <Label htmlFor="pr-date">Date <span className="text-red-500">*</span></Label>
             <Input id="pr-date" type="date" value={form.date} onChange={(e) => patch({ date: e.target.value })} required />
           </div>
-          <div className="space-y-1.5">
+          {!hideEggSections && <div className="space-y-1.5">
             <Label>Egg grade</Label>
             {/* Automatic since egg sorting: the day's collection is mixed
                 sizes; sizes are recorded in Egg Sorting. An
@@ -885,11 +892,12 @@ export function ProductionRecordForm({
                 ? "Set automatically. Sizes are recorded when the eggs are sorted."
                 : "Recorded before egg sorting; kept as it was."}
             </p>
-          </div>
+          </div>}
         </div>
       </FormSectionCard>
 
       {/* --------------------------------------------- Egg Production */}
+      {!hideEggSections && <>
       <FormSectionCard
         title="Egg Production"
         description={`Total = ${cpb ? `boxes × ${cpb} crates + ` : ""}crates × ${EGGS_PER_CRATE} + pieces`}
@@ -971,6 +979,7 @@ export function ProductionRecordForm({
           />
         </div>
       </FormSectionCard>
+      </>}
 
       {/* --------------------------------------------- Birds & Age */}
       <FormSectionCard

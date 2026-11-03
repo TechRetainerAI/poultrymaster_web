@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react"
 import { BreedSelect } from "@/components/poultry/breed-select"
+import { FlockTypeSelect } from "@/components/poultry/flock-type-select"
+import { defaultFlockType, type FlockType } from "@/lib/poultry/flock-type"
+import { usePoultryBusinessType, useRefreshPoultryEggFeatures } from "@/hooks/use-poultry-egg-features"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -21,6 +24,9 @@ export default function NewFlockPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  // 399: undefined = automatic (the server's default); a click makes it explicit.
+  const businessType = usePoultryBusinessType()
+  const refreshEggFeatures = useRefreshPoultryEggFeatures()
 
   const [formData, setFormData] = useState<FlockInput>({
     farmId: "",
@@ -149,6 +155,7 @@ export default function NewFlockPage() {
     const result = await createFlock(flockData)
 
     if (result.success) {
+      refreshEggFeatures()
       router.push("/flocks")
     } else {
       setError(result.message || "Failed to create flock")
@@ -256,6 +263,16 @@ export default function NewFlockPage() {
                       known={flockBatches.map((b) => b.breed)}
                       onChange={(breed) => handleInputChange("breed", breed)}
                       disabled={loading}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">Flock type</Label>
+                    <FlockTypeSelect
+                      value={(formData.flockType as FlockType | undefined) || defaultFlockType(formData.breed, businessType)}
+                      automatic={!formData.flockType}
+                      disabled={loading}
+                      onChange={(flockType) => setFormData((prev) => ({ ...prev, flockType }))}
                     />
                   </div>
 

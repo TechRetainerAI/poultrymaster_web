@@ -1,4 +1,4 @@
-using PoultryFarmAPIWeb.Models;
+﻿using PoultryFarmAPIWeb.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -33,8 +33,20 @@ namespace PoultryFarmAPIWeb.Business
             return p == "birds" || p.Contains("bird") || p.Contains("chick") || p.Contains("cockerel");
         }
 
-        public static decimal SaleTotal(FlockCloseoutSaleLine s) =>
-            s.TotalAmount ?? Math.Round(s.Quantity * s.UnitPrice, 2);
+        public static bool IsPerKg(FlockCloseoutSaleLine s) =>
+            string.Equals(s.PricingBasis, "PerKg", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>401: per kg, the weight times the price per kg; else birds times the unit price.</summary>
+        public static decimal CalculatedTotal(FlockCloseoutSaleLine s) =>
+            IsPerKg(s)
+                ? Math.Round((s.LiveWeightKg ?? 0) * (s.PricePerKg ?? 0), 2)
+                : Math.Round(s.Quantity * s.UnitPrice, 2);
+
+        public static decimal SaleTotal(FlockCloseoutSaleLine s) => s.TotalAmount ?? CalculatedTotal(s);
+
+        /// <summary>The per-bird price stored on the sale: per kg, total / birds.</summary>
+        public static decimal SaleUnitPrice(FlockCloseoutSaleLine s) =>
+            IsPerKg(s) && s.Quantity > 0 ? Math.Round(SaleTotal(s) / s.Quantity, 2) : s.UnitPrice;
 
         public static List<string> Validate(FlockCloseoutRequest request, FlockCloseoutContext context)
         {
@@ -69,7 +81,15 @@ namespace PoultryFarmAPIWeb.Business
                 var s = sales[i];
                 var n = $"Sale {i + 1}";
                 if (s.Quantity <= 0) errors.Add($"{n}: enter how many birds were sold.");
-                if (s.UnitPrice < 0 || (s.TotalAmount ?? 0) < 0) errors.Add($"{n}: the price cannot be negative.");
+                if (s.UnitPrice < 0 || (s.TotalAmount ?? 0) < 0 || (s.PricePerKg ?? 0) < 0) errors.Add($"{n}: the price cannot be negative.");
+                if (!string.IsNullOrWhiteSpace(s.PricingBasis) && !IsPerKg(s)
+                    && !string.Equals(s.PricingBasis, "PerBird", StringComparison.OrdinalIgnoreCase))
+                    errors.Add($"{n}: price the birds per bird or per kg.");
+                if (s.LiveWeightKg is <= 0) errors.Add($"{n}: the live weight must be above 0 kg.");
+                if (IsPerKg(s) && (s.LiveWeightKg is null || s.PricePerKg is null))
+                    errors.Add($"{n}: a sale priced per kg needs the total live weight and the price per kg.");
+                if (s.LiveWeightKg is > 0 && s.Quantity > 0 && s.LiveWeightKg / s.Quantity > 20)
+                    errors.Add($"{n}: {s.LiveWeightKg} kg for {s.Quantity} birds is over 20 kg a bird. Check the weight.");
 
                 var terms = PaymentTerms.FirstOrDefault(t => string.Equals(t, s.PaymentTerms, StringComparison.OrdinalIgnoreCase));
                 if (terms == null)

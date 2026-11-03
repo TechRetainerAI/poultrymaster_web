@@ -3,6 +3,9 @@
 import { useEffect, useState, useRef, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { BreedSelect } from "@/components/poultry/breed-select"
+import { FlockTypeSelect } from "@/components/poultry/flock-type-select"
+import { defaultFlockType, flockTypeOf, isBroilerFlock, type FlockType } from "@/lib/poultry/flock-type"
+import { usePoultryBusinessType, useRefreshPoultryEggFeatures } from "@/hooks/use-poultry-egg-features"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
@@ -61,6 +64,9 @@ export default function FlocksPage() {
   const router = useRouter()
   const permissions = usePermissions()
   const { toast } = useToast()
+  // 399: Layer / Broiler. The business type only shows a new flock its default.
+  const businessType = usePoultryBusinessType()
+  const refreshEggFeatures = useRefreshPoultryEggFeatures()
   const [flocks, setFlocks] = useState<Flock[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
@@ -131,7 +137,9 @@ export default function FlocksPage() {
   const [isAllocateDialogOpen, setIsAllocateDialogOpen] = useState(false)
   const [createLoading, setCreateLoading] = useState(false)
   const [createError, setCreateError] = useState("")
-  const emptyFlockForm = { name: "", startDate: "", breed: "", quantity: 0, active: true, hasArrived: false, houseId: null as number | null, batchId: 0, inactivationReason: "", otherReason: "", notes: "" }
+  const emptyFlockForm = { name: "", startDate: "", breed: "", quantity: 0, active: true, hasArrived: false, houseId: null as number | null, batchId: 0, inactivationReason: "", otherReason: "", notes: "",
+    /** "" = automatic: the server's default (broiler breed, else company type). */
+    flockType: "" as "" | FlockType }
   const [createForm, setCreateForm] = useState({ ...emptyFlockForm })
   const [createSelectedBatch, setCreateSelectedBatch] = useState<FlockBatch | null>(null)
 
@@ -508,12 +516,14 @@ export default function FlocksPage() {
       inactivationReason: createForm.inactivationReason,
       otherReason: createForm.inactivationReason === 'other' ? createForm.otherReason : '',
       notes: createForm.notes,
+      flockType: createForm.flockType || undefined,
     }
 
     const result = await createFlock(flockData)
     if (result.success) {
       toast({ title: "Success!", description: "Flock created successfully." })
       setIsCreateDialogOpen(false)
+      refreshEggFeatures()
       loadFlocks()
       loadProductionBirdsLeft()
     } else {
@@ -542,6 +552,7 @@ export default function FlocksPage() {
         houseId: f.houseId ?? null, batchId: f.batchId ?? 0,
         inactivationReason: f.inactivationReason ?? "", otherReason: f.otherReason ?? "",
         notes: f.notes ?? "",
+        flockType: flockTypeOf(f),
       })
       const initialBatch = flockBatches.find(b => b.batchId === f.batchId) || null
       setEditSelectedBatch(initialBatch)
@@ -590,12 +601,14 @@ export default function FlocksPage() {
       inactivationReason: editForm.inactivationReason,
       otherReason: editForm.inactivationReason === 'other' ? editForm.otherReason : '',
       notes: editForm.notes,
+      flockType: editForm.flockType || undefined,
     }
 
     const result = await updateFlock(editingFlockId, flockData)
     if (result.success) {
       toast({ title: "Success!", description: "Flock updated successfully." })
       setIsEditDialogOpen(false)
+      refreshEggFeatures()
       loadFlocks()
       loadFilterData()
       loadProductionBirdsLeft()
@@ -1344,7 +1357,7 @@ export default function FlocksPage() {
                               <div className="flex items-start justify-between gap-3 cursor-pointer">
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="font-semibold text-slate-900">{flock.name}</span>
+                                    <span className="font-semibold text-slate-900">{flock.name}</span>{isBroilerFlock(flock) && <Badge variant="secondary" className="ml-1.5 bg-orange-100 text-orange-800 border border-orange-200 text-[10px] px-1.5 py-0">Broiler</Badge>}
                                     {flockLifecycleBadge(flock)}
                                   </div>
                                   <div className="mt-1 flex items-baseline gap-3">
@@ -1468,7 +1481,7 @@ export default function FlocksPage() {
                           <TableRow key={flock.flockId} className="hover:bg-slate-50 transition-colors">
                             <TableCell className={cn("font-medium text-slate-900 bg-white", isMobile && "sticky-col-date")}>
                               <div className="flex flex-col">
-                                <span>{flock.name}</span>
+                                <span>{flock.name}</span>{isBroilerFlock(flock) && <Badge variant="secondary" className="ml-1.5 bg-orange-100 text-orange-800 border border-orange-200 text-[10px] px-1.5 py-0">Broiler</Badge>}
                                 <div className="flex items-center gap-2 text-xs text-slate-500 sm:hidden mt-1">
                                   {flockLifecycleBadge(flock)}
                                 </div>
@@ -1714,6 +1727,14 @@ export default function FlocksPage() {
                     onChange={(breed) => setCreateForm({ ...createForm, breed })} />
                 </div>
                 <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-700">Flock type</Label>
+                  <FlockTypeSelect
+                    value={createForm.flockType || defaultFlockType(createForm.breed, businessType)}
+                    automatic={!createForm.flockType}
+                    disabled={createLoading}
+                    onChange={(flockType) => setCreateForm({ ...createForm, flockType })} />
+                </div>
+                <div className="space-y-2">
                   <Label className="text-sm font-medium text-slate-700">Start Date *</Label>
                   <Input type="date" value={createForm.startDate} onChange={(e) => setCreateForm({ ...createForm, startDate: e.target.value })} required disabled={createLoading} />
                 </div>
@@ -1840,6 +1861,13 @@ export default function FlocksPage() {
                     <Label className="text-sm font-medium text-slate-700">Breed</Label>
                     <BreedSelect value={editForm.breed} known={knownBreeds} disabled={editLoading}
                       onChange={(breed) => setEditForm({ ...editForm, breed })} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">Flock type</Label>
+                    <FlockTypeSelect
+                      value={editForm.flockType || "Layer"}
+                      disabled={editLoading}
+                      onChange={(flockType) => setEditForm({ ...editForm, flockType })} />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-slate-700">Start Date *</Label>

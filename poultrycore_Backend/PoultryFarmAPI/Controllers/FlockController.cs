@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
@@ -253,6 +253,7 @@ namespace PoultryFarmAPIWeb.Controllers
                 HasArrived = hasArrived,
                 HouseId = a.HouseId,
                 Notes = string.IsNullOrWhiteSpace(a.Notes) ? null : a.Notes!.Trim(),
+                FlockType = request.FlockType,   // 399: null -> database default
             }).ToList();
 
             List<FlockModel> created;
@@ -432,6 +433,9 @@ namespace PoultryFarmAPIWeb.Controllers
                 return BadRequest($"The total quantity of birds ({totalQuantityExcludingCurrent + model.Quantity}) exceeds the available birds in batch '{batch.BatchName}' ({batch.NumberOfBirds}).");
             }
 
+
+            try { model.FlockType = BirdFlockService.NormalizeFlockType(model.FlockType); }
+            catch (ArgumentException ex) { return BadRequest(ex.Message); }
 
             model.FlockId = id;
             await _flockService.UpdateFlock(model);
