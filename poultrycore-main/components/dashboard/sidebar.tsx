@@ -60,6 +60,7 @@ import {
   Inbox,
   Factory,
   Star,
+  PlayCircle,
 } from "lucide-react"
 import { InventoryLogo } from "@/components/auth/logo"
 import { useAlertsStore, type AlertItem } from "@/lib/store/alerts-store"
@@ -969,6 +970,11 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
               blurb: "Account, companies, billing.", columns: 1,
             })
           : renderGroup("System", systemItems, "system")}
+
+        {/* Videos -- its own row right below System so the how-to videos are
+            one click away (they are also inside the System menu). Poultry
+            only, since the videos teach the poultry screens. */}
+        {poultryNav && renderNavItem({ href: "/poultry-videos", label: "Videos", icon: PlayCircle })}
       </nav>
 
       {/* Logout */}

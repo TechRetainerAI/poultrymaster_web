@@ -422,8 +422,9 @@ export function SizesSettingsPanel({
   return (
     <div className="space-y-4">
       <EggSortingSettingsCard settings={settings} classes={classes} canEdit={canEdit} onChanged={changed} />
-      <EggPackagingCard canEdit={canEdit} onChanged={() => setAuditKey((k) => k + 1)} />
       <EggSizesCard classes={classes} canEdit={canEdit} onChanged={changed} />
+      {/* Packaging sits last, right above the history (2026-11-03). */}
+      <EggPackagingCard canEdit={canEdit} onChanged={() => setAuditKey((k) => k + 1)} />
       <EggSortingAuditList key={auditKey} title="Change history" description="Settings, sizes, sortings, sale classes and egg adjustments — who changed what, and when." />
     </div>
   )

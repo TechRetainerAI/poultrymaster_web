@@ -2,6 +2,19 @@
 
 import { farmApiUrl, getAuthHeaders } from "./config"
 import { derivePaymentStatus } from "@/lib/expenses/payment-status"
+import { explainHttpError } from "./http-error"
+
+/**
+ * The sentence to show for a failed Expense call. Never the raw body: the API
+ * answers a database refusal with a JSON payload (errorType "SqlException",
+ * sqlState, path "/api/Expense", ...) and that used to land in the form as-is.
+ * The payload's own `message` is kept when there is one; otherwise the
+ * caller's fallback, which names no URL.
+ */
+function expenseErrorMessage(status: number, body: string, fallback: string): string {
+  const msg = explainHttpError("", "", status, body)
+  return /^Request failed \(\d+\)\.$/.test(msg) ? fallback : msg
+}
 
 export interface Expense {
   farmId: string
@@ -203,7 +216,7 @@ export async function getExpenses(userId?: string, farmId?: string): Promise<Api
 
     if (!response.ok) {
       const errorText = await response.text()
-      return { success: false, message: errorText || `Failed to fetch expenses (${response.status})` }
+      return { success: false, message: expenseErrorMessage(response.status, errorText, `Failed to fetch expenses. Please try again.`) }
     }
 
     const data = await parseJsonLenient<any[]>(response)
@@ -264,7 +277,7 @@ export async function getExpense(id: number, userId?: string, farmId?: string): 
       // Check if it's the backend casting error for specific expense ID
       return {
         success: false,
-        message: errorText || `Failed to fetch expense (${response.status})`,
+        message: expenseErrorMessage(response.status, errorText, `Failed to fetch expense. Please try again.`),
         data: null,
       }
     }
@@ -306,7 +319,7 @@ export async function getExpensesByFlock(flockId: number, userId?: string, farmI
 
     if (!response.ok) {
       const errorText = await response.text()
-      return { success: false, message: errorText || `Failed to fetch expenses by flock (${response.status})` }
+      return { success: false, message: expenseErrorMessage(response.status, errorText, `Failed to fetch expenses by flock. Please try again.`) }
     }
 
     const rawList = await parseJsonLenient<any[]>(response)
@@ -409,7 +422,7 @@ export async function createExpense(expense: ExpenseInput): Promise<ApiResponse<
       console.error("[v0] Expense create error:", errorText)
       
       // Check if it's a backend data casting error but the record might have been created
-      return { success: false, message: errorText || `Failed to create expense (${response.status})`, data: null as any }
+      return { success: false, message: expenseErrorMessage(response.status, errorText, `Failed to create expense. Please try again.`), data: null as any }
     }
 
     const data = await parseJsonLenient<any>(response)
@@ -478,7 +491,7 @@ export async function updateExpense(id: number, expense: Partial<ExpenseInput>):
       const errorText = await response.text()
       
       // Check if it's the backend casting error but the expense might have been updated
-      return { success: false, message: errorText || `Failed to update expense (${response.status})`, data: null as any }
+      return { success: false, message: expenseErrorMessage(response.status, errorText, `Failed to update expense. Please try again.`), data: null as any }
     }
 
     if (response.status === 204) {

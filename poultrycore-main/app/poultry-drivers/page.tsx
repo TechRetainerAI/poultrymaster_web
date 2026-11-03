@@ -26,6 +26,7 @@ import {
   listPoultryVehicles, listPoultryRoutes, listPoultryDriversForFarm, createPoultryDriverFromEmployee,
   type PoultryDriver, type PoultryVehicle, type PoultryRoute, type PoultryDriverInput,
 } from "@/lib/api/poultry-distribution"
+import { checkLicense, checkPersonName, checkPhone, normalizePhone, validateDriver } from "@/lib/distribution/fleet-validation"
 import { getEmployees, createEmployee, sendCredentialsEmail, type Employee, type CreateEmployeeData } from "@/lib/api/admin"
 
 type FormState = PoultryDriverInput
@@ -105,10 +106,26 @@ export default function PoultryDriversPage() {
     try {
       let employeeUserId = empForm.employeeUserId
 
+      // Checked before anything is created, so a bad licence cannot leave a
+      // new employee behind with no driver record.
+      const licProblem = checkLicense(empForm.licenseNumber)
+      if (licProblem) { toast({ title: "Check the licence number", description: licProblem, variant: "destructive" }); return }
+      const lic = empForm.licenseNumber.replace(/[^A-Za-z0-9]/g, "").toUpperCase()
+      const licClash = drivers.find((d) => d.licenseNumber && d.licenseNumber.replace(/[^A-Za-z0-9]/g, "").toUpperCase() === lic)
+      if (licClash) { toast({ title: "Check the licence number", description: `Licence number ${empForm.licenseNumber.trim()} already belongs to driver ${licClash.driverName}.`, variant: "destructive" }); return }
+      if (empMode === "new" && empForm.phoneNumber.trim()) {
+        const phoneClash = drivers.find((d) => d.phoneNumber && normalizePhone(d.phoneNumber) === normalizePhone(empForm.phoneNumber))
+        if (phoneClash) { toast({ title: "Check the phone number", description: `Phone number ${empForm.phoneNumber.trim()} already belongs to driver ${phoneClash.driverName}.`, variant: "destructive" }); return }
+      }
+
       // #18 Phase 2: create the employee first, then make them a driver.
       if (empMode === "new") {
         const fn = empForm.firstName.trim(), ln = empForm.lastName.trim()
         if (!fn || !ln) { toast({ title: "First and last name are required", variant: "destructive" }); return }
+        const nameProblem = checkPersonName(fn, "First name") ?? checkPersonName(ln, "Last name")
+        if (nameProblem) { toast({ title: "Check the name", description: nameProblem, variant: "destructive" }); return }
+        const phoneProblem = checkPhone(empForm.phoneNumber)
+        if (phoneProblem) { toast({ title: "Check the phone number", description: phoneProblem, variant: "destructive" }); return }
         if (!empForm.userName.trim() || !/^[a-zA-Z0-9_]+$/.test(empForm.userName)) { toast({ title: "Username required (letters, digits, underscore)", variant: "destructive" }); return }
         if (empForm.password.length < 4) { toast({ title: "Password must be at least 4 characters", variant: "destructive" }); return }
         // Dedup: warn if an employee already matches by name / phone / email / username.
@@ -181,7 +198,13 @@ export default function PoultryDriversPage() {
   }
 
   async function save() {
-    if (!form.driverName?.trim()) return toast({ title: "Driver name required", variant: "destructive" })
+    // Name, phone and licence in a real format (and not another driver's), plus
+    // a default vehicle. See lib/distribution/fleet-validation.ts.
+    const problem = validateDriver(
+      { ...form, id: editId },
+      { others: drivers.map((d) => ({ ...d, id: d.poultryDriverId })), vehicleCount: vehicles.length },
+    )
+    if (problem) return toast({ title: "Check the driver details", description: problem, variant: "destructive" })
     setSaving(true)
     try {
       if (editId) { await updatePoultryDriver(editId, form); toast({ title: "Driver updated" }) }
@@ -305,13 +328,13 @@ export default function PoultryDriversPage() {
               <FormField label="Driver name *" full>
                 <Input value={form.driverName} onChange={(e) => setForm({ ...form, driverName: e.target.value })} />
               </FormField>
-              <FormField label="Phone">
-                <Input value={form.phoneNumber ?? ""} onChange={(e) => setForm({ ...form, phoneNumber: e.target.value || null })} />
+              <FormField label="Phone *">
+                <Input type="tel" inputMode="tel" value={form.phoneNumber ?? ""} onChange={(e) => setForm({ ...form, phoneNumber: e.target.value || null })} placeholder="e.g. 024 123 4567" />
               </FormField>
-              <FormField label="License number">
-                <Input value={form.licenseNumber ?? ""} onChange={(e) => setForm({ ...form, licenseNumber: e.target.value || null })} />
+              <FormField label="License number *">
+                <Input value={form.licenseNumber ?? ""} onChange={(e) => setForm({ ...form, licenseNumber: e.target.value || null })} placeholder="As printed on the licence card" />
               </FormField>
-              <FormField label="Default vehicle">
+              <FormField label="Default vehicle *">
                 <Select
                   value={String(form.defaultVehicleId ?? "")}
                   onValueChange={(v) => setForm({ ...form, defaultVehicleId: v ? Number(v) : null })}
@@ -393,7 +416,7 @@ export default function PoultryDriversPage() {
               <FormSection title="New employee details" color="indigo">
                 <FormField label="First name *"><Input value={empForm.firstName} onChange={(e) => setEmpForm({ ...empForm, firstName: e.target.value })} /></FormField>
                 <FormField label="Last name *"><Input value={empForm.lastName} onChange={(e) => setEmpForm({ ...empForm, lastName: e.target.value })} /></FormField>
-                <FormField label="Phone"><Input value={empForm.phoneNumber} onChange={(e) => setEmpForm({ ...empForm, phoneNumber: e.target.value })} /></FormField>
+                <FormField label="Phone *"><Input type="tel" inputMode="tel" placeholder="e.g. 024 123 4567" value={empForm.phoneNumber} onChange={(e) => setEmpForm({ ...empForm, phoneNumber: e.target.value })} /></FormField>
                 <FormField label="Email"><Input value={empForm.email} onChange={(e) => setEmpForm({ ...empForm, email: e.target.value })} placeholder="optional" /></FormField>
                 <FormField label="Username *"><Input value={empForm.userName} onChange={(e) => setEmpForm({ ...empForm, userName: e.target.value })} /></FormField>
                 <FormField label="Password *"><Input type="password" value={empForm.password} onChange={(e) => setEmpForm({ ...empForm, password: e.target.value })} /></FormField>
@@ -423,8 +446,8 @@ export default function PoultryDriversPage() {
                 </Select>
               </FormField>
               )}
-              <FormField label="License number">
-                <Input value={empForm.licenseNumber} onChange={(e) => setEmpForm({ ...empForm, licenseNumber: e.target.value })} />
+              <FormField label="License number *">
+                <Input placeholder="As printed on the licence card" value={empForm.licenseNumber} onChange={(e) => setEmpForm({ ...empForm, licenseNumber: e.target.value })} />
               </FormField>
             </FormSection>
 
