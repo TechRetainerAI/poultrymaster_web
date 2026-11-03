@@ -290,6 +290,13 @@ export default function BusinessOfficePage() {
         {/* Welcome + org actions now live in the coloured top bar (shell). The
             "New company" button there opens this page's create dialog via event. */}
 
+        {/* Contact support at the top, so help (and our call lines) is the first
+            thing a user sees on the Business Office. */}
+        <section>
+          <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2">Need help?</h3>
+          <ContactSupport />
+        </section>
+
         {/* Announcements */}
         <section id="notices">
           <div className="flex items-center justify-between mb-2">
