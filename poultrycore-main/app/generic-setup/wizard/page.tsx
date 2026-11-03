@@ -8,9 +8,12 @@
 //
 // Step 0: Welcome — explains what the system will do.
 // Step 1: Pick business type — searchable grid with 25+ options.
-// Step 2: Confirm modules — the toggles the template set, adjustable.
-// Step 3: Review — summary of what will be configured, confirm before applying.
-// Step 4: Done — handover with first-action links.
+// Step 2: Done — handover with first-action links.
+//
+// The wizard no longer asks the customer to choose or confirm individual
+// features. VisibilityCore automatically applies the recommended feature
+// configuration for the selected Business Template. Customers can customise
+// features later through Setup → Business Features.
 //
 // Applying a template only ever inserts, and every insert is guarded, so
 // running the wizard twice is safe: the owner gets any new seeds and keeps
@@ -22,8 +25,6 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
-import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import {
@@ -54,85 +55,7 @@ const CATEGORY_META: { id: BusinessCategory; label: string; icon: React.ReactNod
   { id: "other", label: "Other", icon: <LayoutGrid className="h-4 w-4" /> },
 ]
 
-const MODULE_ROWS: { key: keyof GenericModuleSettings; label: string; hint: string }[] = [
-  { key: "enableSubscriptions", label: "Subscriptions", hint: "Bill the same customer every period" },
-  { key: "enableInvoices", label: "Invoices", hint: "Raise bills and track what is owed" },
-  { key: "enableCustomerBalances", label: "Customer balances", hint: "Who owes you, and take payment" },
-  { key: "enableProducts", label: "Products", hint: "Things you sell off a shelf" },
-  { key: "enableInventory", label: "Inventory", hint: "Stock levels and movements" },
-  { key: "enableStockAdjustments", label: "Stock adjustments", hint: "Corrections to stock on hand" },
-  { key: "enableInternalUse", label: "Internal use", hint: "Stock taken for the business itself" },
-  { key: "enablePurchases", label: "Purchases", hint: "What you buy from suppliers" },
-  { key: "enableStaffPayments", label: "Staff and payroll", hint: "Staff, attendance and pay runs" },
-  { key: "enableCashAccounts", label: "Cash accounts", hint: "Till, bank and mobile money" },
-  { key: "enableRecurringExpenses", label: "Recurring expenses", hint: "Rent, utilities and other regular costs" },
-  { key: "enableSupplierBalances", label: "Supplier balances", hint: "What you owe your suppliers" },
-]
-
-// ---------------------------------------------------------------------------
-// Conditional onboarding questions — asked between business type selection
-// and module configuration. Questions are filtered by business category so
-// a yam seller doesn't see subscription questions and a school doesn't see
-// barcode questions.
-// ---------------------------------------------------------------------------
-interface OnboardingQuestion {
-  id: string
-  question: string
-  hint: string
-  /** Which business categories see this question. Empty = all. */
-  showFor: BusinessCategory[]
-  /** Which business categories NEVER see this (overrides showFor). */
-  hideFor?: BusinessCategory[]
-  /** Module toggles to turn ON when answered "yes". */
-  enables: (keyof GenericModuleSettings)[]
-  /** Module toggles to turn OFF when answered "no". */
-  disablesOnNo?: (keyof GenericModuleSettings)[]
-}
-
-const ONBOARDING_QUESTIONS: OnboardingQuestion[] = [
-  {
-    id: "sells-products",
-    question: "Do you sell physical products?",
-    hint: "Items you buy or make and sell to customers",
-    showFor: ["service", "other"],
-    enables: ["enableProducts", "enableInventory", "enablePurchases"],
-    disablesOnNo: ["enableProducts", "enableInventory", "enableStockAdjustments", "enableInternalUse", "enablePurchases"],
-  },
-  {
-    id: "tracks-stock",
-    question: "Do you need to track stock levels?",
-    hint: "Know exactly how much of each item you have",
-    showFor: ["retail"],
-    enables: ["enableInventory", "enableStockAdjustments"],
-    disablesOnNo: ["enableInventory", "enableStockAdjustments", "enableInternalUse"],
-  },
-  {
-    id: "customer-credit",
-    question: "Do customers sometimes pay later?",
-    hint: "You give goods or services now, they pay over time",
-    showFor: ["retail", "service", "other"],
-    enables: ["enableCustomerBalances", "enableInvoices"],
-    disablesOnNo: ["enableCustomerBalances"],
-  },
-  {
-    id: "recurring-billing",
-    question: "Do you bill customers on a regular schedule?",
-    hint: "Monthly fees, term fees, memberships or subscriptions",
-    showFor: ["service", "other"],
-    enables: ["enableSubscriptions", "enableInvoices", "enableCustomerBalances"],
-    disablesOnNo: ["enableSubscriptions"],
-  },
-  {
-    id: "has-staff",
-    question: "Do you have staff to pay?",
-    hint: "Employees, contractors or commission-based workers",
-    showFor: ["retail", "service", "subscription", "other"],
-    enables: ["enableStaffPayments"],
-    disablesOnNo: ["enableStaffPayments"],
-  },
-]
-
-const TOTAL_STEPS = 6 // 0=welcome, 1=type, 2=questions, 3=modules, 4=review, 5=done
+const TOTAL_STEPS = 3 // 0=welcome, 1=type, 2=done
 
 function GenericSetupWizardContent() {
   const router = useRouter()
@@ -144,13 +67,10 @@ function GenericSetupWizardContent() {
 
   const [step, setStep] = useState(0) // Start at welcome
   const [choice, setChoice] = useState<BusinessType | null>(null)
-  const [settings, setSettings] = useState<GenericModuleSettings | null>(null)
   const [loading, setLoading] = useState(true)
   const [applying, setApplying] = useState(false)
-  const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState("")
   const [categoryFilter, setCategoryFilter] = useState<BusinessCategory | "all">("all")
-  const [answers, setAnswers] = useState<Record<string, boolean>>({})
 
   const labels = templateLabels(choice?.industryTemplate)
 
@@ -177,19 +97,19 @@ function GenericSetupWizardContent() {
       return
     }
     // Pre-select whatever this company is already on
-    Promise.all([getBusinessTemplate().catch(() => null), getModuleSettings().catch(() => null)])
-      .then(([template, s]) => {
+    getBusinessTemplate().catch(() => null)
+      .then((template) => {
         const existing = template?.genericIndustryTemplate ?? searchParams.get("industry")
         if (existing) {
           setChoice(CHOICES.find((c) => c.industryTemplate === existing) ?? null)
           // If already templated, skip the welcome
           if (template?.genericIndustryTemplate) setStep(1)
         }
-        if (s) setSettings(s)
       })
       .finally(() => setLoading(false))
   }, [activeFarmType, router, searchParams])
 
+  // Apply template and auto-configure — no manual feature selection needed
   const onApply = async () => {
     if (!choice?.businessTemplate || !choice?.industryTemplate) return
     setApplying(true)
@@ -197,12 +117,19 @@ function GenericSetupWizardContent() {
       const profile = await getProfile().catch(() => null)
       if (!profile) await setupProfile({})
 
-      const updated = await applyBusinessTemplate({
+      await applyBusinessTemplate({
         businessTemplate: choice.businessTemplate,
         industryTemplate: choice.industryTemplate,
       })
-      setSettings(updated ?? (await getModuleSettings()))
-      setStep(2)
+
+      invalidateGenericModules(activeFarmId ?? undefined)
+
+      toast({
+        title: `Set up as ${choice.label}`,
+        description: "Your workspace is ready with the recommended features enabled.",
+      })
+
+      setStep(2) // Go straight to done
     } catch (e: any) {
       toast({
         title: "Could not set up this business type",
@@ -213,67 +140,6 @@ function GenericSetupWizardContent() {
       setApplying(false)
     }
   }
-
-  // Questions filtered for the current business category
-  const visibleQuestions = useMemo(() => {
-    const cat = choice?.category
-    if (!cat) return []
-    return ONBOARDING_QUESTIONS.filter((q) => {
-      if (q.hideFor?.includes(cat)) return false
-      return q.showFor.length === 0 || q.showFor.includes(cat)
-    })
-  }, [choice])
-
-  // Apply question answers to module settings
-  const applyAnswersToSettings = () => {
-    if (!settings) return
-    const updated = { ...settings }
-    for (const q of visibleQuestions) {
-      const answered = answers[q.id]
-      if (answered === true) {
-        for (const key of q.enables) {
-          ;(updated as any)[key] = true
-        }
-      } else if (answered === false && q.disablesOnNo) {
-        for (const key of q.disablesOnNo) {
-          ;(updated as any)[key] = false
-        }
-      }
-    }
-    setSettings(updated)
-  }
-
-  const onFinishQuestions = () => {
-    applyAnswersToSettings()
-    setStep(3) // Go to module toggles
-  }
-
-  const onSaveModules = async () => {
-    if (!settings) return
-    setSaving(true)
-    try {
-      const { farmId, ...rest } = settings
-      await saveModuleSettings(rest)
-      invalidateGenericModules(activeFarmId ?? undefined)
-      setStep(5) // Go to done
-    } catch (e: any) {
-      toast({
-        title: "Could not save settings",
-        description: e?.message ?? String(e),
-        variant: "destructive",
-      })
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const toggle = (key: keyof GenericModuleSettings) =>
-    setSettings((s) => (s ? { ...s, [key]: !s[key] } : s))
-
-  // Count enabled modules for review
-  const enabledModules = settings
-    ? MODULE_ROWS.filter((m) => Boolean(settings[m.key]))
-    : []
 
   return (
     <div className="flex h-screen bg-slate-50">
@@ -287,9 +153,9 @@ function GenericSetupWizardContent() {
               <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
                 <Sparkles className="h-6 w-6 text-indigo-600" /> Set up your business
               </h1>
-              {step > 0 && step < TOTAL_STEPS - 1 && (
+              {step === 1 && (
                 <p className="text-sm text-slate-500">
-                  Step {step} of {TOTAL_STEPS - 2}
+                  Step 1 of {TOTAL_STEPS - 1}
                 </p>
               )}
             </div>
@@ -309,9 +175,9 @@ function GenericSetupWizardContent() {
                   </div>
                   <CardTitle className="text-xl">Welcome to VisibilityCore</CardTitle>
                   <CardDescription className="text-base mt-2">
-                    We&apos;ll set up your workspace in a few quick steps. Tell us what kind
-                    of business you run, and we&apos;ll configure everything — menus, categories,
-                    cash accounts and reports — so it feels like it was built just for you.
+                    Tell us what kind of business you run and we&apos;ll configure
+                    everything — menus, categories, cash accounts and reports — so
+                    it feels like it was built just for you.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -324,22 +190,22 @@ function GenericSetupWizardContent() {
                       </li>
                       <li className="flex items-start gap-2">
                         <Badge variant="outline" className="mt-0.5 shrink-0">2</Badge>
-                        <span>Adjust which features you need</span>
+                        <span>We automatically set up the recommended features</span>
                       </li>
                       <li className="flex items-start gap-2">
                         <Badge variant="outline" className="mt-0.5 shrink-0">3</Badge>
-                        <span>Review and confirm</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <Badge variant="outline" className="mt-0.5 shrink-0">4</Badge>
                         <span>Start using your system</span>
                       </li>
                     </ul>
                   </div>
 
-                  <p className="text-sm text-slate-500">
-                    Everything can be changed later in Settings. Nothing is permanent.
-                  </p>
+                  <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4">
+                    <p className="text-sm text-indigo-700">
+                      VisibilityCore will automatically include the recommended features
+                      for your business type. You can customise them anytime in{" "}
+                      <strong>Setup → Business Features</strong>.
+                    </p>
+                  </div>
 
                   <div className="flex justify-center pt-2">
                     <Button size="lg" onClick={() => setStep(1)}>
@@ -356,8 +222,8 @@ function GenericSetupWizardContent() {
                 <CardHeader>
                   <CardTitle>What kind of business is this?</CardTitle>
                   <CardDescription>
-                    Pick the option closest to your business. This decides what things are called
-                    and what you start with. You can change it later.
+                    Pick the option closest to your business. We&apos;ll automatically
+                    set up the right menus, categories and features for you.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -433,6 +299,17 @@ function GenericSetupWizardContent() {
                     </div>
                   )}
 
+                  {/* Reassuring message below the grid */}
+                  {choice && (
+                    <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-3">
+                      <p className="text-sm text-indigo-700">
+                        Your business is ready to be set up. VisibilityCore will
+                        automatically include the recommended features for{" "}
+                        <strong>{choice.label}</strong>. You can customise them anytime.
+                      </p>
+                    </div>
+                  )}
+
                   <div className="flex justify-between pt-2">
                     <Button variant="ghost" onClick={() => setStep(0)}>
                       <ArrowLeft className="h-4 w-4 mr-1" /> Back
@@ -444,198 +321,7 @@ function GenericSetupWizardContent() {
                         </>
                       ) : (
                         <>
-                          Continue <ArrowRight className="h-4 w-4 ml-1" />
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : step === 2 ? (
-              /* ============================================================
-                 STEP 2: QUICK QUESTIONS (conditional)
-                 ============================================================ */
-              <Card>
-                <CardHeader>
-                  <CardTitle>A few quick questions</CardTitle>
-                  <CardDescription>
-                    This helps us turn on the right features for your{" "}
-                    <strong>{choice?.label?.toLowerCase()}</strong>. You can always change
-                    these later in Settings.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {visibleQuestions.length === 0 ? (
-                    <p className="text-sm text-slate-500">
-                      No additional questions for this business type. Your defaults are ready.
-                    </p>
-                  ) : (
-                    <div className="space-y-3">
-                      {visibleQuestions.map((q) => (
-                        <div key={q.id} className="rounded-lg border p-4">
-                          <p className="font-medium text-slate-900 text-sm">{q.question}</p>
-                          <p className="text-xs text-slate-500 mt-0.5 mb-3">{q.hint}</p>
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setAnswers((a) => ({ ...a, [q.id]: true }))}
-                              className={`rounded-md px-4 py-1.5 text-sm font-medium transition ${
-                                answers[q.id] === true
-                                  ? "bg-indigo-600 text-white"
-                                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                              }`}
-                            >
-                              Yes
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setAnswers((a) => ({ ...a, [q.id]: false }))}
-                              className={`rounded-md px-4 py-1.5 text-sm font-medium transition ${
-                                answers[q.id] === false
-                                  ? "bg-slate-700 text-white"
-                                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                              }`}
-                            >
-                              No
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="flex justify-between pt-2">
-                    <Button variant="ghost" onClick={() => setStep(1)}>
-                      <ArrowLeft className="h-4 w-4 mr-1" /> Back
-                    </Button>
-                    <Button onClick={onFinishQuestions}>
-                      Continue <ArrowRight className="h-4 w-4 ml-1" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : step === 3 ? (
-              /* ============================================================
-                 STEP 3: CONFIGURE MODULES (fine-tune)
-                 ============================================================ */
-              <Card>
-                <CardHeader>
-                  <CardTitle>Fine-tune your features</CardTitle>
-                  <CardDescription>
-                    We&apos;ve set these based on your answers. Adjust anything that
-                    doesn&apos;t look right — turning something off only hides it.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="divide-y">
-                    {MODULE_ROWS.map((m) => (
-                      <div key={m.key} className="flex items-center justify-between gap-4 py-3">
-                        <div>
-                          <Label htmlFor={m.key} className="text-slate-900 cursor-pointer">
-                            {m.label}
-                          </Label>
-                          <p className="text-sm text-slate-500">{m.hint}</p>
-                        </div>
-                        <Switch
-                          id={m.key}
-                          checked={Boolean(settings?.[m.key])}
-                          onCheckedChange={() => toggle(m.key)}
-                        />
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="flex justify-between">
-                    <Button variant="ghost" onClick={() => setStep(2)}>
-                      <ArrowLeft className="h-4 w-4 mr-1" /> Back
-                    </Button>
-                    <Button onClick={() => setStep(4)}>
-                      Review <ArrowRight className="h-4 w-4 ml-1" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : step === 4 ? (
-              /* ============================================================
-                 STEP 4: REVIEW & CONFIRM
-                 ============================================================ */
-              <Card>
-                <CardHeader>
-                  <CardTitle>Review your setup</CardTitle>
-                  <CardDescription>
-                    Check that everything looks right before we configure your workspace.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* Business type */}
-                  <div className="rounded-lg border p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-slate-500">Business type</span>
-                      <button
-                        type="button"
-                        onClick={() => setStep(1)}
-                        className="text-xs text-indigo-600 hover:text-indigo-800"
-                      >
-                        Change
-                      </button>
-                    </div>
-                    <p className="text-lg font-semibold text-slate-900">{choice?.label}</p>
-                    <p className="text-sm text-slate-500">{choice?.description}</p>
-                  </div>
-
-                  {/* Enabled modules */}
-                  <div className="rounded-lg border p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-slate-500">
-                        Features enabled ({enabledModules.length} of {MODULE_ROWS.length})
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setStep(3)}
-                        className="text-xs text-indigo-600 hover:text-indigo-800"
-                      >
-                        Change
-                      </button>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {enabledModules.map((m) => (
-                        <Badge key={m.key} variant="secondary" className="text-xs">
-                          {m.label}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* What gets created */}
-                  <div className="rounded-lg bg-slate-50 p-4 space-y-2">
-                    <p className="text-sm font-medium text-slate-700">
-                      When you confirm, we&apos;ll create:
-                    </p>
-                    <ul className="text-sm text-slate-600 space-y-1 list-disc list-inside">
-                      <li>Income and expense categories for your business</li>
-                      <li>Cash accounts (cash box, mobile money, bank)</li>
-                      {choice?.businessTemplate === "SubscriptionServiceBusiness" && (
-                        <li>Starter {labels.planPlural.toLowerCase()} (you set the prices)</li>
-                      )}
-                      <li>Menu items matching your enabled features</li>
-                    </ul>
-                    <p className="text-xs text-slate-500 mt-2">
-                      You can edit or add to any of these after setup.
-                    </p>
-                  </div>
-
-                  <div className="flex justify-between pt-2">
-                    <Button variant="ghost" onClick={() => setStep(3)}>
-                      <ArrowLeft className="h-4 w-4 mr-1" /> Back
-                    </Button>
-                    <Button onClick={onSaveModules} disabled={saving}>
-                      {saving ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-1 animate-spin" /> Configuring…
-                        </>
-                      ) : (
-                        <>
-                          Confirm & finish <Check className="h-4 w-4 ml-1" />
+                          Create My Business <ArrowRight className="h-4 w-4 ml-1" />
                         </>
                       )}
                     </Button>
@@ -644,7 +330,7 @@ function GenericSetupWizardContent() {
               </Card>
             ) : (
               /* ============================================================
-                 STEP 5: DONE
+                 STEP 2: DONE
                  ============================================================ */
               <Card>
                 <CardHeader>
@@ -655,70 +341,98 @@ function GenericSetupWizardContent() {
                     You&apos;re all set
                   </CardTitle>
                   <CardDescription>
-                    Your <strong>{choice?.label}</strong> workspace is ready.
-                    Here is the order things usually happen in.
+                    Your <strong>{choice?.label}</strong> workspace is ready with
+                    the recommended features already enabled.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
+                  <div className="rounded-lg bg-slate-50 p-4 space-y-2">
+                    <p className="text-sm font-medium text-slate-700">
+                      What we&apos;ve set up for you:
+                    </p>
+                    <ul className="text-sm text-slate-600 space-y-1 list-disc list-inside">
+                      <li>Income and expense categories for your business</li>
+                      <li>Cash accounts (cash box, mobile money, bank)</li>
+                      {choice?.businessTemplate === "SubscriptionServiceBusiness" && (
+                        <li>Starter {labels.planPlural.toLowerCase()} (you set the prices)</li>
+                      )}
+                      <li>Recommended features enabled in your menus</li>
+                    </ul>
+                    <p className="text-xs text-slate-500 mt-2">
+                      You can customise which features are active anytime in{" "}
+                      <strong>Setup → Business Features</strong>.
+                    </p>
+                  </div>
+
                   {choice?.businessTemplate === "SubscriptionServiceBusiness" ? (
                     // Subscription business next steps
-                    <ol className="space-y-2 text-sm">
-                      <li className="flex items-start gap-2">
-                        <Badge variant="outline" className="mt-0.5 shrink-0">1</Badge>
-                        <span>
-                          Check your <strong>{labels.planPlural}</strong> — starter ones are
-                          already there. Set the price and frequency.
-                        </span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <Badge variant="outline" className="mt-0.5 shrink-0">2</Badge>
-                        <span>Add your <strong>{labels.customerPlural}</strong>.</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <Badge variant="outline" className="mt-0.5 shrink-0">3</Badge>
-                        <span>
-                          Put each one on a plan — that is a{" "}
-                          <strong>{labels.subscription.toLowerCase()}</strong>.
-                        </span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <Badge variant="outline" className="mt-0.5 shrink-0">4</Badge>
-                        <span>
-                          When the period comes round, open <strong>Billing runs</strong> and raise
-                          the {labels.invoicePlural.toLowerCase()}.
-                        </span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <Badge variant="outline" className="mt-0.5 shrink-0">5</Badge>
-                        <span>
-                          Take payment on <strong>{labels.customerBalance}</strong>.
-                        </span>
-                      </li>
-                    </ol>
+                    <div>
+                      <p className="text-sm font-medium text-slate-700 mb-2">
+                        Here is the order things usually happen in:
+                      </p>
+                      <ol className="space-y-2 text-sm">
+                        <li className="flex items-start gap-2">
+                          <Badge variant="outline" className="mt-0.5 shrink-0">1</Badge>
+                          <span>
+                            Check your <strong>{labels.planPlural}</strong> — starter ones are
+                            already there. Set the price and frequency.
+                          </span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <Badge variant="outline" className="mt-0.5 shrink-0">2</Badge>
+                          <span>Add your <strong>{labels.customerPlural}</strong>.</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <Badge variant="outline" className="mt-0.5 shrink-0">3</Badge>
+                          <span>
+                            Put each one on a plan — that is a{" "}
+                            <strong>{labels.subscription.toLowerCase()}</strong>.
+                          </span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <Badge variant="outline" className="mt-0.5 shrink-0">4</Badge>
+                          <span>
+                            When the period comes round, open <strong>Billing runs</strong> and raise
+                            the {labels.invoicePlural.toLowerCase()}.
+                          </span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <Badge variant="outline" className="mt-0.5 shrink-0">5</Badge>
+                          <span>
+                            Take payment on <strong>{labels.customerBalance}</strong>.
+                          </span>
+                        </li>
+                      </ol>
+                    </div>
                   ) : (
                     // Retail / service business next steps
-                    <ol className="space-y-2 text-sm">
-                      <li className="flex items-start gap-2">
-                        <Badge variant="outline" className="mt-0.5 shrink-0">1</Badge>
-                        <span>Add your <strong>products or services</strong> with prices.</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <Badge variant="outline" className="mt-0.5 shrink-0">2</Badge>
-                        <span>Record your first <strong>sale</strong>.</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <Badge variant="outline" className="mt-0.5 shrink-0">3</Badge>
-                        <span>Add your <strong>suppliers</strong> and record a purchase.</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <Badge variant="outline" className="mt-0.5 shrink-0">4</Badge>
-                        <span>At the end of the day, do a <strong>daily closing</strong>.</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <Badge variant="outline" className="mt-0.5 shrink-0">5</Badge>
-                        <span>Check your <strong>reports</strong> to see how you are doing.</span>
-                      </li>
-                    </ol>
+                    <div>
+                      <p className="text-sm font-medium text-slate-700 mb-2">
+                        Here is the order things usually happen in:
+                      </p>
+                      <ol className="space-y-2 text-sm">
+                        <li className="flex items-start gap-2">
+                          <Badge variant="outline" className="mt-0.5 shrink-0">1</Badge>
+                          <span>Add your <strong>products or services</strong> with prices.</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <Badge variant="outline" className="mt-0.5 shrink-0">2</Badge>
+                          <span>Record your first <strong>sale</strong>.</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <Badge variant="outline" className="mt-0.5 shrink-0">3</Badge>
+                          <span>Add your <strong>suppliers</strong> and record a purchase.</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <Badge variant="outline" className="mt-0.5 shrink-0">4</Badge>
+                          <span>At the end of the day, do a <strong>daily closing</strong>.</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <Badge variant="outline" className="mt-0.5 shrink-0">5</Badge>
+                          <span>Check your <strong>reports</strong> to see how you are doing.</span>
+                        </li>
+                      </ol>
+                    </div>
                   )}
 
                   <div className="flex flex-wrap gap-2 pt-2">

@@ -151,10 +151,11 @@ export function buildGenericNavConfig(modules: GenericModulesResult): GenericNav
     key: "admin",
     label: "Admin",
     items: [
-      item("/generic-reports",  "Reports",  BarChart3),
-      item("/generic-setup",    "Setup",    Settings),
-      item("/generic-settings", "Settings", Cog),
-      item("/profile",          "Account",  User),
+      item("/generic-reports",            "Reports",           BarChart3),
+      item("/generic-setup",              "Setup",             Settings),
+      item("/generic-business-features",  "Business Features", Settings),
+      item("/generic-settings",           "Settings",          Cog),
+      item("/profile",                    "Account",           User),
     ],
   }]
 
