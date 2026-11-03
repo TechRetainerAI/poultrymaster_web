@@ -636,7 +636,9 @@ export default function SalesPage() {
     // 374: which byproducts this company sells. Unreadable = the defaults.
     getPoultryByproductSettings().then(setByproductSettings).catch(() => setByproductSettings(null))
     try {
-      setEggClasses(await getEggClasses())
+      // ensure: seed the farm's default egg sizes if it has none, so the egg
+      // SIZE dropdown is active by default on New Sale for every poultry farm.
+      setEggClasses(await getEggClasses({ ensure: true }))
     } catch {
       setEggClasses([])        // before migration 341: no classes, sales stay Unsorted
     }
