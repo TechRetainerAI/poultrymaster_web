@@ -35,6 +35,12 @@ namespace PoultryFarmAPIWeb.Business
         Task<IReadOnlyList<EggSortingAuditRow>> GetAuditAsync(string farmId, string? entity, int? entityId, int limit);
         /// <summary>The farm's eggs per crate (344), 30 when not set or before 344.</summary>
         Task<int> GetEggsPerCrateAsync(string farmId);
+        /// <summary>393: Boxes / Crates / Pieces configuration. Defaults (boxes off) before 393.</summary>
+        Task<EggPackagingSettings> GetPackagingAsync(string farmId);
+        /// <summary>Throws PostgresException P0001 on an invalid configuration. Returns the version in force.</summary>
+        Task<int> SavePackagingAsync(EggPackagingRequest req, string? by);
+        /// <summary>394: crate, box and piece prices of one class (Unsorted or a size).</summary>
+        Task SetClassPricesAsync(string farmId, int poultryProductId, EggClassPricesRequest req, string? by);
     }
 
     public class PoultryEggSortingService : IPoultryEggSortingService
@@ -126,7 +132,41 @@ namespace PoultryFarmAPIWeb.Business
                     PricePerCrate = Has(r, "pricepercrate") ? Dec(r, "pricepercrate") : null,
                 });
             }
+            await r.CloseAsync();
+
+            // 394: box and piece prices, from their own reader so the classes
+            // reader (and everything built on it) did not have to change.
+            if (await FunctionExistsAsync(c, "sppoultryeggclassprices_get"))
+            {
+                using var prices = new NpgsqlCommand("SELECT * FROM sppoultryeggclassprices_get(p_farmid => @FarmId::text)", c);
+                prices.Parameters.AddWithValue("@FarmId", farmId);
+                using var pr = await prices.ExecuteReaderAsync();
+                var byId = list.ToDictionary(x => x.PoultryProductId);
+                while (await pr.ReadAsync())
+                {
+                    if (!byId.TryGetValue(pr.GetInt32(pr.GetOrdinal("poultryproductid")), out var cls)) continue;
+                    cls.PricePerBox = Dec(pr, "priceperbox");
+                    cls.PricePerPiece = Dec(pr, "priceperpiece");
+                }
+            }
             return list;
+        }
+
+        public async Task SetClassPricesAsync(string farmId, int poultryProductId, EggClassPricesRequest req, string? by)
+        {
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand(
+                "SELECT sppoultryeggclass_setprices(p_farmid => @FarmId::text, p_poultryproductid => @Id::int, "
+                + "p_pricepercrate => @Crate::numeric, p_priceperbox => @Box::numeric, p_priceperpiece => @Piece::numeric, "
+                + "p_by => @By::text)", c);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@Id", poultryProductId);
+            cmd.Parameters.AddWithValue("@Crate", (object?)req.PricePerCrate ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Box", (object?)req.PricePerBox ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Piece", (object?)req.PricePerPiece ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@By", (object?)by ?? DBNull.Value);
+            await c.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
         }
 
         public async Task<int> SaveSizeAsync(EggSizeSaveRequest req, string? by)
@@ -402,6 +442,56 @@ namespace PoultryFarmAPIWeb.Business
             {
                 return 30;   // before 344
             }
+        }
+
+        public async Task<EggPackagingSettings> GetPackagingAsync(string farmId)
+        {
+            using var c = new NpgsqlConnection(_cs);
+            await c.OpenAsync();
+            if (!await FunctionExistsAsync(c, "sppoultryeggpackaging_get"))
+            {
+                // Before 393: boxes do not exist yet; crates as the farm has them.
+                using var crate = new NpgsqlCommand("SELECT fnpoultry_eggspercrate(@FarmId::text)", c);
+                crate.Parameters.AddWithValue("@FarmId", farmId);
+                var v = await crate.ExecuteScalarAsync();
+                return new EggPackagingSettings { FarmId = farmId, EggsPerCrate = v is null || v is DBNull ? 30 : Convert.ToInt32(v) };
+            }
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryeggpackaging_get(p_farmid => @FarmId::text)", c);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            using var r = await cmd.ExecuteReaderAsync();
+            if (!await r.ReadAsync()) return new EggPackagingSettings { FarmId = farmId };
+            return new EggPackagingSettings
+            {
+                FarmId = farmId,
+                EggsPerCrate = Int(r, "eggspercrate") ?? 30,
+                EnableBoxes = r.GetBoolean(r.GetOrdinal("enableboxes")),
+                CratesPerBox = Int(r, "cratesperbox"),
+                EggsPerBox = Int(r, "eggsperbox"),
+                EggDisplay = Str(r, "eggdisplay") ?? "CratesPieces",
+                SaleEntryUnit = Str(r, "saleentryunit") ?? "Crates",
+                PackagingVersion = Int(r, "packagingversion") ?? 1,
+                StoredCratesPerBox = Int(r, "storedcratesperbox"),
+                StoredDisplay = Str(r, "storeddisplay") ?? "CratesPieces",
+                StoredEntryUnit = Str(r, "storedentryunit") ?? "Crates",
+            };
+        }
+
+        public async Task<int> SavePackagingAsync(EggPackagingRequest req, string? by)
+        {
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand(
+                "SELECT sppoultryeggpackaging_save(p_farmid => @FarmId::text, p_enableboxes => @On::boolean, "
+                + "p_cratesperbox => @Crates::int, p_eggdisplay => @Display::text, p_saleentryunit => @Entry::text, "
+                + "p_by => @By::text)", c);
+            cmd.Parameters.AddWithValue("@FarmId", req.FarmId);
+            cmd.Parameters.AddWithValue("@On", req.EnableBoxes);
+            cmd.Parameters.AddWithValue("@Crates", (object?)req.CratesPerBox ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Display", string.IsNullOrWhiteSpace(req.EggDisplay) ? "CratesPieces" : req.EggDisplay);
+            cmd.Parameters.AddWithValue("@Entry", string.IsNullOrWhiteSpace(req.SaleEntryUnit) ? "Crates" : req.SaleEntryUnit);
+            cmd.Parameters.AddWithValue("@By", (object?)by ?? DBNull.Value);
+            await c.OpenAsync();
+            var v = await cmd.ExecuteScalarAsync();
+            return v is null || v is DBNull ? 1 : Convert.ToInt32(v);
         }
 
         private static bool HasColumn(NpgsqlDataReader r, string name)

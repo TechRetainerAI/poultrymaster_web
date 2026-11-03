@@ -35,6 +35,10 @@ export interface EggClass {
   onHand: number
   /** Default selling price per crate (344); null = none set. */
   pricePerCrate?: number | null
+  /** 394: per box; null = crates per box x the crate price. */
+  pricePerBox?: number | null
+  /** 394: per egg; null = the crate price shared over the crate. */
+  pricePerPiece?: number | null
 }
 
 export type AdjustmentKind = "Breakage" | "Loss" | "Stocktake" | "Correction"
@@ -255,6 +259,38 @@ export const saveEggSortingSettings = (input: {
   eggsPerCrate: number
   unsortedPricePerCrate: number | null
 }) => call<void>("PUT", `${base}/settings`, { farmId: farmId(), ...input })
+
+/** 393: Boxes / Crates / Pieces. "In force" values plus what the settings screen edits. */
+export interface EggPackagingSettings {
+  farmId: string
+  eggsPerCrate: number
+  enableBoxes: boolean
+  cratesPerBox: number | null
+  eggsPerBox: number | null
+  eggDisplay: "BoxesCratesPieces" | "CratesPieces" | "Pieces"
+  saleEntryUnit: "Boxes" | "Crates"
+  packagingVersion: number
+  storedCratesPerBox: number | null
+  storedDisplay: "BoxesCratesPieces" | "CratesPieces" | "Pieces"
+  storedEntryUnit: "Boxes" | "Crates"
+}
+
+export const getEggPackaging = () => call<EggPackagingSettings>("GET", `${base}/packaging?${q()}`)
+
+/** Changes only how egg quantities are entered and shown -- never stock, sales or movements. */
+export const saveEggPackaging = (input: {
+  enableBoxes: boolean
+  cratesPerBox: number | null
+  eggDisplay: EggPackagingSettings["eggDisplay"]
+  saleEntryUnit: EggPackagingSettings["saleEntryUnit"]
+}) => call<{ packagingVersion: number }>("PUT", `${base}/packaging`, { farmId: farmId(), ...input })
+
+/** 394: one class's crate, box and piece prices (Unsorted / General or a size). Null = not set. */
+export const setEggClassPrices = (poultryProductId: number, prices: {
+  pricePerCrate: number | null
+  pricePerBox: number | null
+  pricePerPiece: number | null
+}) => call<void>("PUT", `${base}/classes/${poultryProductId}/prices`, { farmId: farmId(), ...prices })
 
 export const setEggSizePrice = (eggSizeId: number, pricePerCrate: number | null) =>
   call<void>("PUT", `${base}/sizes/${eggSizeId}/price`, { farmId: farmId(), pricePerCrate })

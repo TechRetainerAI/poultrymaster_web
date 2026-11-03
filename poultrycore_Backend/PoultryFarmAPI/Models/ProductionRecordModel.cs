@@ -67,7 +67,24 @@ namespace PoultryFarmAPIWeb.Models
         public string? MortalityDisposition { get; set; }
         /// <summary>372: the same for its broken eggs (Broken Eggs stock).</summary>
         public string? BrokenEggDisposition { get; set; }
+        /// <summary>
+        /// 390: how many of the broken eggs were disposed at once; the rest go into
+        /// Broken Eggs stock. Wins over BrokenEggDisposition. Null = unchanged.
+        /// </summary>
+        public int? BrokenEggsDisposed { get; set; }
+        /// <summary>391: the same for the dead birds (Dead Birds stock). Wins over MortalityDisposition.</summary>
+        public int? MortalityDisposed { get; set; }
         public string? Notes { get; set; }
+        /// <summary>
+        /// 389: where the record came from -- ManualSingleFlock, BatchAllocation, or
+        /// FeedUsage (feed recorded first; production not filled in yet). Read only.
+        /// </summary>
+        public string? SourceType { get; set; }
+        /// <summary>
+        /// 389: sent by the production form. Saving a FeedUsage (feed-only) record
+        /// from the form makes it an ordinary production record.
+        /// </summary>
+        public bool MarkRecorded { get; set; }
         public int EggCount { get; set; }
 
         /// <summary>Egg size for the daily collection (e.g. Small, Medium, Large, XLarge, Jumbo).</summary>

@@ -438,10 +438,12 @@ namespace PoultryFarmAPIWeb.Controllers
     // Migration 068 — currency settings on the Water company. The Login API
     // owns the rest of the Farms row (Name, Type, OwnerUserId) but currency is
     // read/written here so the Water UI doesn't need cross-API plumbing.
+    // Despite the Water route, this is the SHARED currency endpoint: Poultry,
+    // Hotel and Restaurant setup pages call it too (lib/currency.ts), so it
+    // must not carry [RequireCompanyType] — that 403'd every non-Water save.
     [PoultryFarmAPIWeb.Filters.SetupAdminOnly]
     [ApiController]
     [Route("api/Water/farm-settings")]
-    [RequireCompanyType("Water")]
     public class WaterFarmSettingsController : ControllerBase
     {
         private readonly IWaterFarmSettingsService _svc;
@@ -461,11 +463,14 @@ namespace PoultryFarmAPIWeb.Controllers
         {
             if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
             if (body is null) return BadRequest("Body required.");
-            var s = await _svc.UpdateCurrencyAsync(
-                farmId,
-                string.IsNullOrWhiteSpace(body.CurrencyCode)   ? "GHS" : body.CurrencyCode,
-                string.IsNullOrWhiteSpace(body.CurrencySymbol) ? "GHC" : body.CurrencySymbol,
-                body.ShowCurrencySymbol);
+            var code = string.IsNullOrWhiteSpace(body.CurrencyCode) ? "GHS" : body.CurrencyCode.Trim();
+            // A blank symbol falls back to the currency's own code, not "GHC" —
+            // a USD farm must never silently start showing GHC on its amounts.
+            // GHS keeps "GHC", the symbol Ghanaian businesses actually write.
+            var symbol = !string.IsNullOrWhiteSpace(body.CurrencySymbol) ? body.CurrencySymbol.Trim()
+                       : string.Equals(code, "GHS", StringComparison.OrdinalIgnoreCase) ? "GHC"
+                       : code;
+            var s = await _svc.UpdateCurrencyAsync(farmId, code, symbol, body.ShowCurrencySymbol);
             return s is null ? NotFound() : Ok(s);
         }
     }

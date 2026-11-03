@@ -32,6 +32,8 @@ import { customerCreditTotal } from "@/lib/api/customer-credit"
 import { matchesStatusFilter, SALE_STATUS_FILTERS, type SaleStatusFilter } from "@/lib/sales/reversal"
 import { EGGS_PER_CRATE } from "@/lib/production/production-record-calc"
 import { useEggsPerCrate } from "@/hooks/use-eggs-per-crate"
+import { useEggPackaging } from "@/hooks/use-egg-packaging"
+import { boxSize, packagedLineAmount, postedLineConversion, postedLineQuantity, toBoxesCratesPieces, toEggPieces } from "@/lib/poultry/egg-packaging"
 import { getEggClasses, type EggClass } from "@/lib/api/egg-sorting"
 import {
   classFor,
@@ -355,6 +357,16 @@ export default function SalesPage() {
   const isMobile = useIsMobile()
   const [crates, setCrates] = useState(0)
   const [looseEggs, setLooseEggs] = useState(0)
+  // 394: Boxes on the first line, and its optional box / egg prices (null =
+  // derived from the crate price). Only used when the farm has Boxes on.
+  const [boxes, setBoxes] = useState(0)
+  const [boxPrice, setBoxPrice] = useState<number | null>(null)
+  const [piecePrice, setPiecePrice] = useState<number | null>(null)
+  const packaging = useEggPackaging()
+  const boxesOn = boxSize(packaging) != null
+  /** Eggs in boxes + crates + pieces, with the farm's packaging (boxes only when on). */
+  const eggsOf = (b: number, c: number, l: number) =>
+    boxesOn ? toEggPieces({ boxes: b, crates: c, pieces: l }, packaging) : c * EGGS_PER_CRATE + l
   const [overrideAmount, setOverrideAmount] = useState<number | undefined>(undefined)
   // Part payment: saved as owed (paid = false) plus ONE payment for what the
   // customer handed over now, in the same transaction as the sale.
@@ -387,7 +399,11 @@ export default function SalesPage() {
   useEffect(() => {
     if (!isEggsProduct || editingSale) return
     const p = classPrice(formData.eggProductId)
-    if (p !== undefined && !(Number(formData.unitPrice) > 0)) setFormData((prev) => ({ ...prev, unitPrice: p }))
+    if (p !== undefined && !(Number(formData.unitPrice) > 0)) {
+      setFormData((prev) => ({ ...prev, unitPrice: p }))
+      setBoxPrice(classFor(eggClasses, formData.eggProductId)?.pricePerBox ?? null)
+      setPiecePrice(classFor(eggClasses, formData.eggProductId)?.pricePerPiece ?? null)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEggsProduct, eggClasses])
 
@@ -620,7 +636,9 @@ export default function SalesPage() {
     // 374: which byproducts this company sells. Unreadable = the defaults.
     getPoultryByproductSettings().then(setByproductSettings).catch(() => setByproductSettings(null))
     try {
-      setEggClasses(await getEggClasses())
+      // ensure: seed the farm's default egg sizes if it has none, so the egg
+      // SIZE dropdown is active by default on New Sale for every poultry farm.
+      setEggClasses(await getEggClasses({ ensure: true }))
     } catch {
       setEggClasses([])        // before migration 341: no classes, sales stay Unsorted
     }
@@ -709,7 +727,7 @@ export default function SalesPage() {
 
       const quantity = Number(formData.quantity ?? 0)
       const unitPrice = Number(formData.unitPrice ?? 0)
-      const calculatedAmount = saleLineTotal(quantity, unitPrice, isEggsProduct)
+      const calculatedAmount = firstLineCalculated(quantity, unitPrice)
       const totalAmount = (overrideAmount !== undefined && overrideAmount > 0) ? overrideAmount : calculatedAmount
 
       if (partPayment) {
@@ -745,7 +763,9 @@ export default function SalesPage() {
 
       // Several lines (egg sizes and/or other products), or a part payment:
       // one sale number, one payment, all or nothing.
-      if (extraEggLines.length > 0 || partPayment || creditUsed > 0) {
+      // 394: a box farm's egg sale goes this way too -- it is the path that
+      // keeps the boxes / crates / pieces and prices on the line.
+      if (extraEggLines.length > 0 || partPayment || creditUsed > 0 || (boxesOn && isEggsProduct)) {
         if (extraEggLines.some((l) => !(l.product ?? "eggs").trim() || extraLineQuantity(l) <= 0 || l.unitPrice <= 0)) {
           toastFormGuide(toast, "Every added line needs a product, a quantity and a price, or remove it.")
           return
@@ -773,12 +793,21 @@ export default function SalesPage() {
           correctsSaleId: correcting?.saleId ?? null,
           requestKey: saleRequestKeyRef.current,
           lines: (() => {
+            // 394: on a box farm every egg line carries its boxes / crates /
+            // pieces and prices; the server converts them with the company's
+            // packaging and refuses a disagreement. Other lines as before.
+            const packaged = (b: number, c: number, l: number, perBox: number | null | undefined, perPiece: number | null | undefined) =>
+              boxesOn
+                ? { boxes: b, crates: c, pieces: l, pricePerBox: b > 0 ? perBox ?? null : null, pricePerPiece: l > 0 ? perPiece ?? null : null, amountOverridden: hasOverride }
+                : {}
             const lines = [
-              { product, eggProductId: isEggsProduct ? formData.eggProductId ?? null : null, quantity, unitPrice, totalAmount: calculatedAmount },
+              { product, eggProductId: isEggsProduct ? formData.eggProductId ?? null : null, quantity, unitPrice, totalAmount: calculatedAmount,
+                ...(isEggsProduct ? packaged(boxes, crates, looseEggs, boxPrice, piecePrice) : {}) },
               ...extraEggLines.map((l) => ({
                 product: (l.product ?? product).trim(),
                 eggProductId: extraLineIsEggs(l) ? l.eggProductId : null,
                 quantity: extraLineQuantity(l), unitPrice: l.unitPrice, totalAmount: extraLineTotal(l),
+                ...(extraLineIsEggs(l) ? packaged(l.boxes ?? 0, l.crates, l.loose, l.pricePerBox, l.pricePerPiece) : {}),
               })),
             ]
             const totals = scaleLineTotals(lines.map((l) => l.totalAmount), hasOverride ? overrideAmount! : null)
@@ -990,15 +1019,31 @@ export default function SalesPage() {
       poultryCashAccountId: sale.poultryCashAccountId ?? defaultCashAccountId,
       eggProductId: (first ? first.eggProductId : sale.eggProductId) ?? null,
     })
+    // 394: the corrected sale keeps the EXACT eggs. A line posted with today's
+    // conversion comes back as it was entered; one posted with another box or
+    // crate size is rewritten in today's packaging (same eggs) and said so.
+    const split = (l: { quantity?: number | null; boxes?: number | null; crates?: number | null; pieces?: number | null; eggsPerCrate?: number | null; cratesPerBox?: number | null } | undefined, q: number) => {
+      const sameConversion = l?.crates != null && (l.eggsPerCrate ?? 0) === packaging.eggsPerCrate
+        && ((l.boxes ?? 0) === 0 || (boxesOn && l.cratesPerBox === packaging.cratesPerBox))
+      if (sameConversion) return { boxes: l!.boxes ?? 0, crates: l!.crates ?? 0, pieces: l!.pieces ?? 0, rewritten: false }
+      const n = boxesOn ? toBoxesCratesPieces(q, packaging) : { boxes: 0, crates: Math.floor(q / EGGS_PER_CRATE), pieces: q % EGGS_PER_CRATE }
+      return { ...n, rewritten: l?.crates != null }
+    }
+    let rewritten = false
     setExtraEggLines((row.lines ?? []).slice(1).map((l) => {
       const egg = isEggProduct(l.product)
       const q = Number(l.quantity) || 0
+      const sp = split(l, q)
+      if (egg && sp.rewritten) rewritten = true
       return {
         key: `fix-${l.saleLineId}`,
         product: l.product,
         eggProductId: egg ? l.eggProductId ?? null : null,
-        crates: egg ? Math.floor(q / EGGS_PER_CRATE) : 0,
-        loose: egg ? q % EGGS_PER_CRATE : 0,
+        crates: egg ? sp.crates : 0,
+        loose: egg ? sp.pieces : 0,
+        boxes: egg ? sp.boxes : 0,
+        pricePerBox: egg ? l.pricePerBox ?? null : null,
+        pricePerPiece: egg ? l.pricePerPiece ?? null : null,
         quantity: egg ? undefined : q,
         unitPrice: Number(l.unitPrice) || 0,
       }
@@ -1007,8 +1052,19 @@ export default function SalesPage() {
     setProductSelection(selection)
     setProductOther(selection === "Other" ? sale.product : "")
     const isEgg = isEggProduct(sale.product)
-    setCrates(isEgg ? Math.floor(firstQty / EGGS_PER_CRATE) : 0)
-    setLooseEggs(isEgg ? firstQty % EGGS_PER_CRATE : 0)
+    const firstSplit = split(first, firstQty)
+    if (isEgg && firstSplit.rewritten) rewritten = true
+    setCrates(isEgg ? firstSplit.crates : 0)
+    setLooseEggs(isEgg ? firstSplit.pieces : 0)
+    setBoxes(isEgg ? firstSplit.boxes : 0)
+    setBoxPrice(isEgg ? first?.pricePerBox ?? null : null)
+    setPiecePrice(isEgg ? first?.pricePerPiece ?? null : null)
+    if (rewritten) {
+      toast({
+        title: "Packaging has changed since this sale",
+        description: "The corrected sale keeps exactly the same number of eggs, written in today's boxes and crates. Check the quantities and prices before saving.",
+      })
+    }
     setCorrecting({ saleId: sale.saleId, label: row.lines ? (row.saleGroupNo ?? `#${sale.saleId}`) : `#${sale.saleId}`, creditKept })
     // The money kept at the reversal pays the corrected sale, from the form.
     if (creditKept > 0) { setUseCredit(true); setCreditAmount(creditKept) }
@@ -1073,6 +1129,9 @@ export default function SalesPage() {
     })
     setExtraEggLines([])
     setEditingLines([])
+    setBoxes(0)
+    setBoxPrice(null)
+    setPiecePrice(null)
     setProductSelection(undefined)
     setProductOther("")
     setShowNewCustomerInput(false)
@@ -1134,7 +1193,7 @@ export default function SalesPage() {
         eggProductId: egg ? prev.eggProductId : null,
         // The quantity is eggs on an egg line and units otherwise, so it does
         // not carry across a switch between the two.
-        quantity: egg ? crates * EGGS_PER_CRATE + looseEggs : wasEgg ? 0 : prev.quantity,
+        quantity: egg ? eggsOf(boxes, crates, looseEggs) : wasEgg ? 0 : prev.quantity,
         // 374: a byproduct starts at the price set on its product.
         unitPrice: byproductPrice(value) ?? prev.unitPrice,
       }
@@ -1142,6 +1201,7 @@ export default function SalesPage() {
     if (!egg) {
       setCrates(0)
       setLooseEggs(0)
+      setBoxes(0)
     }
   }
 
@@ -1166,6 +1226,9 @@ export default function SalesPage() {
       crates: 0,
       loose: 0,
       unitPrice: classPrice(cls) ?? 0,
+      boxes: 0,
+      pricePerBox: classFor(eggClasses, cls)?.pricePerBox ?? null,
+      pricePerPiece: classFor(eggClasses, cls)?.pricePerPiece ?? null,
     }])
   }
 
@@ -1179,6 +1242,9 @@ export default function SalesPage() {
     setProductOther(SALE_PRODUCT_OPTIONS.includes(product) ? "" : product)
     setCrates(egg ? next.crates : 0)
     setLooseEggs(egg ? next.loose : 0)
+    setBoxes(egg ? next.boxes ?? 0 : 0)
+    setBoxPrice(egg ? next.pricePerBox ?? null : null)
+    setPiecePrice(egg ? next.pricePerPiece ?? null : null)
     setFormData(prev => ({
       ...prev,
       product,
@@ -1284,15 +1350,23 @@ export default function SalesPage() {
     } finally { setPaySaving(false) }
   }
 
+  /** The first line's calculated amount (before any total override). */
+  const firstLineCalculated = (quantity: number, unitPrice: number) =>
+    // 394: a box farm prices boxes, crates and pieces each at their own price.
+    isEggsProduct && boxesOn
+      ? packagedLineAmount({ boxes, crates, pieces: looseEggs }, { pricePerCrate: unitPrice, pricePerBox: boxPrice, pricePerPiece: piecePrice }, packaging)
+      : saleLineTotal(quantity, unitPrice, isEggsProduct)
+
   const calculateTotal = () => {
     const unitPrice = Number(formData.unitPrice) || 0
-    const total = saleLineTotal(Number(formData.quantity) || 0, unitPrice, isEggsProduct)
+    const total = firstLineCalculated(Number(formData.quantity) || 0, unitPrice)
     setFormData(prev => ({ ...prev, totalAmount: total }))
   }
 
   useEffect(() => {
     calculateTotal()
-  }, [formData.quantity, formData.unitPrice, isEggsProduct])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.quantity, formData.unitPrice, isEggsProduct, boxes, crates, looseEggs, boxPrice, piecePrice, boxesOn, packaging.version])
 
   const openInvoiceDialog = (sale: SaleRow) => {
     setSelectedSale(sale)
@@ -1577,7 +1651,7 @@ export default function SalesPage() {
                     Add Sale
                   </Button>
                 </DialogTrigger>
-          <DialogContent className="w-[95vw] sm:max-w-5xl max-h-[92vh] gap-4 p-4 pb-0 sm:p-6 sm:pb-0">
+          <DialogContent className="w-[95vw] sm:max-w-6xl max-h-[92vh] gap-4 p-4 pb-0 sm:p-6 sm:pb-0">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2.5">
                 <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white">
@@ -1739,26 +1813,40 @@ export default function SalesPage() {
                 </div>
                 <div className="space-y-3 bg-amber-50/40 p-3 sm:p-4">
                 <div className="space-y-2">
-                  <SaleItemsHeader />
+                  <SaleItemsHeader packaging={packaging} />
                   <SaleItemRow
                     index={1}
                     product={(formData.product ?? "").toString()}
                     onProductChange={setFirstLineProduct}
                     classes={eggClasses}
                     eggProductId={formData.eggProductId ?? null}
-                    onClassChange={(v) => setFormData(prev => ({ ...prev, eggProductId: v, unitPrice: classPrice(v) ?? prev.unitPrice }))}
+                    onClassChange={(v) => {
+                      setFormData(prev => ({ ...prev, eggProductId: v, unitPrice: classPrice(v) ?? prev.unitPrice }))
+                      setBoxPrice(classFor(eggClasses, v)?.pricePerBox ?? null)
+                      setPiecePrice(classFor(eggClasses, v)?.pricePerPiece ?? null)
+                    }}
                     size={formData.size ?? ""}
                     onSizeChange={(v) => setFormData(prev => ({ ...prev, size: v }))}
                     crates={crates}
                     loose={looseEggs}
                     onCratesChange={(c) => {
                       setCrates(c)
-                      setFormData(prev => ({ ...prev, quantity: c * EGGS_PER_CRATE + looseEggs }))
+                      setFormData(prev => ({ ...prev, quantity: eggsOf(boxes, c, looseEggs) }))
                     }}
                     onLooseChange={(l) => {
                       setLooseEggs(l)
-                      setFormData(prev => ({ ...prev, quantity: crates * EGGS_PER_CRATE + l }))
+                      setFormData(prev => ({ ...prev, quantity: eggsOf(boxes, crates, l) }))
                     }}
+                    packaging={packaging}
+                    boxes={boxes}
+                    onBoxesChange={(b) => {
+                      setBoxes(b)
+                      setFormData(prev => ({ ...prev, quantity: eggsOf(b, crates, looseEggs) }))
+                    }}
+                    pricePerBox={boxPrice}
+                    onPricePerBoxChange={setBoxPrice}
+                    pricePerPiece={piecePrice}
+                    onPricePerPieceChange={setPiecePrice}
                     quantity={Number(formData.quantity) || 0}
                     onQuantityChange={(n) => setFormData(prev => ({ ...prev, quantity: n }))}
                     unitPrice={Number(formData.unitPrice) || 0}
@@ -1789,11 +1877,22 @@ export default function SalesPage() {
                           : { product: v, crates: 0, loose: 0, eggProductId: null, unitPrice: byproductPrice(v) ?? l.unitPrice })}
                         classes={eggClasses}
                         eggProductId={l.eggProductId}
-                        onClassChange={(v) => updateSaleLine(l.key, { eggProductId: v, unitPrice: classPrice(v) ?? l.unitPrice })}
+                        onClassChange={(v) => updateSaleLine(l.key, {
+                          eggProductId: v, unitPrice: classPrice(v) ?? l.unitPrice,
+                          pricePerBox: classFor(eggClasses, v)?.pricePerBox ?? null,
+                          pricePerPiece: classFor(eggClasses, v)?.pricePerPiece ?? null,
+                        })}
                         crates={l.crates}
                         loose={l.loose}
                         onCratesChange={(c) => updateSaleLine(l.key, { crates: c })}
                         onLooseChange={(n) => updateSaleLine(l.key, { loose: n })}
+                        packaging={packaging}
+                        boxes={l.boxes ?? 0}
+                        onBoxesChange={(n) => updateSaleLine(l.key, { boxes: n })}
+                        pricePerBox={l.pricePerBox ?? null}
+                        onPricePerBoxChange={(n) => updateSaleLine(l.key, { pricePerBox: n })}
+                        pricePerPiece={l.pricePerPiece ?? null}
+                        onPricePerPieceChange={(n) => updateSaleLine(l.key, { pricePerPiece: n })}
                         quantity={Number(l.quantity) || 0}
                         onQuantityChange={(n) => updateSaleLine(l.key, { quantity: n })}
                         unitPrice={l.unitPrice}
@@ -2689,6 +2788,10 @@ export default function SalesPage() {
                           totalAmount: selectedSale.totalAmount,
                         }]).map((l) => ({
                           label: isEggProduct(l.product) ? eggClassLabel(l.eggProductId) : (l.size ?? ""),
+                          // 394: as entered, with the conversion of the day it was sold.
+                          note: isEggProduct(l.product) && l.crates != null
+                            ? [postedLineQuantity(l, packaging).text, postedLineConversion(l)].filter(Boolean).join(" · ")
+                            : null,
                           quantity: Number(l.quantity) || 0,
                           unitPrice: Number(l.unitPrice) || 0,
                           totalAmount: Number(l.totalAmount) || 0,
@@ -2713,7 +2816,12 @@ export default function SalesPage() {
         farmId={getUserContext().farmId}
         currencyCode={currencyCode}
         flockLabel={getFlockLabel}
-        lineLabel={(l) => `${l.product}${isEggProduct(l.product) ? ` · ${eggClassLabel(l.eggProductId)} ${eggCrateBreakdown(Number(l.quantity) || 0) ?? l.quantity}` : ` · ${l.quantity}`}`}
+        lineLabel={(l) => `${l.product}${isEggProduct(l.product)
+          // 394: a line posted with its packaging reads as entered, with its own conversion.
+          ? ` · ${eggClassLabel(l.eggProductId)} ${l.crates != null
+              ? `${postedLineQuantity(l, packaging).text} (${(Number(l.quantity) || 0).toLocaleString()} eggs)${postedLineConversion(l) ? ` · ${postedLineConversion(l)}` : ""}`
+              : eggCrateBreakdown(Number(l.quantity) || 0) ?? l.quantity}`
+          : ` · ${l.quantity}`}`}
         canReverse={can("poultry.sales.approve") || can("poultry.sales.delete")}
         onOpenChange={(o) => { if (!o) setViewSale(null) }}
         onSaveNote={saveSaleNote}

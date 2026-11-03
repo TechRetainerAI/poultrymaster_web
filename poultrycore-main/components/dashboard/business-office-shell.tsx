@@ -13,6 +13,7 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useToast } from "@/hooks/use-toast"
+import { useBillingNavVisible } from "@/hooks/use-billing-nav"
 import { Briefcase, Building2, Bird, Droplets, ShoppingBag, Bell, HelpCircle, LogOut, Menu, Settings, CreditCard, Plus, Loader2, ListTodo } from "lucide-react"
 import { BoCompanySelector } from "@/components/dashboard/bo-company-selector"
 import { getMyCompanies, switchCompany, dashboardHomeForType, type Company } from "@/lib/api/companies"
@@ -119,9 +120,12 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
   // list) since day-to-day work is picking a company, not setup. Organization
   // Profile, Users & Permissions and Companies are tabs inside Administration;
   // Billing is its own page right below it (James, 2026-10-01).
+  // Billing button visibility is controlled from the admin portal via the
+  // "billing_nav" feature flag (global + per-company). Fail-open to visible.
+  const billingVisible = useBillingNavVisible()
   const business = isAdmin ? [
     { key: "settings", href: "/business-office/setup", label: "Administration", icon: Settings },
-    { key: "billing", href: "/business-office/billing", label: "Billing", icon: CreditCard },
+    ...(billingVisible ? [{ key: "billing", href: "/business-office/billing", label: "Billing", icon: CreditCard }] : []),
   ] : []
 
   function Group({ title, items }: { title?: string; items: { key: string; href: string; label: string; icon: any }[] }) {

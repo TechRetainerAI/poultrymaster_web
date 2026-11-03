@@ -38,8 +38,9 @@ export default function SupplierBalancesPage() {
         <ReverseSupplierDebtButton doc={doc} partyName={party.partyName} compact={compact} onChanged={reload} />
       )}
       // Money suppliers hold for us, beside (never netted into) what we owe --
-      // under the balances table.
-      afterTable={<SupplierCreditPanel />}
+      // under the balances table. Reloads after a payment, which can leave
+      // credit behind.
+      afterTable={(_reload, paymentsVersion) => <SupplierCreditPanel refreshKey={paymentsVersion} />}
       // Raw-material purchases live on a tab of the raw materials page rather
       // than at a route of their own, so this lands on that tab with the one
       // purchase in focus — ?purchaseId= narrows the list the same way

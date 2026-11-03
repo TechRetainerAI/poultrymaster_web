@@ -56,6 +56,11 @@ export function describeAudit(a: EggSortingAuditRow): string {
     case "SettingsChanged":
       return `sorting ${d.enableEggSorting ? "on" : "off"}, Daily Closing ${d.closingPolicy}, ${d.eggsPerCrate} eggs per crate`
         + (d.unsortedPricePerCrate != null ? `, unsorted ${d.unsortedPricePerCrate} per crate` : "")
+        // 393: packaging. Rows written before 393 have no enableBoxes key.
+        + (d.enableBoxes === undefined ? ""
+          : d.enableBoxes ? `, boxes on (${d.cratesPerBox} crates per box)` : ", boxes off")
+        + (d.before && d.before.cratesPerBox !== undefined && d.before.cratesPerBox !== d.cratesPerBox
+          ? ` — box size was ${d.before.cratesPerBox ?? "not set"}` : "")
     case "SaleEggClassSet":
       return `Sale #${a.entityId}: ${d.from} → ${d.to}, ${fmtCount(Number(d.quantity) || 0)} eggs${d.customer ? ` (${d.customer})` : ""}${d.saleGroupNo ? `, ${d.saleGroupNo}` : ""}`
     case "EggClassAdjusted":

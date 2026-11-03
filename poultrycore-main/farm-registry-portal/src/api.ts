@@ -1,6 +1,9 @@
 export type FarmSummary = {
   farmId: string
   farmName?: string | null
+  email?: string | null
+  phoneNumber?: string | null
+  createdAt?: string | null
   totalUsers: number
   staffCount: number
   hasPaidSubscription?: boolean

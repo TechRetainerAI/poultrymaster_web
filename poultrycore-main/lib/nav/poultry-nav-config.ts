@@ -15,9 +15,9 @@
 
 import {
   Activity, AlertTriangle, ArrowLeftRight, Banknote, BarChart3, Bell, Bird, BookOpen, Box, Boxes,
-  Building2, Clock, CreditCard, DollarSign, Egg, Factory, FileText, HelpCircle, History, Hourglass,
+  Building2, CreditCard, DollarSign, Egg, Factory, FileText, HelpCircle, History, Hourglass,
   Coins, HandCoins, ListTodo, Package, PackageMinus, Pill, Receipt, Scale, Settings, ShoppingCart, Truck, User, UserCog, Users,
-  Users2, Wallet, Wheat, PiggyBank, TrendingUp, Sparkles, ClipboardCheck, CalendarCheck, Flag, Repeat, Skull,
+  Users2, Wallet, Wheat, PiggyBank, TrendingUp, Sparkles, ClipboardCheck, CalendarCheck, Flag, Repeat, Skull, PlayCircle,
 } from "lucide-react"
 import type { UserPermissions } from "@/hooks/use-permissions"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
@@ -384,12 +384,10 @@ export function buildPoultryNavConfig(
           // trigger — from ever disappearing.
           { id: "products",      title: "Products",      icon: Package, href: "/poultry-products" },
           { id: "feed-formulas", title: "Feed Formulas", icon: Wheat,   href: "/poultry-feed-formulas", visible: featureAccess.canViewFeedProduction },
-          // A farm-level schedule that production records key off, so it sits
-          // with the other production master data rather than under Company.
-          { id: "egg-picks",     title: "Egg Pick Times", icon: Clock,  href: "/business-office/egg-pick-settings", visible: isAdmin },
-          // Turning egg sorting on/off, the sizes and their prices: only the
-          // settings, on a page of their own (not the whole workspace).
-          { id: "egg-sorting-settings", title: "Egg Sorting Settings", icon: Egg, href: "/poultry-egg-sorting-settings", visible: isAdmin },
+          // Pick times, egg sorting, packaging and sizes: farm-level settings
+          // that production and sales key off, so they sit with the other
+          // production master data rather than under Company.
+          { id: "egg-picks",     title: "Egg Configuration", icon: Egg,    href: "/business-office/egg-pick-settings", visible: isAdmin },
         ],
       },
       {
@@ -412,6 +410,10 @@ export function buildPoultryNavConfig(
         items: [
           { id: "houses", title: "Houses",       icon: Building2, href: "/houses" },
           { id: "flocks", title: "Flock Groups", icon: Bird,      href: "/flocks" },
+          // Also in Operations > Purchase. Listed here too so the batches sit
+          // beside the houses and flock groups they are divided into. Same page;
+          // the Quick Links picker keeps the first occurrence of an href.
+          { id: "flock-batch-setup", title: "Flock Purchases (Batches)", icon: Boxes, href: "/flock-batch" },
         ],
       },
       {
@@ -500,6 +502,7 @@ export function buildPoultryNavConfig(
           { id: "audit-logs",  title: "Activity Log",        icon: Activity,   href: "/audit-logs", visible: featureAccess.canViewActivityLog },
           { id: "resources",   title: "Resources",           icon: BookOpen,   href: "/resources" },
           { id: "help",        title: "Help Center",         icon: HelpCircle, href: "/help" },
+          { id: "videos",      title: "Videos",              icon: PlayCircle, href: "/poultry-videos" },
           { id: "terms",       title: "Terms & Conditions",  icon: ListTodo,   href: "/terms" },
         ],
       },

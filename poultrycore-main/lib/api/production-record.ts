@@ -95,6 +95,11 @@ export interface ProductionRecord {
   /** 372: Keep (into Dead Birds / Broken Eggs stock) or Disposed immediately. */
   mortalityDisposition?: ByproductDisposition
   brokenEggDisposition?: ByproductDisposition
+  /** 390: how many broken eggs were disposed at once; the rest go to Broken Eggs
+   *  stock. Wins over brokenEggDisposition. Absent from an older API. */
+  brokenEggsDisposed?: number | null
+  /** 391: the same for the dead birds. Wins over mortalityDisposition. */
+  mortalityDisposed?: number | null
   totalProduction: number
   /** Free-text notes for the production entry. */
   notes?: string | null
@@ -126,6 +131,8 @@ export interface ProductionRecord {
   medications?: ProductionMedicationLine[] | null
   /** Migration 148: individual feed lines (each drawn from inventory). */
   feeds?: ProductionFeedLine[] | null
+  /** 389: ManualSingleFlock | BatchAllocation | FeedUsage (feed recorded, production not filled in yet). */
+  sourceType?: string | null
 }
 
 export interface ProductionRecordInput {
@@ -154,6 +161,11 @@ export interface ProductionRecordInput {
   /** 372: Keep (into Dead Birds / Broken Eggs stock) or Disposed immediately. */
   mortalityDisposition?: ByproductDisposition
   brokenEggDisposition?: ByproductDisposition
+  /** 390: how many broken eggs were disposed at once; the rest go to Broken Eggs
+   *  stock. Wins over brokenEggDisposition. Absent from an older API. */
+  brokenEggsDisposed?: number | null
+  /** 391: the same for the dead birds. Wins over mortalityDisposition. */
+  mortalityDisposed?: number | null
   totalProduction: number
   /** Free-text notes for the production entry. */
   notes?: string | null
@@ -178,6 +190,8 @@ export interface ProductionRecordInput {
   medications?: ProductionMedicationLine[] | null
   /** Migration 148: individual feed lines (each drawn from inventory). */
   feeds?: ProductionFeedLine[] | null
+  /** 389: send on save from the production form, so a feed-only record becomes production. */
+  markRecorded?: boolean
 }
 
 /**
@@ -210,6 +224,8 @@ export function productionRecordToInput(record: ProductionRecord, updatedBy: str
     brokenEggs: record.brokenEggs,
     mortalityDisposition: record.mortalityDisposition,
     brokenEggDisposition: record.brokenEggDisposition,
+    brokenEggsDisposed: record.brokenEggsDisposed,
+    mortalityDisposed: record.mortalityDisposed,
     totalProduction: record.totalProduction,
     notes: record.notes ?? null,
     flockId: record.flockId ?? null,
@@ -443,6 +459,8 @@ export async function createProductionRecord(record: ProductionRecordInput) {
     payload.notes = record.notes ?? null
     if (record.mortalityDisposition) payload.mortalityDisposition = record.mortalityDisposition
     if (record.brokenEggDisposition) payload.brokenEggDisposition = record.brokenEggDisposition
+    if (record.brokenEggsDisposed != null) payload.brokenEggsDisposed = record.brokenEggsDisposed
+    if (record.mortalityDisposed != null) payload.mortalityDisposed = record.mortalityDisposed
     attachCosting(payload, record)
 
     const response = await fetch(url, {
@@ -530,6 +548,10 @@ export async function updateProductionRecord(id: number, record: ProductionRecor
     if (Object.prototype.hasOwnProperty.call(record, "notes")) payload.notes = record.notes ?? null
     if (record.mortalityDisposition) payload.mortalityDisposition = record.mortalityDisposition
     if (record.brokenEggDisposition) payload.brokenEggDisposition = record.brokenEggDisposition
+    if (record.brokenEggsDisposed != null) payload.brokenEggsDisposed = record.brokenEggsDisposed
+    if (record.mortalityDisposed != null) payload.mortalityDisposed = record.mortalityDisposed
+    // 389: the production form completed a feed-only (Feed Usage) record.
+    if (record.markRecorded) payload.markRecorded = true
     attachCosting(payload, record)
 
     const response = await fetch(url, {

@@ -8,6 +8,8 @@
 // =============================================================================
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useEggPackaging } from "@/hooks/use-egg-packaging"
+import { boxSize, formatEggQuantity, formatPackaged } from "@/lib/poultry/egg-packaging"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -150,12 +152,21 @@ export function PoultryReportView({ slug, chrome = "page" }: { slug: PoultryRepo
   // currency is stated once in the report header — repeating "GHC" down every
   // column is noise), while SCORECARDS keep the symbol so a headline figure
   // reads as money on its own.
+  // 393: egg equivalents in the farm's packaging -- boxes only on a farm that
+  // shows boxes, so every other farm's report is unchanged.
+  const eggPackaging = useEggPackaging()
   const baseCtx = useMemo(() => ({
+    eggsHint: (n: number | null | undefined) =>
+      n == null || boxSize(eggPackaging) == null || eggPackaging.display === "CratesPieces"
+        ? ""
+        : ` · ≈ ${formatEggQuantity(Number(n) || 0, eggPackaging, "BoxesCratesPieces")}`,
+    packaged: (q: { boxes?: number | null; crates?: number | null; pieces?: number | null }) =>
+      formatPackaged({ boxes: Number(q.boxes) || 0, crates: Number(q.crates) || 0, pieces: Number(q.pieces) || 0 }),
     num: (n: number | null | undefined) => (n == null ? "N/A" : Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 })),
     pct: (n: number | null | undefined) => (n == null ? "N/A" : `${Number(n).toFixed(1)}%`),
     date: (s: string | null | undefined) => (s ? String(s).slice(0, 10) : "—"),
     text: (s: unknown) => (s == null || String(s).trim() === "" ? "—" : String(s)),
-  }), [])
+  }), [eggPackaging])
 
   const ctx: FmtCtx = useMemo(() => ({
     ...baseCtx,

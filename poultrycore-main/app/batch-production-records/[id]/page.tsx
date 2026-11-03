@@ -23,6 +23,8 @@ import {
   type ProductionBatchRecord,
 } from "@/lib/api/production-batch"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
+import { useEggPackaging } from "@/hooks/use-egg-packaging"
+import { boxSize, formatEggQuantity } from "@/lib/poultry/egg-packaging"
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -39,6 +41,11 @@ export default function BatchProductionDetailPage() {
   const id = Number(params?.id)
   const { toast } = useToast()
   const [batch, setBatch] = useState<ProductionBatchRecord | null>(null)
+  // 393: box equivalents on a box farm. Display only: an Egg Box is a
+  // quantity unit, not this poultry Batch, and no production figure changes.
+  const eggPackaging = useEggPackaging()
+  const boxesOf = (eggs: number | null | undefined) =>
+    boxSize(eggPackaging) != null ? formatEggQuantity(Number(eggs) || 0, eggPackaging, "BoxesCratesPieces") : null
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [deleteAllocOpen, setDeleteAllocOpen] = useState(false)
@@ -183,6 +190,7 @@ export default function BatchProductionDetailPage() {
                     <Field label="Soft" value={batch.softEggs ?? 0} />
                     <Field label="Lost" value={batch.lostEggs ?? 0} />
                     <Field label="Total Eggs" value={batch.totalEggs} />
+                    {boxesOf(batch.totalEggs) && <Field label="Egg boxes (equivalent)" value={boxesOf(batch.totalEggs)} />}
                     <Field label="Deaths" value={batch.deaths} />
                     <Field label="Feed (kg)" value={batch.feedKg ?? 0} />
                     <Field label="Birds Left" value={batch.birdsLeft ?? "—"} />
@@ -243,7 +251,10 @@ export default function BatchProductionDetailPage() {
                               {(batch.fifthPickTotal || 0) > 0 && <TableCell className="text-right">{a.fifthPickEggs}</TableCell>}
                               {(batch.sixthPickTotal || 0) > 0 && <TableCell className="text-right">{a.sixthPickEggs}</TableCell>}
                               <TableCell className="text-right">{a.brokenEggs ?? 0}</TableCell>
-                              <TableCell className="text-right font-medium">{a.totalEggs}</TableCell>
+                              <TableCell className="text-right font-medium">
+                                {a.totalEggs}
+                                {boxesOf(a.totalEggs) && <div className="text-xs font-normal text-muted-foreground">≈ {boxesOf(a.totalEggs)}</div>}
+                              </TableCell>
                               <TableCell className="text-right">{a.deaths}</TableCell>
                               <TableCell className="text-right text-muted-foreground">{(a.eggPercentage ?? 0).toFixed(1)}%</TableCell>
                             </TableRow>

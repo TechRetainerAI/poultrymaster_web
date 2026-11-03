@@ -304,13 +304,28 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<SaleGroupResult> CreateGroup(SaleGroupRequest request)
         {
-            var lines = System.Text.Json.JsonSerializer.Serialize(request.Lines.Select(l => new
+            var lines = System.Text.Json.JsonSerializer.Serialize(request.Lines.Select(l =>
             {
-                product = l.Product,
-                eggProductId = l.EggProductId,
-                quantity = l.Quantity,
-                unitPrice = l.UnitPrice,
-                totalAmount = l.TotalAmount,
+                var line = new Dictionary<string, object?>
+                {
+                    ["product"] = l.Product,
+                    ["eggProductId"] = l.EggProductId,
+                    ["quantity"] = l.Quantity,
+                    ["unitPrice"] = l.UnitPrice,
+                    ["totalAmount"] = l.TotalAmount,
+                };
+                // 394: the packaging keys only when the line has them -- the
+                // database reads a key that is present (even null) as "packaged".
+                if (l.Boxes is not null || l.Crates is not null || l.Pieces is not null)
+                {
+                    line["boxes"] = l.Boxes ?? 0;
+                    line["crates"] = l.Crates ?? 0;
+                    line["pieces"] = l.Pieces ?? 0;
+                    if (l.PricePerBox is not null) line["pricePerBox"] = l.PricePerBox;
+                    if (l.PricePerPiece is not null) line["pricePerPiece"] = l.PricePerPiece;
+                    if (l.AmountOverridden == true) line["amountOverridden"] = true;
+                }
+                return line;
             }));
             // 360: different products in one entry are saved as one sale per
             // product (358 keeps a sale to one product), in one transaction.

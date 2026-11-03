@@ -5,7 +5,8 @@
 //   production still missing today (flocks) + earlier days missing (flock-days)
 //   + earlier days with eggs still unsorted
 //   + active flock alerts
-//   + stock items that need action soon.
+//   + stock items that need action soon
+//   + lifecycle reminders due or overdue (vaccinations, 387).
 // Each source fails on its own: a missing permission or an unapplied migration
 // marks that part unknown (null) and contributes 0 to the total. Cached per farm
 // for a minute so moving between pages does not fire three requests each time;
@@ -16,6 +17,7 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { getActivityChecks } from "@/lib/api/activity-checks"
 import { getFlockAlerts } from "@/lib/api/flock-alerts"
 import { getStockSupply } from "@/lib/api/stock-supply"
+import { getLifecycleSummary } from "@/lib/api/poultry-lifecycle"
 import { isActionable } from "@/lib/inventory/days-of-supply"
 import { PRODUCTION_CHECK_KEY, findCheck } from "@/lib/activity/completeness"
 
@@ -32,6 +34,9 @@ export interface FarmAlertBreakdown {
   unsortedEggs: number | null
   flockAlerts: number | null
   stockActionable: number | null
+  /** Lifecycle reminders (vaccinations and the farm's own) due now or overdue. */
+  lifecycleDue: number | null
+  lifecycleOverdue: number | null
   total: number
   loadedAt: number
 }
@@ -42,14 +47,16 @@ const inflight = new Map<string, Promise<FarmAlertBreakdown>>()
 const listeners = new Set<() => void>()
 
 async function fetchBreakdown(farmId: string): Promise<FarmAlertBreakdown> {
-  const [checks, alerts, supply] = await Promise.allSettled([
+  const [checks, alerts, supply, lifecycle] = await Promise.allSettled([
     getActivityChecks(),
     getFlockAlerts({ status: "active" }),
     getStockSupply(),
+    getLifecycleSummary(farmId),
   ])
   const b: FarmAlertBreakdown = {
     productionToday: null, productionEarlier: null, productionExpected: null, productionRecorded: null,
-    unsortedDays: null, unsortedEggs: null, flockAlerts: null, stockActionable: null, total: 0, loadedAt: Date.now(),
+    unsortedDays: null, unsortedEggs: null, flockAlerts: null, stockActionable: null,
+    lifecycleDue: null, lifecycleOverdue: null, total: 0, loadedAt: Date.now(),
   }
   if (checks.status === "fulfilled") {
     const production = findCheck(checks.value, PRODUCTION_CHECK_KEY)
@@ -67,7 +74,12 @@ async function fetchBreakdown(farmId: string): Promise<FarmAlertBreakdown> {
   }
   if (alerts.status === "fulfilled" && Array.isArray(alerts.value)) b.flockAlerts = alerts.value.length
   if (supply.status === "fulfilled" && Array.isArray(supply.value)) b.stockActionable = supply.value.filter((r) => isActionable(r.status)).length
+  if (lifecycle.status === "fulfilled" && lifecycle.value) {
+    b.lifecycleDue = lifecycle.value.due ?? 0
+    b.lifecycleOverdue = lifecycle.value.overdue ?? 0
+  }
   b.total = (b.productionToday ?? 0) + (b.productionEarlier ?? 0) + (b.unsortedDays ?? 0) + (b.flockAlerts ?? 0) + (b.stockActionable ?? 0)
+    + (b.lifecycleDue ?? 0) + (b.lifecycleOverdue ?? 0)
   cache.set(farmId, b)
   for (const l of listeners) l()
   return b

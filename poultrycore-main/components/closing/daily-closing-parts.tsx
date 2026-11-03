@@ -5,6 +5,7 @@
 // re-classified in the browser.
 
 import Link from "next/link"
+import { useEggBoxesSuffix } from "@/components/poultry/egg-quantity"
 import { AlertTriangle, Ban, CheckCircle2, History, Lock } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -68,6 +69,7 @@ export function ClosingSections({ ws, fmt }: { ws: ClosingWorkspace; fmt: Money 
   const inv = ws.inventory
   const o = ws.outstanding
   const inventoryIssues = inv.lowFeed.length + inv.lowStock.length + inv.negativeStock.length
+  const eggBoxes = useEggBoxesSuffix()   // 393: display only; closing figures unchanged
 
   return (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -77,7 +79,7 @@ export function ClosingSections({ ws, fmt }: { ws: ClosingWorkspace; fmt: Money 
           value={p.expectedFlocks === 0 ? "None expected" : `${p.reportedFlocks} / ${p.expectedFlocks} expected`}
           tone={p.missingFlocks > 0 ? "bad" : undefined}
         />
-        <Stat label="Eggs produced" value={qty(p.eggsProduced)} />
+        <Stat label="Eggs produced" value={`${qty(p.eggsProduced)}${eggBoxes(p.eggsProduced)}`} />
         <Stat label="Damaged eggs" value={qty(p.eggsDamaged)} />
         <Stat label="Mortality" value={qty(p.mortality)} />
         <Stat label="Feed used" value={`${qty(p.feedKg, 2)} kg`} />

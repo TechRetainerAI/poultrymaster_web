@@ -6,8 +6,13 @@
  * task reads and where its action link goes, so the Tools page and Business
  * Office My Tasks word things the same way.
  *
- * VisibilityCore ships no milestones. Nothing in this file names a week, a
- * treatment or a breed rule.
+ * Nothing in this file names a week, a treatment or a breed rule. The only
+ * built-in plans (387, the Ghana national vaccination schedule) are seeded by
+ * the database as ordinary plans the farm can edit or delete.
+ *
+ * A milestone may repeat (387). Each repeat is an OCCURRENCE: 0 is the
+ * milestone itself, 1.. its repeats, and a task is one (flock, milestone,
+ * occurrence). The task's ageDays is that occurrence's age.
  */
 
 import type { LifecycleActionType, LifecycleAgeUnit, LifecycleStatus, LifecycleTask } from "@/lib/api/poultry-lifecycle"
@@ -15,7 +20,7 @@ import type { LifecycleActionType, LifecycleAgeUnit, LifecycleStatus, LifecycleT
 export const AGE_UNITS: LifecycleAgeUnit[] = ["Week", "Day"]
 
 /** Suggestions for the free-text category field -- a farm may type its own. */
-export const CATEGORY_SUGGESTIONS = ["Housing", "Health", "Feeding", "Lighting", "Production", "Review", "Other"]
+export const CATEGORY_SUGGESTIONS = ["Vaccination", "Housing", "Health", "Feeding", "Lighting", "Production", "Review", "Other"]
 
 export const ACTION_TYPES: { value: LifecycleActionType; label: string; hint: string }[] = [
   { value: "FlockDetails", label: "Flock details", hint: "Opens the flock" },
@@ -54,6 +59,42 @@ export function milestoneAgeLabel(unit: LifecycleAgeUnit | string, value: number
   return `${unit === "Day" ? "Day" : "Week"} ${value}`
 }
 
+type TaskAge = Pick<LifecycleTask, "ageUnit" | "ageValue"> & Partial<Pick<LifecycleTask, "ageDays" | "occurrence">>
+
+/**
+ * The age a task is for. A repeat (occurrence 1..) is at its own age, so it
+ * reads from ageDays: "Week 42" when a week milestone lands on a whole week,
+ * else "Day 385".
+ */
+export function taskAgeLabel(task: TaskAge): string {
+  if (!task.occurrence || task.ageDays == null) return milestoneAgeLabel(task.ageUnit, task.ageValue)
+  return task.ageUnit === "Week" && task.ageDays % 7 === 0
+    ? milestoneAgeLabel("Week", task.ageDays / 7)
+    : milestoneAgeLabel("Day", task.ageDays)
+}
+
+/** One task per flock, milestone and repeat. */
+export function taskKey(task: Pick<LifecycleTask, "flockId" | "milestoneId"> & { occurrence?: number }): string {
+  return `${task.flockId}-${task.milestoneId}-${task.occurrence ?? 0}`
+}
+
+/** "every 13 weeks" / "every 10 days"; null when the milestone happens once. */
+export function repeatLabel(days: number | null | undefined): string | null {
+  if (!days || days < 1) return null
+  if (days % 7 === 0) return days === 7 ? "every week" : `every ${days / 7} weeks`
+  return days === 1 ? "every day" : `every ${days} days`
+}
+
+/** The plan editor's repeat field: days <-> a number and a unit. */
+export function repeatToParts(days: number | null | undefined): { value: number; unit: LifecycleAgeUnit } | null {
+  if (!days || days < 1) return null
+  return days % 7 === 0 ? { value: days / 7, unit: "Week" } : { value: days, unit: "Day" }
+}
+
+export function repeatFromParts(value: number, unit: LifecycleAgeUnit): number {
+  return Math.max(0, Math.floor(value || 0)) * (unit === "Week" ? 7 : 1)
+}
+
 /** A flock's age in days as weeks + days: 107 -> "15w 2d", 112 -> "16w". */
 export function formatAgeDays(days: number): string {
   if (!Number.isFinite(days) || days < 0) return "—"
@@ -78,9 +119,9 @@ export function dueLabel(task: Pick<LifecycleTask, "status" | "daysUntilDue" | "
 }
 
 /** "B3 reaches Week 16 in 5 days" -- the sentence the prompt asked for. */
-export function taskSentence(task: Pick<LifecycleTask, "batchCode" | "flockName" | "ageUnit" | "ageValue" | "status" | "daysUntilDue">): string {
+export function taskSentence(task: Pick<LifecycleTask, "batchCode" | "flockName" | "ageUnit" | "ageValue" | "status" | "daysUntilDue"> & Partial<Pick<LifecycleTask, "ageDays" | "occurrence">>): string {
   const who = task.batchCode ? `${task.batchCode} (${task.flockName})` : task.flockName
-  const age = milestoneAgeLabel(task.ageUnit, task.ageValue)
+  const age = taskAgeLabel(task)
   if (task.status === "Upcoming") {
     return `${who} reaches ${age} ${task.daysUntilDue === 1 ? "tomorrow" : `in ${task.daysUntilDue} days`}`
   }
@@ -113,7 +154,7 @@ export function ageAtStartDays(weeks: number, days: number): number {
   return Math.max(0, Math.floor(weeks || 0)) * 7 + Math.max(0, Math.floor(days || 0))
 }
 
-export interface MilestoneDraftCheck { title: string; ageUnit: string; ageValue: number; leadTimeDays: number }
+export interface MilestoneDraftCheck { title: string; ageUnit: string; ageValue: number; leadTimeDays: number; repeatEveryDays?: number | null }
 
 /** The database's refusals, in its words, so most mistakes are caught before saving. */
 export function validatePlan(name: string, milestones: MilestoneDraftCheck[]): string[] {
@@ -126,6 +167,9 @@ export function validatePlan(name: string, milestones: MilestoneDraftCheck[]): s
     if (m.ageUnit !== "Day" && m.ageUnit !== "Week") errs.push(`Milestone ${n}: age must be in days or weeks.`)
     if (!Number.isInteger(m.ageValue) || m.ageValue < 0 || m.ageValue > 5000) errs.push(`Milestone ${n}: enter an age between 0 and 5000.`)
     if (!Number.isInteger(m.leadTimeDays) || m.leadTimeDays < 0 || m.leadTimeDays > 365) errs.push(`Milestone ${n}: lead time must be between 0 and 365 days.`)
+    if (m.repeatEveryDays != null && (!Number.isInteger(m.repeatEveryDays) || m.repeatEveryDays < 1 || m.repeatEveryDays > 3650)) {
+      errs.push(`Milestone ${n} (${m.title.trim() || "untitled"}): repeat every 1 to 3650 days, or not at all.`)
+    }
   })
   return errs
 }

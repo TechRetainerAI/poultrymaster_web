@@ -36,6 +36,10 @@ namespace PoultryFarmAPIWeb.Business
         /// <summary>Loose eggs left over after whole crates.</summary>
         public static int LooseEggs(long totalEggs) => (int)(totalEggs % EggsPerCrate);
 
+        /// <summary>A per-egg figure per crate of the farm's own size (393).</summary>
+        public static decimal? PerCrateFromPerEgg(decimal? perEgg, int perCrate)
+            => perEgg == null ? null : Math.Round(perEgg.Value * Math.Max(1, perCrate), 4);
+
         public static decimal? PerCrateFromPerEgg(decimal? perEgg)
             => perEgg == null ? null : Math.Round(perEgg.Value * EggsPerCrate, 4);
 

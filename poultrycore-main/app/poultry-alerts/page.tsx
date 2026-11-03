@@ -5,21 +5,22 @@
 //     Production, Egg sorting, Flock health, Stock -- each green or amber with
 //     its count, jumping to its section.
 //   - The sections: Farm Completeness (332, with unsorted eggs from 344),
-//     Flock Alerts (338) and Stock Days of Supply (337), each card loading and
-//     gating itself exactly as it did on the dashboard.
+//     Flock Alerts (338), Stock Days of Supply (337) and lifecycle reminders --
+//     vaccinations included (347/387) -- each card loading and gating itself.
 // The numbers come from the same breakdown as the bell in the header, so the
 // badge and this page always agree.
 
 import { useEffect, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Activity, ArrowRight, Bell, CheckCircle2, ClipboardCheck, Egg, Loader2, Package, RefreshCw } from "lucide-react"
+import { Activity, ArrowRight, Bell, CheckCircle2, ClipboardCheck, Egg, Loader2, Package, RefreshCw, Syringe } from "lucide-react"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
 import { FarmCompletenessCard } from "@/components/dashboard/farm-completeness-card"
 import { FlockAlertsCard } from "@/components/dashboard/flock-alerts-card"
 import { StockSupplyCard } from "@/components/dashboard/stock-supply-card"
+import { LifecycleRemindersCard } from "@/components/dashboard/lifecycle-reminders-card"
 import { cn } from "@/lib/utils"
 import { useLogout } from "@/hooks/use-logout"
 import { useCompanyDateTime } from "@/hooks/use-company-datetime"
@@ -76,7 +77,17 @@ function tilesFor(d: FarmAlertBreakdown | null): Tile[] {
         detail: d.stockActionable === 0 ? "Nothing runs out soon" : "Items to reorder or top up",
         tone: d.stockActionable === 0 ? "ok" : "warn",
       }
-  return [production, sorting, flocks, stock]
+  const reminders = (d?.lifecycleDue ?? 0) + (d?.lifecycleOverdue ?? 0)
+  const lifecycle: Tile = d?.lifecycleDue == null
+    ? { id: "lifecycle", title: "Vaccinations", icon: Syringe, value: "—", detail: "Not available", tone: "off" }
+    : {
+        id: "lifecycle", title: "Vaccinations", icon: Syringe,
+        value: reminders === 0 ? "Nothing due" : `${fmt(reminders)} due`,
+        detail: reminders === 0 ? "No vaccination or reminder is due"
+          : d.lifecycleOverdue ? `${fmt(d.lifecycleOverdue)} overdue` : "Vaccinations and reminders due now",
+        tone: reminders === 0 ? "ok" : "warn",
+      }
+  return [production, sorting, flocks, lifecycle, stock]
 }
 
 const TONE: Record<Tone, { card: string; icon: string; value: string }> = {
@@ -177,7 +188,7 @@ export default function FarmAlertsPage() {
               </div>
 
               {/* ------------------------------------------------- tiles */}
-              <div className="grid grid-cols-1 gap-3 border-t border-slate-100 p-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid grid-cols-1 gap-3 border-t border-slate-100 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                 {tiles.map((t) => {
                   const tone = TONE[t.tone]
                   const Icon = t.icon
@@ -218,6 +229,12 @@ export default function FarmAlertsPage() {
                 <StockSupplyCard key={`ss-${cardsKey}`} />
               </Section>
             </div>
+
+            <Section id="lifecycle" title="Vaccinations & reminders"
+              description="Vaccinations and other flock milestones due now or overdue, from the plans assigned to each batch."
+              href="/poultry-lifecycle" linkLabel="Flock Lifecycle">
+              <LifecycleRemindersCard key={`lc-${cardsKey}`} />
+            </Section>
           </div>
         </main>
       </div>

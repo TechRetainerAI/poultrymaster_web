@@ -4,6 +4,8 @@
 
 import type { EggSortingLine, EggSortingPick, SortingLineType } from "@/lib/api/egg-sorting"
 import { EGGS_PER_CRATE } from "@/lib/production/production-record-calc"
+import { getEggPackagingNow } from "@/hooks/use-egg-packaging"
+import { boxSize } from "@/lib/poultry/egg-packaging"
 
 export type PickStatus = "NotStarted" | "Partial" | "Complete"
 
@@ -181,13 +183,27 @@ export function toApiLines(lines: { lineType: SortingLineType; eggSizeId: number
 
 export const fmtCount = (n: number) => Math.round(n).toLocaleString()
 
-/** "28,870 eggs" -> "962 crates + 10" (one base unit; crates are display only). */
-export function cratesText(eggs: number, perCrate = EGGS_PER_CRATE): string {
+/**
+ * "28,870 eggs" -> "962 cr + 10" (one base unit; crates are display only).
+ * 393: a farm with Boxes on that shows quantities in boxes gets them first --
+ * "68 bx + 10 cr + 10" at 14 crates/box. Still only a way of writing the eggs.
+ * An explicit perCrate (a historical figure) keeps crates only.
+ */
+export function cratesText(eggs: number, perCrate?: number): string {
   const n = Math.max(0, Math.round(eggs))
-  const crates = Math.floor(n / perCrate)
-  const loose = n % perCrate
-  if (crates === 0) return `${loose} egg${loose === 1 ? "" : "s"}`
-  return loose ? `${crates.toLocaleString()} cr + ${loose}` : `${crates.toLocaleString()} cr`
+  const pk = perCrate == null ? getEggPackagingNow() : null
+  const pc = perCrate ?? EGGS_PER_CRATE
+  const box = pk && pk.display === "BoxesCratesPieces" ? boxSize(pk) : null
+  const boxes = box ? Math.floor(n / (box * pc)) : 0
+  const rest = box ? n % (box * pc) : n
+  const crates = Math.floor(rest / pc)
+  const loose = rest % pc
+  if (boxes === 0 && crates === 0) return `${loose} egg${loose === 1 ? "" : "s"}`
+  return [
+    boxes ? `${boxes.toLocaleString()} bx` : "",
+    crates ? `${crates.toLocaleString()} cr` : "",
+    loose ? String(loose) : "",
+  ].filter(Boolean).join(" + ")
 }
 
 export function pct(part: number, whole: number): string {
