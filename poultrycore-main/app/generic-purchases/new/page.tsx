@@ -50,16 +50,24 @@ export default function NewGenericPurchasePage() {
   const [products, setProducts] = useState<GenericProduct[]>([])
   const [cashAccounts, setCashAccounts] = useState<GenericCashAccount[]>([])
 
-  const [header, setHeader] = useState({
-    purchaseDate: new Date().toISOString().slice(0, 10),
-    genericSupplierId: "",
-    invoiceNumber: "",
-    headerDiscountAmount: "0",
-    taxAmount: "0",
-    amountPaid: "0",
-    paymentMethod: "Cash",
-    genericCashAccountId: "",
-    notes: "",
+  const [header, setHeader] = useState(() => {
+    const now = new Date()
+    const date = now.toISOString().slice(0, 10)
+    const pad = String(now.getHours()).padStart(2, "0") + String(now.getMinutes()).padStart(2, "0")
+    const rand = String(Math.floor(Math.random() * 10000)).padStart(4, "0")
+    const invoiceNumber = `PUR-${date.replace(/-/g, "")}-${pad}${rand}`
+    return {
+      purchaseDate: date,
+      genericSupplierId: "",
+      supplierName: "",
+      invoiceNumber,
+      headerDiscountAmount: "0",
+      taxAmount: "0",
+      amountPaid: "0",
+      paymentMethod: "Cash",
+      genericCashAccountId: "",
+      notes: "",
+    }
   })
 
   const [rows, setRows] = useState<Row[]>([blankRow()])
@@ -80,6 +88,11 @@ export default function NewGenericPurchasePage() {
     })()
     return () => { cancelled = true }
   }, [activeFarmType, router, toast])
+
+  const selectedSupplier = useMemo(
+    () => header.genericSupplierId ? suppliers.find((s) => String(s.genericSupplierId) === header.genericSupplierId) ?? null : null,
+    [header.genericSupplierId, suppliers],
+  )
 
   const totals = useMemo(() => {
     const subtotal = rows.reduce((s, r) => s + (r.quantity * r.unitCost - r.discountAmount), 0)
@@ -132,12 +145,14 @@ export default function NewGenericPurchasePage() {
         paymentMethod: header.paymentMethod,
         genericCashAccountId: header.genericCashAccountId ? Number(header.genericCashAccountId) : null,
         invoiceNumber: header.invoiceNumber || null,
-        notes: header.notes || null,
+        notes: !header.genericSupplierId && header.supplierName.trim()
+          ? (header.notes ? `Supplier: ${header.supplierName.trim()} | ${header.notes}` : `Supplier: ${header.supplierName.trim()}`)
+          : (header.notes || null),
         items,
       })
       if (created) {
         toast({ title: `Purchase #${created.genericPurchaseId} created as Draft`, description: "Review and approve to bump inventory and cash." })
-        router.push("/generic-purchases?status=Draft")
+        router.push("/generic-inventory?tab=purchases")
       }
     } catch (e: any) {
       toast({ title: "Could not create purchase", description: e?.message ?? String(e), variant: "destructive" })
@@ -169,13 +184,44 @@ export default function NewGenericPurchasePage() {
                   </div>
                   <div>
                     <Label>Supplier</Label>
-                    <Select value={header.genericSupplierId || "__none__"} onValueChange={(v) => setHeader((h) => ({ ...h, genericSupplierId: v === "__none__" ? "" : v }))}>
+                    <Select value={header.genericSupplierId || "__none__"} onValueChange={(v) => setHeader((h) => ({ ...h, genericSupplierId: v === "__none__" ? "" : v, supplierName: v !== "__none__" ? "" : h.supplierName }))}>
                       <SelectTrigger><SelectValue placeholder="— none —" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="__none__">— none —</SelectItem>
-                        {suppliers.map((s) => <SelectItem key={s.genericSupplierId} value={String(s.genericSupplierId)}>{s.supplierName}</SelectItem>)}
+                        {suppliers.map((s) => (
+                          <SelectItem key={s.genericSupplierId} value={String(s.genericSupplierId)}>
+                            <span className="flex items-center justify-between gap-2 w-full">
+                              <span>{s.supplierName}</span>
+                              {s.currentBalance > 0 && (
+                                <span className="text-[10px] font-medium text-red-600 bg-red-50 px-1.5 py-0.5 rounded">owes {fmt(s.currentBalance)}</span>
+                              )}
+                            </span>
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
+                    {!header.genericSupplierId && (
+                      <Input
+                        className="mt-1.5"
+                        placeholder="Type supplier name (optional)"
+                        value={header.supplierName}
+                        onChange={(e) => setHeader((h) => ({ ...h, supplierName: e.target.value }))}
+                      />
+                    )}
+                    {selectedSupplier && selectedSupplier.currentBalance > 0 && (
+                      <div className="mt-1.5 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2">
+                        <span className="text-xs text-red-800">
+                          <strong>{selectedSupplier.supplierName}</strong> has an outstanding balance of <strong className="text-red-700">{fmt(selectedSupplier.currentBalance)}</strong>
+                        </span>
+                      </div>
+                    )}
+                    {selectedSupplier && selectedSupplier.currentBalance === 0 && (
+                      <div className="mt-1.5 flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2">
+                        <span className="text-xs text-emerald-800">
+                          <strong>{selectedSupplier.supplierName}</strong> — no outstanding balance
+                        </span>
+                      </div>
+                    )}
                   </div>
                   <div>
                     <Label>Invoice number</Label>

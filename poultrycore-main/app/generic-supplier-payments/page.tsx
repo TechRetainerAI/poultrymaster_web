@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Check, CreditCard, Loader2, Plus, X } from "lucide-react"
+import { useGenericModules } from "@/hooks/use-generic-modules"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -49,6 +50,7 @@ function GenericSupplierPaymentsPageInner() {
   const sp = useSearchParams()
   const status = sp.get("status") || "All"
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
+  const modules = useGenericModules()
   const logout = useLogout()
   const { toast } = useToast()
 
@@ -80,7 +82,9 @@ function GenericSupplierPaymentsPageInner() {
         getCashAccounts(),
       ])
       setRows(ps); setSuppliers(ss); setCashAccounts(as)
-      const firstCash = as.find((a) => a.isActive)
+      const defaultId = modules.businessSettings?.defaultCashAccountForPayments
+      const defaultAccount = defaultId ? as.find((a) => a.genericCashAccountId === defaultId && a.isActive) : null
+      const firstCash = defaultAccount ?? as.find((a) => a.isActive)
       if (firstCash && !form.genericCashAccountId) setForm((f) => ({ ...f, genericCashAccountId: String(firstCash.genericCashAccountId) }))
     } catch (e: any) {
       toast({ title: "Could not load", description: e?.message ?? String(e), variant: "destructive" })

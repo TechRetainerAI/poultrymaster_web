@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
-import { ArrowLeft, Check, Loader2, Trash2 } from "lucide-react"
+import { ArrowLeft, Check, Loader2, Trash2, Printer, Mail } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -18,6 +18,16 @@ import { approveSale, cancelSale, getSale, refundSale, type GenericSale } from "
 
 function fmt(n: number) {
   return new Intl.NumberFormat(undefined, { style: "currency", currency: "GHS", maximumFractionDigits: 2 }).format(n)
+}
+
+/** Extract walk-in customer name stored in notes as "Customer: Name". */
+function displayCustomer(sale: GenericSale): string {
+  if (sale.customerName) return sale.customerName
+  if (sale.notes?.startsWith("Customer: ")) {
+    const pipe = sale.notes.indexOf(" | ")
+    return pipe > 0 ? sale.notes.slice(10, pipe) : sale.notes.slice(10)
+  }
+  return "Walk-in"
 }
 
 function statusBadgeClass(s: string) {
@@ -157,6 +167,30 @@ export default function GenericSaleDetailPage() {
                       </AlertDialogContent>
                     </AlertDialog>
                   )}
+                  {/* Print & Email — always visible */}
+                  <Button variant="outline" onClick={() => window.print()}>
+                    <Printer className="h-4 w-4 mr-1" /> Print
+                  </Button>
+                  <Button variant="outline" onClick={() => {
+                    const customer = displayCustomer(sale)
+                    const subject = encodeURIComponent(`Invoice #${sale.genericSaleId} — ${fmt(sale.totalAmount)}`)
+                    const body = encodeURIComponent(
+                      `Dear ${customer},\n\n` +
+                      `Please find your invoice details below:\n\n` +
+                      `Invoice: #${sale.genericSaleId}\n` +
+                      `Receipt: ${sale.receiptNumber ?? "—"}\n` +
+                      `Date: ${new Date(sale.saleDate).toLocaleDateString()}\n` +
+                      `Total: ${fmt(sale.totalAmount)}\n` +
+                      `Paid: ${fmt(sale.amountPaid)}\n` +
+                      `Balance: ${fmt(sale.balance)}\n\n` +
+                      `Items:\n` +
+                      sale.items.map((it) => `  - ${it.description ?? "Item"} x${it.quantity} @ ${fmt(it.unitPrice)} = ${fmt(it.lineTotal ?? it.quantity * it.unitPrice)}`).join("\n") +
+                      `\n\nThank you for your business!`
+                    )
+                    window.open(`mailto:?subject=${subject}&body=${body}`, "_blank")
+                  }}>
+                    <Mail className="h-4 w-4 mr-1" /> Email
+                  </Button>
                 </div>
               </div>
 
@@ -209,7 +243,7 @@ export default function GenericSaleDetailPage() {
                   <Card>
                     <CardHeader className="pb-1"><CardTitle className="text-xs uppercase tracking-wide text-slate-500">Header</CardTitle></CardHeader>
                     <CardContent className="text-sm space-y-1">
-                      <div>Customer: <strong>{sale.customerName ?? "Walk-in"}</strong></div>
+                      <div>Customer: <strong>{displayCustomer(sale)}</strong></div>
                       <div>Type: {sale.salesType}{sale.salesChannel ? ` / ${sale.salesChannel}` : ""}</div>
                       <div>Receipt: {sale.receiptNumber ?? "—"}</div>
                       <div>Payment status: <strong>{sale.paymentStatus}</strong></div>

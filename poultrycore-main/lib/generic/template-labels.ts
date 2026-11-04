@@ -34,6 +34,21 @@ export type IndustryTemplate =
   | "MembershipBusiness"
   | "Retail"
   | "Other"
+  // Phase B: expanded business types (migration 362)
+  | "ProduceSeller"
+  | "Grocery"
+  | "Barbershop"
+  | "Salon"
+  | "HardwareShop"
+  | "ElectronicsShop"
+  | "Wholesaler"
+  | "Bakery"
+  | "CarDealership"
+  | "AutoRepair"
+  | "Tailor"
+  | "Laundry"
+  | "Pharmacy"
+  | "Freelancer"
 
 export interface TemplateLabels {
   /** "Customer", "Member", "Student"… */
@@ -153,6 +168,46 @@ const LABELS: Record<IndustryTemplate, TemplateLabels> = {
   // Plan" is the spec's own wording for a business that may have either.
   Retail: labels("Customer", "Service / Plan", "Subscription"),
   Other: labels("Customer", "Service / Plan", "Subscription / Contract"),
+
+  // Phase B: expanded business types — retail-focused
+  ProduceSeller: labels("Customer", "Service / Plan", "Subscription"),
+  Grocery: labels("Customer", "Service / Plan", "Subscription"),
+  HardwareShop: labels("Customer", "Service / Plan", "Subscription"),
+  ElectronicsShop: labels("Customer", "Service / Plan", "Subscription"),
+  Wholesaler: labels("Customer", "Service / Plan", "Subscription", {
+    customerBalance: "Customer Balances",
+    overdueCustomer: "Overdue Customer",
+  }),
+  Bakery: labels("Customer", "Service / Plan", "Subscription"),
+  CarDealership: labels("Customer", "Service / Plan", "Subscription", {
+    invoice: "Vehicle Invoice",
+    invoicePlural: "Vehicle Invoices",
+    payment: "Vehicle Payment",
+    paymentPlural: "Vehicle Payments",
+  }),
+  Pharmacy: labels("Customer", "Service / Plan", "Subscription"),
+
+  // Phase B: expanded business types — service-focused
+  Barbershop: labels("Customer", "Service / Plan", "Subscription / Contract"),
+  Salon: labels("Customer", "Service / Plan", "Subscription / Contract"),
+  AutoRepair: labels("Customer", "Service / Plan", "Subscription / Contract", {
+    invoice: "Job Invoice",
+    invoicePlural: "Job Invoices",
+  }),
+  Tailor: labels("Customer", "Service / Plan", "Subscription / Contract", {
+    invoice: "Job Invoice",
+    invoicePlural: "Job Invoices",
+    payment: "Job Payment",
+    paymentPlural: "Job Payments",
+  }),
+  Laundry: labels("Customer", "Service / Plan", "Subscription / Contract", {
+    invoice: "Service Invoice",
+    invoicePlural: "Service Invoices",
+  }),
+  Freelancer: labels("Client", "Retainer Package", "Retainer", {
+    payment: "Client Payment",
+    paymentPlural: "Client Payments",
+  }),
 }
 
 /** The default every Generic company that predates templates keeps. */

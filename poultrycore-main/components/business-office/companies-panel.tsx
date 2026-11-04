@@ -252,7 +252,7 @@ export function CompaniesPanel({ showHeading = true }: { showHeading?: boolean }
               </Select>
               {needsTemplate(chosen) && (
                 <p className="text-xs text-slate-500 mt-1">
-                  We&apos;ll set up the right menus and starter categories for this, and you can change any of it later.
+                  We&apos;ll automatically set up the recommended features, menus and starter categories for this business. You can customise them anytime in Setup → Business Features.
                 </p>
               )}
             </div>
