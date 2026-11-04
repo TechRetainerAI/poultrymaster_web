@@ -19,12 +19,23 @@ import '../poultry/sales/balances_widgets.dart';
 import '../poultry/trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../poultry/trackers/tracker_widgets.dart';
 import '../poultry/expenses/deferred_costs_screen.dart' show qtyFmt;
+import '../generic/generic_kit.dart' show genericBase;
 
 /// Water → Expenses → Internal Use, as `app/water-internal-use/page.tsx`:
 /// water given to staff, used in the office, sampled, donated or tested —
 /// recorded at cost, never as a sale. A draft is saved first, then posted.
 /// Ported from the Poultry screen: bags and sachets where Poultry has crates
 /// and eggs, Water's reason list and the water-product wording.
+///
+/// `generic: true` is Generic → Catalog → Internal Use
+/// (`app/generic-internal-use/page.tsx`, migration 217): the same page, the same
+/// reasons and labels, on `/api/generic-company/internal-usage`, with no unit
+/// conversion (one free-text unitOfMeasure, so what you type leaves stock).
+
+/// The API of each copy of the page.
+String internalUseApi(bool generic) => generic ? '/api/generic-company/internal-usage' : '/api/Water/internal-usage';
+String _idKey(bool generic) => generic ? 'genericInternalUsageId' : 'waterInternalUsageId';
+String _productKey(bool generic) => generic ? 'genericProductId' : 'waterProductId';
 
 const waterInternalUseCategories = ['StaffWelfare', 'OwnerUse', 'OfficeUse', 'Sample', 'Donation', 'QualityTest', 'InternalConsumption', 'Other'];
 const _categoryLabels = {
@@ -73,14 +84,17 @@ String _plural(String unit) {
 
 String _unitWord(String unit) => unit.toLowerCase() == 'bag' ? 'Bags' : _plural(unit);
 
-/// describeQty: "3 bags (90 sachets)" or "5 bottles".
-String describeWaterInternalQty(Map r) {
+/// describeQty: "3 bags (90 sachets)" or "5 bottles". Generic's copy falls
+/// back to "Egg" / "crate" and says "eggs" (its web text, kept as written).
+String describeWaterInternalQty(Map r, {bool generic = false}) {
   final items = rowsOf(r['items']);
   if (items.isEmpty) return '—';
   final line = items.first;
-  final entry = '${qtyFmt(line['entryQuantity'])} ${_unitWord(tStr(line['entryUnit']).isEmpty ? 'Sachet' : tStr(line['entryUnit'])).toLowerCase()}';
+  final unit = tStr(line['entryUnit']).isEmpty ? (generic ? 'Egg' : 'Sachet') : tStr(line['entryUnit']);
+  final word = generic ? (unit.toLowerCase() == 'crate' ? 'Crates' : _plural(unit)) : _unitWord(unit);
+  final entry = '${qtyFmt(line['entryQuantity'])} ${word.toLowerCase()}';
   final f = line['unitsPerEntryUnit'] == null ? 1 : tNum(line['unitsPerEntryUnit']);
-  return f > 1 ? '$entry (${qtyFmt(line['stockQuantity'])} sachets)' : entry;
+  return f > 1 ? '$entry (${qtyFmt(line['stockQuantity'])} ${generic ? 'eggs' : 'sachets'})' : entry;
 }
 
 /// (bg, fg) of STATUS_BADGE.
@@ -114,9 +128,12 @@ List<Map> filterWaterInternalUse(List<Map> rows, {String search = '', String fro
 }
 
 class WaterInternalUseScreen extends StatefulWidget {
-  const WaterInternalUseScreen({super.key, required this.session, required this.company});
+  const WaterInternalUseScreen({super.key, required this.session, required this.company, this.generic = false});
   final Session session;
   final Company company;
+
+  /// Generic → Catalog → Internal Use (see the top of this file).
+  final bool generic;
 
   @override
   State<WaterInternalUseScreen> createState() => _InternalUseScreenState();
@@ -135,6 +152,9 @@ class _InternalUseScreenState extends State<WaterInternalUseScreen> {
   String get _farmId => widget.company.farmId;
   String get _q => 'farmId=${Uri.encodeQueryComponent(_farmId)}';
   String get _me => Uri.encodeQueryComponent(widget.session.tokens.userId ?? '');
+  bool get _g => widget.generic;
+  String get _iu => internalUseApi(_g);
+  String _qty(Map r) => describeWaterInternalQty(r, generic: _g);
 
   @override
   void initState() {
@@ -158,26 +178,26 @@ class _InternalUseScreenState extends State<WaterInternalUseScreen> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final r = rowsOf(await _api.get('/api/Water/internal-usage', query: {'farmId': _farmId}));
+      final r = rowsOf(await _api.get(_iu, query: {'farmId': _farmId}));
       if (mounted) setState(() => _items = r);
     } on ApiException catch (e) {
       if (mounted) trackerToast(context, "Couldn't load internal use records", description: e.message, error: true);
     }
     try {
-      final p = rowsOf(await _api.get('/api/Water/products', query: {'farmId': _farmId}));
+      final p = rowsOf(_g ? await _api.get('${genericBase(widget.company)}/products') : await _api.get('/api/Water/products', query: {'farmId': _farmId}));
       if (mounted) setState(() => _products = p);
     } on ApiException catch (e) {
-      if (mounted) trackerToast(context, "Couldn't load water products", description: e.message, error: true);
+      if (mounted) trackerToast(context, _g ? "Couldn't load products" : "Couldn't load water products", description: e.message, error: true);
     }
     if (mounted) setState(() => _loading = false);
   }
 
-  int _id(Map r) => tIntOrNull(r['waterInternalUsageId']) ?? 0;
+  int _id(Map r) => tIntOrNull(r[_idKey(_g)]) ?? 0;
 
   Future<void> _openForm([Map? editing]) async {
     final done = await showDialog<bool>(
       context: context,
-      builder: (_) => WaterInternalUseFormDialog(session: widget.session, company: widget.company, products: _products, fmt: _gh, editing: editing),
+      builder: (_) => WaterInternalUseFormDialog(session: widget.session, company: widget.company, products: _products, fmt: _gh, editing: editing, generic: _g),
     );
     if (done == true) _load();
   }
@@ -210,11 +230,11 @@ class _InternalUseScreenState extends State<WaterInternalUseScreen> {
   Future<void> _post(Map r, {bool again = false}) => _confirm(
         title: again ? 'Post this reversed record again?' : 'Post this internal use?',
         description: again
-            ? '${describeWaterInternalQty(r)} comes back out of stock and ${_gh(tNum(r['totalCostValue']))} is booked as a non-cash expense again. The reversal stays in the stock history.'
-            : '${describeWaterInternalQty(r)} comes out of stock and ${_gh(tNum(r['totalCostValue']))} is booked as a non-cash expense. No sale and no cash movement is created.',
+            ? '${_qty(r)} comes back out of stock and ${_gh(tNum(r['totalCostValue']))} is booked as a non-cash expense again. The reversal stays in the stock history.'
+            : '${_qty(r)} comes out of stock and ${_gh(tNum(r['totalCostValue']))} is booked as a non-cash expense. No sale and no cash movement is created.',
         action: again ? 'Post again' : 'Post',
         run: () async {
-          await _api.post('/api/Water/internal-usage/${_id(r)}/post?$_q&postedBy=$_me');
+          await _api.post('$_iu/${_id(r)}/post?$_q&postedBy=$_me');
           if (mounted) trackerToast(context, 'Posted', description: 'Stock reduced and the cost booked as a non-cash expense.');
         },
       );
@@ -227,7 +247,7 @@ class _InternalUseScreenState extends State<WaterInternalUseScreen> {
         action: 'Delete',
         destructive: true,
         run: () async {
-          await _api.delete('/api/Water/internal-usage/${_id(r)}?$_q&userId=$_me');
+          await _api.delete('$_iu/${_id(r)}?$_q&userId=$_me');
           if (mounted) trackerToast(context, 'Deleted');
         },
       );
@@ -244,7 +264,7 @@ class _InternalUseScreenState extends State<WaterInternalUseScreen> {
     );
     if (reason == null) return;
     try {
-      await _api.post('/api/Water/internal-usage/${_id(r)}/reverse?$_q&reversedBy=$_me',
+      await _api.post('$_iu/${_id(r)}/reverse?$_q&reversedBy=$_me',
           body: {'reason': reason, 'userId': widget.session.tokens.userId});
       if (mounted) trackerToast(context, 'Reversed', description: 'Stock restored and the expense cancelled.');
       await _load();
@@ -253,7 +273,7 @@ class _InternalUseScreenState extends State<WaterInternalUseScreen> {
     }
   }
 
-  Future<void> _view(Map r) => showDialog<void>(context: context, builder: (_) => _WaterInternalUseDetail(record: r, fmt: _gh, offset: _offset));
+  Future<void> _view(Map r) => showDialog<void>(context: context, builder: (_) => _WaterInternalUseDetail(record: r, fmt: _gh, offset: _offset, generic: _g));
 
   /// rowActions: what each status allows.
   List<Widget> _actions(Map r) {
@@ -279,7 +299,7 @@ class _InternalUseScreenState extends State<WaterInternalUseScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final lead = sidebarLeading(context, widget.session, widget.company, href: '/water-internal-use');
+    final lead = sidebarLeading(context, widget.session, widget.company, href: _g ? '/generic-internal-use' : '/water-internal-use');
     final visible = filterWaterInternalUse(_items, search: _search.text, from: _from, to: _to, status: _status, category: _category);
     if (visible.length != _lastTotal) {
       _lastTotal = visible.length;
@@ -309,9 +329,11 @@ class _InternalUseScreenState extends State<WaterInternalUseScreen> {
               Expanded(child: Text('Internal Use', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: TColors.slate900))),
             ]),
             const SizedBox(height: 4),
-            const Text(
-              'Water given to staff, used in the office, sampled, donated or tested — recorded at cost, never as a sale.',
-              style: TextStyle(fontSize: 13, color: TColors.slate500),
+            Text(
+              _g
+                  ? 'Eggs, birds, feed or supplies used by the farm — given to staff, taken by the owner, donated, sampled or tested. Recorded at cost, never as a sale.'
+                  : 'Water given to staff, used in the office, sampled, donated or tested — recorded at cost, never as a sale.',
+              style: const TextStyle(fontSize: 13, color: TColors.slate500),
             ),
             const SizedBox(height: 8),
             Container(
@@ -387,22 +409,26 @@ class _InternalUseScreenState extends State<WaterInternalUseScreen> {
               )
             else
               MobileCardList<Map>(
-                striped: true,
+                striped: !_g,
                 items: pageRows,
                 keyOf: (r) => '${_id(r)}',
                 primary: (r) => '${waterInternalUseCategoryLabel(r['category'])} · ${_gh(tNum(r['totalCostValue']))}',
                 secondary: (r) => fmtDateTime(r['usageDate'], r, _offset),
                 trailing: (r) => Padding(padding: const EdgeInsets.only(left: 6), child: _badge(r['status'])),
-                highlights: (r) => [
-                  Highlight('Quantity', describeWaterInternalQty(r), accent: Accent.blue),
-                  Highlight('Cost', _gh(tNum(r['totalCostValue'])), accent: Accent.violet),
-                ],
+                // Generic's card has no highlights: Quantity and Cost are details.
+                highlights: _g
+                    ? null
+                    : (r) => [
+                          Highlight('Quantity', _qty(r), accent: Accent.blue),
+                          Highlight('Cost', _gh(tNum(r['totalCostValue'])), accent: Accent.violet),
+                        ],
                 details: (r) {
                   final items = rowsOf(r['items']);
                   return [
                     ('Date', fmtDateTime(r['usageDate'], r, _offset)),
                     ('Product', items.isEmpty || tStr(items.first['productName']).isEmpty ? '—' : tStr(items.first['productName'])),
                     ('Reason', waterInternalUseCategoryLabel(r['category'])),
+                    if (_g) ...[('Quantity', _qty(r)), ('Cost', _gh(tNum(r['totalCostValue'])))],
                     ('Recipient', tStr(r['recipientName']).isEmpty ? '—' : tStr(r['recipientName'])),
                   ];
                 },
@@ -418,7 +444,7 @@ class _InternalUseScreenState extends State<WaterInternalUseScreen> {
                         Text(fmtDateTime(r['usageDate'], r, _offset), style: const TextStyle(fontWeight: FontWeight.w500)),
                         cellText(waterInternalUseCategoryLabel(r['category'])),
                         cellText(rowsOf(r['items']).isEmpty ? '—' : tStr(rowsOf(r['items']).first['productName'])),
-                        cellText(describeWaterInternalQty(r)),
+                        cellText(_qty(r)),
                         Align(alignment: Alignment.centerRight, child: Text(_gh(tNum(r['totalCostValue'])))),
                         Align(alignment: Alignment.centerLeft, child: _badge(r['status'])),
                         Wrap(alignment: WrapAlignment.end, children: _actions(r)),
@@ -446,10 +472,10 @@ class _InternalUseScreenState extends State<WaterInternalUseScreen> {
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(color: TColors.amber50, border: Border.all(color: const Color(0xFFFDE68A)), borderRadius: BorderRadius.circular(8)),
         child: Wrap(children: [
-          const Text('No water products in this company yet. ', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: TColors.amber900)),
+          Text(_g ? 'No products in this company yet. ' : 'No water products in this company yet. ', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: TColors.amber900)),
           const Text('Internal Use takes stock off a product, so add one before recording anything. ', style: TextStyle(fontSize: 13, color: TColors.amber800)),
           InkWell(
-            onTap: () => openAppHref(context, widget.session, widget.company, '/water-products', label: 'Products'),
+            onTap: () => openAppHref(context, widget.session, widget.company, _g ? '/generic-products' : '/water-products', label: 'Products'),
             child: const Text('Go to Products', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: TColors.amber900, decoration: TextDecoration.underline)),
           ),
         ]),
@@ -458,12 +484,13 @@ class _InternalUseScreenState extends State<WaterInternalUseScreen> {
 
 /// Record internal use / Edit draft.
 class WaterInternalUseFormDialog extends StatefulWidget {
-  const WaterInternalUseFormDialog({super.key, required this.session, required this.company, required this.products, required this.fmt, this.editing});
+  const WaterInternalUseFormDialog({super.key, required this.session, required this.company, required this.products, required this.fmt, this.editing, this.generic = false});
   final Session session;
   final Company company;
   final List<Map> products;
   final FarmMoney fmt;
   final Map? editing;
+  final bool generic;
 
   @override
   State<WaterInternalUseFormDialog> createState() => _InternalUseFormDialogState();
@@ -482,7 +509,9 @@ class _InternalUseFormDialogState extends State<WaterInternalUseFormDialog> {
   final _qty = TextEditingController(text: '0'), _cost = TextEditingController(text: '0');
   final _staffCount = TextEditingController(text: '0'), _perStaff = TextEditingController(text: '0');
 
-  int get _editId => tIntOrNull(widget.editing?['waterInternalUsageId']) ?? 0;
+  bool get _g => widget.generic;
+  String get _pk => _productKey(_g);
+  int get _editId => tIntOrNull(widget.editing?[_idKey(_g)]) ?? 0;
 
   @override
   void initState() {
@@ -495,13 +524,18 @@ class _InternalUseFormDialogState extends State<WaterInternalUseFormDialog> {
       _recipient.text = tStr(r['recipientName']);
       _reason.text = tStr(r['reason']);
       _notes.text = tStr(r['notes']);
-      _productId = tIntOrNull(line?['waterProductId']) ?? 0;
-      _entryUnit = tStr(line?['entryUnit']).isEmpty ? 'Bag' : tStr(line?['entryUnit']);
+      _productId = tIntOrNull(line?[_pk]) ?? 0;
+      _entryUnit = tStr(line?['entryUnit']).isEmpty ? (_g ? 'Unit' : 'Bag') : tStr(line?['entryUnit']);
       _qty.text = _plain(tNum(line?['entryQuantity']));
       _cost.text = _plain(tNum(line?['entryUnitCost']));
       _staffHelper = false;
       _staffCount.text = _plain(tNum(r['staffCount']));
       _perStaff.text = _plain(tNum(line?['quantityPerStaff']));
+    } else if (_g) {
+      // openCreate: preselect the only product; the unit is its unitOfMeasure.
+      final only = widget.products.length == 1 ? widget.products.first : null;
+      _productId = tIntOrNull(only?['genericProductId']) ?? 0;
+      _entryUnit = tStr(only?['unitOfMeasure']).isEmpty ? 'Unit' : tStr(only?['unitOfMeasure']);
     } else {
       // openCreate: preselect the only product, or the only sachet product.
       final ps = widget.products;
@@ -525,8 +559,8 @@ class _InternalUseFormDialogState extends State<WaterInternalUseFormDialog> {
   static String _plain(num v) => v == v.roundToDouble() ? v.toInt().toString() : '$v';
   num _n(TextEditingController c) => num.tryParse(c.text) ?? 0;
 
-  Map? get _product => widget.products.where((p) => tIntOrNull(p['waterProductId']) == _productId).firstOrNull;
-  bool get _sachet => _product?['isSachetProduct'] == true;
+  Map? get _product => widget.products.where((p) => tIntOrNull(p[_pk]) == _productId).firstOrNull;
+  bool get _sachet => !_g && _product?['isSachetProduct'] == true;
 
   /// sachetsPerBag: the product's own, at least 1 (30 when unset).
   int get _perBag => math.max(tIntOrNull(_product?['sachetsPerBag']) ?? 30, 1);
@@ -537,6 +571,12 @@ class _InternalUseFormDialogState extends State<WaterInternalUseFormDialog> {
   /// A non-sachet product cannot be entered in bags: switch to its own unit.
   void _fixUnit() {
     final p = _product;
+    if (_g) {
+      // Generic: the entry unit simply follows the product.
+      final u = tStr(p?['unitOfMeasure']);
+      if (p != null && u.isNotEmpty) _entryUnit = u;
+      return;
+    }
     if (p != null && !_sachet && _entryUnit == 'Bag') _entryUnit = _ownUnit(p);
   }
 
@@ -545,8 +585,10 @@ class _InternalUseFormDialogState extends State<WaterInternalUseFormDialog> {
     if (_productId == 0) return;
     final pid = _productId, unit = _entryUnit;
     try {
-      final r = await widget.session.farmClient.get('/api/Water/internal-usage/suggested-cost',
-          query: {'farmId': widget.company.farmId, 'waterProductId': '$pid', 'entryUnit': unit});
+      final r = await widget.session.farmClient.get('${internalUseApi(_g)}/suggested-cost',
+          query: _g
+              ? {'farmId': widget.company.farmId, 'genericProductId': '$pid'}
+              : {'farmId': widget.company.farmId, 'waterProductId': '$pid', 'entryUnit': unit});
       if (!mounted || pid != _productId || unit != _entryUnit) return;
       final c = r is Map ? tNum(r['unitCost']) : 0;
       setState(() {
@@ -559,20 +601,26 @@ class _InternalUseFormDialogState extends State<WaterInternalUseFormDialog> {
   }
 
   bool get _staffMode => _staffHelper && waterIsStaffCategory(_category);
-  String get _entryLabel => _entryUnit == 'Bag' ? 'Bags' : _plural(_entryUnit.isEmpty ? 'Sachet' : _entryUnit);
-  int get _factor => _entryUnit.toLowerCase() == 'bag' ? _perBag : 1;
+  String get _entryLabel => _g
+      ? _plural(_entryUnit.isEmpty ? 'Unit' : _entryUnit)
+      : _entryUnit == 'Bag'
+          ? 'Bags'
+          : _plural(_entryUnit.isEmpty ? 'Sachet' : _entryUnit);
+  int get _factor => !_g && _entryUnit.toLowerCase() == 'bag' ? _perBag : 1;
   num get _effective => _staffMode ? _r3(_n(_staffCount) * _n(_perStaff)) : _n(_qty);
   num get _base => _r3(_effective * _factor);
   num get _total => _r2(_effective * _n(_cost));
-  num get _onHand => tNum(_product?['stockOnHand']);
-  String get _baseUnit => tStr(_product?['baseUnit']).isNotEmpty ? tStr(_product?['baseUnit']) : (tStr(_product?['unit']).isEmpty ? 'unit' : tStr(_product?['unit']));
+  num get _onHand => tNum(_product?[_g ? 'currentStock' : 'stockOnHand']);
+  String get _baseUnit => _g
+      ? (tStr(_product?['unitOfMeasure']).isEmpty ? 'unit' : tStr(_product?['unitOfMeasure']))
+      : tStr(_product?['baseUnit']).isNotEmpty ? tStr(_product?['baseUnit']) : (tStr(_product?['unit']).isEmpty ? 'unit' : tStr(_product?['unit']));
   bool get _notEnough => _productId > 0 && _base > _onHand;
 
   String? _validate() {
     if (_date.isEmpty) return 'Pick the date.';
     if (_date.compareTo(_today) > 0) return 'The date cannot be in the future.';
     if (_category.isEmpty) return 'Pick what the stock was used for.';
-    if (_productId == 0) return 'Pick the water product.';
+    if (_productId == 0) return _g ? 'Pick the product.' : 'Pick the water product.';
     if (_effective <= 0) return 'Enter a quantity greater than zero.';
     if (_staffMode) {
       if (_n(_staffCount) <= 0) return 'Enter how many staff received it.';
@@ -595,7 +643,7 @@ class _InternalUseFormDialogState extends State<WaterInternalUseFormDialog> {
       'notes': _notes.text.isEmpty ? null : _notes.text,
       'items': [
         {
-          'waterProductId': _productId,
+          _pk: _productId,
           'entryQuantity': _effective,
           'entryUnit': _entryUnit,
           'quantityPerStaff': _staffMode ? _n(_perStaff) : null,
@@ -608,10 +656,10 @@ class _InternalUseFormDialogState extends State<WaterInternalUseFormDialog> {
     final api = widget.session.farmClient;
     try {
       if (_editId != 0) {
-        await api.put('/api/Water/internal-usage/$_editId', body: {...payload, 'waterInternalUsageId': _editId});
+        await api.put('${internalUseApi(_g)}/$_editId', body: {...payload, _idKey(_g): _editId});
         if (mounted) trackerToast(context, 'Draft updated');
       } else {
-        await api.post('/api/Water/internal-usage', body: {...payload, 'createdBy': widget.session.tokens.userId});
+        await api.post(internalUseApi(_g), body: {...payload, 'createdBy': widget.session.tokens.userId});
         if (mounted) trackerToast(context, 'Draft saved', description: "Post it when you're ready to move the stock.");
       }
       if (mounted) Navigator.pop(context, true);
@@ -658,7 +706,9 @@ class _InternalUseFormDialogState extends State<WaterInternalUseFormDialog> {
   Widget build(BuildContext context) {
     final gh = widget.fmt;
     final p = _product;
-    final costHint = _entryUnit == 'Bag' && _n(_cost) > 0
+    final costHint = _g
+        ? (_suggested > 0 ? "Suggested from the product's cost price — change it if you need to" : 'No cost price set — enter what it costs you')
+        : _entryUnit == 'Bag' && _n(_cost) > 0
         ? '= ${gh(_r4(_n(_cost) / _perBag))} per sachet'
         : _suggested > 0
             ? 'Suggested from your stock history — change it if you need to'
@@ -701,13 +751,13 @@ class _InternalUseFormDialogState extends State<WaterInternalUseFormDialog> {
               ]),
             ]),
             const SizedBox(height: 12),
-            formSection('How much water', const Color(0xFF2563EB), [
+            formSection(_g ? 'How much' : 'How much water', const Color(0xFF2563EB), [
               if (widget.products.isEmpty)
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(color: TColors.amber50, border: Border.all(color: const Color(0xFFFDE68A)), borderRadius: BorderRadius.circular(8)),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    const Text('This company has no water products yet.', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: TColors.amber900)),
+                    Text(_g ? 'This company has no products yet.' : 'This company has no water products yet.', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: TColors.amber900)),
                     const SizedBox(height: 4),
                     const Text('Internal Use takes stock off a product, so add one first — then come back and record what was given out.',
                         style: TextStyle(fontSize: 13, color: TColors.amber800)),
@@ -715,7 +765,7 @@ class _InternalUseFormDialogState extends State<WaterInternalUseFormDialog> {
                     InkWell(
                       onTap: () {
                         Navigator.pop(context, false);
-                        openAppHref(context, widget.session, widget.company, '/water-products', label: 'Products');
+                        openAppHref(context, widget.session, widget.company, _g ? '/generic-products' : '/water-products', label: 'Products');
                       },
                       child: const Text('Go to Products',
                           style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: TColors.amber900, decoration: TextDecoration.underline)),
@@ -728,8 +778,8 @@ class _InternalUseFormDialogState extends State<WaterInternalUseFormDialog> {
                     'Product',
                     AppSelect<String>(
                       value: _productId == 0 ? null : '$_productId',
-                      hintText: 'Pick a water product',
-                      items: [for (final pr in widget.products) AppSelectItem(value: tStr(pr['waterProductId']), label: tStr(pr['name']))],
+                      hintText: _g ? 'Pick a product' : 'Pick a water product',
+                      items: [for (final pr in widget.products) AppSelectItem(value: tStr(pr[_pk]), label: tStr(pr[_g ? 'productName' : 'name']))],
                       onChanged: (v) {
                         setState(() {
                           _productId = int.tryParse(v ?? '') ?? 0;
@@ -829,10 +879,11 @@ class _InternalUseFormDialogState extends State<WaterInternalUseFormDialog> {
 
 /// The details dialog: reversal, what was used, who and why, and the history.
 class _WaterInternalUseDetail extends StatelessWidget {
-  const _WaterInternalUseDetail({required this.record, required this.fmt, required this.offset});
+  const _WaterInternalUseDetail({required this.record, required this.fmt, required this.offset, this.generic = false});
   final Map record;
   final FarmMoney fmt;
   final Duration offset;
+  final bool generic;
 
   @override
   Widget build(BuildContext context) {
@@ -910,7 +961,7 @@ class _WaterInternalUseDetail extends StatelessWidget {
               const SizedBox(height: 8),
               Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
                 Expanded(
-                  child: Text('${describeWaterInternalQty(r)} @ ${fmt(tNum(line?['entryUnitCost']))}', style: const TextStyle(fontSize: 13, color: TColors.slate500)),
+                  child: Text('${describeWaterInternalQty(r, generic: generic)} @ ${fmt(tNum(line?['entryUnitCost']))}', style: const TextStyle(fontSize: 13, color: TColors.slate500)),
                 ),
                 Text(fmt(tNum(r['totalCostValue'])), style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700, color: TColors.slate900)),
               ]),

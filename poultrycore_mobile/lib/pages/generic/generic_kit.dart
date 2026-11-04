@@ -10,6 +10,7 @@ import '../../state/session.dart';
 import '../poultry/trackers/tracker_logic.dart' show tStr;
 import '../poultry/trackers/tracker_widgets.dart';
 import '../shared/companies_screen.dart' show BusinessType, businessTypes;
+import '../web_nav.dart';
 
 /// `/api/generic-company/{farmId}`: the base of every Generic company call.
 String genericBase(Company c) => '/api/generic-company/${Uri.encodeComponent(c.farmId)}';
@@ -192,6 +193,49 @@ Future<GenericModules> loadGenericModules(Session s, Company c) {
     _inflight.remove(c.farmId);
     return value;
   }();
+}
+
+/// What loadGenericModules last returned for this company, or null before it
+/// has answered.
+GenericModules? cachedGenericModules(String farmId) => _cache[farmId];
+
+/// generic-nav-config.ts: each Catalog row shows unless its module is
+/// explicitly switched off (showExisting), so the menu is full while the
+/// settings load. Other companies' menus are untouched.
+const genericCatalogModules = {
+  '/generic-products': 'enableProducts',
+  '/generic-inventory': 'enableInventory',
+  '/generic-stock-adjustments': 'enableStockAdjustments',
+  '/generic-internal-use': 'enableInternalUse',
+  // Purchasing (showExisting too).
+  '/generic-purchases': 'enablePurchases',
+  '/generic-supplier-balances': 'enableSupplierBalances',
+  '/recurring-expenses': 'enableRecurringExpenses',
+  // Money (showExisting too).
+  '/generic-cash': 'enableCashAccounts',
+  '/generic-cash-transfers': 'enableCashAccounts',
+};
+
+///
+/// The Sales rows for customers and payments carry the template's words
+/// (labels.customerPlural / paymentPlural), once the settings are known.
+List<NavGroup> gateGenericCatalog(List<NavGroup> groups, Company company) {
+  final m = cachedGenericModules(company.farmId);
+  if (m == null) return groups;
+  bool keep(NavLink l) => genericCatalogModules[l.href] == null || m.showExisting(genericCatalogModules[l.href]!);
+  NavLink word(NavLink l) => switch (l.href) {
+        '/generic-customers' => NavLink(m.labels.customerPlural, l.href, l.specKey),
+        '/generic-customer-payments' => NavLink(m.labels.paymentPlural, l.href, l.specKey),
+        _ => l,
+      };
+  return [
+    for (final g in groups)
+      if (NavGroup(g.title, [
+        for (final s in g.subGroups)
+          if (s.links.where(keep).map(word).toList() case final links when links.isNotEmpty) NavSubGroup(s.title, links),
+      ]) case final kept when kept.subGroups.isNotEmpty)
+        kept,
+  ];
 }
 
 /// invalidateGenericModules: after Setup, the wizard or Settings change them.

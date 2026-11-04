@@ -4,6 +4,7 @@
 // Email, five stat tiles, striped cards, the table, paging and the
 // status-gated actions; and the read-only batch view.
 
+import '../egg_packaging.dart' show EggDisplay, boxSize, currentEggPackaging, formatEggQuantity;
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -363,7 +364,7 @@ class _BatchProductionRecordsScreenState extends State<BatchProductionRecordsScr
       filename: 'batch-production-$_stamp',
       farmName: widget.company.name.isNotEmpty ? widget.company.name : 'Farm',
       landscape: true,
-      subtitle: 'Batches: ${rows.length}  |  Total Eggs: ${loc(t.eggs)} (${t.crates} crates + ${t.pieces} pcs)  |  Feed: ${t.feed.toStringAsFixed(2)} kg  |  '
+      subtitle: 'Batches: ${rows.length}  |  Total Eggs: ${loc(t.eggs)} (${t.crates} crates + ${t.pieces} pcs${_boxesOf(t.eggs) != null ? ' = ${_boxesOf(t.eggs)}' : ''})  |  Feed: ${t.feed.toStringAsFixed(2)} kg  |  '
           'Deaths: ${_n(t.deaths)}  |  Pending: ${t.pending}  |  Posted: ${t.posted}',
       sections: [
         ReportSection(
@@ -698,7 +699,7 @@ class _BatchProductionRecordsScreenState extends State<BatchProductionRecordsScr
             if (!_loading) ...[
               twoUp([
                 tile('Total Batches', loc(rows.length)),
-                tile('Total Eggs', loc(t.eggs), color: TColors.emerald600, sub: '${t.crates}c + ${t.pieces}p'),
+                tile('Total Eggs', loc(t.eggs), color: TColors.emerald600, sub: '${t.crates}c + ${t.pieces}p${_boxesOf(t.eggs) != null ? ' ≈ ${_boxesOf(t.eggs)}' : ''}'),
                 tile('Pending Allocation', loc(t.pending), color: TColors.amber600),
                 tile('Posted', loc(t.posted), color: TColors.emerald700),
                 tile('Feed (kg)', t.feed.toStringAsFixed(2), sub: 'Deaths: ${loc(t.deaths)}'),
@@ -1155,6 +1156,7 @@ class _BatchProductionDetailScreenState extends State<BatchProductionDetailScree
                   ('Soft', n(b['softEggs'])),
                   ('Lost', n(b['lostEggs'])),
                   ('Total Eggs', n(b['totalEggs'])),
+                  if (_boxesOf(tNum(b['totalEggs'])) case final bx?) ('Egg boxes (equivalent)', bx),
                   ('Deaths', n(b['deaths'])),
                   ('Feed (kg)', n(b['feedKg'])),
                   ('Birds Left', b['birdsLeft'] == null ? '—' : n(b['birdsLeft'])),
@@ -1215,7 +1217,12 @@ class _BatchProductionDetailScreenState extends State<BatchProductionDetailScree
                       if (fifth) cellText(n(a['fifthPickEggs'])),
                       if (sixth) cellText(n(a['sixthPickEggs'])),
                       cellText(n(a['brokenEggs'])),
-                      cellText(n(a['totalEggs']), bold: true),
+                      _boxesOf(tNum(a['totalEggs'])) == null
+                          ? cellText(n(a['totalEggs']), bold: true)
+                          : Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
+                              cellText(n(a['totalEggs']), bold: true),
+                              Text('≈ ${_boxesOf(tNum(a['totalEggs']))}', style: const TextStyle(fontSize: 11, color: TColors.slate500)),
+                            ]),
                       cellText(n(a['deaths'])),
                       cellText('${tNum(a['eggPercentage']).toStringAsFixed(1)}%', color: TColors.slate500),
                     ],
@@ -1256,4 +1263,11 @@ Widget? batchProductionScreenForHref(String href, Session s, Company c) {
     default:
       return id == null ? null : BatchProductionDetailScreen(session: s, company: c, batchId: id);
   }
+}
+
+/// 393: a batch's eggs in boxes on a box farm ("2 boxes + 3 crates + 5 pcs"),
+/// else null. Display only.
+String? _boxesOf(num? eggs) {
+  final p = currentEggPackaging;
+  return boxSize(p) != null ? formatEggQuantity(eggs ?? 0, p, EggDisplay.boxesCratesPieces) : null;
 }

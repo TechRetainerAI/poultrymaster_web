@@ -10,6 +10,8 @@ import 'package:poultrycore_mobile/screens/business_office/administration_screen
 import 'package:poultrycore_mobile/screens/business_office_screen.dart';
 import 'package:poultrycore_mobile/state/session.dart';
 
+import 'package:poultrycore_mobile/pages/shared/billing_nav.dart';
+
 import 'support/harness.dart';
 
 /// Tall, so the whole page is built and its sections can be read at once.
@@ -47,6 +49,9 @@ Future<(Session, List<bool>)> openOffice(WidgetTester tester, FakeApi api) async
   await open(tester, BusinessOfficeScreen(session: s, onPicked: () => picked.add(true), onSignedOut: () {}), size: tall);
   return (s, picked);
 }
+
+/// The company search (the first text box is now Contact support's message).
+final _companySearch = find.byWidgetPredicate((w) => w is TextField && w.decoration?.hintText == 'Search companies…');
 
 void main() {
   testWidgets('admin: header, announcements, tiles, cards with today\'s numbers, Show currency, Open', (tester) async {
@@ -97,13 +102,22 @@ void main() {
     expect(s.active?.farmId, 'w1');
   });
 
+  testWidgets('Need help? Contact support at the top and again under Quick actions', (tester) async {
+    await openOffice(tester, boApi());
+    expect(find.byKey(const ValueKey('bo-support-top')), findsOneWidget);
+    expect(find.byKey(const ValueKey('bo-support-bottom')), findsOneWidget);
+    expect(find.text('NEED HELP?'), findsNWidgets(2));
+    expect(find.text('+1 (917) 420-2946'), findsNWidgets(2), reason: 'USA line first, in both cards');
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('type filter and search narrow the cards', (tester) async {
     await openOffice(tester, boApi());
-    await tester.enterText(find.byType(TextField).first, 'sunrise');
+    await tester.enterText(_companySearch, 'sunrise');
     await tester.pumpAndSettle();
     expect(find.text('Production today'), findsNothing, reason: "Water's card is filtered out");
     expect(find.text('Eggs today'), findsOneWidget);
-    await tester.enterText(find.byType(TextField).first, '');
+    await tester.enterText(_companySearch, '');
     await tester.pumpAndSettle();
     await pick(tester, 'All types', 'Water');
     expect(find.text('Production today'), findsOneWidget);
@@ -168,6 +182,16 @@ void main() {
     await tester.tap(find.text('Administration'));
     await tester.pumpAndSettle();
     expect(find.byType(AdministrationScreen), findsOneWidget);
+  });
+
+  testWidgets('billing_nav off: the sidebar has no Billing (1 Nov pull)', (tester) async {
+    addTearDown(() => billingNavVisible.value = true);
+    final api = boApi()..gets['/api/PlatformOps/flags/billing_nav/evaluate'] = {'enabled': false, 'matchedScope': 'Global'};
+    await openOffice(tester, api);
+    await tester.tap(find.byTooltip('Open navigation menu').evaluate().isNotEmpty ? find.byTooltip('Open navigation menu') : find.byIcon(Icons.menu));
+    await tester.pumpAndSettle();
+    expect(find.text('Administration'), findsOneWidget);
+    expect(find.text('Billing'), findsNothing);
   });
 
   testWidgets('staff: no Post, no Access, no Manage users, no Administration', (tester) async {

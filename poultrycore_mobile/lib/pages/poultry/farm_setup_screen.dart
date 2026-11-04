@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../api/api_client.dart';
 import '../../design/tokens.dart';
@@ -435,6 +436,12 @@ class _CompanyCard extends StatefulWidget {
 class _CompanyCardState extends State<_CompanyCard> {
   final _form = PoultryProfileForm();
   final _symbol = TextEditingController(text: 'GHC');
+  // Clearing the box restores the currency's standard symbol: hiding is the
+  // switch's job, and a blank symbol used to save as empty / "GHC".
+  late final FocusNode _symbolFocus = FocusNode()
+    ..addListener(() {
+      if (!_symbolFocus.hasFocus && _symbol.text.trim().isEmpty) _symbol.text = currencySymbolFor(_code);
+    });
   String _code = 'GHS';
   bool _showSymbol = true;
   bool _loading = true;
@@ -452,6 +459,7 @@ class _CompanyCardState extends State<_CompanyCard> {
   void dispose() {
     _form.dispose();
     _symbol.dispose();
+    _symbolFocus.dispose();
     super.dispose();
   }
 
@@ -495,7 +503,8 @@ class _CompanyCardState extends State<_CompanyCard> {
       try {
         await widget.session.farmClient.put('/api/Water/farm-settings/currency?farmId=$_farm', body: {
           'currencyCode': _code,
-          'currencySymbol': _symbol.text.trim(),
+          // An empty symbol means "the currency's own", never a hard-coded GHC.
+          'currencySymbol': _symbol.text.trim().isNotEmpty ? _symbol.text.trim() : currencySymbolFor(_code),
           'showCurrencySymbol': _showSymbol,
         });
       } on ApiException {
@@ -566,7 +575,17 @@ class _CompanyCardState extends State<_CompanyCard> {
                       }),
                     ),
                   ),
-                  AppField(label: 'Symbol', child: AppInput(controller: _symbol, hintText: 'GHC')),
+                  AppField(
+                    label: 'Symbol',
+                    hint: 'To hide it, turn off "Show symbol on amounts".',
+                    child: AppInput(
+                      key: const ValueKey('currency-symbol'),
+                      controller: _symbol,
+                      focusNode: _symbolFocus,
+                      hintText: currencySymbolFor(_code),
+                      inputFormatters: [LengthLimitingTextInputFormatter(10)],
+                    ),
+                  ),
                   AppField(
                     label: '',
                     full: true,

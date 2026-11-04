@@ -1,3 +1,4 @@
+import '../production/production_logic.dart' show eggsPerCrate;
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -201,7 +202,8 @@ class _BatchProductionSummaryScreenState extends State<BatchProductionSummaryScr
     final avgPct = pcts.isEmpty ? null : pcts.reduce((a, b) => a + b) / pcts.length;
     final cards = <(String, String, String, String?)>[
       ('Batches', '${rows.where((r) => r.records > 0).length}', 'of ${rows.length} with production', null),
-      ('Total Eggs', _int(eggs), '${eggs ~/ 30}c + ${eggs.toInt() % 30}p', 'green'),
+      // The farm's crate size (was a fixed 30).
+      ('Total Eggs', _int(eggs), '${eggs ~/ eggsPerCrate}c + ${eggs.toInt() % eggsPerCrate}p', 'green'),
       ('Birds Placed', _int(placed), 'across all batches', null),
       ('Avg Production %', _pct(avgPct), 'eggs ÷ birds logged', 'green'),
       ('Feed (kg)', feed.toStringAsFixed(2), 'total consumed', null),

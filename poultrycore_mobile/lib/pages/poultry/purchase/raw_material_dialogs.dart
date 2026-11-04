@@ -303,7 +303,9 @@ class _RawPurchaseDialogState extends State<RawPurchaseDialog> {
                     if (i['isActive'] == true)
                       AppSelectItem(
                         value: tIntOrNull(i['poultryRawMaterialItemId']) ?? 0,
-                        label: '${tStr(i['itemName'])}${tStr(i['unitOfMeasure']).isNotEmpty ? ' (${tStr(i['unitOfMeasure'])})' : ''}',
+                        label: '${tStr(i['itemName'])}${tStr(i['unitOfMeasure']).isNotEmpty ? ' (${tStr(i['unitOfMeasure'])})' : ''}'
+                            '${i['category'] == 'FeedIngredient' ? ' · Feed Ingredient' : i['category'] == 'FinishedFeed' ? ' · Finished Feed' : ''}'
+                            '${i['isDefault'] == true ? ' · Default' : ''}',
                       ),
                 ],
                 onChanged: (v) => _set(() {

@@ -15,6 +15,7 @@ import '../reports/report_routes.dart' show openAppHref;
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, loc;
 import '../trackers/tracker_widgets.dart';
 import 'batch_production_logic.dart';
+import '../egg_packaging.dart';
 import 'production_logic.dart';
 import 'production_record_form.dart' show feedTypes;
 import 'production_widgets.dart';
@@ -91,6 +92,9 @@ class BatchProductionRecordFormState extends State<BatchProductionRecordForm> {
   late String _date = (!_edit ? widget.prefill?.date : null) ?? isoDay(DateTime.now().toUtc());
   String _eggGrade = productionEggGradeValue, _feedType = '';
   final _crates = List<num>.filled(6, 0), _loose = List<num>.filled(6, 0);
+  // 393: whole boxes per pick on a box farm; saved as crates (boxes × crates per box + crates).
+  final _boxes = List<num>.filled(6, 0);
+  int get _cpb => boxSize(eggPackagingFor(widget.company.farmId)) ?? 0;
   final _broken = TextEditingController(), _meaty = TextEditingController(), _soft = TextEditingController(), _lost = TextEditingController();
   final _feedKg = TextEditingController(), _medication = TextEditingController(), _deaths = TextEditingController();
   final _birdsLeft = TextEditingController(), _notes = TextEditingController();
@@ -110,6 +114,9 @@ class BatchProductionRecordFormState extends State<BatchProductionRecordForm> {
     for (final c in _texts) {
       c.addListener(_typed);
     }
+    loadEggPackaging(widget.session, widget.company).then((_) {
+      if (mounted) setState(() {});
+    });
     PickSettings.load(widget.session, widget.company).then((p) {
       if (mounted) setState(() => _picks = p);
     });
@@ -201,7 +208,10 @@ class BatchProductionRecordFormState extends State<BatchProductionRecordForm> {
     _selected = [for (final f in listOf(r, 'includedFlocks')) tIntOrNull(f['flockId']) ?? 0];
     const keys = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth'];
     for (var i = 0; i < 6; i++) {
-      _crates[i] = tNum(r['${keys[i]}PickCrates']);
+      // Stored crates come back as whole boxes + crates on a box farm.
+      final c = tNum(r['${keys[i]}PickCrates']);
+      _boxes[i] = _cpb > 0 ? c ~/ _cpb : 0;
+      _crates[i] = _cpb > 0 ? c % _cpb : c;
       _loose[i] = tNum(r['${keys[i]}PickLooseEggs']);
     }
     final d = tStr(r['productionDate']).split('T').first;
@@ -249,7 +259,7 @@ class BatchProductionRecordFormState extends State<BatchProductionRecordForm> {
   LinesComputed get _feed => computeLines(_feedLines, _feedItems, _purchases, const {}, LineKeys.feed);
   LinesComputed get _med => computeLines(_medLines, _medItems, _purchases, const {}, LineKeys.med);
 
-  int _pick(int i) => pickTotal(_crates[i], _loose[i]);
+  int _pick(int i) => pickTotal(_boxes[i] * _cpb + _crates[i], _loose[i]);
   int get _total => [for (var i = 0; i < 6; i++) _pick(i)].fold(0, (a, b) => a + b);
   int _int(TextEditingController c) => int.tryParse(c.text.trim()) ?? 0;
   int get _losses => _int(_broken) + _int(_meaty) + _int(_soft) + _int(_lost);
@@ -338,7 +348,7 @@ class BatchProductionRecordFormState extends State<BatchProductionRecordForm> {
         'ageInDays': _specific ? age.days : null,
         'ageDisplay': _specific ? '${age.weeks}w ${age.days % 7}d' : 'Mixed',
         for (var i = 0; i < 6; i++) ...{
-          '${keys[i]}PickCrates': _crates[i],
+          '${keys[i]}PickCrates': _boxes[i] * _cpb + _crates[i],
           '${keys[i]}PickLooseEggs': _loose[i],
           '${keys[i]}PickTotal': _pick(i),
         },
@@ -595,7 +605,7 @@ class BatchProductionRecordFormState extends State<BatchProductionRecordForm> {
       const SizedBox(height: 14),
       ProdSection(
         title: 'Egg Production',
-        description: 'Total = crates × $eggsPerCrate + loose eggs. These are BATCH totals, split across flocks at allocation.',
+        description: 'Total = ${_cpb > 0 ? 'boxes × $_cpb crates + ' : ''}crates × $eggsPerCrate + pieces. These are BATCH totals, split across flocks at allocation.',
         badge: '${loc(total)} eggs',
         accent: ProdAccent.amber,
         icon: Icons.egg_outlined,
@@ -607,15 +617,28 @@ class BatchProductionRecordFormState extends State<BatchProductionRecordForm> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(color: TColors.amber50, border: Border.all(color: TColors.amber200), borderRadius: BorderRadius.circular(8)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: TColors.slate700)),
+                Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: TColors.slate700)),
                 const SizedBox(height: 6),
-                Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                  Expanded(child: ProdNumField(label: 'Crates', value: _crates[i], onChanged: (v) => _set(() => _crates[i] = v))),
-                  const SizedBox(width: 8),
-                  Expanded(child: ProdNumField(label: 'Loose eggs', value: _loose[i], onChanged: (v) => _set(() => _loose[i] = v))),
-                  const SizedBox(width: 8),
-                  Expanded(child: CalcField(label: 'Total eggs', value: loc(_pick(i)))),
-                ]),
+                if (_cpb > 0) ...[
+                  Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                    Expanded(child: ProdNumField(key: ValueKey('bpick-$i-boxes'), label: 'Boxes', value: _boxes[i], onChanged: (v) => _set(() => _boxes[i] = v))),
+                    const SizedBox(width: 8),
+                    Expanded(child: ProdNumField(label: 'Crates', value: _crates[i], onChanged: (v) => _set(() => _crates[i] = v))),
+                  ]),
+                  const SizedBox(height: 8),
+                  Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                    Expanded(child: ProdNumField(label: 'Pieces', value: _loose[i], onChanged: (v) => _set(() => _loose[i] = v))),
+                    const SizedBox(width: 8),
+                    Expanded(child: CalcField(label: 'Total eggs', value: loc(_pick(i)))),
+                  ]),
+                ] else
+                  Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                    Expanded(child: ProdNumField(label: 'Crates', value: _crates[i], onChanged: (v) => _set(() => _crates[i] = v))),
+                    const SizedBox(width: 8),
+                    Expanded(child: ProdNumField(label: 'Pieces', value: _loose[i], onChanged: (v) => _set(() => _loose[i] = v))),
+                    const SizedBox(width: 8),
+                    Expanded(child: CalcField(label: 'Total eggs', value: loc(_pick(i)))),
+                  ]),
               ]),
             ),
           Container(
@@ -629,10 +652,19 @@ class BatchProductionRecordFormState extends State<BatchProductionRecordForm> {
               Text.rich(TextSpan(children: [
                 const TextSpan(text: 'Crates equivalent '),
                 TextSpan(
-                  text: '${crates.crates} crate${crates.crates == 1 ? '' : 's'}${crates.pieces > 0 ? ' + ${crates.pieces} egg${crates.pieces == 1 ? '' : 's'}' : ''}',
+                  text: '${crates.crates} crate${crates.crates == 1 ? '' : 's'}${crates.pieces > 0 ? ' + ${crates.pieces} pcs' : ''}',
                   style: const TextStyle(fontWeight: FontWeight.w700, color: TColors.slate900),
                 ),
               ]), style: const TextStyle(fontSize: 14, color: TColors.slate600)),
+              // 393: a box farm also sees boxes. Display only.
+              if (_cpb > 0)
+                Text.rich(TextSpan(children: [
+                  const TextSpan(text: 'Boxes equivalent '),
+                  TextSpan(
+                    text: formatEggQuantity(total, eggPackagingFor(widget.company.farmId), EggDisplay.boxesCratesPieces),
+                    style: const TextStyle(fontWeight: FontWeight.w700, color: TColors.slate900),
+                  ),
+                ]), key: const ValueKey('batch-boxes-equivalent'), style: const TextStyle(fontSize: 14, color: TColors.slate600)),
             ]),
           ),
           if (_eggsOver) ...[

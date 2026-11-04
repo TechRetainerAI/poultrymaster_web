@@ -6,6 +6,7 @@ import '../shared/resources_screen.dart';
 import '../shared/terms_screen.dart';
 import 'flock_closeout_screen.dart';
 import 'flock_lifecycle_screen.dart';
+import 'videos_screen.dart';
 import 'treatment_campaigns_screen.dart';
 import 'flock_alerts_screen.dart';
 import 'farm_alerts_screen.dart';
@@ -277,6 +278,7 @@ const Map<String, PageScreenBuilder> poultryPageScreens = {
   '/audit-logs': _activityLog,
   '/resources': _resources,
   '/help': _help,
+  '/poultry-videos': _videos,
   '/terms': _terms,
   '/business-office/egg-pick-settings': _eggPicks,
   '/poultry-company-setup': _companySetup,
@@ -336,6 +338,8 @@ const Map<String, PageScreenBuilder> poultryPageScreens = {
   '/batch-production-records': _batchProduction,
   '/egg-production': _eggSorting,
   '/feed-usage': _feedUsage,
+  // 389: the old "new" page opens the Record feed usage form on the page.
+  '/feed-usage/new': _feedUsageRecord,
   '/poultry-feed-production': _feedProduction,
 };
 
@@ -393,6 +397,7 @@ Widget _productionRecords(Session s, Company c) => ProductionRecordsScreen(sessi
 Widget _batchProduction(Session s, Company c) => BatchProductionRecordsScreen(session: s, company: c);
 Widget _eggSorting(Session s, Company c) => EggSortingScreen(session: s, company: c);
 Widget _feedUsage(Session s, Company c) => FeedUsageScreen(session: s, company: c);
+Widget _feedUsageRecord(Session s, Company c) => FeedUsageScreen(session: s, company: c, openRecord: true);
 Widget _feedProduction(Session s, Company c) => FeedProductionScreen(session: s, company: c);
 
 Widget _financialActivity(Session s, Company c) => FinancialActivityScreen(session: s, company: c);
@@ -438,4 +443,5 @@ Widget _billing(Session s, Company c) => BillingScreen(session: s, company: c);
 Widget _activityLog(Session s, Company c) => ActivityLogScreen(session: s, company: c);
 Widget _resources(Session s, Company c) => ResourcesScreen(session: s, company: c);
 Widget _help(Session s, Company c) => HelpCenterScreen(session: s, company: c);
+Widget _videos(Session s, Company c) => PoultryVideosScreen(session: s, company: c);
 Widget _terms(Session s, Company c) => TermsScreen(session: s, company: c);

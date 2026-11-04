@@ -10,10 +10,10 @@ import '../../../state/session.dart';
 import '../../../widgets/module_sidebar.dart';
 import '../../shared/business_dates.dart';
 import '../reports/report_export.dart';
+import '../production/production_logic.dart' show eggsPerCrate;
 import 'tracker_logic.dart';
 import 'tracker_widgets.dart';
 
-const eggsPerCrate = 30;
 const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const _monShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const _monLong = [

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../api/api_client.dart';
 import '../../design/tokens.dart';
@@ -10,6 +11,7 @@ import '../../state/session.dart';
 import '../../widgets/module_sidebar.dart';
 import '../lookup_loader.dart';
 import '../poultry/reports/report_format.dart' show FarmMoney;
+import '../shared/currencies.dart' show currencySymbolFor;
 import '../shared/search_picker.dart';
 import '../web_nav.dart';
 import 'water_company_setup_screen.dart';
@@ -527,6 +529,12 @@ class _CompanyCardState extends State<_CompanyCard> {
   final _sachets = TextEditingController(text: '30');
   final _notes = TextEditingController();
   final _symbol = TextEditingController(text: 'GHC');
+  // Clearing the box restores the currency's standard symbol: hiding is the
+  // switch's job, and a blank symbol used to save as "GHC".
+  late final FocusNode _symbolFocus = FocusNode()
+    ..addListener(() {
+      if (!_symbolFocus.hasFocus && _symbol.text.trim().isEmpty) _symbol.text = currencySymbolFor(_code);
+    });
   String _business = 'Sachet';
   String _source = 'Borehole';
   String _code = 'GHS';
@@ -549,6 +557,7 @@ class _CompanyCardState extends State<_CompanyCard> {
     for (final c in [_brand, _site, _location, _owner, _phone, _sachets, _notes, _symbol]) {
       c.dispose();
     }
+    _symbolFocus.dispose();
     super.dispose();
   }
 
@@ -614,7 +623,8 @@ class _CompanyCardState extends State<_CompanyCard> {
       }
       await client.put('/api/Water/farm-settings/currency?farmId=$_farm', body: {
         'currencyCode': _code.trim().isEmpty ? 'GHS' : _code.trim(),
-        'currencySymbol': _symbol.text.trim().isEmpty ? 'GHC' : _symbol.text.trim(),
+        // An empty symbol means "the currency's own", never a hard-coded GHC.
+        'currencySymbol': _symbol.text.trim().isEmpty ? currencySymbolFor(_code) : _symbol.text.trim(),
         'showCurrencySymbol': _showSymbol,
       });
       FarmMoney.clearCache();
@@ -733,8 +743,13 @@ class _CompanyCardState extends State<_CompanyCard> {
                   ),
                   AppField(
                     label: 'Currency symbol',
-                    hint: 'Prefix rendered before amounts. e.g. GHC, ₵, \$, ₦.',
-                    child: AppInput(controller: _symbol),
+                    hint: 'Prefix rendered before amounts. e.g. GHC, ₵, \$, ₦. To hide it, turn off the switch below.',
+                    child: AppInput(
+                      key: const ValueKey('currency-symbol'),
+                      controller: _symbol,
+                      focusNode: _symbolFocus,
+                      inputFormatters: [LengthLimitingTextInputFormatter(10)],
+                    ),
                   ),
                   AppField(
                     label: 'Show currency symbol on pages',

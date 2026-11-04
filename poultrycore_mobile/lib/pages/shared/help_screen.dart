@@ -1,62 +1,46 @@
-// Settings → Help Center (app/help/page.tsx): search, the Feature Guide,
-// the FAQ with category chips and Collapse / Expand all, and Need More Help?
+// System → Help Center, as rebuilt on the web (app/help/page.tsx, 27 Oct):
+// a question-style search (with suggestions, "Go to page" chips and highlighted
+// answers), the Feature Guide, three tabs -- Questions, Troubleshooting and an
+// A-Z Glossary -- and the Contact support card.
+//
+// The content is lib/help/poultry-help-content.ts, generated into
+// help/poultry_help_content.dart word for word. Answer links and "Go to page"
+// only offer pages this user may open (the sidebar's own list).
+//
+// Left out on purpose: the web's "Shortcuts" card. It lists Ctrl+K, "/" and
+// arrow keys for the header search, which the app does not have.
+
+import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
+import '../../config/env.dart';
 import '../../design/ui/inputs.dart';
 import '../../models/company.dart';
 import '../../state/session.dart';
 import '../../widgets/module_sidebar.dart';
+import '../registry.dart';
+import '../poultry/egg_pick_settings_screen.dart';
 import '../poultry/reports/report_routes.dart' show openAppHref;
 import '../poultry/trackers/tracker_widgets.dart';
+import '../web_nav.dart';
+import 'help/contact_support.dart';
+import 'help/help_search.dart';
+import 'help/help_types.dart';
+import 'help/poultry_help_content.dart';
+import 'setup_admin_routes.dart';
 
-const helpFaqs = <({String category, String question, String answer})>[
-  (category: 'Getting Started', question: 'How do I set up my farm?', answer: 'Go to Settings from the sidebar menu. Enter your farm name, location, and preferred currency. Click \'Edit Settings\' to modify and \'Save Changes\' to confirm.'),
-  (category: 'Getting Started', question: 'How do I add employees/staff?', answer: 'Navigate to the Employees page from the sidebar. Click \'Add Employee\' and fill in their details including name, email, phone, and role. Staff members can be given limited access compared to admins.'),
-  (category: 'Flocks', question: 'How do I create a new flock?', answer: 'Go to Flocks from the sidebar and click \'Add Flock\'. Enter the flock name, breed, quantity, start date, and assign it to a house. Flocks can be marked as active or inactive.'),
-  (category: 'Flocks', question: 'What are flock batches?', answer: 'Flock batches allow you to group birds within a flock by arrival date or source. Navigate to Flock Batches to manage batches. Each batch tracks its own quantity and metadata.'),
-  (category: 'Flocks', question: 'How do I deactivate a flock?', answer: 'On the Flocks page, edit the flock you want to deactivate. Set the \'Active\' toggle to off and provide a reason for inactivation. The flock will remain in your records for reporting purposes.'),
-  (category: 'Production', question: 'How do I log daily production?', answer: 'Go to Production Records and click \'Log Production\'. Select the flock, date, and enter egg counts for 9 AM, 12 PM, and 4 PM collections. You can also record broken eggs, feed usage, and medication.'),
-  (category: 'Production', question: 'How are egg totals calculated?', answer: 'Egg totals are displayed in both raw counts and crates. One crate equals 30 eggs. For example, 95 eggs = 3 crates + 5 pieces (3c + 5p).'),
-  (category: 'Production', question: 'Where can I see egg production trends?', answer: 'Use Egg sorting for daily collection by flock and totals by size. Use Egg tracker (under Analytics) for the egg inventory ledger from production and sales. The Reports page provides charts for production trends over time.'),
-  (category: 'Feed & Inventory', question: 'How do I record feed usage?', answer: 'Navigate to Feed Usage and click \'Add Usage\'. Select the flock, date, feed type, and quantity in kg. Feed records are automatically linked to production records for the same flock and date.'),
-  (category: 'Feed & Inventory', question: 'How do I manage inventory?', answer: 'The Inventory page lets you track all farm supplies including feed, medication, equipment, and eggs. Add items with quantities, unit prices, suppliers, and expiry dates. Use filters to search and categorize.'),
-  (category: 'Sales & Expenses', question: 'How do I record a sale?', answer: 'Go to Sales and click \'Record Sale\'. Select the customer, items sold (eggs in crates/pieces, or other products), quantity, unit price, and payment method. The system calculates totals automatically.'),
-  (category: 'Sales & Expenses', question: 'How do I track expenses?', answer: 'Navigate to Expenses and click \'Add Expense\'. Select the flock, category (Feed, Veterinary, Equipment, Labor, Utilities, Other), enter the amount, payment method, and description.'),
-  (category: 'Sales & Expenses', question: 'Can I export sales or expense data?', answer: 'Yes! On both the Sales and Expenses pages, you\'ll find PDF and CSV export buttons in the filter bar. Exports include all currently filtered records.'),
-  (category: 'Customers', question: 'How do I manage customers?', answer: 'The Customers page lets you add, edit, and delete customer records. Each customer has a name, email, phone, city, and address. Customers can be linked to sales for tracking.'),
-  (category: 'Reports', question: 'What reports are available?', answer: 'The Reports page provides production summaries, financial overviews, flock performance metrics, and trend analysis. Data can be filtered by date range and flock for detailed insights.'),
-  (category: 'Health', question: 'How do I log health records?', answer: 'Navigate to Health Records from the sidebar. Record vaccinations, treatments, and health observations for each flock. Track medication usage and health trends over time.'),
-  (category: 'Account', question: 'How do I change my password?', answer: 'Go to your Profile page by clicking the user icon in the top-right corner of the header. You\'ll find the option to update your password and other account settings.'),
-  (category: 'Account', question: 'What\'s the difference between Admin and Staff roles?', answer: 'Admins have full access to all features including settings, employee management, and delete operations. Staff members have limited access — they can view and create records but may not be able to delete or access certain admin-only features.'),
-];
+/// Questions people actually type, offered before they type anything.
+const helpSuggestions = ['who owes me', "cash doesn't match profit", 'reverse a sale', 'eggs per crate', 'close the day', "can't see a page"];
 
-const helpFeatureGuides = <(IconData, String, String, String, Color, Color)>[
-  (Icons.flutter_dash, 'Flocks', 'Manage your flocks, batches, and bird tracking', '/flocks', Color(0xFFFEF3C7), Color(0xFFB45309)),
-  (Icons.egg_outlined, 'Production', 'Log daily egg production and track metrics', '/production-records', Color(0xFFE0F2FE), Color(0xFF0369A1)),
-  (Icons.inventory_2_outlined, 'Feed Usage', 'Record and monitor feed consumption', '/feed-usage', Color(0xFFECFCCB), Color(0xFF4D7C0F)),
-  (Icons.shopping_cart_outlined, 'Sales', 'Record sales and track revenue', '/sales', Color(0xFFEDE9FE), Color(0xFF6D28D9)),
-  (Icons.attach_money, 'Expenses', 'Track costs and financial records', '/expenses', Color(0xFFFFE4E6), Color(0xFFBE123C)),
-  (Icons.people_outline, 'Customers', 'Manage your customer database', '/customers', Color(0xFFCCFBF1), Color(0xFF0F766E)),
-  (Icons.bar_chart, 'Reports', 'View analytics and generate reports', '/reports', Color(0xFFE0E7FF), Color(0xFF4338CA)),
-  (Icons.monitor_heart_outlined, 'Health Records', 'Track vaccinations and treatments', '/health', Color(0xFFFEE2E2), Color(0xFFB91C1C)),
-  (Icons.description_outlined, 'Inventory', 'Manage farm supplies and stock', '/inventory', Color(0xFFD1FAE5), Color(0xFF047857)),
-  (Icons.settings_outlined, 'Company Setup', 'Configure farm preferences', '/poultry-company-setup', Color(0xFFE2E8F0), Color(0xFF334155)),
-];
+const _kindLabel = {HelpKind.faq: 'Question', HelpKind.fix: 'Troubleshooting', HelpKind.term: 'Glossary'};
 
-/// A colour per FAQ category: the chosen chip, the rail, the badge.
-const _tones = <String, (Color, Color, Color, Color)>{
-  'Getting Started': (Color(0xFF059669), Color(0xFF34D399), Color(0xFFECFDF5), Color(0xFF047857)),
-  'Flocks': (Color(0xFFD97706), Color(0xFFFBBF24), Color(0xFFFFFBEB), Color(0xFFB45309)),
-  'Production': (Color(0xFF0284C7), Color(0xFF38BDF8), Color(0xFFF0F9FF), Color(0xFF0369A1)),
-  'Feed & Inventory': (Color(0xFF65A30D), Color(0xFFA3E635), Color(0xFFF7FEE7), Color(0xFF4D7C0F)),
-  'Sales & Expenses': (Color(0xFF7C3AED), Color(0xFFA78BFA), Color(0xFFF5F3FF), Color(0xFF6D28D9)),
-  'Customers': (Color(0xFF0D9488), Color(0xFF2DD4BF), Color(0xFFF0FDFA), Color(0xFF0F766E)),
-  'Health': (Color(0xFFE11D48), Color(0xFFFB7185), Color(0xFFFFF1F2), Color(0xFFBE123C)),
-  'Reports': (Color(0xFF4F46E5), Color(0xFF818CF8), Color(0xFFEEF2FF), Color(0xFF4338CA)),
-  'Account': (Color(0xFF334155), Color(0xFF94A3B8), Color(0xFFF1F5F9), Color(0xFF334155)),
-};
-const _fallbackTone = (Color(0xFF4F46E5), Color(0xFFCBD5E1), Color(0xFFF8FAFC), Color(0xFF475569));
+const _indigo = Color(0xFF4F46E5);
+const _indigo100 = Color(0xFFE0E7FF);
+const _indigo200 = Color(0xFFC7D2FE);
+const _indigo700 = Color(0xFF4338CA);
+const _amber100 = Color(0xFFFEF3C7);
 
 class HelpCenterScreen extends StatefulWidget {
   const HelpCenterScreen({super.key, required this.session, required this.company});
@@ -67,141 +51,411 @@ class HelpCenterScreen extends StatefulWidget {
 }
 
 class _HelpCenterScreenState extends State<HelpCenterScreen> {
-  String _q = '', _category = 'All';
+  final _search = TextEditingController();
+  final _supportKey = GlobalKey<ContactSupportState>();
+  final _letterKeys = <String, GlobalKey>{};
+  final _index = prepareHelpIndex(helpEntries);
+  String _q = '';
+  HelpKind _tab = HelpKind.faq;
+  String _category = 'All';
+
+  // Questions open by default (`_closed` holds the folded ones); fixes are a
+  // list of symptoms to scan, so `_opened` holds the expanded ones.
   final _closed = <String>{};
+  final _opened = <String>{};
+
+  late final List<({String title, String href, String group})> _pages = _openablePages();
+  late final Set<String> _openable = {for (final p in _pages) p.href};
+
+  List<({String title, String href, String group})> _openablePages() {
+    final out = <String, ({String title, String href, String group})>{};
+    final groups = gateSetupLinks(webNavGroups[PageRegistry.moduleOf(widget.company.type)] ?? const [], widget.company);
+    // Quick Links last, as on the web; the first occurrence of an href wins.
+    for (final g in [...groups.where((g) => g.title != 'Quick Links'), ...groups.where((g) => g.title == 'Quick Links')]) {
+      for (final s in g.subGroups) {
+        for (final l in s.links) {
+          if (l.href.startsWith('#')) continue;
+          out.putIfAbsent(l.href, () => (title: l.label, href: l.href, group: s.title));
+        }
+      }
+    }
+    return out.values.toList();
+  }
+
+  bool _canOpen(String href) => _openable.contains(href.split('?').first);
+
+  void _open(String href, String label) {
+    final uri = Uri.parse(href);
+    // Egg Configuration opens on the tab the answer names (?tab=sorting).
+    if (uri.path == '/business-office/egg-pick-settings' && uri.queryParameters['tab'] != null) {
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => EggPickSettingsScreen(session: widget.session, company: widget.company, initialTab: uri.queryParameters['tab']!),
+      ));
+      return;
+    }
+    openAppHref(context, widget.session, widget.company, uri.path, label: label);
+  }
+
+  bool _isOpen(HelpEntry e) => e.kind == HelpKind.fix ? _opened.contains(e.id) : !_closed.contains(e.id);
+
+  void _toggle(HelpEntry e) => setState(() {
+        final set = e.kind == HelpKind.fix ? _opened : _closed;
+        if (!set.remove(e.id)) set.add(e.id);
+      });
+
+  void _setQuery(String v) {
+    _search.value = TextEditingValue(text: v, selection: TextSelection.collapsed(offset: v.length));
+    setState(() => _q = v);
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final lead = sidebarLeading(context, widget.session, widget.company, href: '/help');
-    final q = _q.toLowerCase();
-    final categories = ['All', ...{for (final f in helpFaqs) f.category}];
-    final filtered = [
-      for (final f in helpFaqs)
-        if ((q.isEmpty || f.question.toLowerCase().contains(q) || f.answer.toLowerCase().contains(q)) && (_category == 'All' || f.category == _category)) f,
-    ];
-    final allOpen = filtered.every((f) => !_closed.contains(f.question));
+    final searching = _q.trim().isNotEmpty;
     return Scaffold(
       appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: const Text('Help Center')),
-      body: ListView(padding: const EdgeInsets.fromLTRB(14, 16, 14, 28), children: [
+      body: ListView(key: const ValueKey('help-list'), padding: const EdgeInsets.fromLTRB(14, 16, 14, 28), children: [
         Center(
           child: Container(
             width: 64,
             height: 64,
-            decoration: const BoxDecoration(color: Color(0xFFE0E7FF), shape: BoxShape.circle),
-            child: const Icon(Icons.help_outline, size: 32, color: Color(0xFF4F46E5)),
+            decoration: BoxDecoration(color: _indigo100, borderRadius: BorderRadius.circular(16)),
+            child: const Icon(Icons.help_outline, size: 32, color: _indigo),
           ),
         ),
         const SizedBox(height: 12),
         const Text('Help Center', textAlign: TextAlign.center, style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: TColors.slate900)),
         const SizedBox(height: 6),
-        const Text('Find answers to common questions, learn how to use VisibilityCore features, and get support.',
+        const Text('Ask in your own words. Answers, fixes for common problems, what the terms mean, and a quick way to reach us.',
             textAlign: TextAlign.center, style: TextStyle(color: TColors.slate600)),
         const SizedBox(height: 16),
         AppInput(
-          hintText: 'Search for help topics...',
+          key: const ValueKey('help-search'),
+          controller: _search,
+          hintText: 'e.g. how do I reverse a sale?',
           prefixIcon: const Icon(Icons.search, color: TColors.slate400),
+          suffixIcon: searching
+              ? IconButton(
+                  key: const ValueKey('help-search-clear'),
+                  tooltip: 'Clear search',
+                  icon: const Icon(Icons.close, size: 18, color: TColors.slate400),
+                  onPressed: () => _setQuery(''),
+                )
+              : null,
           onChanged: (v) => setState(() => _q = v),
         ),
-        const SizedBox(height: 22),
-        const Row(children: [
-          Icon(Icons.menu_book_outlined, size: 20, color: Color(0xFF4F46E5)),
-          SizedBox(width: 8),
-          Text('Feature Guide', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: TColors.slate900)),
-        ]),
-        const SizedBox(height: 12),
-        LayoutBuilder(builder: (context, c) {
-          final w = (c.maxWidth - 10) / 2;
-          return Wrap(spacing: 10, runSpacing: 10, children: [
-            for (final (icon, title, _, path, bg, fg) in helpFeatureGuides)
-              SizedBox(
-                width: w,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () => openAppHref(context, widget.session, widget.company, path, label: title),
-                  child: TCard(
-                    child: Column(children: [
-                      Container(width: 44, height: 44, decoration: BoxDecoration(color: bg, shape: BoxShape.circle), child: Icon(icon, color: fg)),
-                      const SizedBox(height: 8),
-                      Text(title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: TColors.slate900)),
-                    ]),
-                  ),
+        if (!searching) ...[
+          const SizedBox(height: 8),
+          Wrap(alignment: WrapAlignment.center, spacing: 6, runSpacing: 6, children: [
+            for (final s in helpSuggestions)
+              InkWell(
+                key: ValueKey('help-suggest-$s'),
+                borderRadius: BorderRadius.circular(999),
+                onTap: () => _setQuery(s),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                  decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(999)),
+                  child: Text(s, style: const TextStyle(fontSize: 12, color: TColors.slate600)),
                 ),
               ),
-          ]);
-        }),
+          ]),
+        ],
         const SizedBox(height: 22),
-        Wrap(alignment: WrapAlignment.spaceBetween, crossAxisAlignment: WrapCrossAlignment.center, spacing: 8, runSpacing: 4, children: [
-          Wrap(crossAxisAlignment: WrapCrossAlignment.center, spacing: 6, children: [
-            const Icon(Icons.help_outline, size: 20, color: Color(0xFF4F46E5)),
-            const Text('Frequently Asked Questions', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: TColors.slate900)),
-            Text('${filtered.length} ${filtered.length == 1 ? 'answer' : 'answers'}', style: const TextStyle(fontSize: 13, color: TColors.slate500)),
-          ]),
-          if (filtered.isNotEmpty)
-            InkWell(
-              onTap: () => setState(() {
-                if (allOpen) {
-                  _closed.addAll(filtered.map((f) => f.question));
-                } else {
-                  _closed.clear();
-                }
-              }),
-              child: Text(allOpen ? 'Collapse all' : 'Expand all', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF4F46E5))),
-            ),
-        ]),
-        const SizedBox(height: 12),
-        Wrap(spacing: 8, runSpacing: 8, children: [for (final cat in categories) _chip(cat)]),
-        const SizedBox(height: 14),
-        if (filtered.isEmpty)
-          TCard(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Text('No results found for "$_q". Try a different search term.', textAlign: TextAlign.center, style: const TextStyle(color: TColors.slate500)),
-            ),
-          )
-        else
-          for (final f in filtered) _faq(f),
-        const SizedBox(height: 18),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: const Color(0x80EEF2FF), border: Border.all(color: const Color(0xFFC7D2FE)), borderRadius: BorderRadius.circular(12)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Row(children: [
-              Icon(Icons.mail_outline, size: 20, color: Color(0xFF312E81)),
-              SizedBox(width: 8),
-              Text('Need More Help?', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Color(0xFF312E81))),
-            ]),
-            const SizedBox(height: 4),
-            const Text("Can't find what you're looking for? Reach out to our support team.", style: TextStyle(fontSize: 14, color: Color(0xFF4338CA))),
-            const SizedBox(height: 14),
-            for (final (icon, title, value) in const [
-              (Icons.mail_outline, 'Email Support', 'techretainer@gmail.com'),
-              (Icons.phone_outlined, 'Phone Support', '+1 (917) 420-2946 / 0533431086'),
-            ])
-              Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
-                child: Row(children: [
-                  Icon(icon, size: 20, color: const Color(0xFF4F46E5)),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: TColors.slate900)),
-                      SelectableText(value, style: const TextStyle(fontSize: 14, color: TColors.slate600)),
-                    ]),
-                  ),
-                ]),
-              ),
-          ]),
-        ),
+        if (searching) ..._results() else ..._browse(),
+        const SizedBox(height: 22),
+        ContactSupport(key: _supportKey),
       ]),
     );
   }
 
-  Widget _chip(String cat) {
-    final tone = cat == 'All' ? _fallbackTone : (_tones[cat] ?? _fallbackTone);
+  // ------------------------------------------------------------ results
+
+  List<Widget> _results() {
+    final q = _q.trim();
+    final hits = searchHelp(_q, _index);
+    final pageHits = rankPages(_q, _pages);
+    return [
+      if (pageHits.isNotEmpty) ...[
+        Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
+          const Text('GO TO PAGE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: .6, color: TColors.slate400)),
+          for (final p in pageHits)
+            InkWell(
+              key: ValueKey('help-goto-${p.href}'),
+              borderRadius: BorderRadius.circular(999),
+              onTap: () => _open(p.href, p.title),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _indigo200), borderRadius: BorderRadius.circular(999)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Flexible(child: Text(p.title, style: const TextStyle(fontSize: 13.5, color: _indigo700))),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.arrow_forward, size: 13, color: _indigo700),
+                ]),
+              ),
+            ),
+        ]),
+        const SizedBox(height: 14),
+      ],
+      Text('${hits.length} ${hits.length == 1 ? 'answer' : 'answers'} for “$q”',
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: TColors.slate500)),
+      const SizedBox(height: 10),
+      if (hits.isEmpty)
+        TCard(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Column(children: [
+              Text('No answer matches “$q” yet.', textAlign: TextAlign.center, style: const TextStyle(color: TColors.slate500)),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                key: const ValueKey('help-ask-support'),
+                style: FilledButton.styleFrom(backgroundColor: _indigo, foregroundColor: Colors.white),
+                onPressed: () => _supportKey.currentState?.ask(q),
+                icon: const Icon(Icons.chat_bubble_outline, size: 16),
+                label: const Text('Ask support this question'),
+              ),
+            ]),
+          ),
+        )
+      else ...[
+        for (final h in hits)
+          _EntryCard(
+            entry: h.entry,
+            open: _isOpen(h.entry),
+            onToggle: () => _toggle(h.entry),
+            matched: h.matched,
+            showKind: true,
+            links: [for (final l in h.entry.links) if (_canOpen(l.href)) l],
+            onLink: (l) => _open(l.href, l.label),
+          ),
+        const SizedBox(height: 6),
+        Center(
+          child: Wrap(crossAxisAlignment: WrapCrossAlignment.center, children: [
+            const Text('Not what you needed? ', style: TextStyle(fontSize: 14, color: TColors.slate500)),
+            InkWell(
+              key: const ValueKey('help-ask-support'),
+              onTap: () => _supportKey.currentState?.ask(q),
+              child: const Text('Ask support', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: _indigo)),
+            ),
+          ]),
+        ),
+      ],
+    ];
+  }
+
+  // ------------------------------------------------------------- browse
+
+  List<Widget> _browse() {
+    final faqs = [for (final e in helpEntries) if (e.kind == HelpKind.faq) e];
+    final fixes = [for (final e in helpEntries) if (e.kind == HelpKind.fix) e];
+    final terms = [for (final e in helpEntries) if (e.kind == HelpKind.term) e]..sort((a, b) => a.title.compareTo(b.title));
+    final guides = [for (final g in featureGuides) if (_canOpen(g.path)) g];
+    return [
+      const Row(children: [
+        Icon(Icons.menu_book_outlined, size: 20, color: _indigo),
+        SizedBox(width: 8),
+        Text('Feature Guide', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: TColors.slate900)),
+      ]),
+      const SizedBox(height: 12),
+      // Two per row on a phone, as the web's grid-cols-2; the description is
+      // hidden below its sm: breakpoint, so the tiles carry the title only.
+      for (var i = 0; i < guides.length; i += 2)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: IntrinsicHeight(
+            child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Expanded(child: _guideTile(guides[i])),
+              const SizedBox(width: 10),
+              Expanded(child: i + 1 < guides.length ? _guideTile(guides[i + 1]) : const SizedBox()),
+            ]),
+          ),
+        ),
+      const SizedBox(height: 16),
+      SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Container(
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(color: TColors.slate100, borderRadius: BorderRadius.circular(10)),
+          child: Row(children: [
+            _tabButton(HelpKind.faq, Icons.help_outline, 'Questions', faqs.length),
+            _tabButton(HelpKind.fix, Icons.build_outlined, 'Troubleshooting', fixes.length),
+            _tabButton(HelpKind.term, Icons.sort_by_alpha, 'Glossary', terms.length),
+          ]),
+        ),
+      ),
+      const SizedBox(height: 16),
+      ...switch (_tab) {
+        HelpKind.faq => _questions(faqs),
+        HelpKind.fix => _troubleshooting(fixes),
+        HelpKind.term => _glossary(terms),
+      },
+    ];
+  }
+
+  Widget _guideTile(FeatureGuide g) {
+    final tone = toneOfFamily(g.tone);
+    return InkWell(
+      key: ValueKey('help-guide-${g.path}'),
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => _open(g.path, g.title),
+      child: TCard(
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(color: tone.tintBg, borderRadius: BorderRadius.circular(12)),
+            child: Icon(g.icon, color: tone.tintFg),
+          ),
+          const SizedBox(height: 8),
+          Text(g.title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: TColors.slate900)),
+        ]),
+      ),
+    );
+  }
+
+  Widget _tabButton(HelpKind kind, IconData icon, String label, int count) {
+    final on = _tab == kind;
+    return InkWell(
+      key: ValueKey('help-tab-${kind.name}'),
+      borderRadius: BorderRadius.circular(8),
+      onTap: () => setState(() => _tab = kind),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: on ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: on ? const [BoxShadow(color: Color(0x14000000), blurRadius: 2, offset: Offset(0, 1))] : null,
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 16, color: on ? TColors.slate900 : TColors.slate600),
+          const SizedBox(width: 6),
+          Text(label, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500, color: on ? TColors.slate900 : TColors.slate600)),
+          const SizedBox(width: 5),
+          Text('$count', style: const TextStyle(fontSize: 12, color: TColors.slate400)),
+        ]),
+      ),
+    );
+  }
+
+  List<Widget> _questions(List<HelpEntry> faqs) {
+    final categories = ['All', ...{for (final f in faqs) f.category}];
+    final shown = _category == 'All' ? faqs : [for (final f in faqs) if (f.category == _category) f];
+    final allOpen = shown.every((f) => !_closed.contains(f.id));
+    return [
+      Wrap(spacing: 8, runSpacing: 8, children: [
+        for (final cat in categories) _chip(cat, cat == 'All' ? faqs.length : faqs.where((f) => f.category == cat).length),
+      ]),
+      const SizedBox(height: 8),
+      Align(
+        alignment: Alignment.centerRight,
+        child: InkWell(
+          key: const ValueKey('help-collapse-all'),
+          onTap: () => setState(() {
+            if (allOpen) {
+              _closed.addAll(shown.map((f) => f.id));
+            } else {
+              _closed.clear();
+            }
+          }),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Text(allOpen ? 'Collapse all' : 'Expand all', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: _indigo)),
+          ),
+        ),
+      ),
+      const SizedBox(height: 8),
+      for (final e in shown) _card(e),
+    ];
+  }
+
+  List<Widget> _troubleshooting(List<HelpEntry> fixes) => [
+        const Text('Something looks wrong? Find the symptom, open it, and work through the checks in order.',
+            style: TextStyle(fontSize: 14, color: TColors.slate500)),
+        const SizedBox(height: 12),
+        for (final e in fixes) _card(e),
+      ];
+
+  List<Widget> _glossary(List<HelpEntry> terms) {
+    final letters = <String>[];
+    for (final t in terms) {
+      final l = t.title[0].toUpperCase();
+      if (!letters.contains(l)) letters.add(l);
+    }
+    return [
+      Wrap(spacing: 4, runSpacing: 4, children: [
+        for (final l in letters)
+          InkWell(
+            key: ValueKey('help-letter-$l'),
+            borderRadius: BorderRadius.circular(6),
+            onTap: () {
+              final ctx = _letterKeys[l]?.currentContext;
+              if (ctx != null) Scrollable.ensureVisible(ctx, duration: const Duration(milliseconds: 300));
+            },
+            child: Container(
+              width: 30,
+              height: 30,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+              child: Text(l, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: TColors.slate600)),
+            ),
+          ),
+      ]),
+      const SizedBox(height: 12),
+      Container(
+        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          for (final (i, t) in terms.indexed) ...[
+            if (i > 0) const Divider(height: 1, color: TColors.slate100),
+            _term(t, i == 0 || terms[i - 1].title[0].toUpperCase() != t.title[0].toUpperCase()),
+          ],
+        ]),
+      ),
+    ];
+  }
+
+  Widget _term(HelpEntry t, bool firstOfLetter) {
+    final letter = t.title[0].toUpperCase();
+    final links = [for (final l in t.links) if (_canOpen(l.href)) l];
+    return Padding(
+      key: firstOfLetter ? _letterKeys.putIfAbsent(letter, GlobalKey.new) : ValueKey('help-term-${t.id}'),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Wrap(spacing: 12, crossAxisAlignment: WrapCrossAlignment.end, children: [
+          Text(t.title, style: const TextStyle(fontWeight: FontWeight.w600, color: TColors.slate900)),
+          Text(t.category, style: const TextStyle(fontSize: 11, color: TColors.slate400)),
+        ]),
+        const SizedBox(height: 4),
+        Text(t.body, style: const TextStyle(fontSize: 14, height: 1.5, color: TColors.slate600)),
+        if (links.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Wrap(spacing: 12, runSpacing: 4, children: [
+            for (final l in links)
+              InkWell(
+                onTap: () => _open(l.href, l.label),
+                child: Text('${l.label} →', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: _indigo)),
+              ),
+          ]),
+        ],
+      ]),
+    );
+  }
+
+  Widget _card(HelpEntry e) => _EntryCard(
+        entry: e,
+        open: _isOpen(e),
+        onToggle: () => _toggle(e),
+        links: [for (final l in e.links) if (_canOpen(l.href)) l],
+        onLink: (l) => _open(l.href, l.label),
+      );
+
+  Widget _chip(String cat, int n) {
+    final tone = cat == 'All' ? fallbackHelpTone : toneFor(cat);
     final on = _category == cat;
-    final n = cat == 'All' ? helpFaqs.length : helpFaqs.where((f) => f.category == cat).length;
     return InkWell(
       key: ValueKey('faq-cat-$cat'),
       borderRadius: BorderRadius.circular(999),
@@ -209,8 +463,8 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
         decoration: BoxDecoration(
-          color: on ? tone.$1 : Colors.white,
-          border: Border.all(color: on ? tone.$1 : TColors.slate200),
+          color: on ? tone.chipOn : Colors.white,
+          border: Border.all(color: on ? tone.chipOn : TColors.slate200),
           borderRadius: BorderRadius.circular(999),
         ),
         child: Text.rich(TextSpan(children: [
@@ -220,45 +474,181 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
       ),
     );
   }
+}
 
-  Widget _faq(({String category, String question, String answer}) f) {
-    final tone = _tones[f.category] ?? _fallbackTone;
-    final open = !_closed.contains(f.question);
+/// help-entry-card.tsx: the coloured rail, the badges ABOVE the question (on a
+/// phone, inline badges left the question in a two-word column), the body as
+/// paragraphs / numbered steps / bullets, the page links and "Copy link".
+class _EntryCard extends StatefulWidget {
+  const _EntryCard({
+    required this.entry,
+    required this.open,
+    required this.onToggle,
+    required this.links,
+    required this.onLink,
+    this.matched = const [],
+    this.showKind = false,
+  });
+  final HelpEntry entry;
+  final bool open;
+  final VoidCallback onToggle;
+  final List<HelpLink> links;
+  final ValueChanged<HelpLink> onLink;
+  final List<String> matched;
+  final bool showKind;
+  @override
+  State<_EntryCard> createState() => _EntryCardState();
+}
+
+class _EntryCardState extends State<_EntryCard> {
+  bool _copied = false;
+  Timer? _timer;
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _copyLink() async {
+    // The web's link, so it opens on this answer for whoever receives it.
+    await Clipboard.setData(ClipboardData(text: '${Env.webBase}/help#${widget.entry.id}'));
+    if (!mounted) return;
+    setState(() => _copied = true);
+    _timer?.cancel();
+    _timer = Timer(const Duration(milliseconds: 1500), () {
+      if (mounted) setState(() => _copied = false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final e = widget.entry;
+    final tone = toneFor(e.category);
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
+      key: ValueKey('help-entry-${e.id}'),
+      margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: TColors.slate200),
       ),
+      clipBehavior: Clip.antiAlias,
       child: Container(
-        decoration: BoxDecoration(border: Border(left: BorderSide(color: tone.$2, width: 4))),
+        decoration: BoxDecoration(border: Border(left: BorderSide(color: tone.rail, width: 4))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           InkWell(
-            onTap: () => setState(() {
-              if (!_closed.remove(f.question)) _closed.add(f.question);
-            }),
+            onTap: widget.onToggle,
             child: Padding(
               padding: const EdgeInsets.all(14),
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    TBadge(f.category, bg: tone.$3, fg: tone.$4),
+                    Wrap(spacing: 4, runSpacing: 4, children: [
+                      if (widget.showKind) TBadge(_kindLabel[e.kind]!, bg: Colors.white, fg: TColors.slate500, border: TColors.slate200),
+                      TBadge(e.category, bg: tone.badgeBg, fg: tone.badgeFg, border: tone.badgeBorder),
+                    ]),
                     const SizedBox(height: 6),
-                    Text(f.question, style: const TextStyle(fontWeight: FontWeight.w500, color: TColors.slate900)),
+                    Text.rich(_highlighted(e.title, widget.matched, const TextStyle(fontWeight: FontWeight.w500, color: TColors.slate900))),
                   ]),
                 ),
-                Icon(open ? Icons.expand_less : Icons.expand_more, color: TColors.slate400),
+                Icon(widget.open ? Icons.expand_less : Icons.expand_more, color: TColors.slate400),
               ]),
             ),
           ),
-          if (open)
+          if (widget.open)
             Padding(
-              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-              child: Text(f.answer, style: const TextStyle(fontSize: 14, height: 1.5, color: TColors.slate600)),
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                const Divider(height: 1, color: TColors.slate100),
+                const SizedBox(height: 12),
+                ..._body(e.body),
+                const SizedBox(height: 10),
+                Wrap(spacing: 8, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                  for (final l in widget.links)
+                    InkWell(
+                      key: ValueKey('help-link-${e.id}-${l.href}'),
+                      borderRadius: BorderRadius.circular(6),
+                      onTap: () => widget.onLink(l),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(color: const Color(0xFFEEF2FF), border: Border.all(color: _indigo200), borderRadius: BorderRadius.circular(6)),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Flexible(child: Text(l.label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: _indigo700))),
+                          const SizedBox(width: 4),
+                          const Icon(Icons.open_in_new, size: 12, color: _indigo700),
+                        ]),
+                      ),
+                    ),
+                  InkWell(
+                    key: ValueKey('help-copy-${e.id}'),
+                    borderRadius: BorderRadius.circular(6),
+                    onTap: _copyLink,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(_copied ? Icons.check : Icons.link, size: 14, color: _copied ? const Color(0xFF059669) : TColors.slate500),
+                        const SizedBox(width: 4),
+                        Text(_copied ? 'Link copied' : 'Copy link', style: const TextStyle(fontSize: 12, color: TColors.slate500)),
+                      ]),
+                    ),
+                  ),
+                ]),
+              ]),
             ),
         ]),
       ),
     );
   }
+
+  static const _bodyStyle = TextStyle(fontSize: 14, height: 1.5, color: TColors.slate600);
+
+  /// HelpBody: paragraphs on blank lines; "1. " lines numbered, "- " bulleted.
+  List<Widget> _body(String body) {
+    final out = <Widget>[];
+    for (final para in body.split(RegExp(r'\n\s*\n'))) {
+      final lines = [for (final l in para.split('\n')) if (l.trim().isNotEmpty) l.trim()];
+      if (lines.isEmpty) continue;
+      if (out.isNotEmpty) out.add(const SizedBox(height: 10));
+      if (lines.every((l) => RegExp(r'^\d+\.\s').hasMatch(l))) {
+        out.add(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          for (final (j, l) in lines.indexed)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Container(
+                  width: 20,
+                  height: 20,
+                  margin: const EdgeInsets.only(top: 1, right: 10),
+                  alignment: Alignment.center,
+                  decoration: const BoxDecoration(color: _indigo100, shape: BoxShape.circle),
+                  child: Text('${j + 1}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _indigo700)),
+                ),
+                Expanded(child: Text.rich(_highlighted(l.replaceFirst(RegExp(r'^\d+\.\s'), ''), widget.matched, _bodyStyle))),
+              ]),
+            ),
+        ]));
+      } else if (lines.every((l) => l.startsWith('- '))) {
+        out.add(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          for (final l in lines)
+            Padding(
+              padding: const EdgeInsets.only(left: 6, bottom: 4),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('•  ', style: _bodyStyle),
+                Expanded(child: Text.rich(_highlighted(l.substring(2), widget.matched, _bodyStyle))),
+              ]),
+            ),
+        ]));
+      } else {
+        out.add(Text.rich(_highlighted(lines.join(' '), widget.matched, _bodyStyle)));
+      }
+    }
+    return out;
+  }
 }
+
+/// Highlighted: the searched words picked out in amber.
+TextSpan _highlighted(String text, List<String> matched, TextStyle style) => TextSpan(style: style, children: [
+      for (final r in highlightRuns(text, matched))
+        TextSpan(text: r.text, style: r.hit ? const TextStyle(backgroundColor: _amber100) : null),
+    ]);

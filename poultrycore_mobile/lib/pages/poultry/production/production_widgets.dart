@@ -147,36 +147,84 @@ class ProdTextField extends StatelessWidget {
 /// 372: what happens to a record's broken eggs / dead birds. "Keep" puts them
 /// into the Broken Eggs / Dead Birds stock; "Disposed" records them as
 /// generated and disposed at once. Shown only when there are some.
-class DispositionField extends StatelessWidget {
-  const DispositionField({
+/// 390 / 391: keep all, dispose some, or dispose all of a record's broken
+/// eggs / dead birds.
+enum DisposalMode { keep, some, all }
+
+/// How many a mode disposes, capped at the count recorded.
+int disposedCount(DisposalMode mode, String disposed, int count) {
+  if (count <= 0 || mode == DisposalMode.keep) return 0;
+  if (mode == DisposalMode.all) return count;
+  final n = int.tryParse(disposed) ?? 0;
+  return n < 0 ? 0 : (n > count ? count : n);
+}
+
+/// disposalModeFrom: the form's mode from a saved record. An older API sends
+/// no count, so the Keep / Disposed choice decides (none / all).
+({DisposalMode mode, String disposed}) disposalModeFrom(int count, Object? disposed, Object? disposition) {
+  final out = disposed is num ? disposed.toInt() : (disposition == 'Disposed' ? count : 0);
+  if (out <= 0) return (mode: DisposalMode.keep, disposed: '');
+  if (out >= count) return (mode: DisposalMode.all, disposed: '');
+  return (mode: DisposalMode.some, disposed: '$out');
+}
+
+/// disposalPayload: the count is the authority; Keep / Disposed rides along for
+/// none / all only. Nothing is sent while no choice was loaded or made ('').
+Map<String, Object?> disposalPayload(DisposalMode mode, String disposed, String disposition, int count, String countKey, String dispositionKey) {
+  if (disposition.isEmpty) return const {};
+  final out = disposedCount(mode, disposed, count);
+  if (out == 0) return {countKey: 0, dispositionKey: 'Keep'};
+  if (out == count) return {countKey: out, dispositionKey: 'Disposed'};
+  return {countKey: out};
+}
+
+/// DisposalSplitField: what happens to a record's broken eggs / dead birds.
+/// Some can be disposed at once and the rest added to Broken Eggs / Dead Birds
+/// stock. Shown only when there are some.
+class DisposalSplitField extends StatelessWidget {
+  const DisposalSplitField({
     super.key,
     required this.label,
     required this.count,
-    required this.value,
-    required this.onChanged,
-    required this.keepText,
-    required this.disposedText,
+    required this.mode,
+    required this.disposed,
+    required this.onMode,
+    required this.onDisposed,
+    required this.noun,
+    required this.stockName,
   });
 
   /// Names the choice, e.g. "Broken Egg Stock allocation". On its own line, as
   /// the web shows it on a phone.
   final String label;
-  final num count;
-  final String value;
-  final ValueChanged<String> onChanged;
-  final String keepText, disposedText;
+  final int count;
+  final DisposalMode mode;
+
+  /// The "Dispose some" count, as typed.
+  final String disposed;
+  final ValueChanged<DisposalMode> onMode;
+  final ValueChanged<String> onDisposed;
+
+  /// e.g. ('broken egg', 'broken eggs').
+  final (String, String) noun;
+
+  /// e.g. "Broken Egg stock".
+  final String stockName;
 
   @override
   Widget build(BuildContext context) {
     if (count <= 0) return const SizedBox.shrink();
-    Widget option(String v, String label) => Material(
-          color: value == v ? TColors.slate800 : Colors.white,
+    final out = disposedCount(mode, disposed, count);
+    final kept = count - out;
+    String n(int x) => '${loc(x)} ${x == 1 ? noun.$1 : noun.$2}';
+    Widget option(DisposalMode v, String text) => Material(
+          color: mode == v ? TColors.slate800 : Colors.white,
           child: InkWell(
-            onTap: () => onChanged(v),
+            key: ValueKey('$label-${v.name}'),
+            onTap: () => onMode(v),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              child: Text(label,
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: value == v ? Colors.white : TColors.slate600)),
+              child: Text(text, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: mode == v ? Colors.white : TColors.slate600)),
             ),
           ),
         );
@@ -186,13 +234,37 @@ class DispositionField extends StatelessWidget {
       Semantics(
         label: label,
         child: Container(
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(border: Border.all(color: TColors.slate300), borderRadius: BorderRadius.circular(6)),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [Flexible(child: option('Keep', 'Keep')), Flexible(child: option('Disposed', 'Disposed immediately'))]),
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(border: Border.all(color: TColors.slate300), borderRadius: BorderRadius.circular(6)),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Flexible(child: option(DisposalMode.keep, 'Keep all')),
+            Flexible(child: option(DisposalMode.some, 'Dispose some')),
+            Flexible(child: option(DisposalMode.all, 'Dispose all')),
+          ]),
+        ),
       ),
-      ),
+      if (mode == DisposalMode.some) ...[
+        const SizedBox(height: 8),
+        SizedBox(
+          width: 160,
+          child: ProdNumField(
+            key: ValueKey('$label-disposed'),
+            label: 'Disposed now',
+            value: int.tryParse(disposed) ?? 0,
+            max: count,
+            onChanged: (v) => onDisposed('${v.toInt()}'),
+          ),
+        ),
+      ],
       const SizedBox(height: 6),
-      Text(value == 'Keep' ? keepText : disposedText, style: const TextStyle(fontSize: 12, color: TColors.slate600)),
+      Text(
+        out == 0
+            ? '${n(count)} will be added to $stockName.'
+            : kept == 0
+                ? '${n(count)} recorded and disposed of. Nothing is added to stock.'
+                : '${n(out)} disposed of; ${n(kept)} added to $stockName.',
+        style: const TextStyle(fontSize: 12, color: TColors.slate600),
+      ),
     ]);
   }
 }

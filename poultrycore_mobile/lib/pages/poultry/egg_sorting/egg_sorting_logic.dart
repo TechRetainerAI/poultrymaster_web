@@ -298,7 +298,10 @@ String describeAudit(Map a) {
       return '${d['name'] is String ? d['name'] : ''} ${parts.join(', ')}'.trim();
     case 'SettingsChanged':
       return 'sorting ${d['enableEggSorting'] == true ? 'on' : 'off'}, Daily Closing ${_js(d['closingPolicy'])}, ${_js(d['eggsPerCrate'])} eggs per crate'
-          '${d['unsortedPricePerCrate'] != null ? ', unsorted ${d['unsortedPricePerCrate']} per crate' : ''}';
+          '${d['unsortedPricePerCrate'] != null ? ', unsorted ${d['unsortedPricePerCrate']} per crate' : ''}'
+          // 393: packaging. Rows written before 393 have no enableBoxes key.
+          '${!d.containsKey('enableBoxes') ? '' : d['enableBoxes'] == true ? ', boxes on (${_js(d['cratesPerBox'])} crates per box)' : ', boxes off'}'
+          '${d['before'] is Map && (d['before'] as Map).containsKey('cratesPerBox') && (d['before'] as Map)['cratesPerBox'] != d['cratesPerBox'] ? ' — box size was ${(d['before'] as Map)['cratesPerBox'] ?? 'not set'}' : ''}';
     case 'SaleEggClassSet':
       return 'Sale #${a['entityId']}: ${_js(d['from'])} → ${_js(d['to'])}, ${fmtCount(tNum(d['quantity']))} eggs'
           '${tStr(d['customer']).isNotEmpty ? ' (${d['customer']})' : ''}${tStr(d['saleGroupNo']).isNotEmpty ? ', ${d['saleGroupNo']}' : ''}';

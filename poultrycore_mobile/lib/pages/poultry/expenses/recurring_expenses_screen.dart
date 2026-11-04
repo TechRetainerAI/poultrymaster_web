@@ -37,7 +37,8 @@ class RecurringLookups {
       this.categories = const [],
       this.water = false,
       this.restaurant = false,
-      this.hotel = false});
+      this.hotel = false,
+      this.generic = false});
   final List<RecurringOption> suppliers;
   final List<RecurringOption> cashAccounts;
   final List<RecurringOption> categories;
@@ -49,11 +50,17 @@ class RecurringLookups {
   /// Hotel: its category table, and a posted expense follows Hotel Expenses'
   /// approval (moduleApproves true).
   final bool hotel;
-  bool get categoriesAreText => !water && !restaurant && !hotel;
-  bool get moduleApproves => water || hotel;
+
+  /// Generic: its category table, and a posted expense follows Generic
+  /// Expenses' approval (moduleApproves true).
+  final bool generic;
+  bool get categoriesAreText => !water && !restaurant && !hotel && !generic;
+  bool get moduleApproves => water || hotel || generic;
   String get expensesHref => water
       ? '/water-expenses'
-      : restaurant
+      : generic
+          ? '/generic-expenses'
+          : restaurant
           ? '/restaurant-expenses'
           : hotel
               ? '/hotel-expenses'
@@ -118,11 +125,41 @@ class _RecurringExpensesScreenState extends State<RecurringExpensesScreen> {
   bool get _water => widget.company.type == CompanyType.water;
   bool get _restaurant => widget.company.type == CompanyType.restaurant;
   bool get _hotel => widget.company.type == CompanyType.hotel;
+  bool get _generic => widget.company.type == CompanyType.generic;
+
+  /// loadModuleLookups("generic"): its active categories, its suppliers and
+  /// the active cash accounts, each failing to an empty list.
+  Future<void> _loadGenericLookups() async {
+    final base = '/api/generic-company/${Uri.encodeComponent(_farmId)}';
+    Future<List<Map>> rows(String path) async {
+      try {
+        return rowsOf(await _api.get('$base/$path'));
+      } on ApiException {
+        return [];
+      }
+    }
+
+    final r = await Future.wait([rows('expense-categories'), rows('suppliers'), rows('cash-accounts')]);
+    if (!mounted) return;
+    setState(() => _lookups = RecurringLookups(
+          generic: true,
+          categories: [
+            for (final c in r[0])
+              if (c['isActive'] != false) (id: tIntOrNull(c['genericExpenseCategoryId']) ?? 0, name: tStr(c['name'])),
+          ],
+          suppliers: [for (final s in r[1]) (id: tIntOrNull(s['genericSupplierId']) ?? 0, name: tStr(s['supplierName']))],
+          cashAccounts: [
+            for (final a in r[2])
+              if (a['isActive'] != false) (id: tIntOrNull(a['genericCashAccountId']) ?? 0, name: tStr(a['accountName'])),
+          ],
+        ));
+  }
 
   Future<void> _loadLookups() async {
     if (_water) return _loadWaterLookups();
     if (_restaurant) return _loadRestaurantLookups();
     if (_hotel) return _loadHotelLookups();
+    if (_generic) return _loadGenericLookups();
     List<Map> cash = [], sup = [];
     try {
       cash = rowsOf(await _api.get('/api/Poultry/cash-accounts', query: _q()));

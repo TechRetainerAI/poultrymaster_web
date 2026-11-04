@@ -375,7 +375,7 @@ void main() {
       expect(find.text('Not set — falls back to the default.'), findsNWidgets(2));
       await tester.tap(find.byType(Switch).first);
       await tester.pump();
-      await tester.tap(find.text('Save settings'));
+      await tester.tap(find.text('Save pick times'));
       await tester.pumpAndSettle();
       final body = api.lastBody('/api/FarmProductionSettings', 'PUT');
       expect(body['FirstPickTime'], '08:30');

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../api/api_client.dart';
+import '../egg_packaging.dart';
 import '../../../design/ui/inputs.dart';
 import '../../../models/company.dart';
 import '../../../state/session.dart';
@@ -143,7 +144,9 @@ class _SalesScreenState extends State<SalesScreen> {
       if (mounted) setState(() => _products = []);
     }
     try {
-      final res = await _api.get('/api/Poultry/egg-sorting/classes', query: {'farmId': _farmId, 'includeInactive': 'false', 'ensure': 'false'});
+      // ensure: seed the farm's default egg sizes if it has none, so the egg
+      // SIZE dropdown is active by default on New Sale for every poultry farm.
+      final res = await _api.get('/api/Poultry/egg-sorting/classes', query: {'farmId': _farmId, 'includeInactive': 'false', 'ensure': 'true'});
       if (mounted) setState(() => _classes = rowsOf(res));
     } on ApiException {
       // Before migration 341: no classes, sales stay Unsorted.
@@ -153,6 +156,8 @@ class _SalesScreenState extends State<SalesScreen> {
       final res = await _api.get('/api/Poultry/egg-sorting/settings', query: {'farmId': _farmId});
       final n = res is Map ? tIntOrNull(res['eggsPerCrate']) : null;
       if (mounted && n != null && n > 0) setState(() => _epc = n);
+      // 393: the farm's box size, for the New sale lines.
+      await loadEggPackaging(widget.session, widget.company);
     } on ApiException {
       // Before 344 or offline: keep 30.
     }
@@ -219,6 +224,7 @@ class _SalesScreenState extends State<SalesScreen> {
         eggClasses: _classes,
         eggsPerCrate: _epc,
         correcting: correcting,
+        packaging: eggPackagingFor(widget.company.farmId).copyWith(eggsPerCrate: _epc),
       ),
     ));
     if (saved == null) return;
@@ -301,6 +307,10 @@ class _SalesScreenState extends State<SalesScreen> {
               quantity: tNum(l['quantity']),
               unitPrice: tNum(l['unitPrice']),
               totalAmount: tNum(l['totalAmount']),
+              // 394: as entered, with the conversion of the day it was sold.
+              note: isEggProductName(l['product']) && l['crates'] != null
+                  ? [postedLineQuantity(l, eggPackagingFor(widget.company.farmId)).text, postedLineConversion(l)].whereType<String>().join(' · ')
+                  : null,
             ),
         ],
       ),
@@ -310,6 +320,12 @@ class _SalesScreenState extends State<SalesScreen> {
   String _lineLabel(Map l) {
     final q = SaleInvoiceScreen.jsQty(tNum(l['quantity']));
     if (!isEggProductName(l['product'])) return '${l['product']} · $q';
+    // 394: a line posted with its packaging reads as entered, with its own conversion.
+    if (l['crates'] != null) {
+      final conv = postedLineConversion(l);
+      return '${l['product']} · ${eggClassLabel(_classes, l['eggProductId'])} '
+          '${postedLineQuantity(l, eggPackagingFor(widget.company.farmId)).text} (${thousands(tNum(l['quantity']))} eggs)${conv != null ? ' · $conv' : ''}';
+    }
     return '${l['product']} · ${eggClassLabel(_classes, l['eggProductId'])} ${eggCrateBreakdown(tNum(l['quantity']), eggsPerCrate: _epc) ?? q}';
   }
 

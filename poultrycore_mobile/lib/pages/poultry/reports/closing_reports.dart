@@ -1,3 +1,5 @@
+import '../production/production_logic.dart' show eggsPerCrate;
+import '../egg_packaging.dart' show currentEggPackaging, eggBoxesSuffix;
 import 'package:flutter/material.dart';
 
 import '../../../api/api_client.dart';
@@ -108,7 +110,8 @@ class _DailyBusinessSummaryScreenState extends State<DailyBusinessSummaryScreen>
                   'bank': sumR('bankCollected'),
                   'creditSales': sumR('creditSalesAmount'),
                   'customerCollections': 0,
-                  'eggsSold': sumR('cratesSold'),
+                  // Crates sold are crates: in eggs at the farm's crate size.
+                  'eggsSold': sumR('cratesSold') * eggsPerCrate,
                   'driverShortages': sumR('shortageAmount'),
                   'source': 'returns',
                 }
@@ -153,15 +156,15 @@ class _DailyBusinessSummaryScreenState extends State<DailyBusinessSummaryScreen>
       ('Bank', _m(i['bank']), null),
       ('Credit sales', _m(i['creditSales']), null),
       ('Customer collections', _m(i['customerCollections']), null),
-      ('Eggs sold', fmtNum(_n(i['eggsSold']), 3), null),
+      ('Eggs sold', '${fmtNum(_n(i['eggsSold']), 3)}${eggBoxesSuffix(_n(i['eggsSold']), currentEggPackaging)}', null),
       ('Driver shortages', _m(i['driverShortages']), _n(i['driverShortages']) != 0 ? 'rose' : null),
     ];
   }
 
   List<(String, String, String?)> get _productionCards => [
-        ('Eggs produced', fmtNum(_n(_s!['eggsProduced']), 3), null),
+        ('Eggs produced', '${fmtNum(_n(_s!['eggsProduced']), 3)}${eggBoxesSuffix(_n(_s!['eggsProduced']), currentEggPackaging)}', null),
         ('Broken eggs', fmtNum(_n(_s!['brokenEggs']), 3), _n(_s!['brokenEggs']) != 0 ? 'rose' : null),
-        ('Closing egg stock', fmtNum(_n(_s!['closingStock']), 3), null),
+        ('Closing egg stock', '${fmtNum(_n(_s!['closingStock']), 3)}${eggBoxesSuffix(_n(_s!['closingStock']), currentEggPackaging)}', null),
         ('Mortality', fmtNum(_n(_s!['mortality']), 3), _n(_s!['mortality']) != 0 ? 'rose' : null),
       ];
 

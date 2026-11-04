@@ -86,7 +86,7 @@ void main() {
     final system = groups.firstWhere((g) => g.title == 'System');
     expect([for (final l in system.subGroups.single.links) l.label], _rows);
     final more = groups.firstWhere((g) => g.title == 'More pages');
-    expect(more.subGroups.single.links.map((l) => l.href), contains('/generic-stock-adjustments'));
+    expect(more.subGroups.single.links.map((l) => l.href), contains('/generic-dashboard'));
     expect(staffPagePath(CompanyType.generic), '/generic-staff');
   });
 

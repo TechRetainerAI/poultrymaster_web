@@ -100,7 +100,7 @@ void main() {
   test('stock status, crates, links, moves, filters, health rules, routes', () {
     expect(productStockStatus(birds).label, 'Out of stock');
     expect(rawStockStatus(maize).tone, 'low');
-    expect(crateEquivalent(95), '3 crates + 5');
+    expect(crateEquivalent(95), '≈ 3 crates + 5 pcs', reason: 'the web wording since 393');
     expect(productLink(eggs).label, 'Egg Tracker');
     expect(rawLink(maize).href, '/feed-inventory-tracker?itemId=5');
     final f = InventoryFilters()..status = 'out';
@@ -130,12 +130,12 @@ void main() {
     await open(tester, InventoryScreen(session: await sessionFor(a), company: company), size: phone);
     expect(find.text('Poultry inventory'), findsWidgets);
     expect(find.text('95'), findsWidgets, reason: 'total finished stock');
-    await see(tester, find.text('95 (3 crates + 5)'));
+    await see(tester, find.text('95 (≈ 3 crates + 5 pcs)'));
     expect(find.text('Egg Tracker'), findsOneWidget);
 
     await choose(tester, 'All statuses', 'Out of stock');
     await see(tester, find.text('Birds'));
-    expect(find.text('95 (3 crates + 5)'), findsNothing);
+    expect(find.text('95 (≈ 3 crates + 5 pcs)'), findsNothing);
     await choose(tester, 'Out of stock', 'All statuses');
     await choose(tester, 'All categories', 'FeedIngredient');
     expect(find.text('No products match your filters.'), findsOneWidget);

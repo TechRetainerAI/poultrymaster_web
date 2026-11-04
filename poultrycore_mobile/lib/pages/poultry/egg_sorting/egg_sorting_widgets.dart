@@ -9,7 +9,9 @@ import '../../../design/ui/inputs.dart';
 import '../../../models/company.dart';
 import '../../../state/session.dart';
 import '../../shared/business_dates.dart';
+import '../egg_packaging.dart' show boxSize, eggPackagingFor;
 import '../production/production_logic.dart' show setEggsPerCrate, eggsPerCrate;
+import 'egg_packaging_card.dart';
 import '../sales/balances_logic.dart' show pageSlice;
 import '../sales/balances_widgets.dart' show CompactPager, LoadingLine;
 import '../sales/payments_received_screen.dart' show fmtDateTimeLike;
@@ -120,11 +122,38 @@ class _EggSortingAuditListState extends State<EggSortingAuditList> {
 
 // ------------------------------------------------------------------ sizes & settings
 
+/// Which cards a [SizesSettingsPanel] shows: all of them (the workspace's
+/// "Sizes & settings" tab), or one, for Egg Configuration's tabs.
+enum PanelSection { all, sorting, sizes }
+
+/// "Not set", or what an empty box price falls back to (usePriceFallbacks).
+String derivedBoxPrice(Object? crate, String farmId) {
+  final p = eggPackagingFor(farmId);
+  return crate is num && boxSize(p) != null ? (crate * (p.cratesPerBox ?? 0)).toStringAsFixed(2) : 'Not set';
+}
+
+/// "Not set", or what an empty egg price falls back to.
+String derivedPiecePrice(Object? crate, String farmId) {
+  if (crate is! num) return 'Not set';
+  final p = eggPackagingFor(farmId);
+  final t = (crate / (p.eggsPerCrate < 1 ? 1 : p.eggsPerCrate)).toStringAsFixed(4);
+  return t.replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'[.]$'), '');
+}
+
+/// A price per egg can need more than two decimals (140 / 30 = 4.6667).
+Object? parsePiecePrice(String t) {
+  if (t.trim().isEmpty) return null;
+  final n = num.tryParse(t.trim());
+  return n != null && n >= 0 ? (n * 10000).round() / 10000 : 'bad';
+}
+
 /// Egg sizes and sorting settings: on/off, the Daily Closing rule, eggs per
-/// crate, the Unsorted price, and the sizes (rename, price, switch off — never
-/// deleted). [onChanged] reloads the page's settings and classes.
+/// crate, the Unsorted prices, packaging & units (393), and the sizes (rename,
+/// price per crate / box / egg, switch off — never deleted). [onChanged]
+/// reloads the page's settings and classes.
 class SizesSettingsPanel extends StatefulWidget {
-  const SizesSettingsPanel({super.key, required this.session, required this.company, required this.settings, required this.classes, required this.canEdit, required this.onChanged});
+  const SizesSettingsPanel({super.key, required this.session, required this.company, required this.settings, required this.classes, required this.canEdit, required this.onChanged, this.section = PanelSection.all});
+  final PanelSection section;
   final Session session;
   final Company company;
   final Map? settings;
@@ -138,10 +167,15 @@ class SizesSettingsPanel extends StatefulWidget {
 
 class _SizesSettingsPanelState extends State<SizesSettingsPanel> {
   String? _busy;
-  final Map<int, TextEditingController> _names = {}, _prices = {};
+  final Map<int, TextEditingController> _names = {}, _prices = {}, _boxPrices = {}, _piecePrices = {};
   final _newName = TextEditingController();
   final _crate = TextEditingController(text: '30');
   final _unsortedPrice = TextEditingController();
+  // 394: Unsorted box and egg prices, shown when the farm has Boxes on.
+  final _unsortedBox = TextEditingController(), _unsortedPiece = TextEditingController();
+
+  Map? get _unsortedClass => widget.classes.where((c) => c['classKind'] == 'Unsorted').firstOrNull;
+  bool get _boxesOn => boxSize(eggPackagingFor(_farmId)) != null;
   int _auditKey = 0;
 
   List<Map> get _sizes => [for (final c in widget.classes) if (c['classKind'] == 'Size') c]
@@ -169,7 +203,11 @@ class _SizesSettingsPanelState extends State<SizesSettingsPanel> {
       final id = tIntOrNull(s['eggSizeId']) ?? 0;
       (_names[id] ??= TextEditingController()).text = tStr(s['name']);
       (_prices[id] ??= TextEditingController()).text = priceText(s['pricePerCrate']);
+      (_boxPrices[id] ??= TextEditingController()).text = priceText(s['pricePerBox']);
+      (_piecePrices[id] ??= TextEditingController()).text = priceText(s['pricePerPiece']);
     }
+    _unsortedBox.text = priceText(_unsortedClass?['pricePerBox']);
+    _unsortedPiece.text = priceText(_unsortedClass?['pricePerPiece']);
   }
 
   void _syncSettings() {
@@ -179,7 +217,7 @@ class _SizesSettingsPanelState extends State<SizesSettingsPanel> {
 
   @override
   void dispose() {
-    for (final c in [..._names.values, ..._prices.values, _newName, _crate, _unsortedPrice]) {
+    for (final c in [..._names.values, ..._prices.values, ..._boxPrices.values, ..._piecePrices.values, _newName, _crate, _unsortedPrice, _unsortedBox, _unsortedPiece]) {
       c.dispose();
     }
     super.dispose();
@@ -221,20 +259,45 @@ class _SizesSettingsPanelState extends State<SizesSettingsPanel> {
   Future<void> _setPrice(int id, Object? price) =>
       _api.put('/api/Poultry/egg-sorting/sizes/$id/price', body: {'farmId': _farmId, 'pricePerCrate': price});
 
+  /// 394: one class's crate, box and piece prices (null = not set).
+  Future<void> _setClassPrices(Object? productId, Object? crate, Object? box, Object? piece) =>
+      _api.put('/api/Poultry/egg-sorting/classes/$productId/prices', body: {'farmId': _farmId, 'pricePerCrate': crate, 'pricePerBox': box, 'pricePerPiece': piece});
+
+  num? _numOrNull(Object? v) => v == null ? null : tNum(v);
+
+  Widget _priceField(String label, TextEditingController c, String hint, {Key? key}) => FilterLabel(
+        label,
+        AppInput(
+          key: key,
+          controller: c,
+          enabled: widget.canEdit,
+          hintText: hint,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          onChanged: (_) => setState(() {}),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     final can = widget.canEdit;
     final crateN = int.tryParse(_crate.text);
     final crateValid = crateN != null && crateN >= 1 && crateN <= 100;
     final up = parsePrice(_unsortedPrice.text);
+    final ub = parsePrice(_unsortedBox.text), upc = parsePiecePrice(_unsortedPiece.text);
+    final uc = _unsortedClass;
+    final unsortedPackagingDirty = _boxesOn && uc != null && ub != 'bad' && upc != 'bad' &&
+        (ub != _numOrNull(uc['pricePerBox']) || upc != _numOrNull(uc['pricePerPiece']));
     final dirty = crateValid &&
         up != 'bad' &&
+        ub != 'bad' &&
+        upc != 'bad' &&
         (crateN != (tIntOrNull(widget.settings?['eggsPerCrate']) ?? 30) ||
-            up != (widget.settings?['unsortedPricePerCrate'] == null ? null : tNum(widget.settings!['unsortedPricePerCrate'])));
+            up != (widget.settings?['unsortedPricePerCrate'] == null ? null : tNum(widget.settings!['unsortedPricePerCrate'])) ||
+            unsortedPackagingDirty);
     final sizes = _sizes;
+    final pk = eggPackagingFor(_farmId);
 
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      _card(
+    final settingsCard = _card(
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -301,18 +364,41 @@ class _SizesSettingsPanelState extends State<SizesSettingsPanel> {
             const Text('Offered as the price on a sale of unsorted eggs; you can still change it on the sale.',
                 style: TextStyle(fontSize: 11, color: TColors.slate500)),
             if (up == 'bad') const Text('Enter a price of 0 or more.', style: TextStyle(fontSize: 12, color: TColors.rose700)),
+            if (_boxesOn) ...[
+              const SizedBox(height: 12),
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Expanded(child: _priceField('Unsorted price per box', _unsortedBox, derivedBoxPrice(up == 'bad' ? null : up, _farmId), key: const ValueKey('unsorted-box-price'))),
+                const SizedBox(width: 8),
+                Expanded(child: _priceField('Unsorted price per egg', _unsortedPiece, derivedPiecePrice(up == 'bad' ? null : up, _farmId), key: const ValueKey('unsorted-piece-price'))),
+              ]),
+              const SizedBox(height: 4),
+              Text('Empty = the crate price × ${pk.cratesPerBox} per box, and the crate price shared over ${pk.eggsPerCrate} eggs.',
+                  style: const TextStyle(fontSize: 11, color: TColors.slate500)),
+              if (ub == 'bad' || upc == 'bad') const Text('Enter a price of 0 or more.', style: TextStyle(fontSize: 12, color: TColors.rose700)),
+            ],
             const SizedBox(height: 10),
             FilledButton(
               onPressed: !can || !dirty || _busy == 'settings'
                   ? null
-                  : () => _saveSettings({'eggsPerCrate': crateN, 'unsortedPricePerCrate': up == 'bad' ? null : up}, 'Settings saved'),
+                  : () => _run('settings', () async {
+                        final next = {
+                          'enableEggSorting': _on,
+                          'closingPolicy': _policy,
+                          'eggsPerCrate': crateN,
+                          'unsortedPricePerCrate': up == 'bad' ? null : up,
+                        };
+                        await _api.put('/api/Poultry/egg-sorting/settings', body: {'farmId': _farmId, ...next});
+                        setEggsPerCrate(crateN);
+                        // 394: Unsorted box / egg prices, with its crate price.
+                        if (unsortedPackagingDirty) await _setClassPrices(uc['poultryProductId'], next['unsortedPricePerCrate'], ub, upc);
+                      }, 'Settings saved'),
               child: const Text('Save'),
             ),
           ]),
         ),
-      ),
-      const SizedBox(height: 14),
-      _card(
+      );
+
+    final sizesCard = _card(
         title: 'Egg sizes',
         description:
             'Each size is its own stock line with its own selling price. Rename, price or switch a size off; sizes are never deleted because stock and sales history refer to them.',
@@ -343,7 +429,17 @@ class _SizesSettingsPanelState extends State<SizesSettingsPanel> {
               ]),
             ),
         ]),
-      ),
+      );
+
+    if (widget.section == PanelSection.sorting) return settingsCard;
+    if (widget.section == PanelSection.sizes) return sizesCard;
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      settingsCard,
+      const SizedBox(height: 14),
+      // 393: packaging & units sits between the settings and the sizes.
+      EggPackagingCard(session: widget.session, company: widget.company, canEdit: can, onChanged: () => setState(() => _auditKey++)),
+      const SizedBox(height: 14),
+      sizesCard,
       const SizedBox(height: 14),
       EggSortingAuditList(
         key: ValueKey('audit-$_auditKey'),
@@ -357,11 +453,16 @@ class _SizesSettingsPanelState extends State<SizesSettingsPanel> {
 
   Widget _sizeRow(Map s, bool can) {
     final id = tIntOrNull(s['eggSizeId']) ?? 0;
-    final name = _names[id]!, price = _prices[id]!;
+    final name = _names[id]!, price = _prices[id]!, boxPrice = _boxPrices[id]!, piecePrice = _piecePrices[id]!;
     final nameChanged = name.text.trim() != tStr(s['name']);
     final p = parsePrice(price.text);
+    final bp = parsePrice(boxPrice.text), pp = parsePiecePrice(piecePrice.text);
     final current = s['pricePerCrate'] == null ? null : tNum(s['pricePerCrate']);
-    final priceChanged = p != 'bad' && p != current;
+    final boxesOn = _boxesOn;
+    final priceChanged = p != 'bad' &&
+        bp != 'bad' &&
+        pp != 'bad' &&
+        (p != current || (boxesOn && (bp != _numOrNull(s['pricePerBox']) || pp != _numOrNull(s['pricePerPiece']))));
     final active = s['isActive'] == true;
     final busy = _busy == 'size:$id';
     return Container(
@@ -402,7 +503,15 @@ class _SizesSettingsPanelState extends State<SizesSettingsPanel> {
             ),
           ),
         ]),
-        if (p == 'bad') const Text('Price must be 0 or more', style: TextStyle(fontSize: 11, color: TColors.rose700)),
+        if (boxesOn) ...[
+          const SizedBox(height: 8),
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(child: _priceField('Price / box', boxPrice, derivedBoxPrice(p == 'bad' ? null : p, _farmId), key: ValueKey('size-box-$id'))),
+            const SizedBox(width: 8),
+            Expanded(child: _priceField('Price / egg', piecePrice, derivedPiecePrice(p == 'bad' ? null : p, _farmId), key: ValueKey('size-piece-$id'))),
+          ]),
+        ],
+        if (p == 'bad' || bp == 'bad' || pp == 'bad') const Text('Price must be 0 or more', style: TextStyle(fontSize: 11, color: TColors.rose700)),
         if (nameChanged || priceChanged) ...[
           const SizedBox(height: 8),
           OutlinedButton(
@@ -410,7 +519,14 @@ class _SizesSettingsPanelState extends State<SizesSettingsPanel> {
                 ? null
                 : () => _run('size:$id', () async {
                       if (nameChanged) await _saveSize({'eggSizeId': id, 'name': name.text.trim(), 'sortOrder': s['sortOrder'], 'isActive': active});
-                      if (priceChanged) await _setPrice(id, p);
+                      if (priceChanged) {
+                        // 394: one call for all three prices; otherwise the 344 crate-price call.
+                        if (boxesOn) {
+                          await _setClassPrices(s['poultryProductId'], p, bp, pp);
+                        } else {
+                          await _setPrice(id, p);
+                        }
+                      }
                     }, 'Size saved'),
             child: const Text('Save'),
           ),

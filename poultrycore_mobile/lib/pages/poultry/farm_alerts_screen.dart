@@ -10,6 +10,8 @@ import '../shared/farm_completeness_card.dart';
 import 'days_of_supply_screen.dart';
 import 'flock_alerts_logic.dart';
 import 'flock_alerts_screen.dart';
+import 'flock_lifecycle_logic.dart' show dueLabel, lifecycleStatusTone, sortTasks, taskKey, taskSentence;
+import 'flock_lifecycle_screen.dart' show FlockLifecycleScreen;
 import 'poultry_links.dart';
 import 'trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import 'trackers/tracker_widgets.dart';
@@ -24,6 +26,9 @@ import 'trackers/tracker_widgets.dart';
 class FarmAlertBreakdown {
   int? productionToday, productionEarlier, productionExpected, productionRecorded;
   int? unsortedDays, unsortedEggs, flockAlerts, stockActionable;
+
+  /// 387: lifecycle reminders (vaccinations and the farm's own) due now or overdue.
+  int? lifecycleDue, lifecycleOverdue;
   int total = 0;
   DateTime loadedAt = DateTime.now();
 }
@@ -43,6 +48,7 @@ Future<FarmAlertBreakdown> loadFarmAlertBreakdown(Session session, Company compa
     settle(c.get('/api/ActivityChecks', query: q)),
     settle(c.get('/api/Poultry/flock-alerts', query: {...q, 'status': 'active'})),
     settle(c.get('/api/Poultry/stock-supply', query: q)),
+    settle(c.get('/api/Poultry/lifecycle/summary', query: q)),
   ]);
   final b = FarmAlertBreakdown();
   int i(Object? v) => tNum(v).toInt();
@@ -69,7 +75,12 @@ Future<FarmAlertBreakdown> loadFarmAlertBreakdown(Session session, Company compa
   }
   if (r[1] is List) b.flockAlerts = (r[1] as List).length;
   if (r[2] is List) b.stockActionable = (r[2] as List).where((x) => x is Map && supplyActionable.contains(x['status'])).length;
-  b.total = (b.productionToday ?? 0) + (b.productionEarlier ?? 0) + (b.unsortedDays ?? 0) + (b.flockAlerts ?? 0) + (b.stockActionable ?? 0);
+  if (r[3] is Map) {
+    b.lifecycleDue = i((r[3] as Map)['due']);
+    b.lifecycleOverdue = i((r[3] as Map)['overdue']);
+  }
+  b.total = (b.productionToday ?? 0) + (b.productionEarlier ?? 0) + (b.unsortedDays ?? 0) + (b.flockAlerts ?? 0) + (b.stockActionable ?? 0) +
+      (b.lifecycleDue ?? 0) + (b.lifecycleOverdue ?? 0);
   return b;
 }
 
@@ -126,7 +137,22 @@ List<FarmAlertTile> tilesFor(FarmAlertBreakdown? d) {
           detail: d.stockActionable == 0 ? 'Nothing runs out soon' : 'Items to reorder or top up',
           tone: d.stockActionable == 0 ? 'ok' : 'warn',
         );
-  return [production, sorting, flocks, stock];
+  final reminders = (d?.lifecycleDue ?? 0) + (d?.lifecycleOverdue ?? 0);
+  final FarmAlertTile lifecycle = d?.lifecycleDue == null
+      ? (id: 'lifecycle', title: 'Vaccinations', icon: Icons.vaccines_outlined, value: '—', detail: 'Not available', tone: 'off')
+      : (
+          id: 'lifecycle',
+          title: 'Vaccinations',
+          icon: Icons.vaccines_outlined,
+          value: reminders == 0 ? 'Nothing due' : '${_fmt(reminders)} due',
+          detail: reminders == 0
+              ? 'No vaccination or reminder is due'
+              : (d!.lifecycleOverdue ?? 0) > 0
+                  ? '${_fmt(d.lifecycleOverdue!)} overdue'
+                  : 'Vaccinations and reminders due now',
+          tone: reminders == 0 ? 'ok' : 'warn',
+        );
+  return [production, sorting, flocks, lifecycle, stock];
 }
 
 /// TONE: (card bg, card border, icon bg, icon fg, value).
@@ -152,7 +178,7 @@ class _FarmAlertsScreenState extends State<FarmAlertsScreen> {
   /// Bumped by Refresh: remounts the cards so they re-read too.
   int _cardsKey = 0;
   Duration _offset = DateTime.now().timeZoneOffset;
-  final _sections = {'production': GlobalKey(), 'flocks': GlobalKey(), 'stock': GlobalKey()};
+  final _sections = {'production': GlobalKey(), 'flocks': GlobalKey(), 'stock': GlobalKey(), 'lifecycle': GlobalKey()};
 
   @override
   void initState() {
@@ -312,6 +338,15 @@ class _FarmAlertsScreenState extends State<FarmAlertsScreen> {
               '/poultry-restock-forecast',
               'Inventory Restock Forecast',
               StockSupplyCard(key: ValueKey('ss-$_cardsKey'), session: widget.session, company: widget.company),
+            ),
+            const SizedBox(height: 24),
+            _section(
+              'lifecycle',
+              'Vaccinations & reminders',
+              'Vaccinations and other flock milestones due now or overdue, from the plans assigned to each batch.',
+              '/poultry-lifecycle',
+              'Flock Lifecycle',
+              LifecycleRemindersCard(key: ValueKey('lc-$_cardsKey'), session: widget.session, company: widget.company),
             ),
           ]),
         ),
@@ -668,6 +703,115 @@ class _StockSupplyCardState extends State<StockSupplyCard> {
           style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
           onPressed: () => openRestock(context, widget.session, widget.company, r),
           child: const Text('Restock'),
+        ),
+      ]),
+    );
+  }
+}
+
+/// Lifecycle reminders on Farm Alerts (lifecycle-reminders-card.tsx, 347 /
+/// vaccinations 387): the milestones due now or overdue. Read-only: completing
+/// or skipping one happens on Flock Lifecycle. Quietly absent on failure.
+class LifecycleRemindersCard extends StatefulWidget {
+  const LifecycleRemindersCard({super.key, required this.session, required this.company});
+  final Session session;
+  final Company company;
+  @override
+  State<LifecycleRemindersCard> createState() => _LifecycleRemindersCardState();
+}
+
+class _LifecycleRemindersCardState extends State<LifecycleRemindersCard> {
+  static const _show = 5;
+  List<Map>? _tasks;
+  bool _failed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.session.farmClient.get('/api/Poultry/lifecycle/tasks', query: {'farmId': widget.company.farmId, 'view': 'Open'}).then((res) {
+      if (mounted) setState(() => _tasks = sortTasks([for (final t in rowsOf(res)) if (t['status'] == 'Due' || t['status'] == 'Overdue') t]));
+    }).catchError((Object _) {
+      if (mounted) setState(() => _failed = true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_failed) return const SizedBox.shrink();
+    final tasks = _tasks;
+    if (tasks == null) return _loadingCard('Checking vaccinations and reminders…');
+    final overdue = tasks.where((t) => t['status'] == 'Overdue').length;
+    final edge = overdue > 0 ? const Color(0xFFF43F5E) : (tasks.isNotEmpty ? const Color(0xFFF59E0B) : TColors.emerald500);
+    return _edgeCard(
+      edge,
+      Column(key: const ValueKey('lifecycle-reminders'), crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(color: edge, borderRadius: BorderRadius.circular(8)),
+            child: const Icon(Icons.vaccines_outlined, size: 20, color: Colors.white),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('VACCINATIONS & REMINDERS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, letterSpacing: .6, color: TColors.slate500)),
+              const SizedBox(height: 4),
+              if (tasks.isEmpty)
+                const Row(children: [
+                  Icon(Icons.check_circle_outline, size: 16, color: TColors.emerald700),
+                  SizedBox(width: 6),
+                  Expanded(child: Text('Nothing due. Flocks without a plan get no reminders.', style: TextStyle(fontSize: 13, color: TColors.emerald700))),
+                ])
+              else
+                Text.rich(TextSpan(style: const TextStyle(fontSize: 13, color: TColors.slate700), children: [
+                  TextSpan(text: '${tasks.length}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                  const TextSpan(text: ' due'),
+                  if (overdue > 0) TextSpan(text: ' · $overdue overdue', style: const TextStyle(color: TColors.rose700)),
+                ])),
+            ]),
+          ),
+        ]),
+        if (tasks.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Container(
+            decoration: BoxDecoration(border: Border.all(color: TColors.slate100), borderRadius: BorderRadius.circular(8)),
+            child: Column(children: [
+              for (final (i, t) in tasks.take(_show).indexed)
+                Container(
+                  key: ValueKey('lc-task-${taskKey(t)}'),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(border: i == 0 ? null : const Border(top: BorderSide(color: TColors.slate100))),
+                  child: Row(children: [
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(tStr(t['title']), maxLines: 1, overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: TColors.slate900)),
+                        Text('${taskSentence(t)} · ${dueLabel(t)}', maxLines: 1, overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 12, color: TColors.slate500)),
+                      ]),
+                    ),
+                    const SizedBox(width: 8),
+                    (() {
+                      final (bg, fg, border) = lifecycleStatusTone(t['status']);
+                      return TBadge(tStr(t['status']), bg: bg, fg: fg, border: border);
+                    })(),
+                  ]),
+                ),
+            ]),
+          ),
+        ],
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton(
+            key: const ValueKey('lc-open'),
+            style: OutlinedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: TColors.slate800),
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => FlockLifecycleScreen(session: widget.session, company: widget.company),
+            )),
+            child: Text(tasks.length > _show ? 'See all ${tasks.length}' : 'Open Flock Lifecycle'),
+          ),
         ),
       ]),
     );

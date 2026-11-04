@@ -10,8 +10,10 @@ import '../models/company.dart';
 import '../pages/poultry/flock_lifecycle_logic.dart' show dueLabel, lifecycleStatusTone, sortTasks, taskSentence;
 import '../pages/poultry/flock_lifecycle_screen.dart';
 import '../pages/shared/billing_screen.dart';
+import '../pages/shared/billing_nav.dart';
 import '../pages/shared/companies_screen.dart' show CompaniesScreen, businessTypes;
 import '../pages/poultry/trackers/tracker_widgets.dart' show FilterLabel;
+import '../pages/shared/help/contact_support.dart';
 import '../pages/shared/help_screen.dart';
 import '../pages/web_page_screen.dart';
 import '../state/session.dart';
@@ -208,6 +210,10 @@ class _BusinessOfficeScreenState extends State<BusinessOfficeScreen> {
     }).catchError((Object _) {});
     _loadSnapshots();
     _loadAnnouncements();
+    // billing_nav (1 Nov pull): the Billing row follows the admin portal's flag.
+    loadBillingNavFlag(_s, companyId: _s.active?.farmId).then((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   Future<void> _reload() async {
@@ -450,6 +456,10 @@ class _BusinessOfficeScreenState extends State<BusinessOfficeScreen> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 18, 16, 32),
               children: [
+                // Contact support at the top, so help (and our call lines) is
+                // the first thing a user sees (2 Nov pull).
+                _needHelp(const ValueKey('bo-support-top')),
+                const SizedBox(height: 22),
                 _announcementsSection(),
                 const SizedBox(height: 22),
                 _summaryTiles(loading, all.length, by),
@@ -464,6 +474,9 @@ class _BusinessOfficeScreenState extends State<BusinessOfficeScreen> {
                 ),
                 const SizedBox(height: 24),
                 _quickActions(),
+                // The same card again under Quick actions, as on the web.
+                const SizedBox(height: 24),
+                _needHelp(const ValueKey('bo-support-bottom')),
               ],
             ),
           ),
@@ -478,6 +491,13 @@ class _BusinessOfficeScreenState extends State<BusinessOfficeScreen> {
           child: Text(text.toUpperCase(),
               style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, letterSpacing: .6, color: _slate500)),
         ),
+      ]);
+
+  /// "Need help?" and the Help Center's Contact support card.
+  Widget _needHelp(Key key) => Column(key: key, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        _sectionLabel(null, 'Need help?'),
+        const SizedBox(height: 8),
+        const ContactSupport(),
       ]);
 
   Widget _announcementsSection() {
@@ -994,7 +1014,7 @@ class _Sidebar extends StatelessWidget {
               if (isAdmin) ...[
                 const SizedBox(height: 22),
                 _row(Icons.settings_outlined, 'Administration', onAdministration),
-                _row(Icons.credit_card, 'Billing', onBilling),
+                if (billingNavVisible.value) _row(Icons.credit_card, 'Billing', onBilling),
               ],
             ]),
           ),

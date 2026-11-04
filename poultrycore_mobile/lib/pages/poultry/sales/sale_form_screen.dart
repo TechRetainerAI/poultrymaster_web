@@ -1,3 +1,4 @@
+import '../egg_packaging.dart';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -55,7 +56,11 @@ class SaleFormScreen extends StatefulWidget {
     this.eggClasses = const [],
     this.eggsPerCrate = 30,
     this.correcting,
+    this.packaging,
   });
+
+  /// The farm's egg packaging (393); null = boxes off.
+  final EggPackaging? packaging;
   final Session session;
   final Company company;
   final List<Map> flocks;
@@ -107,6 +112,11 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
 
   List<Map> get _classes => widget.eggClasses;
   int get _epc => widget.eggsPerCrate;
+  EggPackaging get _pk => widget.packaging ?? EggPackaging(eggsPerCrate: _epc);
+
+  /// Which price the Unit price box edits, per line. Display only: the line
+  /// always keeps a crate price, plus a box / egg price when one was typed.
+  final Map<String, String> _priceUnit = {};
 
   @override
   void initState() {
@@ -117,7 +127,16 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
     final fix = widget.correcting;
     if (fix != null) {
       f = SaleForm.correctionOf(fix.sale,
-          creditKept: fix.creditKept, defaultAccount: defaultCashAccountId(widget.cashAccounts), eggsPerCrate: _epc, flocks: widget.flocks);
+          creditKept: fix.creditKept, defaultAccount: defaultCashAccountId(widget.cashAccounts), eggsPerCrate: _epc, flocks: widget.flocks, packaging: _pk);
+      if (f.packagingRewritten) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            trackerToast(context, 'Packaging has changed since this sale',
+                description:
+                    "The corrected sale keeps exactly the same number of eggs, written in today's boxes and crates. Check the quantities and prices before saving.");
+          }
+        });
+      }
       if (f.creditAmount != null) _creditCtl.text = _jsNum(f.creditAmount!);
       final names = [for (final c in widget.customers) tStr(c['name'])];
       if (f.customerName.isNotEmpty && !names.contains(f.customerName)) {
@@ -125,12 +144,12 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
         _otherCustomer.text = f.customerName;
       }
     } else {
-      f = SaleForm(eggsPerCrate: _epc)
+      f = SaleForm(eggsPerCrate: _epc, packaging: _pk)
         ..saleDate = isoDay(DateTime.now().toUtc())
         ..cashAccountId = defaultCashAccountId(widget.cashAccounts);
       // A new egg sale with no price yet starts at its class's price.
       final p = classPrice(_classes, null);
-      if (p != null) f.first.unitPrice = p;
+      if (p != null) f.setClass(f.first, null, _classes);
     }
     _desc.text = f.saleDescription;
     final api = widget.session.farmClient;
@@ -189,9 +208,47 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
 
   /// Code changed a line's numbers (a product switch, a class price): show them.
   void _sync(SaleItem l) {
-    for (final (field, v) in [('crates', l.crates), ('loose', l.loose), ('qty', l.quantity), ('price', l.unitPrice)]) {
+    for (final (field, v) in [('boxes', l.boxes), ('crates', l.crates), ('loose', l.loose), ('qty', l.quantity), ('price', _shownPrice(l))]) {
       final c = _ctl['${l.key}:$field'];
       if (c != null && num.tryParse(c.text) != v) c.text = _jsNum(v);
+    }
+  }
+
+  String _unitOf(SaleItem l) {
+    final u = _priceUnit[l.key] ?? 'Crate';
+    return !l.boxesOn && u == 'Box' ? 'Crate' : u;
+  }
+
+  num _round2(num n) => (n * 100 + 1e-9).round() / 100;
+
+  /// What the Unit price box shows for the chosen Price unit.
+  num _shownPrice(SaleItem l) {
+    if (!l.isEggs) return l.unitPrice;
+    return switch (_unitOf(l)) {
+      'Box' => effectiveBoxPrice(l.unitPrice, l.pricePerBox, _pk),
+      'Egg' => _round2(effectivePiecePrice(l.unitPrice, l.pricePerPiece, _pk)),
+      _ => l.unitPrice,
+    };
+  }
+
+  /// The typed price sets the other two, so a box, a crate and an egg are
+  /// always priced from the same figure (the crate price kept to the cent).
+  void _setPrice(SaleItem l, num v) {
+    final unit = _unitOf(l);
+    if (!l.isEggs || unit == 'Crate') {
+      l.unitPrice = v;
+      if (l.isEggs) {
+        l.pricePerBox = null;
+        l.pricePerPiece = null;
+      }
+    } else if (unit == 'Box') {
+      l.pricePerBox = v;
+      l.unitPrice = _round2(v / (boxSize(_pk) ?? 1));
+      l.pricePerPiece = null;
+    } else {
+      l.pricePerPiece = v;
+      l.unitPrice = _round2(v * _pk.eggsPerCrate);
+      l.pricePerBox = null;
     }
   }
 
@@ -375,7 +432,49 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
     ],
   );
 
-  Widget _num(TextEditingController c, ValueChanged<String> on, {bool decimal = false, String hint = '0'}) => AppInput(
+  /// What the quantity comes to, and the conversion and prices behind the total.
+  Widget _amountPanel(SaleItem l, int eggs) {
+    String pl(int n, String one, String many) => n == 1 ? one : many;
+    final parts = [
+      if (l.boxesOn && l.boxes > 0) '${thousands(l.boxes)} ${pl(l.boxes, 'Box', 'Boxes')}',
+      if (l.crates > 0) '${thousands(l.crates)} ${pl(l.crates, 'Crate', 'Crates')}',
+      if (l.loose > 0) '${thousands(l.loose)} ${pl(l.loose, 'Egg', 'Eggs')}',
+    ];
+    final cpb = boxSize(_pk) ?? 0;
+    String m(num n) => n.toStringAsFixed(2);
+    return Container(
+      key: ValueKey('${l.key}:amount'),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(color: const Color(0xB3FFFBEB), border: Border.all(color: const Color(0xFFFEF3C7)), borderRadius: BorderRadius.circular(6)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(color: TColors.amber100, borderRadius: BorderRadius.circular(6)),
+            child: const Icon(Icons.inventory_2_outlined, size: 16, color: TColors.amber700),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text('${parts.join(' + ')} = ${thousands(eggs)} ${pl(eggs, 'Egg', 'Eggs')}',
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: TColors.slate800)),
+          ),
+        ]),
+        const SizedBox(height: 4),
+        if (l.boxesOn) ...[
+          _small('Box conversion: 1 Box = $cpb Crates = ${thousands(cpb * _pk.eggsPerCrate)} Eggs'),
+          _small('Box ${m(effectiveBoxPrice(l.unitPrice, l.pricePerBox, _pk))} · Crate ${m(l.unitPrice)} · '
+              'Egg ${m(effectivePiecePrice(l.unitPrice, l.pricePerPiece, _pk))}'),
+        ] else ...[
+          _small('1 Crate = ${_pk.eggsPerCrate} Eggs'),
+          if (l.loose > 0) _small('Pieces charged pro rata from the crate price'),
+        ],
+      ]),
+    );
+  }
+
+  Widget _num(TextEditingController c, ValueChanged<String> on, {bool decimal = false, String hint = '0', Key? key}) => AppInput(
+    key: key,
     controller: c,
     hintText: hint,
     keyboardType: TextInputType.numberWithOptions(decimal: decimal),
@@ -574,24 +673,25 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
                     ),
                     const SizedBox(height: 10),
                     if (egg)
+                      // Boxes (on a box farm) | Crates | Pieces.
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                _num(_c(l, 'crates', l.crates), (v) => setState(() => l.crates = int.tryParse(v) ?? 0)),
-                                _small('crates ($_epc)'),
-                              ],
+                          if (l.boxesOn) ...[
+                            Expanded(
+                              child: _label('Boxes', color: TColors.slate500,
+                                  _num(_c(l, 'boxes', l.boxes), (v) => setState(() => l.boxes = int.tryParse(v) ?? 0), key: ValueKey('${l.key}:boxes'))),
                             ),
+                            const SizedBox(width: 8),
+                          ],
+                          Expanded(
+                            child: _label('Crates', color: TColors.slate500,
+                                _num(_c(l, 'crates', l.crates), (v) => setState(() => l.crates = int.tryParse(v) ?? 0), key: ValueKey('${l.key}:crates'))),
                           ),
                           const SizedBox(width: 8),
                           Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [_num(_c(l, 'loose', l.loose), (v) => setState(() => l.loose = int.tryParse(v) ?? 0)), _small('loose eggs')],
-                            ),
+                            child: _label('Pieces', color: TColors.slate500,
+                                _num(_c(l, 'loose', l.loose), (v) => setState(() => l.loose = int.tryParse(v) ?? 0), key: ValueKey('${l.key}:pieces'))),
                           ),
                         ],
                       )
@@ -609,47 +709,63 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
                           child: _label(
                             'Unit price',
                             color: TColors.slate500,
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                _num(
-                                  _c(l, 'price', l.unitPrice),
-                                  (v) => setState(() => l.unitPrice = num.tryParse(v) ?? 0),
-                                  decimal: true,
-                                  hint: '0.00',
-                                ),
-                                if (egg)
-                                  const Text(
-                                    'per crate',
-                                    textAlign: TextAlign.right,
-                                    style: TextStyle(fontSize: 11, color: TColors.slate500),
-                                  ),
-                              ],
+                            _num(
+                              _c(l, 'price', _shownPrice(l)),
+                              (v) => setState(() => _setPrice(l, num.tryParse(v) ?? 0)),
+                              decimal: true,
+                              hint: '0.00',
+                              key: ValueKey('${l.key}:price'),
                             ),
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _label(
+                            'Price unit',
+                            color: TColors.slate500,
+                            egg
+                                ? AppSelect<String>(
+                                    key: ValueKey('${l.key}:unit'),
+                                    value: _unitOf(l),
+                                    items: [
+                                      if (l.boxesOn) const AppSelectItem(value: 'Box', label: 'Per Box'),
+                                      const AppSelectItem(value: 'Crate', label: 'Per Crate'),
+                                      const AppSelectItem(value: 'Egg', label: 'Per Egg'),
+                                    ],
+                                    onChanged: (v) {
+                                      if (v == null) return;
+                                      setState(() {
+                                        _priceUnit[l.key] = v;
+                                        _sync(l);
+                                      });
+                                    },
+                                  )
+                                : const Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 12),
+                                    child: Text('Per unit', style: TextStyle(fontSize: 14, color: TColors.slate500)),
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             const Text('Line total', style: TextStyle(fontSize: 12, color: TColors.slate500)),
-                            const SizedBox(height: 6),
                             Text(
                               l.total(_epc).toStringAsFixed(2),
-                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: TColors.emerald700),
+                              key: ValueKey('${l.key}:total'),
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: TColors.emerald700),
                             ),
-                            if (egg) const SizedBox(height: 16),
                           ],
                         ),
                       ],
                     ),
-                    if (egg && eggs > 0) ...[
-                      const SizedBox(height: 6),
-                      _small(
-                        '${l.crates} crate${l.crates == 1 ? '' : 's'}${l.loose > 0 ? ' + ${l.loose} loose' : ''} = ${thousands(eggs)} eggs'
-                        '${l.loose > 0 ? ' — loose eggs charged pro rata' : ''}',
-                      ),
-                    ],
+                    if (egg && eggs > 0) ...[const SizedBox(height: 8), _amountPanel(l, eggs)],
                     if (first) ...[const SizedBox(height: 6), _stockNotice()],
                     if (!first && stock != null) ...[
                       const SizedBox(height: 6),

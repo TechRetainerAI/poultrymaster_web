@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:poultrycore_mobile/models/company.dart';
 import 'package:poultrycore_mobile/models/module.dart';
 import 'package:poultrycore_mobile/pages/module_registry.dart';
+import 'package:poultrycore_mobile/pages/poultry/egg_packaging.dart';
 import 'package:poultrycore_mobile/pages/poultry/reports/report_export.dart';
 import 'package:poultrycore_mobile/pages/poultry/sales/sale_dialogs.dart';
 import 'package:poultrycore_mobile/pages/poultry/sales/sales_logic.dart';
@@ -295,9 +296,10 @@ void main() {
 
       await choose(tester, 'Select a customer', 'Kofi');
       await choose(tester, 'All flocks', 'Layers A (500 birds)');
-      await type(tester, 'crates (30)', '2');
-      await type(tester, 'loose eggs', '15');
-      expect(find.text('2 crates + 15 loose = 75 eggs — loose eggs charged pro rata'), findsOneWidget);
+      await type(tester, 'Crates', '2');
+      await type(tester, 'Pieces', '15');
+      expect(find.text('2 Crates + 15 Eggs = 75 Eggs'), findsOneWidget);
+      expect(find.text('Pieces charged pro rata from the crate price'), findsOneWidget);
       expect(find.text('In stock: 100 eggs'), findsOneWidget);
       await type(tester, 'Unit price', '30');
       expect(find.text('Record sale · GHC 75.00'), findsOneWidget);
@@ -314,6 +316,59 @@ void main() {
       expect(find.text('Success — Sale created successfully'), findsOneWidget);
     });
 
+    testWidgets('a box farm (394): Boxes / Crates / Pieces, Per Box price, posted as a packaged Sale/group line', (tester) async {
+      addTearDown(resetEggPackaging);
+      final api = salesApi()
+        ..gets['/api/Poultry/egg-sorting/packaging'] = {'enableBoxes': true, 'cratesPerBox': 10, 'eggDisplay': 'BoxesCratesPieces', 'saleEntryUnit': 'Boxes', 'packagingVersion': 2}
+        ..gets['/api/Poultry/products'] = [
+          {'poultryProductId': 1, 'name': 'Eggs', 'isRawEggProduct': true, 'stockOnHand': 5000},
+        ]
+        ..writeAnswers['/api/Sale/group'] = {'saleGroupNo': 'SG-00010', 'saleId': 99, 'saleIds': [99], 'totalAmount': 340.67, 'lineCount': 1, 'saleCount': 1};
+      await open(tester, await screen(api), size: phone);
+      await tester.tap(find.text('Add Sale'));
+      await tester.pumpAndSettle();
+      await choose(tester, 'Select a customer', 'Kofi');
+      await type(tester, 'Boxes', '1');
+      await type(tester, 'Crates', '2');
+      await type(tester, 'Pieces', '5');
+      await type(tester, 'Unit price', '30');
+      // 1 box = 10 crates = 300 eggs: 300 + 60 + 5 = 365 eggs; 300 + 60 + 5 × 1.00.
+      await see(tester, find.text('1 Box + 2 Crates + 5 Eggs = 365 Eggs'));
+      expect(find.text('Box conversion: 1 Box = 10 Crates = 300 Eggs'), findsOneWidget);
+      expect(find.text('Box 300.00 · Crate 30.00 · Egg 1.00'), findsOneWidget);
+      expect(find.text('Record sale · GHC 365.00'), findsOneWidget);
+
+      // Per Box: the typed box price sets the crate price (to the cent).
+      await choose(tester, 'Per Crate', 'Per Box');
+      await type(tester, 'Unit price', '280');
+      expect(find.text('Box 280.00 · Crate 28.00 · Egg 0.93'), findsOneWidget);
+      expect(find.text('Record sale · GHC 340.67'), findsOneWidget, reason: '280 + 2 × 28 + 5 × 28/30');
+
+      await choose(tester, 'Select payment method', 'Mobile Money');
+      await tapPinned(tester, 'Record sale');
+      final line = (api.lastBody('/api/Sale/group')['lines'] as List).single as Map;
+      expect((line['quantity'], line['unitPrice'], line['totalAmount']), (365, 28, 340.67));
+      expect((line['boxes'], line['crates'], line['pieces'], line['pricePerBox'], line['pricePerPiece'], line['amountOverridden']), (1, 2, 5, 280, null, false));
+      expect(api.requests.any((r) => r.url.path == '/api/Poultry/egg-sorting/classes' && r.url.queryParameters['ensure'] == 'true'), isTrue,
+          reason: 'New Sale seeds the default egg sizes');
+    });
+
+    test('posted lines read as entered; a correction in another box size is rewritten', () {
+      expect(saleLineQuantityLabel({'product': 'Fresh Eggs', 'quantity': 940, 'boxes': 2, 'crates': 3, 'pieces': 10}), '2 boxes + 3 crates + 10 pcs (940 eggs)');
+      expect(saleLineQuantityLabel({'product': 'Fresh Eggs', 'quantity': 65}), '2 crates + 5 pcs (65 eggs)');
+      final f = SaleForm.correctionOf(
+        {
+          'product': 'Fresh Eggs', 'quantity': 440, 'unitPrice': 30, 'saleDate': '2026-11-01',
+          // Posted when a box was 14 crates.
+          'lines': [{'saleLineId': 7, 'product': 'Fresh Eggs', 'quantity': 440, 'unitPrice': 30, 'boxes': 1, 'crates': 0, 'pieces': 20, 'eggsPerCrate': 30, 'cratesPerBox': 14}],
+        },
+        creditKept: 0,
+        packaging: const EggPackagingForTest(),
+      );
+      expect((f.first.boxes, f.first.crates, f.first.loose, f.packagingRewritten), (1, 4, 20, true), reason: '440 eggs at 10 crates/box');
+      expect(f.first.eggs(30), 440, reason: 'the same eggs');
+    });
+
     testWidgets('egg sizes: two lines, class prices, an override shared, a part payment — one Sale/group post', (tester) async {
       final api = salesApi(sizes: true)
         ..writeAnswers['/api/Sale/group'] = {'saleGroupNo': 'SG-00009', 'saleId': 99, 'saleIds': [99], 'totalAmount': 200, 'lineCount': 2, 'saleCount': 1};
@@ -322,10 +377,10 @@ void main() {
       await tester.pumpAndSettle();
       await choose(tester, 'Select a customer', 'Kofi');
       await choose(tester, 'Unsorted / General · stock 200', 'Large · stock 90');
-      await typeAt(tester, 'crates (30)', 0, '2');
+      await typeAt(tester, 'Crates', 0, '2');
       await tapSeen(tester, find.text('Add line'));
       expect(find.text('Jumbo · stock 30'), findsOneWidget, reason: 'the next unused size is offered');
-      await typeAt(tester, 'crates (30)', 1, '1');
+      await typeAt(tester, 'Crates', 1, '1');
       expect(find.text('In stock: 30 eggs'), findsOneWidget);
       expect(find.text('Record sale · GHC 130.00'), findsOneWidget, reason: '2 × 40 + 1 × 50');
 
@@ -674,4 +729,9 @@ void main() {
   test('invoice number helper is exported for the dialog', () {
     expect(SaleInvoiceScreen.jsQty(75), '75');
   });
+}
+
+/// Boxes of 10 crates of 30 (the test farm).
+class EggPackagingForTest extends EggPackaging {
+  const EggPackagingForTest() : super(eggsPerCrate: 30, enableBoxes: true, cratesPerBox: 10, display: EggDisplay.boxesCratesPieces);
 }

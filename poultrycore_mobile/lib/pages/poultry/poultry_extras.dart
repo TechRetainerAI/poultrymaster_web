@@ -230,7 +230,7 @@ class _FeedDefaultsBannerState extends State<_FeedDefaultsBanner> {
               const SizedBox(height: 4),
               const Text.rich(
                 TextSpan(children: [
-                  TextSpan(text: 'Starter, Grower, Developer and Layer formulas — each for '),
+                  TextSpan(text: 'Pre-Starter (0–10 days), Starter, Grower, Developer and Layer formulas — each for '),
                   TextSpan(text: '1,000 kg (1 tonne)', style: bold),
                   TextSpan(text: ' of feed — are ready to use. This is one great example many farmers use. '
                       'To make 2 tonnes, every amount is simply doubled.'),

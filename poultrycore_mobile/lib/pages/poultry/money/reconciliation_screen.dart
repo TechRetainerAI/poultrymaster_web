@@ -843,8 +843,14 @@ class ReasonPromptDialog extends StatefulWidget {
         'An opposite adjustment is posted, the original entries are kept, and anything this count marked as cleared goes back to uncleared.',
     this.placeholder = 'Why is this count being reversed?',
     this.options,
+    this.label = 'Reason for reversal',
+    this.confirmLabel = 'Reverse',
   });
   final String title, description;
+
+  /// The PromptDialog's `label` and `confirmLabel` (a reject prompt says
+  /// "Rejection reason" / "Reject").
+  final String label, confirmLabel;
 
   /// The select's placeholder (the web's PromptDialog defaults to "Select a reason").
   final String placeholder;
@@ -868,10 +874,10 @@ class _ReasonPromptDialogState extends State<ReasonPromptDialog> {
   }
 
   void _submit() {
-    if (_choice.isEmpty) return setState(() => _error = 'Reason for reversal is required.');
+    if (_choice.isEmpty) return setState(() => _error = '${widget.label} is required.');
     if (_choice != 'Other') return Navigator.pop(context, _choice);
     final t = _text.text.trim();
-    if (t.isEmpty) return setState(() => _error = 'Reason for reversal is required.');
+    if (t.isEmpty) return setState(() => _error = '${widget.label} is required.');
     Navigator.pop(context, t);
   }
 
@@ -885,7 +891,7 @@ class _ReasonPromptDialogState extends State<ReasonPromptDialog> {
             Text(widget.description, style: const TextStyle(fontSize: 13, color: TColors.slate500)),
             const SizedBox(height: 12),
             FilterLabel(
-              'Reason for reversal',
+              widget.label,
               AppSelect<String>(
                 value: _choice.isEmpty ? null : _choice,
                 hintText: widget.placeholder,
@@ -913,7 +919,7 @@ class _ReasonPromptDialogState extends State<ReasonPromptDialog> {
           FilledButton(
             onPressed: _submit,
             style: FilledButton.styleFrom(backgroundColor: TColors.red600, foregroundColor: Colors.white),
-            child: const Text('Reverse'),
+            child: Text(widget.confirmLabel),
           ),
         ],
       );

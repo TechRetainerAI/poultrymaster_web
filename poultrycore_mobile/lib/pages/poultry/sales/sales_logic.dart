@@ -3,6 +3,7 @@
 // and `lib/sales/reversal.ts`, so the phone computes, validates and posts
 // exactly what the web does.
 
+import '../egg_packaging.dart';
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 
 /// Every product the list can show (SALE_PRODUCT_OPTIONS). Broken Eggs / Dead
@@ -246,6 +247,10 @@ String lineSummary(List<Map> classes, List<Map> lines, [int eggsPerCrate = 30]) 
 String saleLineQuantityLabel(Map line, [int eggsPerCrate = 30]) {
   final q = tNum(line['quantity']);
   if (!isEggProductName(line['product']) || eggsPerCrate <= 0) return thousands(q);
+  // 394: a line saved with its packaging reads exactly as it was entered.
+  if (line['crates'] != null) {
+    return '${formatPackaged(PackagedQuantity(boxes: tIntOrNull(line['boxes']) ?? 0, crates: tIntOrNull(line['crates']) ?? 0, pieces: tIntOrNull(line['pieces']) ?? 0))} (${thousands(q)} eggs)';
+  }
   final crates = (q / eggsPerCrate).floor();
   final pieces = (q % eggsPerCrate).toInt();
   final parts = <String>[
@@ -259,6 +264,8 @@ String saleLineQuantityLabel(Map line, [int eggsPerCrate = 30]) {
 
 /// One line of the Items table (sale-item-row.tsx). Eggs are crates + loose
 /// eggs priced per crate; anything else is a plain quantity at a unit price.
+/// 393/394: a farm with Boxes on ([packaging]) also takes whole boxes, and the
+/// line can carry its own box and egg prices (null = from the crate price).
 class SaleItem {
   SaleItem({
     required this.key,
@@ -269,6 +276,10 @@ class SaleItem {
     this.loose = 0,
     this.quantity = 0,
     this.unitPrice = 0,
+    this.boxes = 0,
+    this.pricePerBox,
+    this.pricePerPiece,
+    this.packaging,
   });
   final String key;
   String product;
@@ -278,14 +289,42 @@ class SaleItem {
   String? size;
   int crates, loose;
   num quantity;
+
+  /// The crate price, always kept (the Price unit only changes what is typed).
   num unitPrice;
+  int boxes;
+  num? pricePerBox, pricePerPiece;
+
+  /// The farm's packaging; boxes count only while it has a box size.
+  EggPackaging? packaging;
 
   bool get isEggs => isEggProductName(product);
 
+  /// Boxes are in play on this line: an egg line on a box farm.
+  bool get boxesOn => isEggs && packaging != null && boxSize(packaging!) != null;
+
   /// What the line sells: eggs for an egg line, else its quantity.
-  num qty(int epc) => isEggs ? crates * epc + loose : quantity;
-  int eggs(int epc) => crates * epc + loose;
-  num total(int epc) => saleLineTotal(qty(epc), unitPrice, isEggs, epc);
+  num qty(int epc) => isEggs ? eggs(epc) : quantity;
+  int eggs(int epc) => boxesOn ? toEggPieces(PackagedQuantity(boxes: boxes, crates: crates, pieces: loose), packaging!) : crates * epc + loose;
+
+  /// 394: a box farm prices boxes, crates and pieces each at their own price;
+  /// otherwise the old per-crate, loose pro-rata rule, unchanged.
+  num total(int epc) => boxesOn
+      ? packagedLineAmount(PackagedQuantity(boxes: boxes, crates: crates, pieces: loose),
+          pricePerCrate: unitPrice, pricePerBox: pricePerBox, pricePerPiece: pricePerPiece, p: packaging!)
+      : saleLineTotal(qty(epc), unitPrice, isEggs, epc);
+
+  /// The packaging fields an egg line posts on a box farm (394), else nothing.
+  Map<String, dynamic> packagedFields({required bool overridden}) => boxesOn
+      ? {
+          'boxes': boxes,
+          'crates': crates,
+          'pieces': loose,
+          'pricePerBox': boxes > 0 ? pricePerBox : null,
+          'pricePerPiece': loose > 0 ? pricePerPiece : null,
+          'amountOverridden': overridden,
+        }
+      : const {};
 
   /// The Product dropdown's value: one of [options], else "Other".
   String selectValueIn(List<String> options) => options.contains(product) ? product : 'Other';
@@ -294,11 +333,19 @@ class SaleItem {
 /// The New sale / Corrected sale form: the web's formData, its Items lines and
 /// the Payment choices.
 class SaleForm {
-  SaleForm({this.eggsPerCrate = 30}) {
-    items = [SaleItem(key: 'line-1')];
+  SaleForm({this.eggsPerCrate = 30, EggPackaging? packaging}) : packaging = packaging ?? EggPackaging(eggsPerCrate: eggsPerCrate) {
+    items = [SaleItem(key: 'line-1', packaging: this.packaging)];
   }
 
   final int eggsPerCrate;
+
+  /// The farm's egg packaging (393): boxes only when it has a box size.
+  final EggPackaging packaging;
+  bool get boxesOn => boxSize(packaging) != null;
+
+  /// 394: a corrected sale whose lines were posted with another box or crate
+  /// size, rewritten in today's packaging (same eggs).
+  bool packagingRewritten = false;
   String saleDate = '';
   String customerName = '';
   bool showNewCustomerInput = false;
@@ -371,6 +418,9 @@ class SaleForm {
       line.eggProductId = null;
       line.crates = 0;
       line.loose = 0;
+      line.boxes = 0;
+      line.pricePerBox = null;
+      line.pricePerPiece = null;
       if (wasEgg) line.quantity = 0;
       // 374: a byproduct starts at the price set on its product.
       line.unitPrice = byproductPrice(products, value) ?? line.unitPrice;
@@ -378,13 +428,24 @@ class SaleForm {
     // A new egg sale with no price yet starts at its class's price (line 1).
     if (egg && identical(line, first) && !(line.unitPrice > 0)) {
       final p = classPrice(classes, line.eggProductId);
-      if (p != null) line.unitPrice = p;
+      if (p != null) {
+        line.unitPrice = p;
+        _classPackagedPrices(line, classes);
+      }
     }
+  }
+
+  /// 394: the class's own box and egg prices (null = from the crate price).
+  void _classPackagedPrices(SaleItem line, List<Map> classes) {
+    final c = classFor(classes, line.eggProductId);
+    line.pricePerBox = c?['pricePerBox'] == null ? null : tNum(c!['pricePerBox']);
+    line.pricePerPiece = c?['pricePerPiece'] == null ? null : tNum(c!['pricePerPiece']);
   }
 
   void setClass(SaleItem line, int? eggProductId, List<Map> classes) {
     line.eggProductId = eggProductId;
     line.unitPrice = classPrice(classes, eggProductId) ?? line.unitPrice;
+    _classPackagedPrices(line, classes);
   }
 
   /// addSaleLine: a second egg line most often sells another size — offer the next one.
@@ -394,7 +455,8 @@ class SaleForm {
         .where((c) => c['classKind'] == 'Size' && c['isActive'] == true && !used.contains(tIntOrNull(c['poultryProductId'])))
         .map((c) => tIntOrNull(c['poultryProductId']))
         .firstOrNull;
-    final line = SaleItem(key: 'line-${++_seq}', eggProductId: cls, unitPrice: classPrice(classes, cls) ?? 0);
+    final line = SaleItem(key: 'line-${++_seq}', eggProductId: cls, unitPrice: classPrice(classes, cls) ?? 0, packaging: packaging);
+    _classPackagedPrices(line, classes);
     items.add(line);
     return line;
   }
@@ -521,7 +583,9 @@ class SaleForm {
   }
 
   /// Several lines, a part payment or customer credit are posted to Sale/group.
-  bool get postsAsGroup => hasExtraLines || partPayment || creditUsed > 0;
+  /// 394: so is a box farm's egg sale -- the path that keeps the boxes /
+  /// crates / pieces and prices on the line.
+  bool get postsAsGroup => hasExtraLines || partPayment || creditUsed > 0 || (boxesOn && first.isEggs);
 
   /// The group checks: every added line complete, and no short line unless overridden.
   String? validateGroup(List<Map> classes, List<Map> products) {
@@ -545,6 +609,7 @@ class SaleForm {
         'quantity': first.qty(eggsPerCrate),
         'unitPrice': first.unitPrice,
         'totalAmount': firstLineAmount,
+        ...first.packagedFields(overridden: hasOverride),
       },
       for (final l in extra)
         {
@@ -553,6 +618,7 @@ class SaleForm {
           'quantity': l.qty(eggsPerCrate),
           'unitPrice': l.unitPrice,
           'totalAmount': l.total(eggsPerCrate),
+          ...l.packagedFields(overridden: hasOverride),
         },
     ];
     final totals = scaleLineTotals([for (final l in lines) l['totalAmount'] as num], hasOverride ? overrideAmount : null);
@@ -607,8 +673,22 @@ class SaleForm {
 
   /// openCorrectionForm: a NEW sale, pre-filled from the reversed one. Money
   /// kept as credit is applied after saving, so it goes in as Pay later.
-  static SaleForm correctionOf(Map sale, {required num creditKept, int? defaultAccount, int eggsPerCrate = 30, List<Map> flocks = const []}) {
-    final f = SaleForm(eggsPerCrate: eggsPerCrate);
+  static SaleForm correctionOf(Map sale,
+      {required num creditKept, int? defaultAccount, int eggsPerCrate = 30, List<Map> flocks = const [], EggPackaging? packaging}) {
+    final f = SaleForm(eggsPerCrate: eggsPerCrate, packaging: packaging);
+    final pk = f.packaging;
+    // 394: the corrected sale keeps the EXACT eggs. A line posted with today's
+    // conversion comes back as it was entered; one posted with another box or
+    // crate size is rewritten in today's packaging (same eggs), and said so.
+    ({int boxes, int crates, int pieces, bool rewritten}) split(Map? l, num q) {
+      final same = l?['crates'] != null &&
+          tIntOrNull(l!['eggsPerCrate']) == pk.eggsPerCrate &&
+          ((tIntOrNull(l['boxes']) ?? 0) == 0 || (f.boxesOn && tIntOrNull(l['cratesPerBox']) == pk.cratesPerBox));
+      if (same) return (boxes: tIntOrNull(l['boxes']) ?? 0, crates: tIntOrNull(l['crates']) ?? 0, pieces: tIntOrNull(l['pieces']) ?? 0, rewritten: false);
+      final n = f.boxesOn ? toBoxesCratesPieces(q, pk) : PackagedQuantity(crates: q ~/ eggsPerCrate, pieces: (q % eggsPerCrate).toInt());
+      return (boxes: n.boxes, crates: n.crates, pieces: n.pieces, rewritten: l?['crates'] != null);
+    }
+    num? priceOf(Map? l, String k) => l?[k] == null ? null : tNum(l![k]);
     final lines = multiLines(sale);
     final first = lines.firstOrNull;
     final firstQty = tNum(first?['quantity'] ?? sale['quantity']);
@@ -636,8 +716,14 @@ class SaleForm {
       ..eggProductId = tIntOrNull(first != null ? first['eggProductId'] : sale['eggProductId']);
     if (l1.eggProductId == 0) l1.eggProductId = null;
     if (egg) {
-      l1.crates = (firstQty / eggsPerCrate).floor();
-      l1.loose = (firstQty % eggsPerCrate).toInt();
+      final sp = split(first, firstQty);
+      if (sp.rewritten) f.packagingRewritten = true;
+      l1
+        ..boxes = sp.boxes
+        ..crates = sp.crates
+        ..loose = sp.pieces
+        ..pricePerBox = priceOf(first, 'pricePerBox')
+        ..pricePerPiece = priceOf(first, 'pricePerPiece');
     } else {
       l1.quantity = firstQty;
     }
@@ -645,15 +731,21 @@ class SaleForm {
       final e = isEggProductName(l['product']);
       final q = tNum(l['quantity']);
       final id = tIntOrNull(l['eggProductId']);
+      final sp = split(l, q);
+      if (e && sp.rewritten) f.packagingRewritten = true;
       f.items.add(
         SaleItem(
           key: 'fix-${l['saleLineId']}',
           product: tStr(l['product']),
           eggProductId: e && id != 0 ? id : null,
-          crates: e ? (q / eggsPerCrate).floor() : 0,
-          loose: e ? (q % eggsPerCrate).toInt() : 0,
+          crates: e ? sp.crates : 0,
+          loose: e ? sp.pieces : 0,
+          boxes: e ? sp.boxes : 0,
           quantity: e ? 0 : q,
           unitPrice: tNum(l['unitPrice']),
+          pricePerBox: e ? priceOf(l, 'pricePerBox') : null,
+          pricePerPiece: e ? priceOf(l, 'pricePerPiece') : null,
+          packaging: pk,
         ),
       );
     }

@@ -49,11 +49,18 @@ class LifecycleApi {
   Future<Object?> tasks(String view, int? flockId) =>
       _c.get('$base/tasks', query: {'farmId': farmId, 'view': view, if (flockId != null) 'flockId': '$flockId'});
   Future<Object?> summary() => _c.get('$base/summary', query: {'farmId': farmId});
-  Future<Object?> history(int flockId, int milestoneId) =>
-      _c.get('$base/tasks/history', query: {'farmId': farmId, 'flockId': '$flockId', 'milestoneId': '$milestoneId'});
-  Future<Object?> setStatus(int flockId, int milestoneId, String status, String? note) => _c.put('$base/tasks/status',
+  Future<Object?> history(int flockId, int milestoneId, [int occurrence = 0]) => _c.get('$base/tasks/history',
+      query: {'farmId': farmId, 'flockId': '$flockId', 'milestoneId': '$milestoneId', 'occurrence': '$occurrence'});
+
+  /// 387: which repeat of the milestone (0 for a one-off) rides on every status change.
+  Future<Object?> setStatus(int flockId, int milestoneId, String status, String? note, [int occurrence = 0]) => _c.put('$base/tasks/status',
       query: {'farmId': farmId},
-      body: {'flockId': flockId, 'milestoneId': milestoneId, 'status': status, 'note': note, 'farmId': farmId});
+      body: {'flockId': flockId, 'milestoneId': milestoneId, 'occurrence': occurrence, 'status': status, 'note': note, 'farmId': farmId});
+
+  /// 387: the Ghana national vaccination schedule as two built-in plans. Once
+  /// per farm (on load); [force] re-adds a plan the farm removed.
+  Future<Object?> ensureDefaults({bool force = false}) =>
+      _c.post('$base/ensure-defaults', query: {'farmId': farmId, if (force) 'force': 'true'}, body: {'farmId': farmId});
   Future<Object?> templates() => _c.get('$base/templates', query: {'farmId': farmId});
   Future<Object?> template(int id) => _c.get('$base/templates/$id', query: {'farmId': farmId});
   Future<Object?> createTemplate(Map<String, dynamic> input) =>
@@ -109,6 +116,9 @@ class _FlockLifecycleScreenState extends State<FlockLifecycleScreen> {
           _held = h;
           _permsLoaded = true;
         });
+        // The web reloads when canCreate settles, which seeds the national
+        // plans (387) for a user who may create them.
+        if (h.contains(lifecycleCreateKey)) _loadAll();
       }
     });
     CompanyClock.load(widget.session, widget.company).then((c) {
@@ -138,6 +148,27 @@ class _FlockLifecycleScreenState extends State<FlockLifecycleScreen> {
     }
   }
 
+  bool _restoring = false;
+
+  Future<void> _restoreDefaults() async {
+    setState(() => _restoring = true);
+    try {
+      final r = await _api.ensureDefaults(force: true);
+      final created = r is Map ? tNum(r['plansCreated']).toInt() : 0;
+      if (mounted) {
+        created == 0
+            ? trackerToast(context, 'Nothing to add', description: 'Both national vaccination plans are already here.')
+            : trackerToast(context, 'National vaccination schedule added',
+                description: '$created plan${created == 1 ? '' : 's'} added. Assign them on the Assignments tab.');
+      }
+      await _loadAll();
+    } on ApiException catch (e) {
+      if (mounted) trackerToast(context, 'Could not add the national schedule', description: e.message, error: true);
+    } finally {
+      if (mounted) setState(() => _restoring = false);
+    }
+  }
+
   Future<void> _loadAll() async {
     setState(() => _loading = true);
     final uq = {'userId': widget.session.tokens.userId ?? '', 'farmId': widget.company.farmId};
@@ -149,6 +180,15 @@ class _FlockLifecycleScreenState extends State<FlockLifecycleScreen> {
       }
     }
 
+    // 387: the national vaccination plans, once per farm. Quiet: a farm
+    // without the migration, or a user who may not create plans, skips it.
+    if (_canCreate) {
+      try {
+        await _api.ensureDefaults();
+      } on ApiException {
+        // Skipped.
+      }
+    }
     try {
       final r = await Future.wait([_api.templates(), _api.assignments(), soft('/api/Flock'), soft('/api/MainFlockBatch')]);
       if (mounted) {
@@ -174,12 +214,13 @@ class _FlockLifecycleScreenState extends State<FlockLifecycleScreen> {
 
   List<Map> get _activeTemplates => [for (final t in _templates) if (t['isActive'] == true) t];
 
-  String _key(Map t) => '${t['flockId']}-${t['milestoneId']}';
+  String _key(Map t) => taskKey(t);
+  int _occ(Map t) => tNum(t['occurrence']).toInt();
 
   Future<void> _complete(Map t) async {
     setState(() => _busyKey = _key(t));
     try {
-      await _api.setStatus(tIntOrNull(t['flockId']) ?? 0, tIntOrNull(t['milestoneId']) ?? 0, 'Completed', null);
+      await _api.setStatus(tIntOrNull(t['flockId']) ?? 0, tIntOrNull(t['milestoneId']) ?? 0, 'Completed', null, _occ(t));
       _toast('Marked complete', description: '${tStr(t['title'])} — ${tStr(t['flockName'])}');
       await _loadTasks();
     } on ApiException catch (e) {
@@ -199,7 +240,7 @@ class _FlockLifecycleScreenState extends State<FlockLifecycleScreen> {
         confirmLabel: 'Skip task',
         onSubmit: (note) async {
           try {
-            await _api.setStatus(tIntOrNull(t['flockId']) ?? 0, tIntOrNull(t['milestoneId']) ?? 0, 'Skipped', note);
+            await _api.setStatus(tIntOrNull(t['flockId']) ?? 0, tIntOrNull(t['milestoneId']) ?? 0, 'Skipped', note, _occ(t));
           } on ApiException catch (e) {
             _toast('Could not skip the task', description: e.message, error: true);
             rethrow;
@@ -225,7 +266,7 @@ class _FlockLifecycleScreenState extends State<FlockLifecycleScreen> {
         confirmLabel: 'Reopen',
         onSubmit: (note) async {
           try {
-            await _api.setStatus(tIntOrNull(t['flockId']) ?? 0, tIntOrNull(t['milestoneId']) ?? 0, 'Open', note.isEmpty ? null : note);
+            await _api.setStatus(tIntOrNull(t['flockId']) ?? 0, tIntOrNull(t['milestoneId']) ?? 0, 'Open', note.isEmpty ? null : note, _occ(t));
           } on ApiException catch (e) {
             _toast('Could not reopen the task', description: e.message, error: true);
             rethrow;
@@ -362,9 +403,9 @@ class _FlockLifecycleScreenState extends State<FlockLifecycleScreen> {
                   const SizedBox(height: 4),
                   Text.rich(
                     TextSpan(children: [
-                      t('Reminders for the milestones '),
+                      t('Reminders for vaccinations and the other milestones '),
                       b('your farm'),
-                      t(" defines — housing moves, reviews, treatments your vet prescribes — worked out from each flock's age. VisibilityCore does not recommend any schedule; it only reminds you of the one you write."),
+                      t(" follows — housing moves, reviews, treatments your vet prescribes — worked out from each flock's age. The Ghana national vaccination schedule is ready as two plans; assign one to a batch to start its reminders."),
                     ]),
                     style: const TextStyle(fontSize: 13, color: TColors.slate600),
                   ),
@@ -589,14 +630,21 @@ class _FlockLifecycleScreenState extends State<FlockLifecycleScreen> {
           ]),
           Wrap(spacing: 6, children: [
             _statusBadge(status),
+            if (tNum(task['occurrence']) > 0)
+              Tooltip(
+                message: 'Repeats ${repeatLabel(task['repeatEveryDays']) ?? ''}',
+                child: TBadge('↻ Repeat ${tNum(task['occurrence']).toInt()}',
+                    key: ValueKey('repeat-${taskKey(task)}'), bg: const Color(0xFFF5F3FF), fg: const Color(0xFF5B21B6), border: const Color(0xFFC4B5FD)),
+              ),
             if (task['isEstimated'] == true) const TBadge('Estimated', bg: TColors.amber50, fg: TColors.amber800, border: TColors.amber300),
           ]),
         ]),
         const SizedBox(height: 8),
         Wrap(spacing: 16, runSpacing: 4, children: [
           Text(
-              '${milestoneAgeLabel(task['ageUnit'], task['ageValue'])} · due ${_day(task['dueDate'])}${tStr(task['ageUnit']) == 'Week' ? '–${_day(task['dueWindowEnd'])}' : ''}',
+              '${taskAgeLabel(task)} · due ${_day(task['dueDate'])}${tStr(task['ageUnit']) == 'Week' ? '–${_day(task['dueWindowEnd'])}' : ''}',
               style: meta),
+          if (repeatLabel(task['repeatEveryDays']) != null) Text('Repeats ${repeatLabel(task['repeatEveryDays'])}', style: meta),
           Text(dueLabel(task), style: meta),
           Text('Flock age ${formatAgeDays(tNum(task['currentAgeDays']))}', style: meta),
           Text('${tStr(task['templateName'])}$via', style: meta),
@@ -667,9 +715,56 @@ class _FlockLifecycleScreenState extends State<FlockLifecycleScreen> {
           ],
         ]),
         const SizedBox(height: 12),
+        // 387: the national schedule is a starting point, not a prescription -- say so where it appears.
+        Container(
+          key: const ValueKey('national-schedule-panel'),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: const Color(0xFFF0F9FF), border: Border.all(color: const Color(0xFFBAE6FD)), borderRadius: BorderRadius.circular(12)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(Icons.vaccines_outlined, size: 20, color: Color(0xFF0284C7)),
+              SizedBox(width: 10),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Ghana national vaccination schedule', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF0C4A6E))),
+                  SizedBox(height: 4),
+                  Text.rich(TextSpan(style: TextStyle(fontSize: 13, color: Color(0xFF0C4A6E)), children: [
+                    TextSpan(text: 'Two plans — '),
+                    TextSpan(text: 'Commercial Layers', style: TextStyle(fontWeight: FontWeight.w700)),
+                    TextSpan(text: ' and '),
+                    TextSpan(text: 'Breeders', style: TextStyle(fontWeight: FontWeight.w700)),
+                    TextSpan(text: ' — follow the Veterinary Services national vaccination schedule, including the Newcastle boosters every 3 months. Assign one to a batch to get its reminders.'),
+                  ])),
+                  SizedBox(height: 4),
+                  Text.rich(TextSpan(style: TextStyle(fontSize: 13, color: Color(0xFF0C4A6E)), children: [
+                    TextSpan(text: 'Schedules differ by area, disease pressure and vaccine brand. '),
+                    TextSpan(text: 'Confirm with your vet', style: TextStyle(fontWeight: FontWeight.w700)),
+                    TextSpan(text: ", and edit the plan to match what your vet prescribes — an edited plan becomes your farm's own."),
+                  ])),
+                ]),
+              ),
+            ]),
+            if (_canCreate) ...[
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  key: const ValueKey('add-national-plans'),
+                  style: OutlinedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: const Color(0xFF075985), side: const BorderSide(color: Color(0xFF7DD3FC))),
+                  onPressed: _restoring || _loading ? null : _restoreDefaults,
+                  icon: _restoring
+                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.add, size: 16),
+                  label: const Text('Add missing national plans'),
+                ),
+              ),
+            ],
+          ]),
+        ),
+        const SizedBox(height: 12),
         if (_templates.isEmpty)
           _emptyCard(const [
-            Text('No plans yet. Plans are written by your farm — none are built in.',
+            Text('No plans yet. Write your own, or add the national vaccination plans above.',
                 textAlign: TextAlign.center, style: TextStyle(color: TColors.slate500)),
           ])
         else
@@ -689,7 +784,14 @@ class _FlockLifecycleScreenState extends State<FlockLifecycleScreen> {
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(tStr(p['name']), style: const TextStyle(fontWeight: FontWeight.w600, color: TColors.slate900)),
+                Wrap(spacing: 8, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                  Text(tStr(p['name']), style: const TextStyle(fontWeight: FontWeight.w600, color: TColors.slate900)),
+                  if (p['isDefault'] == true)
+                    const Tooltip(
+                      message: "Built in from the national schedule. Editing it makes it your farm's own plan.",
+                      child: TBadge('National schedule', bg: Color(0xFFF0F9FF), fg: Color(0xFF075985), border: Color(0xFF7DD3FC)),
+                    ),
+                ]),
                 Text('${tStr(p['breed']).isNotEmpty ? 'For ${tStr(p['breed'])}' : 'Any breed'}${active ? '' : ' · Inactive'}',
                     style: const TextStyle(fontSize: 12, color: TColors.slate500)),
               ]),
@@ -925,7 +1027,7 @@ class _HistoryDialogState extends State<_HistoryDialog> {
   void initState() {
     super.initState();
     widget.api
-        .history(tIntOrNull(widget.task['flockId']) ?? 0, tIntOrNull(widget.task['milestoneId']) ?? 0)
+        .history(tIntOrNull(widget.task['flockId']) ?? 0, tIntOrNull(widget.task['milestoneId']) ?? 0, tNum(widget.task['occurrence']).toInt())
         .then((r) => rowsOf(r), onError: (Object _) => <Map>[])
         .then((e) {
       if (mounted) setState(() => _events = e);
@@ -946,7 +1048,7 @@ class _HistoryDialogState extends State<_HistoryDialog> {
       content: SizedBox(
         width: 600,
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text('${tStr(t['flockName'])} · ${milestoneAgeLabel(t['ageUnit'], t['ageValue'])} · due ${_day(t['dueDate'])}',
+          Text('${tStr(t['flockName'])} · ${taskAgeLabel(t)}${tNum(t['occurrence']) > 0 ? ' (repeat ${tNum(t['occurrence']).toInt()})' : ''} · due ${_day(t['dueDate'])}',
               style: const TextStyle(fontSize: 13, color: TColors.slate500)),
           const SizedBox(height: 12),
           if (events == null)
@@ -989,8 +1091,15 @@ class _MilestoneRow {
         title = TextEditingController(text: tStr(from?['title'])),
         category = tStr(from?['category']),
         actionType = tStr(from?['actionType']).isEmpty ? null : tStr(from?['actionType']),
-        description = TextEditingController(text: tStr(from?['description']));
+        description = TextEditingController(text: tStr(from?['description'])),
+        repeatValue = repeatToParts(from?['repeatEveryDays'])?.value ?? 0,
+        repeatUnit = repeatToParts(from?['repeatEveryDays'])?.unit ?? 'Week';
   final int key;
+
+  /// 387: the repeat as a number + unit (0 = happens once), saved as days.
+  num repeatValue;
+  String repeatUnit;
+  int? get repeatEveryDays => repeatValue > 0 ? repeatFromParts(repeatValue, repeatUnit) : null;
 
   /// The milestone as read, so its id and order ride back on save.
   final Map<String, dynamic> base;
@@ -1052,7 +1161,7 @@ class _PlanEditorDialogState extends State<_PlanEditorDialog> {
 
   Future<void> _save() async {
     final errs = validatePlan(_name.text, [
-      for (final r in _rows) (title: r.title.text, ageUnit: r.ageUnit, ageValue: r.ageValue, leadTimeDays: r.leadTimeDays),
+      for (final r in _rows) (title: r.title.text, ageUnit: r.ageUnit, ageValue: r.ageValue, leadTimeDays: r.leadTimeDays, repeatEveryDays: r.repeatEveryDays),
     ]);
     setState(() => _errors = errs);
     if (errs.isNotEmpty) return;
@@ -1073,6 +1182,7 @@ class _PlanEditorDialogState extends State<_PlanEditorDialog> {
             'category': r.category,
             'leadTimeDays': r.leadTimeDays,
             'actionType': (r.actionType ?? '').isEmpty ? null : r.actionType,
+            'repeatEveryDays': r.repeatEveryDays,
           },
       ],
     };
@@ -1114,6 +1224,18 @@ class _PlanEditorDialogState extends State<_PlanEditorDialog> {
               "Your farm's own milestones. Ages are the birds' age, in days or weeks. Lead time is how many days ahead the reminder appears.",
               style: TextStyle(fontSize: 13, color: TColors.slate500),
             ),
+            if (t?['isDefault'] == true) ...[
+              const SizedBox(height: 10),
+              Container(
+                key: const ValueKey('national-plan-note'),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: const Color(0xFFF0F9FF), border: Border.all(color: const Color(0xFFBAE6FD)), borderRadius: BorderRadius.circular(6)),
+                child: const Text(
+                  "This is the national vaccination schedule. Saving changes makes it your farm's own plan — change it to match what your vet prescribes.",
+                  style: TextStyle(fontSize: 13, color: Color(0xFF0C4A6E)),
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             _field('Plan name *', AppInput(controller: _name, hintText: 'e.g. Our layer plan')),
             const SizedBox(height: 12),
@@ -1232,6 +1354,26 @@ class _PlanEditorDialogState extends State<_PlanEditorDialog> {
           ),
           const SizedBox(height: 8),
           _field('Description', AppInput(controller: r.description, hintText: 'What to check or prepare')),
+          const SizedBox(height: 8),
+          Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Expanded(child: _field('Repeat every', _intInput(r.repeatValue, (v) => setState(() => r.repeatValue = v)))),
+            const SizedBox(width: 8),
+            Expanded(
+              child: AppSelect<String>(
+                key: ValueKey('repeat-unit-${r.key}'),
+                value: r.repeatUnit,
+                items: const [AppSelectItem(value: 'Week', label: 'Weeks'), AppSelectItem(value: 'Day', label: 'Days')],
+                onChanged: (v) => setState(() => r.repeatUnit = v ?? r.repeatUnit),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 4),
+          Text(
+            r.repeatValue > 0
+                ? 'Repeats ${repeatLabel(r.repeatEveryDays)} after this age, until the flock is closed.'
+                : '0 = happens once. For a booster every 3 months, enter 13 weeks.',
+            style: const TextStyle(fontSize: 12, color: TColors.slate500),
+          ),
         ]),
       );
 }

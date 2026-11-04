@@ -15,7 +15,11 @@ class WebAppHeader extends StatelessWidget implements PreferredSizeWidget {
     this.showLogoTile = true,
     this.onAlerts,
     this.alertCount,
+    this.onSearch,
   });
+
+  /// The header search (global-search.tsx): shown when set.
+  final VoidCallback? onSearch;
 
   /// Poultry's Farm Alerts bell (the web header's): shown when set.
   final VoidCallback? onAlerts;
@@ -74,6 +78,13 @@ class WebAppHeader extends StatelessWidget implements PreferredSizeWidget {
         ],
       ),
       actions: [
+        if (onSearch != null)
+          IconButton(
+            key: const ValueKey('header-search'),
+            tooltip: 'Search pages and records',
+            onPressed: onSearch,
+            icon: const Icon(Icons.search, color: Colors.white, size: 22),
+          ),
         if (onAlerts != null)
           IconButton(
             tooltip: (alertCount ?? 0) > 0 ? 'Farm Alerts — $alertCount need attention' : 'Farm Alerts',

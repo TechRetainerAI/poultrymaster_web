@@ -1,3 +1,4 @@
+import 'egg_packaging.dart' show currentEggPackaging, eggBoxesSuffix;
 import 'package:flutter/material.dart';
 
 import '../../api/api_client.dart';
@@ -775,7 +776,8 @@ class _Sections extends StatelessWidget {
           _n(p['expectedFlocks']) == 0 ? 'None expected' : '${_qty(p['reportedFlocks'])} / ${_qty(p['expectedFlocks'])} expected',
           tone: missing > 0 ? 'bad' : null,
         ),
-        _Stat('Eggs produced', _qty(p['eggsProduced'])),
+        // 393: display only; closing figures unchanged.
+        _Stat('Eggs produced', '${_qty(p['eggsProduced'])}${eggBoxesSuffix(_n(p['eggsProduced']), currentEggPackaging)}'),
         _Stat('Damaged eggs', _qty(p['eggsDamaged'])),
         _Stat('Mortality', _qty(p['mortality'])),
         _Stat('Feed used', '${_qty(p['feedKg'], 2)} kg'),
@@ -1271,7 +1273,7 @@ class _HistoryCard extends StatelessWidget {
         detail('Money in / out', '${money(h['moneyIn'])} / ${money(h['moneyOut'])}'),
         detail('Opening → closing cash', '${money(h['openingCash'])} → ${money(h['closingCash'])}'),
         detail('Cash difference', money(h['cashDifference'])),
-        detail('Eggs produced', num0(h['eggsProduced'])),
+        detail('Eggs produced', '${num0(h['eggsProduced'])}${eggBoxesSuffix(h['eggsProduced'] is num ? h['eggsProduced'] as num : null, currentEggPackaging)}'),
         detail('Damaged eggs', num0(h['eggsDamaged'])),
         detail('Mortality', num0(h['mortality'])),
         detail('Feed used', h['feedKg'] != null ? '${num0(h['feedKg'], 2)} kg' : '—'),

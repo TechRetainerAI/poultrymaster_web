@@ -3,6 +3,7 @@
 // place — search, the three stock tools, four figures, filters, Export PDF /
 // Email Report, and the Finished products / Raw materials tabs.
 
+import '../egg_packaging.dart' show EggDisplay, currentEggPackaging, formatEggQuantity, formatEggs;
 import 'package:flutter/material.dart';
 
 import '../../../api/api_client.dart';
@@ -39,12 +40,18 @@ typedef StockTone = String;
   return (label: 'In stock', tone: 'ok');
 }
 
-/// "N crates + loose" for 30 eggs or more.
+/// An egg stock's packaging equivalent (393): "≈ 32 boxes + 8 crates + 20 pcs"
+/// on a box farm, "≈ 355 crates + 25 pcs" otherwise, at the farm's crate
+/// size; null under one crate.
 String? crateEquivalent(num eggs) {
-  if (eggs < 30) return null;
-  final crates = eggs ~/ 30, loose = eggs % 30;
-  return '${loc(crates)} crate${crates == 1 ? '' : 's'}${loose != 0 ? ' + ${loc(loose)}' : ''}';
+  final p = currentEggPackaging;
+  final n = eggs.truncate();
+  final text = formatEggQuantity(n, p, p.display == EggDisplay.pieces ? EggDisplay.boxesCratesPieces : p.display);
+  return text == formatEggs(n) ? null : '≈ $text';
 }
+
+/// Raw eggs, or any egg product that is not a byproduct (Broken Eggs).
+bool isEggStock(Map p) => p['isRawEggProduct'] == true || (tStr(p['name']).toLowerCase().contains('egg') && byproductRole(p['name']) == null);
 
 ({String href, String label}) productLink(Map p) {
   final id = tStr(p['poultryProductId']);
@@ -483,7 +490,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 secondaryBuilder: (p) => Align(alignment: Alignment.centerLeft, child: toneBadge(productStockStatus(p))),
                 details: (p) {
                   final stock = tNum(p['stockOnHand']);
-                  final crates = p['isRawEggProduct'] == true ? crateEquivalent(stock) : null;
+                  final crates = isEggStock(p) ? crateEquivalent(stock) : null;
                   return [
                     ('Type', tStr(p['productType']).isEmpty ? '—' : tStr(p['productType'])),
                     ('SKU', tStr(p['sku']).isEmpty ? '—' : tStr(p['sku'])),
@@ -515,7 +522,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                         cellText(_fmt(tNum(p['unitPrice']))),
                         Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
                           Text(loc(tNum(p['stockOnHand'])), style: const TextStyle(fontWeight: FontWeight.w600)),
-                          if (p['isRawEggProduct'] == true && crateEquivalent(tNum(p['stockOnHand'])) != null)
+                          if (isEggStock(p) && crateEquivalent(tNum(p['stockOnHand'])) != null)
                             Text(crateEquivalent(tNum(p['stockOnHand']))!, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
                         ]),
                         Align(alignment: Alignment.centerLeft, child: toneBadge(productStockStatus(p))),

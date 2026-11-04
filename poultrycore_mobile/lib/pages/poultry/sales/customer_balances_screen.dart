@@ -208,8 +208,15 @@ class _CustomerBalancesScreenState extends State<CustomerBalancesScreen> {
     }
   }
 
+  /// Goes up whenever a payment is posted or reversed here, so the credit
+  /// panel under the table reloads (an overpayment becomes credit).
+  int _paymentsVersion = 0;
+
   void _afterPayment() {
-    setState(() => _expanded = null);
+    setState(() {
+      _expanded = null;
+      _paymentsVersion++;
+    });
     _loadMethods();
     _load();
   }
@@ -570,11 +577,11 @@ class _CustomerBalancesScreenState extends State<CustomerBalancesScreen> {
             // (never netted into) what is owed -- under the balances table.
             if (_poultryCustomer) ...[
               const SizedBox(height: 14),
-              CustomerCreditPanel(session: widget.session, company: widget.company, canRefund: _can),
+              CustomerCreditPanel(key: ValueKey('customer-credit-$_paymentsVersion'), session: widget.session, company: widget.company, canRefund: _can),
             ],
             if (!_side.isCustomer && widget.rail.isPoultry) ...[
               const SizedBox(height: 14),
-              SupplierCreditPanel(session: widget.session, company: widget.company),
+              SupplierCreditPanel(key: ValueKey('supplier-credit-$_paymentsVersion'), session: widget.session, company: widget.company),
             ],
           ],
         ),

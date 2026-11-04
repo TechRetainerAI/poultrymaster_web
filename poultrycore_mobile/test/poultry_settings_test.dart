@@ -66,7 +66,7 @@ final _summary = {
 
 void main() {
   test('every Settings row opens a native screen', () {
-    for (final h in ['/profile', '/business-office/billing', '/billing', '/audit-logs', '/resources', '/help', '/terms']) {
+    for (final h in ['/profile', '/business-office/billing', '/billing', '/audit-logs', '/resources', '/help', '/poultry-videos', '/terms']) {
       expect(pageScreens.containsKey(h), isTrue, reason: h);
     }
     expect(friendlyAction('POST'), 'Created');
@@ -87,7 +87,7 @@ void main() {
     await tester.ensureVisible(find.text('System'));
     await tester.tap(find.text('System'));
     await tester.pumpAndSettle();
-    for (final l in ['Account', 'Alerts', 'Billing', 'Activity Log', 'Resources', 'Help Center', 'Terms & Conditions']) {
+    for (final l in ['Account', 'Alerts', 'Billing', 'Activity Log', 'Resources', 'Help Center', 'Videos', 'Terms & Conditions']) {
       expect(find.text(l), findsWidgets, reason: l);
     }
     await tester.ensureVisible(find.text('Alerts'));
@@ -223,11 +223,11 @@ void main() {
   testWidgets('Help Center and Terms', (tester) async {
     final s = await sessionFor(FakeApi());
     await open(tester, HelpCenterScreen(session: s, company: company), size: phone);
-    await see(tester, find.text('18 answers'));
-    await see(tester, find.byKey(const ValueKey('faq-cat-Flocks')));
-    await tester.tap(find.byKey(const ValueKey('faq-cat-Flocks')));
+    // The rebuilt Help Center (Report 30); the full checks are in
+    // poultry_help_videos_test.dart.
+    await see(tester, find.byKey(const ValueKey('faq-cat-Flocks & Birds')));
+    await tester.tap(find.byKey(const ValueKey('faq-cat-Flocks & Birds')));
     await tester.pumpAndSettle();
-    await see(tester, find.text('3 answers'));
     await see(tester, find.text('Collapse all'));
     await tester.tap(find.text('Collapse all'));
     await tester.pumpAndSettle();

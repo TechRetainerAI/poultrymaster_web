@@ -6,6 +6,8 @@ import '../pages/list_screen.dart';
 import '../pages/module_registry.dart';
 import '../pages/registry.dart';
 import '../pages/shared/setup_admin_routes.dart';
+import '../pages/generic/generic_kit.dart' show gateGenericCatalog;
+import '../pages/shared/billing_nav.dart';
 import '../pages/web_nav.dart';
 import '../pages/web_page_screen.dart';
 import '../state/session.dart';
@@ -226,7 +228,7 @@ const Map<String, IconData> _iconByHref = {
   '/poultry-routes': Icons.local_shipping_outlined,
   '/poultry-products': Icons.inventory_2_outlined,
   '/poultry-feed-formulas': Icons.grass,
-  '/business-office/egg-pick-settings': Icons.schedule,
+  '/business-office/egg-pick-settings': Icons.egg_outlined,
   '/customers': Icons.people_outline,
   '/suppliers': Icons.local_shipping_outlined,
   '/houses': Icons.business_outlined,
@@ -239,6 +241,7 @@ const Map<String, IconData> _iconByHref = {
   '/audit-logs': Icons.show_chart,
   '/resources': Icons.menu_book_outlined,
   '/help': Icons.help_outline,
+  '/poultry-videos': Icons.play_circle_outline,
   '/terms': Icons.checklist,
   // Water
   '/water-production-batches': Icons.factory_outlined,
@@ -492,7 +495,7 @@ class _PoultrySidebarState extends State<_PoultrySidebar> {
 
   /// The generated nav, with the default Quick Links.
   late final List<NavGroup> _base =
-      gateSetupLinks(webNavGroups[PageRegistry.moduleOf(widget.company.type)] ?? const [], widget.company);
+      gateGenericCatalog(gateBillingLinks(gateSetupLinks(webNavGroups[PageRegistry.moduleOf(widget.company.type)] ?? const [], widget.company)), widget.company);
 
   /// The user's stored Quick Links (318). Null = never customised, so the
   /// defaults stand; an empty list = they cleared the bar.

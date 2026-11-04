@@ -11,7 +11,7 @@ import 'trackers/tracker_widgets.dart' show TColors;
 const lifecycleAgeUnits = [('Week', 'Weeks'), ('Day', 'Days')];
 
 /// Suggestions for the free-text category field — a farm may type its own.
-const lifecycleCategorySuggestions = ['Housing', 'Health', 'Feeding', 'Lighting', 'Production', 'Review', 'Other'];
+const lifecycleCategorySuggestions = ['Vaccination', 'Housing', 'Health', 'Feeding', 'Lighting', 'Production', 'Review', 'Other'];
 
 /// ACTION_TYPES: (value, label, hint).
 const lifecycleActionTypes = [
@@ -62,6 +62,36 @@ String? lifecycleActionLabel(Object? type) {
 /// "Week 16" / "Day 3".
 String milestoneAgeLabel(Object? unit, Object? value) => '${tStr(unit) == 'Day' ? 'Day' : 'Week'} ${tNum(value).toInt()}';
 
+/// 387: the age a task is for. A repeat (occurrence 1..) is at its own age,
+/// so it reads from ageDays: "Week 42" when a week milestone lands on a whole
+/// week, else "Day 385".
+String taskAgeLabel(Map task) {
+  final occ = tNum(task['occurrence']).toInt();
+  if (occ == 0 || task['ageDays'] == null) return milestoneAgeLabel(task['ageUnit'], task['ageValue']);
+  final days = tNum(task['ageDays']).toInt();
+  return tStr(task['ageUnit']) == 'Week' && days % 7 == 0 ? milestoneAgeLabel('Week', days ~/ 7) : milestoneAgeLabel('Day', days);
+}
+
+/// One task per flock, milestone and repeat.
+String taskKey(Map task) => '${task['flockId']}-${task['milestoneId']}-${tNum(task['occurrence']).toInt()}';
+
+/// "every 13 weeks" / "every 10 days"; null when the milestone happens once.
+String? repeatLabel(Object? days) {
+  final d = days is num ? days.toInt() : int.tryParse('${days ?? ''}');
+  if (d == null || d < 1) return null;
+  if (d % 7 == 0) return d == 7 ? 'every week' : 'every ${d ~/ 7} weeks';
+  return d == 1 ? 'every day' : 'every $d days';
+}
+
+/// A repeat as a number + unit for the editor; null when it happens once.
+({int value, String unit})? repeatToParts(Object? days) {
+  final d = days is num ? days.toInt() : int.tryParse('${days ?? ''}');
+  if (d == null || d < 1) return null;
+  return d % 7 == 0 ? (value: d ~/ 7, unit: 'Week') : (value: d, unit: 'Day');
+}
+
+int repeatFromParts(num value, String unit) => (value.isFinite && value > 0 ? value.floor() : 0) * (unit == 'Week' ? 7 : 1);
+
 /// A flock's age in days as weeks + days: 107 → "15w 2d", 112 → "16w".
 String formatAgeDays(num? days) {
   if (days == null || !days.isFinite || days < 0) return '—';
@@ -90,7 +120,7 @@ String dueLabel(Map task) {
 String taskSentence(Map task) {
   final batch = tStr(task['batchCode']);
   final who = batch.isNotEmpty ? '$batch (${tStr(task['flockName'])})' : tStr(task['flockName']);
-  final age = milestoneAgeLabel(task['ageUnit'], task['ageValue']);
+  final age = taskAgeLabel(task);
   final days = tNum(task['daysUntilDue']).toInt();
   switch (tStr(task['status'])) {
     case 'Upcoming':
@@ -136,7 +166,7 @@ int ageAtStartDays(num weeks, num days) {
 }
 
 /// The database's refusals, in its words.
-List<String> validatePlan(String name, List<({String title, String ageUnit, num ageValue, num leadTimeDays})> milestones) {
+List<String> validatePlan(String name, List<({String title, String ageUnit, num ageValue, num leadTimeDays, int? repeatEveryDays})> milestones) {
   final errs = <String>[];
   if (name.trim().isEmpty) errs.add('Give the lifecycle plan a name.');
   if (milestones.isEmpty) errs.add('Add at least one milestone.');
@@ -149,6 +179,10 @@ List<String> validatePlan(String name, List<({String title, String ageUnit, num 
     if (!isInt(m.ageValue) || m.ageValue < 0 || m.ageValue > 5000) errs.add('Milestone $n: enter an age between 0 and 5000.');
     if (!isInt(m.leadTimeDays) || m.leadTimeDays < 0 || m.leadTimeDays > 365) {
       errs.add('Milestone $n: lead time must be between 0 and 365 days.');
+    }
+    final rep = m.repeatEveryDays;
+    if (rep != null && (rep < 1 || rep > 3650)) {
+      errs.add('Milestone $n (${m.title.trim().isEmpty ? 'untitled' : m.title.trim()}): repeat every 1 to 3650 days, or not at all.');
     }
   }
   return errs;

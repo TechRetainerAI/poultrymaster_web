@@ -198,8 +198,10 @@ const Map<String, List<NavGroup>> webNavGroups = {
       NavSubGroup('Production', [
         NavLink('Products', '/poultry-products', 'poultry-products'),
         NavLink('Feed Formulas', '/poultry-feed-formulas', 'poultry-feed-formulas'),
-        NavLink('Egg Pick Times', '/business-office/egg-pick-settings', 'farmproductionsettings'),
-        NavLink('Egg Sorting Settings', '/poultry-egg-sorting-settings', null),
+        // 2 Nov pull: Egg Pick Times and Egg Sorting Settings became one
+        // tabbed page, Egg Configuration (/poultry-egg-sorting-settings
+        // still opens, but is no longer in the menu).
+        NavLink('Egg Configuration', '/business-office/egg-pick-settings', 'farmproductionsettings'),
       ]),
       NavSubGroup('Finance', [
         NavLink('Customers', '/customers', 'customer'),
@@ -208,6 +210,9 @@ const Map<String, List<NavGroup>> webNavGroups = {
       NavSubGroup('Farm', [
         NavLink('Houses', '/houses', 'house'),
         NavLink('Flock Groups', '/flocks', 'flocks'),
+        // Also under Operations > Purchase, so the batches sit beside the
+        // houses and flock groups they are divided into (31 Oct pull).
+        NavLink('Flock Purchases (Batches)', '/flock-batch', null),
       ]),
       NavSubGroup('People', [
         NavLink('Staff', '/poultry-staff', 'poultry-staff'),
@@ -223,6 +228,8 @@ const Map<String, List<NavGroup>> webNavGroups = {
         NavLink('Activity Log', '/audit-logs', null),
         NavLink('Resources', '/resources', null),
         NavLink('Help Center', '/help', null),
+        // System → Videos (28 Oct pull): the training playlist.
+        NavLink('Videos', '/poultry-videos', null),
         NavLink('Terms & Conditions', '/terms', null),
       ]),
     ]),
@@ -377,12 +384,14 @@ const Map<String, List<NavGroup>> webNavGroups = {
     ]),
   ],
   'generic': [
-    NavGroup('Finance', [
+    // lib/nav/generic-nav-config.ts "Catalog", first, in its order. Each row
+    // follows its module switch (gateGenericCatalog, generic_kit.dart).
+    NavGroup('Catalog', [
       NavSubGroup('', [
+        NavLink('Products', '/generic-products', 'generic-products'),
+        NavLink('Inventory', '/generic-inventory', 'generic-products'),
+        NavLink('Stock adjustments', '/generic-stock-adjustments', 'generic-inventory-adjustments'),
         NavLink('Internal Use', '/generic-internal-use', 'generic-internal-usage'),
-        NavLink('Recurring Expenses', '/generic-recurring-expenses', 'generic-recurring-expenses'),
-        NavLink('Purchases', '/generic-purchases', 'generic-purchases'),
-        NavLink('Suppliers', '/generic-suppliers', 'generic-suppliers'),
       ]),
     ]),
     NavGroup('People', [
@@ -411,9 +420,6 @@ const Map<String, List<NavGroup>> webNavGroups = {
     // pages sheet still reaches them until their own sections are mirrored.
     NavGroup('More pages', [
       NavSubGroup('', [
-        NavLink('Generic Stock Adjustments', '/generic-stock-adjustments', 'generic-inventory-adjustments'),
-        NavLink('Generic Owner Money', '/generic-owner-money', 'generic-owner-entries'),
-        NavLink('Inventory', '/generic-inventory', 'generic-products'),
         NavLink('Generic Dashboard', '/generic-dashboard', 'generic-reports-dashboard'),
       ]),
     ]),
@@ -424,17 +430,36 @@ const Map<String, List<NavGroup>> webNavGroups = {
         NavLink('Billing runs', '/generic-billing-runs', 'generic-billing-runs'),
       ]),
     ]),
-    NavGroup('Sales & Money', [
+    // generic-nav-config.ts "Sales": the customer and payment rows take the
+    // template's words (Members, Fee Payments…) in gateGenericCatalog.
+    NavGroup('Sales', [
       NavSubGroup('', [
-        NavLink('Products', '/generic-products', 'generic-products'),
         NavLink('Sales', '/generic-sales', 'generic-sales'),
-        NavLink('Customer Payments', '/generic-customer-payments', 'generic-customer-payments'),
         NavLink('Customers', '/generic-customers', 'generic-customers'),
+        NavLink('Payments', '/generic-customer-payments', 'generic-customer-payments'),
+      ]),
+    ]),
+    // generic-nav-config.ts "Purchasing". Purchases, Supplier balances and
+    // Recurring expenses follow their module switches (gateGenericCatalog);
+    // Recurring expenses is the shared engine at /recurring-expenses (348).
+    NavGroup('Purchasing', [
+      NavSubGroup('', [
+        NavLink('Suppliers', '/generic-suppliers', 'generic-suppliers'),
+        NavLink('Purchases', '/generic-purchases', 'generic-purchases'),
         NavLink('Supplier payments', '/generic-supplier-payments', 'generic-supplier-payments'),
+        NavLink('Supplier balances', '/generic-supplier-balances', null),
         NavLink('Expenses', '/generic-expenses', 'generic-expenses'),
+        NavLink('Recurring expenses', '/recurring-expenses', null),
+      ]),
+    ]),
+    // generic-nav-config.ts "money". Cash & Accounts and Cash transfers
+    // follow enableCashAccounts (gateGenericCatalog).
+    NavGroup('Money', [
+      NavSubGroup('', [
         NavLink('Cash & Accounts', '/generic-cash', 'generic-cash-accounts'),
         NavLink('Cash transfers', '/generic-cash-transfers', 'generic-cash-transfers'),
         NavLink('Daily Closing', '/generic-daily-closings', 'generic-daily-closings'),
+        NavLink('Owner money', '/generic-owner-money', 'generic-owner-entries'),
       ]),
     ]),
     // The web sidebar's genericAdminItems: Reports, then Setup (the company

@@ -1,3 +1,4 @@
+import '../production/production_logic.dart' show eggsPerCrate;
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -191,8 +192,9 @@ DashContent buildDashboardContent(String view, DashboardData d) {
   final sales = d.filteredSales;
   final exps = d.filteredExpenses;
   num totalEggs = recs.fold<num>(0, (s, r) => s + _num(r['totalProduction']));
-  final crates = totalEggs ~/ 30;
-  final loose = totalEggs.toInt() % 30;
+  // The farm's crate size (was a fixed 30).
+  final crates = totalEggs ~/ eggsPerCrate;
+  final loose = totalEggs.toInt() % eggsPerCrate;
   final revenue = sales.fold<num>(0, (s, x) => s + _num(x['totalAmount']));
   // Capital and deferred inventory purchases are not this period's expense.
   final expensesAmount = exps
@@ -257,7 +259,7 @@ DashContent buildDashboardContent(String view, DashboardData d) {
             ],
             rows: [
               for (final r in data)
-                [r.date, r.flock, _loc(r.m9), _loc(r.m12), _loc(r.m4), _loc(r.m4th), _loc(r.total), '${r.total ~/ 30} + ${r.total.toInt() % 30}'],
+                [r.date, r.flock, _loc(r.m9), _loc(r.m12), _loc(r.m4), _loc(r.m4th), _loc(r.total), '${r.total ~/ eggsPerCrate} + ${r.total.toInt() % eggsPerCrate}'],
             ],
             totals: data.isEmpty
                 ? null
@@ -377,7 +379,7 @@ DashContent buildDashboardContent(String view, DashboardData d) {
                 [
                   _mmmdy(k),
                   _loc(bucket[k]!.eggs),
-                  '${bucket[k]!.eggs ~/ 30} crates + ${bucket[k]!.eggs.toInt() % 30} loose',
+                  '${bucket[k]!.eggs ~/ eggsPerCrate} crates + ${bucket[k]!.eggs.toInt() % eggsPerCrate} loose',
                   m(bucket[k]!.expenses),
                   perf(k),
                 ],

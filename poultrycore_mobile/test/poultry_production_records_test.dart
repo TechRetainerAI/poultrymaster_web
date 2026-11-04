@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:poultrycore_mobile/design/ui/inputs.dart';
 import 'package:poultrycore_mobile/pages/module_registry.dart';
+import 'package:poultrycore_mobile/pages/poultry/egg_packaging.dart' show resetEggPackaging;
 import 'package:poultrycore_mobile/pages/poultry/production/production_logic.dart';
 import 'package:poultrycore_mobile/pages/poultry/production/production_records_screen.dart';
 
@@ -159,6 +160,22 @@ void main() {
     await see(tester, find.text('Totals'));
   });
 
+  testWidgets('a box farm (393): Boxes per pick, the boxes equivalent, saved as eggs', (tester) async {
+    addTearDown(resetEggPackaging);
+    final a = api()..gets['/api/Poultry/egg-sorting/packaging'] = {'enableBoxes': true, 'cratesPerBox': 10, 'eggDisplay': 'BoxesCratesPieces', 'packagingVersion': 2};
+    await open(tester, ProductionRecordsScreen(session: await sessionFor(a), company: company), size: phone);
+    await tester.tap(find.text('Log Production'));
+    await tester.pumpAndSettle();
+    expect(find.text('Total = boxes × 10 crates + crates × 30 + pieces'), findsOneWidget);
+    await enter(tester, 'Boxes', '1');
+    await enter(tester, 'Crates', '2');
+    await enter(tester, 'Pieces', '5');
+    expect(find.text('365'), findsWidgets, reason: '300 + 60 + 5 eggs in the 1st pick');
+    await see(tester, find.byKey(const ValueKey('boxes-equivalent')));
+    expect(find.text('Boxes equivalent 1 box + 2 crates + 5 pcs'), findsOneWidget);
+    expect(find.text('Crates equivalent 12 crates + 5 pcs'), findsOneWidget, reason: "the web's pcs wording");
+  });
+
   testWidgets('log production: the checks, then the body with picks, losses and FIFO feed', (tester) async {
     final a = api();
     await open(tester, ProductionRecordsScreen(session: await sessionFor(a), company: company), size: phone);
@@ -176,16 +193,16 @@ void main() {
     await choose(tester, 'Select a flock', 'Pen 1');
     expect(find.text('Last recorded birds left for this flock: 118'), findsOneWidget, reason: 'seeded from the latest earlier record');
     await enter(tester, 'Crates', '2');
-    await enter(tester, 'Loose eggs', '5');
+    await enter(tester, 'Pieces', '5');
     expect(find.text('65 eggs'), findsOneWidget);
     await enter(tester, 'Broken eggs', '3');
     await enter(tester, 'Deaths', '1');
-    // 372: Keep / Disposed for the broken eggs and the dead birds.
+    // 390 / 391: Keep all / Dispose some / Dispose all for broken eggs and dead birds.
     expect(find.text('3 broken eggs will be added to Broken Egg stock.'), findsOneWidget);
-    expect(find.text('1 live bird removed; kept as Dead Birds stock.'), findsOneWidget);
-    await tester.ensureVisible(find.text('Disposed immediately').first);
+    expect(find.text('1 dead bird will be added to Dead Bird stock.'), findsOneWidget);
+    await tester.ensureVisible(find.text('Dispose all').first);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Disposed immediately').first);
+    await tester.tap(find.text('Dispose all').first);
     await tester.pumpAndSettle();
     expect(find.text('3 broken eggs recorded and disposed of. Nothing is added to stock.'), findsOneWidget);
     await choose(tester, 'None', 'Layer mash (Kilogram) · 40 in stock · FIFO', within: find.byType(Dialog));
@@ -198,12 +215,49 @@ void main() {
     final b = jsonDecode(a.writes.lastWhere((w) => w.url.path == '/api/ProductionRecord').body) as Map;
     expect((b['FlockId'], b['production9AM'], b['totalProduction'], b['brokenEggs']), (7, 65, 65, 3));
     expect((b['brokenEggDisposition'], b['mortalityDisposition']), ('Disposed', 'Keep'));
+    expect((b['brokenEggsDisposed'], b['mortalityDisposed']), (3, 0), reason: 'the counts are the authority');
     expect((b['noOfBirds'], b['mortality'], b['noOfBirdsLeft'], b['feedKg'], b['medication']), (118, 1, 117, 30, 'None'));
     expect((b['meatyEggs'], b['eggGrade'], b['totalCostOfProduction']), (null, 'Mixed', 310), reason: 'egg grade is automatic since egg sorting');
     final feed = (b['feeds'] as List).single as Map;
     expect((feed['specificFeedUsedId'], feed['totalFeedConsumed'], feed['totalFeedCost']), (5, 30, 310));
     expect(b['medications'], isEmpty, reason: 'no quantity on the medication line');
     expect(b['ageInDays'], greaterThan(0));
+  });
+
+  group('Feed Usage feed-only records (389)', () {
+    testWidgets('the list marks a feed-only record "Production not filled"', (tester) async {
+      final a = api()..gets['/api/ProductionRecord'] = [{...rec1, 'sourceType': 'FeedUsage'}, rec2];
+      await open(tester, ProductionRecordsScreen(session: await sessionFor(a), company: company), size: phone);
+      expect(find.byKey(const ValueKey('production-not-filled')), findsOneWidget);
+    });
+
+    testWidgets('editing one says so, and saving marks it recorded', (tester) async {
+      final a = api()
+        ..gets['/api/ProductionRecord'] = [{...rec1, 'sourceType': 'FeedUsage'}]
+        ..gets['/api/ProductionRecord/11'] = {...rec1, 'sourceType': 'FeedUsage'};
+      await open(tester, ProductionRecordsScreen(session: await sessionFor(a), company: company), size: phone);
+      await tap(tester, find.text('Edit'));
+      expect(find.byKey(const ValueKey('feed-only-edit-note')), findsOneWidget);
+      await tester.tap(find.text('Update Production Record'));
+      await tester.pumpAndSettle();
+      final b = jsonDecode(a.writes.last.body) as Map;
+      expect(b['markRecorded'], isTrue);
+    });
+
+    testWidgets('a new record for a flock-day with feed already recorded warns, with a way to it', (tester) async {
+      final a = api()
+        ..gets['/api/Poultry/feed-usage-entries/candidates'] = [
+          {'flockId': 7, 'flockName': 'Pen 1', 'recordStatus': 'FeedOnly', 'productionRecordId': 44, 'feedLines': 'Layer Mash 40 kg'},
+        ];
+      await open(tester, ProductionRecordsScreen(session: await sessionFor(a), company: company), size: phone);
+      await tester.tap(find.text('Log Production'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('feed-only-here-note')), findsNothing, reason: 'no flock chosen yet');
+      await choose(tester, 'Select a flock', 'Pen 1');
+      await see(tester, find.byKey(const ValueKey('feed-only-here-note')));
+      expect(find.textContaining('Feed is already recorded for this flock on this day (Layer Mash 40 kg).'), findsOneWidget);
+      expect(find.byKey(const ValueKey('open-feed-only-record')), findsOneWidget);
+    });
   });
 
   testWidgets('edit opens on the saved figures and PUTs', (tester) async {
@@ -245,7 +299,7 @@ void main() {
     await open(tester, productionScreenForHref('/production-records/new?flockId=8&date=2026-10-06', s, company)!, size: phone);
     await see(tester, find.text('Set automatically. Sizes are recorded when the eggs are sorted.'));
     expect(find.text('Mixed grades'), findsOneWidget);
-    expect(find.text('Total = crates × 30 + loose eggs'), findsOneWidget);
+    expect(find.text('Total = crates × 30 + pieces'), findsOneWidget);
 
     await open(tester, productionScreenForHref('/production-records/11?returnTo=/poultry-egg-sorting', s, company)!, size: phone);
     expect(find.text('Back to Egg Sorting'), findsOneWidget);

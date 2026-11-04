@@ -330,6 +330,10 @@ class BalanceRail {
   /// `/api/Hotel/balances` and every path builds on it as the web's does.
   bool get isHotel => api == '/api/Hotel/balances';
 
+  /// Generic nests the farm id in the path and ends in /balances, because
+  /// generic-company/{farmId}/customer-payments is the Draft/Approve document.
+  bool get isGeneric => api.startsWith('/api/generic-company/');
+
   /// Poultry alone has supplier / customer debts, the P&L badge and the
   /// credit panels; Water and Restaurant pass none of those.
   bool get isPoultry => api == '/api/Poultry';
@@ -338,19 +342,23 @@ class BalanceRail {
 
   String get supplierPaymentsHref => isWater
       ? '/water-supplier-payments'
-      : isRestaurant
+      : isGeneric
+          ? '/generic-supplier-payments'
+          : isRestaurant
           ? '/restaurant-supplier-payments'
           : isHotel
               ? '/hotel-supplier-payments'
               : '/supplier-payments';
 
   /// partyHref on the supplier pages.
-  String get suppliersHref => isWater ? '/water-suppliers' : isRestaurant ? '/restaurant-suppliers' : isHotel ? '/hotel-suppliers' : '/suppliers';
+  String get suppliersHref => isWater ? '/water-suppliers' : isGeneric ? '/generic-suppliers' : isRestaurant ? '/restaurant-suppliers' : isHotel ? '/hotel-suppliers' : '/suppliers';
 
   /// The module's cash-accounts id key.
   String get cashAccountIdKey => isWater
       ? 'waterCashAccountId'
-      : isRestaurant
+      : isGeneric
+          ? 'genericCashAccountId'
+          : isRestaurant
           ? 'cashAccountId'
           : isHotel
               ? 'hotelCashAccountId'
@@ -363,7 +371,9 @@ class BalanceRail {
       ? '/api/Restaurant/finance/accounts'
       : isHotel
           ? '/api/Hotel/finance/cash-accounts'
-          : '$api/cash-accounts';
+          : isGeneric
+              ? '${api.substring(0, api.length - '/balances'.length)}/cash-accounts'
+              : '$api/cash-accounts';
   String get cashAccountNameKey => isRestaurant ? 'name' : 'accountName';
   String get allowNegativeKey => isRestaurant ? 'allowNegative' : 'allowNegativeBalance';
 
@@ -372,6 +382,8 @@ class BalanceRail {
   String supplierDocumentHref(Map a) {
     final type = '${a['documentType'] ?? ''}', id = '${a['documentId'] ?? ''}';
     if (isWater) return '/water-supply-purchases?tab=purchases&purchaseId=$id';
+    // Generic payables span two tables: expenses and purchases.
+    if (isGeneric) return type == 'Expense' ? '/generic-expenses?expenseId=$id' : '/generic-purchases?purchaseId=$id';
     // restaurantPayableHref (lib/restaurant/payables.ts, migration 329).
     if (isRestaurant) {
       return switch (type) {
@@ -410,4 +422,8 @@ class BalanceRail {
       BalanceRail._('/api/Restaurant', '/restaurant-payments', '/restaurant-customer-balances', '/restaurant-supplier-balances', true);
   static const hotel =
       BalanceRail._('/api/Hotel/balances', '/hotel-payments', '/hotel-customer-balances', '/hotel-supplier-balances', true);
+
+  /// Generic (app/generic-supplier-balances): `generic-company/{farmId}/balances`.
+  static BalanceRail generic(String farmId) => BalanceRail._('/api/generic-company/${Uri.encodeComponent(farmId)}/balances',
+      '/generic-customer-payments', '/generic-customer-balances', '/generic-supplier-balances', true);
 }

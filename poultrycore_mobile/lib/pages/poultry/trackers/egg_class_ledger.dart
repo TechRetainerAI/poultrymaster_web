@@ -13,6 +13,7 @@ import '../../../design/ui/inputs.dart';
 import '../../../models/company.dart';
 import '../../../state/session.dart';
 import '../../shared/business_dates.dart' show formatLongDate;
+import '../egg_packaging.dart' show EggDisplay, boxSize, currentEggPackaging;
 import '../production/production_logic.dart' show eggsPerCrate;
 import '../reports/report_routes.dart' show openAppHref;
 import 'tracker_logic.dart';
@@ -20,13 +21,20 @@ import 'tracker_widgets.dart';
 import '../../shared/reason_select.dart';
 
 /// "962 cr + 10" (crates are display only); "10 eggs" under one crate.
+/// 393: a farm with Boxes on that shows quantities in boxes gets them first --
+/// "68 bx + 10 cr + 10" at 14 crates/box. An explicit [perCrate] (a
+/// historical figure) keeps crates only.
 String cratesText(num eggs, [int? perCrate]) {
+  final pk = perCrate == null ? currentEggPackaging : null;
   final per = perCrate ?? eggsPerCrate;
+  final box = pk != null && pk.display == EggDisplay.boxesCratesPieces ? boxSize(pk) : null;
   final n = eggs.round() < 0 ? 0 : eggs.round();
-  final crates = n ~/ per;
-  final loose = n % per;
-  if (crates == 0) return '$loose egg${loose == 1 ? '' : 's'}';
-  return loose > 0 ? '${loc(crates)} cr + $loose' : '${loc(crates)} cr';
+  final boxes = box != null ? n ~/ (box * per) : 0;
+  final rest = box != null ? n % (box * per) : n;
+  final crates = rest ~/ per;
+  final loose = rest % per;
+  if (boxes == 0 && crates == 0) return '$loose egg${loose == 1 ? '' : 's'}';
+  return [if (boxes > 0) '${loc(boxes)} bx', if (crates > 0) '${loc(crates)} cr', if (loose > 0) '$loose'].join(' + ');
 }
 
 String fmtCount(num n) => loc(n.round());

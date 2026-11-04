@@ -3,6 +3,8 @@
 // products and raw materials — with the three stock tools, Export PDF / CSV,
 // New movement, the filters, and the phone card list (its `md:hidden` layout).
 
+import '../sales/sales_logic.dart' show byproductRole;
+import '../egg_packaging.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -73,6 +75,22 @@ String stockSourceFor(String txnType) => switch (txnType) {
 
 num _r2(num v) => double.parse(v.toStringAsFixed(2));
 
+/// The packaging line under an egg movement's quantity (395):
+///   - a movement entered in boxes: exactly as entered, "32 boxes + 8 crates + 20 pcs";
+///   - any other intact-egg movement: the same eggs in the farm's packaging, "≈ …".
+/// Broken Eggs, birds and raw materials keep their own units (null).
+String? enteredAsLine(String item, num qty, Map? manualHeader) {
+  final h = manualHeader;
+  if (h != null && h['crates'] != null) {
+    return formatPackaged(PackagedQuantity(boxes: tIntOrNull(h['boxes']) ?? 0, crates: tIntOrNull(h['crates']) ?? 0, pieces: tIntOrNull(h['pieces']) ?? 0));
+  }
+  if (!item.toLowerCase().contains('egg') || byproductRole(item) != null) return null;
+  final p = currentEggPackaging;
+  final n = qty.truncate().abs();
+  final text = formatEggQuantity(n, p, boxSize(p) != null ? EggDisplay.boxesCratesPieces : EggDisplay.cratesPieces);
+  return text == formatEggs(n) ? null : '≈ $text';
+}
+
 String batchFlockLabel(Object? batch, Object? flock) => [tStr(batch), tStr(flock)].where((x) => x.isNotEmpty).join(' / ');
 
 /// Every movement, newest first: product transactions, raw-material
@@ -102,6 +120,7 @@ List<Map<String, Object?>> buildStockMoves(List<Map> txns, List<Map> purchases, 
             ? '${t['manualReversal'] == true ? 'Reversal of ' : 'Manual movement '}${tStr(byId[tIntOrNull(t['manualMovementId'])]?['movementNo'])}'.trim()
             : stockSourceFor(tStr(t['txnType'])),
         'note': t['note'] == null ? null : tStr(t['note']),
+        'enteredAs': enteredAsLine(tStr(t['productName']), tNum(t['quantity']), t['manualReversal'] == true ? null : byId[tIntOrNull(t['manualMovementId'])]),
       },
     for (final p in purchases)
       {
@@ -211,6 +230,10 @@ class _StockMovementsScreenState extends State<StockMovementsScreen> {
     FarmMoney.load(widget.session, widget.company).then((m) {
       if (mounted) setState(() => _fmt = m);
     });
+    // 393: egg movements show their packaging.
+    loadEggPackaging(widget.session, widget.company).then((_) {
+      if (mounted) setState(() {});
+    });
     CompanyClock.load(widget.session, widget.company).then((c) {
       if (mounted) setState(() => _offset = c.offset);
     });
@@ -269,6 +292,8 @@ class _StockMovementsScreenState extends State<StockMovementsScreen> {
           columns: const [
             ReportColumn('Date'), ReportColumn('Item'), ReportColumn('Parent Type'), ReportColumn('Movement'), ReportColumn('Batch / Flock'),
             ReportColumn('Reason'), ReportColumn('Qty', right: true),
+            // Egg rows: as entered (boxes / crates / pcs) or "≈" the equivalent.
+            ReportColumn('Packaging'),
             ReportColumn('Unit Price', right: true), ReportColumn('Total Value', right: true), ReportColumn('Source'), ReportColumn('Note'),
           ],
           rows: _exportRows(rows),
@@ -297,6 +322,7 @@ class _StockMovementsScreenState extends State<StockMovementsScreen> {
             tStr(m['batchFlock']).isEmpty ? '—' : tStr(m['batchFlock']),
             m['reason'] == null ? '—' : tStr(m['reason']),
             _signed(tNum(m['qty'])),
+            tStr(m['enteredAs']).isEmpty ? '—' : tStr(m['enteredAs']),
             m['unitCost'] != null ? _fmt(tNum(m['unitCost'])) : '—',
             m['total'] != null ? _fmt(tNum(m['total'])) : '—',
             tStr(m['source']),
@@ -322,7 +348,7 @@ class _StockMovementsScreenState extends State<StockMovementsScreen> {
       return;
     }
     String esc(Object? v) => '"${tStr(v).replaceAll('"', '""')}"';
-    const headers = ['Date', 'Item', 'Parent Type', 'Movement', 'Batch / Flock', 'Reason', 'Qty', 'Unit Price', 'Total Value', 'Source', 'Note'];
+    const headers = ['Date', 'Item', 'Parent Type', 'Movement', 'Batch / Flock', 'Reason', 'Qty', 'Packaging', 'Unit Price', 'Total Value', 'Source', 'Note'];
     final lines = [
       headers.map(esc).join(','),
       for (final r in _exportRows(rows)) r.map(esc).join(','),
@@ -373,6 +399,7 @@ class _StockMovementsScreenState extends State<StockMovementsScreen> {
       body: [
         Text(
           'The opposite is posted today and the original stays in the list.'
+          '${h['crates'] != null ? ' (entered as ${formatPackaged(PackagedQuantity(boxes: tIntOrNull(h['boxes']) ?? 0, crates: tIntOrNull(h['crates']) ?? 0, pieces: tIntOrNull(h['pieces']) ?? 0))} — the reversal undoes exactly this many eggs, whatever the box size is now)' : ''}'
           '${h['itemKind'] == 'Birds' ? " The flock's count goes back, and any Dead Birds it made come off." : ''}'
           '${h['convertedToBroken'] == true ? ' The Broken Eggs it made come off.' : ''}',
           style: const TextStyle(fontSize: 13, color: TColors.slate500),
@@ -493,7 +520,8 @@ class _StockMovementsScreenState extends State<StockMovementsScreen> {
                             fields: [
                               ('Date', fmtDateTime(m['date'], m, _offset), null),
                               ('Type', tStr(m['parentType']), null),
-                              ('Qty', _signed(tNum(m['qty'])), tNum(m['qty']) < 0 ? TColors.red600 : TColors.green700),
+                              ('Qty', '${_signed(tNum(m['qty']))}${tStr(m['enteredAs']).isNotEmpty ? ' · ${m['enteredAs']}' : ''}',
+                                  tNum(m['qty']) < 0 ? TColors.red600 : TColors.green700),
                               ('Unit price', m['unitCost'] != null ? _fmt(tNum(m['unitCost'])) : '—', null),
                               ('Total', m['total'] != null ? _fmt(tNum(m['total'])) : '—', null),
                               ('Source', tStr(m['source']), null),
@@ -574,6 +602,8 @@ class _NewStockMovementDialogState extends State<NewStockMovementDialog> {
   String _target = '', _movement = 'Increase', _note = '', _reason = '', _disposition = 'Keep';
   String _batchId = '', _flockId = '', _date = _today();
   num _qty = 0, _unitCost = 0;
+  // 395: an intact-egg item on a box farm is entered as boxes + crates + pieces.
+  int _boxes = 0, _crates = 0, _pieces = 0;
   bool _saving = false;
   final String _key = _requestKey();
   List<Map>? _options;
@@ -601,7 +631,12 @@ class _NewStockMovementDialogState extends State<NewStockMovementDialog> {
           ? 'raw'
           : (_product != null && isBirdStockProduct(_product!) ? 'birds' : 'product');
   int get _sign => stockMovements.firstWhere((m) => m.$1 == _movement, orElse: () => ('Increase', 1)).$2;
-  num get _q => _qty.abs();
+  EggPackaging get _pk => eggPackagingFor(widget.company.farmId);
+
+  /// 395: still ONE movement of eggs; the server converts with the company's packaging.
+  bool get _packagedEntry => _kind == 'product' && _isEgg && _role == null && boxSize(_pk) != null;
+  PackagedQuantity get _packagedQty => PackagedQuantity(boxes: _boxes, crates: _crates, pieces: _pieces);
+  num get _q => _packagedEntry ? toEggPieces(_packagedQty, _pk) : _qty.abs();
   String? get _role =>
       _preview?['systemRole'] as String? ?? (_product?['name'] == 'Broken Eggs' ? 'BrokenEggs' : (_product?['name'] == 'Dead Birds' ? 'DeadBirds' : null));
   bool get _isEgg => _preview?['isEgg'] == true;
@@ -700,7 +735,11 @@ class _NewStockMovementDialogState extends State<NewStockMovementDialog> {
   Future<void> _save() async {
     final kind = _kind;
     if (kind == null) return _toast('Pick an item');
-    if (_q <= 0) return _toast('Quantity must be greater than 0');
+    if (_packagedEntry) {
+      final err = packagedQuantityError(_packagedQty, _pk);
+      if (err != null) return _toast(err);
+    }
+    if (_q <= 0) return _toast(_packagedEntry ? 'Enter at least one box, crate or egg' : 'Quantity must be greater than 0');
     if (_reason.isEmpty) return _toast('Choose the reason');
     if (_date.isEmpty) return _toast('Enter the effective date');
     if (_date.compareTo(_maxDate) > 0) return _toast('The effective date is in the future');
@@ -729,10 +768,17 @@ class _NewStockMovementDialogState extends State<NewStockMovementDialog> {
         'requestKey': _key,
         'farmId': widget.company.farmId,
         'createdBy': widget.session.tokens.userId,
+        // 395: the server converts these with the company's packaging.
+        if (_packagedEntry) ...{'boxes': _boxes, 'crates': _crates, 'pieces': _pieces},
       });
       if (!mounted) return;
       final r = res is Map ? res : const {};
-      trackerToast(context, '${tStr(r['movementNo'])} posted', description: r['repeated'] == true ? 'This movement was already saved.' : null);
+      trackerToast(context, '${tStr(r['movementNo'])} posted',
+          description: r['repeated'] == true
+              ? 'This movement was already saved.'
+              : tStr(r['packaging']).isNotEmpty
+                  ? '${r['packaging']} = ${loc(r['eggs'] != null ? tNum(r['eggs']) : _q)} eggs'
+                  : null);
       Navigator.pop(context, true);
       return;
     } on ApiException catch (e) {
@@ -816,9 +862,39 @@ class _NewStockMovementDialogState extends State<NewStockMovementDialog> {
                 onChanged: (v) => setState(() => _reason = v ?? ''),
               ),
             ),
-            cell(kind == 'birds' ? 'Birds *' : 'Quantity *',
-                NumBox(key: ValueKey('qty-${kind == 'birds'}'), value: _qty, decimal: kind != 'birds', onChanged: (v) => setState(() => _qty = v)),
-                hint: 'Always positive; the movement type sets the direction.'),
+            if (_packagedEntry)
+              cell(
+                'Quantity *',
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  for (final (k, label, value) in [
+                    ('boxes', 'boxes (${_pk.cratesPerBox}×${_pk.eggsPerCrate})', _boxes),
+                    ('crates', 'crates (${_pk.eggsPerCrate})', _crates),
+                    ('pieces', 'pieces', _pieces),
+                  ]) ...[
+                    if (k != 'boxes') const SizedBox(width: 6),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                        NumBox(
+                          key: ValueKey('manual-$k'),
+                          value: value,
+                          onChanged: (v) => setState(() {
+                            final n = v.isFinite ? (v < 0 ? 0 : v.truncate()) : 0;
+                            if (k == 'boxes') _boxes = n;
+                            if (k == 'crates') _crates = n;
+                            if (k == 'pieces') _pieces = n;
+                          }),
+                        ),
+                        Text(label, style: const TextStyle(fontSize: 11, color: TColors.slate500)),
+                      ]),
+                    ),
+                  ],
+                ]),
+                hint: '= ${loc(_q)} eggs. Always positive; the movement type sets the direction.',
+              )
+            else
+              cell(kind == 'birds' ? 'Birds *' : 'Quantity *',
+                  NumBox(key: ValueKey('qty-${kind == 'birds'}'), value: _qty, decimal: kind != 'birds', onChanged: (v) => setState(() => _qty = v)),
+                  hint: 'Always positive; the movement type sets the direction.'),
             if (kind != 'birds') cell('Unit cost / value', NumBox(value: _unitCost, decimal: true, onChanged: (v) => _unitCost = v)),
             if (kind != null && kind != 'raw') ...[
               cell(
@@ -931,6 +1007,16 @@ class _NewStockMovementDialogState extends State<NewStockMovementDialog> {
                   const Padding(
                     padding: EdgeInsets.only(top: 4),
                     child: Text('The eggs are not lost: they move to Broken Eggs.', style: TextStyle(fontSize: 12, color: TColors.slate500)),
+                  ),
+                if (_packagedEntry && _preview != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      '${formatPackaged(_packagedQty)} = ${_sign < 0 ? '−' : '+'}${loc(_q)} eggs. After: '
+                      '${formatEggQuantity(tNum(_preview!['itemOnHand']) + _sign * _q, _pk, EggDisplay.boxesCratesPieces)} (an equivalent; nothing is packed).',
+                      key: const ValueKey('manual-packaged-after'),
+                      style: const TextStyle(fontSize: 12, color: TColors.slate500),
+                    ),
                   ),
               ]),
             ),

@@ -4,6 +4,7 @@
 // with the pick breakdown, the full table with its totals row, paging, and
 // Log / Edit / Delete through the production record modal.
 
+import '../egg_packaging.dart' show EggDisplay, boxSize, currentEggPackaging, formatEggQuantity;
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -311,7 +312,7 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
       filename: 'production-${DateTime.now().toUtc().toIso8601String().substring(0, 10)}',
       farmName: widget.company.name.isNotEmpty ? widget.company.name : 'Farm',
       landscape: true,
-      subtitle: 'Records: ${rows.length}  |  Total Eggs: ${loc(t.eggs)} (${t.crates} crates + ${t.pieces} pcs)  |  Feed: ${t.feed.toStringAsFixed(2)} kg  |  '
+      subtitle: 'Records: ${rows.length}  |  Total Eggs: ${loc(t.eggs)} (${t.crates} crates + ${t.pieces} pcs${_eggsBoxes(t.eggs) != null ? ' = ${_eggsBoxes(t.eggs)}' : ''})  |  Feed: ${t.feed.toStringAsFixed(2)} kg  |  '
           'Deaths (active flocks): ${n(t.deaths)}  |  Deaths (all logs): ${n(t.deathsAll)}  |  Placed birds: ${n(t.placed)}  |  Birds left: ${n(t.left)}',
       sections: [
         ReportSection(
@@ -705,7 +706,7 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
             const SizedBox(height: 14),
             if (!_loading) ...[
               twoUp([
-                tile('Total Eggs', loc(t.eggs), color: TColors.emerald600, suffix: '${t.crates}c + ${t.pieces}p'),
+                tile('Total Eggs', loc(t.eggs), color: TColors.emerald600, suffix: _eggsBoxes(t.eggs) ?? '${t.crates}c + ${t.pieces}p'),
                 tile('Avg / Record', loc(rows.isEmpty ? 0 : (t.eggs / rows.length).round())),
                 tile('Feed (kg)', t.feed.toStringAsFixed(2)),
                 tile(
@@ -806,6 +807,15 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
           const TextSpan(text: '  •  ', style: TextStyle(color: TColors.slate500)),
           TextSpan(text: _flockLabel(r), style: const TextStyle(color: TColors.slate600)),
         ]), maxLines: 1, overflow: TextOverflow.ellipsis)),
+        // 389: feed recorded from Feed Usage, production not filled in yet.
+        if (r['sourceType'] == 'FeedUsage')
+          const Padding(
+            padding: EdgeInsets.only(top: 4),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: TBadge('Production not filled', key: ValueKey('production-not-filled'), bg: Color(0xFFFFFBEB), fg: Color(0xFF92400E)),
+            ),
+          ),
         if (_batchOf(r) != '-')
           Text('Batch: ${_batchOf(r)}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
         const SizedBox(height: 10),
@@ -933,7 +943,12 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
             withCrates(_sum(filtered, 'production4PM'), const Color(0xFF6B21A8)),
             for (final (_, k) in extra) withCrates(_sum(filtered, k), const Color(0xFF115E59)),
             withCrates(_sum(filtered, 'brokenEggs'), TColors.red700),
-            withCrates(t.eggs, TColors.emerald700),
+            _eggsBoxes(t.eggs) == null
+                ? withCrates(t.eggs, TColors.emerald700)
+                : Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
+                    withCrates(t.eggs, TColors.emerald700),
+                    Text('≈ ${_eggsBoxes(t.eggs)}', style: const TextStyle(fontSize: 11, color: TColors.slate500)),
+                  ]),
             const SizedBox.shrink(),
             cellText(t.feed.toStringAsFixed(2), bold: true),
             cellText(loc(sumLatestBirdsByFlock(filtered)), bold: true),
@@ -1046,4 +1061,10 @@ Widget? productionScreenForHref(String href, Session s, Company c) {
     return ProductionRecordsScreen(session: s, company: c, date: toBusinessDate(uri.queryParameters['date']));
   }
   return productionRecordScreenForHref(href, s, c);
+}
+
+/// 393: the box equivalent on a box farm (display only), else null.
+String? _eggsBoxes(num eggs) {
+  final p = currentEggPackaging;
+  return boxSize(p) != null ? formatEggQuantity(eggs, p, EggDisplay.boxesCratesPieces) : null;
 }

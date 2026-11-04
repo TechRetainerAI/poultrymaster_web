@@ -1,3 +1,4 @@
+import '../egg_packaging.dart' show EggDisplay, boxSize, currentEggPackaging, toBoxesCratesPieces, toCratesPieces;
 import 'package:flutter/material.dart';
 
 import '../../../api/api_client.dart';
@@ -332,18 +333,21 @@ class _EggTrackerScreenState extends State<EggTrackerScreen> {
             TileData('Eggs on hand', loc(onHand.round()),
                 color: onHand < 0 ? TColors.red600 : TColors.slate900,
                 suffix: 'eggs',
+                sub: eggCratesLine(onHand),
                 action: CopyButton(
                   value: '${onHand.round()}',
                   label: 'Copy egg count',
                   toastText: 'Egg count copied to clipboard',
                 )),
-            TileData('Egg produced', loc(sumIn((r) => r.type == 'Production')), color: TColors.sky700),
-            TileData('Egg sales (units)', loc(sumOut((r) => r.type == 'Sale')), color: TColors.amber800),
+            TileData('Egg produced', loc(sumIn((r) => r.type == 'Production')), color: TColors.sky700, sub: eggCratesLine(sumIn((r) => r.type == 'Production'))),
+            TileData('Egg sales (units)', loc(sumOut((r) => r.type == 'Sale')), color: TColors.amber800, sub: eggCratesLine(sumOut((r) => r.type == 'Sale'))),
             TileData('Last ledger event', rows.isEmpty ? '—' : trackerDate(l.lastUpdatedIso), color: TColors.slate600),
-            TileData('Eggs in (adjustments)', loc(sumIn((r) => adjust.hasMatch(r.type))), color: TColors.emerald700),
-            TileData('Eggs out (adjustments)', loc(sumOut((r) => adjust.hasMatch(r.type))), color: TColors.rose600),
-            TileData('Total eggs in', loc(sumIn((_) => true)), color: TColors.emerald600),
-            TileData('Total eggs out', loc(sumOut((_) => true)), color: TColors.red600),
+            TileData('Eggs in (adjustments)', loc(sumIn((r) => adjust.hasMatch(r.type))), color: TColors.emerald700,
+                sub: eggCratesLine(sumIn((r) => adjust.hasMatch(r.type)))),
+            TileData('Eggs out (adjustments)', loc(sumOut((r) => adjust.hasMatch(r.type))), color: TColors.rose600,
+                sub: eggCratesLine(sumOut((r) => adjust.hasMatch(r.type)))),
+            TileData('Total eggs in', loc(sumIn((_) => true)), color: TColors.emerald600, sub: eggCratesLine(sumIn((_) => true))),
+            TileData('Total eggs out', loc(sumOut((_) => true)), color: TColors.red600, sub: eggCratesLine(sumOut((_) => true))),
           ]),
           const SizedBox(height: 8),
           Text.rich(
@@ -526,8 +530,14 @@ class _EggTrackerScreenState extends State<EggTrackerScreen> {
                 ])),
                 const SizedBox(),
                 const SizedBox(),
-                cellText(loc(inTotal), color: TColors.emerald700, bold: true),
-                cellText(loc(outTotal), color: TColors.red700, bold: true),
+                Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                  cellText(loc(inTotal), color: TColors.emerald700, bold: true),
+                  Text(eggCratesLine(inTotal), style: const TextStyle(fontSize: 11, color: TColors.slate500)),
+                ]),
+                Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                  cellText(loc(outTotal), color: TColors.red700, bold: true),
+                  Text(eggCratesLine(outTotal), style: const TextStyle(fontSize: 11, color: TColors.slate500)),
+                ]),
                 const SizedBox(),
               ],
             ),
@@ -570,4 +580,20 @@ class _EggTrackerScreenState extends State<EggTrackerScreen> {
           : const [],
     );
   }
+}
+
+/// CratesLine: "962 crates + 10 pieces" under an egg total at the farm's
+/// crate size -- boxes first on a farm that shows boxes. Display only; keeps
+/// the sign, because Eggs on hand can go negative.
+String eggCratesLine(num eggs) {
+  final n = eggs.round();
+  final sign = n < 0 ? '−' : '';
+  final p = currentEggPackaging;
+  String pl(int x, String one, String many) => '${loc(x)} ${x == 1 ? one : many}';
+  if (boxSize(p) != null && p.display == EggDisplay.boxesCratesPieces) {
+    final q = toBoxesCratesPieces(n.abs(), p);
+    return '$sign${pl(q.boxes, 'box', 'boxes')} + ${pl(q.crates, 'crate', 'crates')} + ${pl(q.pieces, 'piece', 'pieces')}';
+  }
+  final q = toCratesPieces(n.abs(), p);
+  return '$sign${pl(q.crates, 'crate', 'crates')} + ${pl(q.pieces, 'piece', 'pieces')}';
 }

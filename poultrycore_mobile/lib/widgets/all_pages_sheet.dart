@@ -5,6 +5,8 @@ import '../design/web_mobile.dart';
 import '../models/company.dart';
 import '../pages/registry.dart';
 import '../pages/shared/setup_admin_routes.dart';
+import '../pages/generic/generic_kit.dart' show gateGenericCatalog;
+import '../pages/shared/billing_nav.dart';
 import '../pages/web_nav.dart';
 import '../state/session.dart';
 import 'module_sidebar.dart';
@@ -21,7 +23,7 @@ Future<void> showAllPages(
   Session session,
   Company company,
 ) {
-  final groups = gateSetupLinks(webNavGroups[PageRegistry.moduleOf(company.type)] ?? const [], company);
+  final groups = gateGenericCatalog(gateBillingLinks(gateSetupLinks(webNavGroups[PageRegistry.moduleOf(company.type)] ?? const [], company)), company);
 
   return showModalBottomSheet<void>(
     context: context,

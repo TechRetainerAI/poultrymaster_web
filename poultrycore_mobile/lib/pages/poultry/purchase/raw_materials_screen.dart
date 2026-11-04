@@ -717,9 +717,11 @@ class _RawMaterialsScreenState extends State<RawMaterialsScreen> {
         for (final i in pageSlice(rows, _iPage, _iSize))
           FieldCard(
             title: tStr(i['itemName']),
+            titleTag: i['isDefault'] == true ? const DefaultItemTag() : null,
             badge: _statusBadge(i),
+            extra: [if (rawCategoryTag(i['category']) case final tag?) ('Category', tag)],
             fields: [
-              ('Category', rawCategoryLabel(i['category']), null),
+              if (rawCategoryTag(i['category']) == null) ('Category', rawCategoryLabel(i['category']), null),
               ('Units', unitsText(i), null),
               ('In stock', '${loc(tNum(i['currentQuantity']))} ${tStr(i['unitOfMeasure'])}'.trim(), i['isActive'] == true && i['isLowStock'] == true ? TColors.amber700 : null),
               ('Min alert', loc(tNum(i['minimumStockAlert'])), null),
@@ -913,9 +915,47 @@ class _RawMaterialsScreenState extends State<RawMaterialsScreen> {
 
 /// FieldCard: a title with a badge, a two-column "Label: value" grid (plus any
 /// widget fields), and the row's actions under a rule.
+/// Feed Ingredient and Finished Feed get their own colour and icon so the two
+/// never read alike (CategoryTag); every other category stays plain text.
+Widget? rawCategoryTag(Object? category) {
+  final (label, icon, bg, border, fg) = switch ('$category') {
+    'FeedIngredient' => ('Feed Ingredient', Icons.grass, const Color(0xFFFFFBEB), const Color(0xFFFDE68A), const Color(0xFF92400E)),
+    'FinishedFeed' => ('Finished Feed', Icons.inventory_2_outlined, const Color(0xFFEEF2FF), const Color(0xFFC7D2FE), const Color(0xFF4338CA)),
+    _ => ('', Icons.circle, Colors.white, Colors.white, Colors.white),
+  };
+  if (label.isEmpty) return null;
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+    decoration: BoxDecoration(color: bg, border: Border.all(color: border), borderRadius: BorderRadius.circular(999)),
+    child: Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, size: 12, color: fg),
+      const SizedBox(width: 3),
+      Flexible(child: Text(label, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: fg))),
+    ]),
+  );
+}
+
+/// DefaultTag: the feeds and ingredients the system set up for the farm.
+class DefaultItemTag extends StatelessWidget {
+  const DefaultItemTag({super.key});
+  @override
+  Widget build(BuildContext context) => Tooltip(
+        message: 'Set up for you by default. You can edit or delete it like any other item.',
+        child: Container(
+          margin: const EdgeInsets.only(left: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+          decoration: BoxDecoration(color: TColors.slate50, border: Border.all(color: TColors.slate300), borderRadius: BorderRadius.circular(4)),
+          child: const Text('DEFAULT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: .5, color: TColors.slate600)),
+        ),
+      );
+}
+
 class FieldCard extends StatelessWidget {
-  const FieldCard({super.key, required this.title, required this.badge, required this.fields, required this.actions, this.extra = const []});
+  const FieldCard({super.key, required this.title, required this.badge, required this.fields, required this.actions, this.extra = const [], this.titleTag});
   final String title;
+
+  /// Beside the title (the Default tag).
+  final Widget? titleTag;
   final Widget badge;
   final List<(String, String, Color?)> fields;
 
@@ -930,7 +970,12 @@ class FieldCard extends StatelessWidget {
         decoration: BoxDecoration(border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Expanded(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w500, color: TColors.slate900))),
+            Expanded(
+              child: Row(children: [
+                Flexible(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w500, color: TColors.slate900))),
+                ?titleTag,
+              ]),
+            ),
             const SizedBox(width: 8),
             Flexible(child: Align(alignment: Alignment.centerRight, child: badge)),
           ]),
@@ -954,9 +999,10 @@ class FieldCard extends StatelessWidget {
               for (final (l, w2) in extra)
                 SizedBox(
                   width: w,
-                  child: Row(children: [
+                  // Wraps: a tag next to its label can be wider than half a phone.
+                  child: Wrap(crossAxisAlignment: WrapCrossAlignment.center, children: [
                     Text('$l: ', style: const TextStyle(fontSize: 13, color: TColors.slate500)),
-                    Flexible(child: w2),
+                    w2,
                   ]),
                 ),
             ]);

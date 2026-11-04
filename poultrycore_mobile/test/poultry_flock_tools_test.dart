@@ -114,12 +114,25 @@ void main() {
       expect(dueLabel(task(1, 'Due', days: 2)), 'Due this week');
       expect(dueLabel(task(1, 'Overdue', days: -3)), '3 days overdue');
       expect(taskSentence(task(1, 'Upcoming', days: 1)), 'B1 (Flock A) reaches Week 16 tomorrow');
-      expect(validatePlan('', [(title: '', ageUnit: 'Week', ageValue: 0, leadTimeDays: 400)]), [
+      expect(validatePlan('', [(title: '', ageUnit: 'Week', ageValue: 0, leadTimeDays: 400, repeatEveryDays: null)]), [
         'Give the lifecycle plan a name.',
         'Milestone 1: give it a title.',
         'Milestone 1: lead time must be between 0 and 365 days.',
       ]);
       expect(ageAtStartDays(18, 3), 129);
+      // 387: repeats.
+      expect(validatePlan('P', [(title: 'ND', ageUnit: 'Week', ageValue: 8, leadTimeDays: 3, repeatEveryDays: 4000)]),
+          ['Milestone 1 (ND): repeat every 1 to 3650 days, or not at all.']);
+      expect(repeatLabel(91), 'every 13 weeks');
+      expect(repeatLabel(7), 'every week');
+      expect(repeatLabel(10), 'every 10 days');
+      expect(repeatLabel(null), isNull);
+      expect(repeatToParts(91), (value: 13, unit: 'Week'));
+      expect(repeatFromParts(13, 'Week'), 91);
+      expect(taskAgeLabel({'ageUnit': 'Week', 'ageValue': 16, 'occurrence': 2, 'ageDays': 294}), 'Week 42');
+      expect(taskAgeLabel({'ageUnit': 'Week', 'ageValue': 16, 'occurrence': 1, 'ageDays': 200}), 'Day 200');
+      expect(taskKey({'flockId': 7, 'milestoneId': 3, 'occurrence': 2}), '7-3-2');
+      expect(lifecycleCategorySuggestions.first, 'Vaccination');
       expect([for (final t in sortTasks([task(1, 'Upcoming'), task(3, 'Completed'), task(2, 'Overdue')])) t['milestoneId']], [2, 1, 3]);
     });
   });
@@ -349,10 +362,11 @@ void main() {
       await open(tester, FlockLifecycleScreen(session: await sessionFor(api), company: adminCompany), size: phone);
 
       await tapText(tester, 'Plans');
-      expect(find.text('For Lohmann'), findsOneWidget);
+      await seek(tester, 'For Lohmann');
       expect(find.text('Any breed · Inactive'), findsOneWidget);
       expect(find.text('2 milestones · used by 1 batch and 0 flocks directly'), findsOneWidget);
 
+      await seek(tester, 'New plan', up: true);
       await tapText(tester, 'New plan');
       await tapText(tester, 'Save plan');
       expect(find.text('Give the lifecycle plan a name.'), findsOneWidget);
@@ -373,6 +387,54 @@ void main() {
       expect(m['ageUnit'], 'Day');
       expect(m['leadTimeDays'], 3);
       expect(m['actionType'], 'FlockTransfer');
+    });
+
+    testWidgets('387: the national schedule panel, its badge and note, Add missing national plans, a repeat saved', (tester) async {
+      final api = lifecycleApi()
+        ..gets['/api/Poultry/lifecycle/templates'] = [
+          {'templateId': 6, 'name': 'Commercial Layers', 'isActive': true, 'isDefault': true, 'milestoneCount': 12, 'assignedBatches': 0, 'assignedFlocks': 0},
+        ]
+        ..gets['/api/Poultry/lifecycle/templates/6'] = {
+          'templateId': 6, 'name': 'Commercial Layers', 'isActive': true, 'isDefault': true,
+          'milestones': [
+            {'milestoneId': 1, 'ageUnit': 'Week', 'ageValue': 8, 'title': 'Newcastle booster', 'category': 'Vaccination', 'leadTimeDays': 3, 'repeatEveryDays': 91},
+          ],
+        }
+        ..writeAnswers['/api/Poultry/lifecycle/ensure-defaults'] = {'plansCreated': 0, 'alreadyApplied': true};
+      await open(tester, FlockLifecycleScreen(session: await sessionFor(api), company: adminCompany), size: phone);
+      expect(api.writes.any((w) => w.url.path == '/api/Poultry/lifecycle/ensure-defaults' && w.url.queryParameters['force'] == null), isTrue,
+          reason: 'seeded once, quietly, on load');
+      expect(find.textContaining('The Ghana national vaccination schedule is ready as two plans'), findsOneWidget);
+
+      await tapText(tester, 'Plans');
+      await seek(tester, 'Ghana national vaccination schedule');
+      expect(find.text('National schedule'), findsOneWidget);
+      await tapText(tester, 'Add missing national plans');
+      expect(api.writes.any((w) => w.url.queryParameters['force'] == 'true'), isTrue);
+      expect(find.text('Nothing to add — Both national vaccination plans are already here.'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Edit plan').first);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('national-plan-note')), findsOneWidget);
+      await seek(tester, 'Repeats every 13 weeks after this age, until the flock is closed.');
+      await tapText(tester, 'Save plan');
+      final m = (api.lastBody('/api/Poultry/lifecycle/templates/6', 'PUT')['milestones'] as List).single as Map;
+      expect(m['repeatEveryDays'], 91, reason: 'the repeat rides back as days');
+    });
+
+    testWidgets('387: a repeated task shows Repeat N and completes its own occurrence', (tester) async {
+      final api = lifecycleApi()
+        ..gets['/api/Poultry/lifecycle/tasks'] = [
+          {...task(4, 'Overdue', days: -1), 'title': 'Newcastle booster', 'occurrence': 2, 'ageDays': 294, 'repeatEveryDays': 91},
+        ];
+      await open(tester, FlockLifecycleScreen(session: await sessionFor(api), company: adminCompany), size: phone);
+      await seek(tester, 'Newcastle booster');
+      expect(find.text('↻ Repeat 2'), findsOneWidget);
+      expect(find.text('Repeats every 13 weeks'), findsOneWidget);
+      expect(find.text('B1 (Flock A) passed Week 42'), findsOneWidget);
+      await tapText(tester, 'Complete');
+      final b = api.lastBody('/api/Poultry/lifecycle/tasks/status', 'PUT');
+      expect((b['milestoneId'], b['occurrence'], b['status']), (4, 2, 'Completed'));
     });
 
     testWidgets('assignments: the breed warning, and assigning a plan to one flock', (tester) async {

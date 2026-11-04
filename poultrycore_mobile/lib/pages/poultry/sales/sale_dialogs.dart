@@ -623,7 +623,10 @@ class SaleInvoiceScreen extends StatelessWidget {
               pw.TableRow(children: [
                 pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
                   pw.Text(l('${tStr(sale['product'])}${ln.label.isNotEmpty ? ' — ${ln.label}' : ''}'), style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                  if (isEggs && ln.quantity > 0) pw.Text('${(ln.quantity / epc).floor()} crates + ${(ln.quantity % epc).toInt()} loose', style: const pw.TextStyle(fontSize: 8, color: muted)),
+                  if (ln.note != null && ln.note!.isNotEmpty)
+                    pw.Text(l(ln.note!), style: const pw.TextStyle(fontSize: 8, color: muted))
+                  else if (isEggs && ln.quantity > 0)
+                    pw.Text('${(ln.quantity / epc).floor()} crates + ${(ln.quantity % epc).toInt()} loose', style: const pw.TextStyle(fontSize: 8, color: muted)),
                 ])),
                 pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text(jsQty(ln.quantity), textAlign: pw.TextAlign.right)),
                 pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text(l(money(ln.unitPrice)), textAlign: pw.TextAlign.right)),
@@ -754,7 +757,9 @@ class SaleInvoiceScreen extends StatelessWidget {
                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                             Text('${tStr(sale['product'])}${ln.label.isNotEmpty ? ' — ${ln.label}' : ''}',
                                 style: const TextStyle(fontWeight: FontWeight.w600)),
-                            if (isEggs && ln.quantity > 0)
+                            if (ln.note != null && ln.note!.isNotEmpty)
+                              Text(ln.note!, key: const ValueKey('invoice-line-note'), style: const TextStyle(fontSize: 12, color: _muted))
+                            else if (isEggs && ln.quantity > 0)
                               Text('${(ln.quantity / eggsPerCrate).floor()} crates + ${(ln.quantity % eggsPerCrate).toInt()} loose',
                                   style: const TextStyle(fontSize: 12, color: _muted)),
                           ]),
@@ -826,9 +831,12 @@ class SaleInvoiceScreen extends StatelessWidget {
 
 /// One invoice row (SaleInvoiceLine).
 class InvoiceLine {
-  const InvoiceLine({required this.label, required this.quantity, required this.unitPrice, required this.totalAmount});
+  const InvoiceLine({required this.label, required this.quantity, required this.unitPrice, required this.totalAmount, this.note});
   final String label;
   final num quantity, unitPrice, totalAmount;
+
+  /// 394: how the line was entered and priced ("2 boxes + 3 crates · 1 box = 14 crates…").
+  final String? note;
 }
 
 /// A count as the web prints it (toLocaleString).
