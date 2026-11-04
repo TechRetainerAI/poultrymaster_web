@@ -286,11 +286,11 @@ export default function BatchProductionSummaryReport() {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-50">
       <DashboardSidebar onLogout={logout} />
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
-        <main className="overflow-x-hidden px-2 py-4 sm:p-6 pb-20 lg:pb-4">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-4 sm:p-6 pb-20 lg:pb-4">
           <div className="space-y-4 sm:space-y-6 min-w-0 w-full">
             {/* Header */}
             <div className="flex items-start gap-3 min-w-0">

@@ -80,7 +80,9 @@ export function ClosingSections({ ws, fmt }: { ws: ClosingWorkspace; fmt: Money 
           tone={p.missingFlocks > 0 ? "bad" : undefined}
         />
         <Stat label="Eggs produced" value={`${qty(p.eggsProduced)}${eggBoxes(p.eggsProduced)}`} />
-        <Stat label="Damaged eggs" value={qty(p.eggsDamaged)} />
+        <Stat label="Total damaged (broken) eggs" value={qty(p.eggsDamaged)} />
+        {/* 404: absent until the migration runs, and in a day closed before it. */}
+        <Stat label="Total disposed eggs" value={p.eggsDisposed != null ? qty(p.eggsDisposed) : "—"} />
         <Stat label="Mortality" value={qty(p.mortality)} />
         <Stat label="Feed used" value={`${qty(p.feedKg, 2)} kg`} />
         <Stat label="Missing production" value={qty(p.missingFlocks)} tone={p.missingFlocks > 0 ? "bad" : "good"} />

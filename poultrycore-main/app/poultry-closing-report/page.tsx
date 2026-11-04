@@ -132,11 +132,11 @@ export default function PoultryClosingReportPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex h-screen bg-gray-50">
       <DashboardSidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
-        <main className="flex-1 p-4 sm:p-6 space-y-4">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
           {/* "by Category" distinguishes this from /poultry-closing-report-daily,
               which lists each day's closing as a row rather than totalling the
               whole period into categories. */}

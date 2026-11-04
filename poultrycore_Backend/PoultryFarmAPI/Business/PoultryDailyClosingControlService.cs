@@ -185,6 +185,8 @@ namespace PoultryFarmAPIWeb.Business
                     FeedKg = Dec(r, "feedkg"),
                     BlockingCount = Int(r, "blockingcount"),
                     WarningCount = Int(r, "warningcount"),
+                    // 404: only there once the migration has run.
+                    EggsDisposed = DecIfPresent(r, "eggsdisposed"),
                 });
             }
             return list;
@@ -303,6 +305,14 @@ namespace PoultryFarmAPIWeb.Business
         {
             var i = r.GetOrdinal(col);
             return r.IsDBNull(i) ? null : r.GetDecimal(i);
+        }
+
+        private static decimal? DecIfPresent(NpgsqlDataReader r, string col)
+        {
+            for (var i = 0; i < r.FieldCount; i++)
+                if (string.Equals(r.GetName(i), col, StringComparison.OrdinalIgnoreCase))
+                    return r.IsDBNull(i) ? null : r.GetDecimal(i);
+            return null;
         }
 
         private static DateTime? Date(NpgsqlDataReader r, string col)

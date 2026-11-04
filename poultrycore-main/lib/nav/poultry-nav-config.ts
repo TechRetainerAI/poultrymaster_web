@@ -528,7 +528,7 @@ export function buildPoultryNavConfig(
           { id: "audit-logs",  title: "Activity Log",        icon: Activity,   href: "/audit-logs", visible: featureAccess.canViewActivityLog },
           { id: "resources",   title: "Resources",           icon: BookOpen,   href: "/resources" },
           { id: "help",        title: "Help Center",         icon: HelpCircle, href: "/help" },
-          { id: "videos",      title: "Videos",              icon: PlayCircle, href: "/poultry-videos" },
+          { id: "videos",      title: "Support Videos",      icon: PlayCircle, href: "/poultry-videos" },
           { id: "terms",       title: "Terms & Conditions",  icon: ListTodo,   href: "/terms" },
         ],
       },

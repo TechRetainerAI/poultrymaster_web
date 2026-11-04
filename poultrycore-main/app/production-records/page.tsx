@@ -153,7 +153,7 @@ export default function ProductionRecordsPage() {
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [itemsPerPage, setItemsPerPage] = useState(25)
 
   // Modal state
   const [formOpen, setFormOpen] = useState(false)
@@ -761,11 +761,11 @@ export default function ProductionRecordsPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-50">
       <DashboardSidebar onLogout={handleLogout} />
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
-        <main className="overflow-x-hidden px-2 py-4 sm:p-6 pb-20 lg:pb-4">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-4 sm:p-6 pb-20 lg:pb-4">
           <div className="space-y-4 sm:space-y-6 min-w-0 w-full">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div className="flex items-start gap-3 min-w-0">
@@ -1223,32 +1223,32 @@ export default function ProductionRecordsPage() {
                         </div>
                       </>
                     )}
-                    <Table className={cn("min-w-[1600px]", isMobile && "min-w-[1400px]")}>
+                    <Table className={cn("min-w-[1250px] text-xs", isMobile && "min-w-[1150px]")}>
                       <TableHeader className="sticky top-0 bg-blue-50 z-10">
                         <TableRow className="border-b border-blue-200">
                           {/* Only Date is pinned on mobile. Pinning Flock and
                               Actions as well cost 350px of a 390px screen and
                               left a ~40px slot for the numbers this table
                               exists to show — Age was clipped mid-column. */}
-                          <SortableHeader label="Date" sortKey="date" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className={cn("min-w-[100px] px-3 py-2", isMobile && "sticky-col-date bg-blue-50")} />
-                          <SortableHeader label="Flock" sortKey="flockId" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[120px] px-3 py-2" />
-                          <SortableHeader label="Batch" sortKey="batchName" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[120px] px-3 py-2 whitespace-nowrap" />
-                          <SortableHeader label="Age" sortKey="age" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[170px] px-3 py-2" />
-                          <SortableHeader label="1st Pick" sortKey="production9AM" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-blue-100 text-blue-900 font-semibold whitespace-nowrap" />
-                          <SortableHeader label="2nd Pick" sortKey="production12PM" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-orange-100 text-orange-900 font-semibold whitespace-nowrap" />
-                          <SortableHeader label="3rd Pick" sortKey="production4PM" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-purple-100 text-purple-900 font-semibold whitespace-nowrap" />
+                          <SortableHeader label="Date" sortKey="date" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className={cn("min-w-[100px] px-2 py-1.5", isMobile && "sticky-col-date bg-blue-50")} />
+                          <SortableHeader label="Flock" sortKey="flockId" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[120px] px-2 py-1.5" />
+                          <SortableHeader label="Batch" sortKey="batchName" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[120px] px-2 py-1.5 whitespace-nowrap" />
+                          <SortableHeader label="Age" sortKey="age" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[140px] px-2 py-1.5" />
+                          <SortableHeader label="1st Pick" sortKey="production9AM" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[60px] px-2 py-1.5 bg-blue-100 text-blue-900 font-semibold whitespace-nowrap" />
+                          <SortableHeader label="2nd Pick" sortKey="production12PM" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[60px] px-2 py-1.5 bg-orange-100 text-orange-900 font-semibold whitespace-nowrap" />
+                          <SortableHeader label="3rd Pick" sortKey="production4PM" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[60px] px-2 py-1.5 bg-purple-100 text-purple-900 font-semibold whitespace-nowrap" />
                           {pickColumns.map((c) => (
-                            <SortableHeader key={c.key} label={c.header} sortKey={c.key} currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-teal-100 text-teal-900 font-semibold whitespace-nowrap" />
+                            <SortableHeader key={c.key} label={c.header} sortKey={c.key} currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[60px] px-2 py-1.5 bg-teal-100 text-teal-900 font-semibold whitespace-nowrap" />
                           ))}
-                          <SortableHeader label="Brokens" sortKey="brokenEggs" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-red-50 text-red-800 font-semibold" />
-                          <SortableHeader label="Total" sortKey="totalProduction" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2" />
-                          <SortableHeader label="Egg%" sortKey="eggPercent" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2" />
-                          <SortableHeader label="Feed" sortKey="feedKg" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2" />
-                          <SortableHeader label="Birds" sortKey="noOfBirds" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2" />
-                          <SortableHeader label="Deaths" sortKey="mortality" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[72px] px-3 py-2 whitespace-nowrap" />
-                          <SortableHeader label="Left" sortKey="left" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[70px] px-3 py-2 whitespace-nowrap" />
-                          <SortableHeader label="Meds" sortKey="medication" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[100px] px-3 py-2 whitespace-nowrap" />
-                          <TableHead className="text-left min-w-[130px] px-3 py-2 whitespace-nowrap">Actions</TableHead>
+                          <SortableHeader label="Brokens" sortKey="brokenEggs" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[60px] px-2 py-1.5 bg-red-50 text-red-800 font-semibold" />
+                          <SortableHeader label="Total" sortKey="totalProduction" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[60px] px-2 py-1.5" />
+                          <SortableHeader label="Egg%" sortKey="eggPercent" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[60px] px-2 py-1.5" />
+                          <SortableHeader label="Feed" sortKey="feedKg" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[60px] px-2 py-1.5" />
+                          <SortableHeader label="Birds" sortKey="noOfBirds" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[60px] px-2 py-1.5" />
+                          <SortableHeader label="Deaths" sortKey="mortality" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[56px] px-2 py-1.5 whitespace-nowrap" />
+                          <SortableHeader label="Left" sortKey="left" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[52px] px-2 py-1.5 whitespace-nowrap" />
+                          <SortableHeader label="Meds" sortKey="medication" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[100px] px-2 py-1.5 whitespace-nowrap" />
+                          <TableHead className="text-left min-w-[130px] px-2 py-1.5 whitespace-nowrap">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1271,8 +1271,8 @@ export default function ProductionRecordsPage() {
                                 the row's own bg-slate-50/40 is translucent, so
                                 columns would scroll visibly through it. Match
                                 the stripe rather than always white. */}
-                            <TableCell className={cn("px-3 py-2 whitespace-nowrap min-w-[100px]", isMobile && (idx % 2 === 0 ? "sticky-col-date bg-white" : "sticky-col-date bg-slate-100"))}>{isMobile ? formatDateShort(r.date) : fmtDateTime(r.date, r)}</TableCell>
-                            <TableCell className="px-3 py-2 whitespace-nowrap min-w-[120px] font-medium text-slate-800">
+                            <TableCell className={cn("px-2 py-1.5 whitespace-nowrap min-w-[100px]", isMobile && (idx % 2 === 0 ? "sticky-col-date bg-white" : "sticky-col-date bg-slate-100"))}>{isMobile ? formatDateShort(r.date) : fmtDateTime(r.date, r)}</TableCell>
+                            <TableCell className="px-2 py-1.5 whitespace-nowrap min-w-[120px] font-medium text-slate-800">
                               {resolveFlockLabel(r)}
                               {/* 389: feed recorded from Feed Usage, production not filled in yet. */}
                               {r.sourceType === "FeedUsage" && (
@@ -1281,29 +1281,29 @@ export default function ProductionRecordsPage() {
                                 </span>
                               )}
                             </TableCell>
-                            <TableCell className="px-3 py-2 whitespace-nowrap min-w-[120px] text-slate-600">{resolveBatchLabel(r)}</TableCell>
-                            <TableCell className="px-3 py-2">{formatAge(r)}</TableCell>
-                            <TableCell className="text-right px-3 py-2 text-blue-700 bg-blue-50/40 rounded-sm">{r.production9AM ?? 0}</TableCell>
-                            <TableCell className="text-right px-3 py-2 text-orange-700 bg-orange-50/40 rounded-sm">{r.production12PM ?? 0}</TableCell>
-                            <TableCell className="text-right px-3 py-2 text-purple-700 bg-purple-50/40 rounded-sm">{r.production4PM ?? 0}</TableCell>
+                            <TableCell className="px-2 py-1.5 whitespace-nowrap min-w-[120px] text-slate-600">{resolveBatchLabel(r)}</TableCell>
+                            <TableCell className="px-2 py-1.5">{formatAge(r)}</TableCell>
+                            <TableCell className="text-right px-2 py-1.5 text-blue-700 bg-blue-50/40 rounded-sm">{r.production9AM ?? 0}</TableCell>
+                            <TableCell className="text-right px-2 py-1.5 text-orange-700 bg-orange-50/40 rounded-sm">{r.production12PM ?? 0}</TableCell>
+                            <TableCell className="text-right px-2 py-1.5 text-purple-700 bg-purple-50/40 rounded-sm">{r.production4PM ?? 0}</TableCell>
                             {pickColumns.map((c) => (
-                              <TableCell key={c.key} className="text-right px-3 py-2 text-teal-700 bg-teal-50/40 rounded-sm">{(r as any)[c.key] ?? 0}</TableCell>
+                              <TableCell key={c.key} className="text-right px-2 py-1.5 text-teal-700 bg-teal-50/40 rounded-sm">{(r as any)[c.key] ?? 0}</TableCell>
                             ))}
-                            <TableCell className="text-right px-3 py-2 text-red-700 bg-red-50/40 rounded-sm">{(r as any).brokenEggs ?? 0}</TableCell>
-                            <TableCell className="text-right px-3 py-2 font-semibold text-slate-900">{r.totalProduction ?? 0}</TableCell>
-                            <TableCell className="text-right px-3 py-2">{(() => { const b = Number(r.noOfBirds)||0; const t = Number(r.totalProduction)||0; return b? ((t/b)*100).toFixed(1)+"%":"-" })()}</TableCell>
-                            <TableCell className="text-right px-3 py-2">{(r.feedKg ?? 0).toFixed ? r.feedKg.toFixed(2) : r.feedKg}</TableCell>
-                            <TableCell className="text-right px-3 py-2">{r.noOfBirds ?? 0}</TableCell>
-                            <TableCell className="text-right px-3 py-2">
+                            <TableCell className="text-right px-2 py-1.5 text-red-700 bg-red-50/40 rounded-sm">{(r as any).brokenEggs ?? 0}</TableCell>
+                            <TableCell className="text-right px-2 py-1.5 font-semibold text-slate-900">{r.totalProduction ?? 0}</TableCell>
+                            <TableCell className="text-right px-2 py-1.5">{(() => { const b = Number(r.noOfBirds)||0; const t = Number(r.totalProduction)||0; return b? ((t/b)*100).toFixed(1)+"%":"-" })()}</TableCell>
+                            <TableCell className="text-right px-2 py-1.5">{(r.feedKg ?? 0).toFixed ? r.feedKg.toFixed(2) : r.feedKg}</TableCell>
+                            <TableCell className="text-right px-2 py-1.5">{r.noOfBirds ?? 0}</TableCell>
+                            <TableCell className="text-right px-2 py-1.5">
                               <span className={cn("px-2 py-0.5 rounded text-xs", (r.mortality ?? 0) > 0 ? "bg-red-50 text-red-700" : "bg-slate-50 text-slate-600")}>{r.mortality ?? 0}</span>
                             </TableCell>
-                            <TableCell className="text-right px-3 py-2">{(Number(r.noOfBirds) || 0) - (Number(r.mortality) || 0)}</TableCell>
-                            <TableCell className="px-3 py-2">{r.medication || "-"}</TableCell>
-                            <TableCell className="text-left px-3 py-2 whitespace-nowrap">
+                            <TableCell className="text-right px-2 py-1.5">{(Number(r.noOfBirds) || 0) - (Number(r.mortality) || 0)}</TableCell>
+                            <TableCell className="px-2 py-1.5">{r.medication || "-"}</TableCell>
+                            <TableCell className="text-left px-2 py-1.5 whitespace-nowrap">
                               <div className="flex items-center gap-1 min-w-[110px]">
-                                <Button variant="ghost" size="sm" className="shrink-0" onClick={() => { setEditing(r); setFormOpen(true) }}>Edit</Button>
+                                <Button variant="ghost" size="sm" className="shrink-0 h-7 px-2 text-xs" onClick={() => { setEditing(r); setFormOpen(true) }}>Edit</Button>
                                 {permissions.canDelete && (
-                                  <Button variant="ghost" size="sm" className="text-red-600 shrink-0" onClick={() => openDeleteDialog(r.id)}>Delete</Button>
+                                  <Button variant="ghost" size="sm" className="text-red-600 shrink-0 h-7 px-2 text-xs" onClick={() => openDeleteDialog(r.id)}>Delete</Button>
                                 )}
                                 {sortingStatus.get(r.id) && (() => {
                                   const st = sortingStatus.get(r.id)!
@@ -1323,29 +1323,41 @@ export default function ProductionRecordsPage() {
                         ))}
                         {filtered.length > 0 && (
                           <TableRow className="bg-slate-50/60">
-                            <TableCell className={cn("font-semibold text-xs px-3 py-2 bg-slate-50", isMobile && "sticky-col-date")}>Totals</TableCell>
+                            <TableCell className={cn("font-semibold text-xs px-2 py-1.5 bg-slate-50", isMobile && "sticky-col-date")}>Totals</TableCell>
                             <TableCell className="bg-slate-50"></TableCell>
                             <TableCell></TableCell>
                             <TableCell></TableCell>
-                            <TableCell className="text-right font-semibold px-3 py-2 text-blue-800 bg-blue-50 border border-blue-100 rounded">{total9AM.toLocaleString()}<div className="text-xs font-normal text-blue-600">{Math.floor(total9AM / EGGS_PER_CRATE)}c + {total9AM % EGGS_PER_CRATE}p</div></TableCell>
-                            <TableCell className="text-right font-semibold px-3 py-2 text-orange-800 bg-orange-50 border border-orange-100 rounded">{total12PM.toLocaleString()}<div className="text-xs font-normal text-orange-600">{Math.floor(total12PM / EGGS_PER_CRATE)}c + {total12PM % EGGS_PER_CRATE}p</div></TableCell>
-                            <TableCell className="text-right font-semibold px-3 py-2 text-purple-800 bg-purple-50 border border-purple-100 rounded">{total4PM.toLocaleString()}<div className="text-xs font-normal text-purple-600">{Math.floor(total4PM / EGGS_PER_CRATE)}c + {total4PM % EGGS_PER_CRATE}p</div></TableCell>
+                            <TableCell className="text-right font-semibold px-2 py-1.5 text-blue-800 bg-blue-50 border border-blue-100 rounded">{total9AM.toLocaleString()}<div className="text-xs font-normal text-blue-600">{Math.floor(total9AM / EGGS_PER_CRATE)}c + {total9AM % EGGS_PER_CRATE}p</div></TableCell>
+                            <TableCell className="text-right font-semibold px-2 py-1.5 text-orange-800 bg-orange-50 border border-orange-100 rounded">{total12PM.toLocaleString()}<div className="text-xs font-normal text-orange-600">{Math.floor(total12PM / EGGS_PER_CRATE)}c + {total12PM % EGGS_PER_CRATE}p</div></TableCell>
+                            <TableCell className="text-right font-semibold px-2 py-1.5 text-purple-800 bg-purple-50 border border-purple-100 rounded">{total4PM.toLocaleString()}<div className="text-xs font-normal text-purple-600">{Math.floor(total4PM / EGGS_PER_CRATE)}c + {total4PM % EGGS_PER_CRATE}p</div></TableCell>
                             {pickColumns.map((c) => {
                               const t = pickTotalsByKey[c.key]
                               return (
-                                <TableCell key={c.key} className="text-right font-semibold px-3 py-2 text-teal-800 bg-teal-50 border border-teal-100 rounded">{t.toLocaleString()}<div className="text-xs font-normal text-teal-600">{Math.floor(t / EGGS_PER_CRATE)}c + {t % EGGS_PER_CRATE}p</div></TableCell>
+                                <TableCell key={c.key} className="text-right font-semibold px-2 py-1.5 text-teal-800 bg-teal-50 border border-teal-100 rounded">{t.toLocaleString()}<div className="text-xs font-normal text-teal-600">{Math.floor(t / EGGS_PER_CRATE)}c + {t % EGGS_PER_CRATE}p</div></TableCell>
                               )
                             })}
-                            <TableCell className="text-right font-semibold px-3 py-2 text-red-700 bg-red-50 border border-red-100 rounded">{totalBrokens.toLocaleString()}<div className="text-xs font-normal text-red-500">{Math.floor(totalBrokens / EGGS_PER_CRATE)}c + {totalBrokens % EGGS_PER_CRATE}p</div></TableCell>
-                            <TableCell className="text-right font-semibold px-3 py-2 text-emerald-700">{totalEggs.toLocaleString()}<div className="text-xs font-normal text-slate-500">{totalEggsCrates}c + {totalEggsPieces}p</div>{totalEggsBoxes && <div className="text-xs font-normal text-slate-500">≈ {totalEggsBoxes}</div>}</TableCell>
+                            <TableCell className="text-right font-semibold px-2 py-1.5 text-red-700 bg-red-50 border border-red-100 rounded">{totalBrokens.toLocaleString()}<div className="text-xs font-normal text-red-500">{Math.floor(totalBrokens / EGGS_PER_CRATE)}c + {totalBrokens % EGGS_PER_CRATE}p</div></TableCell>
+                            <TableCell className="text-right font-semibold px-2 py-1.5 text-emerald-700">{totalEggs.toLocaleString()}<div className="text-xs font-normal text-slate-500">{totalEggsCrates}c + {totalEggsPieces}p</div></TableCell>
                             {/* Egg% — no meaningful total */}
                             <TableCell></TableCell>
-                            <TableCell className="text-right font-semibold px-3 py-2">{totalFeed.toFixed(2)}</TableCell>
-                            <TableCell className="text-right font-semibold px-3 py-2 text-slate-700">{footerTotalBirds.toLocaleString()}</TableCell>
-                            <TableCell className="text-right font-semibold px-3 py-2 text-red-700">{totalDeaths.toLocaleString()}</TableCell>
-                            <TableCell className="text-right font-semibold px-3 py-2 text-emerald-700">{footerBirdsLeftDisplay.toLocaleString()}</TableCell>
+                            <TableCell className="text-right font-semibold px-2 py-1.5">{totalFeed.toFixed(2)}</TableCell>
+                            <TableCell className="text-right font-semibold px-2 py-1.5 text-slate-700">{footerTotalBirds.toLocaleString()}</TableCell>
+                            <TableCell className="text-right font-semibold px-2 py-1.5 text-red-700">{totalDeaths.toLocaleString()}</TableCell>
+                            <TableCell className="text-right font-semibold px-2 py-1.5 text-emerald-700">{footerBirdsLeftDisplay.toLocaleString()}</TableCell>
                             <TableCell></TableCell>
                             <TableCell className="bg-slate-50"></TableCell>
+                          </TableRow>
+                        )}
+                        {/* The boxes figure gets its own row: inside the Total
+                            cell it made that column ~180px wide. It spans the
+                            columns up to Total and ends under it. */}
+                        {filtered.length > 0 && totalEggsBoxes && (
+                          <TableRow className="bg-slate-50/60">
+                            <TableCell className={cn("px-2 py-1.5 bg-slate-50", isMobile && "sticky-col-date")}></TableCell>
+                            <TableCell colSpan={8 + pickColumns.length} className="px-2 py-1.5 text-right text-xs text-slate-500 whitespace-nowrap">
+                              Total eggs in boxes: <span className="font-medium text-slate-700">≈ {totalEggsBoxes}</span>
+                            </TableCell>
+                            <TableCell colSpan={7}></TableCell>
                           </TableRow>
                         )}
                       </TableBody>
