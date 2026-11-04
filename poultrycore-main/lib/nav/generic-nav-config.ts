@@ -179,3 +179,28 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
 
   return { billing, salesOrStudents, catalog, expenses, money, people, school, admin }
 }
+
+// Compatibility export for use-global-search.ts which expects flat NavItem arrays.
+type NavItem = { href: string; label: string; icon: any }
+export interface GenericNavGroups {
+  catalog: NavItem[]; subscriptions: NavItem[]; sales: NavItem[]
+  purchasing: NavItem[]; money: NavItem[]; people: NavItem[]; admin: NavItem[]
+}
+function flattenGroup(groups: MegaMenuGroup[]): NavItem[] {
+  return groups.flatMap((g) => g.items.filter((i) => i.visible !== false).map((i) => ({ href: i.href!, label: i.title, icon: i.icon })))
+}
+export function buildGenericNavGroups(
+  modules: Pick<GenericModulesResult, "showNew" | "showExisting" | "labels">,
+  isAdmin: boolean,
+): GenericNavGroups {
+  const full = buildGenericNavConfig(modules as GenericModulesResult)
+  return {
+    catalog: flattenGroup(full.catalog),
+    subscriptions: flattenGroup(full.billing),
+    sales: flattenGroup(full.salesOrStudents),
+    purchasing: flattenGroup(full.expenses),
+    money: flattenGroup(full.money),
+    people: flattenGroup(full.people),
+    admin: flattenGroup(full.admin),
+  }
+}
