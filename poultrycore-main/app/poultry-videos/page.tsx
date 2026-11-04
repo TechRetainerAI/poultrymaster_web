@@ -12,6 +12,8 @@ import {
   ExternalLink,
   Film,
   ListVideo,
+  Maximize2,
+  Minimize2,
   Play,
   PlayCircle,
   RefreshCw,
@@ -89,6 +91,11 @@ export default function PoultryVideosPage() {
   const [autoplayNext, setAutoplayNext] = useState(true)
   const [watched, setWatched] = useState<string[]>([])
   const [showMore, setShowMore] = useState(false)
+  // Theater mode widens the player to the full content width. YouTube picks
+  // its resolution mainly from the player's rendered size, so a bigger box
+  // makes it start at a higher quality (the IFrame API can no longer be told
+  // to pin a resolution -- setPlaybackQuality / vq are ignored by YouTube).
+  const [theater, setTheater] = useState(false)
   const playerRef = useRef<HTMLDivElement>(null)
 
   // New videos arrive on their own: the route re-reads the playlist's feed
@@ -302,10 +309,22 @@ export default function PoultryVideosPage() {
                   />
                 </div>
 
-                {/* Watch area: player on the left, playlist on the right */}
-                <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_420px] items-start">
+                {/* Watch area: player on the left, playlist on the right.
+                    In theater mode the player spans the full width and the
+                    playlist drops below it (a larger player = higher quality). */}
+                <div
+                  className={`grid gap-6 items-start ${
+                    theater
+                      ? "grid-cols-1"
+                      : "lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_420px]"
+                  }`}
+                >
                   <div className="space-y-4 min-w-0 scroll-mt-20" ref={playerRef}>
-                    <div className="aspect-video bg-black rounded-xl overflow-hidden shadow-sm">
+                    <div
+                      className={`aspect-video bg-black rounded-xl overflow-hidden shadow-sm ${
+                        theater ? "mx-auto w-full max-w-[min(100%,142vh)]" : ""
+                      }`}
+                    >
                       {current && started ? (
                         <YouTubePlayer key={current.id} videoId={current.id} title={current.title} onEnded={handleEnded} />
                       ) : current ? (
@@ -345,6 +364,17 @@ export default function PoultryVideosPage() {
                             </Button>
                             <Button variant="outline" size="sm" className="rounded-full" disabled={!next} onClick={() => next && play(next.id)}>
                               Next <ChevronRight className="w-4 h-4 ml-1" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="rounded-full"
+                              onClick={() => setTheater((t) => !t)}
+                              aria-pressed={theater}
+                              title={theater ? "Exit theater mode" : "Theater mode (bigger, sharper picture)"}
+                            >
+                              {theater ? <Minimize2 className="w-4 h-4 sm:mr-1" /> : <Maximize2 className="w-4 h-4 sm:mr-1" />}
+                              <span className="hidden sm:inline">{theater ? "Shrink" : "Theater"}</span>
                             </Button>
                             <Button asChild variant="outline" size="sm" className="rounded-full">
                               <a href={`https://www.youtube.com/watch?v=${current.id}`} target="_blank" rel="noopener noreferrer">
