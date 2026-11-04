@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { DollarSign, Boxes, Feather, ListChecks, Egg, HeartPulse, ShoppingCart, Loader2 } from "lucide-react"
+import { DollarSign, Boxes, Feather, ListChecks, Egg, HeartPulse, ShoppingCart, Loader2, PlayCircle } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useAlertsStore } from "@/lib/store/alerts-store"
 import { getProductionRecords } from "@/lib/api/production-record"
@@ -230,6 +230,16 @@ export function DashboardCharts() {
             >
               <Feather className="h-5 w-5 opacity-90" />
               <span className="mx-auto">Add Flock</span>
+              <span className="w-5" />
+            </Button>
+
+            {/* How-to videos */}
+            <Button
+              className="h-16 justify-between bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => router.push("/poultry-videos")}
+            >
+              <PlayCircle className="h-5 w-5 opacity-90" />
+              <span className="mx-auto">Watch Videos</span>
               <span className="w-5" />
             </Button>
           </div>

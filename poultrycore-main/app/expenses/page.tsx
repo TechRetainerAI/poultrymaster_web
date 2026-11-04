@@ -1,6 +1,7 @@
 "use client"
 
 import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react"
+import { cashShortfallMessage, explainCashShortfall } from "@/lib/api/http-error"
 import { useRouter, useSearchParams } from "next/navigation"
 import { CostBreakdownDialog } from "@/components/poultry/cost-breakdown-dialog"
 import { NO_SECOND_PAYMENT_TOOLTIP } from "@/lib/poultry/cost-recognition"
@@ -413,6 +414,23 @@ function ExpensesPageInner() {
       setCreateError(first.message); toastFormGuide(toast, first.message); setCreateLoading(false); return
     }
 
+    // Paying more than the chosen account holds. The database would refuse it
+    // anyway ("would overdraw the cash account"); catching it here gives the
+    // farmer the account's name and what to do, and sends nothing.
+    {
+      const acct = createForm.poultryCashAccountId
+        ? cashAccounts.find((a) => a.poultryCashAccountId === Number(createForm.poultryCashAccountId))
+        : undefined
+      const cashOut = requiresCashAccount(createForm.paymentStatus)
+        ? (amountPaidForStatus(createForm.paymentStatus, Number(createForm.amount || 0), Number(createForm.amountPaid || 0))
+            ?? Number(createForm.amount || 0))
+        : 0
+      if (acct && !acct.allowNegativeBalance && cashOut > 0 && acct.currentBalance - cashOut < 0) {
+        const msg = cashShortfallMessage(acct.accountName, acct.currentBalance, cashOut)
+        setCreateError(msg); toastFormGuide(toast, msg); setCreateLoading(false); return
+      }
+    }
+
     let descriptionOut = createForm.description.trim()
     if (createReceiptFile) {
       const up = await uploadExpenseReceipt(createReceiptFile, farmId)
@@ -448,7 +466,8 @@ function ExpensesPageInner() {
       setIsCreateDialogOpen(false)
       loadExpenses()
     } else {
-      setCreateError(result.message)
+      const acctName = cashAccounts.find((a) => a.poultryCashAccountId === Number(createForm.poultryCashAccountId))?.accountName
+      setCreateError(explainCashShortfall(result.message, acctName) ?? result.message ?? "Could not save the expense. Please try again.")
     }
     setCreateLoading(false)
   }
@@ -562,7 +581,8 @@ function ExpensesPageInner() {
       setIsEditDialogOpen(false)
       loadExpenses()
     } else {
-      setEditError(result.message)
+      const acctName = cashAccounts.find((a) => a.poultryCashAccountId === Number(editForm.poultryCashAccountId))?.accountName
+      setEditError(explainCashShortfall(result.message, acctName) ?? result.message ?? "Could not save the expense. Please try again.")
     }
     setEditLoading(false)
   }

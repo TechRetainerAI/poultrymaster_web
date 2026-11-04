@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { explainHttpError, explainLoadFailure } from "./http-error"
+import { explainHttpError, explainLoadFailure, explainCashShortfall } from "./http-error"
 
 // The rule this whole module exists to enforce: a raw payload is never an error
 // message. These lock it in both directions -- the body must not leak, and what
@@ -70,5 +70,30 @@ describe("explainLoadFailure", () => {
     // to hold, because this runs on the path where everything else failed.
     expect(() => explainLoadFailure("")).not.toThrow()
     expect(explainLoadFailure("").headline).toBe("Could not load this page.")
+  })
+})
+
+describe("explainCashShortfall", () => {
+  const raw = "This payment would overdraw the cash account (balance 0.00, payment 2500.00)."
+
+  it("names the account, the balance and the payment", () => {
+    expect(explainCashShortfall(raw, "MoMo Wallet")).toBe(
+      "Your MoMo Wallet has 0.00, cannot pay 2,500.00. Please top up or choose another account.",
+    )
+  })
+
+  it("never echoes the database wording", () => {
+    const out = explainCashShortfall(raw, "MoMo Wallet")!
+    expect(out).not.toMatch(/overdraw|sql|\/api/i)
+  })
+
+  it("still reads well without an account name or numbers", () => {
+    expect(explainCashShortfall(raw)).toMatch(/^Your cash account has 0\.00/)
+    expect(explainCashShortfall("Source cash account would go negative; transfer rejected.", "Bank"))
+      .toBe("Your Bank does not have enough money for this payment. Please top up or choose another account.")
+  })
+
+  it("leaves other errors alone", () => {
+    expect(explainCashShortfall("Supplier does not belong to this company.", "MoMo")).toBeNull()
   })
 })
