@@ -18,6 +18,7 @@ import {
   PlayCircle,
   RefreshCw,
   Search,
+  Settings,
   Youtube,
 } from "lucide-react"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -383,6 +384,18 @@ export default function PoultryVideosPage() {
                               </a>
                             </Button>
                           </div>
+                        </div>
+
+                        {/* Honest quality tip: YouTube controls the resolution and
+                            ignores any request from our code to pin it, so we point
+                            viewers at the player's own Quality menu instead. */}
+                        <div className="flex items-start gap-2 rounded-xl bg-amber-50 text-amber-800 p-3 text-sm">
+                          <Settings className="w-4 h-4 mt-0.5 shrink-0" />
+                          <p>
+                            Picture blurry? Tap the <span className="font-semibold">gear</span> (<Settings className="inline w-3.5 h-3.5 -mt-0.5" />) on the video, then
+                            {" "}<span className="font-semibold">Quality → 720p</span> or higher. For the sharpest picture, use
+                            {" "}<span className="font-semibold">Theater</span> or full screen.
+                          </p>
                         </div>
 
                         {current.description && (
