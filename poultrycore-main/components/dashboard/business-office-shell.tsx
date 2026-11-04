@@ -127,10 +127,10 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
     { key: "settings", href: "/business-office/setup", label: "Administration", icon: Settings },
     ...(billingVisible ? [{ key: "billing", href: "/business-office/billing", label: "Billing", icon: CreditCard }] : []),
   ] : []
-  // How-to videos sit right below Billing, and show for everyone (not only
-  // admins) since they are training, not setup.
+  // Support videos sit right ABOVE Administration, and show for everyone (not
+  // only admins) since they are training, not setup.
   const learn = [
-    { key: "videos", href: "/poultry-videos", label: "Videos", icon: PlayCircle },
+    { key: "videos", href: "/poultry-videos", label: "Support Videos", icon: PlayCircle },
   ]
 
   function Group({ title, items }: { title?: string; items: { key: string; href: string; label: string; icon: any }[] }) {
@@ -242,8 +242,8 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
             Logout. No group header — it'd just repeat the row. Help moved to
             the top bar, beside the account name. */}
         <div className="mt-auto pt-2">
-          <Group items={business} />
           <Group items={learn} />
+          <Group items={business} />
         </div>
       </nav>
       <div className="border-t border-slate-800 p-2">

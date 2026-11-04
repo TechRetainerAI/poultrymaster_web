@@ -10,6 +10,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { toast } from "@/components/ui/use-toast"
 import { toastFormGuide } from "@/lib/utils/validation-toast"
+import { FeedPurchaseNotice, isFeedCategory, FEED_EXPENSE_BLOCKED_MESSAGE } from "@/components/expense/feed-purchase-notice"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -261,6 +262,7 @@ function ExpensesPageInner() {
   const [editFetching, setEditFetching] = useState(false)
   const [editingExpenseId, setEditingExpenseId] = useState<number | null>(null)
   const [editFarmId, setEditFarmId] = useState<string | undefined>(undefined)
+  const [editOriginalCategory, setEditOriginalCategory] = useState("")
   const [editForm, setEditForm] = useState({
     flockId: "", expenseDate: "", category: "", description: "", amount: "", paymentMethod: "", poultryCashAccountId: "",
     supplierId: "", paymentStatus: "Paid" as SelectablePaymentStatus, amountPaid: "", dueDate: "",
@@ -391,7 +393,7 @@ function ExpensesPageInner() {
     // Copied amount / account / status must be confirmed first; every normal check below still runs.
     const repeatBlock = repeatSubmitBlocker(prefill, createForm as unknown as Partial<ExpenseForm>, prefillConfirmed, FIELD_LABELS.expense)
     if (repeatBlock) { setCreateError(repeatBlock); toastFormGuide(toast, repeatBlock); setCreateLoading(false); return }
-    if (!createForm.flockId) { setCreateError("Choose a flock"); toastFormGuide(toast, "Select which flock this expense belongs to (or the closest match from the list)."); setCreateLoading(false); return }
+    if (isFeedCategory(createForm.category)) { setCreateError(FEED_EXPENSE_BLOCKED_MESSAGE); toastFormGuide(toast, FEED_EXPENSE_BLOCKED_MESSAGE); setCreateLoading(false); return }
     if (!createForm.category) { setCreateError("Choose a category"); toastFormGuide(toast, "Pick an expense category so reports and cash stay organized."); setCreateLoading(false); return }
     if (!createForm.description.trim()) { setCreateError("Add a short description"); toastFormGuide(toast, "Add a few words describing what this expense was for — it helps later when you search."); setCreateLoading(false); return }
     if (!createForm.amount || Number(createForm.amount) <= 0) { setCreateError("Enter amount"); toastFormGuide(toast, "Enter the amount spent as a number greater than zero."); setCreateLoading(false); return }
@@ -443,7 +445,7 @@ function ExpensesPageInner() {
     }
 
     const expense: ExpenseInput = {
-      farmId, userId, flockId: createForm.flockId === ALL_FLOCKS ? null : Number(createForm.flockId),
+      farmId, userId, flockId: !createForm.flockId || createForm.flockId === ALL_FLOCKS ? null : Number(createForm.flockId),
       expenseDate: createForm.expenseDate + "T00:00:00Z",
       category: createForm.category, description: descriptionOut,
       amount: Number(createForm.amount), paymentMethod: createForm.paymentMethod,
@@ -492,6 +494,7 @@ function ExpensesPageInner() {
       const e = result.data
       const rawDesc = e.description || ""
       setEditSavedReceiptPath(extractReceiptPathFromDescription(rawDesc))
+      setEditOriginalCategory(e.category || "")
       setEditForm({
         flockId: e.flockId ? String(e.flockId) : ALL_FLOCKS,
         expenseDate: new Date(e.expenseDate).toISOString().split("T")[0],
@@ -525,7 +528,8 @@ function ExpensesPageInner() {
     const { userId, farmId } = getUserContext()
     const effectiveFarmId = editFarmId || farmId
     if (!userId || !farmId) { setEditError("User context not found."); toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" }); setEditLoading(false); return }
-    if (!editForm.flockId) { setEditError("Choose a flock"); toastFormGuide(toast, "Select which flock this expense belongs to (or the closest match from the list)."); setEditLoading(false); return }
+    // An expense saved as Feed before this rule can still be edited; nothing new becomes Feed.
+    if (isFeedCategory(editForm.category) && !isFeedCategory(editOriginalCategory)) { setEditError(FEED_EXPENSE_BLOCKED_MESSAGE); toastFormGuide(toast, FEED_EXPENSE_BLOCKED_MESSAGE); setEditLoading(false); return }
     if (!editForm.category) { setEditError("Choose a category"); toastFormGuide(toast, "Pick an expense category so reports and cash stay organized."); setEditLoading(false); return }
     if (!editForm.description.trim()) { setEditError("Add a short description"); toastFormGuide(toast, "Add a few words describing what this expense was for — it helps later when you search."); setEditLoading(false); return }
     if (!editForm.amount || Number(editForm.amount) <= 0) { setEditError("Enter amount"); toastFormGuide(toast, "Enter the amount spent as a number greater than zero."); setEditLoading(false); return }
@@ -562,7 +566,7 @@ function ExpensesPageInner() {
     }
 
     const expense: Partial<ExpenseInput> = {
-      farmId: effectiveFarmId!, userId, flockId: editForm.flockId === ALL_FLOCKS ? null : Number(editForm.flockId),
+      farmId: effectiveFarmId!, userId, flockId: !editForm.flockId || editForm.flockId === ALL_FLOCKS ? null : Number(editForm.flockId),
       expenseDate: editForm.expenseDate + "T00:00:00Z",
       category: editForm.category, description: descriptionOut,
       amount: Number(editForm.amount), paymentMethod: editForm.paymentMethod,
@@ -913,9 +917,9 @@ function ExpensesPageInner() {
             <div className="text-xs text-slate-500">Filters flocks below.</div>
           </div>
           <div className="space-y-2">
-            <Label className="text-sm font-medium text-slate-700">Select Flock *</Label>
+            <Label className="text-sm font-medium text-slate-700">Flock <span className="font-normal text-slate-500">(optional)</span></Label>
             <Select value={form.flockId} onValueChange={(v) => setForm({ ...form, flockId: v })}>
-              <SelectTrigger><SelectValue placeholder="Choose a flock" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="No flock (farm-wide)" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL_FLOCKS}>All flocks (farm-wide)</SelectItem>
                 {flocksSelectLoading ? (
@@ -948,6 +952,7 @@ function ExpensesPageInner() {
               </SelectContent>
             </Select>
           </div>
+          {isFeedCategory(form.category) && !(form === editForm && isFeedCategory(editOriginalCategory)) && <FeedPurchaseNotice className="md:col-span-3" />}
           <div className="space-y-2">
             <Label className="text-sm font-medium text-slate-700">Amount *<ReviewMark show={form === createForm && createUnconfirmed.includes("amount")} /></Label>
             <NumberInput name="amount"  step="0.01" min="0" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0.00" required disabled={isLoading} className={cn("max-w-[200px]", reviewRing(form === createForm && createUnconfirmed.includes("amount")))} />
@@ -1091,11 +1096,11 @@ function ExpensesPageInner() {
 
   if (loading) {
     return (
-        <div className="flex min-h-screen bg-slate-50">
+        <div className="flex h-screen bg-slate-50">
         <DashboardSidebar onLogout={handleLogout} />
         <div className="flex-1 flex flex-col min-w-0">
           <DashboardHeader />
-          <main className="overflow-y-visible overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-6 min-w-0">
+          <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-6 min-w-0">
             <div className="flex items-center justify-center h-64">
               <div className="text-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -1109,11 +1114,11 @@ function ExpensesPageInner() {
   }
 
   return (
-      <div className="flex min-h-screen bg-slate-50">
+      <div className="flex h-screen bg-slate-50">
       <DashboardSidebar onLogout={handleLogout} />
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
-        <main className="overflow-y-visible overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-6 min-w-0">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-6 min-w-0">
           <div className="space-y-6">
             {/* Page Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -1757,7 +1762,7 @@ function ExpensesPageInner() {
             </div>
             <div className="shrink-0 flex gap-3 justify-end border-t pt-3 mt-2">
               <Button type="button" onClick={() => setIsCreateDialogOpen(false)} className="bg-red-600 hover:bg-red-700 text-white">Cancel</Button>
-              <Button type="submit" disabled={createLoading || flocksSelectLoading}>
+              <Button type="submit" disabled={createLoading || flocksSelectLoading || isFeedCategory(createForm.category)}>
                 {createLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Creating...</> : <><DollarSign className="w-4 h-4 mr-2" />Create Expense</>}
               </Button>
             </div>
@@ -1801,7 +1806,7 @@ function ExpensesPageInner() {
               </div>
               <div className="shrink-0 flex gap-3 justify-end border-t pt-3 mt-2">
                 <Button type="button" onClick={() => setIsEditDialogOpen(false)} className="bg-red-600 hover:bg-red-700 text-white">Cancel</Button>
-                <Button type="submit" disabled={editLoading || flocksSelectLoading}>
+                <Button type="submit" disabled={editLoading || flocksSelectLoading || (isFeedCategory(editForm.category) && !isFeedCategory(editOriginalCategory))}>
                   {editLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</> : <><Pencil className="w-4 h-4 mr-2" />Save Changes</>}
                 </Button>
               </div>

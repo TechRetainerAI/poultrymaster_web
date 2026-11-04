@@ -61,11 +61,11 @@ export default function FeedProductionReportsPage() {
   const usageTotalCost = useMemo(() => usage.reduce((s, u) => s + u.totalCost, 0), [usage])
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex h-screen bg-gray-50">
       <DashboardSidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
-        <main className="flex-1 p-4 sm:p-6 space-y-4">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
           <div className="flex items-center gap-2 flex-wrap">
             <Button variant="ghost" size="sm" onClick={() => router.push("/poultry/reports")}><ArrowLeft className="w-4 h-4 mr-1" /> Back</Button>
             <h1 className="text-2xl font-bold">Feed Production Reports</h1>

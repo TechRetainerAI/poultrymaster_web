@@ -219,11 +219,11 @@ export default function MedicationTrackerPage() {
   const fmt = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 2 })
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex h-screen bg-gray-50">
       <DashboardSidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
-        <main className="flex-1 p-4 sm:p-6 space-y-4">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex items-start gap-3 min-w-0">
               <div className="w-10 h-10 shrink-0 bg-violet-100 rounded-lg flex items-center justify-center"><Pill className="w-5 h-5 text-violet-800" /></div>

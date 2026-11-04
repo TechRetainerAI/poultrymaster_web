@@ -515,11 +515,11 @@ function EggSortingInner() {
   const remainingToSort = summary ? Math.min(summary.productionLeft, Math.max(0, Math.trunc(summary.unsortedOnHand))) : 0
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-50">
       <DashboardSidebar onLogout={logout} />
       <div className="flex min-w-0 flex-1 flex-col">
         <DashboardHeader />
-        <main className="min-w-0 flex-1 overflow-x-hidden p-4 pb-6 sm:p-6">
+        <main className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-4 pb-6 sm:p-6">
           <div className="space-y-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="flex items-start gap-3">

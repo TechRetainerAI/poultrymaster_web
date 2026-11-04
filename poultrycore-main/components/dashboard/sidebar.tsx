@@ -977,7 +977,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
         {/* Videos -- its own row right below System so the how-to videos are
             one click away (they are also inside the System menu). Poultry
             only, since the videos teach the poultry screens. */}
-        {poultryNav && renderNavItem({ href: "/poultry-videos", label: "Videos", icon: PlayCircle })}
+        {poultryNav && renderNavItem({ href: "/poultry-videos", label: "Support Videos", icon: PlayCircle })}
       </nav>
 
       {/* Logout */}

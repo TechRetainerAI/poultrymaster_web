@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { DollarSign, Boxes, Feather, ListChecks, Egg, HeartPulse, ShoppingCart, Loader2, PlayCircle } from "lucide-react"
+import { DollarSign, Boxes, Feather, ListChecks, Egg, HeartPulse, ShoppingCart, Loader2, PlayCircle, Building2, Bird } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useAlertsStore } from "@/lib/store/alerts-store"
 import { getProductionRecords } from "@/lib/api/production-record"
@@ -233,13 +233,43 @@ export function DashboardCharts() {
               <span className="w-5" />
             </Button>
 
+            {/* Flock Purchases (Batches) -- same page as the menu item */}
+            <Button
+              className="h-16 justify-between bg-amber-600 hover:bg-amber-700 text-white"
+              onClick={() => router.push("/flock-batch")}
+            >
+              <Bird className="h-5 w-5 opacity-90" />
+              <span className="mx-auto">Flock Purchases</span>
+              <span className="w-5" />
+            </Button>
+
+            {/* Record Purchase -- opens the supply purchase form directly */}
+            <Button
+              className="h-16 justify-between bg-indigo-600 hover:bg-indigo-700 text-white"
+              onClick={() => router.push("/poultry-supply-purchases?purchase=1")}
+            >
+              <ShoppingCart className="h-5 w-5 opacity-90" />
+              <span className="mx-auto">Record Purchase</span>
+              <span className="w-5" />
+            </Button>
+
+            {/* Houses */}
+            <Button
+              className="h-16 justify-between bg-teal-600 hover:bg-teal-700 text-white"
+              onClick={() => router.push("/houses")}
+            >
+              <Building2 className="h-5 w-5 opacity-90" />
+              <span className="mx-auto">Houses</span>
+              <span className="w-5" />
+            </Button>
+
             {/* How-to videos */}
             <Button
               className="h-16 justify-between bg-red-600 hover:bg-red-700 text-white"
               onClick={() => router.push("/poultry-videos")}
             >
               <PlayCircle className="h-5 w-5 opacity-90" />
-              <span className="mx-auto">Watch Videos</span>
+              <span className="mx-auto">Support Videos</span>
               <span className="w-5" />
             </Button>
           </div>

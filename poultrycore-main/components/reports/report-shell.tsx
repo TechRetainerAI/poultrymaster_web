@@ -229,12 +229,12 @@ export function ReportShell({
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50 print:bg-white">
+    <div className="flex h-screen bg-slate-50 print:bg-white">
       <div className="print:hidden"><DashboardSidebar onLogout={logout} /></div>
       <div className="flex-1 flex flex-col min-w-0">
         <div className="print:hidden"><DashboardHeader /></div>
 
-        <main className="overflow-y-visible overflow-x-hidden p-4 sm:p-6 pb-16 print:p-0 min-w-0">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 pb-16 print:p-0 min-w-0">
           <div className="mb-4 flex items-center justify-between gap-2 flex-wrap print:hidden">
             {/* The back button belongs to the CATALOGUE. On a page reached from
                 the sidebar it would offer to return you somewhere you have never

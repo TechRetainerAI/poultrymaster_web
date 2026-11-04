@@ -201,11 +201,11 @@ export default function PoultryVideosPage() {
   const watchedPct = videos.length ? Math.round((stats.watchedCount / videos.length) * 100) : 0
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-50">
       <DashboardSidebar onLogout={handleLogout} />
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
-        <main className="overflow-y-visible overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
           <div className="max-w-[1600px] mx-auto space-y-6">
             {/* Page Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -214,7 +214,7 @@ export default function PoultryVideosPage() {
                   <PlayCircle className="w-6 h-6 text-red-600" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold text-slate-900">Videos</h1>
+                  <h1 className="text-2xl font-bold text-slate-900">Support Videos</h1>
                   <p className="text-sm text-slate-600">Step-by-step guide videos to help you get the most out of the system.</p>
                 </div>
               </div>

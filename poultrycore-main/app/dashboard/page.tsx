@@ -108,7 +108,7 @@ export default function DashboardPage() {
 
   return (
     <>
-      <div className="flex min-h-screen bg-slate-50">
+      <div className="flex h-screen bg-slate-50">
         {/* Sidebar - hidden on mobile, shown as overlay */}
         <DashboardSidebar onLogout={handleLogout} />
         
@@ -121,7 +121,7 @@ export default function DashboardPage() {
           <DashboardHeader />
           
           {/* Main Content Area */}
-          <main className="overflow-y-visible overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
+          <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
             <div className="space-y-6">
               {/* Farm Completeness, Flock Alerts and Stock Days of Supply
                   moved to their own page, /poultry-alerts (Farm Alerts). */}
