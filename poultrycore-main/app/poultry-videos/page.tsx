@@ -12,10 +12,13 @@ import {
   ExternalLink,
   Film,
   ListVideo,
+  Maximize2,
+  Minimize2,
   Play,
   PlayCircle,
   RefreshCw,
   Search,
+  Settings,
   Youtube,
 } from "lucide-react"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -89,6 +92,11 @@ export default function PoultryVideosPage() {
   const [autoplayNext, setAutoplayNext] = useState(true)
   const [watched, setWatched] = useState<string[]>([])
   const [showMore, setShowMore] = useState(false)
+  // Theater mode widens the player to the full content width. YouTube picks
+  // its resolution mainly from the player's rendered size, so a bigger box
+  // makes it start at a higher quality (the IFrame API can no longer be told
+  // to pin a resolution -- setPlaybackQuality / vq are ignored by YouTube).
+  const [theater, setTheater] = useState(false)
   const playerRef = useRef<HTMLDivElement>(null)
 
   // New videos arrive on their own: the route re-reads the playlist's feed
@@ -302,10 +310,22 @@ export default function PoultryVideosPage() {
                   />
                 </div>
 
-                {/* Watch area: player on the left, playlist on the right */}
-                <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_420px] items-start">
+                {/* Watch area: player on the left, playlist on the right.
+                    In theater mode the player spans the full width and the
+                    playlist drops below it (a larger player = higher quality). */}
+                <div
+                  className={`grid gap-6 items-start ${
+                    theater
+                      ? "grid-cols-1"
+                      : "lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_420px]"
+                  }`}
+                >
                   <div className="space-y-4 min-w-0 scroll-mt-20" ref={playerRef}>
-                    <div className="aspect-video bg-black rounded-xl overflow-hidden shadow-sm">
+                    <div
+                      className={`aspect-video bg-black rounded-xl overflow-hidden shadow-sm ${
+                        theater ? "mx-auto w-full max-w-[min(100%,142vh)]" : ""
+                      }`}
+                    >
                       {current && started ? (
                         <YouTubePlayer key={current.id} videoId={current.id} title={current.title} onEnded={handleEnded} />
                       ) : current ? (
@@ -346,6 +366,17 @@ export default function PoultryVideosPage() {
                             <Button variant="outline" size="sm" className="rounded-full" disabled={!next} onClick={() => next && play(next.id)}>
                               Next <ChevronRight className="w-4 h-4 ml-1" />
                             </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="rounded-full"
+                              onClick={() => setTheater((t) => !t)}
+                              aria-pressed={theater}
+                              title={theater ? "Exit theater mode" : "Theater mode (bigger, sharper picture)"}
+                            >
+                              {theater ? <Minimize2 className="w-4 h-4 sm:mr-1" /> : <Maximize2 className="w-4 h-4 sm:mr-1" />}
+                              <span className="hidden sm:inline">{theater ? "Shrink" : "Theater"}</span>
+                            </Button>
                             <Button asChild variant="outline" size="sm" className="rounded-full">
                               <a href={`https://www.youtube.com/watch?v=${current.id}`} target="_blank" rel="noopener noreferrer">
                                 <ExternalLink className="w-4 h-4 sm:mr-1" />
@@ -353,6 +384,18 @@ export default function PoultryVideosPage() {
                               </a>
                             </Button>
                           </div>
+                        </div>
+
+                        {/* Honest quality tip: YouTube controls the resolution and
+                            ignores any request from our code to pin it, so we point
+                            viewers at the player's own Quality menu instead. */}
+                        <div className="flex items-start gap-2 rounded-xl bg-amber-50 text-amber-800 p-3 text-sm">
+                          <Settings className="w-4 h-4 mt-0.5 shrink-0" />
+                          <p>
+                            Picture blurry? Tap the <span className="font-semibold">gear</span> (<Settings className="inline w-3.5 h-3.5 -mt-0.5" />) on the video, then
+                            {" "}<span className="font-semibold">Quality → 720p</span> or higher. For the sharpest picture, use
+                            {" "}<span className="font-semibold">Theater</span> or full screen.
+                          </p>
                         </div>
 
                         {current.description && (

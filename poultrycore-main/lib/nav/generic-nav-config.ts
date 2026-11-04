@@ -1,124 +1,206 @@
 /**
- * Generic company sidebar contents.
+ * Generic Company desktop nav contents.
  *
- * Moved verbatim out of components/dashboard/sidebar.tsx so the header search
- * can index the same rows the sidebar shows, instead of keeping a third copy.
- * The Generic TOP nav (top-nav.tsx) still builds its own rail inline.
+ * Mirrors the pattern of water-nav-config.ts: a builder that returns grouped
+ * nav items for the top-nav mega menus and the sidebar. The groups adapt based
+ * on business type (subscription vs retail) and industry (school, gym, etc.).
  *
- * React-free: the caller passes in the useGenericModules() answers.
+ * Items use the MegaMenuItem shape (id + title) for the top-nav mega menus.
+ * The sidebar flattens them back to { href, label, icon } via the flat() helper.
  */
 
 import {
-  Activity, Banknote, BarChart3, Boxes, CalendarClock, Cog, CreditCard, DollarSign, FileText, Package,
-  PackageMinus, Receipt, Repeat, Scale, Settings, ShoppingBag, ShoppingCart, Truck, Users, Users2, Wallet,
+  Activity, AlertTriangle, Banknote, BarChart3, Boxes, CalendarClock, CalendarDays,
+  ClipboardCheck, CreditCard, DollarSign, FileText, GraduationCap, HandCoins,
+  Package, PackageMinus, Receipt, Repeat, Scale, Settings, TrendingUp,
+  ShoppingBag, ShoppingCart, Truck, User, Users, Users2, Wallet, Zap, Cog,
 } from "lucide-react"
+import type { MegaMenuGroup, MegaMenuItem } from "./nav-model"
 import type { GenericModulesResult } from "@/hooks/use-generic-modules"
-import type { NavItem } from "./nav-model"
+import type { UserPermissions } from "@/hooks/use-permissions"
+import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
 
-export interface GenericNavGroups {
-  catalog: NavItem[]
-  subscriptions: NavItem[]
-  sales: NavItem[]
-  purchasing: NavItem[]
-  money: NavItem[]
-  people: NavItem[]
-  admin: NavItem[]
+export interface GenericNavConfig {
+  billing: MegaMenuGroup[]
+  salesOrStudents: MegaMenuGroup[]
+  catalog: MegaMenuGroup[]
+  expenses: MegaMenuGroup[]
+  money: MegaMenuGroup[]
+  people: MegaMenuGroup[]
+  school: MegaMenuGroup[]
+  admin: MegaMenuGroup[]
 }
 
+/** Shorthand to build a MegaMenuItem from an href and label. */
+function item(href: string, title: string, icon: MegaMenuItem["icon"], visible?: boolean): MegaMenuItem {
+  return { id: href, title, icon, href, ...(visible === false ? { visible: false } : {}) }
+}
+
+/** Filter out items where visible === false. */
+function gated(items: MegaMenuItem[]): MegaMenuItem[] {
+  return items.filter((i) => i.visible !== false)
+}
+
+export function buildGenericNavConfig(modules: GenericModulesResult, permissions?: UserPermissions): GenericNavConfig {
+  const { showNew, showExisting, labels, isSubscriptionBusiness: isSub, industry } = modules
+  const isSchool = industry === "School"
+  const { featureAccess, isAdmin } = permissions ?? { featureAccess: {} as any, isAdmin: true }
+  /** Gate a nav item on financial permissions. Admins always pass. No permissions = show all. */
+  const canSee = (href: string) => !permissions || isFinancialNavItemVisible(href, featureAccess, isAdmin)
+
+  // ---- Billing / Subscriptions ----
+  const billing: MegaMenuGroup[] = showNew("enableSubscriptions") ? [{
+    key: "billing",
+    label: isSchool ? "Fees & Billing" : isSub ? "Billing" : "Subscriptions",
+    items: [
+      item("/generic-service-plans", labels.planPlural,         Repeat),
+      item("/generic-subscriptions", labels.subscriptionPlural, CalendarClock),
+      item("/generic-billing-runs",  "Billing runs",            Receipt),
+      ...(showNew("enableInvoices")
+        ? [item("/generic-invoices", labels.invoicePlural, FileText)]
+        : []),
+    ],
+  }] : []
+
+  // ---- Sales / Students & Payments ----
+  const salesOrStudents: MegaMenuGroup[] = [{
+    key: "sales",
+    label: isSub ? `${labels.customerPlural} & Payments` : "Sales",
+    items: gated([
+      ...(!isSub ? [item("/generic-pos",             "Quick Sale",    Zap, canSee("/generic-pos"))]          : []),
+      ...(!isSub ? [item("/generic-pos?tab=sales", "Sales History", ShoppingCart, canSee("/generic-pos?tab=sales"))] : []),
+      ...(showNew("enableInvoices") && !isSub
+        ? [item("/generic-invoices", labels.invoicePlural, FileText)]
+        : []),
+      item("/generic-customers",         labels.customerPlural, Users, canSee("/generic-customers")),
+      item("/generic-customer-payments", labels.paymentPlural,  CreditCard, canSee("/generic-customer-payments")),
+      ...(showNew("enableCustomerBalances")
+        ? [item("/generic-customer-balances", labels.customerBalance, Scale, canSee("/generic-customer-balances"))]
+        : []),
+    ]),
+  }]
+
+  // ---- Catalog / Stock ----
+  const catalog: MegaMenuGroup[] = []
+  const catalogItems: MegaMenuItem[] = [
+    ...(showExisting("enableProducts")
+      ? [item("/generic-products", "Products", ShoppingBag)] : []),
+    ...(showExisting("enableInventory")
+      ? [item("/generic-inventory", "Inventory & Purchases", Boxes)] : []),
+    ...(showExisting("enableStockAdjustments")
+      ? [item("/generic-inventory?tab=adjustments", "Stock adjustments", Boxes)] : []),
+    ...(showExisting("enablePurchases")
+      ? [item("/generic-purchases/new", "Record Purchase", ShoppingCart)] : []),
+    ...(showExisting("enableInternalUse")
+      ? [item("/generic-internal-use", "Internal Use", PackageMinus)] : []),
+    item("/generic-loss-records", "Loss & Damage", AlertTriangle),
+  ]
+  if (catalogItems.length > 0) {
+    catalog.push({ key: "catalog", label: "Catalog & Stock", items: catalogItems })
+  }
+
+  // ---- Expenses & Vendors / Purchasing ----
+  const expenses: MegaMenuGroup[] = [{
+    key: "expenses",
+    label: isSub ? "Expenses & Vendors" : "Purchasing",
+    items: gated([
+      item("/generic-suppliers",         isSub ? "Vendors" : "Suppliers", Truck, canSee("/generic-suppliers")),
+      ...(showExisting("enablePurchases")
+        ? [item("/generic-inventory?tab=purchases", "Purchases", Package)] : []),
+      item("/generic-supplier-payments", isSub ? "Vendor payments" : "Supplier payments", CreditCard, canSee("/generic-supplier-payments")),
+      ...(showExisting("enableSupplierBalances")
+        ? [item("/generic-supplier-balances", isSub ? "Vendor balances" : "Supplier balances", Scale, canSee("/generic-supplier-balances"))]
+        : []),
+      item("/generic-expenses",          "Expenses",          DollarSign, canSee("/generic-expenses")),
+      ...(showExisting("enableRecurringExpenses")
+        ? [item("/recurring-expenses", "Recurring expenses", Repeat, canSee("/recurring-expenses"))]
+        : []),
+    ]),
+  }]
+
+  // ---- Money ----
+  const money: MegaMenuGroup[] = [{
+    key: "money",
+    label: "Money",
+    items: gated([
+      item("/generic-cash-flow",             "Cash Flow",              Wallet, canSee("/generic-cash-flow")),
+      item("/generic-financial-activity",    "Financial Activity",     Activity, canSee("/generic-financial-activity")),
+      item("/generic-profit-loss",           "Profit & Loss",          TrendingUp, canSee("/generic-profit-loss")),
+      ...(showExisting("enableCashAccounts") ? [
+        item("/generic-cash",                "Cash & Accounts",    Wallet, canSee("/generic-cash")),
+        item("/generic-cash-transfers",      "Cash transfers",     Activity, canSee("/generic-cash-transfers")),
+        item("/generic-cash-reconciliation", "Reconciliation",     Scale, canSee("/generic-cash-reconciliation")),
+      ] : []),
+      item("/generic-daily-closings", "Daily Closing",                       FileText, canSee("/generic-daily-closings")),
+      item("/generic-owner-money",    isSub ? "Owner funds" : "Owner money", Wallet, canSee("/generic-owner-money")),
+    ]),
+  }]
+
+  // ---- People / Staff ----
+  // Only show when staff payments are explicitly enabled in module settings.
+  // A solo yam seller can turn this off in Settings to hide the section.
+  const hasStaff = Boolean(modules.settings?.enableStaffPayments) || isSchool
+  const people: MegaMenuGroup[] = hasStaff ? [{
+    key: "people",
+    label: isSchool ? "Staff & Teachers" : "Employees",
+    items: gated([
+      item("/generic-staff",      isSchool ? "Staff" : "Employees",  Users2),
+      item("/generic-attendance", "Attendance", Activity),
+      item("/generic-payroll",    "Payroll",    Banknote, canSee("/generic-payroll")),
+      ...(showExisting("enableStaffPayments")
+        ? [item("/generic-staff-payments", isSchool ? "Staff payments" : "Employee payments", Banknote, canSee("/generic-staff-payments"))] : []),
+      item("/generic-employee-loans", "Employee loans", HandCoins, canSee("/generic-employee-loans")),
+    ]),
+  }] : []
+
+  // ---- School ----
+  const school: MegaMenuGroup[] = isSchool ? [{
+    key: "school",
+    label: "School",
+    items: [
+      item("/generic-classes",            "Classes",            GraduationCap),
+      item("/generic-terms",              "Academic Terms",     CalendarDays),
+      item("/generic-student-attendance", "Student Attendance", ClipboardCheck),
+    ],
+  }] : []
+
+  // ---- Admin ----
+  const admin: MegaMenuGroup[] = [{
+    key: "admin",
+    label: "Admin",
+    items: gated([
+      item("/generic-reports",            "Reports",           BarChart3, canSee("/generic-reports")),
+      item("/generic-setup",              "Setup",             Settings, canSee("/generic-setup")),
+      item("/generic-business-features",  "Business Features", Settings, canSee("/generic-business-features")),
+      item("/generic-settings",           "Settings",          Cog, canSee("/generic-settings")),
+      item("/profile",                    "Account",           User),
+    ]),
+  }]
+
+  return { billing, salesOrStudents, catalog, expenses, money, people, school, admin }
+}
+
+// Compatibility export for use-global-search.ts which expects flat NavItem arrays.
+type NavItem = { href: string; label: string; icon: any }
+export interface GenericNavGroups {
+  catalog: NavItem[]; subscriptions: NavItem[]; sales: NavItem[]
+  purchasing: NavItem[]; money: NavItem[]; people: NavItem[]; admin: NavItem[]
+}
+function flattenGroup(groups: MegaMenuGroup[]): NavItem[] {
+  return groups.flatMap((g) => g.items.filter((i) => i.visible !== false).map((i) => ({ href: i.href!, label: i.title, icon: i.icon })))
+}
 export function buildGenericNavGroups(
-  genericModules: Pick<GenericModulesResult, "showNew" | "showExisting" | "labels">,
+  modules: Pick<GenericModulesResult, "showNew" | "showExisting" | "labels">,
   isAdmin: boolean,
 ): GenericNavGroups {
-  // /generic-inventory is the new at-a-glance stock page (products + cards
-  // + filters). /generic-stock-adjustments stays for actually changing stock.
-  //
-  // Every item here is one of the OPTIONAL modules in section 5 of the spec:
-  // a SaaS company, a gym and a school do not sell stock, and a template that
-  // turns them off must actually take them off the menu. showExisting rather
-  // than showNew, so a failed settings request leaves the menu as it was
-  // instead of emptying it.
-  const catalog = [
-    ...(genericModules.showExisting("enableProducts")
-      ? [{ href: "/generic-products", label: "Products", icon: ShoppingBag }] : []),
-    ...(genericModules.showExisting("enableInventory")
-      ? [{ href: "/generic-inventory", label: "Inventory", icon: Boxes }] : []),
-    ...(genericModules.showExisting("enableStockAdjustments")
-      ? [{ href: "/generic-stock-adjustments", label: "Stock adjustments", icon: Boxes }] : []),
-    ...(genericModules.showExisting("enableInternalUse")
-      ? [{ href: "/generic-internal-use", label: "Internal Use", icon: PackageMinus }] : []),
-  ]
-  // Only the NEW items are gated on module settings. Every item that existed
-  // before templates stays ungated -- retro-fitting a gate would take away
-  // access people have today.
-  const subscriptions = [
-    ...(genericModules.showNew("enableSubscriptions")
-      ? [
-          { href: "/generic-service-plans",  label: genericModules.labels.planPlural,         icon: Repeat },
-          { href: "/generic-subscriptions",  label: genericModules.labels.subscriptionPlural, icon: CalendarClock },
-          { href: "/generic-billing-runs",   label: "Billing runs",                           icon: Receipt },
-        ]
-      : []),
-  ]
-  const sales = [
-    { href: "/generic-sales",              label: "Sales",             icon: ShoppingCart },
-    ...(genericModules.showNew("enableInvoices")
-      ? [{ href: "/generic-invoices", label: genericModules.labels.invoicePlural, icon: FileText }]
-      : []),
-    { href: "/generic-customers",          label: genericModules.labels.customerPlural, icon: Users },
-    { href: "/generic-customer-payments",  label: genericModules.labels.paymentPlural, icon: CreditCard },
-    ...(genericModules.showNew("enableCustomerBalances")
-      ? [{ href: "/generic-customer-balances", label: genericModules.labels.customerBalance, icon: Scale }]
-      : []),
-  ]
-  const purchasing = [
-    { href: "/generic-suppliers",          label: "Suppliers",         icon: Truck },
-    // Buying stock is optional too (section 5). A service business owes its
-    // vendors through expenses, and Supplier Balances below covers that.
-    ...(genericModules.showExisting("enablePurchases")
-      ? [{ href: "/generic-purchases", label: "Purchases", icon: Package }] : []),
-    { href: "/generic-supplier-payments",  label: "Supplier payments", icon: CreditCard },
-    // 251 gave both of these a toggle of their own. Supplier balances no longer
-    // rides on Purchases: a service business owes vendors through expenses,
-    // which is exactly what 248's payables arm reads, so gating it on stock
-    // buying hid it from the companies that needed it most.
-    ...(genericModules.showExisting("enableSupplierBalances")
-      ? [{ href: "/generic-supplier-balances", label: "Supplier balances", icon: Scale }]
-      : []),
-    { href: "/generic-expenses",           label: "Expenses",          icon: DollarSign },
-    // 348: the shared engine (drafts for review, no month-end drift) replaces
-    // the Generic-only page here. /generic-recurring-expenses still works by URL
-    // for templates created before it.
-    ...(genericModules.showExisting("enableRecurringExpenses")
-      ? [{ href: "/recurring-expenses", label: "Recurring expenses", icon: Repeat }]
-      : []),
-  ]
-  const money = [
-    ...(genericModules.showExisting("enableCashAccounts")
-      ? [
-          { href: "/generic-cash",           label: "Cash & Accounts", icon: Wallet },
-          { href: "/generic-cash-transfers", label: "Cash transfers",  icon: Activity },
-        ]
-      : []),
-    { href: "/generic-daily-closings", label: "Daily Closing",   icon: FileText },
-    { href: "/generic-owner-money",    label: "Owner money",     icon: Wallet },
-  ]
-  // Generic — People (Phase 6: staff + attendance + payroll, migrations 055/056)
-  const people = [
-    { href: "/generic-staff",       label: "Staff",      icon: Users2 },
-    { href: "/generic-attendance",  label: "Attendance", icon: Activity },
-    { href: "/generic-payroll",     label: "Payroll",    icon: Banknote },
-    { href: "/generic-staff-payments", label: "Staff payments", icon: Banknote },
-  ]
-  const admin = [
-    { href: "/generic-reports",  label: "Reports",  icon: BarChart3 },
-    // Setup is the company PROFILE; Settings is how the company works --
-    // which modules it has and what they default to (251). Both admin-only
-    // (lib/nav/setup-admin-routes).
-    ...(isAdmin ? [
-      { href: "/generic-setup",    label: "Setup",    icon: Settings },
-      { href: "/generic-settings", label: "Settings", icon: Cog },
-    ] : []),
-  ]
-
-  return { catalog, subscriptions, sales, purchasing, money, people, admin }
+  const full = buildGenericNavConfig(modules as GenericModulesResult)
+  return {
+    catalog: flattenGroup(full.catalog),
+    subscriptions: flattenGroup(full.billing),
+    sales: flattenGroup(full.salesOrStudents),
+    purchasing: flattenGroup(full.expenses),
+    money: flattenGroup(full.money),
+    people: flattenGroup(full.people),
+    admin: flattenGroup(full.admin),
+  }
 }

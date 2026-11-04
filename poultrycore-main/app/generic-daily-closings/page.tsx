@@ -23,6 +23,7 @@ import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import {
   approveDailyClosing, createDailyClosing, getDailyClosings, submitDailyClosing,
+  getDashboard,
   type GenericDailyClosing,
 } from "@/lib/api/generic"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
@@ -54,6 +55,7 @@ export default function GenericDailyClosingsPage() {
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [prefilling, setPrefilling] = useState(false)
 
   const [form, setForm] = useState({
     closingDate: new Date().toISOString().slice(0, 10),
@@ -61,7 +63,35 @@ export default function GenericDailyClosingsPage() {
     actualCashCounted: "0",
     managerNotes: "",
     differenceReason: "",
+    // Auto-populated from dashboard
+    todaySales: 0,
+    todayExpenses: 0,
+    todayPurchasesPaid: 0,
+    expectedCash: 0,
+    customerDebt: 0,
+    supplierDebt: 0,
   })
+
+  async function openClosingDialog() {
+    setOpen(true)
+    setPrefilling(true)
+    try {
+      const dash = await getDashboard()
+      const cashAtHand = dash.today.cashAtHand
+      setForm((f) => ({
+        ...f,
+        openingCash: cashAtHand.toFixed(2),
+        actualCashCounted: cashAtHand.toFixed(2),
+        todaySales: dash.today.todaySales,
+        todayExpenses: dash.today.todayExpenses,
+        todayPurchasesPaid: dash.today.todayPurchasesPaid,
+        expectedCash: cashAtHand,
+        customerDebt: dash.today.customerDebt,
+        supplierDebt: dash.today.supplierDebt,
+      }))
+    } catch { /* silent — user can fill manually */ }
+    finally { setPrefilling(false) }
+  }
 
   const load = async () => {
     setLoading(true)
@@ -141,44 +171,96 @@ export default function GenericDailyClosingsPage() {
               </h1>
               <p className="text-sm text-slate-500">{rows.length} closing(s) — totals are auto-aggregated; you just count cash.</p>
             </div>
+            <Button className="w-full sm:w-auto h-11 sm:h-10" onClick={openClosingDialog}><Plus className="h-4 w-4 mr-1" />Close today</Button>
             <Dialog open={open} onOpenChange={setOpen}>
-              <DialogTrigger asChild>
-                <Button className="w-full sm:w-auto h-11 sm:h-10"><Plus className="h-4 w-4 mr-1" />Close today</Button>
-              </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-w-xl">
                 <DialogHeader>
                   <DialogTitle>Daily closing</DialogTitle>
-                  <DialogDescription>Enter only the cash you counted. Sales, expenses, payments and expected cash are computed automatically from the immutable ledgers.</DialogDescription>
+                  <DialogDescription>Today's figures are auto-populated. Just verify the actual cash counted.</DialogDescription>
                 </DialogHeader>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <Label>Closing date</Label>
-                    <Input type="date" value={form.closingDate} onChange={(e) => setForm((f) => ({ ...f, closingDate: e.target.value }))} />
-                  </div>
-                  <div>
-                    <Label>Opening cash (optional)</Label>
-                    <NumberInput step="0.01" value={form.openingCash} onChange={(e) => setForm((f) => ({ ...f, openingCash: e.target.value }))} placeholder="auto" />
-                  </div>
-                  <div className="md:col-span-2">
-                    <Label>Actual cash counted *</Label>
-                    <NumberInput step="0.01" min="0" value={form.actualCashCounted} onChange={(e) => setForm((f) => ({ ...f, actualCashCounted: e.target.value }))} />
-                  </div>
-                  <div className="md:col-span-2">
-                    <Label>Manager notes</Label>
-                    <Textarea rows={2} value={form.managerNotes} onChange={(e) => setForm((f) => ({ ...f, managerNotes: e.target.value }))} maxLength={2000} />
-                  </div>
-                  <div className="md:col-span-2">
-                    <Label>Reason for any cash difference</Label>
-                    <ReasonSelect options={CASH_DIFFERENCE_REASONS} value={form.differenceReason} onChange={(v: string) => setForm((f) => ({ ...f, differenceReason: v }))} />
-                  </div>
-                </div>
+
+                {prefilling ? (
+                  <div className="flex items-center gap-2 text-slate-500 py-4"><Loader2 className="h-4 w-4 animate-spin" /> Loading today's figures...</div>
+                ) : (
+                  <>
+                    {/* Auto-populated summary */}
+                    <div className="grid grid-cols-3 gap-2 rounded-lg border bg-slate-50 p-3">
+                      <div><div className="text-[10px] uppercase text-slate-500">Sales</div><div className="text-sm font-semibold text-emerald-700 tabular-nums">{fmt(form.todaySales)}</div></div>
+                      <div><div className="text-[10px] uppercase text-slate-500">Expenses</div><div className="text-sm font-semibold text-red-600 tabular-nums">{fmt(form.todayExpenses)}</div></div>
+                      <div><div className="text-[10px] uppercase text-slate-500">Purchases paid</div><div className="text-sm font-semibold text-orange-600 tabular-nums">{fmt(form.todayPurchasesPaid)}</div></div>
+                      <div><div className="text-[10px] uppercase text-slate-500">Expected cash</div><div className="text-sm font-bold tabular-nums">{fmt(form.expectedCash)}</div></div>
+                      <div><div className="text-[10px] uppercase text-slate-500">Customer debt</div><div className="text-sm font-semibold text-amber-700 tabular-nums">{fmt(form.customerDebt)}</div></div>
+                      <div><div className="text-[10px] uppercase text-slate-500">Supplier debt</div><div className="text-sm font-semibold text-slate-600 tabular-nums">{fmt(form.supplierDebt)}</div></div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <Label>Closing date</Label>
+                        <Input type="date" value={form.closingDate} onChange={(e) => setForm((f) => ({ ...f, closingDate: e.target.value }))} />
+                      </div>
+                      <div>
+                        <Label>Opening cash (auto-filled)</Label>
+                        <NumberInput step="0.01" value={form.openingCash} onChange={(e) => setForm((f) => ({ ...f, openingCash: e.target.value }))} placeholder="auto" />
+                      </div>
+                      <div className="md:col-span-2">
+                        <Label>Actual cash counted *</Label>
+                        <NumberInput step="0.01" min="0" value={form.actualCashCounted} onChange={(e) => setForm((f) => ({ ...f, actualCashCounted: e.target.value }))} />
+                        {Number(form.actualCashCounted) > 0 && form.expectedCash > 0 && (
+                          <div className={`mt-1 text-xs font-medium ${Math.abs(Number(form.actualCashCounted) - form.expectedCash) > 0.01 ? "text-red-600" : "text-emerald-600"}`}>
+                            Difference: {fmt(Number(form.actualCashCounted) - form.expectedCash)}
+                            {Math.abs(Number(form.actualCashCounted) - form.expectedCash) <= 0.01 && " (matches!)"}
+                          </div>
+                        )}
+                      </div>
+                      <div className="md:col-span-2">
+                        <Label>Manager notes</Label>
+                        <Textarea rows={2} value={form.managerNotes} onChange={(e) => setForm((f) => ({ ...f, managerNotes: e.target.value }))} maxLength={2000} />
+                      </div>
+                      <div className="md:col-span-2">
+                        <Label>Reason for any cash difference</Label>
+                        <ReasonSelect options={CASH_DIFFERENCE_REASONS} value={form.differenceReason} onChange={(v: string) => setForm((f) => ({ ...f, differenceReason: v }))} />
+                      </div>
+                    </div>
+                  </>
+                )}
+
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-                  <Button onClick={onCreate} disabled={saving}>{saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}Create &amp; submit</Button>
+                  <Button onClick={onCreate} disabled={saving || prefilling}>{saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}Create &amp; submit</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
           </div>
+
+          {/* Today's summary — show the latest closing's key figures */}
+          {!loading && rows.length > 0 && (() => {
+            const latest = rows[0]
+            return (
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+                <div className="rounded-xl border bg-white p-3 shadow-sm">
+                  <div className="text-[11px] font-medium uppercase text-slate-500">Total Sales</div>
+                  <div className="mt-1 text-lg font-bold text-emerald-700 tabular-nums">{fmt(latest.totalSales)}</div>
+                </div>
+                <div className="rounded-xl border bg-white p-3 shadow-sm">
+                  <div className="text-[11px] font-medium uppercase text-slate-500">Total Expenses</div>
+                  <div className="mt-1 text-lg font-bold text-red-600 tabular-nums">{fmt(latest.totalExpenses)}</div>
+                </div>
+                <div className="rounded-xl border bg-white p-3 shadow-sm">
+                  <div className="text-[11px] font-medium uppercase text-slate-500">Expected Cash</div>
+                  <div className="mt-1 text-lg font-bold text-slate-900 tabular-nums">{fmt(latest.expectedCash)}</div>
+                </div>
+                <div className="rounded-xl border bg-white p-3 shadow-sm">
+                  <div className="text-[11px] font-medium uppercase text-slate-500">Actual Cash</div>
+                  <div className="mt-1 text-lg font-bold text-slate-900 tabular-nums">{fmt(latest.actualCashCounted)}</div>
+                </div>
+                <div className={`rounded-xl border p-3 shadow-sm ${latest.cashDifference !== 0 ? "border-red-200 bg-red-50" : "border-emerald-200 bg-emerald-50"}`}>
+                  <div className="text-[11px] font-medium uppercase text-slate-500">Difference</div>
+                  <div className={`mt-1 text-lg font-bold tabular-nums ${latest.cashDifference !== 0 ? "text-red-600" : "text-emerald-700"}`}>{fmt(latest.cashDifference)}</div>
+                  <div className="text-[10px] text-slate-500">{fmtDateTime(latest.closingDate, latest)} · {latest.status}</div>
+                </div>
+              </div>
+            )
+          })()}
 
           {loading ? (
             <div className="flex items-center gap-2 text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>

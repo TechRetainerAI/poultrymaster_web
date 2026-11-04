@@ -389,7 +389,6 @@ namespace User.Management.Service.Services
                         FarmName = farmName,
                         Email = string.IsNullOrWhiteSpace(contactRow?.Email) ? null : contactRow!.Email,
                         PhoneNumber = string.IsNullOrWhiteSpace(contactRow?.PhoneNumber) ? null : contactRow!.PhoneNumber,
-                        CreatedAt = contactRow?.CreatedAt,
                         TotalUsers = people.Count,
                         StaffCount = people.Count(p => p.IsStaff),
                         HasPaidSubscription = people.Any(p => p.IsSubscriber),
