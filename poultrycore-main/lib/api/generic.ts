@@ -436,8 +436,93 @@ export async function getCashAccounts(): Promise<GenericCashAccount[]> {
 }
 
 // =============================================================================
+// Cash reconciliation
+// =============================================================================
+
+export interface GenericCashReconciliation {
+  genericCashReconciliationId: number
+  farmId: string
+  genericCashAccountId: number
+  accountName?: string | null
+  reconciliationDate: string
+  systemBalance: number
+  actualBalance: number
+  difference: number
+  adjustmentTransactionId?: number | null
+  reason?: string | null
+  notes?: string | null
+  status: string
+  requestedBy?: string | null
+  approvedBy?: string | null
+  createdAt: string
+}
+
+export interface GenericCashAccountDetails {
+  genericCashAccountId: number
+  farmId: string
+  accountName: string
+  accountType: string
+  openingBalance: number
+  currentBalance: number
+  negativeBalancePolicy: string
+  negativeBalanceLimit: number
+  isActive: boolean
+  lastReconciledAt?: string | null
+  lastReconciledBalance?: number | null
+  totalMoneyIn: number
+  totalMoneyOut: number
+  transferIn: number
+  transferOut: number
+  totalAdjustments: number
+  ledgerBalance: number
+  unreconciledCount: number
+}
+
+export async function getCashAccountDetails(accountId: number): Promise<GenericCashAccountDetails | null> {
+  return getJson<GenericCashAccountDetails>(`${farmBase()}/cash/accounts/${accountId}/details`)
+}
+
+export async function getCashReconciliations(accountId: number): Promise<GenericCashReconciliation[]> {
+  return getJson<GenericCashReconciliation[]>(`${farmBase()}/cash/accounts/${accountId}/reconciliations`)
+}
+
+export async function createCashReconciliation(input: {
+  genericCashAccountId: number
+  actualBalance: number
+  reconciliationDate?: string | null
+  reason?: string | null
+  notes?: string | null
+}): Promise<{ genericCashReconciliationId: number } | null> {
+  const { userId } = getUserContext()
+  const q = new URLSearchParams()
+  if (userId) { q.set("requestedBy", userId); q.set("approvedBy", userId) }
+  return postJson<{ genericCashReconciliationId: number }>(
+    `${farmBase()}/cash/reconciliations?${q.toString()}`, input)
+}
+
+// =============================================================================
 // Products
 // =============================================================================
+
+// =============================================================================
+// Product Categories
+// =============================================================================
+
+export interface GenericProductCategory {
+  genericProductCategoryId: number
+  farmId: string
+  name: string
+  description?: string | null
+  isActive: boolean
+}
+
+export async function getProductCategories(): Promise<GenericProductCategory[]> {
+  return getJson<GenericProductCategory[]>(`${farmBase()}/product-categories`)
+}
+
+export async function createProductCategory(input: { name: string; description?: string | null }): Promise<GenericProductCategory | null> {
+  return postJson<GenericProductCategory>(`${farmBase()}/product-categories`, input)
+}
 
 export async function getProducts(): Promise<GenericProduct[]> {
   return getJson<GenericProduct[]>(`${farmBase()}/products`)

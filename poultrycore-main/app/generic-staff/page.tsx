@@ -20,13 +20,13 @@ import {
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { FormSection, FormField } from "@/components/ui/form-section"
-import { Loader2, Plus, Users2, Pencil, Trash2, KeyRound } from "lucide-react"
+import { Loader2, Plus, Users2, Pencil, Trash2, KeyRound, CalendarCheck } from "lucide-react"
 import { useStaffEmployeeLink } from "@/hooks/use-staff-employee-link"
 import { EmployeeBadge } from "@/components/employees/link-badges"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
-import { createStaff, deleteStaff, getStaff, type GenericStaff, type GenericStaffRole, type GenericStaffSalaryType } from "@/lib/api/generic"
+import { createStaff, deleteStaff, getStaff, upsertAttendance, type GenericStaff, type GenericStaffRole, type GenericStaffSalaryType, type GenericAttendanceStatus } from "@/lib/api/generic"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 
@@ -35,6 +35,8 @@ const ROLES: GenericStaffRole[] = [
   "InventoryOfficer", "Cleaner", "Security", "Driver", "ServiceProvider", "Other",
 ]
 const SALARY_TYPES: GenericStaffSalaryType[] = ["Daily", "Weekly", "Monthly", "Commission", "Mixed"]
+const ATT_STATUS: GenericAttendanceStatus[] = ["Present", "Absent", "Late", "HalfDay", "OffDay"]
+const today = () => new Date().toISOString().split("T")[0]
 
 function fmt(n: number) {
   return new Intl.NumberFormat(undefined, { style: "currency", currency: "GHS", maximumFractionDigits: 2 }).format(n)
@@ -54,6 +56,29 @@ export default function GenericStaffPage() {
   const [saving, setSaving] = useState(false)
   const [filterRole, setFilterRole] = useState<string>("all")
   const [deleteTarget, setDeleteTarget] = useState<GenericStaff | null>(null)
+
+  // Attendance modal
+  const [attDlg, setAttDlg] = useState<{ open: boolean; staff?: GenericStaff }>({ open: false })
+  const [att, setAtt] = useState({ attendanceDate: today(), status: "Present" as string, shift: "", notes: "" })
+  const [attSaving, setAttSaving] = useState(false)
+
+  function openAttendance(s: GenericStaff) { setAttDlg({ open: true, staff: s }); setAtt({ attendanceDate: today(), status: "Present", shift: "", notes: "" }) }
+  async function saveAttendance() {
+    if (!attDlg.staff) return
+    setAttSaving(true)
+    try {
+      await upsertAttendance({
+        genericStaffId: attDlg.staff.genericStaffId,
+        attendanceDate: att.attendanceDate,
+        status: att.status,
+        shift: att.shift || null,
+        notes: att.notes || null,
+      })
+      toast({ title: "Attendance recorded", description: `${attDlg.staff.firstName} ${attDlg.staff.lastName} · ${att.status} on ${att.attendanceDate}` })
+      setAttDlg({ open: false })
+    } catch (e: any) { toast({ title: "Could not record attendance", description: e?.message, variant: "destructive" }) }
+    finally { setAttSaving(false) }
+  }
 
   const [form, setForm] = useState({
     firstName: "",
@@ -286,6 +311,9 @@ export default function GenericStaffPage() {
                   ]}
                   actions={(s) => (
                     <>
+                      <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => openAttendance(s)}>
+                        <CalendarCheck className="h-4 w-4 mr-1" /> Attendance
+                      </Button>
                       <Button asChild size="sm" variant="outline" className="flex-1 h-10">
                         <Link href={`/generic-staff/${s.genericStaffId}`}>
                           <Pencil className="h-4 w-4 mr-1" /> Edit
@@ -336,6 +364,7 @@ export default function GenericStaffPage() {
                                 : <Badge variant="secondary">Inactive</Badge>}
                             </TableCell>
                             <TableCell className="text-right">
+                              <Button size="sm" variant="ghost" onClick={() => openAttendance(s)} title="Record attendance"><CalendarCheck className="h-4 w-4" /></Button>
                               <Link href={`/generic-staff/${s.genericStaffId}`}>
                                 <Button size="sm" variant="ghost" title="Edit"><Pencil className="h-4 w-4" /></Button>
                               </Link>
@@ -357,6 +386,33 @@ export default function GenericStaffPage() {
           )}
         </main>
       </div>
+
+      {/* Record attendance */}
+      <Dialog open={attDlg.open} onOpenChange={(v) => setAttDlg({ open: v, staff: v ? attDlg.staff : undefined })}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><CalendarCheck className="w-5 h-5 text-emerald-600" /> Attendance</DialogTitle>
+            <DialogDescription>{attDlg.staff ? `${attDlg.staff.firstName} ${attDlg.staff.lastName}` : ""}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <FormSection title="Day" color="indigo" columns={1}>
+              <FormField label="Date"><Input type="date" value={att.attendanceDate} onChange={(e) => setAtt({ ...att, attendanceDate: e.target.value })} /></FormField>
+              <FormField label="Status">
+                <Select value={att.status} onValueChange={(v) => setAtt({ ...att, status: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{ATT_STATUS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                </Select>
+              </FormField>
+              <FormField label="Shift"><Input value={att.shift} onChange={(e) => setAtt({ ...att, shift: e.target.value })} placeholder="e.g. Morning" /></FormField>
+              <FormField label="Notes"><Input value={att.notes} onChange={(e) => setAtt({ ...att, notes: e.target.value })} /></FormField>
+            </FormSection>
+            <div className="flex gap-3 justify-end pt-2">
+              <Button type="button" variant="ghost" onClick={() => setAttDlg({ open: false })}>Cancel</Button>
+              <Button onClick={saveAttendance} disabled={attSaving}>{attSaving ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</>) : "Save attendance"}</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {link.dialog}
 

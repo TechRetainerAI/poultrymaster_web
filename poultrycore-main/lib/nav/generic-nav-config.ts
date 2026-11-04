@@ -10,13 +10,15 @@
  */
 
 import {
-  Activity, Banknote, BarChart3, Boxes, CalendarClock, CalendarDays,
-  ClipboardCheck, CreditCard, DollarSign, FileText, GraduationCap,
-  Package, PackageMinus, Receipt, Repeat, Scale, Settings,
+  Activity, AlertTriangle, Banknote, BarChart3, Boxes, CalendarClock, CalendarDays,
+  ClipboardCheck, CreditCard, DollarSign, FileText, GraduationCap, HandCoins,
+  Package, PackageMinus, Receipt, Repeat, Scale, Settings, TrendingUp,
   ShoppingBag, ShoppingCart, Truck, User, Users, Users2, Wallet, Zap, Cog,
 } from "lucide-react"
 import type { MegaMenuGroup, MegaMenuItem } from "./nav-model"
 import type { GenericModulesResult } from "@/hooks/use-generic-modules"
+import type { UserPermissions } from "@/hooks/use-permissions"
+import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
 
 export interface GenericNavConfig {
   billing: MegaMenuGroup[]
@@ -30,13 +32,21 @@ export interface GenericNavConfig {
 }
 
 /** Shorthand to build a MegaMenuItem from an href and label. */
-function item(href: string, title: string, icon: MegaMenuItem["icon"]): MegaMenuItem {
-  return { id: href, title, icon, href }
+function item(href: string, title: string, icon: MegaMenuItem["icon"], visible?: boolean): MegaMenuItem {
+  return { id: href, title, icon, href, ...(visible === false ? { visible: false } : {}) }
 }
 
-export function buildGenericNavConfig(modules: GenericModulesResult): GenericNavConfig {
+/** Filter out items where visible === false. */
+function gated(items: MegaMenuItem[]): MegaMenuItem[] {
+  return items.filter((i) => i.visible !== false)
+}
+
+export function buildGenericNavConfig(modules: GenericModulesResult, permissions?: UserPermissions): GenericNavConfig {
   const { showNew, showExisting, labels, isSubscriptionBusiness: isSub, industry } = modules
   const isSchool = industry === "School"
+  const { featureAccess, isAdmin } = permissions ?? { featureAccess: {} as any, isAdmin: true }
+  /** Gate a nav item on financial permissions. Admins always pass. No permissions = show all. */
+  const canSee = (href: string) => !permissions || isFinancialNavItemVisible(href, featureAccess, isAdmin)
 
   // ---- Billing / Subscriptions ----
   const billing: MegaMenuGroup[] = showNew("enableSubscriptions") ? [{
@@ -56,18 +66,18 @@ export function buildGenericNavConfig(modules: GenericModulesResult): GenericNav
   const salesOrStudents: MegaMenuGroup[] = [{
     key: "sales",
     label: isSub ? `${labels.customerPlural} & Payments` : "Sales",
-    items: [
-      ...(!isSub ? [item("/generic-pos",   "Quick Sale", Zap)]          : []),
-      ...(!isSub ? [item("/generic-sales", "Sales",      ShoppingCart)] : []),
+    items: gated([
+      ...(!isSub ? [item("/generic-pos",             "Quick Sale",    Zap, canSee("/generic-pos"))]          : []),
+      ...(!isSub ? [item("/generic-pos?tab=sales", "Sales History", ShoppingCart, canSee("/generic-pos?tab=sales"))] : []),
       ...(showNew("enableInvoices") && !isSub
         ? [item("/generic-invoices", labels.invoicePlural, FileText)]
         : []),
-      item("/generic-customers",         labels.customerPlural, Users),
-      item("/generic-customer-payments", labels.paymentPlural,  CreditCard),
+      item("/generic-customers",         labels.customerPlural, Users, canSee("/generic-customers")),
+      item("/generic-customer-payments", labels.paymentPlural,  CreditCard, canSee("/generic-customer-payments")),
       ...(showNew("enableCustomerBalances")
-        ? [item("/generic-customer-balances", labels.customerBalance, Scale)]
+        ? [item("/generic-customer-balances", labels.customerBalance, Scale, canSee("/generic-customer-balances"))]
         : []),
-    ],
+    ]),
   }]
 
   // ---- Catalog / Stock ----
@@ -76,11 +86,14 @@ export function buildGenericNavConfig(modules: GenericModulesResult): GenericNav
     ...(showExisting("enableProducts")
       ? [item("/generic-products", "Products", ShoppingBag)] : []),
     ...(showExisting("enableInventory")
-      ? [item("/generic-inventory", "Inventory", Boxes)] : []),
+      ? [item("/generic-inventory", "Inventory & Purchases", Boxes)] : []),
     ...(showExisting("enableStockAdjustments")
-      ? [item("/generic-stock-adjustments", "Stock adjustments", Boxes)] : []),
+      ? [item("/generic-inventory?tab=adjustments", "Stock adjustments", Boxes)] : []),
+    ...(showExisting("enablePurchases")
+      ? [item("/generic-purchases/new", "Record Purchase", ShoppingCart)] : []),
     ...(showExisting("enableInternalUse")
       ? [item("/generic-internal-use", "Internal Use", PackageMinus)] : []),
+    item("/generic-loss-records", "Loss & Damage", AlertTriangle),
   ]
   if (catalogItems.length > 0) {
     catalog.push({ key: "catalog", label: "Catalog & Stock", items: catalogItems })
@@ -90,33 +103,37 @@ export function buildGenericNavConfig(modules: GenericModulesResult): GenericNav
   const expenses: MegaMenuGroup[] = [{
     key: "expenses",
     label: isSub ? "Expenses & Vendors" : "Purchasing",
-    items: [
-      item("/generic-suppliers",         isSub ? "Vendors" : "Suppliers", Truck),
+    items: gated([
+      item("/generic-suppliers",         isSub ? "Vendors" : "Suppliers", Truck, canSee("/generic-suppliers")),
       ...(showExisting("enablePurchases")
-        ? [item("/generic-purchases", "Purchases", Package)] : []),
-      item("/generic-supplier-payments", isSub ? "Vendor payments" : "Supplier payments", CreditCard),
+        ? [item("/generic-inventory?tab=purchases", "Purchases", Package)] : []),
+      item("/generic-supplier-payments", isSub ? "Vendor payments" : "Supplier payments", CreditCard, canSee("/generic-supplier-payments")),
       ...(showExisting("enableSupplierBalances")
-        ? [item("/generic-supplier-balances", isSub ? "Vendor balances" : "Supplier balances", Scale)]
+        ? [item("/generic-supplier-balances", isSub ? "Vendor balances" : "Supplier balances", Scale, canSee("/generic-supplier-balances"))]
         : []),
-      item("/generic-expenses",          "Expenses",          DollarSign),
+      item("/generic-expenses",          "Expenses",          DollarSign, canSee("/generic-expenses")),
       ...(showExisting("enableRecurringExpenses")
-        ? [item("/recurring-expenses", "Recurring expenses", Repeat)]
+        ? [item("/recurring-expenses", "Recurring expenses", Repeat, canSee("/recurring-expenses"))]
         : []),
-    ],
+    ]),
   }]
 
   // ---- Money ----
   const money: MegaMenuGroup[] = [{
     key: "money",
     label: "Money",
-    items: [
+    items: gated([
+      item("/generic-cash-flow",             "Cash Flow",              Wallet, canSee("/generic-cash-flow")),
+      item("/generic-financial-activity",    "Financial Activity",     Activity, canSee("/generic-financial-activity")),
+      item("/generic-profit-loss",           "Profit & Loss",          TrendingUp, canSee("/generic-profit-loss")),
       ...(showExisting("enableCashAccounts") ? [
-        item("/generic-cash",           "Cash & Accounts", Wallet),
-        item("/generic-cash-transfers", "Cash transfers",  Activity),
+        item("/generic-cash",                "Cash & Accounts",    Wallet, canSee("/generic-cash")),
+        item("/generic-cash-transfers",      "Cash transfers",     Activity, canSee("/generic-cash-transfers")),
+        item("/generic-cash-reconciliation", "Reconciliation",     Scale, canSee("/generic-cash-reconciliation")),
       ] : []),
-      item("/generic-daily-closings", "Daily Closing",                       FileText),
-      item("/generic-owner-money",    isSub ? "Owner funds" : "Owner money", Wallet),
-    ],
+      item("/generic-daily-closings", "Daily Closing",                       FileText, canSee("/generic-daily-closings")),
+      item("/generic-owner-money",    isSub ? "Owner funds" : "Owner money", Wallet, canSee("/generic-owner-money")),
+    ]),
   }]
 
   // ---- People / Staff ----
@@ -126,13 +143,14 @@ export function buildGenericNavConfig(modules: GenericModulesResult): GenericNav
   const people: MegaMenuGroup[] = hasStaff ? [{
     key: "people",
     label: isSchool ? "Staff & Teachers" : "Employees",
-    items: [
+    items: gated([
       item("/generic-staff",      isSchool ? "Staff" : "Employees",  Users2),
       item("/generic-attendance", "Attendance", Activity),
-      item("/generic-payroll",    "Payroll",    Banknote),
+      item("/generic-payroll",    "Payroll",    Banknote, canSee("/generic-payroll")),
       ...(showExisting("enableStaffPayments")
-        ? [item("/generic-staff-payments", isSchool ? "Staff payments" : "Employee payments", Banknote)] : []),
-    ],
+        ? [item("/generic-staff-payments", isSchool ? "Staff payments" : "Employee payments", Banknote, canSee("/generic-staff-payments"))] : []),
+      item("/generic-employee-loans", "Employee loans", HandCoins, canSee("/generic-employee-loans")),
+    ]),
   }] : []
 
   // ---- School ----
@@ -150,13 +168,13 @@ export function buildGenericNavConfig(modules: GenericModulesResult): GenericNav
   const admin: MegaMenuGroup[] = [{
     key: "admin",
     label: "Admin",
-    items: [
-      item("/generic-reports",            "Reports",           BarChart3),
-      item("/generic-setup",              "Setup",             Settings),
-      item("/generic-business-features",  "Business Features", Settings),
-      item("/generic-settings",           "Settings",          Cog),
+    items: gated([
+      item("/generic-reports",            "Reports",           BarChart3, canSee("/generic-reports")),
+      item("/generic-setup",              "Setup",             Settings, canSee("/generic-setup")),
+      item("/generic-business-features",  "Business Features", Settings, canSee("/generic-business-features")),
+      item("/generic-settings",           "Settings",          Cog, canSee("/generic-settings")),
       item("/profile",                    "Account",           User),
-    ],
+    ]),
   }]
 
   return { billing, salesOrStudents, catalog, expenses, money, people, school, admin }

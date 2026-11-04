@@ -18,14 +18,16 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Loader2, ShoppingBag, Plus, Pencil, Trash2 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import {
   getProducts, createGenericProduct, updateGenericProduct, deleteGenericProduct,
+  getProductCategories, createProductCategory,
   getUomConversions, upsertUomConversion, deleteUomConversion,
-  type GenericProduct, type GenericProductInput, type GenericUomConversion,
+  type GenericProduct, type GenericProductInput, type GenericProductCategory, type GenericUomConversion,
 } from "@/lib/api/generic"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
@@ -50,6 +52,7 @@ const EMPTY_FORM = {
   expiryDate: "",
   isActive: true,
   notes: "",
+  categoryId: "",
 }
 
 export default function GenericProductsPage() {
@@ -67,6 +70,8 @@ export default function GenericProductsPage() {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<GenericProduct | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
+  const [categories, setCategories] = useState<GenericProductCategory[]>([])
+  const [newCategoryName, setNewCategoryName] = useState("")
   // UOM conversions for the currently-editing product
   const [conversions, setConversions] = useState<GenericUomConversion[]>([])
   const [newConv, setNewConv] = useState({ fromUnit: "", toUnit: "", factor: "" })
@@ -90,6 +95,7 @@ export default function GenericProductsPage() {
       expiryDate: p.expiryDate ? p.expiryDate.slice(0, 10) : "",
       isActive: p.isActive,
       notes: p.notes ?? "",
+      categoryId: p.genericProductCategoryId ? String(p.genericProductCategoryId) : "",
     })
     getUomConversions(p.genericProductId).then(setConversions).catch(() => setConversions([]))
     setOpen(true)
@@ -124,7 +130,9 @@ export default function GenericProductsPage() {
   const load = async () => {
     setLoading(true)
     try {
-      setRows(await getProducts())
+      const [prods, cats] = await Promise.all([getProducts(), getProductCategories().catch(() => [])])
+      setRows(prods)
+      setCategories(cats)
     } catch (e: any) {
       toast({ title: "Could not load products", description: e?.message ?? String(e), variant: "destructive" })
     } finally { setLoading(false) }
@@ -175,6 +183,7 @@ export default function GenericProductsPage() {
         expiryDate: form.expiryDate || null,
         isActive: form.isActive,
         notes: optStr(form.notes),
+        genericProductCategoryId: form.categoryId ? Number(form.categoryId) : null,
       }
       if (editingId != null) {
         await updateGenericProduct(editingId, input)
@@ -229,8 +238,36 @@ export default function GenericProductsPage() {
                     <FormField label="Barcode">
                       <Input value={form.barcode} onChange={(e) => setForm((f) => ({ ...f, barcode: e.target.value }))} maxLength={60} />
                     </FormField>
-                    <FormField label="Unit (e.g. piece, kg)" full>
+                    <FormField label="Unit (e.g. piece, kg)">
                       <Input value={form.unitOfMeasure} onChange={(e) => setForm((f) => ({ ...f, unitOfMeasure: e.target.value }))} maxLength={30} />
+                    </FormField>
+                    <FormField label="Category">
+                      <Select value={form.categoryId || "__none__"} onValueChange={(v) => setForm((f) => ({ ...f, categoryId: v === "__none__" ? "" : v }))}>
+                        <SelectTrigger><SelectValue placeholder="-- none --" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">-- No category --</SelectItem>
+                          {categories.filter((c) => c.isActive).map((c) => (
+                            <SelectItem key={c.genericProductCategoryId} value={String(c.genericProductCategoryId)}>{c.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {/* Quick-add a new category inline */}
+                      <div className="flex gap-1.5 mt-1.5">
+                        <Input className="h-8 text-xs" placeholder="New category name" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} />
+                        <Button type="button" size="sm" variant="outline" className="h-8 shrink-0 text-xs" disabled={!newCategoryName.trim()} onClick={async () => {
+                          try {
+                            const created = await createProductCategory({ name: newCategoryName.trim() })
+                            if (created) {
+                              setCategories((prev) => [...prev, created])
+                              setForm((f) => ({ ...f, categoryId: String(created.genericProductCategoryId) }))
+                              setNewCategoryName("")
+                              toast({ title: `Category "${created.name}" created` })
+                            }
+                          } catch (e: any) { toast({ title: "Could not create category", description: e?.message, variant: "destructive" }) }
+                        }}>
+                          <Plus className="h-3 w-3 mr-1" /> Add
+                        </Button>
+                      </div>
                     </FormField>
                   </FormSection>
 

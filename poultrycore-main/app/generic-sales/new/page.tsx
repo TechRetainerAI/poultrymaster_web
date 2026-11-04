@@ -70,19 +70,25 @@ export default function NewGenericSalePage() {
   const [products, setProducts] = useState<GenericProduct[]>([])
   const [cashAccounts, setCashAccounts] = useState<GenericCashAccount[]>([])
 
-  const [header, setHeader] = useState({
-    saleDate: new Date().toISOString().slice(0, 10),
+  const [header, setHeader] = useState(() => {
+    const now = new Date()
+    const date = now.toISOString().slice(0, 10)
+    const pad = String(now.getHours()).padStart(2, "0") + String(now.getMinutes()).padStart(2, "0")
+    const rand = String(Math.floor(Math.random() * 10000)).padStart(4, "0")
+    return {
+    saleDate: date,
     genericCustomerId: "",
     salesType: "WalkInSale",
-    receiptNumber: "",
+    receiptNumber: `SAL-${date.replace(/-/g, "")}-${pad}${rand}`,
     headerDiscountAmount: "0",
     taxAmount: "0",
     amountPaid: "0",
     paymentMethod: "Cash",
     genericCashAccountId: "",
     notes: "",
-  })
+  }})
 
+  const [walkInName, setWalkInName] = useState("")
   const [rows, setRows] = useState<Row[]>([blankRow()])
 
   useEffect(() => {
@@ -163,7 +169,9 @@ export default function NewGenericSalePage() {
         paymentMethod: header.paymentMethod,
         genericCashAccountId: header.genericCashAccountId ? Number(header.genericCashAccountId) : null,
         receiptNumber: header.receiptNumber || null,
-        notes: header.notes || null,
+        notes: !header.genericCustomerId && walkInName.trim()
+          ? (header.notes ? `Customer: ${walkInName.trim()} | ${header.notes}` : `Customer: ${walkInName.trim()}`)
+          : (header.notes || null),
         items,
       })
       if (created) {
@@ -210,7 +218,7 @@ export default function NewGenericSalePage() {
                   </div>
                   <div>
                     <Label>Customer (optional)</Label>
-                    <Select value={header.genericCustomerId || "__walk_in__"} onValueChange={(v) => setHeader((h) => ({ ...h, genericCustomerId: v === "__walk_in__" ? "" : v }))}>
+                    <Select value={header.genericCustomerId || "__walk_in__"} onValueChange={(v) => { setHeader((h) => ({ ...h, genericCustomerId: v === "__walk_in__" ? "" : v })); if (v !== "__walk_in__") setWalkInName("") }}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="__walk_in__">— Walk-in —</SelectItem>
@@ -219,6 +227,9 @@ export default function NewGenericSalePage() {
                         ))}
                       </SelectContent>
                     </Select>
+                    {!header.genericCustomerId && (
+                      <Input className="mt-1.5" placeholder="Walk-in customer name (optional)" value={walkInName} onChange={(e) => setWalkInName(e.target.value)} />
+                    )}
                   </div>
                   <div>
                     <Label>Receipt no.</Label>

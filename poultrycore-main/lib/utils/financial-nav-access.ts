@@ -119,6 +119,32 @@ export function isFinancialNavItemVisible(
   if (href === "/poultry-profit-loss" || href === "/poultry/reports/profit-loss") {
     return isAdmin || f.canViewFinancial || f.canViewReports
   }
+
+  // ---- Generic Company financial routes ----
+  // Same deny-by-default pattern: staff only see pages whose flag they hold.
+  if (href === "/generic-pos" || href === "/generic-pos?tab=sales" || href === "/generic-sales" || href === "/generic-sales/new") return f.canEnterSales
+  if (href === "/generic-expenses" || href === "/recurring-expenses") return f.canEnterExpenses
+  if (href === "/generic-cash-flow" || href === "/generic-financial-activity") return f.canViewCashLedger
+  if (href === "/generic-cash" || href === "/generic-cash-transfers" || href === "/generic-cash-reconciliation") return f.canViewCashLedger
+  if (href === "/generic-owner-money" || href === "/generic-employee-loans") return f.canViewCashLedger
+  if (href === "/generic-profit-loss") return isAdmin || f.canViewFinancial || f.canViewReports
+  if (href === "/generic-daily-closings") return f.canViewCashLedger
+  if (href === "/generic-customers" || href === "/generic-customer-payments") {
+    return isAdmin || f.canViewCustomers || f.canViewFinancial || f.canEnterSales
+  }
+  if (href === "/generic-customer-balances") {
+    return isAdmin || f.canViewFinancial || f.canEnterSales || f.canViewCustomers
+  }
+  if (href === "/generic-suppliers" || href === "/generic-supplier-payments") {
+    return isAdmin || f.canViewFinancial || f.canEnterExpenses || f.canViewCustomers
+  }
+  if (href === "/generic-supplier-balances") {
+    return isAdmin || f.canViewFinancial || f.canEnterExpenses || f.canViewCustomers
+  }
+  if (href === "/generic-payroll" || href === "/generic-staff-payments") return f.canViewCashLedger
+  if (href === "/generic-reports") return isAdmin || f.canViewReports
+  if (href === "/generic-setup" || href === "/generic-settings" || href === "/generic-business-features") return isAdmin
+
   return false
 }
 

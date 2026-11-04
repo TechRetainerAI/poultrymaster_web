@@ -305,7 +305,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
 
   // Generic sidebar: built from the shared nav config so the sidebar and
   // top-nav always agree on labels and visibility.
-  const genericNav = useMemo(() => buildGenericNavConfig(genericModules), [genericModules])
+  const genericNav = useMemo(() => buildGenericNavConfig(genericModules, permissions), [genericModules, permissions])
   const isSchool = genericModules.industry === "School"
   const isSub = genericModules.isSubscriptionBusiness
 

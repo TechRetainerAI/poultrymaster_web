@@ -39,6 +39,16 @@ import { approveSale } from "@/lib/api/generic"
 import { templateLabels } from "@/lib/generic/template-labels"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 
+/** Extract walk-in customer name stored in notes as "Customer: Name". */
+function displayInvoiceCustomer(i: { customerName?: string | null; notes?: string | null }): string {
+  if (i.customerName) return i.customerName
+  if (i.notes?.startsWith("Customer: ")) {
+    const pipe = i.notes.indexOf(" | ")
+    return pipe > 0 ? i.notes.slice(10, pipe) : i.notes.slice(10)
+  }
+  return "—"
+}
+
 const STATUS_STYLES: Record<string, string> = {
   Draft: "bg-slate-100 text-slate-600 hover:bg-slate-100",
   Approved: "bg-emerald-100 text-emerald-800 hover:bg-emerald-100",
@@ -117,7 +127,7 @@ export default function GenericInvoicesPage() {
       await approveSale(inv.genericSaleId)
       toast({
         title: `${inv.receiptNumber ?? labels.invoice} approved.`,
-        description: `${fmt(inv.totalAmount)} is now owed by ${inv.customerName ?? `#${inv.genericCustomerId}`}.`,
+        description: `${fmt(inv.totalAmount)} is now owed by ${displayInvoiceCustomer(inv)}.`,
       })
       await load()
     } catch (e: any) {
@@ -225,7 +235,7 @@ export default function GenericInvoicesPage() {
                   primary={(i) => i.receiptNumber ?? `#${i.genericSaleId}`}
                   secondary={(i) => (
                     <>
-                      <span>{i.customerName ?? "—"}</span>
+                      <span>{displayInvoiceCustomer(i)}</span>
                       <span> · {fmt(i.totalAmount)}</span>
                     </>
                   )}
@@ -290,7 +300,7 @@ export default function GenericInvoicesPage() {
                               <TableCell className="font-mono text-xs">
                                 {i.receiptNumber ?? `#${i.genericSaleId}`}
                               </TableCell>
-                              <TableCell className="font-medium">{i.customerName ?? "—"}</TableCell>
+                              <TableCell className="font-medium">{displayInvoiceCustomer(i)}</TableCell>
                               <TableCell>{fmtDateTime(i.saleDate, i)}</TableCell>
                               <TableCell className="whitespace-nowrap text-xs text-slate-600">
                                 {i.billingPeriodStart && i.billingPeriodEnd

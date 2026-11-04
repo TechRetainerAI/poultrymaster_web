@@ -337,7 +337,7 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
 // "School"; a shop sees "Quick Sale" and "Catalog & Stock".
 function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePermissions> }) {
   const modules = useGenericModules()
-  const nav = useMemo(() => buildGenericNavConfig(modules), [modules])
+  const nav = useMemo(() => buildGenericNavConfig(modules, permissions), [modules, permissions])
   const isSub = modules.isSubscriptionBusiness
 
   return (
@@ -402,16 +402,33 @@ function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePerm
           />
         )}
 
-        {/* Money + People (if any) + Admin combined */}
+        {/* Money */}
         <NavMegaMenu
-          label="More" icon={Wallet}
-          title={nav.people.length > 0 ? "Money, Employees & Admin" : "Money & Admin"}
-          blurb={nav.people.length > 0
-            ? "Cash accounts, employees, payroll, reports and settings."
-            : "Cash accounts, reports and settings."}
-          groups={[...nav.money, ...nav.people, ...nav.admin]}
-          columns={nav.people.length > 0 ? 3 : 2} widthRem={nav.people.length > 0 ? 42 : 30}
-          layout="grid" accent="emerald"
+          label="Money" icon={Wallet}
+          title="Money"
+          blurb="Cash accounts, transfers, reconciliation and daily closing."
+          groups={nav.money}
+          columns={1} widthRem={20} layout="grid" accent="emerald"
+        />
+
+        {/* People / Employees — only when staff features enabled */}
+        {nav.people.length > 0 && (
+          <NavMegaMenu
+            label="Employees" icon={Users2}
+            title={modules.industry === "School" ? "Staff & Teachers" : "Employees"}
+            blurb="Staff, attendance, payroll and employee loans."
+            groups={nav.people}
+            columns={1} widthRem={20} layout="grid" accent="emerald"
+          />
+        )}
+
+        {/* Admin */}
+        <NavMegaMenu
+          label="Admin" icon={Settings}
+          title="Admin"
+          blurb="Reports, setup and settings."
+          groups={nav.admin}
+          columns={1} widthRem={18} layout="grid" accent="emerald"
         />
 
         <div className="ml-auto flex items-center gap-1">
