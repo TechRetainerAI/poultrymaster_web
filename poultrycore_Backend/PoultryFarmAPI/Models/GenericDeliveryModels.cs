@@ -93,6 +93,66 @@ namespace PoultryFarmAPIWeb.Models
         public decimal NetRevenue { get; set; }
     }
 
+    // =========================================================================
+    // Drivers
+    // =========================================================================
+    public class GenericDriverModel
+    {
+        public int GenericDriverId { get; set; }
+        public string FarmId { get; set; } = string.Empty;
+        public string DriverName { get; set; } = string.Empty;
+        public string? PhoneNumber { get; set; }
+        public string? LicenseNumber { get; set; }
+        public string? VehicleName { get; set; }
+        public string? VehicleRegistration { get; set; }
+        public bool IsActive { get; set; } = true;
+        public string? Notes { get; set; }
+        public DateTime CreatedAt { get; set; }
+    }
+
+    public class GenericDriverInput
+    {
+        public string FarmId { get; set; } = string.Empty;
+        public string DriverName { get; set; } = string.Empty;
+        public string? PhoneNumber { get; set; }
+        public string? LicenseNumber { get; set; }
+        public string? VehicleName { get; set; }
+        public string? VehicleRegistration { get; set; }
+        public bool IsActive { get; set; } = true;
+        public string? Notes { get; set; }
+        public string? CreatedBy { get; set; }
+    }
+
+    // =========================================================================
+    // Routes
+    // =========================================================================
+    public class GenericRouteModel
+    {
+        public int GenericRouteId { get; set; }
+        public string FarmId { get; set; } = string.Empty;
+        public string RouteName { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public string? StartPoint { get; set; }
+        public string? EndPoint { get; set; }
+        public string? EstimatedTime { get; set; }
+        public bool IsActive { get; set; } = true;
+        public string? Notes { get; set; }
+        public DateTime CreatedAt { get; set; }
+    }
+
+    public class GenericRouteInput
+    {
+        public string FarmId { get; set; } = string.Empty;
+        public string RouteName { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public string? StartPoint { get; set; }
+        public string? EndPoint { get; set; }
+        public string? EstimatedTime { get; set; }
+        public bool IsActive { get; set; } = true;
+        public string? Notes { get; set; }
+        public string? CreatedBy { get; set; }
+    }
+
     public class GenericDeliveryReconcileRequest
     {
         public string FarmId { get; set; } = string.Empty;

@@ -12,7 +12,7 @@
 import {
   Activity, AlertTriangle, ArrowUpDown, Banknote, BarChart3, Boxes, Building2, CalendarClock, CalendarDays,
   ClipboardCheck, CreditCard, DollarSign, FileText, Gift, GraduationCap, HandCoins, Landmark,
-  Package, PackageMinus, Receipt, Repeat, Scale, Settings, Timer, TrendingUp,
+  MapPin, Package, PackageMinus, Receipt, Repeat, Scale, Settings, Timer, TrendingUp,
   ShoppingBag, ShoppingCart, Truck, User, Users, Users2, Wallet, Zap, Cog,
 } from "lucide-react"
 import type { MegaMenuGroup, MegaMenuItem } from "./nav-model"
@@ -97,6 +97,8 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
       ? [item("/generic-internal-use", "Internal Use", PackageMinus)] : []),
     item("/generic-loss-records", "Loss & Damage", AlertTriangle),
     item("/generic-deliveries", "Deliveries", Truck),
+    item("/generic-drivers", "Drivers", Users2),
+    item("/generic-routes", "Routes", MapPin),
   ]
   if (catalogItems.length > 0) {
     catalog.push({ key: "catalog", label: "Catalog & Stock", items: catalogItems })

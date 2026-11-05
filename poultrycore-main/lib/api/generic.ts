@@ -1385,6 +1385,71 @@ export interface GenericRouteReport {
   totalSales: number; totalExpenses: number; netRevenue: number
 }
 
+// =============================================================================
+// Drivers
+// =============================================================================
+
+export interface GenericDriver {
+  genericDriverId: number; farmId: string; driverName: string
+  phoneNumber: string | null; licenseNumber: string | null
+  vehicleName: string | null; vehicleRegistration: string | null
+  isActive: boolean; notes: string | null; createdAt: string
+}
+
+export async function getDrivers(): Promise<GenericDriver[]> {
+  return getJson<GenericDriver[]>(`${farmBase()}/drivers`)
+}
+
+export async function createDriver(input: {
+  driverName: string; phoneNumber?: string; licenseNumber?: string
+  vehicleName?: string; vehicleRegistration?: string; notes?: string
+}): Promise<number> {
+  return postJson<number>(`${farmBase()}/drivers`, withFarmId(input))
+}
+
+export async function updateDriver(id: number, input: {
+  driverName: string; phoneNumber?: string; licenseNumber?: string
+  vehicleName?: string; vehicleRegistration?: string; isActive?: boolean; notes?: string
+}): Promise<void> {
+  await putJson(`${farmBase()}/drivers/${id}`, withFarmId(input))
+}
+
+export async function deleteDriver(id: number): Promise<void> {
+  await deleteResource(`${farmBase()}/drivers/${id}`)
+}
+
+// =============================================================================
+// Routes
+// =============================================================================
+
+export interface GenericRoute {
+  genericRouteId: number; farmId: string; routeName: string
+  description: string | null; startPoint: string | null; endPoint: string | null
+  estimatedTime: string | null; isActive: boolean; notes: string | null; createdAt: string
+}
+
+export async function getRoutes(): Promise<GenericRoute[]> {
+  return getJson<GenericRoute[]>(`${farmBase()}/routes`)
+}
+
+export async function createRoute(input: {
+  routeName: string; description?: string; startPoint?: string
+  endPoint?: string; estimatedTime?: string; notes?: string
+}): Promise<number> {
+  return postJson<number>(`${farmBase()}/routes`, withFarmId(input))
+}
+
+export async function updateRoute(id: number, input: {
+  routeName: string; description?: string; startPoint?: string
+  endPoint?: string; estimatedTime?: string; isActive?: boolean; notes?: string
+}): Promise<void> {
+  await putJson(`${farmBase()}/routes/${id}`, withFarmId(input))
+}
+
+export async function deleteRoute(id: number): Promise<void> {
+  await deleteResource(`${farmBase()}/routes/${id}`)
+}
+
 export async function getDriverReport(fromDate?: string, toDate?: string, driverName?: string): Promise<GenericDriverReport[]> {
   const qs = new URLSearchParams()
   if (fromDate) qs.append("fromDate", fromDate)

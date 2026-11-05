@@ -4,6 +4,22 @@ using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
 {
+    public interface IGenericDriverService
+    {
+        Task<List<GenericDriverModel>> ListAsync(string farmId);
+        Task<int> CreateAsync(GenericDriverInput r);
+        Task UpdateAsync(int id, GenericDriverInput r);
+        Task DeleteAsync(int id, string farmId);
+    }
+
+    public interface IGenericRouteService
+    {
+        Task<List<GenericRouteModel>> ListAsync(string farmId);
+        Task<int> CreateAsync(GenericRouteInput r);
+        Task UpdateAsync(int id, GenericRouteInput r);
+        Task DeleteAsync(int id, string farmId);
+    }
+
     public interface IGenericDeliveryService
     {
         Task<List<GenericDeliveryModel>> GetAllAsync(string farmId, string? status, DateTime? fromDate, DateTime? toDate);
@@ -232,6 +248,138 @@ namespace PoultryFarmAPIWeb.Business
                 NetRevenue = r.Dec("NetRevenue"),
             });
             return list;
+        }
+    }
+
+    public class GenericDriverService : IGenericDriverService
+    {
+        private readonly string _cs; public GenericDriverService(string cs) => _cs = cs;
+
+        public async Task<List<GenericDriverModel>> ListAsync(string farmId)
+        {
+            var list = new List<GenericDriverModel>();
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericdriver_list(@F::text)", c);
+            cmd.Parameters.AddWithValue("@F", farmId);
+            await c.OpenAsync(); using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync()) list.Add(new GenericDriverModel
+            {
+                GenericDriverId = r.Int("GenericDriverId"), FarmId = r.Str("FarmId"),
+                DriverName = r.Str("DriverName"), PhoneNumber = r.StrN("PhoneNumber"),
+                LicenseNumber = r.StrN("LicenseNumber"), VehicleName = r.StrN("VehicleName"),
+                VehicleRegistration = r.StrN("VehicleRegistration"),
+                IsActive = r.GetBoolean(r.GetOrdinal("IsActive")),
+                Notes = r.StrN("Notes"), CreatedAt = r.Date("CreatedAt"),
+            });
+            return list;
+        }
+
+        public async Task<int> CreateAsync(GenericDriverInput m)
+        {
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM spgenericdriver_create(p_farmid=>@F::text, p_drivername=>@N::text, p_phonenumber=>@P::text, " +
+                "p_licensenumber=>@L::text, p_vehiclename=>@V::text, p_vehicleregistration=>@VR::text, p_notes=>@No::text, p_createdby=>@C::text)", c);
+            cmd.Parameters.AddWithValue("@F", m.FarmId);
+            cmd.Parameters.AddWithValue("@N", m.DriverName);
+            cmd.Parameters.AddWithValue("@P", (object?)m.PhoneNumber ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@L", (object?)m.LicenseNumber ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@V", (object?)m.VehicleName ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@VR", (object?)m.VehicleRegistration ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@No", (object?)m.Notes ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@C", (object?)m.CreatedBy ?? DBNull.Value);
+            await c.OpenAsync(); return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        }
+
+        public async Task UpdateAsync(int id, GenericDriverInput m)
+        {
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM spgenericdriver_update(p_id=>@I::int, p_farmid=>@F::text, p_drivername=>@N::text, p_phonenumber=>@P::text, " +
+                "p_licensenumber=>@L::text, p_vehiclename=>@V::text, p_vehicleregistration=>@VR::text, p_isactive=>@A::boolean, p_notes=>@No::text)", c);
+            cmd.Parameters.AddWithValue("@I", id); cmd.Parameters.AddWithValue("@F", m.FarmId);
+            cmd.Parameters.AddWithValue("@N", m.DriverName);
+            cmd.Parameters.AddWithValue("@P", (object?)m.PhoneNumber ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@L", (object?)m.LicenseNumber ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@V", (object?)m.VehicleName ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@VR", (object?)m.VehicleRegistration ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@A", m.IsActive);
+            cmd.Parameters.AddWithValue("@No", (object?)m.Notes ?? DBNull.Value);
+            await c.OpenAsync(); await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task DeleteAsync(int id, string farmId)
+        {
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericdriver_delete(@I::int, @F::text)", c);
+            cmd.Parameters.AddWithValue("@I", id); cmd.Parameters.AddWithValue("@F", farmId);
+            await c.OpenAsync(); await cmd.ExecuteNonQueryAsync();
+        }
+    }
+
+    public class GenericRouteService : IGenericRouteService
+    {
+        private readonly string _cs; public GenericRouteService(string cs) => _cs = cs;
+
+        public async Task<List<GenericRouteModel>> ListAsync(string farmId)
+        {
+            var list = new List<GenericRouteModel>();
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericroute_list(@F::text)", c);
+            cmd.Parameters.AddWithValue("@F", farmId);
+            await c.OpenAsync(); using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync()) list.Add(new GenericRouteModel
+            {
+                GenericRouteId = r.Int("GenericRouteId"), FarmId = r.Str("FarmId"),
+                RouteName = r.Str("RouteName"), Description = r.StrN("Description"),
+                StartPoint = r.StrN("StartPoint"), EndPoint = r.StrN("EndPoint"),
+                EstimatedTime = r.StrN("EstimatedTime"),
+                IsActive = r.GetBoolean(r.GetOrdinal("IsActive")),
+                Notes = r.StrN("Notes"), CreatedAt = r.Date("CreatedAt"),
+            });
+            return list;
+        }
+
+        public async Task<int> CreateAsync(GenericRouteInput m)
+        {
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM spgenericroute_create(p_farmid=>@F::text, p_routename=>@N::text, p_description=>@D::text, " +
+                "p_startpoint=>@S::text, p_endpoint=>@E::text, p_estimatedtime=>@T::text, p_notes=>@No::text, p_createdby=>@C::text)", c);
+            cmd.Parameters.AddWithValue("@F", m.FarmId);
+            cmd.Parameters.AddWithValue("@N", m.RouteName);
+            cmd.Parameters.AddWithValue("@D", (object?)m.Description ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@S", (object?)m.StartPoint ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@E", (object?)m.EndPoint ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@T", (object?)m.EstimatedTime ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@No", (object?)m.Notes ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@C", (object?)m.CreatedBy ?? DBNull.Value);
+            await c.OpenAsync(); return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        }
+
+        public async Task UpdateAsync(int id, GenericRouteInput m)
+        {
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM spgenericroute_update(p_id=>@I::int, p_farmid=>@F::text, p_routename=>@N::text, p_description=>@D::text, " +
+                "p_startpoint=>@S::text, p_endpoint=>@E::text, p_estimatedtime=>@T::text, p_isactive=>@A::boolean, p_notes=>@No::text)", c);
+            cmd.Parameters.AddWithValue("@I", id); cmd.Parameters.AddWithValue("@F", m.FarmId);
+            cmd.Parameters.AddWithValue("@N", m.RouteName);
+            cmd.Parameters.AddWithValue("@D", (object?)m.Description ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@S", (object?)m.StartPoint ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@E", (object?)m.EndPoint ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@T", (object?)m.EstimatedTime ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@A", m.IsActive);
+            cmd.Parameters.AddWithValue("@No", (object?)m.Notes ?? DBNull.Value);
+            await c.OpenAsync(); await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task DeleteAsync(int id, string farmId)
+        {
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericroute_delete(@I::int, @F::text)", c);
+            cmd.Parameters.AddWithValue("@I", id); cmd.Parameters.AddWithValue("@F", farmId);
+            await c.OpenAsync(); await cmd.ExecuteNonQueryAsync();
         }
     }
 }
