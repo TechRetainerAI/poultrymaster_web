@@ -26,7 +26,8 @@ import { useFmt } from "@/lib/currency"
 import {
   getDeliveries, loadDelivery, reconcileDelivery, reverseDelivery, cancelDelivery,
   dispatchDelivery, markDeliveryDelivered,
-  getProducts, type GenericDelivery, type GenericProduct,
+  getProducts, getDrivers, getRoutes,
+  type GenericDelivery, type GenericProduct, type GenericDriver, type GenericRoute,
 } from "@/lib/api/generic"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 
@@ -48,6 +49,8 @@ export default function GenericDeliveriesPage() {
 
   const [rows, setRows] = useState<GenericDelivery[]>([])
   const [products, setProducts] = useState<GenericProduct[]>([])
+  const [driversList, setDriversList] = useState<GenericDriver[]>([])
+  const [routesList, setRoutesList] = useState<GenericRoute[]>([])
   const [loading, setLoading] = useState(true)
   const [loadOpen, setLoadOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -75,11 +78,15 @@ export default function GenericDeliveriesPage() {
   async function load() {
     setLoading(true)
     try {
-      const [dsResult, psResult] = await Promise.allSettled([getDeliveries(), getProducts()])
+      const [dsResult, psResult, drResult, rtResult] = await Promise.allSettled([
+        getDeliveries(), getProducts(), getDrivers(), getRoutes(),
+      ])
       if (dsResult.status === "fulfilled") setRows(dsResult.value)
       else setRows([])
       const ps = psResult.status === "fulfilled" ? psResult.value : []
       setProducts(ps)
+      setDriversList(drResult.status === "fulfilled" ? drResult.value.filter((d) => d.isActive) : [])
+      setRoutesList(rtResult.status === "fulfilled" ? rtResult.value.filter((r) => r.isActive) : [])
       if (!loadForm.genericProductId && ps.length > 0) {
         const first = ps.find((p) => p.isActive) ?? ps[0]
         if (first) setLoadForm((f) => ({ ...f, genericProductId: first.genericProductId, unitPrice: first.sellingPrice || 0 }))
@@ -388,13 +395,34 @@ export default function GenericDeliveriesPage() {
               <Input value={loadForm.destination} onChange={(e) => setLoadForm({ ...loadForm, destination: e.target.value })} placeholder="Delivery address or location" />
             </FormField>
             <FormField label="Driver">
-              <Input value={loadForm.driverName} onChange={(e) => setLoadForm({ ...loadForm, driverName: e.target.value })} />
+              {driversList.length > 0 ? (
+                <Select value={loadForm.driverName} onValueChange={(v) => {
+                  const dr = driversList.find((d) => d.driverName === v)
+                  setLoadForm({ ...loadForm, driverName: v, vehicleName: dr?.vehicleName ?? loadForm.vehicleName })
+                }}>
+                  <SelectTrigger><SelectValue placeholder="Select driver" /></SelectTrigger>
+                  <SelectContent>
+                    {driversList.map((d) => <SelectItem key={d.genericDriverId} value={d.driverName}>{d.driverName}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input value={loadForm.driverName} onChange={(e) => setLoadForm({ ...loadForm, driverName: e.target.value })} placeholder="Type driver name" />
+              )}
             </FormField>
             <FormField label="Vehicle">
               <Input value={loadForm.vehicleName} onChange={(e) => setLoadForm({ ...loadForm, vehicleName: e.target.value })} />
             </FormField>
             <FormField label="Route">
-              <Input value={loadForm.route} onChange={(e) => setLoadForm({ ...loadForm, route: e.target.value })} />
+              {routesList.length > 0 ? (
+                <Select value={loadForm.route} onValueChange={(v) => setLoadForm({ ...loadForm, route: v })}>
+                  <SelectTrigger><SelectValue placeholder="Select route" /></SelectTrigger>
+                  <SelectContent>
+                    {routesList.map((r) => <SelectItem key={r.genericRouteId} value={r.routeName}>{r.routeName}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input value={loadForm.route} onChange={(e) => setLoadForm({ ...loadForm, route: e.target.value })} placeholder="Type route" />
+              )}
             </FormField>
             <FormField label="Date">
               <Input type="date" value={loadForm.deliveryDate}

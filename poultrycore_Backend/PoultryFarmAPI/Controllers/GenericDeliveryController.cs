@@ -80,8 +80,57 @@ namespace PoultryFarmAPIWeb.Controllers
             => Ok(await _svc.ProductReportAsync(farmId, fromDate, toDate));
 
         [HttpGet("reports/by-route")]
+        // Note: report endpoints are below
         public async Task<ActionResult<IEnumerable<GenericRouteReportRow>>> RouteReport(
             string farmId, [FromQuery] DateTime? fromDate = null, [FromQuery] DateTime? toDate = null)
             => Ok(await _svc.RouteReportAsync(farmId, fromDate, toDate));
+    }
+
+    // =========================================================================
+    // Drivers
+    // =========================================================================
+    [ApiController]
+    [Route("api/generic-company/{farmId}/drivers")]
+    [RequireCompanyType("Generic")]
+    public class GenericDriverController : ControllerBase
+    {
+        private readonly IGenericDriverService _svc;
+        public GenericDriverController(IGenericDriverService svc) => _svc = svc;
+
+        [HttpGet] public async Task<ActionResult<IEnumerable<GenericDriverModel>>> List(string farmId)
+            => Ok(await _svc.ListAsync(farmId));
+
+        [HttpPost] public async Task<ActionResult<int>> Create(string farmId, [FromBody] GenericDriverInput req)
+        { req.FarmId = farmId; return Ok(await _svc.CreateAsync(req)); }
+
+        [HttpPut("{id:int}")] public async Task<IActionResult> Update(string farmId, int id, [FromBody] GenericDriverInput req)
+        { req.FarmId = farmId; await _svc.UpdateAsync(id, req); return Ok(); }
+
+        [HttpDelete("{id:int}")] public async Task<IActionResult> Delete(string farmId, int id)
+        { await _svc.DeleteAsync(id, farmId); return Ok(); }
+    }
+
+    // =========================================================================
+    // Routes
+    // =========================================================================
+    [ApiController]
+    [Route("api/generic-company/{farmId}/routes")]
+    [RequireCompanyType("Generic")]
+    public class GenericRouteController : ControllerBase
+    {
+        private readonly IGenericRouteService _svc;
+        public GenericRouteController(IGenericRouteService svc) => _svc = svc;
+
+        [HttpGet] public async Task<ActionResult<IEnumerable<GenericRouteModel>>> List(string farmId)
+            => Ok(await _svc.ListAsync(farmId));
+
+        [HttpPost] public async Task<ActionResult<int>> Create(string farmId, [FromBody] GenericRouteInput req)
+        { req.FarmId = farmId; return Ok(await _svc.CreateAsync(req)); }
+
+        [HttpPut("{id:int}")] public async Task<IActionResult> Update(string farmId, int id, [FromBody] GenericRouteInput req)
+        { req.FarmId = farmId; await _svc.UpdateAsync(id, req); return Ok(); }
+
+        [HttpDelete("{id:int}")] public async Task<IActionResult> Delete(string farmId, int id)
+        { await _svc.DeleteAsync(id, farmId); return Ok(); }
     }
 }
