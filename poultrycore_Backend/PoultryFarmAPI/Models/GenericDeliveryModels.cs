@@ -21,10 +21,14 @@ namespace PoultryFarmAPIWeb.Models
         public decimal CreditSales { get; set; }
         public decimal DeliveryExpenses { get; set; }
         public decimal TotalSales { get; set; }
+        public string? CustomerName { get; set; }
+        public string? Destination { get; set; }
         public string Status { get; set; } = "Loaded";
         public string? Notes { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? ReconciledAt { get; set; }
+        public DateTime? DeliveredAt { get; set; }
+        public string? DeliveredBy { get; set; }
     }
 
     public class GenericDeliveryLoadRequest
@@ -38,6 +42,8 @@ namespace PoultryFarmAPIWeb.Models
         public decimal QuantityLoaded { get; set; }
         public string? Unit { get; set; }
         public decimal UnitPrice { get; set; }
+        public string? CustomerName { get; set; }
+        public string? Destination { get; set; }
         public string? Notes { get; set; }
         public string? CreatedBy { get; set; }
     }

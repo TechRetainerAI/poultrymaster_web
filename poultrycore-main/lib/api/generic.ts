@@ -1306,6 +1306,8 @@ export interface GenericDelivery {
   driverName: string | null
   vehicleName: string | null
   route: string | null
+  customerName: string | null
+  destination: string | null
   genericProductId: number
   productName: string | null
   quantityLoaded: number
@@ -1323,6 +1325,8 @@ export interface GenericDelivery {
   notes: string | null
   createdAt: string
   reconciledAt: string | null
+  deliveredAt: string | null
+  deliveredBy: string | null
 }
 
 export async function getDeliveries(status?: string | null): Promise<GenericDelivery[]> {
@@ -1333,6 +1337,7 @@ export async function getDeliveries(status?: string | null): Promise<GenericDeli
 export async function loadDelivery(input: {
   genericProductId: number; quantityLoaded: number; unit: string; unitPrice: number
   driverName: string; vehicleName: string; route: string; deliveryDate: string; notes: string
+  customerName?: string; destination?: string
 }): Promise<number> {
   return postJson<number>(`${farmBase()}/deliveries/load`, withFarmId(input))
 }
@@ -1350,6 +1355,14 @@ export async function reverseDelivery(id: number): Promise<void> {
 
 export async function cancelDelivery(id: number): Promise<void> {
   await postJson(`${farmBase()}/deliveries/${id}/cancel`, {})
+}
+
+export async function dispatchDelivery(id: number): Promise<void> {
+  await postJson(`${farmBase()}/deliveries/${id}/dispatch`, {})
+}
+
+export async function markDeliveryDelivered(id: number): Promise<void> {
+  await postJson(`${farmBase()}/deliveries/${id}/mark-delivered`, {})
 }
 
 // =============================================================================
