@@ -18,7 +18,7 @@ import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { usePagination } from "@/hooks/use-pagination"
-import { Plus, Loader2, CheckCircle2, Undo2, XCircle, Truck, Send, PackageCheck } from "lucide-react"
+import { Plus, Loader2, CheckCircle2, Undo2, XCircle, Truck, Send, PackageCheck, LocateFixed } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -67,7 +67,28 @@ export default function GenericDeliveriesPage() {
     cashCollected: 0, creditSales: 0, deliveryExpenses: 0,
   })
 
+  const [locating, setLocating] = useState(false)
   const pg = usePagination(rows)
+
+  function pickLocation(field: "destination") {
+    if (!navigator.geolocation) { toast({ title: "Geolocation not supported", variant: "destructive" }); return }
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&zoom=16`)
+          const data = await res.json()
+          setLoadForm((f) => ({ ...f, [field]: data.display_name ?? `${latitude.toFixed(5)}, ${longitude.toFixed(5)}` }))
+        } catch {
+          setLoadForm((f) => ({ ...f, [field]: `${latitude.toFixed(5)}, ${longitude.toFixed(5)}` }))
+        }
+        setLocating(false)
+      },
+      (err) => { toast({ title: "Could not get location", description: err.message, variant: "destructive" }); setLocating(false) },
+      { enableHighAccuracy: true, timeout: 10000 }
+    )
+  }
 
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Generic") { router.replace("/dashboard"); return }
@@ -392,7 +413,13 @@ export default function GenericDeliveriesPage() {
               <Input value={loadForm.customerName} onChange={(e) => setLoadForm({ ...loadForm, customerName: e.target.value })} placeholder="Who is this being delivered to?" />
             </FormField>
             <FormField label="Destination">
-              <Input value={loadForm.destination} onChange={(e) => setLoadForm({ ...loadForm, destination: e.target.value })} placeholder="Delivery address or location" />
+              <div className="flex gap-2">
+                <Input className="flex-1" value={loadForm.destination} onChange={(e) => setLoadForm({ ...loadForm, destination: e.target.value })} placeholder="Delivery address or location" />
+                <Button type="button" variant="outline" size="icon" className="shrink-0" disabled={locating}
+                  onClick={() => pickLocation("destination")} title="Use my current location">
+                  {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
+                </Button>
+              </div>
             </FormField>
             <FormField label="Driver">
               {driversList.length > 0 ? (
