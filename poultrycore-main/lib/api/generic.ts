@@ -1308,6 +1308,7 @@ export interface GenericDelivery {
   route: string | null
   customerName: string | null
   destination: string | null
+  transportMode: string | null
   genericProductId: number
   productName: string | null
   quantityLoaded: number
@@ -1337,7 +1338,7 @@ export async function getDeliveries(status?: string | null): Promise<GenericDeli
 export async function loadDelivery(input: {
   genericProductId: number; quantityLoaded: number; unit: string; unitPrice: number
   driverName: string; vehicleName: string; route: string; deliveryDate: string; notes: string
-  customerName?: string; destination?: string
+  customerName?: string; destination?: string; transportMode?: string
 }): Promise<number> {
   return postJson<number>(`${farmBase()}/deliveries/load`, withFarmId(input))
 }
@@ -1367,7 +1368,7 @@ export async function markDeliveryDelivered(id: number): Promise<void> {
 
 // Delivery reports
 export interface GenericDriverReport {
-  driverName: string; totalDeliveries: number; totalLoaded: number; totalSold: number
+  driverName: string; transportMode: string | null; totalDeliveries: number; totalLoaded: number; totalSold: number
   totalReturned: number; totalDamaged: number; totalShort: number; totalSales: number
   totalCashCollected: number; totalCreditSales: number; totalExpenses: number; deliveryRate: number
   loadedDeliveries: number; inTransitDeliveries: number; deliveredDeliveries: number
@@ -1393,6 +1394,7 @@ export interface GenericDriver {
   genericDriverId: number; farmId: string; driverName: string
   phoneNumber: string | null; licenseNumber: string | null
   vehicleName: string | null; vehicleRegistration: string | null
+  transportMode: string | null
   isActive: boolean; notes: string | null; createdAt: string
 }
 
@@ -1402,14 +1404,14 @@ export async function getDrivers(): Promise<GenericDriver[]> {
 
 export async function createDriver(input: {
   driverName: string; phoneNumber?: string; licenseNumber?: string
-  vehicleName?: string; vehicleRegistration?: string; notes?: string
+  vehicleName?: string; vehicleRegistration?: string; transportMode?: string; notes?: string
 }): Promise<number> {
   return postJson<number>(`${farmBase()}/drivers`, withFarmId(input))
 }
 
 export async function updateDriver(id: number, input: {
   driverName: string; phoneNumber?: string; licenseNumber?: string
-  vehicleName?: string; vehicleRegistration?: string; isActive?: boolean; notes?: string
+  vehicleName?: string; vehicleRegistration?: string; transportMode?: string; isActive?: boolean; notes?: string
 }): Promise<void> {
   await putJson(`${farmBase()}/drivers/${id}`, withFarmId(input))
 }

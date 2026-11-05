@@ -198,6 +198,7 @@ export default function GenericDeliveryReportPage() {
                     <Table>
                       <TableHeader><TableRow>
                         <TableHead>Driver</TableHead>
+                        <TableHead>Transport</TableHead>
                         <TableHead className="text-right">Trips</TableHead>
                         <TableHead className="text-right">Loaded</TableHead>
                         <TableHead className="text-right">Sold</TableHead>
@@ -214,6 +215,7 @@ export default function GenericDeliveryReportPage() {
                         {drivers.filter((d) => !search || d.driverName.toLowerCase().includes(search.toLowerCase())).map((d) => (
                           <TableRow key={d.driverName}>
                             <TableCell className="font-medium">{d.driverName}</TableCell>
+                            <TableCell><Badge className="bg-blue-100 text-blue-700">{d.transportMode ?? "Car"}</Badge></TableCell>
                             <TableCell className="text-right tabular-nums">{d.totalDeliveries}</TableCell>
                             <TableCell className="text-right tabular-nums">{d.totalLoaded}</TableCell>
                             <TableCell className="text-right tabular-nums text-emerald-700">{d.totalSold}</TableCell>

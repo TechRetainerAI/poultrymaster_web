@@ -57,7 +57,7 @@ export default function GenericDeliveriesPage() {
   const [loadForm, setLoadForm] = useState({
     genericProductId: 0, quantityLoaded: 0, unit: "Piece", unitPrice: 0,
     driverName: "", vehicleName: "", route: "",
-    customerName: "", destination: "",
+    customerName: "", destination: "", transportMode: "Car",
     deliveryDate: new Date().toISOString().split("T")[0], notes: "",
   })
 
@@ -425,7 +425,7 @@ export default function GenericDeliveriesPage() {
               {driversList.length > 0 ? (
                 <Select value={loadForm.driverName} onValueChange={(v) => {
                   const dr = driversList.find((d) => d.driverName === v)
-                  setLoadForm({ ...loadForm, driverName: v, vehicleName: dr?.vehicleName ?? loadForm.vehicleName })
+                  setLoadForm({ ...loadForm, driverName: v, vehicleName: dr?.vehicleName ?? loadForm.vehicleName, transportMode: dr?.transportMode ?? loadForm.transportMode })
                 }}>
                   <SelectTrigger><SelectValue placeholder="Select driver" /></SelectTrigger>
                   <SelectContent>
@@ -438,6 +438,16 @@ export default function GenericDeliveriesPage() {
             </FormField>
             <FormField label="Vehicle">
               <Input value={loadForm.vehicleName} onChange={(e) => setLoadForm({ ...loadForm, vehicleName: e.target.value })} />
+            </FormField>
+            <FormField label="Transport mode">
+              <Select value={loadForm.transportMode} onValueChange={(v) => setLoadForm({ ...loadForm, transportMode: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {["Car", "Motorcycle", "Bicycle", "Truck", "Van", "Tricycle", "On Foot", "Other"].map((m) => (
+                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </FormField>
             <FormField label="Route">
               {routesList.length > 0 ? (
