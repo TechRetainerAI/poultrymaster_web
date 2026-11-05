@@ -91,6 +91,8 @@ export default function GenericRoutesPage() {
 
           {loading ? (
             <Card><CardContent className="py-12 text-center text-slate-600"><Loader2 className="h-4 w-4 animate-spin inline mr-2" />Loading…</CardContent></Card>
+          ) : rows.length === 0 ? (
+            <Card><CardContent className="py-12 text-center text-slate-500">No routes yet. Click &ldquo;Add Route&rdquo; to get started.</CardContent></Card>
           ) : (
             <Card><CardContent className="p-0 md:p-2">
               <MobileCardList defaultOpen striped stripeAccent="blue"
