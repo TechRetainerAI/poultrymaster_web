@@ -176,6 +176,34 @@ namespace PoultryFarmAPIWeb.Business
             }
         }
 
+        public async Task<List<int>> InsertBulk(IReadOnlyList<MainFlockBatchModel> models)
+        {
+            var ids = new List<int>();
+            if (models == null || models.Count == 0) return ids;
+
+            using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            using var tx = await conn.BeginTransactionAsync();
+            try
+            {
+                // Same command, same stored function as Insert: the payment,
+                // cash-account and supplier-ledger side effects are identical to
+                // creating each batch on its own.
+                foreach (var model in models)
+                {
+                    using var cmd = BuildInsertCommand(conn, tx, model);
+                    ids.Add(Convert.ToInt32(await cmd.ExecuteScalarAsync()));
+                }
+                await tx.CommitAsync();
+            }
+            catch
+            {
+                try { await tx.RollbackAsync(); } catch { /* connection already gone */ }
+                throw;
+            }
+            return ids;
+        }
+
         public async Task Update(MainFlockBatchModel model)
         {
             try

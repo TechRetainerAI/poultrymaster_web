@@ -803,6 +803,13 @@ export const listPoultryProductionLosses = (opts?: { fromDate?: string; toDate?:
   if (opts?.toDate) qs.append("toDate", opts.toDate)
   return jget<PoultryProductionLoss[]>(`/Poultry/production-losses?${qs.toString()}`)
 }
+/** 405: damaged eggs from production records, driver returns and egg sorting, read server-side. */
+export const listPoultryAutoDamage = (opts?: { fromDate?: string; toDate?: string }) => {
+  const qs = new URLSearchParams({ farmId: activeFarmId() })
+  if (opts?.fromDate) qs.append("fromDate", opts.fromDate)
+  if (opts?.toDate) qs.append("toDate", opts.toDate)
+  return jget<import("@/lib/poultry/auto-loss-entries").AutoDamageApiRow[]>(`/Poultry/loss-records/auto-damage?${qs.toString()}`)
+}
 export const listPoultryLossRecords = (opts?: { lossType?: string; fromDate?: string; toDate?: string }) => {
   const qs = new URLSearchParams({ farmId: activeFarmId() })
   if (opts?.lossType) qs.append("lossType", opts.lossType)

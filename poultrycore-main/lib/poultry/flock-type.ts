@@ -90,3 +90,34 @@ export function showBroilerFeatures(
   if (flocks.some((f) => !f.isDeleted && flockTypeOf(f) === "Broiler")) return true
   return businessType === "Broilers" || businessType === "Both"
 }
+
+/**
+ * Whether a batch is a broiler batch for the sale form: every one of its flocks
+ * is a Broiler flock; a batch not yet divided into flocks goes by its breed
+ * (the same breed rule as a new flock). A batch mixing layers and broilers is
+ * not -- the form cannot guess which birds are being sold.
+ */
+export function isBroilerBatch(
+  batchId: number,
+  flocks: Array<{ batchId?: number | null; flockType?: string | null }>,
+  batchBreed?: string | null,
+): boolean {
+  if (!batchId) return false
+  const own = flocks.filter((f) => Number(f.batchId) === batchId)
+  if (own.length > 0) return own.every((f) => isBroilerFlock(f))
+  return isBroilerBreed(batchBreed)
+}
+
+/** The sale product for broiler birds -- the "Chicken" option on the sale form. */
+export const BROILER_SALE_PRODUCT = "Chicken"
+
+/**
+ * Picking a broiler flock or batch switches the sale's product to Chicken --
+ * but only away from an egg product or a blank one, which a broiler never
+ * sells. Anything else the seller already chose (manure, dead birds, a typed
+ * product) is theirs and is left alone.
+ */
+export function shouldSwitchToChicken(currentProduct: string | null | undefined): boolean {
+  const p = (currentProduct ?? "").trim().toLowerCase()
+  return p === "" || (p.includes("egg") && !p.includes("broken"))
+}

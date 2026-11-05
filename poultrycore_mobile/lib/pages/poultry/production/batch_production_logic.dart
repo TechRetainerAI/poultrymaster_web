@@ -185,7 +185,10 @@ num recentProductionAvg(List<Map> records, int flockId, [int n = 7]) {
 
 List<int> _ids(Map batch, String k) => [for (final f in listOf(batch, k)) tIntOrNull(f['itemId']) ?? 0];
 
-List<AllocRow> buildBlankRows(Map batch, Map<int, Map> flocksById, List<Map> records) {
+/// [openingBirds] (406): each flock's opening count from the server -- last birds
+/// left minus birds sold since. A flock missing from it falls back to the last
+/// birds left.
+List<AllocRow> buildBlankRows(Map batch, Map<int, Map> flocksById, List<Map> records, [Map<int, num>? openingBirds]) {
   final feedIds = _ids(batch, 'feeds'), medIds = _ids(batch, 'medications');
   return [
     for (final incl in listOf(batch, 'includedFlocks'))
@@ -198,7 +201,7 @@ List<AllocRow> buildBlankRows(Map batch, Map<int, Map> flocksById, List<Map> rec
           flockName: tStr(incl['flockName']).isNotEmpty ? tStr(incl['flockName']) : (tStr(flock?['name']).isNotEmpty ? tStr(flock?['name']) : 'Flock $id'),
           ageInWeeks: age?.weeks,
           ageInDays: age?.days,
-          birdsBefore: flock != null ? birdsForFlock(flock, records) : 0,
+          birdsBefore: openingBirds?[id] ?? (flock != null ? birdsForFlock(flock, records) : 0),
           feedQty: {for (final i in feedIds) i: 0},
           medQty: {for (final i in medIds) i: 0},
         );

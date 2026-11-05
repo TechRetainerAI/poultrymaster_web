@@ -18,7 +18,7 @@
 // name. The Company tab edits the profile added by migration 212 plus the
 // farm's currency settings.
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -33,6 +33,7 @@ import { Badge } from "@/components/ui/badge"
 import {
   Settings, Plus, Pencil, Trash2, Loader2, Save, DollarSign,
   Users, Truck, Route as RouteIcon, Building2, Bird, Box, Users2, Package, UserCog,
+  Check, ArrowLeft, ArrowRight, AlertCircle,
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { NumberInput } from "@/components/ui/number-input"
@@ -78,6 +79,10 @@ type SetupTab<T> = {
   delete?: (id: any) => Promise<void>
   /** The dedicated page. Add and Edit both go here. */
   addHref: string
+  /** One line under the step: what this area is for. */
+  hint: string
+  /** Optional steps (delivery only) don't count against "setup complete". */
+  optional?: boolean
   columns: Column<T>[]
 }
 
@@ -102,6 +107,7 @@ const tabs: SetupTab<any>[] = [
     label: "Products",
     icon: Package,
     addHref: "/poultry-products",
+    hint: "What you sell and stock — eggs, birds, manure, feed.",
     fetch: listPoultryProducts,
     delete: deletePoultryProduct,
     idOf: (p: any) => p.poultryProductId,
@@ -119,6 +125,7 @@ const tabs: SetupTab<any>[] = [
     label: "Customers",
     icon: Users,
     addHref: "/customers",
+    hint: "Who buys from you, so sales and balances can name them.",
     fetch: () => unwrap(getCustomers(ctx().userId, ctx().farmId)),
     delete: async (id: number) => { await deleteCustomer(id, ctx().userId, ctx().farmId) },
     idOf: (c: any) => c.customerId,
@@ -135,6 +142,8 @@ const tabs: SetupTab<any>[] = [
     label: "Drivers",
     icon: Users2,
     addHref: "/poultry-drivers",
+    hint: "Only if you deliver: who drives the vehicles.",
+    optional: true,
     fetch: listPoultryDrivers,
     delete: deletePoultryDriver,
     idOf: (d: any) => d.poultryDriverId,
@@ -152,6 +161,8 @@ const tabs: SetupTab<any>[] = [
     label: "Vehicles",
     icon: Truck,
     addHref: "/poultry-vehicles",
+    hint: "Only if you deliver: what the eggs are loaded onto.",
+    optional: true,
     fetch: listPoultryVehicles,
     delete: deletePoultryVehicle,
     idOf: (v: any) => v.poultryVehicleId,
@@ -169,6 +180,8 @@ const tabs: SetupTab<any>[] = [
     label: "Routes",
     icon: RouteIcon,
     addHref: "/poultry-routes",
+    hint: "Only if you deliver: the areas each run covers.",
+    optional: true,
     fetch: listPoultryRoutes,
     delete: deletePoultryRoute,
     idOf: (r: any) => r.poultryRouteId,
@@ -187,6 +200,7 @@ const tabs: SetupTab<any>[] = [
     label: "Houses",
     icon: Building2,
     addHref: "/houses",
+    hint: "The houses or pens your birds live in.",
     fetch: () => unwrap(getHouses(ctx().userId, ctx().farmId)),
     delete: async (id: number) => { await deleteHouse(id, ctx().userId, ctx().farmId) },
     idOf: (h: any) => h.houseId,
@@ -204,6 +218,7 @@ const tabs: SetupTab<any>[] = [
     label: "Flock groups",
     icon: Bird,
     addHref: "/flocks",
+    hint: "The groups of birds you record production against.",
     fetch: () => unwrap(getFlocks(ctx().userId, ctx().farmId)),
     delete: async (id: number) => { await deleteFlock(id, ctx().userId, ctx().farmId) },
     idOf: (f: any) => f.flockId,
@@ -221,6 +236,7 @@ const tabs: SetupTab<any>[] = [
     label: "Inventory & supply purchases",
     icon: Box,
     addHref: "/poultry-supply-purchases",
+    hint: "Feed, medication and other supplies you buy and use.",
     fetch: listPoultryRawMaterialItems,
     delete: deletePoultryRawMaterialItem,
     idOf: (i: any) => i.poultryRawMaterialItemId,
@@ -239,6 +255,7 @@ const tabs: SetupTab<any>[] = [
     label: "Suppliers",
     icon: Truck,
     addHref: "/suppliers",
+    hint: "Who you buy birds, feed and supplies from.",
     fetch: () => unwrap(getSuppliers(ctx().userId, ctx().farmId)),
     delete: async (id: number) => { await deleteSupplier(id, ctx().userId, ctx().farmId) },
     idOf: (s: any) => s.supplierId,
@@ -255,6 +272,7 @@ const tabs: SetupTab<any>[] = [
     label: "Employees",
     icon: UserCog,
     addHref: "/employees",
+    hint: "The people who can sign in and what they may do.",
     fetch: () => unwrap(getEmployees()),
     delete: async (id: string) => { await deleteEmployee(id) },
     idOf: (e: any) => e.id,
@@ -268,7 +286,7 @@ const tabs: SetupTab<any>[] = [
   },
 ]
 
-function SetupSection<T>({ tab }: { tab: SetupTab<T> }) {
+function SetupSection<T>({ tab, onCount }: { tab: SetupTab<T>; onCount?: (n: number) => void }) {
   const { toast } = useToast()
   const [items, setItems] = useState<T[]>([])
   const [loading, setLoading] = useState(true)
@@ -276,7 +294,7 @@ function SetupSection<T>({ tab }: { tab: SetupTab<T> }) {
 
   async function load() {
     setLoading(true)
-    try { setItems(await tab.fetch()) }
+    try { const list = await tab.fetch(); setItems(list); onCount?.(list.length) }
     catch (e: any) { toast({ title: `Could not load ${tab.label.toLowerCase()}`, description: e?.message ?? String(e), variant: "destructive" }) }
     finally { setLoading(false) }
   }
@@ -391,7 +409,7 @@ function SetupSection<T>({ tab }: { tab: SetupTab<T> }) {
 // mirroring water-setup's CompanySettingsCard. Acts as first-time setup when no
 // profile exists yet and as an edit form afterwards.
 // ----------------------------------------------------------------------------
-function CompanySettingsCard() {
+function CompanySettingsCard({ onSetUp }: { onSetUp?: () => void }) {
   const { toast } = useToast()
   const apply = useFarmSettingsStore((s) => s.apply)
   const [loading, setLoading] = useState(true)
@@ -486,6 +504,7 @@ function CompanySettingsCard() {
 
       if (hasProfile) await updatePoultryCompanyProfile(payload)
       else { await setupPoultryCompany(payload); setHasProfile(true) }
+      onSetUp?.()
 
       // An empty symbol means "the currency's own", never a hard-coded GHC.
       const updated = await updateFarmCurrency({
@@ -626,6 +645,13 @@ function CompanySettingsCard() {
   )
 }
 
+// Steps in the order things depend on each other: a flock lives in a house, a
+// purchase needs a supplier. The tabs above keep their own definitions; this is
+// only the order they are walked in.
+const STEP_ORDER = ["company", "houses", "flocks", "products", "suppliers", "raw-materials", "customers", "employees", "drivers", "vehicles", "routes"]
+
+type StepStatus = { state: "loading" | "done" | "empty" | "error"; count?: number }
+
 export default function PoultrySetupPage() {
   const router = useRouter()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
@@ -634,6 +660,65 @@ export default function PoultrySetupPage() {
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Poultry") { router.replace("/dashboard") }
   }, [activeFarmType, router])
+
+  const steps = useMemo(() => {
+    const byKey = new Map(tabs.map((t) => [t.key, t]))
+    return STEP_ORDER.map((key) => key === "company"
+      ? { key, label: "Company", icon: Building2, hint: "Your farm's name, type, contact details and currency.", optional: false }
+      : { key, label: byKey.get(key)!.label, icon: byKey.get(key)!.icon, hint: byKey.get(key)!.hint, optional: !!byKey.get(key)!.optional })
+  }, [])
+
+  const [status, setStatus] = useState<Record<string, StepStatus>>(
+    () => Object.fromEntries(STEP_ORDER.map((k) => [k, { state: "loading" } as StepStatus])))
+  const [current, setCurrent] = useState<string | null>(null)
+
+  const setCount = useCallback((key: string, n: number) => {
+    setStatus((prev) => ({ ...prev, [key]: { state: n > 0 ? "done" : "empty", count: n } }))
+  }, [])
+
+  // Find out, once, which areas already have something in them. Each area is
+  // checked on its own so one failing list does not hide the others.
+  useEffect(() => {
+    void getPoultryCompanyProfile()
+      .then((p) => setStatus((prev) => ({ ...prev, company: { state: p ? "done" : "empty" } })))
+      .catch(() => setStatus((prev) => ({ ...prev, company: { state: "empty" } })))
+    for (const t of tabs) {
+      t.fetch()
+        .then((list) => setCount(t.key, list.length))
+        .catch(() => setStatus((prev) => ({ ...prev, [t.key]: { state: "error" } })))
+    }
+  }, [setCount])
+
+  // Open on ?step= when given, otherwise on the first required step not done yet.
+  const allChecked = STEP_ORDER.every((k) => status[k].state !== "loading")
+  useEffect(() => {
+    if (current) return
+    const fromUrl = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("step") : null
+    if (fromUrl && STEP_ORDER.includes(fromUrl)) { setCurrent(fromUrl); return }
+    if (!allChecked) return
+    const firstTodo = steps.find((st) => !st.optional && status[st.key].state !== "done")
+    setCurrent(firstTodo?.key ?? "company")
+  }, [allChecked, current, status, steps])
+
+  const select = (key: string) => {
+    setCurrent(key)
+    try { router.replace(`/poultry-setup?step=${key}`, { scroll: false }) } catch { /* ignore */ }
+  }
+
+  const required = steps.filter((st) => !st.optional)
+  const doneRequired = required.filter((st) => status[st.key].state === "done").length
+  const pct = Math.round((doneRequired / required.length) * 100)
+  const idx = current ? STEP_ORDER.indexOf(current) : 0
+  const prev = idx > 0 ? steps[idx - 1] : null
+  const next = idx < steps.length - 1 ? steps[idx + 1] : null
+
+  const subLabel = (st: (typeof steps)[number]) => {
+    const v = status[st.key]
+    if (v.state === "loading") return "Checking…"
+    if (v.state === "error") return "Could not check"
+    if (v.state === "done") return st.key === "company" ? "Set up" : `${v.count} added`
+    return st.optional ? "Optional" : "Not set up yet"
+  }
 
   return (
     <div className="flex h-screen bg-slate-50">
@@ -646,43 +731,90 @@ export default function PoultrySetupPage() {
             <div>
               <h1 className="text-2xl font-semibold text-slate-900">Poultry farm setup</h1>
               <p className="text-sm text-slate-600">
-                Everything the daily flow depends on — products, drivers, houses, flock groups, suppliers, staff.
-                Add a row here to make it available in production, sales, deliveries and payroll.
+                Work through the steps in order. Each one is what the daily flow depends on — production, sales,
+                deliveries and payroll can only use what you add here. A tick means that area already has something in it.
               </p>
             </div>
           </div>
 
-          <Tabs defaultValue="company" className="w-full">
-            <div className="mb-2.5 text-sm font-semibold text-slate-800">Choose setup area</div>
-            <TabsList className="grid h-auto w-full grid-cols-2 gap-2 bg-transparent p-0 sm:flex sm:flex-wrap">
-              <TabsTrigger
-                value="company"
-                className="shrink-0 cursor-pointer justify-start rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-slate-700 shadow-sm transition hover:border-amber-300 hover:text-amber-700 data-[state=active]:border-amber-500 data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700 data-[state=active]:shadow"
-              >
-                <DollarSign className="h-4 w-4 mr-1.5 shrink-0" /> Company
-              </TabsTrigger>
-              {tabs.map((t) => (
-                <TabsTrigger
-                  key={t.key}
-                  value={t.key}
-                  className="shrink-0 cursor-pointer items-start justify-start whitespace-normal text-left leading-tight rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-slate-700 shadow-sm transition hover:border-amber-300 hover:text-amber-700 data-[state=active]:border-amber-500 data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700 data-[state=active]:shadow"
-                >
-                  <t.icon className="h-4 w-4 mr-1.5 mt-0.5 shrink-0" />
-                  <span className="min-w-0 break-words">{t.label}</span>
-                </TabsTrigger>
-              ))}
+          {/* Progress across the required steps. */}
+          <div className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <p className="text-sm font-semibold text-slate-800">
+                {doneRequired === required.length
+                  ? "All required steps are set up"
+                  : `${doneRequired} of ${required.length} required steps set up`}
+              </p>
+              <p className="text-xs text-slate-500">Drivers, Vehicles and Routes are only needed if you deliver.</p>
+            </div>
+            <div className="mt-2 h-2 rounded-full bg-slate-100 overflow-hidden" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+              <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
+            </div>
+          </div>
+
+          <Tabs value={current ?? "company"} onValueChange={select} className="w-full">
+            <TabsList className="flex h-auto w-full flex-wrap gap-2 bg-transparent p-0">
+              {steps.map((st, i) => {
+                const v = status[st.key]
+                const done = v.state === "done"
+                return (
+                  <TabsTrigger
+                    key={st.key}
+                    value={st.key}
+                    className={`group h-auto min-w-[160px] flex-[1_1_auto] basis-full sm:basis-auto cursor-pointer items-start justify-start gap-2.5 whitespace-nowrap rounded-lg border bg-white px-3 py-2.5 text-left leading-tight shadow-sm transition
+                      hover:border-amber-300 data-[state=active]:border-amber-500 data-[state=active]:bg-amber-50 data-[state=active]:shadow
+                      ${done ? "border-emerald-200" : "border-slate-200"}`}
+                  >
+                    <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold
+                      ${done ? "bg-emerald-500 text-white" : v.state === "error" ? "bg-rose-100 text-rose-700" : "bg-slate-100 text-slate-600 group-data-[state=active]:bg-amber-500 group-data-[state=active]:text-white"}`}>
+                      {done ? <Check className="h-3.5 w-3.5" /> : v.state === "error" ? <AlertCircle className="h-3.5 w-3.5" /> : v.state === "loading" ? <Loader2 className="h-3 w-3 animate-spin" /> : i + 1}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="flex items-center gap-1.5 text-sm font-medium text-slate-800 group-data-[state=active]:text-amber-800">
+                        <st.icon className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                        <span>{st.label}</span>
+                      </span>
+                      <span className={`mt-0.5 block text-xs ${done ? "text-emerald-700" : st.optional ? "text-slate-400" : v.state === "error" ? "text-rose-600" : "text-amber-700"}`}>
+                        {subLabel(st)}
+                      </span>
+                    </span>
+                  </TabsTrigger>
+                )
+              })}
             </TabsList>
 
-            <TabsContent value="company" className="mt-4">
-              <CompanySettingsCard />
+            {current && (
+              <div className="mt-4 flex items-start gap-2 text-sm text-slate-600">
+                <span className="font-semibold text-slate-800">Step {idx + 1} of {steps.length}{steps[idx].optional ? " (optional)" : ""}:</span>
+                <span>{steps[idx].hint}</span>
+              </div>
+            )}
+
+            <TabsContent value="company" className="mt-3">
+              <CompanySettingsCard onSetUp={() => setStatus((p) => ({ ...p, company: { state: "done" } }))} />
             </TabsContent>
 
             {tabs.map((t) => (
-              <TabsContent key={t.key} value={t.key} className="mt-4">
-                <SetupSection tab={t} />
+              <TabsContent key={t.key} value={t.key} className="mt-3">
+                <SetupSection tab={t} onCount={(n) => setCount(t.key, n)} />
               </TabsContent>
             ))}
           </Tabs>
+
+          {current && (
+            <div className="mt-4 flex items-center justify-between gap-2">
+              {prev ? (
+                <Button variant="outline" onClick={() => select(prev.key)} className="gap-1">
+                  <ArrowLeft className="h-4 w-4" /> <span className="truncate">Back: {prev.label}</span>
+                </Button>
+              ) : <span />}
+              {next && (
+                <Button onClick={() => select(next.key)} className="gap-1 bg-amber-600 hover:bg-amber-700">
+                  <span className="truncate">Next: {next.label}</span> <ArrowRight className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          )}
         </main>
       </div>
     </div>

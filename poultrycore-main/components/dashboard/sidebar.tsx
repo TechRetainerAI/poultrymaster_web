@@ -186,7 +186,6 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const openAlerts = useAlertsStore((s: { alerts: AlertItem[]; open: () => void }) => s.open)
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const activeFarmId = useAuthStore((s) => s.activeFarmId)
-  const clearActiveCompany = useAuthStore((s) => s.clearActiveCompany)
   const isWater = activeFarmType === "Water"
   const isGeneric = activeFarmType === "Generic"
   const isHotel = activeFarmType === "Hotel"
@@ -634,6 +633,28 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     )
   }
 
+  // Sales, Expenses and Money are three separate sidebar menus (they used to be
+  // one "Sales, Expenses & Money" menu with three columns). Every company
+  // type's nav config keeps the three as groups keyed sales / expenses / money
+  // inside salesMoney, so the split is done here once. A menu whose rows are
+  // all hidden (staff without financial access) renders nothing.
+  const renderSalesMoneyMenus = (groups: MegaMenuGroup[], prefix: string) => {
+    const pick = (k: string) => groups.filter((g) => g.key === k)
+    return (
+      <>
+        {renderMenu("Sales", ShoppingCart, pick("sales"), `menu:${prefix}Sales`, {
+          blurb: "Record sales, collect payments and see what customers owe.", columns: 1,
+        })}
+        {renderMenu("Expenses", Receipt, pick("expenses"), `menu:${prefix}Expenses`, {
+          blurb: "Expenses, suppliers, payroll and other costs.", columns: 1,
+        })}
+        {renderMenu("Money", Wallet, pick("money"), `menu:${prefix}Money`, {
+          blurb: "Cash accounts, transfers, owner money, loans and profit.", columns: 1,
+        })}
+      </>
+    )
+  }
+
   const sidebarContent = (
     <div className="flex h-full min-h-0 w-full flex-col">
       {/* Logo Header */}
@@ -693,7 +714,10 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
           {renderNavItem(
             { href: "/business-office", label: "Business Office", icon: Briefcase },
             true,
-            () => { try { clearActiveCompany() } catch {}; handleLinkClick?.(); router.push("/business-office") },
+            // Don't clear the company here: the page still on screen would
+            // re-run its loader with no company and toast "No active company".
+            // BusinessOfficeShell clears it on mount, after this page is gone.
+            () => { handleLinkClick?.(); router.push("/business-office") },
           )}
         </div>
 
@@ -731,10 +755,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
                 blurb: "Delivery runs, production and stock — everything that moves water.",
                 columns: 3,
               })}
-              {renderMenu("Sales, Expenses & Money", Wallet, waterNav!.salesMoney, "menu:waterMoney", {
-                blurb: "Orders, collections, expenses and cash.",
-                columns: 3,
-              })}
+              {renderSalesMoneyMenus(waterNav!.salesMoney, "water")}
               {renderMenu("Trackers", BarChart3, waterNav!.analytics, "menu:waterAnalytics", {
                 blurb: "Explore where your stock actually moved.", columns: 1,
               })}
@@ -771,10 +792,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
                 blurb: "Orders, menu, kitchen and tables.",
                 columns: 1,
               })}
-              {renderMenu("Sales, Expenses & Money", Wallet, hotelNav!.salesMoney, "menu:hotelMoney", {
-                blurb: "Sales, expenses, payments, payroll, cash and financial activity.",
-                columns: 3,
-              })}
+              {renderSalesMoneyMenus(hotelNav!.salesMoney, "hotel")}
               {hotelReportsItems.length > 0 && renderMenu("Reports", BarChart3, HOTEL_REPORT_NAV_GROUPS, "menu:hotelReports", {
                 blurb: "Occupancy, revenue, housekeeping and operational reports.",
                 columns: 3,
@@ -814,10 +832,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
                 blurb: "Ingredients, stock and purchases.",
                 columns: 1,
               })}
-              {renderMenu("Sales, Expenses & Money", Wallet, restaurantNav!.salesMoney, "menu:restaurantMoney", {
-                blurb: "Sales, expenses, payments, payroll, cash and financial activity.",
-                columns: 3,
-              })}
+              {renderSalesMoneyMenus(restaurantNav!.salesMoney, "restaurant")}
               {renderMenu("Growth", Users, restaurantNav!.growth, "menu:restaurantGrowth", {
                 blurb: "Customers, loyalty, events, gift cards and notifications.",
                 columns: 2,
@@ -911,10 +926,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
                 blurb: "Production, flock purchases, deliveries, stock and health.",
                 columns: 2,
               })}
-              {renderMenu("Sales, Expenses & Money", Wallet, poultryNav!.salesMoney, "menu:poultryMoney", {
-                blurb: "Manage sales, expenses, payments, payroll, cash and financial activity.",
-                columns: 3,
-              })}
+              {renderSalesMoneyMenus(poultryNav!.salesMoney, "poultry")}
               {renderMenu("Trackers", BarChart3, poultryNav!.analytics, "menu:poultryAnalytics", {
                 blurb: "Day-to-day trackers.", columns: 1,
               })}
