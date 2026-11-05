@@ -415,19 +415,19 @@ export default function GenericDeliveriesPage() {
           <FormSection title="Driver & Transport" color="blue">
             <FormField label="Driver *">
               <div className="flex gap-2">
-                {driversList.length > 0 ? (
-                  <Select value={loadForm.driverName} onValueChange={(v) => {
-                    const dr = driversList.find((d) => d.driverName === v)
-                    setLoadForm({ ...loadForm, driverName: v, vehicleName: dr?.vehicleName ?? "", transportMode: dr?.transportMode ?? "Car" })
-                  }}>
-                    <SelectTrigger className="flex-1"><SelectValue placeholder="Select driver" /></SelectTrigger>
-                    <SelectContent>{driversList.map((d) => (
+                <Select value={loadForm.driverName} onValueChange={(v) => {
+                  const dr = driversList.find((d) => d.driverName === v)
+                  setLoadForm({ ...loadForm, driverName: v, vehicleName: dr?.vehicleName ?? "", transportMode: dr?.transportMode ?? "Car" })
+                }}>
+                  <SelectTrigger className="flex-1"><SelectValue placeholder={driversList.length > 0 ? "Select driver" : "No drivers — click Add Driver"} /></SelectTrigger>
+                  <SelectContent>
+                    {driversList.length > 0 ? driversList.map((d) => (
                       <SelectItem key={d.genericDriverId} value={d.driverName}>{d.driverName}{d.transportMode ? ` (${d.transportMode})` : ""}</SelectItem>
-                    ))}</SelectContent>
-                  </Select>
-                ) : (
-                  <Input className="flex-1" value={loadForm.driverName} onChange={(e) => setLoadForm({ ...loadForm, driverName: e.target.value })} placeholder="Type driver name" />
-                )}
+                    )) : (
+                      <div className="px-3 py-2 text-sm text-slate-500">No drivers yet. Click &ldquo;Add Driver&rdquo; to create one.</div>
+                    )}
+                  </SelectContent>
+                </Select>
                 <Button type="button" variant="outline" size="sm" className="shrink-0 whitespace-nowrap" onClick={() => setAddDriverOpen(true)}>
                   <Plus className="h-3 w-3 mr-1" /> Add Driver
                 </Button>
@@ -448,21 +448,21 @@ export default function GenericDeliveriesPage() {
           <FormSection title="Route & Destination" color="emerald">
             <FormField label="Route">
               <div className="flex gap-2">
-                {routesList.length > 0 ? (
-                  <Select value={loadForm.route} onValueChange={(v) => {
-                    const rt = routesList.find((r) => r.routeName === v)
-                    setLoadForm({ ...loadForm, route: v, startPoint: rt?.startPoint ?? loadForm.startPoint, destination: rt?.endPoint ?? loadForm.destination })
-                  }}>
-                    <SelectTrigger className="flex-1"><SelectValue placeholder="Select delivery route" /></SelectTrigger>
-                    <SelectContent>{routesList.map((r) => (
+                <Select value={loadForm.route} onValueChange={(v) => {
+                  const rt = routesList.find((r) => r.routeName === v)
+                  setLoadForm({ ...loadForm, route: v, startPoint: rt?.startPoint ?? loadForm.startPoint, destination: rt?.endPoint ?? loadForm.destination })
+                }}>
+                  <SelectTrigger className="flex-1"><SelectValue placeholder={routesList.length > 0 ? "Select delivery route" : "No routes — click Add Route"} /></SelectTrigger>
+                  <SelectContent>
+                    {routesList.length > 0 ? routesList.map((r) => (
                       <SelectItem key={r.genericRouteId} value={r.routeName}>
                         {r.routeName}{r.startPoint && r.endPoint ? ` (${r.startPoint} → ${r.endPoint})` : ""}
                       </SelectItem>
-                    ))}</SelectContent>
-                  </Select>
-                ) : (
-                  <Input className="flex-1" value={loadForm.route} onChange={(e) => setLoadForm({ ...loadForm, route: e.target.value })} placeholder="Type route name" />
-                )}
+                    )) : (
+                      <div className="px-3 py-2 text-sm text-slate-500">No routes yet. Click &ldquo;Add Route&rdquo; to create one.</div>
+                    )}
+                  </SelectContent>
+                </Select>
                 <Button type="button" variant="outline" size="sm" className="shrink-0 whitespace-nowrap" onClick={() => setAddRouteOpen(true)}>
                   <Plus className="h-3 w-3 mr-1" /> Add Route
                 </Button>
