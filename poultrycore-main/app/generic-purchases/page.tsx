@@ -99,11 +99,21 @@ function GenericPurchasesPageInner() {
             <Button asChild className="w-full sm:w-auto h-11 sm:h-10"><Link href="/generic-purchases/new"><Plus className="h-4 w-4 mr-1" />New purchase</Link></Button>
           </div>
 
-          <div className="flex gap-1 mb-3 flex-wrap">
-            {STATUS_FILTERS.map((s) => (
-              <Button key={s} size="sm" variant={s === status ? "default" : "outline"}
-                onClick={() => router.replace(s === "All" ? "/generic-purchases" : `/generic-purchases?status=${s}`)}>{s}</Button>
-            ))}
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <div className="flex gap-1 flex-wrap">
+              {STATUS_FILTERS.map((s) => (
+                <Button key={s} size="sm" variant={s === status ? "default" : "outline"}
+                  onClick={() => router.replace(s === "All" ? "/generic-purchases" : `/generic-purchases?status=${s}`)}>{s}</Button>
+              ))}
+            </div>
+            <div className="flex-1 min-w-0">
+              <ListFilters
+                search={search} setSearch={setSearch}
+                dateFrom={dateFrom} setDateFrom={setDateFrom}
+                dateTo={dateTo} setDateTo={setDateTo}
+                searchPlaceholder="Search supplier, status or notes"
+              />
+            </div>
           </div>
 
           {loading ? (
@@ -112,12 +122,6 @@ function GenericPurchasesPageInner() {
             <Card><CardContent className="py-8 text-center text-slate-500">No purchases yet.</CardContent></Card>
           ) : (
             <>
-            <ListFilters
-              search={search} setSearch={setSearch}
-              dateFrom={dateFrom} setDateFrom={setDateFrom}
-              dateTo={dateTo} setDateTo={setDateTo}
-              searchPlaceholder="Search supplier, status or notes"
-            />
             <Card>
               <CardContent className="p-0">
                 <MobileCardList
