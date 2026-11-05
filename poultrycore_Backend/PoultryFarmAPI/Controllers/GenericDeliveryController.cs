@@ -53,5 +53,19 @@ namespace PoultryFarmAPIWeb.Controllers
             await _svc.CancelAsync(id, farmId);
             return Ok();
         }
+
+        [HttpPost("{id:int}/dispatch")]
+        public async Task<IActionResult> Dispatch(string farmId, int id)
+        {
+            await _svc.DispatchAsync(id, farmId);
+            return Ok();
+        }
+
+        [HttpPost("{id:int}/mark-delivered")]
+        public async Task<IActionResult> MarkDelivered(string farmId, int id)
+        {
+            await _svc.MarkDeliveredAsync(id, farmId);
+            return Ok();
+        }
     }
 }

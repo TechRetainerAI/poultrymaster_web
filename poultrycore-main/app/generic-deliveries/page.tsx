@@ -18,20 +18,23 @@ import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { usePagination } from "@/hooks/use-pagination"
-import { Plus, Loader2, CheckCircle2, Undo2, XCircle, Truck } from "lucide-react"
+import { Plus, Loader2, CheckCircle2, Undo2, XCircle, Truck, Send, PackageCheck } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
 import {
   getDeliveries, loadDelivery, reconcileDelivery, reverseDelivery, cancelDelivery,
+  dispatchDelivery, markDeliveryDelivered,
   getProducts, type GenericDelivery, type GenericProduct,
 } from "@/lib/api/generic"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const UNITS = ["Piece", "Unit", "Kg", "Bag", "Box", "Crate", "Tray", "Dozen", "Bundle", "Litre"]
 const STATUS_COLORS: Record<string, string> = {
-  Loaded: "bg-indigo-100 text-indigo-700",
+  Loaded: "bg-slate-100 text-slate-700",
+  InTransit: "bg-blue-100 text-blue-700",
+  Delivered: "bg-emerald-100 text-emerald-700",
   Reconciled: "bg-green-100 text-green-700",
   Cancelled: "bg-amber-100 text-amber-700",
 }
@@ -51,6 +54,7 @@ export default function GenericDeliveriesPage() {
   const [loadForm, setLoadForm] = useState({
     genericProductId: 0, quantityLoaded: 0, unit: "Piece", unitPrice: 0,
     driverName: "", vehicleName: "", route: "",
+    customerName: "", destination: "",
     deliveryDate: new Date().toISOString().split("T")[0], notes: "",
   })
 
@@ -124,6 +128,16 @@ export default function GenericDeliveriesPage() {
     finally { setSaving(false) }
   }
 
+  async function doDispatch(id: number) {
+    try { await dispatchDelivery(id); toast({ title: "Delivery dispatched — in transit" }); await load() }
+    catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
+  }
+
+  async function doMarkDelivered(id: number) {
+    try { await markDeliveryDelivered(id); toast({ title: "Marked as delivered" }); await load() }
+    catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
+  }
+
   async function doReverse(id: number) {
     try { await reverseDelivery(id); toast({ title: "Delivery reversed" }); await load() }
     catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
@@ -188,8 +202,11 @@ export default function GenericDeliveriesPage() {
                     ] : []),
                   ]}
                   details={(d: any) => [
+                    { label: "Customer", value: d.customerName ?? "—" },
+                    { label: "Destination", value: d.destination ?? "—" },
                     { label: "Vehicle", value: d.vehicleName ?? "—" },
                     { label: "Route", value: d.route ?? "—" },
+                    ...(d.deliveredAt ? [{ label: "Delivered", value: fmtDateTime(d.deliveredAt, d) }] : []),
                     { label: "Returned", value: String(d.quantityReturned) },
                     { label: "Damaged", value: String(d.quantityDamaged) },
                     { label: "Short", value: String(d.quantityShort) },
@@ -199,15 +216,27 @@ export default function GenericDeliveriesPage() {
                     <>
                       {d.status === "Loaded" && (
                         <>
-                          <Button size="sm" variant="outline" className="flex-1 h-10 text-emerald-700 border-emerald-200"
-                            onClick={() => openReconcile(d)}>
-                            <CheckCircle2 className="h-4 w-4 mr-1" /> Reconcile
+                          <Button size="sm" variant="outline" className="flex-1 h-10 text-blue-700 border-blue-200"
+                            onClick={() => doDispatch(d.genericDeliveryId)}>
+                            <Send className="h-4 w-4 mr-1" /> Dispatch
                           </Button>
                           <Button size="sm" variant="outline" className="flex-1 h-10 text-amber-700 border-amber-200"
                             onClick={() => doCancel(d.genericDeliveryId)}>
                             <XCircle className="h-4 w-4 mr-1" /> Cancel
                           </Button>
                         </>
+                      )}
+                      {d.status === "InTransit" && (
+                        <Button size="sm" variant="outline" className="flex-1 h-10 text-emerald-700 border-emerald-200"
+                          onClick={() => doMarkDelivered(d.genericDeliveryId)}>
+                          <PackageCheck className="h-4 w-4 mr-1" /> Mark Delivered
+                        </Button>
+                      )}
+                      {(d.status === "Delivered" || d.status === "InTransit" || d.status === "Loaded") && (
+                        <Button size="sm" variant="outline" className="flex-1 h-10 text-emerald-700 border-emerald-200"
+                          onClick={() => openReconcile(d)}>
+                          <CheckCircle2 className="h-4 w-4 mr-1" /> Reconcile
+                        </Button>
                       )}
                       {d.status === "Reconciled" && (
                         <Button size="sm" variant="outline" className="flex-1 h-10 text-amber-700 border-amber-200"
@@ -224,6 +253,7 @@ export default function GenericDeliveriesPage() {
                           <TableRow>
                             <TableHead>Date</TableHead>
                             <TableHead>Product</TableHead>
+                            <TableHead>Customer / Destination</TableHead>
                             <TableHead>Driver / Vehicle</TableHead>
                             <TableHead className="text-right">Loaded</TableHead>
                             <TableHead className="text-right">Sold</TableHead>
@@ -238,7 +268,7 @@ export default function GenericDeliveriesPage() {
                         <TableBody>
                           {rows.length === 0 ? (
                             <TableRow>
-                              <TableCell colSpan={11} className="text-center text-slate-500 py-6">
+                              <TableCell colSpan={12} className="text-center text-slate-500 py-6">
                                 No deliveries yet. Load a product to get started.
                               </TableCell>
                             </TableRow>
@@ -246,6 +276,7 @@ export default function GenericDeliveriesPage() {
                             <TableRow key={d.genericDeliveryId}>
                               <TableCell className="whitespace-nowrap">{fmtDateTime(d.deliveryDate, d)}</TableCell>
                               <TableCell className="font-medium">{d.productName ?? "—"}</TableCell>
+                              <TableCell>{d.customerName ?? "—"}{d.destination ? ` · ${d.destination}` : ""}</TableCell>
                               <TableCell>{d.driverName ?? "—"}{d.vehicleName ? ` / ${d.vehicleName}` : ""}</TableCell>
                               <TableCell className="text-right">{d.quantityLoaded} {d.unit ?? ""}</TableCell>
                               <TableCell className="text-right">{d.status === "Loaded" ? "—" : d.quantitySold}</TableCell>
@@ -260,6 +291,32 @@ export default function GenericDeliveriesPage() {
                               </TableCell>
                               <TableCell className="text-right whitespace-nowrap">
                                 {d.status === "Loaded" && (
+                                  <>
+                                    <Button variant="ghost" size="sm" onClick={() => doDispatch(d.genericDeliveryId)} title="Dispatch">
+                                      <Send className="h-4 w-4 text-blue-600" />
+                                    </Button>
+                                    <Button variant="ghost" size="sm" onClick={() => openReconcile(d)} title="Reconcile">
+                                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                    </Button>
+                                    <Button variant="ghost" size="sm" onClick={() => doCancel(d.genericDeliveryId)} title="Cancel">
+                                      <XCircle className="h-4 w-4 text-amber-600" />
+                                    </Button>
+                                  </>
+                                )}
+                                {d.status === "InTransit" && (
+                                  <>
+                                    <Button variant="ghost" size="sm" onClick={() => doMarkDelivered(d.genericDeliveryId)} title="Mark Delivered">
+                                      <PackageCheck className="h-4 w-4 text-emerald-600" />
+                                    </Button>
+                                    <Button variant="ghost" size="sm" onClick={() => openReconcile(d)} title="Reconcile">
+                                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                    </Button>
+                                    <Button variant="ghost" size="sm" onClick={() => doCancel(d.genericDeliveryId)} title="Cancel">
+                                      <XCircle className="h-4 w-4 text-amber-600" />
+                                    </Button>
+                                  </>
+                                )}
+                                {d.status === "Delivered" && (
                                   <>
                                     <Button variant="ghost" size="sm" onClick={() => openReconcile(d)} title="Reconcile">
                                       <CheckCircle2 className="h-4 w-4 text-green-600" />
@@ -323,6 +380,12 @@ export default function GenericDeliveriesPage() {
             <FormField label="Unit price">
               <NumberInput min={0} step="0.01" value={loadForm.unitPrice}
                 onChange={(e) => setLoadForm({ ...loadForm, unitPrice: Number(e.target.value) || 0 })} />
+            </FormField>
+            <FormField label="Customer">
+              <Input value={loadForm.customerName} onChange={(e) => setLoadForm({ ...loadForm, customerName: e.target.value })} placeholder="Who is this being delivered to?" />
+            </FormField>
+            <FormField label="Destination">
+              <Input value={loadForm.destination} onChange={(e) => setLoadForm({ ...loadForm, destination: e.target.value })} placeholder="Delivery address or location" />
             </FormField>
             <FormField label="Driver">
               <Input value={loadForm.driverName} onChange={(e) => setLoadForm({ ...loadForm, driverName: e.target.value })} />

@@ -11,6 +11,8 @@ namespace PoultryFarmAPIWeb.Business
         Task ReconcileAsync(int id, GenericDeliveryReconcileRequest r);
         Task ReverseAsync(int id, string farmId);
         Task CancelAsync(int id, string farmId);
+        Task DispatchAsync(int id, string farmId);
+        Task MarkDeliveredAsync(int id, string farmId);
     }
 
     public class GenericDeliveryService : IGenericDeliveryService
@@ -50,10 +52,14 @@ namespace PoultryFarmAPIWeb.Business
                 CreditSales = r.Dec("CreditSales"),
                 DeliveryExpenses = r.Dec("DeliveryExpenses"),
                 TotalSales = r.Dec("TotalSales"),
+                CustomerName = r.StrN("CustomerName"),
+                Destination = r.StrN("Destination"),
                 Status = r.Str("Status"),
                 Notes = r.StrN("Notes"),
                 CreatedAt = r.Date("CreatedAt"),
                 ReconciledAt = r.DateN("ReconciledAt"),
+                DeliveredAt = r.DateN("DeliveredAt"),
+                DeliveredBy = r.StrN("DeliveredBy"),
             });
             return list;
         }
@@ -68,7 +74,8 @@ namespace PoultryFarmAPIWeb.Business
                 "p_route => @Route::text, p_genericproductid => @GenericProductId::int, " +
                 "p_quantityloaded => @QuantityLoaded::numeric, p_unit => @Unit::text, " +
                 "p_unitprice => @UnitPrice::numeric, p_notes => @Notes::text, " +
-                "p_createdby => @CreatedBy::text)", c);
+                "p_createdby => @CreatedBy::text, p_customername => @CustomerName::text, " +
+                "p_destination => @Destination::text)", c);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@DeliveryDate", (object?)m.DeliveryDate ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@DriverName", (object?)m.DriverName ?? DBNull.Value);
@@ -80,6 +87,8 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@UnitPrice", m.UnitPrice);
             cmd.Parameters.AddWithValue("@Notes", (object?)m.Notes ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@CreatedBy", (object?)m.CreatedBy ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@CustomerName", (object?)m.CustomerName ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Destination", (object?)m.Destination ?? DBNull.Value);
             await c.OpenAsync();
             return Convert.ToInt32(await cmd.ExecuteScalarAsync());
         }
@@ -126,6 +135,29 @@ namespace PoultryFarmAPIWeb.Business
                 "SELECT * FROM spgenericdelivery_cancel(p_genericdeliveryid => @Id::int, p_farmid => @FarmId::text)", c);
             cmd.Parameters.AddWithValue("@Id", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await c.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task DispatchAsync(int id, string farmId)
+        {
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM spgenericdelivery_dispatch(p_genericdeliveryid => @Id::int, p_farmid => @FarmId::text)", c);
+            cmd.Parameters.AddWithValue("@Id", id);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await c.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task MarkDeliveredAsync(int id, string farmId)
+        {
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM spgenericdelivery_markdelivered(p_genericdeliveryid => @Id::int, p_farmid => @FarmId::text, p_deliveredby => @By::text)", c);
+            cmd.Parameters.AddWithValue("@Id", id);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@By", DBNull.Value);
             await c.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
         }
