@@ -67,5 +67,21 @@ namespace PoultryFarmAPIWeb.Controllers
             await _svc.MarkDeliveredAsync(id, farmId);
             return Ok();
         }
+
+        [HttpGet("reports/by-driver")]
+        public async Task<ActionResult<IEnumerable<GenericDriverReportRow>>> DriverReport(
+            string farmId, [FromQuery] DateTime? fromDate = null, [FromQuery] DateTime? toDate = null,
+            [FromQuery] string? driverName = null)
+            => Ok(await _svc.DriverReportAsync(farmId, fromDate, toDate, driverName));
+
+        [HttpGet("reports/by-product")]
+        public async Task<ActionResult<IEnumerable<GenericProductDeliveryRow>>> ProductReport(
+            string farmId, [FromQuery] DateTime? fromDate = null, [FromQuery] DateTime? toDate = null)
+            => Ok(await _svc.ProductReportAsync(farmId, fromDate, toDate));
+
+        [HttpGet("reports/by-route")]
+        public async Task<ActionResult<IEnumerable<GenericRouteReportRow>>> RouteReport(
+            string farmId, [FromQuery] DateTime? fromDate = null, [FromQuery] DateTime? toDate = null)
+            => Ok(await _svc.RouteReportAsync(farmId, fromDate, toDate));
     }
 }

@@ -48,6 +48,51 @@ namespace PoultryFarmAPIWeb.Models
         public string? CreatedBy { get; set; }
     }
 
+    public class GenericDriverReportRow
+    {
+        public string DriverName { get; set; } = string.Empty;
+        public long TotalDeliveries { get; set; }
+        public decimal TotalLoaded { get; set; }
+        public decimal TotalSold { get; set; }
+        public decimal TotalReturned { get; set; }
+        public decimal TotalDamaged { get; set; }
+        public decimal TotalShort { get; set; }
+        public decimal TotalSales { get; set; }
+        public decimal TotalCashCollected { get; set; }
+        public decimal TotalCreditSales { get; set; }
+        public decimal TotalExpenses { get; set; }
+        public decimal DeliveryRate { get; set; }
+        public long LoadedDeliveries { get; set; }
+        public long InTransitDeliveries { get; set; }
+        public long DeliveredDeliveries { get; set; }
+        public long ReconciledDeliveries { get; set; }
+        public long CancelledDeliveries { get; set; }
+    }
+
+    public class GenericProductDeliveryRow
+    {
+        public string ProductName { get; set; } = string.Empty;
+        public long TotalDeliveries { get; set; }
+        public decimal TotalLoaded { get; set; }
+        public decimal TotalSold { get; set; }
+        public decimal TotalReturned { get; set; }
+        public decimal TotalDamaged { get; set; }
+        public decimal TotalShort { get; set; }
+        public decimal TotalSales { get; set; }
+        public decimal SellThroughRate { get; set; }
+    }
+
+    public class GenericRouteReportRow
+    {
+        public string Route { get; set; } = string.Empty;
+        public long TotalDeliveries { get; set; }
+        public decimal TotalLoaded { get; set; }
+        public decimal TotalSold { get; set; }
+        public decimal TotalSales { get; set; }
+        public decimal TotalExpenses { get; set; }
+        public decimal NetRevenue { get; set; }
+    }
+
     public class GenericDeliveryReconcileRequest
     {
         public string FarmId { get; set; } = string.Empty;
