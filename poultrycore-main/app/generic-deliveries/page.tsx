@@ -71,12 +71,14 @@ export default function GenericDeliveriesPage() {
   async function load() {
     setLoading(true)
     try {
-      const [ds, ps] = await Promise.all([getDeliveries(), getProducts()])
-      setRows(ds)
+      const [dsResult, psResult] = await Promise.allSettled([getDeliveries(), getProducts()])
+      if (dsResult.status === "fulfilled") setRows(dsResult.value)
+      else setRows([])
+      const ps = psResult.status === "fulfilled" ? psResult.value : []
       setProducts(ps)
       if (!loadForm.genericProductId && ps.length > 0) {
         const first = ps.find((p) => p.isActive) ?? ps[0]
-        if (first) setLoadForm((f) => ({ ...f, genericProductId: first.genericProductId, unitPrice: first.unitPrice || 0 }))
+        if (first) setLoadForm((f) => ({ ...f, genericProductId: first.genericProductId, unitPrice: first.sellingPrice || 0 }))
       }
     } catch (e: any) {
       toast({ title: "Could not load deliveries", description: e?.message, variant: "destructive" })
@@ -297,13 +299,13 @@ export default function GenericDeliveriesPage() {
                 onValueChange={(v) => {
                   const id = Number(v)
                   const p = products.find((x) => x.genericProductId === id)
-                  setLoadForm({ ...loadForm, genericProductId: id, unitPrice: p?.unitPrice ?? loadForm.unitPrice })
+                  setLoadForm({ ...loadForm, genericProductId: id, unitPrice: p?.sellingPrice ?? loadForm.unitPrice })
                 }}
               >
                 <SelectTrigger><SelectValue placeholder="Pick product" /></SelectTrigger>
                 <SelectContent>
                   {products.filter((p) => p.isActive).map((p) => (
-                    <SelectItem key={p.genericProductId} value={String(p.genericProductId)}>{p.name}</SelectItem>
+                    <SelectItem key={p.genericProductId} value={String(p.genericProductId)}>{p.productName}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
