@@ -25,6 +25,7 @@ import '../poultry/trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, Sor
 import '../poultry/trackers/tracker_widgets.dart';
 import 'hotel_kit.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 const _empty = <String, num>{
   'moneyIn': 0, 'moneyOut': 0, 'netCashFlow': 0, 'openingCash': 0, 'closingCash': 0,
   'operatingIn': 0, 'operatingOut': 0, 'financingIn': 0, 'financingOut': 0, 'movementCount': 0,
@@ -298,7 +299,7 @@ class _HotelCashFlowScreenState extends State<HotelCashFlowScreen> {
                     const SizedBox(width: 4),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 5),
-                      decoration: BoxDecoration(color: const Color(0xFFF59E0B), borderRadius: BorderRadius.circular(999)),
+                      decoration: BoxDecoration(color: const Tone.bg(0xFFF59E0B), borderRadius: BorderRadius.circular(999)),
                       child: const Text('1', style: TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w600)),
                     ),
                   ],
@@ -315,7 +316,7 @@ class _HotelCashFlowScreenState extends State<HotelCashFlowScreen> {
             const SizedBox(height: 12),
             // Closed by default on a phone, as the web's Collapsible.
             Container(
-              decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 InkWell(
                   onTap: () => setState(() => _explainOpen = !_explainOpen),
@@ -432,7 +433,7 @@ class _HotelCashFlowScreenState extends State<HotelCashFlowScreen> {
               const SizedBox(height: 10),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
                 child: Wrap(spacing: 8, runSpacing: 2, children: [
                   Text.rich(TextSpan(children: [const TextSpan(text: 'Opening '), TextSpan(text: _gh(tNum(s['openingCash'])), style: const TextStyle(fontWeight: FontWeight.w700, color: TColors.slate900))])),
                   Text.rich(TextSpan(children: [const TextSpan(text: '+ in '), TextSpan(text: _gh(tNum(s['moneyIn'])), style: const TextStyle(fontWeight: FontWeight.w700))]),

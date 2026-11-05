@@ -17,6 +17,7 @@ import '../poultry/trackers/tracker_widgets.dart';
 import '../shared/business_dates.dart';
 import '../shared/company_clock.dart';
 import '../shared/reason_select.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import 'reports/water_money_reports.dart' show waterMoneyRail;
 
 /// Water → Expenses → Payroll, as `app/water-payroll/page.tsx`: pay runs
@@ -209,7 +210,7 @@ class _WaterPayrollScreenState extends State<WaterPayrollScreen> {
       b('Details', () => _details(r), icon: Icons.open_in_new),
       b('Open', () => _open(r)),
       if (waterPayrollEditable(st)) b(st == 'Reopened' ? 'Re-approve' : 'Approve', () => _approve(r), icon: Icons.check_circle_outline),
-      if (st == 'Approved') b('Mark paid', () => _pay(r), color: const Color(0xFF15803D)),
+      if (st == 'Approved') b('Mark paid', () => _pay(r), color: const Tone(0xFF15803D)),
       if (st == 'Approved' || st == 'Paid') b('Reopen', () => _reopen(r), color: TColors.amber700),
       if (waterPayrollEditable(st)) b('Delete', () => _delete(r), icon: Icons.delete_outline, color: TColors.red600),
       if (st != 'Cancelled' && st != 'Paid' && st != 'Approved' && st != 'Reopened') b('Cancel', () => _cancel(r), icon: Icons.cancel_outlined, color: TColors.red600),
@@ -234,7 +235,7 @@ class _WaterPayrollScreenState extends State<WaterPayrollScreen> {
           children: [
             const Row(
               children: [
-                Icon(Icons.payments_outlined, size: 24, color: Color(0xFF0284C7)),
+                Icon(Icons.payments_outlined, size: 24, color: Tone.fg(0xFF0284C7)),
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -287,7 +288,7 @@ class _WaterPayrollScreenState extends State<WaterPayrollScreen> {
               Container(
                 padding: const EdgeInsets.all(32),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: Tone.bg(0xFFFFFFFF),
                   border: Border.all(color: TColors.slate200),
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -481,7 +482,7 @@ class _PromptDialogState extends State<_PromptDialog> {
     actions: [
       TextButton(onPressed: _busy ? null : () => Navigator.pop(context), child: const Text('Cancel')),
       FilledButton(
-        style: FilledButton.styleFrom(backgroundColor: TColors.red600),
+        style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600)),
         onPressed: _busy || (widget.options == null && !widget.allowEmpty && _text.text.trim().isEmpty) ? null : _go,
         child: Text(widget.confirm),
       ),
@@ -538,7 +539,7 @@ class _NewWaterRunDialogState extends State<_NewWaterRunDialog> {
       scrollable: true,
       title: const Row(
         children: [
-          Icon(Icons.payments_outlined, color: Color(0xFF2563EB)),
+          Icon(Icons.payments_outlined, color: Tone.fg(0xFF2563EB)),
           SizedBox(width: 8),
           Flexible(child: Text('New payroll run')),
         ],
@@ -553,7 +554,7 @@ class _NewWaterRunDialogState extends State<_NewWaterRunDialog> {
           children: [
             const Text('Open a payroll run for a pay period', style: TextStyle(fontSize: 13, color: TColors.slate500)),
             const SizedBox(height: 12),
-            formSection('Period', const Color(0xFF4F46E5), [
+            formSection('Period', const Tone.fg(0xFF4F46E5), [
               FilterLabel('Period start *', FilterDate(value: _start, hint: 'Pick a date', onChanged: (v) => setState(() => _start = v))),
               FilterLabel('Period end *', FilterDate(value: _end, hint: 'Pick a date', onChanged: (v) => setState(() => _end = v))),
             ]),
@@ -576,7 +577,7 @@ class _NewWaterRunDialogState extends State<_NewWaterRunDialog> {
       ),
       actions: [
         FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: TColors.red600),
+          style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600)),
           onPressed: () => Navigator.pop(context, false),
           child: const Text('Cancel'),
         ),
@@ -825,7 +826,7 @@ class _WaterPayrollRunEditorState extends State<WaterPayrollRunEditor> {
             children: [
               total('Gross', _f2(r['totalGrossPay'])),
               total('Deductions', _f2(r['totalDeductions'])),
-              total('Net', _f2(r['totalNetPay']), color: const Color(0xFF15803D)),
+              total('Net', _f2(r['totalNetPay']), color: const Tone(0xFF15803D)),
             ],
           ),
           const Divider(height: 28),
@@ -894,7 +895,7 @@ class _WaterPayrollRunEditorState extends State<WaterPayrollRunEditor> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Tone.bg(0xFFFFFFFF),
         border: Border.all(color: TColors.slate200),
         borderRadius: BorderRadius.circular(8),
       ),
@@ -913,7 +914,7 @@ class _WaterPayrollRunEditorState extends State<WaterPayrollRunEditor> {
                     if (count > 0)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(color: const Color(0xFFF0F9FF), borderRadius: BorderRadius.circular(4)),
+                        decoration: BoxDecoration(color: const Tone.bg(0xFFF0F9FF), borderRadius: BorderRadius.circular(4)),
                         child: Text(count == 1 ? 'active advance' : '$count active advances', style: const TextStyle(fontSize: 10, color: TColors.sky700)),
                       ),
                   ],
@@ -923,7 +924,7 @@ class _WaterPayrollRunEditorState extends State<WaterPayrollRunEditor> {
                 IconButton(
                   tooltip: 'Remove',
                   onPressed: () => _remove(i),
-                  icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFEF4444)),
+                  icon: const Icon(Icons.delete_outline, size: 18, color: Tone.fg(0xFFEF4444)),
                 ),
             ],
           ),
@@ -980,8 +981,8 @@ class _WaterPayrollRunEditorState extends State<WaterPayrollRunEditor> {
   Widget _advancesPanel() => Container(
     padding: const EdgeInsets.all(12),
     decoration: BoxDecoration(
-      color: const Color(0xFFF0F9FF),
-      border: Border.all(color: const Color(0xFFBAE6FD)),
+      color: const Tone.bg(0xFFF0F9FF),
+      border: Border.all(color: const Tone.line(0xFFBAE6FD)),
       borderRadius: BorderRadius.circular(6),
     ),
     child: _staffLoansBusy
@@ -1012,7 +1013,7 @@ class _WaterPayrollRunEditorState extends State<WaterPayrollRunEditor> {
                                 TextSpan(text: tStr(e['loanNumber'])),
                                 TextSpan(
                                   text: ' · ${_f2(e['outstandingBalance'])} outstanding',
-                                  style: const TextStyle(color: Color(0xB30369A1)),
+                                  style: const TextStyle(color: Tone.fg(0xB30369A1)),
                                 ),
                               ],
                             ),
@@ -1040,7 +1041,7 @@ class _WaterPayrollRunEditorState extends State<WaterPayrollRunEditor> {
               const SizedBox(height: 6),
               const Text(
                 'Added automatically when you save the item, and editable afterwards from the Deductions figure. Nothing is repaid until the payroll is approved.',
-                style: TextStyle(fontSize: 11, color: Color(0xCC0369A1)),
+                style: TextStyle(fontSize: 11, color: Tone.fg(0xCC0369A1)),
               ),
             ],
           ),
@@ -1159,7 +1160,7 @@ class _WaterPayrollDetailScreenState extends State<WaterPayrollDetailScreen> {
   Widget _tile(String label, String value, {Color? color}) => Container(
     padding: const EdgeInsets.all(12),
     decoration: BoxDecoration(
-      color: Colors.white,
+      color: Tone.bg(0xFFFFFFFF),
       border: Border.all(color: TColors.slate200),
       borderRadius: BorderRadius.circular(6),
     ),
@@ -1181,7 +1182,7 @@ class _WaterPayrollDetailScreenState extends State<WaterPayrollDetailScreen> {
   Widget _card(List<Widget> children) => Container(
     padding: const EdgeInsets.all(14),
     decoration: BoxDecoration(
-      color: Colors.white,
+      color: Tone.bg(0xFFFFFFFF),
       border: Border.all(color: TColors.slate200),
       borderRadius: BorderRadius.circular(12),
     ),
@@ -1241,7 +1242,7 @@ class _WaterPayrollDetailScreenState extends State<WaterPayrollDetailScreen> {
                       runSpacing: 6,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        const Icon(Icons.payments_outlined, color: Color(0xFF0284C7)),
+                        const Icon(Icons.payments_outlined, color: Tone.fg(0xFF0284C7)),
                         Text(
                           'Payroll Run #$id',
                           style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: TColors.slate900),

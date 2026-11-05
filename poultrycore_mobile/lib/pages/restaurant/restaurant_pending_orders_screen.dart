@@ -22,11 +22,12 @@ import 'restaurant_money_kit.dart' show rDialog, rCancel;
 import 'restaurant_orders_screen.dart' show onlineLabel;
 import 'restaurant_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// waitTone: border and background by how long the order has waited.
 (Color, Color) pendingWaitTone(num mins) {
-  if (mins >= 10) return (const Color(0xFFFCA5A5), const Color(0xFFFEF2F2));
-  if (mins >= 5) return (const Color(0xFFFCD34D), const Color(0xFFFFFBEB));
-  return (TColors.slate200, Colors.white);
+  if (mins >= 10) return (const Tone(0xFFFCA5A5), const Tone(0xFFFEF2F2));
+  if (mins >= 5) return (const Tone(0xFFFCD34D), const Tone(0xFFFFFBEB));
+  return (TColors.slate200, Tone(0xFFFFFFFF));
 }
 
 class RestaurantPendingOrdersScreen extends StatefulWidget {
@@ -104,9 +105,9 @@ class _RestaurantPendingOrdersScreenState extends State<RestaurantPendingOrdersS
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Wrap(spacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                const Icon(Icons.inbox_outlined, size: 24, color: Color(0xFFE11D48)),
-                const Text('New Orders', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
-                if (_orders.isNotEmpty) rBadge('${_orders.length}', bg: const Color(0xFFE11D48), fg: Colors.white),
+                const Icon(Icons.inbox_outlined, size: 24, color: Tone.fg(0xFFE11D48)),
+                const Text('New Orders', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w700, color: Tone.fg(0xFF111827))),
+                if (_orders.isNotEmpty) rBadge('${_orders.length}', bg: const Tone.bg(0xFFE11D48), fg: Colors.white),
               ]),
               const SizedBox(height: 2),
               const Text('Orders guests sent from their phones. They do not reach the kitchen until you accept them.',
@@ -127,9 +128,9 @@ class _RestaurantPendingOrdersScreenState extends State<RestaurantPendingOrdersS
             child: Padding(
               padding: EdgeInsets.symmetric(vertical: 40),
               child: Column(children: [
-                Icon(Icons.inbox_outlined, size: 48, color: Color(0xFFD1D5DB)),
+                Icon(Icons.inbox_outlined, size: 48, color: Tone.fg(0xFFD1D5DB)),
                 SizedBox(height: 10),
-                Text('No orders waiting', style: TextStyle(fontWeight: FontWeight.w500, color: Color(0xFF374151))),
+                Text('No orders waiting', style: TextStyle(fontWeight: FontWeight.w500, color: Tone.fg(0xFF374151))),
                 SizedBox(height: 4),
                 Text('New orders from table QR codes appear here within a few seconds.',
                     textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: TColors.slate500)),
@@ -150,14 +151,14 @@ class _RestaurantPendingOrdersScreenState extends State<RestaurantPendingOrdersS
     Widget info(IconData icon, String text, {bool strong = false}) => Padding(
           padding: const EdgeInsets.symmetric(vertical: 1.5),
           child: Row(children: [
-            Icon(icon, size: 14, color: const Color(0xFF9CA3AF)),
+            Icon(icon, size: 14, color: const Tone.fg(0xFF9CA3AF)),
             const SizedBox(width: 6),
             Expanded(
                 child: Text(text,
                     style: TextStyle(
                         fontSize: 14,
                         fontWeight: strong ? FontWeight.w500 : null,
-                        color: strong ? const Color(0xFF111827) : const Color(0xFF4B5563)))),
+                        color: strong ? const Tone.fg(0xFF111827) : const Tone.fg(0xFF4B5563)))),
           ]),
         );
     return Container(
@@ -166,15 +167,15 @@ class _RestaurantPendingOrdersScreenState extends State<RestaurantPendingOrdersS
       decoration: BoxDecoration(color: bg, border: Border.all(color: border, width: 2), borderRadius: BorderRadius.circular(12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Wrap(spacing: 6, children: [
-          rBadge(onlineLabel(o), bg: const Color(0xFFE11D48), fg: Colors.white),
-          rBadge(tStr(o['orderType']), bg: Colors.white, fg: const Color(0xFF4B5563), border: TColors.slate200),
+          rBadge(onlineLabel(o), bg: const Tone.bg(0xFFE11D48), fg: Colors.white),
+          rBadge(tStr(o['orderType']), bg: Tone.bg(0xFFFFFFFF), fg: const Tone.fg(0xFF4B5563), border: TColors.slate200),
         ]),
         const SizedBox(height: 8),
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               if (tStr(o['tableNumber']).isNotEmpty)
-                rBadge('Table ${tStr(o['tableNumber'])}', bg: Colors.white, fg: const Color(0xFFBE123C), border: const Color(0xFFFDA4AF)),
+                rBadge('Table ${tStr(o['tableNumber'])}', bg: Tone.bg(0xFFFFFFFF), fg: const Tone.fg(0xFFBE123C), border: const Tone.line(0xFFFDA4AF)),
               const SizedBox(height: 4),
               Text(tStr(o['orderNumber']), style: const TextStyle(fontFamily: 'monospace', fontSize: 12, color: TColors.slate500)),
             ]),
@@ -191,29 +192,29 @@ class _RestaurantPendingOrdersScreenState extends State<RestaurantPendingOrdersS
         const SizedBox(height: 8),
         Container(
           padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: const Color(0xFFF9FAFB), borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(color: const Tone.bg(0xFFF9FAFB), borderRadius: BorderRadius.circular(8)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Row(children: [
-              const Icon(Icons.restaurant, size: 14, color: Color(0xFF6B7280)),
+              const Icon(Icons.restaurant, size: 14, color: Tone.fg(0xFF6B7280)),
               const SizedBox(width: 6),
-              Text('$count item${count == 1 ? '' : 's'}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF6B7280))),
+              Text('$count item${count == 1 ? '' : 's'}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Tone.fg(0xFF6B7280))),
             ]),
             const SizedBox(height: 4),
-            Text(tStr(o['itemSummary']).isEmpty ? '—' : tStr(o['itemSummary']), style: const TextStyle(fontSize: 14, color: Color(0xFF1F2937))),
+            Text(tStr(o['itemSummary']).isEmpty ? '—' : tStr(o['itemSummary']), style: const TextStyle(fontSize: 14, color: Tone.fg(0xFF1F2937))),
             if (tStr(o['notes']).isNotEmpty) ...[
               const Divider(height: 14),
-              Text('“${tStr(o['notes'])}”', style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Color(0xFFB45309))),
+              Text('“${tStr(o['notes'])}”', style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Tone.fg(0xFFB45309))),
             ],
           ]),
         ),
         const SizedBox(height: 8),
         Text(tNum(o['totalAmount']).toStringAsFixed(2),
-            textAlign: TextAlign.right, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFFE11D48))),
+            textAlign: TextAlign.right, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Tone.fg(0xFFE11D48))),
         const SizedBox(height: 8),
         Row(children: [
           Expanded(
             child: FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(const Tone.bg(0xFF059669))),
               onPressed: busy ? null : () => _accept(o),
               icon: const Icon(Icons.check, size: 16),
               label: const Text('Accept'),
@@ -221,7 +222,7 @@ class _RestaurantPendingOrdersScreenState extends State<RestaurantPendingOrdersS
           ),
           const SizedBox(width: 8),
           OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFFDC2626), side: const BorderSide(color: Color(0xFFFECACA))),
+            style: OutlinedButton.styleFrom(foregroundColor: const Tone.fg(0xFFDC2626), side: const BorderSide(color: Tone.line(0xFFFECACA))),
             onPressed: busy ? null : () => _reject(o),
             icon: const Icon(Icons.close, size: 16),
             label: const Text('Reject'),
@@ -276,7 +277,7 @@ class _RejectDialogState extends State<_RejectDialog> {
         actions: [
           rCancel(context, 'Cancel'),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(const Tone.bg(0xFFDC2626))),
             onPressed: _busy ? null : _confirm,
             child: const Text('Reject order'),
           ),

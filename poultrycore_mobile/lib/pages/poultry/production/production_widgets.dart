@@ -10,18 +10,19 @@ import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, loc, format
 import '../trackers/tracker_widgets.dart';
 import 'production_logic.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 enum ProdAccent { sky, amber, rose, emerald, orange, violet, slate, indigo }
 
 /// header background, header border, rail, title, icon.
 (Color, Color, Color, Color, Color) _accent(ProdAccent a) => switch (a) {
-      ProdAccent.sky => (TColors.sky100, const Color(0xFFBAE6FD), const Color(0xFF0284C7), TColors.sky900, TColors.sky700),
+      ProdAccent.sky => (TColors.sky100, const Tone(0xFFBAE6FD), const Tone(0xFF0284C7), TColors.sky900, TColors.sky700),
       ProdAccent.amber => (TColors.amber100, TColors.amber200, TColors.amber600, TColors.amber900, TColors.amber700),
-      ProdAccent.rose => (TColors.rose100, TColors.rose200, TColors.rose600, const Color(0xFF881337), TColors.rose700),
+      ProdAccent.rose => (TColors.rose100, TColors.rose200, TColors.rose600, const Tone(0xFF881337), TColors.rose700),
       ProdAccent.emerald => (TColors.emerald100, TColors.emerald200, TColors.emerald600, TColors.emerald900, TColors.emerald700),
-      ProdAccent.orange => (const Color(0xFFFFEDD5), const Color(0xFFFED7AA), const Color(0xFFEA580C), const Color(0xFF7C2D12), const Color(0xFFC2410C)),
-      ProdAccent.violet => (TColors.violet100, TColors.violet200, TColors.violet600, const Color(0xFF4C1D95), TColors.violet700),
+      ProdAccent.orange => (const Tone(0xFFFFEDD5), const Tone(0xFFFED7AA), const Tone(0xFFEA580C), const Tone(0xFF7C2D12), const Tone(0xFFC2410C)),
+      ProdAccent.violet => (TColors.violet100, TColors.violet200, TColors.violet600, const Tone(0xFF4C1D95), TColors.violet700),
       ProdAccent.slate => (TColors.slate200, TColors.slate300, TColors.slate500, TColors.slate900, TColors.slate600),
-      ProdAccent.indigo => (const Color(0xFFE0E7FF), const Color(0xFFC7D2FE), const Color(0xFF4F46E5), const Color(0xFF312E81), const Color(0xFF4338CA)),
+      ProdAccent.indigo => (const Tone(0xFFE0E7FF), const Tone(0xFFC7D2FE), const Tone(0xFF4F46E5), const Tone(0xFF312E81), const Tone(0xFF4338CA)),
     };
 
 /// FormSectionCard: a tinted header with a colour rail, icon, title,
@@ -39,7 +40,7 @@ class ProdSection extends StatelessWidget {
     final (bg, border, rail, titleC, iconC) = _accent(accent);
     return Container(
       clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -60,7 +61,7 @@ class ProdSection extends StatelessWidget {
             if (badge != null)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: border), borderRadius: BorderRadius.circular(999)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: border), borderRadius: BorderRadius.circular(999)),
                 child: Text(badge!, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: titleC)),
               ),
           ]),
@@ -218,7 +219,7 @@ class DisposalSplitField extends StatelessWidget {
     final kept = count - out;
     String n(int x) => '${loc(x)} ${x == 1 ? noun.$1 : noun.$2}';
     Widget option(DisposalMode v, String text) => Material(
-          color: mode == v ? TColors.slate800 : Colors.white,
+          color: mode == v ? Tone.button(TColors.slate800)! : Tone.bg(0xFFFFFFFF),
           child: InkWell(
             key: ValueKey('$label-${v.name}'),
             onTap: () => onMode(v),
@@ -279,8 +280,8 @@ class CalcField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (bg, border, fg) = switch (tone) {
-      CalcTone.good => (TColors.emerald100, const Color(0xFF34D399), TColors.emerald900),
-      CalcTone.bad => (TColors.red100, const Color(0xFFF87171), TColors.red900),
+      CalcTone.good => (TColors.emerald100, const Tone(0xFF34D399), TColors.emerald900),
+      CalcTone.bad => (TColors.red100, const Tone(0xFFF87171), TColors.red900),
       _ => (TColors.slate50, TColors.slate300, TColors.slate700),
     };
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
@@ -363,7 +364,7 @@ class ConsumptionLines extends StatelessWidget {
       key: ValueKey('line-$seed-$i'),
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         if (first) _fieldLabel(itemLabel),
         AppSelect<String>(
@@ -423,7 +424,7 @@ class ConsumptionLines extends StatelessWidget {
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               if (first) _fieldLabel('Total Cost'),
-              box(preview?.totalCost != null ? preview!.totalCost!.toStringAsFixed(2) : '0.00', bold: true, bg: Colors.white),
+              box(preview?.totalCost != null ? preview!.totalCost!.toStringAsFixed(2) : '0.00', bold: true, bg: Tone.bg(0xFFFFFFFF)),
             ]),
           ),
           IconButton(

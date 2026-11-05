@@ -24,6 +24,7 @@ import 'page_spec.dart';
 import 'plumbing_fields.dart';
 import 'record_screen.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Renders any [PageSpec] as a searchable list of records.
 ///
 /// Rows are cards, not table rows. The web uses tables on 172 of its pages,
@@ -531,8 +532,8 @@ class _ListScreenState extends State<ListScreen> {
   }
 
   static Color? _tone(SummaryTone t) => switch (t) {
-        SummaryTone.positive => const Color(0xFF059669), // emerald-600
-        SummaryTone.negative => const Color(0xFFDC2626), // red-600
+        SummaryTone.positive => const Tone(0xFF059669), // emerald-600
+        SummaryTone.negative => const Tone(0xFFDC2626), // red-600
         SummaryTone.neutral => null,
       };
 

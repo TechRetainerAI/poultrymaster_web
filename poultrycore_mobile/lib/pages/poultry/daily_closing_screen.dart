@@ -17,6 +17,7 @@ import '../shared/reason_dialog.dart';
 import '../shared/reason_select.dart' show reopenReasons, rejectReasons;
 import 'poultry_links.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Poultry → Tools → Daily Closing, as `app/poultry-daily-closing/page.tsx`
 /// (migration 333) with `components/closing/daily-closing-parts.tsx`,
 /// `daily-closing-dialogs.tsx` and `lib/closing/daily-closing.ts`.
@@ -160,12 +161,11 @@ String _qty(Object? n, [int digits = 0]) => fmtNum(_n(n), digits);
 String _money(Object? n) => ghc(_n(n));
 
 // Tailwind tones the web uses on this page.
-const _emerald600 = Color(0xFF059669);
-const _emerald700 = Color(0xFF047857);
-const _rose700 = Color(0xFFBE123C);
-const _amber800 = Color(0xFF92400E);
-const _sky700 = Color(0xFF0369A1);
-const _slate400 = Color(0xFF7F8EA3);  // a shade darker than Tailwind's, for legibility
+const _emerald700 = Tone.fg(0xFF047857);
+const _rose700 = Tone.fg(0xFFBE123C);
+const _amber800 = Tone.fg(0xFF92400E);
+const _sky700 = Tone.fg(0xFF0369A1);
+const _slate400 = Tone.fg(0xFF7F8EA3);  // a shade darker than Tailwind's, for legibility
 
 // ------------------------------------------------------------------ screen
 
@@ -581,7 +581,7 @@ class _DailyClosingScreenState extends State<DailyClosingScreen> with SingleTick
                     Tooltip(
                       message: reason ?? '',
                       child: FilledButton.icon(
-                        style: FilledButton.styleFrom(backgroundColor: _emerald600),
+                        style: FilledButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFF059669))),
                         onPressed: _busy || reason != null ? null : () => _close(businessDate, warnings),
                         icon: const Icon(Icons.lock, size: 18),
                         label: const Text('Close Business Day'),
@@ -679,11 +679,11 @@ class _ErrorCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: const Color(0xFFFFF1F2),
-          border: Border.all(color: const Color(0xFFFECDD3)),
+          color: const Tone.bg(0xFFFFF1F2),
+          border: Border.all(color: const Tone.line(0xFFFECDD3)),
           borderRadius: BorderRadius.circular(10),
         ),
-        child: Text(message, style: const TextStyle(fontSize: 13, color: Color(0xFF9F1239))),
+        child: Text(message, style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF9F1239))),
       );
 }
 
@@ -873,9 +873,9 @@ class _Sections extends StatelessWidget {
 /// CLOSING CHECKLIST: blocking first, then warnings, then complete (server order).
 /// The checklist's three boxes (CHECK_COLUMNS): Must fix / Warnings / Complete.
 const _checkColumns = [
-  ('Blocking', 'Must fix', 'Nothing blocking.', Color(0x80FFF1F2), Color(0xFFFECDD3), _rose700),
-  ('Warning', 'Warnings', 'No warnings.', Color(0x80FFFBEB), Color(0xFFFDE68A), _amber800),
-  ('Complete', 'Complete', 'Nothing complete yet.', Color(0x66ECFDF5), Color(0xFFA7F3D0), _emerald700),
+  ('Blocking', 'Must fix', 'Nothing blocking.', Tone(0x80FFF1F2), Tone(0xFFFECDD3), _rose700),
+  ('Warning', 'Warnings', 'No warnings.', Tone(0x80FFFBEB), Tone(0xFFFDE68A), _amber800),
+  ('Complete', 'Complete', 'Nothing complete yet.', Tone(0x66ECFDF5), Tone(0xFFA7F3D0), _emerald700),
 ];
 
 /// CLOSING CHECKLIST — blocking, warnings, complete, each in its own box (server
@@ -914,9 +914,9 @@ class _Checklist extends StatelessWidget {
                         Padding(
                           padding: const EdgeInsets.symmetric(vertical: 4),
                           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            const Icon(Icons.check_circle_outline, size: 16, color: Color(0xFF059669)),
+                            const Icon(Icons.check_circle_outline, size: 16, color: Tone.fg(0xFF059669)),
                             const SizedBox(width: 8),
-                            Expanded(child: Text('${c['title'] ?? ''}', style: const TextStyle(fontSize: 14, color: Color(0xFF475569)))),
+                            Expanded(child: Text('${c['title'] ?? ''}', style: const TextStyle(fontSize: 14, color: Tone.fg(0xFF475569)))),
                           ]),
                         ),
                     ],
@@ -932,7 +932,7 @@ class _Checklist extends StatelessWidget {
                 if (items.isEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
-                    child: Text(empty, style: const TextStyle(fontSize: 14, color: Color(0xFF64748B))),
+                    child: Text(empty, style: const TextStyle(fontSize: 14, color: Tone.fg(0xFF64748B))),
                   )
                 else
                   _ChecklistRows(checks: items, businessDate: businessDate, onOpen: onOpen),
@@ -958,9 +958,9 @@ class _ChecklistRows extends StatelessWidget {
         Builder(builder: (context) {
           final status = '${c['status']}';
           final (icon, color) = switch (status) {
-            'Complete' => (Icons.check_circle_outline, const Color(0xFF059669)),
-            'Warning' => (Icons.warning_amber_rounded, const Color(0xFFD97706)),
-            _ => (Icons.block, const Color(0xFFE11D48)),
+            'Complete' => (Icons.check_circle_outline, const Tone(0xFF059669)),
+            'Warning' => (Icons.warning_amber_rounded, const Tone(0xFFD97706)),
+            _ => (Icons.block, const Tone(0xFFE11D48)),
           };
           final href = status == 'Complete' ? null : closingActionHref(c['action'], businessDate);
           final linkLabel = status == 'Blocking' ? 'Resolve' : 'Review';
@@ -1030,13 +1030,13 @@ class _ClosedSummary extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: IntrinsicHeight(
         child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Container(width: 4, color: const Color(0xFF10B981)),
+          Container(width: 4, color: const Tone.bg(0xFF10B981)),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.all(14),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 Wrap(spacing: 8, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                  const Icon(Icons.lock, size: 16, color: _emerald600),
+                  const Icon(Icons.lock, size: 16, color: Tone.fg(0xFF059669)),
                   Text.rich(TextSpan(
                     text: '${formatLongDate(atClose['businessDate'])} — ',
                     style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
@@ -1078,13 +1078,13 @@ class _ChangesSinceClosing extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const ink = Color(0xFF78350F);
+    const ink = Tone.fg(0xFF78350F);
     String show(FigureChange c, num v) => c.kind == 'money' ? _money(v) : _qty(v, c.kind == 'quantity' ? 2 : 0);
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0x99FFFBEB),
-        border: Border.all(color: const Color(0xFFFDE68A)),
+        color: const Tone.bg(0x99FFFBEB),
+        border: Border.all(color: const Tone.line(0xFFFDE68A)),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -1099,20 +1099,20 @@ class _ChangesSinceClosing extends StatelessWidget {
         const Text(
           'Records for this day were added or corrected after it was closed. The closing keeps what it was closed '
           'with; reopen and close again to adopt the corrected figures.',
-          style: TextStyle(fontSize: 12, color: Color(0xCC78350F)),
+          style: TextStyle(fontSize: 12, color: Tone.fg(0xCC78350F)),
         ),
         for (final c in changes)
           Container(
             margin: const EdgeInsets.only(top: 8),
             padding: const EdgeInsets.only(top: 8),
-            decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xB3FDE68A)))),
+            decoration: const BoxDecoration(border: Border(top: BorderSide(color: Tone.line(0xB3FDE68A)))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Row(children: [
                 Expanded(child: Text(c.label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
                 Text('${c.delta > 0 ? '+' : ''}${show(c, c.delta)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
               ]),
               Text('State at closing ${show(c, c.atClose)} → Current corrected state ${show(c, c.current)}',
-                  style: const TextStyle(fontSize: 12, color: Color(0xCC78350F))),
+                  style: const TextStyle(fontSize: 12, color: Tone.fg(0xCC78350F))),
             ]),
           ),
       ]),
@@ -1231,7 +1231,7 @@ class _HistoryCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: stripe ? const Color(0xFFF8FAFC) : tokens.card,
+        color: stripe ? const Tone.bg(0xFFF8FAFC) : tokens.card,
         border: Border.all(color: tokens.border),
         borderRadius: BorderRadius.circular(10),
       ),
@@ -1246,11 +1246,11 @@ class _HistoryCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
-              color: closed ? const Color(0xFFD1FAE5) : const Color(0xFFF1F5F9),
+              color: closed ? const Tone.bg(0xFFD1FAE5) : const Tone.bg(0xFFF1F5F9),
               borderRadius: BorderRadius.circular(999),
             ),
             child: Text(closingStatusLabel(h),
-                style: TextStyle(fontSize: 12, color: closed ? _emerald700 : const Color(0xFF475569))),
+                style: TextStyle(fontSize: 12, color: closed ? _emerald700 : const Tone.fg(0xFF475569))),
           ),
         ]),
         const SizedBox(height: 8),
@@ -1258,13 +1258,13 @@ class _HistoryCard extends StatelessWidget {
         Row(children: [
           tile('Sales', money(h['revenue']), _emerald700),
           const SizedBox(width: 8),
-          tile('Credit sales', money(h['creditSales']), _n(h['creditSales']) > 0 ? _rose700 : const Color(0xFF475569)),
+          tile('Credit sales', money(h['creditSales']), _n(h['creditSales']) > 0 ? _rose700 : const Tone(0xFF475569)),
         ]),
         const SizedBox(height: 8),
         Row(children: [
           tile('Expenses', money(h['expenses']), _amber800),
           const SizedBox(width: 8),
-          tile('Net cash', money(net), _n(net) < 0 ? _rose700 : const Color(0xFF1D4ED8)),
+          tile('Net cash', money(net), _n(net) < 0 ? _rose700 : const Tone(0xFF1D4ED8)),
         ]),
         const SizedBox(height: 6),
         detail('Sales recorded', h['salesCount'] != null ? '${h['salesCount']}' : '—'),
@@ -1329,22 +1329,22 @@ class _CloseDayDialogState extends State<_CloseDayDialog> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFFBEB),
-                border: Border.all(color: const Color(0xFFFDE68A)),
+                color: const Tone.bg(0xFFFFFBEB),
+                border: Border.all(color: const Tone.line(0xFFFDE68A)),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
-                  const Icon(Icons.warning_amber_rounded, size: 16, color: Color(0xFF78350F)),
+                  const Icon(Icons.warning_amber_rounded, size: 16, color: Tone.fg(0xFF78350F)),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text('Closing with ${w.length} warning${w.length == 1 ? '' : 's'}',
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF78350F))),
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Tone.fg(0xFF78350F))),
                   ),
                 ]),
                 const SizedBox(height: 4),
                 for (final x in w)
-                  Text('• ${x['title'] ?? ''}', style: const TextStyle(fontSize: 13, color: Color(0xFF78350F))),
+                  Text('• ${x['title'] ?? ''}', style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF78350F))),
               ]),
             ),
           ],
@@ -1357,7 +1357,7 @@ class _CloseDayDialogState extends State<_CloseDayDialog> {
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
         FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: _emerald600),
+          style: FilledButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFF059669))),
           onPressed: () => Navigator.pop(context, _notes.text),
           child: const Text('Close Business Day'),
         ),

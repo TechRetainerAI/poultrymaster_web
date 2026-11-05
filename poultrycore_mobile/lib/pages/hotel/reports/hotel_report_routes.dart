@@ -13,10 +13,11 @@ import 'hotel_page_report_defs.dart';
 import 'hotel_report_defs.dart';
 import 'hotel_reports_catalog.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 final hotelReportFlavor = ReportFlavor(
   accent: TColors.violet600,
   accentSoft: TColors.violet50,
-  accentBorder: const Color(0xFFC4B5FD),
+  accentBorder: const Tone.line(0xFFC4B5FD),
   accentText: TColors.violet700,
   href: '/hotel-reports',
   profilePath: '/api/Hotel/setup/profile',

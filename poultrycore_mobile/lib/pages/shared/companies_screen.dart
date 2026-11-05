@@ -12,6 +12,7 @@ import '../../widgets/module_sidebar.dart';
 import '../lookup_loader.dart';
 import '../generic/generic_setup_wizard_screen.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Setup → Company → Companies ("My companies"), as `app/companies/page.tsx`.
 /// Shared by every company type: the owner's companies with the active one
 /// called out, Switch, and "New company".
@@ -59,11 +60,11 @@ const businessTypes = [
 /// CompanyIcon: the same mark and colour wherever a company is named.
 Widget companyIcon(String type) {
   final (icon, color) = switch (type) {
-    'Water' => (Icons.water_drop_outlined, const Color(0xFF0EA5E9)), // sky-500
-    'Poultry' => (Icons.flutter_dash, const Color(0xFFF97316)), // orange-500
-    'Restaurant' => (Icons.restaurant, const Color(0xFFE11D48)), // rose-600
-    'Hotel' => (Icons.business_outlined, const Color(0xFFA855F7)), // purple-500
-    _ => (Icons.business_outlined, const Color(0xFFF97316)),
+    'Water' => (Icons.water_drop_outlined, const Tone(0xFF0EA5E9)), // sky-500
+    'Poultry' => (Icons.flutter_dash, const Tone(0xFFF97316)), // orange-500
+    'Restaurant' => (Icons.restaurant, const Tone(0xFFE11D48)), // rose-600
+    'Hotel' => (Icons.business_outlined, const Tone(0xFFA855F7)), // purple-500
+    _ => (Icons.business_outlined, const Tone(0xFFF97316)),
   };
   return Icon(icon, size: 20, color: color);
 }
@@ -220,11 +221,11 @@ class _CompanyCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFD1FAE5), // emerald-100
+                    color: const Tone.bg(0xFFD1FAE5), // emerald-100
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: const Text('✓ Active',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF047857))),
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Tone.fg(0xFF047857))),
                 ),
             ],
           ),

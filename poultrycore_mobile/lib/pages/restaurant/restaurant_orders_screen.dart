@@ -26,15 +26,16 @@ import 'restaurant_order_money.dart';
 import 'restaurant_roles.dart' show restaurantRose;
 import 'restaurant_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 const orderStatusColors = <String, Color>{
-  'Placed': Color(0xFF3B82F6),
-  'Confirmed': Color(0xFF6366F1),
-  'Preparing': Color(0xFFF59E0B),
-  'Ready': Color(0xFF22C55E),
-  'Served': Color(0xFF14B8A6),
-  'Completed': Color(0xFF6B7280),
-  'Cancelled': Color(0xFFEF4444),
-  'Refunded': Color(0xFFEC4899),
+  'Placed': Tone(0xFF3B82F6),
+  'Confirmed': Tone(0xFF6366F1),
+  'Preparing': Tone(0xFFF59E0B),
+  'Ready': Tone(0xFF22C55E),
+  'Served': Tone(0xFF14B8A6),
+  'Completed': Tone(0xFF6B7280),
+  'Cancelled': Tone(0xFFEF4444),
+  'Refunded': Tone(0xFFEC4899),
 };
 const orderStatusFlow = <String, List<String>>{
   'Placed': ['Confirmed', 'Cancelled'],
@@ -264,15 +265,15 @@ class _RestaurantOrdersScreenState extends State<RestaurantOrdersScreen> {
       margin: const EdgeInsets.only(bottom: 8),
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: online ? const Color(0x66FFF1F2) : Colors.white,
-        border: Border.all(color: online ? const Color(0xFFFECDD3) : TColors.slate200),
+        color: online ? const Tone.bg(0x66FFF1F2) : Tone.bg(0xFFFFFFFF),
+        border: Border.all(color: online ? const Tone.line(0xFFFECDD3) : TColors.slate200),
         borderRadius: BorderRadius.circular(12),
       ),
       child: InkWell(
         onTap: () => _openDetail(o),
         child: IntrinsicHeight(
           child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Container(width: 6, color: online ? const Color(0xFFF43F5E) : Colors.transparent),
+            Container(width: 6, color: online ? const Tone.bg(0xFFF43F5E) : Colors.transparent),
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(10, 12, 8, 12),
@@ -282,17 +283,17 @@ class _RestaurantOrdersScreenState extends State<RestaurantOrdersScreen> {
                       child: Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
                         Text(tStr(o['orderNumber']), style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.w700)),
                         online
-                            ? rBadge(onlineLabel(o), bg: const Color(0xFFE11D48), fg: Colors.white)
-                            : rBadge('WALK-IN', bg: Colors.white, fg: TColors.slate500, border: TColors.slate200),
-                        rBadge(tStr(o['orderType']), bg: Colors.white, border: TColors.slate200),
-                        rBadge(status, bg: orderStatusColors[status] ?? const Color(0xFF6B7280), fg: Colors.white),
-                        if (tStr(o['paymentStatus']) == 'Paid') rBadge('Paid', bg: const Color(0xFFDCFCE7), fg: const Color(0xFF15803D)),
-                        if (online && status == 'Placed') rBadge('Awaiting confirmation', bg: const Color(0xFFFEF3C7), fg: const Color(0xFF92400E)),
-                        if (o['customerId'] != null) rBadge('✓ Customer', bg: const Color(0xFFD1FAE5), fg: const Color(0xFF065F46)),
+                            ? rBadge(onlineLabel(o), bg: const Tone.bg(0xFFE11D48), fg: Colors.white)
+                            : rBadge('WALK-IN', bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate500, border: TColors.slate200),
+                        rBadge(tStr(o['orderType']), bg: Tone.bg(0xFFFFFFFF), border: TColors.slate200),
+                        rBadge(status, bg: orderStatusColors[status] ?? const Tone.bg(0xFF6B7280), fg: Colors.white),
+                        if (tStr(o['paymentStatus']) == 'Paid') rBadge('Paid', bg: const Tone.bg(0xFFDCFCE7), fg: const Tone.fg(0xFF15803D)),
+                        if (online && status == 'Placed') rBadge('Awaiting confirmation', bg: const Tone.bg(0xFFFEF3C7), fg: const Tone.fg(0xFF92400E)),
+                        if (o['customerId'] != null) rBadge('✓ Customer', bg: const Tone.bg(0xFFD1FAE5), fg: const Tone.fg(0xFF065F46)),
                       ]),
                     ),
                     Text(tNum(o['totalAmount']).toStringAsFixed(2), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
-                    const Icon(Icons.chevron_right, size: 18, color: Color(0xFFD1D5DB)),
+                    const Icon(Icons.chevron_right, size: 18, color: Tone.fg(0xFFD1D5DB)),
                   ]),
                   const SizedBox(height: 4),
                   Wrap(spacing: 12, runSpacing: 2, children: [
@@ -302,7 +303,7 @@ class _RestaurantOrdersScreenState extends State<RestaurantOrdersScreen> {
                     meta(null, '${tNum(o['itemCount']).toInt()} items'),
                     if (tStr(o['customerPhone']).isNotEmpty) meta(Icons.phone_outlined, tStr(o['customerPhone'])),
                     if (tStr(o['guestPaymentIntent']).isNotEmpty)
-                      meta(null, 'Plans to pay by ${tStr(o['guestPaymentIntent'])}', color: const Color(0xFFE11D48)),
+                      meta(null, 'Plans to pay by ${tStr(o['guestPaymentIntent'])}', color: const Tone(0xFFE11D48)),
                   ]),
                   if (orderStatusFlow[status] != null) ...[
                     const SizedBox(height: 8),
@@ -310,7 +311,7 @@ class _RestaurantOrdersScreenState extends State<RestaurantOrdersScreen> {
                       for (final next in orderStatusFlow[status]!)
                         FilledButton(
                           style: FilledButton.styleFrom(
-                            backgroundColor: next == 'Cancelled' ? const Color(0xFFEF4444) : restaurantRose,
+                            backgroundColor: Tone.button(next == 'Cancelled' ? const Tone.bg(0xFFEF4444) : restaurantRose),
                             visualDensity: VisualDensity.compact,
                           ),
                           onPressed: () => changeOrderStatus(context, _api, _farmId, o, next, onDone: _load),
@@ -459,7 +460,7 @@ class _OrderDetailDialogState extends State<_OrderDetailDialog> {
     final canPayLater = canPay && o['customerId'] != null && status != 'Completed';
     Widget fact(String k, String v) => Container(
           padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: const Color(0xFFF9FAFB), borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(color: const Tone.bg(0xFFF9FAFB), borderRadius: BorderRadius.circular(8)),
           child: Row(children: [
             Text(k, style: const TextStyle(fontSize: 13, color: TColors.slate500)),
             const SizedBox(width: 8),
@@ -472,7 +473,7 @@ class _OrderDetailDialogState extends State<_OrderDetailDialog> {
             Text(k, style: TextStyle(fontSize: bold ? 17 : 14, fontWeight: bold ? FontWeight.w700 : null, color: color ?? (bold ? null : TColors.slate500))),
             const Spacer(),
             Text('${neg ? '-' : ''}${v.toStringAsFixed(2)}',
-                style: TextStyle(fontSize: bold ? 17 : 14, fontWeight: bold ? FontWeight.w700 : null, color: bold ? const Color(0xFFBE123C) : color)),
+                style: TextStyle(fontSize: bold ? 17 : 14, fontWeight: bold ? FontWeight.w700 : null, color: bold ? const Tone.fg(0xFFBE123C) : color)),
           ]),
         );
     final contact = <Widget>[
@@ -488,9 +489,9 @@ class _OrderDetailDialogState extends State<_OrderDetailDialog> {
       title: Wrap(spacing: 8, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
         Text(tStr(o['orderNumber'])),
         online
-            ? rBadge(onlineLabel(o), bg: const Color(0xFFE11D48), fg: Colors.white)
-            : rBadge('WALK-IN', bg: Colors.white, fg: TColors.slate500, border: TColors.slate200),
-        rBadge(status, bg: orderStatusColors[status] ?? const Color(0xFF6B7280), fg: Colors.white),
+            ? rBadge(onlineLabel(o), bg: const Tone.bg(0xFFE11D48), fg: Colors.white)
+            : rBadge('WALK-IN', bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate500, border: TColors.slate200),
+        rBadge(status, bg: orderStatusColors[status] ?? const Tone.bg(0xFF6B7280), fg: Colors.white),
       ]),
       content: SizedBox(
         width: 480,
@@ -510,12 +511,12 @@ class _OrderDetailDialogState extends State<_OrderDetailDialog> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                  color: const Color(0x99FFF1F2), border: Border.all(color: const Color(0xFFFECDD3)), borderRadius: BorderRadius.circular(12)),
+                  color: const Tone.bg(0x99FFF1F2), border: Border.all(color: const Tone.line(0xFFFECDD3)), borderRadius: BorderRadius.circular(12)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Row(children: [
-                  Icon(Icons.public, size: 14, color: Color(0xFFBE123C)),
+                  Icon(Icons.public, size: 14, color: Tone.fg(0xFFBE123C)),
                   SizedBox(width: 6),
-                  Text('ONLINE ORDER', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: .6, color: Color(0xFFBE123C))),
+                  Text('ONLINE ORDER', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: .6, color: Tone.fg(0xFFBE123C))),
                 ]),
                 const SizedBox(height: 6),
                 ...contact,
@@ -528,7 +529,7 @@ class _OrderDetailDialogState extends State<_OrderDetailDialog> {
                         TextSpan(text: ' New Guest Orders', style: TextStyle(fontWeight: FontWeight.w500)),
                         TextSpan(text: '.'),
                       ]),
-                      style: TextStyle(fontSize: 12, color: Color(0xFF92400E)),
+                      style: TextStyle(fontSize: 12, color: Tone.fg(0xFF92400E)),
                     ),
                   ),
               ]),
@@ -540,13 +541,13 @@ class _OrderDetailDialogState extends State<_OrderDetailDialog> {
                 ? Container(
                     padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
                     decoration: BoxDecoration(
-                        color: const Color(0xFFECFDF5), border: Border.all(color: const Color(0xFFA7F3D0)), borderRadius: BorderRadius.circular(12)),
+                        color: const Tone.bg(0xFFECFDF5), border: Border.all(color: const Tone.line(0xFFA7F3D0)), borderRadius: BorderRadius.circular(12)),
                     child: Row(children: [
-                      const Icon(Icons.how_to_reg_outlined, size: 16, color: Color(0xFF065F46)),
+                      const Icon(Icons.how_to_reg_outlined, size: 16, color: Tone.fg(0xFF065F46)),
                       const SizedBox(width: 8),
-                      const Expanded(child: Text('Saved as a customer.', style: TextStyle(fontSize: 14, color: Color(0xFF065F46)))),
+                      const Expanded(child: Text('Saved as a customer.', style: TextStyle(fontSize: 14, color: Tone.fg(0xFF065F46)))),
                       TextButton(
-                        style: TextButton.styleFrom(foregroundColor: const Color(0xFF065F46)),
+                        style: TextButton.styleFrom(foregroundColor: const Tone.fg(0xFF065F46)),
                         onPressed: () => openAppHref(context, widget.session, widget.company, '/restaurant-crm', label: 'Customers & CRM'),
                         child: const Text('View ›'),
                       ),
@@ -555,9 +556,9 @@ class _OrderDetailDialogState extends State<_OrderDetailDialog> {
                 : Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                        color: const Color(0x80FFF1F2), border: Border.all(color: const Color(0xFFFECDD3)), borderRadius: BorderRadius.circular(12)),
+                        color: const Tone.bg(0x80FFF1F2), border: Border.all(color: const Tone.line(0xFFFECDD3)), borderRadius: BorderRadius.circular(12)),
                     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      const Icon(Icons.star_border, size: 16, color: Color(0xFFF43F5E)),
+                      const Icon(Icons.star_border, size: 16, color: Tone.fg(0xFFF43F5E)),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -568,7 +569,7 @@ class _OrderDetailDialogState extends State<_OrderDetailDialog> {
                               style: const TextStyle(fontSize: 12, color: TColors.slate500)),
                           const SizedBox(height: 8),
                           FilledButton.icon(
-                            style: FilledButton.styleFrom(backgroundColor: restaurantRose, visualDensity: VisualDensity.compact),
+                            style: FilledButton.styleFrom(backgroundColor: Tone.button(restaurantRose), visualDensity: VisualDensity.compact),
                             onPressed: _linking ? null : _addAsCustomer,
                             icon: const Icon(Icons.person_add_alt, size: 14),
                             label: const Text('Add this person as a customer'),
@@ -583,7 +584,7 @@ class _OrderDetailDialogState extends State<_OrderDetailDialog> {
             decoration: BoxDecoration(border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Container(
-                color: const Color(0xFFF9FAFB),
+                color: const Tone.bg(0xFFF9FAFB),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 child: const Text('ITEMS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, letterSpacing: .6, color: TColors.slate500)),
               ),
@@ -594,9 +595,9 @@ class _OrderDetailDialogState extends State<_OrderDetailDialog> {
                   child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Expanded(
                       child: Wrap(spacing: 6, runSpacing: 2, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                        Text('${tNum(i['quantity']).toInt()}x', style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFFE11D48))),
+                        Text('${tNum(i['quantity']).toInt()}x', style: const TextStyle(fontWeight: FontWeight.w600, color: Tone.fg(0xFFE11D48))),
                         Text(tStr(i['itemName']), style: const TextStyle(fontWeight: FontWeight.w500)),
-                        rBadge(tStr(i['status']), bg: Colors.white, border: TColors.slate200),
+                        rBadge(tStr(i['status']), bg: Tone.bg(0xFFFFFFFF), border: TColors.slate200),
                         if (tStr(i['notes']).isNotEmpty)
                           Text(tStr(i['notes']), style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: TColors.slate500)),
                       ]),
@@ -608,7 +609,7 @@ class _OrderDetailDialogState extends State<_OrderDetailDialog> {
           ),
           const SizedBox(height: 10),
           sum('Subtotal', tNum(o['subtotal'])),
-          if (tNum(o['discountAmount']) > 0) sum('Discount', tNum(o['discountAmount']), color: const Color(0xFFDC2626), neg: true),
+          if (tNum(o['discountAmount']) > 0) sum('Discount', tNum(o['discountAmount']), color: const Tone(0xFFDC2626), neg: true),
           if (tNum(o['serviceChargeAmount']) > 0) sum('Service charge', tNum(o['serviceChargeAmount'])),
           if (tNum(o['taxAmount']) > 0) sum('Tax', tNum(o['taxAmount'])),
           const Divider(height: 14),
@@ -622,7 +623,7 @@ class _OrderDetailDialogState extends State<_OrderDetailDialog> {
                   style: TextStyle(
                       fontSize: 14,
                       fontWeight: tStr(o['paymentStatus']) == 'Paid' ? FontWeight.w500 : null,
-                      color: tStr(o['paymentStatus']) == 'Paid' ? const Color(0xFF16A34A) : const Color(0xFFD97706))),
+                      color: tStr(o['paymentStatus']) == 'Paid' ? const Tone.fg(0xFF16A34A) : const Tone.fg(0xFFD97706))),
             ),
           ]),
           if (orderStatusFlow[status] != null) ...[
@@ -632,7 +633,7 @@ class _OrderDetailDialogState extends State<_OrderDetailDialog> {
                 if (i > 0) const SizedBox(width: 8),
                 Expanded(
                   child: FilledButton(
-                    style: FilledButton.styleFrom(backgroundColor: next == 'Cancelled' ? const Color(0xFFEF4444) : restaurantRose),
+                    style: FilledButton.styleFrom(backgroundColor: Tone.button(next == 'Cancelled' ? const Tone.bg(0xFFEF4444) : restaurantRose)),
                     onPressed: () => _status(next),
                     child: Text('Move to $next'),
                   ),
@@ -645,21 +646,21 @@ class _OrderDetailDialogState extends State<_OrderDetailDialog> {
             Wrap(spacing: 8, runSpacing: 8, children: [
               if (canPay)
                 OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFF15803D), side: const BorderSide(color: Color(0xFF86EFAC))),
+                  style: OutlinedButton.styleFrom(foregroundColor: const Tone.fg(0xFF15803D), side: const BorderSide(color: Tone.line(0xFF86EFAC))),
                   onPressed: _pay,
                   icon: const Icon(Icons.attach_money, size: 16),
                   label: Text('Take payment (${(total - paid).toStringAsFixed(2)})'),
                 ),
               if (canPayLater)
                 OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFFB45309), side: const BorderSide(color: Color(0xFFFCD34D))),
+                  style: OutlinedButton.styleFrom(foregroundColor: const Tone.fg(0xFFB45309), side: const BorderSide(color: Tone.line(0xFFFCD34D))),
                   onPressed: _payLater,
                   icon: const Icon(Icons.schedule, size: 16),
                   label: const Text('Pay later'),
                 ),
               if (canRefund)
                 OutlinedButton(
-                  style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFFBE123C), side: const BorderSide(color: Color(0xFFFDA4AF))),
+                  style: OutlinedButton.styleFrom(foregroundColor: const Tone.fg(0xFFBE123C), side: const BorderSide(color: Tone.line(0xFFFDA4AF))),
                   onPressed: _refund,
                   child: const Text('Refund'),
                 ),
@@ -674,9 +675,9 @@ class _OrderDetailDialogState extends State<_OrderDetailDialog> {
   Widget _contact(IconData icon, String text) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
         child: Row(children: [
-          Icon(icon, size: 14, color: const Color(0xFF9CA3AF)),
+          Icon(icon, size: 14, color: const Tone.fg(0xFF9CA3AF)),
           const SizedBox(width: 8),
-          Expanded(child: Text(text, style: const TextStyle(fontSize: 14, color: Color(0xFF374151)))),
+          Expanded(child: Text(text, style: const TextStyle(fontSize: 14, color: Tone.fg(0xFF374151)))),
         ]),
       );
 }
@@ -732,7 +733,7 @@ class _PayLaterDialogState extends State<_PayLaterDialog> {
       actions: [
         rCancel(context, 'Cancel', busy: _saving),
         FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: restaurantRose),
+          style: FilledButton.styleFrom(backgroundColor: Tone.button(restaurantRose)),
           onPressed: _saving ? null : _confirm,
           child: const Text('Complete as pay later'),
         ),

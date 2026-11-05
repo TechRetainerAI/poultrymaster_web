@@ -18,6 +18,7 @@ import 'sale_form_screen.dart';
 import 'sale_reversal.dart';
 import 'sales_logic.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Poultry → Sales, Expenses & Money → Sales → Sales, as `app/sales/page.tsx`
 /// (the phone layout: search, Filters sheet, PDF, Email, cards with a table
 /// view). [initialDate] is the web's `?date=` (Daily Closing's Review link)
@@ -621,8 +622,8 @@ class _SalesScreenState extends State<SalesScreen> {
               Container(
                 width: 40,
                 height: 40,
-                decoration: BoxDecoration(color: const Color(0xFFDCFCE7), borderRadius: BorderRadius.circular(8)),
-                child: const Icon(Icons.shopping_cart_outlined, size: 20, color: Color(0xFF16A34A)),
+                decoration: BoxDecoration(color: const Tone.bg(0xFFDCFCE7), borderRadius: BorderRadius.circular(8)),
+                child: const Icon(Icons.shopping_cart_outlined, size: 20, color: Tone.fg(0xFF16A34A)),
               ),
               const SizedBox(width: 12),
               const Expanded(
@@ -634,7 +635,7 @@ class _SalesScreenState extends State<SalesScreen> {
             ]),
             const SizedBox(height: 12),
             FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: TColors.blue600, minimumSize: const Size.fromHeight(44)),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.blue600), minimumSize: const Size.fromHeight(44)),
               onPressed: () => _openForm(),
               icon: const Icon(Icons.add, size: 18),
               label: const Text('Add Sale'),
@@ -644,8 +645,8 @@ class _SalesScreenState extends State<SalesScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF0F9FF),
-                  border: Border.all(color: const Color(0xFFBAE6FD)),
+                  color: const Tone.bg(0xFFF0F9FF),
+                  border: Border.all(color: const Tone.line(0xFFBAE6FD)),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Row(children: [
@@ -654,7 +655,7 @@ class _SalesScreenState extends State<SalesScreen> {
                       const TextSpan(text: 'Showing sale '),
                       TextSpan(text: 'S$_focusSaleId', style: const TextStyle(fontWeight: FontWeight.w700)),
                       const TextSpan(text: ' only.'),
-                    ]), style: const TextStyle(fontSize: 13, color: Color(0xFF0C4A6E))),
+                    ]), style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF0C4A6E))),
                   ),
                   TextButton(onPressed: () => setState(() => _focusSaleId = null), child: const Text('Show all sales')),
                 ]),
@@ -680,7 +681,7 @@ class _SalesScreenState extends State<SalesScreen> {
                       const SizedBox(width: 6),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                        decoration: BoxDecoration(color: const Color(0xFFF97316), borderRadius: BorderRadius.circular(999)),
+                        decoration: BoxDecoration(color: const Tone.bg(0xFFF97316), borderRadius: BorderRadius.circular(999)),
                         child: Text('$activeCount', style: const TextStyle(fontSize: 12, color: Colors.white)),
                       ),
                     ],
@@ -726,7 +727,7 @@ class _SalesScreenState extends State<SalesScreen> {
                     const Text('Get started by adding your first sale', style: TextStyle(color: TColors.slate600)),
                     const SizedBox(height: 18),
                     FilledButton.icon(
-                      style: FilledButton.styleFrom(backgroundColor: TColors.blue600),
+                      style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.blue600)),
                       onPressed: () => _openForm(),
                       icon: const Icon(Icons.add, size: 18),
                       label: const Text('Add Your First Sale'),
@@ -770,7 +771,7 @@ class _SalesScreenState extends State<SalesScreen> {
     Widget card(String title, IconData icon, String value, String sub) => Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Tone.bg(0xFFFFFFFF),
             border: Border.all(color: TColors.slate200),
             borderRadius: BorderRadius.circular(12),
           ),
@@ -823,7 +824,7 @@ class _SalesScreenState extends State<SalesScreen> {
         ]);
     Widget action(String label, IconData icon, VoidCallback onTap, {Color? fg, Color? border}) => OutlinedButton.icon(
           style: OutlinedButton.styleFrom(
-            backgroundColor: Colors.white,
+            backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)),
             foregroundColor: fg ?? TColors.slate800,
             side: border == null ? null : BorderSide(color: border),
             minimumSize: const Size.fromHeight(40),
@@ -840,7 +841,7 @@ class _SalesScreenState extends State<SalesScreen> {
       action('Invoice', Icons.description_outlined, () => _invoice(s)),
       action('Payments', Icons.history, () => _history(s)),
       if (!reversed) action('Reverse', Icons.undo, () => _reverse(s, 'reverse'), fg: TColors.red600, border: TColors.red200),
-      if (_canRepost(s)) action('Edit & repost', Icons.restart_alt, () => _repost(s), fg: const Color(0xFF1D4ED8), border: TColors.blue200),
+      if (_canRepost(s)) action('Edit & repost', Icons.restart_alt, () => _repost(s), fg: const Tone.fg(0xFF1D4ED8), border: TColors.blue200),
     ];
     return _SaleCard(
       key: ValueKey('sale-${s['saleId']}'),
@@ -957,7 +958,7 @@ class _SalesScreenState extends State<SalesScreen> {
       cell(_money(tNum(s['totalAmount'])), bold: true),
       cell(_money(salePaid(s)), color: TColors.emerald700),
       cell(_money(saleOwed(s)), color: saleOwed(s) > 0 ? TColors.amber700 : TColors.slate400, bold: saleOwed(s) > 0),
-      t(TBadge(tStr(s['paymentMethod']), bg: Colors.white, fg: TColors.slate800, border: TColors.slate200)),
+      t(TBadge(tStr(s['paymentMethod']), bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate800, border: TColors.slate200)),
       _statusBadge(s),
       Row(mainAxisSize: MainAxisSize.min, children: [
         if (!reversed && saleOwed(s) > 0)
@@ -967,7 +968,7 @@ class _SalesScreenState extends State<SalesScreen> {
         icon('View sale · correct or reverse it', Icons.visibility_outlined, () => _view(s)),
         if (!reversed) icon('Reverse sale', Icons.undo, () => _reverse(s, 'reverse'), color: TColors.red600),
         if (_canRepost(s))
-          icon('Edit & repost -- enter it again, fixed, as a new sale', Icons.restart_alt, () => _repost(s), color: const Color(0xFF1D4ED8)),
+          icon('Edit & repost -- enter it again, fixed, as a new sale', Icons.restart_alt, () => _repost(s), color: const Tone.fg(0xFF1D4ED8)),
         icon('View invoice', Icons.description_outlined, () => _invoice(s)),
       ]),
     ];
@@ -1050,7 +1051,7 @@ class _SaleCardState extends State<_SaleCard> {
   @override
   Widget build(BuildContext context) => Container(
         decoration: BoxDecoration(
-          color: widget.striped ? TColors.amber100 : Colors.white,
+          color: widget.striped ? TColors.amber100 : Tone.bg(0xFFFFFFFF),
           border: Border.all(color: widget.striped ? TColors.amber300 : TColors.slate200),
           borderRadius: BorderRadius.circular(12),
         ),

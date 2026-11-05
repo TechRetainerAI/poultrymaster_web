@@ -16,6 +16,7 @@ import '../poultry/trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../poultry/trackers/tracker_widgets.dart';
 import '../shared/business_dates.dart';
 import '../shared/company_clock.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import '../shared/reason_select.dart' show ReasonSelectField, lossReasons, unapproveReasons;
 import 'water_production_screen.dart' show WaterProductionDetailScreen;
 import 'water_raw_materials_screen.dart' show filterWaterRows, numText;
@@ -32,7 +33,7 @@ const waterLossTypes = [
 Widget waterLossStatusBadge(Object? status) {
   final s = tStr(status).isEmpty ? 'Pending' : tStr(status);
   final (bg, fg) = switch (s) {
-    'Approved' => (const Color(0xFFDCFCE7), const Color(0xFF15803D)),
+    'Approved' => (const Tone(0xFFDCFCE7), const Tone(0xFF15803D)),
     'Pending' || 'Reopened' => (TColors.amber100, TColors.amber700),
     _ => (TColors.slate100, TColors.slate700),
   };
@@ -42,7 +43,7 @@ Widget waterLossStatusBadge(Object? status) {
 Widget waterProductionLossBadge(Object? status) {
   final s = tStr(status);
   return s == 'Approved'
-      ? TBadge(s, bg: const Color(0xFFFFE4E6), fg: const Color(0xFF9F1239))
+      ? TBadge(s, bg: const Tone.bg(0xFFFFE4E6), fg: const Tone.fg(0xFF9F1239))
       : TBadge(s, bg: TColors.slate100, fg: TColors.slate700);
 }
 
@@ -160,14 +161,14 @@ class _WaterLossRecordsScreenState extends State<WaterLossRecordsScreen> {
         if (!_approved(l))
           OutlinedButton.icon(
             onPressed: () => _approve(l),
-            style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFF15803D), side: const BorderSide(color: Color(0xFFBBF7D0))),
+            style: OutlinedButton.styleFrom(foregroundColor: const Tone.fg(0xFF15803D), side: const BorderSide(color: Tone.line(0xFFBBF7D0))),
             icon: const Icon(Icons.check_circle_outline, size: 16),
             label: const Text('Approve'),
           ),
         if (_approved(l))
           OutlinedButton.icon(
             onPressed: () => _unapprove(l),
-            style: OutlinedButton.styleFrom(foregroundColor: TColors.amber700, side: const BorderSide(color: Color(0xFFFDE68A))),
+            style: OutlinedButton.styleFrom(foregroundColor: TColors.amber700, side: const BorderSide(color: Tone.line(0xFFFDE68A))),
             icon: const Icon(Icons.undo, size: 16),
             label: const Text('Unapprove'),
           ),
@@ -175,7 +176,7 @@ class _WaterLossRecordsScreenState extends State<WaterLossRecordsScreen> {
 
   Widget _score(String label, String value) => Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
           Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: TColors.slate900)),
@@ -199,7 +200,7 @@ class _WaterLossRecordsScreenState extends State<WaterLossRecordsScreen> {
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
           children: [
             const Row(children: [
-              Icon(Icons.warning_amber_rounded, color: Color(0xFFE11D48)),
+              Icon(Icons.warning_amber_rounded, color: Tone.fg(0xFFE11D48)),
               SizedBox(width: 8),
               Flexible(child: Text('Loss records', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TColors.slate900))),
             ]),
@@ -248,7 +249,7 @@ class _WaterLossRecordsScreenState extends State<WaterLossRecordsScreen> {
             else if (_items.isEmpty)
               Container(
                 padding: const EdgeInsets.all(32),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
                 child: const Text('No losses recorded yet.', textAlign: TextAlign.center, style: TextStyle(color: TColors.slate500)),
               )
             else
@@ -282,7 +283,7 @@ class _WaterLossRecordsScreenState extends State<WaterLossRecordsScreen> {
                     for (final l in items)
                       [
                         cellText(fmtDateTime(l['lossDate'], l, _offset)),
-                        Align(alignment: Alignment.centerLeft, child: TBadge(tStr(l['lossType']), bg: Colors.white, fg: TColors.slate700, border: TColors.slate300)),
+                        Align(alignment: Alignment.centerLeft, child: TBadge(tStr(l['lossType']), bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate700, border: TColors.slate300)),
                         Align(alignment: Alignment.centerRight, child: cellText(qtyFmt(l['quantityBags']))),
                         Align(alignment: Alignment.centerRight, child: cellText(qtyFmt(l['quantitySachets']))),
                         Align(alignment: Alignment.centerRight, child: cellText(_gh(tNum(l['estimatedValue'])))),
@@ -291,7 +292,7 @@ class _WaterLossRecordsScreenState extends State<WaterLossRecordsScreen> {
                         Wrap(alignment: WrapAlignment.end, children: [
                           if (!_approved(l)) IconButton(tooltip: 'Edit', onPressed: () => _form(l), icon: const Icon(Icons.edit_outlined, size: 18)),
                           if (!_approved(l))
-                            IconButton(tooltip: 'Approve', onPressed: () => _approve(l), icon: const Icon(Icons.check_circle_outline, size: 18, color: Color(0xFF16A34A))),
+                            IconButton(tooltip: 'Approve', onPressed: () => _approve(l), icon: const Icon(Icons.check_circle_outline, size: 18, color: Tone.fg(0xFF16A34A))),
                           if (_approved(l))
                             IconButton(tooltip: 'Unapprove', onPressed: () => _unapprove(l), icon: const Icon(Icons.undo, size: 18, color: TColors.amber600)),
                         ]),
@@ -387,7 +388,7 @@ class _LossDialogState extends State<_LossDialog> {
   Widget build(BuildContext context) => AlertDialog(
         scrollable: true,
         title: Row(children: [
-          const Icon(Icons.warning_amber_rounded, size: 20, color: Color(0xFFE11D48)),
+          const Icon(Icons.warning_amber_rounded, size: 20, color: Tone.fg(0xFFE11D48)),
           const SizedBox(width: 8),
           Flexible(child: Text(e != null ? 'Edit loss record' : 'Record loss')),
         ]),
@@ -397,7 +398,7 @@ class _LossDialogState extends State<_LossDialog> {
             Text(e != null ? 'Update the loss details. Approved records must be Unapproved first.' : 'Log a loss for review and approval',
                 style: const TextStyle(fontSize: 13, color: TColors.slate500)),
             const SizedBox(height: 12),
-            formSection('Basics', const Color(0xFF4F46E5), [
+            formSection('Basics', const Tone(0xFF4F46E5), [
               FilterLabel(
                 'Date',
                 AppDateField(
@@ -425,7 +426,7 @@ class _LossDialogState extends State<_LossDialog> {
               ),
             ]),
             const SizedBox(height: 12),
-            formSection('Quantity & Value', const Color(0xFF2563EB), [
+            formSection('Quantity & Value', const Tone(0xFF2563EB), [
               FilterLabel('Bags', _num(_bags)),
               FilterLabel('Sachets', _num(_sachets)),
               FilterLabel('Estimated value', _num(_value, decimal: true)),
@@ -503,7 +504,7 @@ class _WaterProductionLossesScreenState extends State<WaterProductionLossesScree
 
   Widget _score(String label, String value, {Color? color}) => Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
           Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: color ?? TColors.slate900)),
@@ -533,8 +534,8 @@ class _WaterProductionLossesScreenState extends State<WaterProductionLossesScree
               Container(
                 width: 40,
                 height: 40,
-                decoration: BoxDecoration(color: const Color(0xFFFFE4E6), borderRadius: BorderRadius.circular(8)),
-                child: const Icon(Icons.trending_down, color: Color(0xFFE11D48)),
+                decoration: BoxDecoration(color: const Tone.bg(0xFFFFE4E6), borderRadius: BorderRadius.circular(8)),
+                child: const Icon(Icons.trending_down, color: Tone.fg(0xFFE11D48)),
               ),
               const SizedBox(width: 10),
               const Expanded(
@@ -549,7 +550,7 @@ class _WaterProductionLossesScreenState extends State<WaterProductionLossesScree
               _score('Records', '${approved.length}'),
               _score('Bags lost', qtyFmt(sum('bagsLost'))),
               _score('Sachets lost', qtyFmt(sum('sachetsLost'))),
-              _score('Total value', _gh(sum('totalValue')), color: const Color(0xFFBE123C)),
+              _score('Total value', _gh(sum('totalValue')), color: const Tone(0xFFBE123C)),
             ]),
             const SizedBox(height: 12),
             ListFiltersCard(
@@ -574,7 +575,7 @@ class _WaterProductionLossesScreenState extends State<WaterProductionLossesScree
             else if (_losses.isEmpty)
               Container(
                 padding: const EdgeInsets.all(32),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
                 child: const Text('No production losses recorded yet.', textAlign: TextAlign.center, style: TextStyle(color: TColors.slate500)),
               )
             else

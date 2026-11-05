@@ -33,6 +33,7 @@ import '../poultry/trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../poultry/trackers/tracker_widgets.dart';
 import 'hotel_kit.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 Object? _v(Map m, String k) => m[k] ?? m[k.toLowerCase()];
 String _dash(Object? v) => tStr(v).isEmpty ? '—' : tStr(v);
 String _money(Object? v) => tNum(v).toStringAsFixed(2);
@@ -78,7 +79,7 @@ Widget _loadingBox() => const Padding(padding: EdgeInsets.symmetric(vertical: 60
 
 Widget _chip(String label, bool on, VoidCallback tap, {Color? color}) => on
     ? FilledButton(
-        style: FilledButton.styleFrom(backgroundColor: color ?? hotelViolet, foregroundColor: Colors.white, minimumSize: const Size(0, 34)),
+        style: FilledButton.styleFrom(backgroundColor: Tone.button(color ?? hotelViolet), foregroundColor: Colors.white, minimumSize: const Size(0, 34)),
         onPressed: tap,
         child: Text(label),
       )
@@ -89,7 +90,7 @@ Widget _numberCard(String label, String value, Color color, {VoidCallback? onTap
       borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
         child: Column(children: [
           FittedBox(fit: BoxFit.scaleDown, child: Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: color))),
           Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
@@ -109,11 +110,11 @@ const bookingStatuses = [
 
 /// STATUS_COLORS: (bg, fg).
 const _bookingTone = {
-  'Confirmed': (Color(0xFFDBEAFE), Color(0xFF1D4ED8)),
-  'CheckedIn': (Color(0xFFD1FAE5), Color(0xFF047857)),
+  'Confirmed': (Tone(0xFFDBEAFE), Tone(0xFF1D4ED8)),
+  'CheckedIn': (Tone(0xFFD1FAE5), Tone(0xFF047857)),
   'CheckedOut': (TColors.slate100, TColors.slate700),
-  'Cancelled': (Color(0xFFFEE2E2), Color(0xFFB91C1C)),
-  'NoShow': (Color(0xFFFEF3C7), Color(0xFFB45309)),
+  'Cancelled': (Tone(0xFFFEE2E2), Tone(0xFFB91C1C)),
+  'NoShow': (Tone(0xFFFEF3C7), Tone(0xFFB45309)),
 };
 
 Widget bookingStatusBadge(Object? s) {
@@ -757,11 +758,11 @@ class _ReceiptDialog extends StatelessWidget {
 
 /// The bars' STATUS_COLORS: (bg, border, text).
 const _barTone = {
-  'Confirmed': (Color(0xFFBFDBFE), Color(0xFF60A5FA), Color(0xFF1E3A8A)),
-  'CheckedIn': (Color(0xFFA7F3D0), Color(0xFF34D399), Color(0xFF064E3B)),
+  'Confirmed': (Tone.bg(0xFFBFDBFE), Tone.bg(0xFF60A5FA), Tone.bg(0xFF1E3A8A)),
+  'CheckedIn': (Tone.bg(0xFFA7F3D0), Tone.bg(0xFF34D399), Tone.bg(0xFF064E3B)),
   'CheckedOut': (TColors.slate200, TColors.slate400, TColors.slate700),
-  'Cancelled': (Color(0xFFFEE2E2), Color(0xFFFCA5A5), Color(0xFFB91C1C)),
-  'NoShow': (Color(0xFFFDE68A), Color(0xFFFBBF24), Color(0xFF78350F)),
+  'Cancelled': (Tone.bg(0xFFFEE2E2), Tone.bg(0xFFFCA5A5), Tone.bg(0xFFB91C1C)),
+  'NoShow': (Tone.bg(0xFFFDE68A), Tone.bg(0xFFFBBF24), Tone.bg(0xFF78350F)),
 };
 
 const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -964,7 +965,7 @@ class _HotelBookingCalendarState extends State<HotelBookingCalendar> {
         child: Container(
           // The 1 px border on each side sits outside the columns.
           width: rw + dw * days + 2,
-          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
           clipBehavior: Clip.antiAlias,
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Container(
@@ -1160,7 +1161,7 @@ class _HotelGuestsScreenState extends State<HotelGuestsScreen> {
         IconButton(tooltip: 'Delete', onPressed: () => _delete(g), icon: const Icon(Icons.delete_outline, size: 18, color: TColors.red600)),
       ];
 
-  Widget _vipBadge() => hotelBadge('★ VIP', const Color(0xFFFEF3C7), const Color(0xFFB45309));
+  Widget _vipBadge() => hotelBadge('★ VIP', const Tone(0xFFFEF3C7), const Tone(0xFFB45309));
 
   @override
   Widget build(BuildContext context) {
@@ -1179,9 +1180,9 @@ class _HotelGuestsScreenState extends State<HotelGuestsScreen> {
           const SizedBox(height: 12),
           twoUp([
             _numberCard('Total Guests', '${_guests.length}', TColors.violet700),
-            _numberCard('VIP Guests', '${_guests.where(_isVip).length}', const Color(0xFFB45309), onTap: () => setState(() => _vip = !_vip)),
-            _numberCard('Total Bookings', '${_bookings.length}', const Color(0xFF1D4ED8)),
-            _numberCard('Total Revenue', revenue.toStringAsFixed(0), const Color(0xFF047857)),
+            _numberCard('VIP Guests', '${_guests.where(_isVip).length}', const Tone(0xFFB45309), onTap: () => setState(() => _vip = !_vip)),
+            _numberCard('Total Bookings', '${_bookings.length}', const Tone(0xFF1D4ED8)),
+            _numberCard('Total Revenue', revenue.toStringAsFixed(0), const Tone(0xFF047857)),
           ]),
           const SizedBox(height: 12),
           Row(children: [
@@ -1199,7 +1200,7 @@ class _HotelGuestsScreenState extends State<HotelGuestsScreen> {
               ),
             ),
             const SizedBox(width: 8),
-            _chip('★ VIP Only', _vip, () => setState(() => _vip = !_vip), color: const Color(0xFFD97706)),
+            _chip('★ VIP Only', _vip, () => setState(() => _vip = !_vip), color: const Tone.bg(0xFFD97706)),
           ]),
           const SizedBox(height: 12),
           if (_loading)
@@ -1367,7 +1368,7 @@ class _GuestDialogState extends State<_GuestDialog> {
             onTap: () => setState(() => _vip = !_vip),
             child: Row(children: [
               Checkbox(value: _vip, activeColor: hotelViolet, onChanged: (v) => setState(() => _vip = v ?? false)),
-              const Icon(Icons.star, size: 16, color: Color(0xFFF59E0B)),
+              const Icon(Icons.star, size: 16, color: Tone.fg(0xFFF59E0B)),
               const SizedBox(width: 4),
               const Text('VIP Guest', style: TextStyle(fontSize: 14)),
             ]),
@@ -1379,9 +1380,9 @@ class _GuestDialogState extends State<_GuestDialog> {
 
 /// Tier colours and the points each tier starts at.
 const _tierTone = {
-  'Bronze': (Color(0xFFFFEDD5), Color(0xFFC2410C)),
+  'Bronze': (Tone(0xFFFFEDD5), Tone(0xFFC2410C)),
   'Silver': (TColors.slate200, TColors.slate700),
-  'Gold': (Color(0xFFFEF3C7), Color(0xFFB45309)),
+  'Gold': (Tone(0xFFFEF3C7), Tone(0xFFB45309)),
   'Platinum': (TColors.violet100, TColors.violet700),
 };
 const _tierFrom = {'Bronze': 0, 'Silver': 2000, 'Gold': 5000, 'Platinum': 10000};
@@ -1512,7 +1513,7 @@ class _GuestProfileDialogState extends State<_GuestProfileDialog> {
       Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(colors: [TColors.violet50, Color(0xFFFFFBEB)]),
+          gradient: const LinearGradient(colors: [TColors.violet50, Tone.bg(0xFFFFFBEB)]),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(children: [
@@ -1556,7 +1557,7 @@ class _GuestProfileDialogState extends State<_GuestProfileDialog> {
             Expanded(child: Text(tStr(t['description']).isEmpty ? tStr(t['transactiontype']) : tStr(t['description']), style: const TextStyle(fontSize: 11, color: TColors.slate600))),
             Text(
               '${t['transactiontype'] == 'Redeem' ? '-' : '+'}${tNum(t['points']).abs().toInt()} pts',
-              style: TextStyle(fontSize: 11, color: t['transactiontype'] == 'Redeem' ? TColors.red600 : const Color(0xFF059669)),
+              style: TextStyle(fontSize: 11, color: t['transactiontype'] == 'Redeem' ? TColors.red600 : const Tone.fg(0xFF059669)),
             ),
           ]),
         ),
@@ -1585,7 +1586,7 @@ class _GuestProfileDialogState extends State<_GuestProfileDialog> {
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('${tStr(_v(g, 'firstName'))} ${tStr(_v(g, 'lastName'))}', style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700)),
-                if (widget.vip) hotelBadge('★ VIP Guest', const Color(0xFFFEF3C7), const Color(0xFFB45309)),
+                if (widget.vip) hotelBadge('★ VIP Guest', const Tone(0xFFFEF3C7), const Tone(0xFFB45309)),
               ]),
             ),
             Column(children: [
@@ -1845,9 +1846,9 @@ class _HotelCheckInScreenState extends State<HotelCheckInScreen> {
           _title(Icons.login, 'Front Desk'),
           const SizedBox(height: 12),
           twoUp([
-            _numberCard('Awaiting Check-in', '${_confirmed.length}', const Color(0xFF1D4ED8)),
-            _numberCard('Currently Checked In', '${_inHouse.length}', const Color(0xFF047857)),
-            _numberCard('Total Outstanding', _money(outstanding), const Color(0xFFB91C1C)),
+            _numberCard('Awaiting Check-in', '${_confirmed.length}', const Tone(0xFF1D4ED8)),
+            _numberCard('Currently Checked In', '${_inHouse.length}', const Tone(0xFF047857)),
+            _numberCard('Total Outstanding', _money(outstanding), const Tone(0xFFB91C1C)),
             _numberCard('Available Rooms', '${_rooms.length}', TColors.violet700),
           ]),
           const SizedBox(height: 12),
@@ -1879,7 +1880,7 @@ class _HotelCheckInScreenState extends State<HotelCheckInScreen> {
                   Container(
                     margin: const EdgeInsets.only(bottom: 10),
                     padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                    decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                       Text(_guestName(b), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
                       const SizedBox(height: 6),
@@ -1912,8 +1913,8 @@ class _HotelCheckInScreenState extends State<HotelCheckInScreen> {
                 primary: (g) => _guestName(g.booking),
                 secondary: (g) => 'Room ${_dash(_v(g.booking, 'roomNumber'))} · ${tStr(_v(g.booking, 'bookingRef'))}',
                 trailing: (g) => g.balance <= 0
-                    ? hotelBadge('Paid', const Color(0xFFD1FAE5), const Color(0xFF047857))
-                    : hotelBadge('Owes ${_money(g.balance)}', const Color(0xFFFEE2E2), const Color(0xFFB91C1C)),
+                    ? hotelBadge('Paid', const Tone(0xFFD1FAE5), const Tone(0xFF047857))
+                    : hotelBadge('Owes ${_money(g.balance)}', const Tone(0xFFFEE2E2), const Tone(0xFFB91C1C)),
                 details: (g) => [
                   ('Check-in', _day(_v(g.booking, 'checkInDate'))),
                   ('Check-out', _day(_v(g.booking, 'checkOutDate'))),
@@ -1941,20 +1942,20 @@ class _HotelCheckInScreenState extends State<HotelCheckInScreen> {
                     for (final g in items)
                       [
                         cellText(_guestName(g.booking), bold: true),
-                        Align(alignment: Alignment.centerLeft, child: hotelBadge(_dash(_v(g.booking, 'roomNumber')), const Color(0xFFECFDF5), const Color(0xFF047857))),
+                        Align(alignment: Alignment.centerLeft, child: hotelBadge(_dash(_v(g.booking, 'roomNumber')), const Tone(0xFFECFDF5), const Tone(0xFF047857))),
                         Text(tStr(_v(g.booking, 'bookingRef')), style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
                         cellText(_day(_v(g.booking, 'checkInDate'))),
                         cellText(_day(_v(g.booking, 'checkOutDate'))),
                         cellText(_money(_v(g.booking, 'totalAmount'))),
                         cellText(g.charges > 0 ? _money(g.charges) : '—'),
                         cellText(_money(g.grandTotal), bold: true),
-                        cellText(g.payments > 0 ? _money(g.payments) : '—', color: const Color(0xFF047857)),
-                        cellText(g.balance <= 0 ? '0.00' : _money(g.balance), bold: true, color: g.balance <= 0 ? const Color(0xFF047857) : const Color(0xFFB91C1C)),
+                        cellText(g.payments > 0 ? _money(g.payments) : '—', color: const Tone.fg(0xFF047857)),
+                        cellText(g.balance <= 0 ? '0.00' : _money(g.balance), bold: true, color: g.balance <= 0 ? const Tone.fg(0xFF047857) : const Tone.fg(0xFFB91C1C)),
                         Align(
                           alignment: Alignment.centerLeft,
                           child: g.balance <= 0
-                              ? hotelBadge('Paid', const Color(0xFFD1FAE5), const Color(0xFF047857))
-                              : hotelBadge('Owes ${_money(g.balance)}', const Color(0xFFFEE2E2), const Color(0xFFB91C1C)),
+                              ? hotelBadge('Paid', const Tone(0xFFD1FAE5), const Tone(0xFF047857))
+                              : hotelBadge('Owes ${_money(g.balance)}', const Tone(0xFFFEE2E2), const Tone(0xFFB91C1C)),
                         ),
                       ],
                   ],

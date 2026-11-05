@@ -28,6 +28,7 @@ import '../trackers/tracker_widgets.dart';
 import 'production_logic.dart';
 import 'production_record_form.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 class ProductionFilters {
   String search = '', from = '', to = '', batch = 'ALL', flock = 'ALL', month = 'ALL', year = 'ALL';
   int get activeCount => [search.isNotEmpty, from.isNotEmpty, to.isNotEmpty, batch != 'ALL', flock != 'ALL', month != 'ALL', year != 'ALL']
@@ -261,7 +262,7 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
               actions: [
                 TextButton(onPressed: busy ? null : () => Navigator.pop(ctx), child: const Text('Cancel')),
                 FilledButton(
-                  style: FilledButton.styleFrom(backgroundColor: TColors.red600),
+                  style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600)),
                   onPressed: busy
                       ? null
                       : () async {
@@ -589,7 +590,7 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
 
     Widget tile(String label, String value, {Color? color, String? suffix, Widget? note, Widget? right}) => Container(
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               Flexible(
@@ -645,7 +646,7 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
             ]),
             const SizedBox(height: 12),
             FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: TColors.emerald600, minimumSize: const Size.fromHeight(44)),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.emerald600), minimumSize: const Size.fromHeight(44)),
               onPressed: () => _openForm(),
               icon: const Icon(Icons.add, size: 18),
               label: const Text('Log Production'),
@@ -674,7 +675,7 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
                       const SizedBox(width: 6),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                        decoration: BoxDecoration(color: const Color(0xFFF97316), borderRadius: BorderRadius.circular(999)),
+                        decoration: BoxDecoration(color: const Tone.bg(0xFFF97316), borderRadius: BorderRadius.circular(999)),
                         child: Text('$active', style: const TextStyle(fontSize: 12, color: Colors.white)),
                       ),
                     ],
@@ -794,9 +795,9 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
     final mortality = tNum(r['mortality']);
     final picks = [
       ('1st Pick', 'production9AM', TColors.blue600),
-      ('2nd Pick', 'production12PM', const Color(0xFFC2410C)),
-      ('3rd Pick', 'production4PM', const Color(0xFF7E22CE)),
-      for (final (h, k) in _picks.extraColumns) (h, k, const Color(0xFF0F766E)),
+      ('2nd Pick', 'production12PM', const Tone(0xFFC2410C)),
+      ('3rd Pick', 'production4PM', const Tone(0xFF7E22CE)),
+      for (final (h, k) in _picks.extraColumns) (h, k, const Tone(0xFF0F766E)),
     ];
     return ProdCard(
       key: ValueKey('rec-${r['id']}'),
@@ -813,7 +814,7 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
             padding: EdgeInsets.only(top: 4),
             child: Align(
               alignment: Alignment.centerLeft,
-              child: TBadge('Production not filled', key: ValueKey('production-not-filled'), bg: Color(0xFFFFFBEB), fg: Color(0xFF92400E)),
+              child: TBadge('Production not filled', key: ValueKey('production-not-filled'), bg: Tone.bg(0xFFFFFBEB), fg: Tone.fg(0xFF92400E)),
             ),
           ),
         if (_batchOf(r) != '-')
@@ -823,11 +824,11 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
           Expanded(child: tile('Eggs', loc(tNum(r['totalProduction'])), TColors.emerald100, TColors.emerald300, TColors.emerald800)),
           const SizedBox(width: 8),
           Expanded(
-              child: tile('Birds Left', loc(tNum(r['noOfBirds']) - mortality), TColors.blue100, TColors.blue300, const Color(0xFF1E40AF))),
+              child: tile('Birds Left', loc(tNum(r['noOfBirds']) - mortality), TColors.blue100, TColors.blue300, const Tone(0xFF1E40AF))),
         ]),
         if (med.isNotEmpty && med != '-') ...[
           const SizedBox(height: 8),
-          tile('Medication', med, TColors.violet100, const Color(0xFFC4B5FD), const Color(0xFF4C1D95), wide: true),
+          tile('Medication', med, TColors.violet100, const Tone.bg(0xFFC4B5FD), const Tone.bg(0xFF4C1D95), wide: true),
         ],
       ]),
       body: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -844,7 +845,7 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
         Row(children: [
           Expanded(
             child: OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(backgroundColor: Colors.white, minimumSize: const Size.fromHeight(40)),
+              style: OutlinedButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)), minimumSize: const Size.fromHeight(40)),
               onPressed: () => _openForm(r),
               icon: const Icon(Icons.edit_outlined, size: 16),
               label: const Text('Edit'),
@@ -855,7 +856,7 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
             Expanded(
               child: OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
-                  backgroundColor: Colors.white,
+                  backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)),
                   foregroundColor: TColors.red600,
                   side: const BorderSide(color: TColors.red200),
                   minimumSize: const Size.fromHeight(40),
@@ -910,9 +911,9 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
             cellText(_batchOf(r), color: TColors.slate600),
             cellText(formatProductionAge(r)),
             cellText(loc(tNum(r['production9AM'])), color: TColors.blue600),
-            cellText(loc(tNum(r['production12PM'])), color: const Color(0xFFC2410C)),
-            cellText(loc(tNum(r['production4PM'])), color: const Color(0xFF7E22CE)),
-            for (final (_, k) in extra) cellText(loc(tNum(r[k])), color: const Color(0xFF0F766E)),
+            cellText(loc(tNum(r['production12PM'])), color: const Tone.fg(0xFFC2410C)),
+            cellText(loc(tNum(r['production4PM'])), color: const Tone.fg(0xFF7E22CE)),
+            for (final (_, k) in extra) cellText(loc(tNum(r[k])), color: const Tone.fg(0xFF0F766E)),
             cellText(loc(tNum(r['brokenEggs'])), color: TColors.red700),
             cellText(loc(tNum(r['totalProduction'])), bold: true),
             cellText(eggPercent(r) == null ? '-' : '${eggPercent(r)!.toStringAsFixed(1)}%'),
@@ -938,10 +939,10 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
             const SizedBox.shrink(),
             const SizedBox.shrink(),
             const SizedBox.shrink(),
-            withCrates(_sum(filtered, 'production9AM'), const Color(0xFF1E40AF)),
-            withCrates(_sum(filtered, 'production12PM'), const Color(0xFF9A3412)),
-            withCrates(_sum(filtered, 'production4PM'), const Color(0xFF6B21A8)),
-            for (final (_, k) in extra) withCrates(_sum(filtered, k), const Color(0xFF115E59)),
+            withCrates(_sum(filtered, 'production9AM'), const Tone(0xFF1E40AF)),
+            withCrates(_sum(filtered, 'production12PM'), const Tone(0xFF9A3412)),
+            withCrates(_sum(filtered, 'production4PM'), const Tone(0xFF6B21A8)),
+            for (final (_, k) in extra) withCrates(_sum(filtered, k), const Tone(0xFF115E59)),
             withCrates(_sum(filtered, 'brokenEggs'), TColors.red700),
             _eggsBoxes(t.eggs) == null
                 ? withCrates(t.eggs, TColors.emerald700)
@@ -1026,7 +1027,7 @@ class ProdCardState extends State<ProdCard> {
   @override
   Widget build(BuildContext context) => Container(
         decoration: BoxDecoration(
-          color: widget.striped ? TColors.amber100 : Colors.white,
+          color: widget.striped ? TColors.amber100 : Tone.bg(0xFFFFFFFF),
           border: Border.all(color: widget.striped ? TColors.amber300 : TColors.slate200),
           borderRadius: BorderRadius.circular(12),
         ),

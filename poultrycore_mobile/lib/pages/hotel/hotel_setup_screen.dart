@@ -16,14 +16,15 @@ import '../poultry/trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../poultry/trackers/tracker_widgets.dart';
 import 'hotel_kit.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 const _roomStatuses = ['Available', 'Occupied', 'Reserved', 'Cleaning', 'Maintenance'];
 
 /// The web's status badge colours (bg-*-50 text-*-700; anything else amber).
 (Color, Color) _statusColors(String s) => switch (s) {
   'Available' => (TColors.emerald50, TColors.emerald700),
   'Occupied' => (TColors.violet50, TColors.violet700),
-  'Reserved' => (const Color(0xFFEFF6FF), const Color(0xFF1D4ED8)),
-  'Cleaning' => (const Color(0xFFFFF7ED), const Color(0xFFC2410C)),
+  'Reserved' => (const Tone(0xFFEFF6FF), const Tone(0xFF1D4ED8)),
+  'Cleaning' => (const Tone(0xFFFFF7ED), const Tone(0xFFC2410C)),
   _ => (TColors.amber50, TColors.amber700),
 };
 
@@ -263,7 +264,7 @@ class _HotelSetupScreenState extends State<HotelSetupScreen> {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Tone.bg(0xFFFFFFFF),
         border: Border.all(color: TColors.slate200),
         borderRadius: BorderRadius.circular(12),
         boxShadow: const [BoxShadow(color: Color(0x08000000), blurRadius: 4, offset: Offset(0, 1))],
@@ -585,11 +586,11 @@ class _HotelSetupScreenState extends State<HotelSetupScreen> {
             children: [
               weekend
                   ? hotelBadge('Weekend', TColors.amber100, TColors.amber700)
-                  : hotelBadge('Weekday', TColors.blue100, const Color(0xFF1D4ED8)),
+                  : hotelBadge('Weekday', TColors.blue100, const Tone.fg(0xFF1D4ED8)),
               switch (state) {
                 'Active' => hotelBadge('Active', TColors.emerald100, TColors.emerald700),
                 'Expired' => hotelBadge('Expired', TColors.slate100, TColors.slate500),
-                _ => hotelBadge('Upcoming', TColors.blue100, const Color(0xFF1D4ED8)),
+                _ => hotelBadge('Upcoming', TColors.blue100, const Tone(0xFF1D4ED8)),
               },
             ],
           ),

@@ -9,8 +9,9 @@ import '../../poultry/trackers/tracker_logic.dart' show tNum, tStr;
 import '../../poultry/trackers/tracker_widgets.dart';
 import '../../restaurant/reports/restaurant_report_kit.dart';
 
-const _violet = Color(0xFF6D28D9);
-const _violetLight = Color(0xFFC4B5FD);
+import 'package:poultrycore_mobile/design/tone.dart';
+const _violet = Tone.bg(0xFF6D28D9);
+const _violetLight = Tone.bg(0xFFC4B5FD);
 
 /// A label / value pair, for the report whose answer is a set of figures.
 final _metricColumns = [
@@ -54,7 +55,7 @@ Widget _txt(String s, {bool bold = false}) => Text(
 Widget _note(String text, {bool amber = false}) => Container(
   padding: const EdgeInsets.all(12),
   decoration: BoxDecoration(
-    color: amber ? TColors.amber50 : Colors.white,
+    color: amber ? TColors.amber50 : Tone.bg(0xFFFFFFFF),
     border: Border.all(color: amber ? TColors.amber200 : TColors.slate200),
     borderRadius: BorderRadius.circular(12),
   ),

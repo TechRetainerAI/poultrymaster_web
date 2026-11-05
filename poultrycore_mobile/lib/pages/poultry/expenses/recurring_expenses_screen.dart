@@ -24,6 +24,7 @@ import '../trackers/tracker_widgets.dart';
 import 'recurring_logic.dart';
 import '../../shared/reason_select.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 typedef RecurringOption = ({int id, String name});
 
 /// ModuleLookups (lib/api/recurring-expenses.ts loadModuleLookups). Poultry:
@@ -511,7 +512,7 @@ class _RecurringExpensesScreenState extends State<RecurringExpensesScreen> {
               actions: [
                 OutlinedButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
                 FilledButton(
-                  style: destructive ? FilledButton.styleFrom(backgroundColor: TColors.red600) : null,
+                  style: destructive ? FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600)) : null,
                   onPressed: () {
                     final r = promptReasonValue(options, choice, c.text, label: label, allowEmpty: allowEmpty);
                     if (r.value != null) {
@@ -551,7 +552,7 @@ class _RecurringExpensesScreenState extends State<RecurringExpensesScreen> {
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
           children: [
             const Row(children: [
-              Icon(Icons.repeat, size: 22, color: Color(0xFF4F46E5)),
+              Icon(Icons.repeat, size: 22, color: Tone.fg(0xFF4F46E5)),
               SizedBox(width: 8),
               Expanded(child: Text('Recurring Expenses', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TColors.slate900))),
             ]),
@@ -568,7 +569,7 @@ class _RecurringExpensesScreenState extends State<RecurringExpensesScreen> {
                     baseline: TextBaseline.alphabetic,
                     child: GestureDetector(
                       onTap: () => openAppHref(context, widget.session, widget.company, _lookups!.expensesHref, label: 'Expenses'),
-                      child: const Text('Expenses', style: TextStyle(fontSize: 13, color: Color(0xFF1D4ED8))),
+                      child: const Text('Expenses', style: TextStyle(fontSize: 13, color: Tone.fg(0xFF1D4ED8))),
                     ),
                   ),
                   const TextSpan(text: '.'),
@@ -660,7 +661,7 @@ class _RecurringExpensesScreenState extends State<RecurringExpensesScreen> {
 
   Widget _emptyCard(Widget child) => Container(
         padding: const EdgeInsets.all(28),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
         child: Center(child: DefaultTextStyle.merge(style: const TextStyle(color: TColors.slate500), child: child)),
       );
 
@@ -669,7 +670,7 @@ class _RecurringExpensesScreenState extends State<RecurringExpensesScreen> {
         child: Container(
           margin: const EdgeInsets.only(bottom: 8),
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
         ),
       );
@@ -699,7 +700,7 @@ class _RecurringExpensesScreenState extends State<RecurringExpensesScreen> {
     final id = tIntOrNull(o['occurrenceId']);
     final (bg, fg, bd) = switch (status) {
       'Draft' => (TColors.amber100, TColors.amber800, TColors.amber300),
-      'Posting' => (TColors.blue100, const Color(0xFF1E40AF), TColors.blue300),
+      'Posting' => (TColors.blue100, const Tone(0xFF1E40AF), TColors.blue300),
       'Posted' => (TColors.emerald100, TColors.emerald800, TColors.emerald300),
       _ => (TColors.slate100, TColors.slate500, TColors.slate300),
     };
@@ -836,7 +837,7 @@ class _RecurringExpensesScreenState extends State<RecurringExpensesScreen> {
                   Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
                     Text(tStr(t['name']), style: const TextStyle(fontWeight: FontWeight.w500, color: TColors.slate900)),
                     TBadge(status, bg: bg, fg: fg, border: bd),
-                    if (t['approvalMode'] == 'AutoPost') const TBadge('Posts automatically', bg: Colors.white, fg: TColors.slate700, border: TColors.slate200),
+                    if (t['approvalMode'] == 'AutoPost') const TBadge('Posts automatically', bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate700, border: TColors.slate200),
                   ]),
                   Text(
                     '${frequencyLabel(t['frequency'])} from ${recDay(t['startDate'])}${tStr(t['endDate']).isNotEmpty ? ' to ${recDay(t['endDate'])}' : ''}'
@@ -997,8 +998,8 @@ class _RecurringTemplateEditorState extends State<RecurringTemplateEditor> {
           child: Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: _mode == v ? const Color(0xFFEEF2FF) : null,
-              border: Border.all(color: _mode == v ? const Color(0xFF6366F1) : TColors.slate200, width: _mode == v ? 1.5 : 1),
+              color: _mode == v ? const Tone.bg(0xFFEEF2FF) : null,
+              border: Border.all(color: _mode == v ? const Tone.line(0xFF6366F1) : TColors.slate200, width: _mode == v ? 1.5 : 1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1136,7 +1137,7 @@ class _RecurringTemplateEditorState extends State<RecurringTemplateEditor> {
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: const Color(0xFFFFF1F2), border: Border.all(color: TColors.rose200), borderRadius: BorderRadius.circular(6)),
+              decoration: BoxDecoration(color: const Tone.bg(0xFFFFF1F2), border: Border.all(color: TColors.rose200), borderRadius: BorderRadius.circular(6)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 for (final e in _errors) Text(e, style: const TextStyle(fontSize: 13, color: TColors.rose800)),
               ]),

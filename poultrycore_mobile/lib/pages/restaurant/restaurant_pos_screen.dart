@@ -26,6 +26,7 @@ import '../poultry/sales/balances_widgets.dart' show LoadingLine;
 import '../poultry/trackers/tracker_logic.dart' show tNum, tStr;
 import '../poultry/trackers/tracker_widgets.dart';
 import 'restaurant_order_money.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import 'restaurant_roles.dart' show restaurantRose;
 import 'restaurant_widgets.dart' show restaurantImage;
 
@@ -377,7 +378,7 @@ class _RestaurantPosScreenState extends State<RestaurantPosScreen> {
   Future<void> _openPanel() => showModalBottomSheet<void>(
         context: context,
         isScrollControlled: true,
-        backgroundColor: Colors.white,
+        backgroundColor: Tone.bg(0xFFFFFFFF),
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
         builder: (sheet) => FractionallySizedBox(
           heightFactor: .9,
@@ -390,13 +391,13 @@ class _RestaurantPosScreenState extends State<RestaurantPosScreen> {
     final lead = sidebarLeading(context, widget.session, widget.company, href: '/restaurant-pos');
     final items = _filtered;
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Tone.bg(0xFFFFFFFF),
       appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: const Text('POS / New Order')),
       body: _loading
           ? const Padding(padding: EdgeInsets.all(20), child: LoadingLine('Loading…'))
           : Column(children: [
               Container(
-                color: const Color(0xFFF9FAFB),
+                color: const Tone.bg(0xFFF9FAFB),
                 padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
@@ -421,11 +422,11 @@ class _RestaurantPosScreenState extends State<RestaurantPosScreen> {
                 child: items.isEmpty
                     ? Center(
                         child: Column(mainAxisSize: MainAxisSize.min, children: [
-                          const Icon(Icons.restaurant, size: 48, color: Color(0xFF9CA3AF)),
+                          const Icon(Icons.restaurant, size: 48, color: Tone.fg(0xFF9CA3AF)),
                           const SizedBox(height: 10),
-                          const Text('No items found', style: TextStyle(fontWeight: FontWeight.w500, color: Color(0xFF9CA3AF))),
+                          const Text('No items found', style: TextStyle(fontWeight: FontWeight.w500, color: Tone.fg(0xFF9CA3AF))),
                           Text(_search.isNotEmpty ? 'Try a different search' : 'Add items to your menu first',
-                              style: const TextStyle(fontSize: 13, color: Color(0xFF9CA3AF))),
+                              style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF9CA3AF))),
                         ]),
                       )
                     : GridView.builder(
@@ -444,14 +445,14 @@ class _RestaurantPosScreenState extends State<RestaurantPosScreen> {
   Widget _catChip(String label, bool on, VoidCallback onTap) => Padding(
         padding: const EdgeInsets.only(right: 8),
         child: on
-            ? FilledButton(style: FilledButton.styleFrom(backgroundColor: restaurantRose, visualDensity: VisualDensity.compact), onPressed: onTap, child: Text(label))
+            ? FilledButton(style: FilledButton.styleFrom(backgroundColor: Tone.button(restaurantRose), visualDensity: VisualDensity.compact), onPressed: onTap, child: Text(label))
             : OutlinedButton(style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact), onPressed: onTap, child: Text(label)),
       );
 
   Widget _itemTile(Map item) {
     final url = tStr(item['imageUrl']);
     return Material(
-      color: Colors.white,
+      color: Tone.bg(0xFFFFFFFF),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: TColors.slate200)),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -459,8 +460,8 @@ class _RestaurantPosScreenState extends State<RestaurantPosScreen> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Expanded(
             child: Container(
-              color: const Color(0xFFF3F4F6),
-              child: restaurantImage(url, fallback: const Icon(Icons.restaurant, size: 28, color: Color(0xFFD1D5DB))),
+              color: const Tone.bg(0xFFF3F4F6),
+              child: restaurantImage(url, fallback: const Icon(Icons.restaurant, size: 28, color: Tone.fg(0xFFD1D5DB))),
             ),
           ),
           Padding(
@@ -473,7 +474,7 @@ class _RestaurantPosScreenState extends State<RestaurantPosScreen> {
               Row(children: [
                 Expanded(
                     child: Text(tNum(item['price']).toStringAsFixed(2),
-                        style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFFE11D48)))),
+                        style: const TextStyle(fontWeight: FontWeight.w700, color: Tone.fg(0xFFE11D48)))),
                 if (tNum(item['prepTime']) > 0)
                   Text('${tNum(item['prepTime']).toInt()}m', style: const TextStyle(fontSize: 10, color: TColors.slate500)),
               ]),
@@ -493,12 +494,12 @@ class _RestaurantPosScreenState extends State<RestaurantPosScreen> {
             : 'View order · $_cartCount item${_cartCount == 1 ? '' : 's'} · ${_cartTotal.toStringAsFixed(2)}';
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: TColors.slate200))),
+      decoration: const BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border(top: BorderSide(color: TColors.slate200))),
       child: SafeArea(
         top: false,
         child: FilledButton.icon(
           style: FilledButton.styleFrom(
-            backgroundColor: o != null ? const Color(0xFF16A34A) : restaurantRose,
+            backgroundColor: Tone.button(o != null ? const Tone.bg(0xFF16A34A) : restaurantRose),
             minimumSize: const Size.fromHeight(50),
           ),
           onPressed: _openPanel,
@@ -510,7 +511,7 @@ class _RestaurantPosScreenState extends State<RestaurantPosScreen> {
   }
 
   Widget _panelHeader(BuildContext sheet, Widget title, {Color? bg}) => Container(
-        color: bg ?? const Color(0xFFF9FAFB),
+        color: bg ?? const Tone.bg(0xFFF9FAFB),
         padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
         child: Row(children: [
           Expanded(child: title),
@@ -526,15 +527,15 @@ class _RestaurantPosScreenState extends State<RestaurantPosScreen> {
           Container(
             width: 32,
             height: 32,
-            decoration: BoxDecoration(color: const Color(0xFFFFE4E6), borderRadius: BorderRadius.circular(8)),
-            child: const Icon(Icons.shopping_cart_outlined, size: 16, color: Color(0xFFE11D48)),
+            decoration: BoxDecoration(color: const Tone.bg(0xFFFFE4E6), borderRadius: BorderRadius.circular(8)),
+            child: const Icon(Icons.shopping_cart_outlined, size: 16, color: Tone.fg(0xFFE11D48)),
           ),
           const SizedBox(width: 8),
           const Text('New Order', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
         ]),
       ),
       Container(
-        color: const Color(0xFFF9FAFB),
+        color: const Tone.bg(0xFFF9FAFB),
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
         child: Column(children: [
           Row(children: [
@@ -593,10 +594,10 @@ class _RestaurantPosScreenState extends State<RestaurantPosScreen> {
         child: _cart.isEmpty
             ? const Center(
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.shopping_cart_outlined, size: 40, color: Color(0xFF9CA3AF)),
+                  Icon(Icons.shopping_cart_outlined, size: 40, color: Tone.fg(0xFF9CA3AF)),
                   SizedBox(height: 6),
-                  Text('Cart is empty', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF9CA3AF))),
-                  Text('Tap items on the menu to add them', style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF))),
+                  Text('Cart is empty', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Tone.fg(0xFF9CA3AF))),
+                  Text('Tap items on the menu to add them', style: TextStyle(fontSize: 12, color: Tone.fg(0xFF9CA3AF))),
                 ]),
               )
             : ListView(padding: const EdgeInsets.all(16), children: [
@@ -631,7 +632,7 @@ class _RestaurantPosScreenState extends State<RestaurantPosScreen> {
                           Text((c.price * c.quantity).toStringAsFixed(2), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
                           InkWell(
                             onTap: () => _set(() => _cart.removeAt(i)),
-                            child: const Icon(Icons.close, size: 16, color: Color(0xFFF87171), semanticLabel: 'Remove'),
+                            child: const Icon(Icons.close, size: 16, color: Tone.fg(0xFFF87171), semanticLabel: 'Remove'),
                           ),
                         ]),
                       ),
@@ -641,7 +642,7 @@ class _RestaurantPosScreenState extends State<RestaurantPosScreen> {
       ),
       if (_cart.isNotEmpty)
         Container(
-          color: const Color(0xFFF9FAFB),
+          color: const Tone.bg(0xFFF9FAFB),
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
           child: SafeArea(
             top: false,
@@ -649,11 +650,11 @@ class _RestaurantPosScreenState extends State<RestaurantPosScreen> {
               Row(children: [
                 const Text('Total', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
                 const Spacer(),
-                Text(_cartTotal.toStringAsFixed(2), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFFBE123C))),
+                Text(_cartTotal.toStringAsFixed(2), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Tone.fg(0xFFBE123C))),
               ]),
               const SizedBox(height: 10),
               FilledButton.icon(
-                style: FilledButton.styleFrom(backgroundColor: restaurantRose, minimumSize: const Size.fromHeight(48)),
+                style: FilledButton.styleFrom(backgroundColor: Tone.button(restaurantRose), minimumSize: const Size.fromHeight(48)),
                 onPressed: _placing ? null : _placeOrder,
                 icon: const Icon(Icons.check, size: 18),
                 label: const Text('Place Order', style: TextStyle(fontWeight: FontWeight.w600)),
@@ -680,18 +681,18 @@ class _RestaurantPosScreenState extends State<RestaurantPosScreen> {
         Row(children: [
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(tStr(o['orderNumber']), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF14532D))),
+              Text(tStr(o['orderNumber']), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Tone.fg(0xFF14532D))),
               Text('${tStr(o['orderType'])} ${tStr(o['tableNumber']).isEmpty ? '' : '| Table ${tStr(o['tableNumber'])}'}',
-                  style: const TextStyle(fontSize: 13, color: Color(0xFF15803D))),
+                  style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF15803D))),
             ]),
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(color: const Color(0xFF16A34A), borderRadius: BorderRadius.circular(999)),
+            decoration: BoxDecoration(color: const Tone.bg(0xFF16A34A), borderRadius: BorderRadius.circular(999)),
             child: Text(tStr(o['status']), style: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w600)),
           ),
         ]),
-        bg: const Color(0xFFF0FDF4),
+        bg: const Tone.bg(0xFFF0FDF4),
       ),
       Expanded(
         child: ListView(padding: const EdgeInsets.all(16), children: [
@@ -704,7 +705,7 @@ class _RestaurantPosScreenState extends State<RestaurantPosScreen> {
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text.rich(TextSpan(children: [
                       TextSpan(
-                          text: '${tNum(oi['quantity']).toInt()}x ', style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFFE11D48))),
+                          text: '${tNum(oi['quantity']).toInt()}x ', style: const TextStyle(fontWeight: FontWeight.w600, color: Tone.fg(0xFFE11D48))),
                       TextSpan(text: tStr(oi['itemName'])),
                     ])),
                     if (tStr(oi['notes']).isNotEmpty)
@@ -717,25 +718,25 @@ class _RestaurantPosScreenState extends State<RestaurantPosScreen> {
         ]),
       ),
       Container(
-        color: const Color(0xFFF9FAFB),
+        color: const Tone.bg(0xFFF9FAFB),
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
         child: SafeArea(
           top: false,
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             line('Subtotal', tNum(o['subtotal'])),
-            if (tNum(o['discountAmount']) > 0) line('Discount', tNum(o['discountAmount']), color: const Color(0xFFDC2626), neg: true),
+            if (tNum(o['discountAmount']) > 0) line('Discount', tNum(o['discountAmount']), color: const Tone.line(0xFFDC2626), neg: true),
             if (tNum(o['serviceChargeAmount']) > 0) line('Service charge', tNum(o['serviceChargeAmount'])),
             if (tNum(o['taxAmount']) > 0) line('Tax', tNum(o['taxAmount'])),
             const Divider(height: 18),
             Row(children: [
               const Text('Total', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
               const Spacer(),
-              Text(tNum(o['totalAmount']).toStringAsFixed(2), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFFBE123C))),
+              Text(tNum(o['totalAmount']).toStringAsFixed(2), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Tone.fg(0xFFBE123C))),
             ]),
-            if (tNum(o['paidAmount']) > 0) line('Paid so far', tNum(o['paidAmount']), color: const Color(0xFF15803D)),
+            if (tNum(o['paidAmount']) > 0) line('Paid so far', tNum(o['paidAmount']), color: const Tone.line(0xFF15803D)),
             const SizedBox(height: 10),
             FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: const Color(0xFF16A34A), minimumSize: const Size.fromHeight(48)),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(const Tone.bg(0xFF16A34A)), minimumSize: const Size.fromHeight(48)),
               onPressed: _pay,
               icon: const Icon(Icons.credit_card, size: 18),
               label: Text('Pay ${(tNum(o['totalAmount']) - tNum(o['paidAmount'])).toStringAsFixed(2)}'),
@@ -820,7 +821,7 @@ class _ReceiptDialog extends StatelessWidget {
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Text(farmName, textAlign: TextAlign.center, style: mono.copyWith(fontSize: 16, fontWeight: FontWeight.w700)),
               if (tStr(template?['headerText']).isNotEmpty) Text(tStr(template?['headerText']), textAlign: TextAlign.center, style: mono.copyWith(fontSize: 10)),
@@ -844,7 +845,7 @@ class _ReceiptDialog extends StatelessWidget {
               dash,
               Text('Thank you for dining with us!', textAlign: TextAlign.center, style: mono),
               if (tStr(template?['footerText']).isNotEmpty) Text(tStr(template?['footerText']), textAlign: TextAlign.center, style: mono.copyWith(fontSize: 10)),
-              Text('Powered by PoultryMaster', textAlign: TextAlign.center, style: mono.copyWith(fontSize: 9, color: const Color(0xFF999999))),
+              Text('Powered by PoultryMaster', textAlign: TextAlign.center, style: mono.copyWith(fontSize: 9, color: const Tone(0xFF999999))),
             ]),
           ),
         ]),
@@ -855,7 +856,7 @@ class _ReceiptDialog extends StatelessWidget {
           OutlinedButton.icon(onPressed: () => _email(context), icon: const Icon(Icons.mail_outline, size: 16), label: const Text('Email')),
           OutlinedButton.icon(onPressed: _download, icon: const Icon(Icons.download, size: 16), label: const Text('Download PDF')),
           FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: restaurantRose),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(restaurantRose)),
             onPressed: _print,
             icon: const Icon(Icons.print_outlined, size: 16),
             label: const Text('Print Receipt'),

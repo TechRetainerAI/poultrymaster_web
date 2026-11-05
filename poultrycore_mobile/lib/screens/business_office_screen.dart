@@ -19,6 +19,7 @@ import '../pages/web_page_screen.dart';
 import '../state/session.dart';
 import 'business_office/administration_screen.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// The company-neutral landing, as `app/business-office/page.tsx` inside
 /// `components/dashboard/business-office-shell.tsx`.
 ///
@@ -45,24 +46,21 @@ class BusinessOfficeScreen extends StatefulWidget {
 
 // ---------------------------------------------------------------- palette
 
-const _slate50 = Color(0xFFF8FAFC);
-const _slate100 = Color(0xFFF1F5F9);
-const _slate200 = Color(0xFFE2E8F0);
-const _slate300 = Color(0xFFCBD5E1);
-const _slate400 = Color(0xFF94A3B8);
-const _slate500 = Color(0xFF64748B);
-const _slate600 = Color(0xFF475569);
-const _slate700 = Color(0xFF334155);
-const _slate800 = Color(0xFF1E293B);
-const _slate900 = Color(0xFF0F172A);
-const _orange300 = Color(0xFFFDBA74);
-const _orange400 = Color(0xFFFB923C);
-const _orange500 = Color(0xFFF97316);
-const _orange600 = Color(0xFFEA580C);
-const _amber500 = Color(0xFFF59E0B);
-const _emerald600 = Color(0xFF059669);
-const _emerald700 = Color(0xFF047857);
-const _indigo600 = Color(0xFF4F46E5);
+const _slate50 = Tone.bg(0xFFF8FAFC);
+const _slate100 = Tone(0xFFF1F5F9);
+const _slate200 = Tone.line(0xFFE2E8F0);
+const _slate300 = Tone.fg(0xFFCBD5E1);
+const _slate400 = Tone.fg(0xFF94A3B8);
+const _slate500 = Tone.fg(0xFF64748B);
+const _slate600 = Tone.fg(0xFF475569);
+const _slate700 = Tone.fg(0xFF334155);
+const _orange400 = Tone.line(0xFFFB923C);
+const _orange500 = Tone.bg(0xFFF97316);
+const _orange600 = Tone(0xFFEA580C);
+const _amber500 = Tone.bg(0xFFF59E0B);
+const _emerald600 = Tone.fg(0xFF059669);
+const _emerald700 = Tone.fg(0xFF047857);
+const _indigo600 = Tone.fg(0xFF4F46E5);
 
 /// SHOW_CURRENCY_KEY: the page's own remembered "Show currency" choice.
 const _showCurrencyKey = 'vc.businessOffice.showCurrency';
@@ -77,23 +75,23 @@ IconData _typeIcon(CompanyType t) => switch (t) {
 
 /// typeStrip (the card's top edge) and typeTone (icon tile + badge).
 ({Color strip, Color bg, Color fg}) _typeTone(CompanyType t) => switch (t) {
-      CompanyType.water => (strip: const Color(0xFF38BDF8), bg: const Color(0xFFE0F2FE), fg: const Color(0xFF0369A1)),
-      CompanyType.poultry => (strip: _orange400, bg: const Color(0xFFFFEDD5), fg: const Color(0xFFC2410C)),
-      CompanyType.generic => (strip: const Color(0xFFA78BFA), bg: const Color(0xFFEDE9FE), fg: const Color(0xFF6D28D9)),
-      CompanyType.hotel => (strip: const Color(0xFFC084FC), bg: const Color(0xFFF3E8FF), fg: const Color(0xFF7E22CE)),
-      _ => (strip: _slate300, bg: _slate100, fg: _slate700),
+      CompanyType.water => (strip: const Tone(0xFF38BDF8), bg: const Tone.bg(0xFFE0F2FE), fg: const Tone.fg(0xFF0369A1)),
+      CompanyType.poultry => (strip: _orange400, bg: const Tone.bg(0xFFFFEDD5), fg: const Tone.fg(0xFFC2410C)),
+      CompanyType.generic => (strip: const Tone(0xFFA78BFA), bg: const Tone.bg(0xFFEDE9FE), fg: const Tone.fg(0xFF6D28D9)),
+      CompanyType.hotel => (strip: const Tone(0xFFC084FC), bg: const Tone.bg(0xFFF3E8FF), fg: const Tone.fg(0xFF7E22CE)),
+      _ => (strip: _slate300, bg: Tone.bg(0xFFF1F5F9), fg: _slate700),
     };
 
 /// annStyle: (background, border, text, icon) per announcement type.
 ({Color bg, Color border, Color fg, IconData icon}) _annStyle(String type) => switch (type) {
       'Critical' || 'Security' =>
-        (bg: const Color(0xFFFFF1F2), border: const Color(0xFFFECDD3), fg: const Color(0xFFBE123C), icon: Icons.gpp_maybe_outlined),
-      'Warning' => (bg: const Color(0xFFFFFBEB), border: const Color(0xFFFDE68A), fg: const Color(0xFFB45309), icon: Icons.warning_amber_rounded),
-      'Payment' => (bg: const Color(0xFFFFF7ED), border: const Color(0xFFFED7AA), fg: const Color(0xFFC2410C), icon: Icons.credit_card),
+        (bg: const Tone.bg(0xFFFFF1F2), border: const Tone.line(0xFFFECDD3), fg: const Tone.fg(0xFFBE123C), icon: Icons.gpp_maybe_outlined),
+      'Warning' => (bg: const Tone.bg(0xFFFFFBEB), border: const Tone.line(0xFFFDE68A), fg: const Tone.fg(0xFFB45309), icon: Icons.warning_amber_rounded),
+      'Payment' => (bg: const Tone.bg(0xFFFFF7ED), border: const Tone.line(0xFFFED7AA), fg: const Tone.fg(0xFFC2410C), icon: Icons.credit_card),
       'Maintenance' => (bg: _slate50, border: _slate200, fg: _slate700, icon: Icons.build_outlined),
-      'FeatureUpdate' => (bg: const Color(0xFFF5F3FF), border: const Color(0xFFDDD6FE), fg: const Color(0xFF6D28D9), icon: Icons.auto_awesome),
-      'Success' => (bg: const Color(0xFFECFDF5), border: const Color(0xFFA7F3D0), fg: _emerald700, icon: Icons.check),
-      _ => (bg: const Color(0xFFEFF6FF), border: const Color(0xFFBFDBFE), fg: const Color(0xFF1D4ED8), icon: Icons.info_outline),
+      'FeatureUpdate' => (bg: const Tone.bg(0xFFF5F3FF), border: const Tone.line(0xFFDDD6FE), fg: const Tone.fg(0xFF6D28D9), icon: Icons.auto_awesome),
+      'Success' => (bg: const Tone.bg(0xFFECFDF5), border: const Tone.line(0xFFA7F3D0), fg: _emerald700, icon: Icons.check),
+      _ => (bg: const Tone.bg(0xFFEFF6FF), border: const Tone.line(0xFFBFDBFE), fg: const Tone.fg(0xFF1D4ED8), icon: Icons.info_outline),
     };
 
 const _annTypes = ['Info', 'Success', 'Warning', 'Critical', 'Maintenance', 'FeatureUpdate', 'Payment', 'Security'];
@@ -134,8 +132,8 @@ String orgCurrencySymbol(String code) {
 /// The company sidebar palette (lib/utils/company-color.ts): handed out in
 /// creation order, so the first eight companies never share a colour.
 const _palette = [
-  Color(0xFF10B981), Color(0xFF0EA5E9), Color(0xFF8B5CF6), Color(0xFFF59E0B),
-  Color(0xFFF43F5E), Color(0xFF14B8A6), Color(0xFF6366F1), Color(0xFFD946EF),
+  Tone(0xFF10B981), Tone(0xFF0EA5E9), Tone(0xFF8B5CF6), Tone(0xFFF59E0B),
+  Tone(0xFFF43F5E), Tone(0xFF14B8A6), Tone(0xFF6366F1), Tone(0xFFD946EF),
 ];
 
 Map<String, Color> companyColorMap(List<Company> companies) {
@@ -248,7 +246,7 @@ class _BusinessOfficeScreenState extends State<BusinessOfficeScreen> {
 
   void _toast(String title, {String? description, bool error = false}) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      backgroundColor: error ? const Color(0xFFB91C1C) : null,
+      backgroundColor: error ? const Tone.bg(0xFFB91C1C) : null,
       content: Text(description == null ? title : '$title. $description'),
     ));
   }
@@ -445,7 +443,7 @@ class _BusinessOfficeScreenState extends State<BusinessOfficeScreen> {
         ),
         // Phones: the company selector sits under the bar, full width.
         Container(
-          color: Colors.white,
+          color: Tone.bg(0xFFFFFFFF),
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
           child: _CompanySelector(companies: all, openingId: _openingId, onOpen: _openCompany),
         ),
@@ -546,18 +544,18 @@ class _BusinessOfficeScreenState extends State<BusinessOfficeScreen> {
         Container(
           width: 36,
           height: 36,
-          decoration: BoxDecoration(color: const Color(0xB3FFFFFF), borderRadius: BorderRadius.circular(10)),
+          decoration: BoxDecoration(color: const Tone.bg(0xB3FFFFFF), borderRadius: BorderRadius.circular(10)),
           child: Icon(st.icon, size: 20, color: st.fg),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
-              Text('${a['title'] ?? ''}', style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: _slate900)),
-              pill(type, const Color(0xB3FFFFFF), _slate700),
+              Text('${a['title'] ?? ''}', style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: Tone.fg(0xFF0F172A))),
+              pill(type, const Tone(0xB3FFFFFF), _slate700),
               if (requiresAck)
                 acked
-                    ? pill('Acknowledged', const Color(0xFFD1FAE5), _emerald700)
+                    ? pill('Acknowledged', const Tone(0xFFD1FAE5), _emerald700)
                     : pill('Action needed', _slate200, _slate700),
             ]),
             if (message.isNotEmpty) ...[
@@ -588,10 +586,10 @@ class _BusinessOfficeScreenState extends State<BusinessOfficeScreen> {
   Widget _summaryTiles(bool loading, int total, int Function(CompanyType) by) {
     final tiles = [
       ('Companies', total, Icons.apartment_outlined, _slate600, _slate100),
-      ('Water', by(CompanyType.water), Icons.water_drop_outlined, const Color(0xFF0284C7), const Color(0xFFE0F2FE)),
-      ('Poultry', by(CompanyType.poultry), Icons.flutter_dash, _orange600, const Color(0xFFFFEDD5)),
-      ('Generic', by(CompanyType.generic), Icons.shopping_bag_outlined, const Color(0xFF7C3AED), const Color(0xFFEDE9FE)),
-      ('Hotel', by(CompanyType.hotel), Icons.apartment_outlined, const Color(0xFF9333EA), const Color(0xFFF3E8FF)),
+      ('Water', by(CompanyType.water), Icons.water_drop_outlined, const Tone(0xFF0284C7), const Tone(0xFFE0F2FE)),
+      ('Poultry', by(CompanyType.poultry), Icons.flutter_dash, _orange600, const Tone(0xFFFFEDD5)),
+      ('Generic', by(CompanyType.generic), Icons.shopping_bag_outlined, const Tone(0xFF7C3AED), const Tone(0xFFEDE9FE)),
+      ('Hotel', by(CompanyType.hotel), Icons.apartment_outlined, const Tone(0xFF9333EA), const Tone(0xFFF3E8FF)),
     ];
     // Two to a row; the odd one out takes the full width.
     final rows = <Widget>[];
@@ -615,7 +613,7 @@ class _BusinessOfficeScreenState extends State<BusinessOfficeScreen> {
   List<Widget> _companiesSection(bool loading, List<Company> all, List<Company> visible) {
     final empty = !loading && all.isEmpty;
     return [
-      const Text('Your companies', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700, color: _slate900)),
+      const Text('Your companies', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700, color: Tone.fg(0xFF0F172A))),
       const SizedBox(height: 12),
       // Off by default: the cards show plain numbers until asked; remembered.
       Row(children: [
@@ -664,7 +662,7 @@ class _BusinessOfficeScreenState extends State<BusinessOfficeScreen> {
               : "You don't currently have access to any company. Contact your Business Office administrator.",
           action: _canCreateCompany
               ? FilledButton.icon(
-                  style: FilledButton.styleFrom(backgroundColor: _slate900),
+                  style: FilledButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFF0F172A))),
                   onPressed: _createCompany,
                   icon: const Icon(Icons.add, size: 18),
                   label: const Text('Create company'),
@@ -705,18 +703,18 @@ class _BusinessOfficeScreenState extends State<BusinessOfficeScreen> {
       const SizedBox(height: 10),
       // A Material, not a coloured box: the rows' tap ripple paints on it.
       Material(
-        color: Colors.white,
+        color: Tone.bg(0xFFFFFFFF),
         shape: RoundedRectangleBorder(side: const BorderSide(color: _slate200), borderRadius: BorderRadius.circular(14)),
         clipBehavior: Clip.antiAlias,
         child: Column(children: [
           for (final (i, (icon, label, onTap)) in actions.indexed) ...[
-            if (i > 0) const Divider(height: 1, color: _slate100),
+            if (i > 0) const Divider(height: 1, color: Tone.line(0xFFF1F5F9)),
             ListTile(
               onTap: onTap,
               leading: Container(
                 width: 34,
                 height: 34,
-                decoration: BoxDecoration(color: _slate100, borderRadius: BorderRadius.circular(9)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFF1F5F9), borderRadius: BorderRadius.circular(9)),
                 child: Icon(icon, size: 18, color: _slate600),
               ),
               title: Text(label, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w500, color: _slate700)),
@@ -748,7 +746,7 @@ class _TopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
-        gradient: LinearGradient(colors: [_orange600, _amber500]),
+        gradient: LinearGradient(colors: [Tone.bg(0xFFEA580C), _amber500]),
         boxShadow: [BoxShadow(color: Color(0x1A000000), blurRadius: 4, offset: Offset(0, 1))],
       ),
       child: SafeArea(
@@ -759,7 +757,7 @@ class _TopBar extends StatelessWidget {
             Material(
               color: Colors.transparent,
               shape: RoundedRectangleBorder(
-                side: const BorderSide(color: Color(0x40FFFFFF)),
+                side: const BorderSide(color: Tone.line(0x40FFFFFF)),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: InkWell(
@@ -782,11 +780,11 @@ class _TopBar extends StatelessWidget {
                   TextSpan(children: [
                     TextSpan(text: '$officeName · $roleLabel'),
                     if (orgCode.isNotEmpty)
-                      TextSpan(text: '  $orgCode', style: const TextStyle(fontFamily: 'monospace', color: Color(0xB3FFFFFF))),
+                      TextSpan(text: '  $orgCode', style: const TextStyle(fontFamily: 'monospace', color: Tone.fg(0xB3FFFFFF))),
                   ]),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Color(0xD9FFFFFF), fontSize: 11.5),
+                  style: const TextStyle(color: Tone.fg(0xD9FFFFFF), fontSize: 11.5),
                 ),
               ]),
             ),
@@ -800,9 +798,9 @@ class _TopBar extends StatelessWidget {
               height: 32,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: const Color(0x33FFFFFF),
+                color: const Tone.bg(0x33FFFFFF),
                 shape: BoxShape.circle,
-                border: Border.all(color: const Color(0x4DFFFFFF)),
+                border: Border.all(color: const Tone.line(0x4DFFFFFF)),
               ),
               child: Text(
                 (userName.isEmpty ? 'U' : userName.characters.first).toUpperCase(),
@@ -834,14 +832,14 @@ class _CompanySelector extends StatelessWidget {
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: Tone.bg(0xFFFFFFFF),
       builder: (ctx) => SafeArea(
         child: ConstrainedBox(
           constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(ctx).height * .7),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             const Padding(
               padding: EdgeInsets.fromLTRB(20, 0, 20, 8),
-              child: Text('Select a company', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: _slate900)),
+              child: Text('Select a company', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: Tone.fg(0xFF0F172A))),
             ),
             if (companies.isEmpty)
               const Padding(
@@ -876,7 +874,7 @@ class _CompanySelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: Tone.bg(0xFFFFFFFF),
       borderRadius: BorderRadius.circular(10),
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
@@ -928,7 +926,7 @@ class _Sidebar extends StatelessWidget {
   Widget _row(IconData icon, String label, VoidCallback onTap, {bool active = false, Color? color}) => Padding(
         padding: const EdgeInsets.only(bottom: 2),
         child: Material(
-          color: active ? _slate800 : Colors.transparent,
+          color: active ? Tone.button(Tone.bg(0xFF1E293B))! : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
           child: InkWell(
             borderRadius: BorderRadius.circular(10),
@@ -942,7 +940,7 @@ class _Sidebar extends StatelessWidget {
                     )
                   : null,
               child: Row(children: [
-                Icon(icon, size: 19, color: color ?? (active ? _orange300 : _slate400)),
+                Icon(icon, size: 19, color: color ?? (active ? Tone.fg(0xFFFDBA74) : _slate400)),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(label,
@@ -959,7 +957,7 @@ class _Sidebar extends StatelessWidget {
   Widget build(BuildContext context) {
     final colours = companyColorMap(companies);
     return Drawer(
-      backgroundColor: _slate900,
+      backgroundColor: Tone.button(Tone.bg(0xFF0F172A))!,
       width: 288,
       shape: const RoundedRectangleBorder(),
       child: SafeArea(
@@ -969,7 +967,7 @@ class _Sidebar extends StatelessWidget {
             child: Container(
               height: 64,
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _slate800))),
+              decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Tone.line(0xFF1E293B)))),
               child: Row(children: [
                 Container(
                   width: 34,
@@ -1010,7 +1008,7 @@ class _Sidebar extends StatelessWidget {
                 )
               else
                 for (final c in companies) _companyRow(c, colours[c.farmId] ?? _palette.first),
-              if (isAdmin) _row(Icons.add, 'New company', onNewCompany, color: _orange300),
+              if (isAdmin) _row(Icons.add, 'New company', onNewCompany, color: Tone.bg(0xFFFDBA74)),
               if (isAdmin) ...[
                 const SizedBox(height: 22),
                 _row(Icons.settings_outlined, 'Administration', onAdministration),
@@ -1019,7 +1017,7 @@ class _Sidebar extends StatelessWidget {
             ]),
           ),
           Container(
-            decoration: const BoxDecoration(border: Border(top: BorderSide(color: _slate800))),
+            decoration: const BoxDecoration(border: Border(top: BorderSide(color: Tone.line(0xFF1E293B)))),
             padding: const EdgeInsets.all(8),
             child: _row(Icons.logout, 'Logout', onLogout),
           ),
@@ -1049,14 +1047,14 @@ class _Sidebar extends StatelessWidget {
                   alignment: Alignment.center,
                   decoration: BoxDecoration(color: colour, borderRadius: BorderRadius.circular(6)),
                   child: Text(companyInitial(c.name),
-                      style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: _slate900)),
+                      style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: Tone.fg(0xFF0F172A))),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(c.name,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Color(0xFFE2E8F0), fontSize: 14, fontWeight: FontWeight.w500)),
+                        style: const TextStyle(color: Tone.fg(0xFFE2E8F0), fontSize: 14, fontWeight: FontWeight.w500)),
                     Text(c.type.wire, overflow: TextOverflow.ellipsis, style: const TextStyle(color: _slate400, fontSize: 11.5)),
                   ]),
                 ),
@@ -1097,7 +1095,7 @@ class _OutlineButton extends StatelessWidget {
       button: true,
       toggled: selected,
       child: Material(
-        color: selected ? const Color(0xFFFFF7ED) : Colors.white,
+        color: selected ? const Tone.bg(0xFFFFF7ED) : Tone.bg(0xFFFFFFFF),
         borderRadius: BorderRadius.circular(10),
         child: InkWell(
           borderRadius: BorderRadius.circular(10),
@@ -1107,13 +1105,13 @@ class _OutlineButton extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: selected ? _orange300 : _slate200),
+              border: Border.all(color: selected ? Tone.line(0xFFFDBA74) : _slate200),
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(icon, size: 17, color: selected ? _orange600 : _slate700),
+              Icon(icon, size: 17, color: selected ? Tone.fg(0xFFEA580C) : _slate700),
               const SizedBox(width: 6),
               Text(label,
-                  style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500, color: selected ? _orange600 : _slate700)),
+                  style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500, color: selected ? Tone.fg(0xFFEA580C) : _slate700)),
             ]),
           ),
         ),
@@ -1164,7 +1162,7 @@ class _SummaryTile extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Tone.bg(0xFFFFFFFF),
           border: Border.all(color: _slate200),
           borderRadius: BorderRadius.circular(14),
           boxShadow: const [BoxShadow(color: Color(0x08000000), blurRadius: 6, offset: Offset(0, 2))],
@@ -1180,7 +1178,7 @@ class _SummaryTile extends StatelessWidget {
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
               Text(label, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: _slate500)),
-              Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, height: 1.15, color: _slate900)),
+              Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, height: 1.15, color: Tone.fg(0xFF0F172A))),
             ]),
           ),
         ]),
@@ -1196,7 +1194,7 @@ class _EmptyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 36),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _slate200), borderRadius: BorderRadius.circular(14)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: _slate200), borderRadius: BorderRadius.circular(14)),
         child: Column(children: [
           if (icon != null) ...[Icon(icon, size: 40, color: _slate300), const SizedBox(height: 12)],
           Text(text, textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, color: _slate600, height: 1.4)),
@@ -1226,7 +1224,7 @@ class _CompanyCard extends StatelessWidget {
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Tone.bg(0xFFFFFFFF),
         border: Border.all(color: _slate200),
         borderRadius: BorderRadius.circular(16),
         boxShadow: const [BoxShadow(color: Color(0x0F000000), blurRadius: 10, offset: Offset(0, 3))],
@@ -1249,7 +1247,7 @@ class _CompanyCard extends StatelessWidget {
                   Text(company.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600, color: _slate900)),
+                      style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600, color: Tone.fg(0xFF0F172A))),
                   const SizedBox(height: 2),
                   Text('Role: ${company.role ?? '—'}', style: const TextStyle(fontSize: 12, color: _slate500)),
                 ]),
@@ -1291,7 +1289,7 @@ class _CompanyCard extends StatelessWidget {
               Expanded(
                 child: FilledButton(
                   style: FilledButton.styleFrom(
-                    backgroundColor: _slate900,
+                    backgroundColor: Tone.button(Tone.bg(0xFF0F172A)),
                     foregroundColor: Colors.white,
                     minimumSize: const Size.fromHeight(42),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -1314,7 +1312,7 @@ class _CompanyCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 OutlinedButton(
                   style: OutlinedButton.styleFrom(
-                    backgroundColor: Colors.white,
+                    backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)),
                     foregroundColor: _slate700,
                     side: const BorderSide(color: _slate200),
                     minimumSize: const Size(0, 42),
@@ -1422,7 +1420,7 @@ class _MyTasksState extends State<_MyTasks> {
           Row(mainAxisSize: MainAxisSize.min, children: [
             const Icon(Icons.checklist, size: 21, color: _indigo600),
             const SizedBox(width: 8),
-            const Text('My Tasks', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700, color: _slate900)),
+            const Text('My Tasks', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700, color: Tone.fg(0xFF0F172A))),
             if (loading) ...[
               const SizedBox(width: 8),
               const SizedBox(width: 15, height: 15, child: CircularProgressIndicator(strokeWidth: 2, color: _slate400)),
@@ -1432,13 +1430,13 @@ class _MyTasksState extends State<_MyTasks> {
             Wrap(spacing: 6, children: [
               if (overdue > 0) badge('$overdue overdue', lifecycleStatusTone('Overdue')),
               if (due > 0) badge('$due due', lifecycleStatusTone('Due')),
-              badge('${_tasks.length} open', (Colors.white, _slate700, _slate200)),
+              badge('${_tasks.length} open', (Tone(0xFFFFFFFF), _slate700, _slate200)),
             ]),
         ]),
         const SizedBox(height: 10),
         Container(
           clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _slate200), borderRadius: BorderRadius.circular(14)),
+          decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: _slate200), borderRadius: BorderRadius.circular(14)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             if (!loading && _tasks.isEmpty)
               const Padding(
@@ -1453,11 +1451,11 @@ class _MyTasksState extends State<_MyTasks> {
               ),
             if (loading && _tasks.isEmpty) const Padding(padding: EdgeInsets.all(22), child: Center(child: CircularProgressIndicator())),
             for (final (i, t) in shown.indexed) ...[
-              if (i > 0) const Divider(height: 1, color: _slate100),
+              if (i > 0) const Divider(height: 1, color: Tone.line(0xFFF1F5F9)),
               _taskRow(t, badge),
             ],
             if (sorted.length > _show) ...[
-              const Divider(height: 1, color: _slate100),
+              const Divider(height: 1, color: Tone.line(0xFFF1F5F9)),
               TextButton(
                 onPressed: () => setState(() => _showAll = !_showAll),
                 child: Text(_showAll ? 'Show fewer' : 'Show all ${sorted.length}'),
@@ -1467,7 +1465,7 @@ class _MyTasksState extends State<_MyTasks> {
         ),
         if (failed.isNotEmpty) ...[
           const SizedBox(height: 6),
-          Text("Couldn't load tasks for ${failed.join(', ')}.", style: const TextStyle(fontSize: 12, color: Color(0xFFB45309))),
+          Text("Couldn't load tasks for ${failed.join(', ')}.", style: const TextStyle(fontSize: 12, color: Tone.fg(0xFFB45309))),
         ],
       ]),
     );
@@ -1482,8 +1480,8 @@ class _MyTasksState extends State<_MyTasks> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
               badge('${t['status'] ?? ''}', lifecycleStatusTone(t['status'])),
-              Text('${t['title'] ?? ''}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _slate900)),
-              if (t['isEstimated'] == true) badge('Estimated', (const Color(0xFFFFFBEB), const Color(0xFF92400E), const Color(0xFFFCD34D))),
+              Text('${t['title'] ?? ''}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Tone.fg(0xFF0F172A))),
+              if (t['isEstimated'] == true) badge('Estimated', (const Tone(0xFFFFFBEB), const Tone(0xFF92400E), const Tone(0xFFFCD34D))),
             ]),
             const SizedBox(height: 3),
             Text('${taskSentence(t)} · ${dueLabel(t)}', style: const TextStyle(fontSize: 13, color: _slate600)),
@@ -1493,7 +1491,7 @@ class _MyTasksState extends State<_MyTasks> {
         const SizedBox(width: 8),
         OutlinedButton(
           style: OutlinedButton.styleFrom(
-            backgroundColor: Colors.white,
+            backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)),
             foregroundColor: _slate700,
             side: const BorderSide(color: _slate200),
             visualDensity: VisualDensity.compact,

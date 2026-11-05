@@ -18,70 +18,71 @@ import '../reports/report_format.dart';
 import '../reports/report_routes.dart';
 import 'tracker_logic.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 // ------------------------------------------------------------------ palette
 
 class TColors {
   const TColors._();
-  static const slate900 = Color(0xFF0F172A);
-  static const slate800 = Color(0xFF1E293B);
-  static const slate700 = Color(0xFF334155);
-  static const slate600 = Color(0xFF475569);
-  static const slate500 = Color(0xFF566579);  // a shade darker than Tailwind's, for legibility
-  static const slate400 = Color(0xFF7F8EA3);  // a shade darker than Tailwind's, for legibility
-  static const slate300 = Color(0xFFCBD5E1);
-  static const slate200 = Color(0xFFE2E8F0);
-  static const slate100 = Color(0xFFF1F5F9);
-  static const slate50 = Color(0xFFF8FAFC);
-  static const emerald600 = Color(0xFF059669);
-  static const emerald700 = Color(0xFF047857);
-  static const emerald800 = Color(0xFF065F46);
-  static const emerald900 = Color(0xFF064E3B);
-  static const emerald100 = Color(0xFFD1FAE5);
-  static const emerald300 = Color(0xFF6EE7B7);
-  static const emerald50 = Color(0xFFECFDF5);
-  static const emerald200 = Color(0xFFA7F3D0);
-  static const emerald500 = Color(0xFF10B981);
-  static const red600 = Color(0xFFDC2626);
-  static const red700 = Color(0xFFB91C1C);
-  static const red800 = Color(0xFF991B1B);
-  static const red900 = Color(0xFF7F1D1D);
-  static const red100 = Color(0xFFFEE2E2);
-  static const red300 = Color(0xFFFCA5A5);
-  static const red50 = Color(0xFFFEF2F2);
-  static const red200 = Color(0xFFFECACA);
-  static const rose500 = Color(0xFFF43F5E);
-  static const rose600 = Color(0xFFE11D48);
-  static const rose700 = Color(0xFFBE123C);
-  static const rose800 = Color(0xFF9F1239);
-  static const rose100 = Color(0xFFFFE4E6);
-  static const rose50 = Color(0xFFFFF1F2);
-  static const rose200 = Color(0xFFFECDD3);
-  static const amber50 = Color(0xFFFFFBEB);
-  static const amber100 = Color(0xFFFEF3C7);
-  static const amber200 = Color(0xFFFDE68A);
-  static const amber300 = Color(0xFFFCD34D);
-  static const amber600 = Color(0xFFD97706);
-  static const amber700 = Color(0xFFB45309);
-  static const amber800 = Color(0xFF92400E);
-  static const amber900 = Color(0xFF78350F);
-  static const sky100 = Color(0xFFE0F2FE);
-  static const sky300 = Color(0xFF7DD3FC);
-  static const sky700 = Color(0xFF0369A1);
-  static const sky800 = Color(0xFF075985);
-  static const sky900 = Color(0xFF0C4A6E);
-  static const blue100 = Color(0xFFDBEAFE);
-  static const blue200 = Color(0xFFBFDBFE);
-  static const blue300 = Color(0xFF93C5FD);
-  static const blue600 = Color(0xFF2563EB);
-  static const blue900 = Color(0xFF1E3A8A);
-  static const violet50 = Color(0xFFF5F3FF);
-  static const violet100 = Color(0xFFEDE9FE);
-  static const violet200 = Color(0xFFDDD6FE);
-  static const violet600 = Color(0xFF7C3AED);
-  static const violet700 = Color(0xFF6D28D9);
-  static const violet800 = Color(0xFF5B21B6);
-  static const green100 = Color(0xFFDCFCE7);
-  static const green700 = Color(0xFF15803D);
+  static const slate900 = Tone(0xFF0F172A);
+  static const slate800 = Tone(0xFF1E293B);
+  static const slate700 = Tone(0xFF334155);
+  static const slate600 = Tone(0xFF475569);
+  static const slate500 = Tone.fg(0xFF566579);  // a shade darker than Tailwind's, for legibility
+  static const slate400 = Tone(0xFF7F8EA3);  // a shade darker than Tailwind's, for legibility
+  static const slate300 = Tone(0xFFCBD5E1);
+  static const slate200 = Tone(0xFFE2E8F0);
+  static const slate100 = Tone(0xFFF1F5F9);
+  static const slate50 = Tone(0xFFF8FAFC);
+  static const emerald600 = Tone(0xFF059669);
+  static const emerald700 = Tone(0xFF047857);
+  static const emerald800 = Tone(0xFF065F46);
+  static const emerald900 = Tone(0xFF064E3B);
+  static const emerald100 = Tone.bg(0xFFD1FAE5);
+  static const emerald300 = Tone(0xFF6EE7B7);
+  static const emerald50 = Tone(0xFFECFDF5);
+  static const emerald200 = Tone(0xFFA7F3D0);
+  static const emerald500 = Tone(0xFF10B981);
+  static const red600 = Tone(0xFFDC2626);
+  static const red700 = Tone.fg(0xFFB91C1C);
+  static const red800 = Tone.fg(0xFF991B1B);
+  static const red900 = Tone(0xFF7F1D1D);
+  static const red100 = Tone(0xFFFEE2E2);
+  static const red300 = Tone.line(0xFFFCA5A5);
+  static const red50 = Tone.bg(0xFFFEF2F2);
+  static const red200 = Tone.line(0xFFFECACA);
+  static const rose500 = Tone(0xFFF43F5E);
+  static const rose600 = Tone(0xFFE11D48);
+  static const rose700 = Tone(0xFFBE123C);
+  static const rose800 = Tone(0xFF9F1239);
+  static const rose100 = Tone.bg(0xFFFFE4E6);
+  static const rose50 = Tone(0xFFFFF1F2);
+  static const rose200 = Tone(0xFFFECDD3);
+  static const amber50 = Tone(0xFFFFFBEB);
+  static const amber100 = Tone(0xFFFEF3C7);
+  static const amber200 = Tone(0xFFFDE68A);
+  static const amber300 = Tone(0xFFFCD34D);
+  static const amber600 = Tone(0xFFD97706);
+  static const amber700 = Tone(0xFFB45309);
+  static const amber800 = Tone(0xFF92400E);
+  static const amber900 = Tone(0xFF78350F);
+  static const sky100 = Tone.bg(0xFFE0F2FE);
+  static const sky300 = Tone(0xFF7DD3FC);
+  static const sky700 = Tone(0xFF0369A1);
+  static const sky800 = Tone.fg(0xFF075985);
+  static const sky900 = Tone.fg(0xFF0C4A6E);
+  static const blue100 = Tone(0xFFDBEAFE);
+  static const blue200 = Tone(0xFFBFDBFE);
+  static const blue300 = Tone(0xFF93C5FD);
+  static const blue600 = Tone(0xFF2563EB);
+  static const blue900 = Tone(0xFF1E3A8A);
+  static const violet50 = Tone(0xFFF5F3FF);
+  static const violet100 = Tone.bg(0xFFEDE9FE);
+  static const violet200 = Tone(0xFFDDD6FE);
+  static const violet600 = Tone.fg(0xFF7C3AED);
+  static const violet700 = Tone(0xFF6D28D9);
+  static const violet800 = Tone.fg(0xFF5B21B6);
+  static const green100 = Tone(0xFFDCFCE7);
+  static const green700 = Tone.fg(0xFF15803D);
 }
 
 // ------------------------------------------------------------------ toast
@@ -203,7 +204,7 @@ class TrackerBanner extends StatelessWidget {
         fg = TColors.amber900,
         icon = Icons.warning_amber_rounded;
   const TrackerBanner.info(this.text, {super.key, this.spans})
-      : bg = Colors.white,
+      : bg = const Tone.bg(0xFFFFFFFF),
         border = TColors.slate200,
         fg = TColors.slate700,
         icon = null;
@@ -260,7 +261,7 @@ class TCard extends StatelessWidget {
     this.trailing,
     this.headerExtra,
     required this.child,
-    this.bg = Colors.white,
+    this.bg = const Tone.bg(0xFFFFFFFF),
     this.border = TColors.slate200,
     this.padding = const EdgeInsets.all(14),
   });
@@ -361,7 +362,7 @@ class TileGrid extends StatelessWidget {
                 padding: boxed ? const EdgeInsets.all(14) : EdgeInsets.zero,
                 decoration: boxed
                     ? BoxDecoration(
-                        color: Colors.white,
+                        color: Tone.bg(0xFFFFFFFF),
                         border: Border.all(color: TColors.slate200),
                         borderRadius: BorderRadius.circular(12),
                       )
@@ -602,7 +603,7 @@ class _LedgerScorecardState extends State<LedgerScorecard> {
     final striped = widget.index.isEven;
     return Container(
       decoration: BoxDecoration(
-        color: striped ? TColors.blue100 : Colors.white,
+        color: striped ? TColors.blue100 : Tone.bg(0xFFFFFFFF),
         border: Border.all(color: striped ? TColors.blue300 : TColors.slate200),
         borderRadius: BorderRadius.circular(12),
       ),
@@ -733,7 +734,7 @@ class TBadge extends StatelessWidget {
 /// Edit / Delete buttons on an adjustment scorecard.
 Widget scoreAction(String label, IconData icon, VoidCallback onTap, {bool danger = false}) => OutlinedButton.icon(
       style: OutlinedButton.styleFrom(
-        backgroundColor: Colors.white,
+        backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)),
         foregroundColor: danger ? TColors.red600 : TColors.slate800,
         minimumSize: const Size.fromHeight(40),
       ),
@@ -1092,7 +1093,7 @@ Future<bool> confirmDelete(BuildContext context,
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
         FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: TColors.red600),
+          style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600)),
           onPressed: () => Navigator.pop(ctx, true),
           child: Text(confirmLabel),
         ),
@@ -1364,7 +1365,7 @@ class _CostBreakdownBodyState extends State<_CostBreakdownBody> {
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
       children: [
         Row(children: [
-          const Icon(Icons.layers_outlined, size: 18, color: Color(0xFF0284C7)),
+          const Icon(Icons.layers_outlined, size: 18, color: Tone.fg(0xFF0284C7)),
           const SizedBox(width: 8),
           Expanded(child: Text(widget.title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600))),
         ]),
@@ -1439,7 +1440,7 @@ class _CostBreakdownBodyState extends State<_CostBreakdownBody> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: reversed ? TColors.rose100 : (i.isEven ? TColors.blue100 : Colors.white),
+        color: reversed ? TColors.rose100 : (i.isEven ? TColors.blue100 : Tone.bg(0xFFFFFFFF)),
         border: Border(
           left: BorderSide(color: reversed ? TColors.rose500 : (i.isEven ? TColors.blue300 : TColors.slate200), width: 4),
           top: BorderSide(color: reversed ? TColors.rose200 : TColors.slate200),

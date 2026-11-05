@@ -12,8 +12,9 @@ import '../../poultry/trackers/tracker_logic.dart' show tNum, tStr;
 import '../../poultry/trackers/tracker_widgets.dart' show TColors;
 import 'restaurant_report_kit.dart';
 
-const _inGreen = Color(0xFF059669);
-const _netSlate = Color(0xFF334155);
+import 'package:poultrycore_mobile/design/tone.dart';
+const _inGreen = Tone(0xFF059669);
+const _netSlate = Tone(0xFF334155);
 
 num _n(Map r, String k) => tNum(r[k]);
 String _s(Map r, String k) => tStr(r[k]);
@@ -124,7 +125,7 @@ List<Map> _byDay(List<Map> rows, num opening) {
 /// CashBreakdownPanel: title and total, then one bar per bucket.
 Widget _breakdown(String title, String total, bool green, String empty, List<(String, String, num)> items) => Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
           Expanded(child: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600))),
@@ -142,7 +143,7 @@ Widget _breakdown(String title, String total, bool green, String empty, List<(St
               padding: const EdgeInsets.only(bottom: 10),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 Row(children: [
-                  Expanded(child: Text(label, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: TColors.slate600))),
+                  Expanded(child: Text(label, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF475569)))),
                   Text('$value (${pct.toStringAsFixed(1)}%)', style: const TextStyle(fontSize: 12)),
                 ]),
                 const SizedBox(height: 4),
@@ -151,8 +152,8 @@ Widget _breakdown(String title, String total, bool green, String empty, List<(St
                   child: LinearProgressIndicator(
                     value: (pct.clamp(0, 100) / 100).toDouble(),
                     minHeight: 8,
-                    color: green ? const Color(0xFF10B981) : const Color(0xFFF43F5E),
-                    backgroundColor: TColors.slate100,
+                    color: green ? const Tone.fg(0xFF10B981) : const Tone.fg(0xFFF43F5E),
+                    backgroundColor: Tone.bg(0xFFF1F5F9),
                   ),
                 ),
               ]),
@@ -166,7 +167,7 @@ Widget _miniRows(List<List<(String, Widget)>> rows) => Column(crossAxisAlignment
         Container(
           margin: const EdgeInsets.only(bottom: 8),
           padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(8)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             DefaultTextStyle.merge(style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500), child: cells.first.$2),
             const SizedBox(height: 4),
@@ -234,7 +235,7 @@ final cashFlowDetail = RDef(
         reportCard('Cash by day', 'Money in and out each day, and the cash held at the end of it.',
             BarChartRows(items: [for (final d in byDay) (d['date'] as String).substring(5)], series: [
               ('Money in', _inGreen, [for (final d in byDay) d['moneyIn'] as num], f.money),
-              ('Money out', const Color(0xFFE11D48), [for (final d in byDay) d['moneyOut'] as num], f.money),
+              ('Money out', const Tone(0xFFE11D48), [for (final d in byDay) d['moneyOut'] as num], f.money),
               ('Cash held', _netSlate, [for (final d in byDay) d['closing'] as num], f.money),
             ])),
         const SizedBox(height: 12),
@@ -354,7 +355,7 @@ final cashAccounts = RDef(
                   'Account',
                   Text.rich(TextSpan(children: [
                     TextSpan(text: _s(x, 'name')),
-                    if (x['isActive'] != true) const TextSpan(text: ' (inactive)', style: TextStyle(fontSize: 12, color: TColors.slate400)),
+                    if (x['isActive'] != true) const TextSpan(text: ' (inactive)', style: TextStyle(fontSize: 12, color: Tone.fg(0xFF7F8EA3))),
                   ])),
                 ),
                 ('Type', _t(restaurantAccountTypeLabels[_s(x, 'accountType')] ?? _s(x, 'accountType'))),
@@ -663,7 +664,7 @@ final profitVsCash = RDef(
             final strong = kind == 'start' || kind == 'result';
             return Container(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: TColors.slate200))),
+              decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Tone.line(0xFFE2E8F0)))),
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

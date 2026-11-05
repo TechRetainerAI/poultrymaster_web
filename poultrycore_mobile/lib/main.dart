@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'design/app_theme.dart';
+import 'design/tone.dart';
 import 'screens/business_office_screen.dart';
 import 'screens/app_shell.dart';
 import 'screens/login_screen.dart';
@@ -19,13 +20,20 @@ class PoultryCoreApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'PoultryCore',
-      debugShowCheckedModeBanner: false,
-      // Ported from the web's globals.css — see design/tokens.dart.
-      theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
-      home: RootGate(session: session),
+    // Follows the phone's light / dark setting, live (design/tone.dart).
+    return FollowPhoneBrightness(
+      builder: (context, dark) => MaterialApp(
+        title: 'VisibilityCore',
+        debugShowCheckedModeBanner: false,
+        // Ported from the web's globals.css — see design/tokens.dart.
+        theme: AppTheme.light(),
+        darkTheme: AppTheme.dark(),
+        themeMode: dark ? ThemeMode.dark : ThemeMode.light,
+        // The named colours switch in one frame; the theme should too, or the
+        // two drift apart for a moment mid-fade.
+        themeAnimationDuration: Duration.zero,
+        home: RootGate(session: session),
+      ),
     );
   }
 }

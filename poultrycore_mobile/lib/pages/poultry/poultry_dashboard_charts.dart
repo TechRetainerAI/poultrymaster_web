@@ -14,11 +14,12 @@ import '../../models/company.dart';
 import '../../state/session.dart';
 import '../hotel/hotel_dashboard_charts.dart';
 import '../shared/chart_period.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import 'trackers/tracker_logic.dart' show tNum, tStr;
 import 'trackers/tracker_widgets.dart' show rowsOf;
 
 const _colors = [chartBlue, chartOrange, chartAqua, chartYellow];
-const _ink2 = Color(0xFF52514E);
+const _ink2 = Tone.fg(0xFF52514E);
 const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 

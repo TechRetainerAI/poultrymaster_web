@@ -21,6 +21,7 @@ import 'report_shell.dart';
 import 'report_widgets.dart';
 import 'reports_catalog_screen.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 num _n(Object? v) => toNum(v);
 String _key(Object? v) => toBusinessDate(v) ?? '';
 
@@ -256,8 +257,8 @@ class _BatchProductionSummaryScreenState extends State<BatchProductionSummaryScr
               Container(
                 width: 40,
                 height: 40,
-                decoration: BoxDecoration(color: const Color(0xFFD1FAE5), borderRadius: BorderRadius.circular(8)),
-                child: const Icon(Icons.inventory_2_outlined, color: Color(0xFF059669)),
+                decoration: BoxDecoration(color: const Tone.bg(0xFFD1FAE5), borderRadius: BorderRadius.circular(8)),
+                child: const Icon(Icons.inventory_2_outlined, color: Tone.fg(0xFF059669)),
               ),
               const SizedBox(width: 10),
               const Expanded(
@@ -268,13 +269,13 @@ class _BatchProductionSummaryScreenState extends State<BatchProductionSummaryScr
               Container(
                 margin: const EdgeInsets.only(top: 10),
                 padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: const Color(0xFFFEF2F2), border: Border.all(color: const Color(0xFFFECACA)), borderRadius: BorderRadius.circular(8)),
-                child: Text(_error, style: const TextStyle(color: Color(0xFFB91C1C))),
+                decoration: BoxDecoration(color: const Tone.bg(0xFFFEF2F2), border: Border.all(color: const Tone.line(0xFFFECACA)), borderRadius: BorderRadius.circular(8)),
+                child: Text(_error, style: const TextStyle(color: Tone.fg(0xFFB91C1C))),
               ),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: Colors.white, border: Border.all(color: slate200), borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: slate200), borderRadius: BorderRadius.circular(8)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 AppInput(
                   key: ValueKey('search-${_search.isEmpty}'),
@@ -331,14 +332,14 @@ class _BatchProductionSummaryScreenState extends State<BatchProductionSummaryScr
                 for (final c in cards)
                   Container(
                     padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: Colors.white, border: Border.all(color: slate200), borderRadius: BorderRadius.circular(12)),
+                    decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: slate200), borderRadius: BorderRadius.circular(12)),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(c.$1.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, letterSpacing: .5, color: slate500)),
                       Text(c.$2,
                           style: TextStyle(
                             fontSize: 19,
                             fontWeight: FontWeight.w700,
-                            color: c.$4 == 'green' ? const Color(0xFF059669) : c.$4 == 'rose' ? const Color(0xFFDC2626) : slate900,
+                            color: c.$4 == 'green' ? const Tone.fg(0xFF059669) : c.$4 == 'rose' ? const Tone.fg(0xFFDC2626) : slate900,
                           )),
                       Text(c.$3, style: const TextStyle(fontSize: 11.5, color: slate400)),
                     ]),
@@ -353,9 +354,9 @@ class _BatchProductionSummaryScreenState extends State<BatchProductionSummaryScr
                 valueColor: (r, c) => c == 6
                     ? emerald700
                     : c == 9
-                        ? const Color(0xFFB91C1C)
+                        ? const Tone.fg(0xFFB91C1C)
                         : c == 12 && rows[r].deaths > 0
-                            ? const Color(0xFFB91C1C)
+                            ? const Tone.fg(0xFFB91C1C)
                             : null,
               ),
             ],
@@ -447,14 +448,14 @@ class _FeedProductionReportsScreenState extends State<FeedProductionReportsScree
     num sum(List<Map> l, String k) => l.fold<num>(0, (s, x) => s + _n(x[k]));
     Widget mini(String label, String value) => Container(
           padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: slate200), borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: slate200), borderRadius: BorderRadius.circular(8)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(label.toUpperCase(), style: const TextStyle(fontSize: 11, letterSpacing: .4, color: slate500)),
             Text(value, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: slate900)),
           ]),
         );
     return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFB),
+      backgroundColor: const Tone.bg(0xFFF9FAFB),
       appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: const Text('Feed Production Reports')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 32),
@@ -471,7 +472,7 @@ class _FeedProductionReportsScreenState extends State<FeedProductionReportsScree
           ),
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Colors.white, border: Border.all(color: slate200), borderRadius: BorderRadius.circular(10)),
+            decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: slate200), borderRadius: BorderRadius.circular(10)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Row(children: [
                 Expanded(child: _dateBox('From', _from, (v) => setState(() => _from = v))),
@@ -883,12 +884,12 @@ class _ChangesReportScreenState extends State<ChangesReportScreen> {
               Container(
                 margin: const EdgeInsets.only(top: 12),
                 padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: const Color(0xFFFFF1F2), border: Border.all(color: const Color(0xFFFECDD3)), borderRadius: BorderRadius.circular(6)),
+                decoration: BoxDecoration(color: const Tone.bg(0xFFFFF1F2), border: Border.all(color: const Tone.line(0xFFFECDD3)), borderRadius: BorderRadius.circular(6)),
                 child: Text(_error, style: const TextStyle(fontSize: 13, color: rose700)),
               ),
             const SizedBox(height: 12),
             Container(
-              decoration: BoxDecoration(color: Colors.white, border: Border.all(color: slate200), borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: slate200), borderRadius: BorderRadius.circular(12)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 if (_loading)
                   const Padding(padding: EdgeInsets.all(30), child: Text('Loading changes…', textAlign: TextAlign.center, style: TextStyle(color: slate500)))
@@ -919,7 +920,7 @@ class _ChangesReportScreenState extends State<ChangesReportScreen> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                               decoration: BoxDecoration(
-                                border: Border.all(color: l['status'] == 'Failed' ? const Color(0xFFFECDD3) : const Color(0xFFA7F3D0)),
+                                border: Border.all(color: l['status'] == 'Failed' ? const Tone.line(0xFFFECDD3) : const Tone.line(0xFFA7F3D0)),
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text('${l['status'] ?? ''}',
@@ -962,9 +963,9 @@ class _ActionBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (bg, fg) = switch (kind) {
-      'Created' => (const Color(0xFFD1FAE5), emerald700),
+      'Created' => (const Tone(0xFFD1FAE5), emerald700),
       'Updated' => (amber100, amber700),
-      'Deleted' => (const Color(0xFFFFE4E6), rose700),
+      'Deleted' => (const Tone(0xFFFFE4E6), rose700),
       _ => (slate100, slate600),
     };
     return Container(

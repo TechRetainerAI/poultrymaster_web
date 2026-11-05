@@ -11,6 +11,7 @@ import '../reports/report_routes.dart';
 import 'tracker_logic.dart';
 import 'tracker_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 const _kindLabel = {FeedKind.ingredient: 'Feed ingredients', FeedKind.finishedFeed: 'Finished feed'};
 
 /// The "All ..." entry in the item picker; never collides with a real id.
@@ -342,7 +343,7 @@ class _FeedInventoryTrackerScreenState extends State<FeedInventoryTrackerScreen>
 
   Widget _rollupCard(List<FeedItemPosition> ofKind, List<FeedUnitTotals> unitTotals) {
     return TCard(
-      bg: const Color(0x80FFFBEB),
+      bg: const Tone.bg(0x80FFFBEB),
       border: TColors.amber200,
       eyebrow: 'Stock for the selected period',
       titleWidget: Wrap(
@@ -353,7 +354,7 @@ class _FeedInventoryTrackerScreenState extends State<FeedInventoryTrackerScreen>
           Text('All ${_kindLabel[_kind]!.toLowerCase()}',
               style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: TColors.slate800)),
           TBadge('${ofKind.length} ${ofKind.length == 1 ? 'item' : 'items'}',
-              bg: Colors.white, fg: TColors.slate700, border: TColors.slate200),
+              bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate700, border: TColors.slate200),
         ],
       ),
       child: unitTotals.isEmpty
@@ -403,7 +404,7 @@ class _FeedInventoryTrackerScreenState extends State<FeedInventoryTrackerScreen>
     final unitBit = s != null && s.unit.isNotEmpty ? ' (${s.unit.toLowerCase()})' : '';
     final isLow = s != null && s.minimumStockAlert > 0 && s.closing <= s.minimumStockAlert;
     return TCard(
-      bg: const Color(0x80FFFBEB),
+      bg: const Tone.bg(0x80FFFBEB),
       border: TColors.amber200,
       eyebrow: 'Stock for the selected period',
       titleWidget: Wrap(
@@ -414,13 +415,13 @@ class _FeedInventoryTrackerScreenState extends State<FeedInventoryTrackerScreen>
           const Icon(Icons.grass, size: 16, color: TColors.amber700),
           Text(s?.itemName ?? 'Pick an item',
               style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: TColors.slate800)),
-          if (s != null) TBadge(_kindLabel[s.kind]!, bg: Colors.white, fg: TColors.slate700, border: TColors.slate200),
+          if (s != null) TBadge(_kindLabel[s.kind]!, bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate700, border: TColors.slate200),
           if (isLow) const TBadge('Low stock', bg: TColors.rose100, fg: TColors.rose800),
         ],
       ),
       child: TileGrid([
         TileData('Closing$unitBit', s == null ? '—' : qty(s.closing),
-            color: (s?.closing ?? 0) < 0 ? TColors.red600 : TColors.slate900,
+            color: (s?.closing ?? 0) < 0 ? TColors.red600 : Tone.button(TColors.slate900)!,
             sub: s != null && s.minimumStockAlert > 0 ? 'alert at ${qty(s.minimumStockAlert)}' : null),
         TileData('Opening', s == null ? '—' : qty(s.opening)),
         TileData('In', s == null ? '—' : qty(s.inQty), color: TColors.emerald700),

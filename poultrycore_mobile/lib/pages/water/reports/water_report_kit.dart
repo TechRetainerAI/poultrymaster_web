@@ -12,6 +12,7 @@ import '../../poultry/reports/report_widgets.dart';
 import '../../shared/business_dates.dart';
 import 'water_reports_catalog_screen.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 // The plumbing every Water report page shares, so each report below is only
 // what its web page computes: what it loads, its tiles, its PDF definition
 // (columns + rows, which the web's phone view renders as scorecards) and any
@@ -364,7 +365,7 @@ class WaterMiniTable extends StatelessWidget {
             head ? t.toUpperCase() : t,
             textAlign: right ? TextAlign.right : TextAlign.left,
             style: head
-                ? const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, letterSpacing: .5, color: Color(0xFF064E3B))
+                ? const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, letterSpacing: .5, color: Tone.fg(0xFF064E3B))
                 : const TextStyle(fontSize: 13, color: slate900),
           ),
         );
@@ -374,13 +375,13 @@ class WaterMiniTable extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: Column(children: [
         Container(
-          color: const Color(0xFFECFDF5),
+          color: const Tone.bg(0xFFECFDF5),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
           child: Row(children: [for (final c in columns) cell(c.header, c.right, head: true)]),
         ),
         for (final (i, r) in rows.indexed)
           Container(
-            color: i.isOdd ? const Color(0x99F8FAFC) : Colors.white,
+            color: i.isOdd ? const Tone.bg(0x99F8FAFC) : Tone.bg(0xFFFFFFFF),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(children: [for (final (ci, c) in columns.indexed) cell(ci < r.length ? r[ci] : '', c.right)]),
           ),

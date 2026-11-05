@@ -19,6 +19,7 @@ import '../shared/business_dates.dart';
 import '../shared/company_clock.dart';
 import '../shared/reason_select.dart' show reversalReasons;
 import 'water_driver_return_screen.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import 'water_raw_materials_screen.dart' show filterWaterRows;
 
 /// Water → Operations → Delivery → Deliveries, as `app/water-driver-returns/
@@ -32,9 +33,9 @@ String _today() => DateTime.now().toUtc().toIso8601String().substring(0, 10);
 Widget waterLoadStatusBadge(Object? status) {
   final s = tStr(status);
   final (bg, fg) = switch (s) {
-    'Loaded' => (TColors.blue100, const Color(0xFF1D4ED8)),
+    'Loaded' => (TColors.blue100, const Tone(0xFF1D4ED8)),
     'Returned' => (TColors.amber100, TColors.amber700),
-    'Reconciled' || 'Approved' => (const Color(0xFFDCFCE7), const Color(0xFF15803D)),
+    'Reconciled' || 'Approved' => (const Tone(0xFFDCFCE7), const Tone(0xFF15803D)),
     _ => (TColors.slate100, TColors.slate700),
   };
   return TBadge(s, bg: bg, fg: fg);
@@ -43,7 +44,7 @@ Widget waterLoadStatusBadge(Object? status) {
 Widget waterReturnStatusBadge(Object? status) {
   final s = tStr(status);
   final (bg, fg) = switch (s) {
-    'Approved' => (const Color(0xFFDCFCE7), const Color(0xFF15803D)),
+    'Approved' => (const Tone(0xFFDCFCE7), const Tone(0xFF15803D)),
     'Cancelled' => (TColors.slate100, TColors.slate600),
     _ => (TColors.amber100, TColors.amber700),
   };
@@ -410,7 +411,7 @@ class _WaterDeliveriesScreenState extends State<WaterDeliveriesScreen> {
   }
 
   Widget _box(Widget child) => Container(
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
         child: child,
       );
 
@@ -429,7 +430,7 @@ class _WaterDeliveriesScreenState extends State<WaterDeliveriesScreen> {
         if (showActions && open)
           OutlinedButton.icon(
             onPressed: () => _void(l),
-            style: OutlinedButton.styleFrom(foregroundColor: TColors.red600, side: const BorderSide(color: Color(0xFFFECACA))),
+            style: OutlinedButton.styleFrom(foregroundColor: TColors.red600, side: const BorderSide(color: Tone.line(0xFFFECACA))),
             icon: const Icon(Icons.cancel_outlined, size: 16),
             label: const Text('Void'),
           ),
@@ -438,7 +439,7 @@ class _WaterDeliveriesScreenState extends State<WaterDeliveriesScreen> {
         if (reconciledTab && st == 'Reconciled')
           OutlinedButton.icon(
             onPressed: () => _reconciledAction(l, edit: false),
-            style: OutlinedButton.styleFrom(foregroundColor: TColors.amber700, side: const BorderSide(color: Color(0xFFFDE68A))),
+            style: OutlinedButton.styleFrom(foregroundColor: TColors.amber700, side: const BorderSide(color: Tone.line(0xFFFDE68A))),
             icon: const Icon(Icons.undo, size: 16),
             label: const Text('Reverse'),
           ),
@@ -487,11 +488,11 @@ class _WaterDeliveriesScreenState extends State<WaterDeliveriesScreen> {
                 IconButton(tooltip: 'View details', onPressed: () => _view(_lid(l)), icon: const Icon(Icons.visibility_outlined, size: 18)),
                 if (showActions && tStr(l['status']) == 'Loaded') FilledButton(onPressed: () => _recordReturn(l), child: const Text('Record return')),
                 if (showActions && (tStr(l['status']) == 'Loaded' || tStr(l['status']) == 'Draft')) ...[
-                  IconButton(tooltip: 'Reload / edit load', onPressed: () => _loadForm(l), icon: const Icon(Icons.refresh, size: 18, color: Color(0xFF0284C7))),
+                  IconButton(tooltip: 'Reload / edit load', onPressed: () => _loadForm(l), icon: const Icon(Icons.refresh, size: 18, color: Tone.fg(0xFF0284C7))),
                   IconButton(
                     tooltip: 'Void this delivery (reverses stock)',
                     onPressed: () => _void(l),
-                    icon: const Icon(Icons.cancel_outlined, size: 18, color: Color(0xFFF43F5E)),
+                    icon: const Icon(Icons.cancel_outlined, size: 18, color: Tone.fg(0xFFF43F5E)),
                   ),
                 ],
                 if (reconciledTab && tStr(l['status']) == 'Reconciled') ...[
@@ -522,21 +523,21 @@ class _WaterDeliveriesScreenState extends State<WaterDeliveriesScreen> {
       if (st == 'Draft')
         OutlinedButton.icon(
           onPressed: () => _approve(r),
-          style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFF15803D), side: const BorderSide(color: Color(0xFFBBF7D0))),
+          style: OutlinedButton.styleFrom(foregroundColor: const Tone.fg(0xFF15803D), side: const BorderSide(color: Tone.line(0xFFBBF7D0))),
           icon: const Icon(Icons.check_circle_outline, size: 16),
           label: const Text('Approve & Reconcile'),
         ),
       if (st == 'Draft')
         OutlinedButton.icon(
           onPressed: () => _simple('/api/Water/driver-returns/${_rid(r)}/cancel', 'Return cancelled', 'Cancel failed'),
-          style: OutlinedButton.styleFrom(foregroundColor: TColors.red600, side: const BorderSide(color: Color(0xFFFECACA))),
+          style: OutlinedButton.styleFrom(foregroundColor: TColors.red600, side: const BorderSide(color: Tone.line(0xFFFECACA))),
           icon: const Icon(Icons.cancel_outlined, size: 16),
           label: const Text('Cancel'),
         ),
       if (st == 'Approved')
         OutlinedButton.icon(
           onPressed: () => _reverse(r),
-          style: OutlinedButton.styleFrom(foregroundColor: TColors.amber700, side: const BorderSide(color: Color(0xFFFDE68A))),
+          style: OutlinedButton.styleFrom(foregroundColor: TColors.amber700, side: const BorderSide(color: Tone.line(0xFFFDE68A))),
           icon: const Icon(Icons.undo, size: 16),
           label: const Text('Reverse'),
         ),
@@ -550,7 +551,7 @@ class _WaterDeliveriesScreenState extends State<WaterDeliveriesScreen> {
       if (st == 'Cancelled' && _isAdmin)
         OutlinedButton.icon(
           onPressed: () => _deleteReturn(r),
-          style: OutlinedButton.styleFrom(foregroundColor: TColors.red600, side: const BorderSide(color: Color(0xFFFECACA))),
+          style: OutlinedButton.styleFrom(foregroundColor: TColors.red600, side: const BorderSide(color: Tone.line(0xFFFECACA))),
           icon: const Icon(Icons.delete_outline, size: 16),
           label: const Text('Delete'),
         ),
@@ -620,11 +621,11 @@ class _WaterDeliveriesScreenState extends State<WaterDeliveriesScreen> {
                       onPressed: () => _editDraftReturn(r),
                       icon: const Icon(Icons.edit_outlined, size: 18, color: TColors.sky700),
                     ),
-                    IconButton(tooltip: 'Approve & Reconcile', onPressed: () => _approve(r), icon: const Icon(Icons.check_circle_outline, size: 18, color: Color(0xFF16A34A))),
+                    IconButton(tooltip: 'Approve & Reconcile', onPressed: () => _approve(r), icon: const Icon(Icons.check_circle_outline, size: 18, color: Tone.fg(0xFF16A34A))),
                     IconButton(
                       tooltip: 'Cancel return',
                       onPressed: () => _simple('/api/Water/driver-returns/${_rid(r)}/cancel', 'Return cancelled', 'Cancel failed'),
-                      icon: const Icon(Icons.cancel_outlined, size: 18, color: Color(0xFFF43F5E)),
+                      icon: const Icon(Icons.cancel_outlined, size: 18, color: Tone.fg(0xFFF43F5E)),
                     ),
                   ],
                   if (tStr(r['status']) == 'Approved')
@@ -639,7 +640,7 @@ class _WaterDeliveriesScreenState extends State<WaterDeliveriesScreen> {
                     IconButton(
                       tooltip: 'Delete this cancelled return (admin only, hard delete)',
                       onPressed: () => _deleteReturn(r),
-                      icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFEF4444)),
+                      icon: const Icon(Icons.delete_outline, size: 18, color: Tone.fg(0xFFEF4444)),
                     ),
                 ]),
               ],
@@ -655,7 +656,7 @@ class _WaterDeliveriesScreenState extends State<WaterDeliveriesScreen> {
           decoration: BoxDecoration(border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Icon(icon, size: 16, color: const Color(0xFF0284C7)),
+              Icon(icon, size: 16, color: const Tone.fg(0xFF0284C7)),
               const SizedBox(width: 6),
               Flexible(child: Text(title, style: const TextStyle(fontWeight: FontWeight.w500, color: TColors.slate900))),
             ]),
@@ -671,7 +672,7 @@ class _WaterDeliveriesScreenState extends State<WaterDeliveriesScreen> {
       onTap: () => setState(() => _tab = key),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-        decoration: BoxDecoration(color: on ? Colors.white : Colors.transparent, borderRadius: BorderRadius.circular(6)),
+        decoration: BoxDecoration(color: on ? Tone.bg(0xFFFFFFFF) : Colors.transparent, borderRadius: BorderRadius.circular(6)),
         child: Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: on ? TColors.slate900 : TColors.slate500)),
       ),
     );
@@ -679,7 +680,7 @@ class _WaterDeliveriesScreenState extends State<WaterDeliveriesScreen> {
 
   Widget _score(String label, String value) => Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
           Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: TColors.slate900)),
@@ -702,7 +703,7 @@ class _WaterDeliveriesScreenState extends State<WaterDeliveriesScreen> {
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
           children: [
             const Row(children: [
-              Icon(Icons.local_shipping_outlined, color: Color(0xFF0284C7)),
+              Icon(Icons.local_shipping_outlined, color: Tone.fg(0xFF0284C7)),
               SizedBox(width: 8),
               Flexible(child: Text('Deliveries', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TColors.slate900))),
             ]),
@@ -1015,7 +1016,7 @@ class _WaterLoadVehicleScreenState extends State<WaterLoadVehicleScreen> {
               style: const TextStyle(fontSize: 13, color: TColors.slate500),
             ),
             const SizedBox(height: 12),
-            formSection('Driver & route', const Color(0xFF4F46E5), [
+            formSection('Driver & route', const Tone.fg(0xFF4F46E5), [
               FilterLabel(
                 'Driver *',
                 AppSelect<int>(
@@ -1106,7 +1107,7 @@ class _WaterLoadVehicleScreenState extends State<WaterLoadVehicleScreen> {
                   ]),
                 ),
                 Container(
-                  color: Colors.white,
+                  color: Tone.bg(0xFFFFFFFF),
                   padding: const EdgeInsets.all(12),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                     const Text('One row per product on this run.', style: TextStyle(fontSize: 12, color: TColors.slate500)),
@@ -1137,7 +1138,7 @@ class _WaterLoadVehicleScreenState extends State<WaterLoadVehicleScreen> {
                               IconButton(
                                 tooltip: 'Remove product',
                                 onPressed: () => setState(() => _items.remove(it)),
-                                icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFEF4444)),
+                                icon: const Icon(Icons.delete_outline, size: 18, color: Tone.fg(0xFFEF4444)),
                               ),
                             ]),
                             const SizedBox(height: 6),
@@ -1288,7 +1289,7 @@ class _WaterDeliveryRunScreenState extends State<WaterDeliveryRunScreen> {
   Widget _section(String title, IconData? icon, List<Widget> children) => Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(children: [
             if (icon != null) ...[Icon(icon, size: 16, color: TColors.slate500), const SizedBox(width: 6)],
@@ -1303,7 +1304,7 @@ class _WaterDeliveryRunScreenState extends State<WaterDeliveryRunScreen> {
 
   Widget _card(String label, String value, {Color? color}) => Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
           Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: color)),
@@ -1364,8 +1365,8 @@ class _WaterDeliveryRunScreenState extends State<WaterDeliveryRunScreen> {
         Container(
           width: 40,
           height: 40,
-          decoration: BoxDecoration(color: const Color(0xFFE0F2FE), borderRadius: BorderRadius.circular(8)),
-          child: const Icon(Icons.local_shipping_outlined, color: Color(0xFF0284C7)),
+          decoration: BoxDecoration(color: const Tone.bg(0xFFE0F2FE), borderRadius: BorderRadius.circular(8)),
+          child: const Icon(Icons.local_shipping_outlined, color: Tone.fg(0xFF0284C7)),
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -1417,7 +1418,7 @@ class _WaterDeliveryRunScreenState extends State<WaterDeliveryRunScreen> {
         Container(
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: TColors.amber50, border: Border.all(color: const Color(0xFFFDE68A)), borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(color: TColors.amber50, border: Border.all(color: const Tone.line(0xFFFDE68A)), borderRadius: BorderRadius.circular(12)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const Text('Reversal history', style: TextStyle(fontWeight: FontWeight.w600, color: TColors.amber900)),
             const SizedBox(height: 4),
@@ -1544,7 +1545,7 @@ class _WaterDeliveryRunScreenState extends State<WaterDeliveryRunScreen> {
               secondaryBuilder: (x) => Wrap(spacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
                 Text(_gh(tNum(x['amount']))),
                 x['isApproved'] == true
-                    ? const TBadge('Approved', bg: Color(0xFFDCFCE7), fg: Color(0xFF15803D))
+                    ? const TBadge('Approved', bg: Tone.bg(0xFFDCFCE7), fg: Tone.fg(0xFF15803D))
                     : const TBadge('Pending', bg: TColors.amber100, fg: TColors.amber700),
               ]),
               highlights: (x) => [Highlight('Amount', _gh(tNum(x['amount'])), accent: Accent.rose, wide: true)],
@@ -1643,7 +1644,7 @@ class _WaterDriverReportScreenState extends State<WaterDriverReportScreen> {
 
   Widget _stat(String label, String value, {bool rose = false}) => Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
           Text(value, maxLines: 1, overflow: TextOverflow.ellipsis,
@@ -1664,7 +1665,7 @@ class _WaterDriverReportScreenState extends State<WaterDriverReportScreen> {
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
         children: [
           const Row(children: [
-            Icon(Icons.bar_chart, size: 24, color: Color(0xFF0284C7)),
+            Icon(Icons.bar_chart, size: 24, color: Tone.fg(0xFF0284C7)),
             SizedBox(width: 8),
             Expanded(child: Text('Driver collection report', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TColors.slate900))),
           ]),

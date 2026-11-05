@@ -17,6 +17,7 @@ import 'cash_account_dialogs.dart' show cashReasons, hotelCashReasons;
 import 'cash_accounts_screen.dart' show CashAccountDetailScreen, CashAccountsScreen;
 import 'cash_vocabulary.dart';
 import 'money_widgets.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import '../reports/money_reports.dart' show MoneyRail, poultryMoneyRail;
 
 /// Poultry → Money → Reconciliation, as `app/poultry-cash-reconciliation/page.tsx`:
@@ -29,7 +30,7 @@ const cashReversalReasons = [
   'Posted by mistake', 'Cash located afterwards', 'Test or training entry', 'Other',
 ];
 
-const _sky600 = Color(0xFF0284C7);
+const _sky600 = Tone.fg(0xFF0284C7);
 
 /// hotelVocabularyType: what the shared counting words should call a Hotel account.
 String hotelVocabularyType(Object? v) => switch ('${v ?? ''}') {
@@ -41,7 +42,7 @@ String hotelVocabularyType(Object? v) => switch ('${v ?? ''}') {
 
 /// COUNT_BADGE: (bg, fg).
 (Color, Color) countTone(String s) => switch (s) {
-      'Posted' => (const Color(0xFFDCFCE7), const Color(0xFF15803D)),
+      'Posted' => (const Tone(0xFFDCFCE7), const Tone(0xFF15803D)),
       'Reversed' => (TColors.amber100, TColors.amber700),
       _ => (TColors.slate100, TColors.slate700),
     };
@@ -252,7 +253,7 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
 
   Widget _tile(String label, String value, {String? hint}) => Container(
         padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: const TextStyle(fontSize: 11, color: TColors.slate500)),
           Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
@@ -273,7 +274,7 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
   Widget _small(String label, VoidCallback? on, {bool filled = false}) => filled
       ? FilledButton(onPressed: on, style: FilledButton.styleFrom(visualDensity: VisualDensity.compact), child: Text(label))
       : OutlinedButton(
-          onPressed: on, style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact, backgroundColor: Colors.white), child: Text(label));
+          onPressed: on, style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact, backgroundColor: Tone.bg(0xFFFFFFFF)), child: Text(label));
 
   bool get _water => _r.idPrefix == 'water';
 
@@ -282,23 +283,23 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
   Widget _action(String label, IconData icon, Color color, Color border, VoidCallback? on) => OutlinedButton.icon(
         onPressed: on,
         style: _water
-            ? OutlinedButton.styleFrom(backgroundColor: Colors.white)
-            : OutlinedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: color, side: BorderSide(color: border)),
+            ? OutlinedButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)))
+            : OutlinedButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)), foregroundColor: color, side: BorderSide(color: border)),
         icon: Icon(icon, size: 16, color: _water ? color : null),
         label: Text(label),
       );
 
   List<Widget> _countActions(Map c) => [
         if (tStr(c['status']) == 'Draft') ...[
-          _action('Post', Icons.check, TColors.emerald700, const Color(0xFFA7F3D0), _busy ? null : () => _postDraft(c)),
-          _action('Edit', Icons.edit_outlined, _r.isHotel ? TColors.violet700 : TColors.sky700, _r.isHotel ? TColors.violet200 : const Color(0xFFBAE6FD),
+          _action('Post', Icons.check, TColors.emerald700, const Tone(0xFFA7F3D0), _busy ? null : () => _postDraft(c)),
+          _action('Edit', Icons.edit_outlined, _r.isHotel ? TColors.violet700 : TColors.sky700, _r.isHotel ? TColors.violet200 : const Tone(0xFFBAE6FD),
               () => _openForm(count: c, mode: 'draft')),
-          _action('Discard', Icons.delete_outline, TColors.rose600, const Color(0xFFFECDD3), () => _discard(c)),
+          _action('Discard', Icons.delete_outline, TColors.rose600, const Tone(0xFFFECDD3), () => _discard(c)),
         ],
         if (tStr(c['status']) == 'Posted')
-          _action('Reverse', Icons.undo, TColors.amber700, const Color(0xFFFDE68A), () => _reverse(c)),
+          _action('Reverse', Icons.undo, TColors.amber700, const Tone(0xFFFDE68A), () => _reverse(c)),
         if (tStr(c['status']) == 'Reversed')
-          _action('Count again', Icons.replay, _r.isHotel ? TColors.violet700 : TColors.sky700, _r.isHotel ? TColors.violet200 : const Color(0xFFBAE6FD),
+          _action('Count again', Icons.replay, _r.isHotel ? TColors.violet700 : TColors.sky700, _r.isHotel ? TColors.violet200 : const Tone(0xFFBAE6FD),
               () => _openForm(count: c, mode: 'copy')),
       ];
 
@@ -351,7 +352,7 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 if (_accounts.isNotEmpty) ...[
                   const Text('ACCOUNT TO RECONCILE',
@@ -406,7 +407,7 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
                       SizedBox(
                         width: c.maxWidth,
                         child: FilledButton.icon(
-                          style: FilledButton.styleFrom(backgroundColor: _r.accent),
+                          style: FilledButton.styleFrom(backgroundColor: Tone.button(_r.accent)),
                           onPressed: _reconcile,
                           icon: const Icon(Icons.balance, size: 16),
                           label: Text(draft != null
@@ -423,8 +424,8 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                    color: const Color(0xFFFEF2F2), border: Border.all(color: const Color(0xFFFECACA)), borderRadius: BorderRadius.circular(8)),
-                child: Text(_error, style: const TextStyle(color: Color(0xFFB91C1C))),
+                    color: const Tone.bg(0xFFFEF2F2), border: Border.all(color: const Tone.line(0xFFFECACA)), borderRadius: BorderRadius.circular(8)),
+                child: Text(_error, style: const TextStyle(color: Tone.fg(0xFFB91C1C))),
               ),
               const SizedBox(height: 8),
             ],
@@ -451,7 +452,7 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
                 const SizedBox(height: 8),
                 _banner(
                   TColors.amber50,
-                  const Color(0xFFFDE68A),
+                  const Tone(0xFFFDE68A),
                   TColors.amber700,
                   Text(
                     'The stored balance for this account is ${_gh(drift.abs())} away from what its transactions add up to. The reconciliation uses the transactions, so it is safe to post — but other screens will show the stale figure until you recalculate.',
@@ -462,14 +463,14 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
               if (draft != null) ...[
                 const SizedBox(height: 8),
                 _banner(
-                  _r.isHotel ? TColors.violet50 : const Color(0xFFF0F9FF),
-                  _r.isHotel ? TColors.violet200 : const Color(0xFFBAE6FD),
+                  _r.isHotel ? TColors.violet50 : const Tone(0xFFF0F9FF),
+                  _r.isHotel ? TColors.violet200 : const Tone(0xFFBAE6FD),
                   _r.isHotel ? TColors.violet700 : TColors.sky700,
                   Wrap(spacing: 8, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
                     Text(
                       '${countRef(draft, _r.idPrefix)} is saved but not posted — nothing has reached the ledger yet.'
                       '${draft['actualBalance'] != null ? ' Counted ${_gh(tNum(draft['actualBalance']))}.' : ''}',
-                      style: TextStyle(fontSize: 12, color: _r.isHotel ? const Color(0xFF4C1D95) : TColors.sky900),
+                      style: TextStyle(fontSize: 12, color: _r.isHotel ? const Tone.fg(0xFF4C1D95) : TColors.sky900),
                     ),
                     _small('Post it', _busy ? null : () => _postDraft(draft), filled: true),
                     _small('Edit', () => _openForm(count: draft, mode: 'draft')),
@@ -480,7 +481,7 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
               const SizedBox(height: 8),
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   const Text('Reconciliation History', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                   const Text('Reversing one posts an opposite adjustment — the original is kept.',
@@ -547,19 +548,19 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
                                   child: Text(_diff(c),
                                       style: TextStyle(
                                           fontWeight: FontWeight.w500,
-                                          color: d == 0 ? TColors.slate500 : d > 0 ? TColors.emerald700 : const Color(0xFFBE123C))),
+                                          color: d == 0 ? TColors.slate500 : d > 0 ? TColors.emerald700 : const Tone.fg(0xFFBE123C))),
                                 ),
                                 Text(tStr(c['reason']).isEmpty ? '—' : tStr(c['reason']), style: const TextStyle(color: TColors.slate600)),
                                 Align(alignment: Alignment.centerLeft, child: TBadge(tStr(c['status']), bg: bg, fg: fg)),
                                 Wrap(alignment: WrapAlignment.end, children: [
                                   if (tStr(c['status']) == 'Draft') ...[
                                     icon('Post this count to the ledger', Icons.check, TColors.emerald600, _busy ? null : () => _postDraft(c)),
-                                    icon('Edit this count', Icons.edit_outlined, const Color(0xFF0284C7), () => _openForm(count: c, mode: 'draft')),
+                                    icon('Edit this count', Icons.edit_outlined, const Tone(0xFF0284C7), () => _openForm(count: c, mode: 'draft')),
                                     icon('Discard this draft', Icons.delete_outline, TColors.rose600, () => _discard(c)),
                                   ],
                                   if (tStr(c['status']) == 'Posted') icon('Reverse this count', Icons.undo, TColors.amber600, () => _reverse(c)),
                                   if (tStr(c['status']) == 'Reversed')
-                                    icon('Count again from this one', Icons.replay, const Color(0xFF0284C7), () => _openForm(count: c, mode: 'copy')),
+                                    icon('Count again from this one', Icons.replay, const Tone(0xFF0284C7), () => _openForm(count: c, mode: 'copy')),
                                 ]),
                               ];
                             }(),
@@ -823,7 +824,7 @@ class _CashCountDialogState extends State<CashCountDialog> {
         actions: [
           TextButton(onPressed: _saving ? null : () => Navigator.pop(context, false), child: const Text('Cancel')),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: _r.accent),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(_r.accent)),
             onPressed: _canSubmit ? _submit : null,
             child: Text(_saving ? 'Saving…' : 'Save ${v.recordNoun}'),
           ),
@@ -910,7 +911,7 @@ class _ReasonPromptDialogState extends State<ReasonPromptDialog> {
             ],
             if (_error != null) ...[
               const SizedBox(height: 6),
-              Text(_error!, style: const TextStyle(fontSize: 13, color: Color(0xFFBE123C))),
+              Text(_error!, style: const TextStyle(fontSize: 13, color: Tone.fg(0xFFBE123C))),
             ],
           ]),
         ),
@@ -918,7 +919,7 @@ class _ReasonPromptDialogState extends State<ReasonPromptDialog> {
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           FilledButton(
             onPressed: _submit,
-            style: FilledButton.styleFrom(backgroundColor: TColors.red600, foregroundColor: Colors.white),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600), foregroundColor: Colors.white),
             child: Text(widget.confirmLabel),
           ),
         ],

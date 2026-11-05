@@ -19,6 +19,7 @@ import '../poultry/trackers/tracker_widgets.dart';
 import '../shared/business_dates.dart';
 import '../shared/company_clock.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Water → Operations → Inventory → Stock movement (`app/water-stock/page.tsx`)
 /// and Inventory (`app/water-inventory/page.tsx`), with the three stock tools
 /// both pages carry: Recalculate stock, Recalculate product stock and Set
@@ -140,8 +141,8 @@ class _WaterStockMovementScreenState extends State<WaterStockMovementScreen> {
   String _when(Map t) => fmtInstant(t['createdDate'], _offset);
 
   Widget _sourceBadge(Map t) => isWaterManualTxn(t['txnType'])
-      ? const TBadge('Manual', bg: TColors.blue100, fg: Color(0xFF1D4ED8))
-      : const TBadge('System', bg: Colors.white, fg: TColors.slate700, border: TColors.slate300);
+      ? const TBadge('Manual', bg: TColors.blue100, fg: Tone.fg(0xFF1D4ED8))
+      : const TBadge('System', bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate700, border: TColors.slate300);
 
   Future<void> _newEntry() async {
     final ok = await showDialog<bool>(
@@ -173,7 +174,7 @@ class _WaterStockMovementScreenState extends State<WaterStockMovementScreen> {
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
           children: [
             const Row(children: [
-              Icon(Icons.inventory_2_outlined, color: Color(0xFF0284C7)),
+              Icon(Icons.inventory_2_outlined, color: Tone.fg(0xFF0284C7)),
               SizedBox(width: 8),
               Flexible(child: Text('Stock movement', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TColors.slate900))),
             ]),
@@ -228,7 +229,7 @@ class _WaterStockMovementScreenState extends State<WaterStockMovementScreen> {
             else if (_txns.isEmpty)
               Container(
                 padding: const EdgeInsets.all(32),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
                 child: const Text('No stock movement recorded yet.', textAlign: TextAlign.center, style: TextStyle(color: TColors.slate500)),
               )
             else
@@ -240,7 +241,7 @@ class _WaterStockMovementScreenState extends State<WaterStockMovementScreen> {
                 secondaryBuilder: (t) => Wrap(spacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
                   Text('${_when(t)} · ${tStr(t['txnType'])} · '),
                   Text('${signedQty(tNum(t['quantity']))} qty',
-                      style: TextStyle(fontWeight: FontWeight.w500, color: tNum(t['quantity']) < 0 ? const Color(0xFFE11D48) : TColors.emerald600)),
+                      style: TextStyle(fontWeight: FontWeight.w500, color: tNum(t['quantity']) < 0 ? const Tone.fg(0xFFE11D48) : TColors.emerald600)),
                 ]),
                 highlights: (t) => [
                   Highlight('Qty', signedQty(tNum(t['quantity'])), accent: tNum(t['quantity']) < 0 ? Accent.rose : Accent.emerald),
@@ -252,7 +253,7 @@ class _WaterStockMovementScreenState extends State<WaterStockMovementScreen> {
                   ('Source', isWaterManualTxn(t['txnType']) ? 'Manual' : 'System'),
                   ('Note', tStr(t['note']).isEmpty ? '—' : tStr(t['note'])),
                 ],
-                detailColor: (t, label) => label == 'Source' && isWaterManualTxn(t['txnType']) ? const Color(0xFF1D4ED8) : null,
+                detailColor: (t, label) => label == 'Source' && isWaterManualTxn(t['txnType']) ? const Tone(0xFF1D4ED8) : null,
                 table: (items) => TrackerTable(
                   sort: _sort,
                   onSort: (k) => setState(() => _sort = toggleSort(k, _sort)),
@@ -271,7 +272,7 @@ class _WaterStockMovementScreenState extends State<WaterStockMovementScreen> {
                         Align(alignment: Alignment.centerLeft, child: _sourceBadge(t)),
                         Align(
                           alignment: Alignment.centerRight,
-                          child: cellText(signedQty(tNum(t['quantity'])), color: tNum(t['quantity']) < 0 ? const Color(0xFFE11D48) : TColors.emerald600),
+                          child: cellText(signedQty(tNum(t['quantity'])), color: tNum(t['quantity']) < 0 ? const Tone.fg(0xFFE11D48) : TColors.emerald600),
                         ),
                         Align(alignment: Alignment.centerRight, child: cellText(t['unitCost'] == null ? '—' : tNum(t['unitCost']).toStringAsFixed(2))),
                         cellText(tStr(t['note']).isEmpty ? '—' : tStr(t['note']), color: TColors.slate500),
@@ -371,7 +372,7 @@ class _WaterStockEntryDialogState extends State<WaterStockEntryDialog> {
       child: AlertDialog(
         scrollable: true,
         title: const Row(children: [
-          Icon(Icons.inventory_2_outlined, size: 20, color: Color(0xFF0284C7)),
+          Icon(Icons.inventory_2_outlined, size: 20, color: Tone.fg(0xFF0284C7)),
           SizedBox(width: 8),
           Flexible(child: Text('New stock entry')),
         ]),
@@ -381,7 +382,7 @@ class _WaterStockEntryDialogState extends State<WaterStockEntryDialog> {
             const Text('Manually record a restock, adjustment, or return. Shows as a “Manual” entry on the list.',
                 style: TextStyle(fontSize: 13, color: TColors.slate500)),
             const SizedBox(height: 12),
-            formSection('Stock entry', const Color(0xFF0284C7), [
+            formSection('Stock entry', const Tone(0xFF0284C7), [
               FilterLabel(
                 'Item *',
                 AppSelect<String>(
@@ -468,7 +469,7 @@ const waterLowStockFinished = 50;
 }
 
 Widget waterToneBadge((String, String) st) => switch (st.$2) {
-      'out' => TBadge(st.$1, bg: const Color(0xFFFFE4E6), fg: const Color(0xFFBE123C)),
+      'out' => TBadge(st.$1, bg: const Tone.bg(0xFFFFE4E6), fg: const Tone.fg(0xFFBE123C)),
       'low' => TBadge(st.$1, bg: TColors.amber100, fg: TColors.amber700),
       _ => TBadge(st.$1, bg: TColors.emerald100, fg: TColors.emerald700),
     };
@@ -535,7 +536,7 @@ class _WaterInventoryScreenState extends State<WaterInventoryScreen> {
 
   Widget _stat(String label, String value, IconData icon, Color bg, Color fg) => Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
         child: Row(children: [
           Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)), child: Icon(icon, size: 20, color: fg)),
           const SizedBox(width: 10),
@@ -555,7 +556,7 @@ class _WaterInventoryScreenState extends State<WaterInventoryScreen> {
         onTap: () => setState(() => _tab = key),
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-          decoration: BoxDecoration(color: on ? Colors.white : Colors.transparent, borderRadius: BorderRadius.circular(6)),
+          decoration: BoxDecoration(color: on ? Tone.bg(0xFFFFFFFF) : Colors.transparent, borderRadius: BorderRadius.circular(6)),
           child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
             Icon(icon, size: 16, color: TColors.slate700),
             const SizedBox(width: 4),
@@ -569,7 +570,7 @@ class _WaterInventoryScreenState extends State<WaterInventoryScreen> {
   }
 
   Widget _panel(String intro, String manage, VoidCallback onManage, Widget body) => Container(
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Container(
             padding: const EdgeInsets.all(12),
@@ -607,8 +608,8 @@ class _WaterInventoryScreenState extends State<WaterInventoryScreen> {
             Row(children: [
               Container(
                 padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: const Color(0xFFE0F2FE), borderRadius: BorderRadius.circular(8)),
-                child: const Icon(Icons.inventory_2_outlined, color: Color(0xFF0369A1)),
+                decoration: BoxDecoration(color: const Tone.bg(0xFFE0F2FE), borderRadius: BorderRadius.circular(8)),
+                child: const Icon(Icons.inventory_2_outlined, color: Tone.fg(0xFF0369A1)),
               ),
               const SizedBox(width: 10),
               const Expanded(
@@ -632,9 +633,9 @@ class _WaterInventoryScreenState extends State<WaterInventoryScreen> {
             Wrap(spacing: 8, runSpacing: 8, children: waterStockTools(context, widget.session, widget.company, rawItems: _raw, products: _products, onDone: _load)),
             const SizedBox(height: 12),
             twoUp([
-              _stat('Total items', count(_products.length + _raw.length), Icons.inventory_2_outlined, const Color(0xFFE0F2FE), const Color(0xFF0369A1)),
+              _stat('Total items', count(_products.length + _raw.length), Icons.inventory_2_outlined, const Tone(0xFFE0F2FE), const Tone(0xFF0369A1)),
               _stat('Low stock', count(low), Icons.warning_amber_rounded, TColors.amber100, TColors.amber700),
-              _stat('Out of stock', count(out), Icons.error_outline, const Color(0xFFFFE4E6), const Color(0xFFBE123C)),
+              _stat('Out of stock', count(out), Icons.error_outline, const Tone(0xFFFFE4E6), const Tone(0xFFBE123C)),
             ]),
             const SizedBox(height: 12),
             Container(
@@ -694,7 +695,7 @@ class _WaterInventoryScreenState extends State<WaterInventoryScreen> {
                                     IconButton(
                                       tooltip: 'Track this product',
                                       onPressed: () => _href('/water-inventory-tracker?productId=${tStr(p['waterProductId'])}', 'Inventory tracker'),
-                                      icon: const Icon(Icons.history, size: 18, color: Color(0xFF0369A1)),
+                                      icon: const Icon(Icons.history, size: 18, color: Tone.fg(0xFF0369A1)),
                                     ),
                                   ],
                               ],

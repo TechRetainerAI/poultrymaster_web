@@ -24,6 +24,7 @@ import 'restaurant_money_kit.dart';
 import 'restaurant_roles.dart' show restaurantRose;
 import 'restaurant_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 typedef ReconHistoryRow = ({
   String key,
   String date,
@@ -82,12 +83,12 @@ List<ReconHistoryRow> reconciliationHistory(List<Map> counts, List<Map> shifts, 
 
 const _countBadge = {
   'Draft': (TColors.slate100, TColors.slate700),
-  'Posted': (Color(0xFFDCFCE7), Color(0xFF15803D)),
-  'Reversed': (Color(0xFFFEF3C7), TColors.amber700),
+  'Posted': (Tone.bg(0xFFDCFCE7), Tone.bg(0xFF15803D)),
+  'Reversed': (Tone.bg(0xFFFEF3C7), TColors.amber700),
 };
 
 Widget _statusBadge(String s) {
-  final (bg, fg) = _countBadge[s] ?? (Colors.white, TColors.slate500);
+  final (bg, fg) = _countBadge[s] ?? (Tone(0xFFFFFFFF), TColors.slate500);
   return rStatusBadge(s, bg: bg, fg: fg, border: bg);
 }
 
@@ -286,7 +287,7 @@ class _RestaurantCashReconciliationScreenState extends State<RestaurantCashRecon
           label: const Text('Edit'),
         ),
         OutlinedButton.icon(
-          style: OutlinedButton.styleFrom(foregroundColor: TColors.red600, side: const BorderSide(color: Color(0xFFFECACA))),
+          style: OutlinedButton.styleFrom(foregroundColor: TColors.red600, side: const BorderSide(color: Tone.line(0xFFFECACA))),
           onPressed: () => _discard(h.countId!),
           icon: const Icon(Icons.delete_outline, size: 16),
           label: const Text('Discard'),
@@ -299,7 +300,7 @@ class _RestaurantCashReconciliationScreenState extends State<RestaurantCashRecon
 
   Widget _accTile(String label, String value) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label.toUpperCase(), style: const TextStyle(fontSize: 11, letterSpacing: .4, color: TColors.slate500)),
           Text(value, style: const TextStyle(fontWeight: FontWeight.w600, color: TColors.slate900)),
@@ -377,10 +378,10 @@ class _RestaurantCashReconciliationScreenState extends State<RestaurantCashRecon
                   const Icon(Icons.warning_amber_rounded, size: 16, color: TColors.rose700),
                   Text(
                     'Count #${tIntOrNull(draft['countId'])} is saved but not posted — nothing has reached the ledger yet. Counted ${_gh(tNum(draft['countedBalance']))}.',
-                    style: const TextStyle(fontSize: 12, color: Color(0xFF881337)),
+                    style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF881337)),
                   ),
                   FilledButton(
-                    style: FilledButton.styleFrom(backgroundColor: restaurantRose, visualDensity: VisualDensity.compact),
+                    style: FilledButton.styleFrom(backgroundColor: Tone.button(restaurantRose), visualDensity: VisualDensity.compact),
                     onPressed: _saving ? null : () => _postDraft(tIntOrNull(draft['countId'])!),
                     child: const Text('Post it'),
                   ),
@@ -401,10 +402,10 @@ class _RestaurantCashReconciliationScreenState extends State<RestaurantCashRecon
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                    color: const Color(0xFFF0F9FF), border: Border.all(color: const Color(0xFFBAE6FD)), borderRadius: BorderRadius.circular(8)),
+                    color: const Tone.bg(0xFFF0F9FF), border: Border.all(color: const Tone.line(0xFFBAE6FD)), borderRadius: BorderRadius.circular(8)),
                 child: Wrap(spacing: 8, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
                   Text('Editing draft count #$_editingDraftId. Saving updates it — posting is still a separate step.',
-                      style: const TextStyle(fontSize: 12, color: Color(0xFF0C4A6E))),
+                      style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF0C4A6E))),
                   TextButton(onPressed: _cancelEdit, child: const Text('Cancel edit')),
                 ]),
               ),
@@ -446,7 +447,7 @@ class _RestaurantCashReconciliationScreenState extends State<RestaurantCashRecon
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: diff == 0 ? const Color(0xFFF0FDF4) : diff > 0 ? TColors.amber50 : const Color(0xFFFEF2F2),
+                  color: diff == 0 ? const Tone.bg(0xFFF0FDF4) : diff > 0 ? TColors.amber50 : const Tone.bg(0xFFFEF2F2),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -456,7 +457,7 @@ class _RestaurantCashReconciliationScreenState extends State<RestaurantCashRecon
                   style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
-                      color: diff == 0 ? const Color(0xFF166534) : diff > 0 ? const Color(0xFF92400E) : const Color(0xFF991B1B)),
+                      color: diff == 0 ? const Tone.fg(0xFF166534) : diff > 0 ? const Tone.fg(0xFF92400E) : const Tone.fg(0xFF991B1B)),
                 ),
               ),
             ],
@@ -468,7 +469,7 @@ class _RestaurantCashReconciliationScreenState extends State<RestaurantCashRecon
             ),
             const SizedBox(height: 10),
             FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: restaurantRose),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(restaurantRose)),
               onPressed: chosen == null || _counted.text.isEmpty || _saving || locked ? null : _saveDraft,
               icon: _saving
                   ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
@@ -555,8 +556,8 @@ class _RestaurantCashReconciliationScreenState extends State<RestaurantCashRecon
                                       : h.difference < 0
                                           ? TColors.red600
                                           : h.difference > 0
-                                              ? const Color(0xFFD97706)
-                                              : const Color(0xFF15803D),
+                                              ? const Tone.fg(0xFFD97706)
+                                              : const Tone.fg(0xFF15803D),
                                 )),
                             cellText(h.by, color: grey),
                             cellText(h.note, color: grey),

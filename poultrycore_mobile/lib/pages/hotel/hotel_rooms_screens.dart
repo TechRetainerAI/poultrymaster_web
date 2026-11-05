@@ -21,6 +21,7 @@ import '../poultry/trackers/tracker_widgets.dart';
 import 'hotel_kit.dart';
 import 'hotel_other_select.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 Object? _v(Map m, String k) => m[k] ?? m[k.toLowerCase()];
 String _dash(Object? v) => tStr(v).isEmpty ? '—' : tStr(v);
 String _money(Object? v) => tNum(v).toStringAsFixed(2);
@@ -29,18 +30,18 @@ const roomStatuses = ['Available', 'Occupied', 'Reserved', 'Cleaning', 'Maintena
 
 /// RoomStatusBadge (bg, fg) and RoomGrid's tile (bg, border).
 const _roomBadge = {
-  'Available': (Color(0xFFD1FAE5), Color(0xFF047857)),
+  'Available': (Tone.bg(0xFFD1FAE5), Tone.bg(0xFF047857)),
   'Occupied': (TColors.violet100, TColors.violet700),
-  'Maintenance': (Color(0xFFFEF3C7), Color(0xFFB45309)),
-  'Reserved': (Color(0xFFDBEAFE), Color(0xFF1D4ED8)),
-  'Cleaning': (Color(0xFFFFEDD5), Color(0xFFC2410C)),
+  'Maintenance': (Tone.bg(0xFFFEF3C7), Tone.bg(0xFFB45309)),
+  'Reserved': (Tone.bg(0xFFDBEAFE), Tone.bg(0xFF1D4ED8)),
+  'Cleaning': (Tone.bg(0xFFFFEDD5), Tone.bg(0xFFC2410C)),
 };
 const _roomTile = {
-  'Available': (Color(0xFFECFDF5), Color(0xFFA7F3D0)),
+  'Available': (Tone.bg(0xFFECFDF5), Tone.bg(0xFFA7F3D0)),
   'Occupied': (TColors.violet50, TColors.violet200),
-  'Maintenance': (Color(0xFFFFFBEB), Color(0xFFFDE68A)),
-  'Reserved': (Color(0xFFEFF6FF), Color(0xFFBFDBFE)),
-  'Cleaning': (Color(0xFFFFF7ED), Color(0xFFFED7AA)),
+  'Maintenance': (Tone.bg(0xFFFFFBEB), Tone.bg(0xFFFDE68A)),
+  'Reserved': (Tone.bg(0xFFEFF6FF), Tone.bg(0xFFBFDBFE)),
+  'Cleaning': (Tone.bg(0xFFFFF7ED), Tone.bg(0xFFFED7AA)),
 };
 
 Widget roomStatusBadge(Object? status) {
@@ -62,7 +63,7 @@ Widget _numberCard(String label, String value, Color color, {VoidCallback? onTap
       borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: border ?? TColors.slate200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: border ?? TColors.slate200), borderRadius: BorderRadius.circular(12)),
         child: Column(children: [
           FittedBox(fit: BoxFit.scaleDown, child: Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: color))),
           Text(label, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
@@ -283,7 +284,7 @@ class _HotelRoomsScreenState extends State<HotelRoomsScreen> {
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(color: bg, border: Border.all(color: border), borderRadius: BorderRadius.circular(8)),
                       child: Column(children: [
-                        Text(tStr(_v(r, 'roomNumber')), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF1E293B))),
+                        Text(tStr(_v(r, 'roomNumber')), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Tone.fg(0xFF1E293B))),
                         Text(tStr(_v(r, 'roomTypeName')), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
                         const SizedBox(height: 4),
                         roomStatusBadge(r['status']),
@@ -358,7 +359,7 @@ class _HotelRoomsScreenState extends State<HotelRoomsScreen> {
     final filtered = filterRooms(_rooms, status: _status, floor: _floor, type: _type, search: _q.text);
     final rate = _rooms.isEmpty ? 0 : (_count('Occupied') / _rooms.length * 100).round();
     Widget viewButton(String v, IconData icon) => _view == v
-        ? IconButton.filled(style: IconButton.styleFrom(backgroundColor: hotelViolet), tooltip: v == 'grid' ? 'Grid' : 'List', onPressed: () {}, icon: Icon(icon, size: 18))
+        ? IconButton.filled(style: IconButton.styleFrom(backgroundColor: Tone.button(hotelViolet)), tooltip: v == 'grid' ? 'Grid' : 'List', onPressed: () {}, icon: Icon(icon, size: 18))
         : IconButton.outlined(tooltip: v == 'grid' ? 'Grid' : 'List', onPressed: () => setState(() => _view = v), icon: Icon(icon, size: 18));
     return Scaffold(
       backgroundColor: TColors.slate50,
@@ -378,16 +379,16 @@ class _HotelRoomsScreenState extends State<HotelRoomsScreen> {
           const SizedBox(height: 12),
           twoUp([
             _numberCard('Total', '${_rooms.length}', TColors.violet700, onTap: () => setState(() => _status = 'all')),
-            _numberCard('Available', '${_count('Available')}', const Color(0xFF047857), border: const Color(0xFFA7F3D0), onTap: () => setState(() => _status = 'Available')),
+            _numberCard('Available', '${_count('Available')}', const Tone(0xFF047857), border: const Tone.line(0xFFA7F3D0), onTap: () => setState(() => _status = 'Available')),
             _numberCard('Occupied', '${_count('Occupied')}', TColors.violet700, border: TColors.violet200, onTap: () => setState(() => _status = 'Occupied')),
-            _numberCard('Reserved', '${_count('Reserved')}', const Color(0xFF1D4ED8), border: const Color(0xFFBFDBFE), onTap: () => setState(() => _status = 'Reserved')),
-            _numberCard('Cleaning', '${_count('Cleaning')}', const Color(0xFFC2410C), border: const Color(0xFFFED7AA), onTap: () => setState(() => _status = 'Cleaning')),
-            _numberCard('Maintenance', '${_count('Maintenance')}', const Color(0xFFB45309), border: const Color(0xFFFDE68A), onTap: () => setState(() => _status = 'Maintenance')),
+            _numberCard('Reserved', '${_count('Reserved')}', const Tone(0xFF1D4ED8), border: const Tone.line(0xFFBFDBFE), onTap: () => setState(() => _status = 'Reserved')),
+            _numberCard('Cleaning', '${_count('Cleaning')}', const Tone(0xFFC2410C), border: const Tone.line(0xFFFED7AA), onTap: () => setState(() => _status = 'Cleaning')),
+            _numberCard('Maintenance', '${_count('Maintenance')}', const Tone(0xFFB45309), border: const Tone.line(0xFFFDE68A), onTap: () => setState(() => _status = 'Maintenance')),
           ]),
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Row(children: [
                 const Expanded(child: Text('Occupancy Rate', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: TColors.slate700))),
@@ -537,9 +538,9 @@ class _RoomDialogState extends State<_RoomDialog> {
 const housekeepingStatuses = ['Pending', 'InProgress', 'Completed', 'Inspected'];
 const _hkPriority = {
   'Low': (TColors.slate100, TColors.slate700),
-  'Normal': (Color(0xFFDBEAFE), Color(0xFF1D4ED8)),
-  'High': (Color(0xFFFEF3C7), Color(0xFFB45309)),
-  'Urgent': (Color(0xFFFEE2E2), Color(0xFFB91C1C)),
+  'Normal': (Tone(0xFFDBEAFE), Tone(0xFF1D4ED8)),
+  'High': (Tone(0xFFFEF3C7), Tone(0xFFB45309)),
+  'Urgent': (Tone(0xFFFEE2E2), Tone(0xFFB91C1C)),
 };
 
 class HotelHousekeepingScreen extends StatefulWidget {
@@ -591,7 +592,7 @@ class _HotelHousekeepingScreenState extends State<HotelHousekeepingScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
           Expanded(child: Text('Room ${tStr(_v(t, 'roomNumber'))}', style: const TextStyle(fontWeight: FontWeight.w700))),
@@ -657,9 +658,9 @@ class _HotelHousekeepingScreenState extends State<HotelHousekeepingScreen> {
 // ================================================================= HK Schedule
 
 const _schedTone = {
-  'Scheduled': (Color(0xFFDBEAFE), Color(0xFF1D4ED8)),
-  'InProgress': (Color(0xFFFEF3C7), Color(0xFFB45309)),
-  'Completed': (Color(0xFFD1FAE5), Color(0xFF047857)),
+  'Scheduled': (Tone(0xFFDBEAFE), Tone(0xFF1D4ED8)),
+  'InProgress': (Tone(0xFFFEF3C7), Tone(0xFFB45309)),
+  'Completed': (Tone(0xFFD1FAE5), Tone(0xFF047857)),
   'Skipped': (TColors.slate100, TColors.slate700),
 };
 
@@ -770,17 +771,17 @@ class _HotelHKScheduleScreenState extends State<HotelHKScheduleScreen> {
     final st = tStr(s['status']);
     return [
       if (st == 'Scheduled') ...[
-        IconButton(tooltip: 'Start', onPressed: () => _set(s, 'InProgress'), icon: const Icon(Icons.play_arrow, size: 18, color: Color(0xFF2563EB))),
+        IconButton(tooltip: 'Start', onPressed: () => _set(s, 'InProgress'), icon: const Icon(Icons.play_arrow, size: 18, color: Tone.fg(0xFF2563EB))),
         IconButton(tooltip: 'Skip', onPressed: () => _set(s, 'Skipped'), icon: const Icon(Icons.skip_next, size: 18, color: TColors.slate500)),
       ],
       if (st == 'InProgress')
-        IconButton(tooltip: 'Complete', onPressed: () => _set(s, 'Completed'), icon: const Icon(Icons.check_circle_outline, size: 18, color: Color(0xFF059669))),
+        IconButton(tooltip: 'Complete', onPressed: () => _set(s, 'Completed'), icon: const Icon(Icons.check_circle_outline, size: 18, color: Tone.fg(0xFF059669))),
     ];
   }
 
   Widget _priority(Object? p) => switch (tStr(p)) {
-        'High' => hotelBadge('High', const Color(0xFFFEF2F2), const Color(0xFFB91C1C)),
-        'Normal' => hotelBadge('Normal', const Color(0xFFEFF6FF), const Color(0xFF1D4ED8)),
+        'High' => hotelBadge('High', const Tone(0xFFFEF2F2), const Tone(0xFFB91C1C)),
+        'Normal' => hotelBadge('Normal', const Tone(0xFFEFF6FF), const Tone(0xFF1D4ED8)),
         final x => hotelBadge(x, TColors.slate50, TColors.slate700),
       };
 
@@ -828,9 +829,9 @@ class _HotelHKScheduleScreenState extends State<HotelHKScheduleScreen> {
           ]),
           const SizedBox(height: 12),
           twoUp([
-            _numberCard('Scheduled', '${n('Scheduled')}', const Color(0xFF1D4ED8)),
-            _numberCard('In Progress', '${n('InProgress')}', const Color(0xFFB45309)),
-            _numberCard('Completed', '${n('Completed')}', const Color(0xFF047857)),
+            _numberCard('Scheduled', '${n('Scheduled')}', const Tone(0xFF1D4ED8)),
+            _numberCard('In Progress', '${n('InProgress')}', const Tone(0xFFB45309)),
+            _numberCard('Completed', '${n('Completed')}', const Tone(0xFF047857)),
             _numberCard('Skipped', '${n('Skipped')}', TColors.slate500),
           ]),
           const SizedBox(height: 12),
@@ -1028,12 +1029,12 @@ class _ScheduleDialogState extends State<_ScheduleDialog> {
 // ================================================================ Room Service
 
 const _serviceTone = {
-  'Placed': (Color(0xFFDBEAFE), Color(0xFF1D4ED8)),
-  'Preparing': (Color(0xFFFEF3C7), Color(0xFFB45309)),
-  'Ready': (Color(0xFFD1FAE5), Color(0xFF047857)),
+  'Placed': (Tone(0xFFDBEAFE), Tone(0xFF1D4ED8)),
+  'Preparing': (Tone(0xFFFEF3C7), Tone(0xFFB45309)),
+  'Ready': (Tone(0xFFD1FAE5), Tone(0xFF047857)),
   'Delivered': (TColors.slate100, TColors.slate700),
   'Served': (TColors.slate100, TColors.slate700),
-  'Cancelled': (Color(0xFFFEE2E2), Color(0xFFB91C1C)),
+  'Cancelled': (Tone(0xFFFEE2E2), Tone(0xFFB91C1C)),
 };
 
 class HotelRoomServiceScreen extends StatefulWidget {

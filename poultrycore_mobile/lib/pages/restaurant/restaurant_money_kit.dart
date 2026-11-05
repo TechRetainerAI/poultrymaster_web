@@ -10,6 +10,7 @@ import '../poultry/trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../poultry/trackers/tracker_widgets.dart' show TColors, rowsOf, trackerToast;
 import '../shared/business_dates.dart';
 import '../shared/reason_select.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import 'restaurant_roles.dart' show restaurantRose;
 
 /// `/Restaurant/finance`, every call carrying farmId in the query.
@@ -52,17 +53,17 @@ class MoneyStat extends StatelessWidget {
   static const _colours = {
     'slate': TColors.slate900,
     'emerald': TColors.emerald700,
-    'orange': Color(0xFFC2410C),
-    'rose': Color(0xFFE11D48),
-    'indigo': Color(0xFF4338CA),
+    'orange': Tone(0xFFC2410C),
+    'rose': Tone(0xFFE11D48),
+    'indigo': Tone(0xFF4338CA),
     'amber': TColors.amber700,
-    'violet': Color(0xFF6D28D9),
+    'violet': Tone(0xFF6D28D9),
   };
 
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label.toUpperCase(),
               maxLines: 1,
@@ -83,7 +84,7 @@ class MoneyStat extends StatelessWidget {
 Widget rField(String label, Widget child, {bool required = false}) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Text.rich(TextSpan(children: [
         TextSpan(text: label),
-        if (required) const TextSpan(text: ' *', style: TextStyle(color: Color(0xFFF43F5E))),
+        if (required) const TextSpan(text: ' *', style: TextStyle(color: Tone.fg(0xFFF43F5E))),
       ]), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: TColors.slate900)),
       const SizedBox(height: 6),
       child,
@@ -128,12 +129,12 @@ Widget rCancel(BuildContext context, String label, {bool busy = false}) =>
     OutlinedButton(onPressed: busy ? null : () => Navigator.pop(context), child: Text(label));
 
 Widget rConfirm(String label, VoidCallback? onPressed, {Color color = restaurantRose}) =>
-    FilledButton(style: FilledButton.styleFrom(backgroundColor: color), onPressed: onPressed, child: Text(label));
+    FilledButton(style: FilledButton.styleFrom(backgroundColor: Tone.button(color)), onPressed: onPressed, child: Text(label));
 
 /// A grey box with a label on the left and a figure on the right.
 Widget rFigureBox(String label, String value) => Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-      decoration: BoxDecoration(color: const Color(0xFFF9FAFB), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+      decoration: BoxDecoration(color: const Tone.bg(0xFFF9FAFB), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
       child: Row(children: [
         Expanded(child: Text(label, style: const TextStyle(fontSize: 13, color: TColors.slate500))),
         Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: TColors.slate900)),
@@ -212,7 +213,7 @@ class _RReasonDialogState extends State<RReasonDialog> {
 }
 
 /// A small status / type badge.
-Widget rStatusBadge(String text, {Color bg = Colors.white, Color fg = TColors.slate700, Color border = TColors.slate200}) => Container(
+Widget rStatusBadge(String text, {Color bg = const Tone.bg(0xFFFFFFFF), Color fg = TColors.slate700, Color border = TColors.slate200}) => Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(color: bg, border: Border.all(color: border), borderRadius: BorderRadius.circular(999)),
       child: Text(text, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: fg)),

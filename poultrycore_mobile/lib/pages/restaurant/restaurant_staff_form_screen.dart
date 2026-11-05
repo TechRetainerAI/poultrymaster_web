@@ -10,6 +10,7 @@ import '../../state/session.dart';
 import '../shared/staff_employee_link.dart' show EmployeePrefill;
 import 'restaurant_roles.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Restaurant → Menu & Setup → Staff → Add / Edit, as the web's dialog in
 /// `app/restaurant-staff/page.tsx`: the person, a grid of role tiles (icon,
 /// name, what the role does) with the chosen one ringed in rose, then pay.
@@ -193,7 +194,7 @@ class _RestaurantStaffFormScreenState extends State<RestaurantStaffFormScreen> {
               Expanded(
                 child: FilledButton(
                   style: FilledButton.styleFrom(
-                    backgroundColor: restaurantRose,
+                    backgroundColor: Tone.button(restaurantRose),
                     minimumSize: const Size.fromHeight(48),
                   ),
                   onPressed: _saving ? null : _save,
@@ -244,7 +245,7 @@ class _RoleTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = context.tokens;
     return Material(
-      color: selected ? const Color(0xFFFFF1F2) : Colors.transparent, // rose-50
+      color: selected ? const Tone.bg(0xFFFFF1F2) : Colors.transparent, // rose-50
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
         side: BorderSide(width: 2, color: selected ? restaurantRose : tokens.border),
@@ -266,7 +267,7 @@ class _RoleTile extends StatelessWidget {
                         style: TextStyle(
                             fontSize: 12.5,
                             fontWeight: FontWeight.w600,
-                            color: selected ? const Color(0xFFBE123C) : null)), // rose-700
+                            color: selected ? const Tone.fg(0xFFBE123C) : null)), // rose-700
                     Text(role.description,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,

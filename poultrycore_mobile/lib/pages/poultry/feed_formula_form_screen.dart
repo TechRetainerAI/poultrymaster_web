@@ -9,6 +9,7 @@ import '../../models/company.dart';
 import '../../state/session.dart';
 import '../lookup_loader.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Poultry → Setup → Production → Feed Formulas → New / Edit, as the dialog
 /// in `app/poultry-feed-formulas/page.tsx`: the formula, then its ingredient
 /// lines — each a percentage of the batch or a fixed quantity — with the
@@ -219,8 +220,8 @@ class _FeedFormulaFormScreenState extends State<FeedFormulaFormScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF0F9FF),
-                      border: Border.all(color: const Color(0xFFBAE6FD)),
+                      color: const Tone.bg(0xFFF0F9FF),
+                      border: Border.all(color: const Tone.line(0xFFBAE6FD)),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: const Text.rich(
@@ -231,7 +232,7 @@ class _FeedFormulaFormScreenState extends State<FeedFormulaFormScreen> {
                         TextSpan(text: 'Copy', style: TextStyle(fontWeight: FontWeight.w700)),
                         TextSpan(text: ' instead.'),
                       ]),
-                      style: TextStyle(fontSize: 13, color: Color(0xFF0C4A6E)),
+                      style: TextStyle(fontSize: 13, color: Tone.fg(0xFF0C4A6E)),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -297,7 +298,7 @@ class _FeedFormulaFormScreenState extends State<FeedFormulaFormScreen> {
                             children: [
                               Icon(pctOk ? Icons.check_circle_outline : Icons.warning_amber_rounded,
                                   size: 16,
-                                  color: pctOk ? const Color(0xFF047857) : const Color(0xFFB45309)),
+                                  color: pctOk ? const Tone.fg(0xFF047857) : const Tone.fg(0xFFB45309)),
                               const SizedBox(width: 6),
                               Expanded(
                                 child: Text(
@@ -305,7 +306,7 @@ class _FeedFormulaFormScreenState extends State<FeedFormulaFormScreen> {
                                   style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w500,
-                                    color: pctOk ? const Color(0xFF047857) : const Color(0xFFB45309),
+                                    color: pctOk ? const Tone.fg(0xFF047857) : const Tone.fg(0xFFB45309),
                                   ),
                                 ),
                               ),

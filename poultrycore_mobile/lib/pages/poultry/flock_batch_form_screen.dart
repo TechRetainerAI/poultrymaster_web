@@ -11,6 +11,7 @@ import '../../state/session.dart';
 import '../lookup_loader.dart';
 import 'breed_picker.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Flock Purchases (Batches) → Add / Edit batch, as the web's dialogs in
 /// `app/flock-batch/page.tsx` built from `components/poultry/batch-purchase-fields.tsx`:
 /// Batch Details, Purchase Details (with the cash account the payment comes
@@ -240,9 +241,9 @@ class _FlockBatchFormScreenState extends State<FlockBatchFormScreen> {
     final paid = _num(_paid.text);
     final balance = total - paid;
     final (statusLabel, statusColor) = switch (_status) {
-      'pending' => ('Pending', const Color(0xFFD97706)),
-      'inactive' => ('Inactive', const Color(0xFF64748B)),
-      _ => ('Active', const Color(0xFF059669)),
+      'pending' => ('Pending', const Tone(0xFFD97706)),
+      'inactive' => ('Inactive', const Tone(0xFF64748B)),
+      _ => ('Active', const Tone(0xFF059669)),
     };
 
     return Scaffold(
@@ -381,11 +382,11 @@ class _FlockBatchFormScreenState extends State<FlockBatchFormScreen> {
                   children: [
                     Text('Total ${_money(total)}', style: const TextStyle(fontWeight: FontWeight.w600)),
                     Text('Paid ${_money(paid)}',
-                        style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF047857))),
+                        style: const TextStyle(fontWeight: FontWeight.w600, color: Tone.fg(0xFF047857))),
                     Text('Balance ${_money(balance)}',
                         style: TextStyle(
                             fontWeight: FontWeight.w600,
-                            color: balance > 0 ? const Color(0xFFDC2626) : const Color(0xFF047857))),
+                            color: balance > 0 ? const Tone.fg(0xFFDC2626) : const Tone.fg(0xFF047857))),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(

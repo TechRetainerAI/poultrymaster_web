@@ -19,10 +19,11 @@ import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../trackers/tracker_widgets.dart';
 import 'egg_sorting_logic.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 const _sm = TextStyle(fontSize: 12, color: TColors.slate500);
 
 Widget _card({required Widget child, String? title, String? description, Widget? trailing}) => Container(
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         if (title != null || description != null)
           Container(
@@ -112,7 +113,7 @@ class _EggSortingAuditListState extends State<EggSortingAuditList> {
               ]);
     if (widget.bare) {
       return Container(
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
         child: body,
       );
     }
@@ -696,7 +697,7 @@ class _CompositionReportState extends State<CompositionReport> {
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
-                                color: col.value.loss ? const Color(0xFFFFF1F2) : TColors.slate50,
+                                color: col.value.loss ? const Tone.bg(0xFFFFF1F2) : TColors.slate50,
                                 border: Border.all(color: col.value.loss ? TColors.rose200 : TColors.slate200),
                                 borderRadius: BorderRadius.circular(6),
                               ),

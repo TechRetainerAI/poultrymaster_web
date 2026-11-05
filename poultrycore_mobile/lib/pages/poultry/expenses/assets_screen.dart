@@ -21,6 +21,7 @@ import 'asset_widgets.dart';
 import 'hotel_asset_view.dart';
 import '../../shared/reason_select.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Poultry → Expenses → Capital Investments/Assets, as `app/poultry-assets/page.tsx`:
 /// the register of long-term investments, their cost, depreciation and book value.
 /// On AssetRail.water it is Water's Assets (`app/water-assets/page.tsx`): the
@@ -37,7 +38,7 @@ Widget assetThemed(BuildContext context, AssetRail r, Widget child) {
   return Theme(
     data: t.copyWith(
       colorScheme: t.colorScheme.copyWith(primary: accent),
-      filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(backgroundColor: accent, foregroundColor: Colors.white)),
+      filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(backgroundColor: Tone.button(accent), foregroundColor: Colors.white)),
     ),
     child: child,
   );
@@ -346,7 +347,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
                   SizedBox(height: 12),
                   Text(
                     'Charges every month of depreciation that is due, up to today, for each capital investment in service. Months already posted are skipped.',
-                    style: TextStyle(fontSize: 13, color: TColors.slate600),
+                    style: TextStyle(fontSize: 13, color: Tone.fg(0xFF475569)),
                   ),
                   SizedBox(height: 10),
                   Text(depreciationConventionNote, style: TextStyle(fontSize: 11, color: TColors.slate500)),
@@ -368,7 +369,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
               const Text(depreciationNoncashNote, style: TextStyle(fontSize: 13, color: TColors.slate500)),
               const SizedBox(height: 12),
               if (_due.isEmpty)
-                Text(_r.t('Every capital investment is up to date. Nothing is due.'), style: TextStyle(fontSize: 13, color: TColors.slate600))
+                Text(_r.t('Every capital investment is up to date. Nothing is due.'), style: TextStyle(fontSize: 13, color: Tone.fg(0xFF475569)))
               else ...[
                 TrackerTable(
                   columns: [TCol(_r.t('Investment'), width: 150), TCol('From', width: 110), TCol('Months', right: true, width: 80), TCol('Amount', right: true, width: 120)],
@@ -385,13 +386,13 @@ class _AssetsScreenState extends State<AssetsScreen> {
                 const SizedBox(height: 10),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(color: TColors.amber50, border: Border.all(color: const Color(0xFFFDE68A)), borderRadius: BorderRadius.circular(6)),
+                  decoration: BoxDecoration(color: Tone.bg(0xFFFFFBEB), border: Border.all(color: const Tone.line(0xFFFDE68A)), borderRadius: BorderRadius.circular(6)),
                   child: Row(children: [
                     Expanded(
                       child: Text('${dueMonths.toInt()} month(s) across ${_due.length} asset(s) will be charged to Profit & Loss.',
-                          style: const TextStyle(fontSize: 13, color: TColors.amber900)),
+                          style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF78350F))),
                     ),
-                    Text(_gh(dueTotal), style: const TextStyle(fontWeight: FontWeight.w700, color: TColors.amber900)),
+                    Text(_gh(dueTotal), style: const TextStyle(fontWeight: FontWeight.w700, color: Tone.fg(0xFF78350F))),
                   ]),
                 ),
                 const SizedBox(height: 6),
@@ -413,15 +414,15 @@ class _AssetsScreenState extends State<AssetsScreen> {
   Widget _statCard(String label, String value, {String? hint, Color? tone, bool strong = false}) => Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Tone.bg(0xFFFFFFFF),
           border: Border.all(
               color: strong
-                  ? TColors.slate300
-                  : tone == TColors.amber800
-                      ? const Color(0xFFFDE68A)
-                      : tone == TColors.emerald800
-                          ? const Color(0xFFA7F3D0)
-                          : TColors.slate200,
+                  ? Tone.line(0xFFCBD5E1)
+                  : identical(tone, TColors.amber800)
+                      ? const Tone.line(0xFFFDE68A)
+                      : identical(tone, TColors.emerald800)
+                          ? const Tone.line(0xFFA7F3D0)
+                          : Tone.line(0xFFE2E8F0),
               width: strong ? 1.5 : 1),
           borderRadius: BorderRadius.circular(12),
         ),
@@ -459,14 +460,14 @@ class _AssetsScreenState extends State<AssetsScreen> {
       if (!disposed)
         OutlinedButton.icon(
           onPressed: () => _dialog(DisposeAssetDialog(session: widget.session, company: widget.company, rail: _r, asset: a, cashAccounts: _cash, fmt: _gh)),
-          style: OutlinedButton.styleFrom(foregroundColor: TColors.amber700),
+          style: OutlinedButton.styleFrom(foregroundColor: Tone.fg(0xFFB45309)),
           icon: const Icon(Icons.remove_circle_outline, size: 16),
           label: const Text('Dispose'),
         ),
       if (!locked && !disposed)
         OutlinedButton.icon(
           onPressed: () => _dialog(ReverseAssetDialog(session: widget.session, company: widget.company, rail: _r, asset: a)),
-          style: OutlinedButton.styleFrom(foregroundColor: TColors.red600),
+          style: OutlinedButton.styleFrom(foregroundColor: Tone.fg(0xFFDC2626)),
           icon: const Icon(Icons.undo, size: 16),
           label: const Text('Reverse'),
         ),
@@ -476,7 +477,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
   Widget _panel(Map a) {
     final id = _id(a);
     return Container(
-      decoration: BoxDecoration(color: TColors.slate50, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFF8FAFC), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(6)),
       child: AssetDetailsPanel(
         rail: _r,
         view: _details[id],
@@ -530,7 +531,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
                 IconButton(
                   tooltip: _expanded.contains(id) ? 'Hide the history' : 'Show where these figures came from',
                   onPressed: () => _toggle(id),
-                  icon: Icon(_expanded.contains(id) ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right, size: 18, color: TColors.slate400),
+                  icon: Icon(_expanded.contains(id) ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right, size: 18, color: Tone.fg(0xFF7F8EA3)),
                 ),
                 Text(tStr(a['assetNumber']), style: const TextStyle(fontFamily: 'monospace', fontSize: 13)),
                 InkWell(
@@ -554,13 +555,13 @@ class _AssetsScreenState extends State<AssetsScreen> {
                 Align(
                   alignment: Alignment.centerRight,
                   child: Text(tNum(a['accumulatedDepreciation']) > 0 ? _gh(tNum(a['accumulatedDepreciation'])) : '—',
-                      style: const TextStyle(color: TColors.amber700)),
+                      style: const TextStyle(color: Tone.fg(0xFFB45309))),
                 ),
                 Align(alignment: Alignment.centerRight, child: Text(_gh(tNum(a['currentBookValue'])), style: const TextStyle(fontWeight: FontWeight.w500))),
                 Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                   tNum(a['usefulLifeMonths']) > 0
                       ? Text('${tStr(a['usefulLifeMonths'])} months')
-                      : const Text('Not set', style: TextStyle(color: TColors.slate400)),
+                      : const Text('Not set', style: TextStyle(color: Tone.fg(0xFF7F8EA3))),
                   if (tNum(a['monthlyDepreciation']) > 0)
                     Text('${_gh(tNum(a['monthlyDepreciation']))}/month', style: const TextStyle(fontSize: 11, color: TColors.slate500)),
                 ]),
@@ -582,13 +583,13 @@ class _AssetsScreenState extends State<AssetsScreen> {
                             tooltip: 'Dispose',
                             onPressed: () =>
                                 _dialog(DisposeAssetDialog(session: widget.session, company: widget.company, rail: _r, asset: a, cashAccounts: _cash, fmt: _gh)),
-                            icon: const Icon(Icons.remove_circle_outline, size: 18, color: TColors.amber600),
+                            icon: const Icon(Icons.remove_circle_outline, size: 18, color: Tone.fg(0xFFD97706)),
                           ),
                         if (!locked && !disposed)
                           IconButton(
                             tooltip: 'Reverse this acquisition',
                             onPressed: () => _dialog(ReverseAssetDialog(session: widget.session, company: widget.company, rail: _r, asset: a)),
-                            icon: const Icon(Icons.undo, size: 18, color: Color(0xFFEF4444)),
+                            icon: const Icon(Icons.undo, size: 18, color: Tone.fg(0xFFEF4444)),
                           ),
                       ]),
               ];
@@ -633,7 +634,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
           children: [
-            Text(_r.title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: TColors.slate900)),
+            Text(_r.title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Tone.fg(0xFF0F172A))),
             Text(_r.t('Track major long-term business investments, their cost, depreciation, and current book value.'),
                 style: TextStyle(fontSize: 12, color: TColors.slate500)),
             const SizedBox(height: 10),
@@ -643,7 +644,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
                 icon: const Icon(Icons.event_repeat, size: 16),
                 label: Row(mainAxisSize: MainAxisSize.min, children: [
                   const Text('Depreciation'),
-                  if (dueMonths > 0) ...[const SizedBox(width: 8), TBadge('${dueMonths.toInt()} due', bg: TColors.amber100, fg: TColors.amber800)],
+                  if (dueMonths > 0) ...[const SizedBox(width: 8), TBadge('${dueMonths.toInt()} due', bg: Tone.bg(0xFFFEF3C7), fg: Tone.fg(0xFF92400E))],
                 ]),
               ),
               FilledButton.icon(
@@ -699,7 +700,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
             else if (sorted.isEmpty)
               Container(
                 padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(12)),
                 child: Text(
                   _r.isWater ? 'No assets recorded. A borehole, a sachet machine or a delivery truck belongs here rather than on the Expenses page.' : _r.emptyText,
                   textAlign: TextAlign.center,
@@ -709,7 +710,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
             else if (_r.isWater)
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(12)),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   _table(pageRows, sorted.length),
                   const SizedBox(height: 8),
@@ -778,7 +779,7 @@ Widget _readOnly(String value, {bool bold = false}) => Container(
       height: 44,
       alignment: Alignment.centerLeft,
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(color: TColors.slate50, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFF8FAFC), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(6)),
       child: Text(value, style: TextStyle(color: TColors.slate500, fontWeight: bold ? FontWeight.w600 : null)),
     );
 
@@ -796,7 +797,7 @@ AppSelect<String> _accountSelect(AssetRail r, List<Map> accounts, String value, 
       onChanged: (v) => on(v ?? ''),
     );
 
-const _blue = Color(0xFF2563EB);
+const _blue = Tone(0xFF2563EB);
 
 /// Water's SupplierField: the picker shared by the two forms that open a payable.
 Widget _supplierField(List<Map> suppliers, String value, ValueChanged<String> on) => _hinted(
@@ -968,9 +969,9 @@ class _NewAssetDialogState extends State<NewAssetDialog> {
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: const Color(0xFFF0F9FF), border: Border.all(color: const Color(0xFFBAE6FD)), borderRadius: BorderRadius.circular(6)),
+                decoration: BoxDecoration(color: const Tone.bg(0xFFF0F9FF), border: Border.all(color: const Tone.line(0xFFBAE6FD)), borderRadius: BorderRadius.circular(6)),
                 child: DefaultTextStyle(
-                  style: const TextStyle(fontSize: 12, color: Color(0xFF0C4A6E)),
+                  style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF0C4A6E)),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     const Text('What this will record', style: TextStyle(fontWeight: FontWeight.w600)),
                     Text.rich(TextSpan(children: [
@@ -997,10 +998,10 @@ class _NewAssetDialogState extends State<NewAssetDialog> {
                       ])),
                     if (_inService.isEmpty)
                       const Text('No in-service date — it will be saved as not in service and will not depreciate yet.',
-                          style: TextStyle(color: TColors.amber800)),
+                          style: TextStyle(color: Tone.fg(0xFF92400E))),
                     if (_r.isWater && p.owing > 0 && _supplierId.isEmpty)
                       const Text('A balance is outstanding but no supplier is chosen, so it would not appear on Supplier Balances.',
-                          style: TextStyle(color: TColors.amber800)),
+                          style: TextStyle(color: Tone.fg(0xFF92400E))),
                   ]),
                 ),
               ),
@@ -1150,7 +1151,7 @@ class _AssetEditDialogState extends State<AssetEditDialog> {
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: TColors.slate50, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+              decoration: BoxDecoration(color: Tone.bg(0xFFF8FAFC), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(6)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Text.rich(
                   TextSpan(children: [
@@ -1158,7 +1159,7 @@ class _AssetEditDialogState extends State<AssetEditDialog> {
                     TextSpan(text: 'Add cost', style: TextStyle(fontWeight: FontWeight.w700)),
                     TextSpan(text: '. Typed the wrong amount in the first place? Correct it — the correction is kept on the record with its reason.'),
                   ]),
-                  style: TextStyle(fontSize: 11, color: TColors.slate600),
+                  style: TextStyle(fontSize: 11, color: Tone.fg(0xFF475569)),
                 ),
                 const SizedBox(height: 6),
                 Tooltip(
@@ -1299,14 +1300,14 @@ class _AddAssetCostDialogState extends State<AddAssetCostDialog> {
             if (expense)
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: TColors.amber50, border: Border.all(color: const Color(0xFFFDE68A)), borderRadius: BorderRadius.circular(6)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFBEB), border: Border.all(color: const Tone.line(0xFFFDE68A)), borderRadius: BorderRadius.circular(6)),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   const Text('An operating expense is recorded on the Expenses page',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: TColors.amber900)),
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Tone.fg(0xFF78350F))),
                   const SizedBox(height: 4),
                   Text(
                     _r.t("It will be charged in full against this period's profit and will NOT change what this investment is worth. Record it there and it behaves exactly like any other bill."),
-                    style: TextStyle(fontSize: 12, color: TColors.amber900),
+                    style: TextStyle(fontSize: 12, color: Tone.fg(0xFF78350F)),
                   ),
                   const SizedBox(height: 8),
                   Wrap(alignment: WrapAlignment.end, spacing: 8, children: [
@@ -1518,7 +1519,7 @@ class _ReverseAssetDialogState extends State<ReverseAssetDialog> {
             OutlinedButton(onPressed: _saving ? null : () => Navigator.pop(context, false), child: const Text('Cancel')),
             FilledButton(
               onPressed: _saving ? null : _save,
-              style: FilledButton.styleFrom(backgroundColor: TColors.red600, foregroundColor: Colors.white),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFDC2626)), foregroundColor: Colors.white),
               child: Text(_saving ? 'Saving…' : 'Reverse'),
             ),
           ],

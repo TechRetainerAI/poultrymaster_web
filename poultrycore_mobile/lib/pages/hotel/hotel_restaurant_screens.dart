@@ -24,6 +24,7 @@ import '../poultry/trackers/tracker_widgets.dart';
 import 'hotel_kit.dart';
 import 'hotel_other_select.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 Object? _v(Map m, String k) => m[k] ?? m[k.toLowerCase()];
 String _money(Object? v) => tNum(v).toStringAsFixed(2);
 int _orderId(Map o) => tIntOrNull(_v(o, 'hotelRestaurantOrderId')) ?? 0;
@@ -35,18 +36,18 @@ const hotelOrderNext = {'Placed': 'Preparing', 'Preparing': 'Ready', 'Ready': 'S
 
 /// ORDER_STATUS_COLOR.
 (Color, Color) _orderTone(Object? s) => switch (tStr(s)) {
-      'Placed' => (const Color(0xFFFEE2E2), const Color(0xFFB91C1C)),
-      'Preparing' => (const Color(0xFFFEF3C7), const Color(0xFFB45309)),
-      'Ready' => (const Color(0xFFD1FAE5), const Color(0xFF047857)),
+      'Placed' => (const Tone(0xFFFEE2E2), const Tone(0xFFB91C1C)),
+      'Preparing' => (const Tone(0xFFFEF3C7), const Tone(0xFFB45309)),
+      'Ready' => (const Tone(0xFFD1FAE5), const Tone(0xFF047857)),
       'Served' => (TColors.slate100, TColors.slate700),
       _ => (TColors.slate100, TColors.slate700),
     };
 
 /// The tables' STATUS_COLOR.
 (Color, Color) _tableTone(Object? s) => switch (tStr(s)) {
-      'Available' => (const Color(0xFFD1FAE5), const Color(0xFF047857)),
+      'Available' => (const Tone(0xFFD1FAE5), const Tone(0xFF047857)),
       'Occupied' => (TColors.violet100, TColors.violet700),
-      'Reserved' => (const Color(0xFFDBEAFE), const Color(0xFF1D4ED8)),
+      'Reserved' => (const Tone(0xFFDBEAFE), const Tone(0xFF1D4ED8)),
       _ => (TColors.slate50, TColors.slate700),
     };
 
@@ -149,7 +150,7 @@ class _HotelRestaurantOrdersScreenState extends State<HotelRestaurantOrdersScree
 
   Widget _stat(String label, String value, Color color) => Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
         child: Column(children: [
           FittedBox(fit: BoxFit.scaleDown, child: Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: color))),
           Text(label, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
@@ -182,8 +183,8 @@ class _HotelRestaurantOrdersScreenState extends State<HotelRestaurantOrdersScree
           const SizedBox(height: 12),
           twoUp([
             _stat('Tables', '${_tables.length}', TColors.violet700),
-            _stat('Active Orders', '$active', const Color(0xFFB91C1C)),
-            _stat('Served Revenue', _money(served), const Color(0xFF047857)),
+            _stat('Active Orders', '$active', const Tone(0xFFB91C1C)),
+            _stat('Served Revenue', _money(served), const Tone(0xFF047857)),
             _stat('Menu Items', '${_menu.length}', TColors.violet700),
           ]),
           const SizedBox(height: 14),
@@ -455,7 +456,7 @@ class _PosDialogState extends State<_PosDialog> {
           if (_receivedNum > 0 && _receivedNum >= _total)
             Padding(
               padding: const EdgeInsets.only(top: 4),
-              child: Text('Change: ${_money(_receivedNum - _total)}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF047857))),
+              child: Text('Change: ${_money(_receivedNum - _total)}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Tone.fg(0xFF047857))),
             ),
           if (_receivedNum > 0 && _receivedNum < _total)
             Padding(
@@ -599,7 +600,7 @@ class _PosDialogState extends State<_PosDialog> {
                           tooltip: 'Remove',
                           visualDensity: VisualDensity.compact,
                           onPressed: () => setState(() => _cart.removeAt(i)),
-                          icon: const Icon(Icons.delete_outline, size: 16, color: Color(0xFFEF4444)),
+                          icon: const Icon(Icons.delete_outline, size: 16, color: Tone.fg(0xFFEF4444)),
                         ),
                       ]),
                     ),
@@ -711,8 +712,8 @@ class _HotelMenuScreenState extends State<HotelMenuScreen> {
   }
 
   Widget _available(Map i) => _v(i, 'isAvailable') == true
-      ? hotelBadge('Yes', const Color(0xFFD1FAE5), const Color(0xFF047857))
-      : hotelBadge('No', const Color(0xFFFEE2E2), const Color(0xFFB91C1C));
+      ? hotelBadge('Yes', const Tone(0xFFD1FAE5), const Tone(0xFF047857))
+      : hotelBadge('No', const Tone(0xFFFEE2E2), const Tone(0xFFB91C1C));
 
   @override
   Widget build(BuildContext context) {
@@ -767,7 +768,7 @@ class _HotelMenuScreenState extends State<HotelMenuScreen> {
                   for (final i in items)
                     [
                       cellText(tStr(i['name']), bold: true),
-                      Align(alignment: Alignment.centerLeft, child: hotelBadge(tStr(i['category']), Colors.white, TColors.slate700)),
+                      Align(alignment: Alignment.centerLeft, child: hotelBadge(tStr(i['category']), Tone(0xFFFFFFFF), TColors.slate700)),
                       cellText(_money(i['price']), bold: true),
                       Align(alignment: Alignment.centerLeft, child: _available(i)),
                       Wrap(alignment: WrapAlignment.end, children: [
@@ -880,11 +881,11 @@ class _MenuItemDialogState extends State<_MenuItemDialog> {
 // ======================================================================== Kitchen
 
 /// STATUS_COLOR (the dot) and STATUS_BG (the card).
-const _kitchenDot = {'Placed': Color(0xFFEF4444), 'Preparing': Color(0xFFF59E0B), 'Ready': Color(0xFF10B981), 'Served': Color(0xFF94A3B8)};
+const _kitchenDot = {'Placed': Tone(0xFFEF4444), 'Preparing': Tone(0xFFF59E0B), 'Ready': Tone(0xFF10B981), 'Served': Tone(0xFF94A3B8)};
 const _kitchenBg = {
-  'Placed': (Color(0xFFFEF2F2), Color(0xFFFCA5A5)),
-  'Preparing': (Color(0xFFFFFBEB), Color(0xFFFCD34D)),
-  'Ready': (Color(0xFFECFDF5), Color(0xFF6EE7B7)),
+  'Placed': (Tone.bg(0xFFFEF2F2), Tone.bg(0xFFFCA5A5)),
+  'Preparing': (Tone.bg(0xFFFFFBEB), Tone.bg(0xFFFCD34D)),
+  'Ready': (Tone.bg(0xFFECFDF5), Tone.bg(0xFF6EE7B7)),
   'Served': (TColors.slate50, TColors.slate200),
 };
 
@@ -953,7 +954,7 @@ class _HotelKitchenScreenState extends State<HotelKitchenScreen> {
         if (tStr(o['notes']).isNotEmpty) Text(tStr(o['notes']), style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: TColors.slate500)),
         if (status == 'Served')
           Text('✓ Served ${delivered == null ? '' : '${two(delivered.hour)}:${two(delivered.minute)}:${two(delivered.second)}'}',
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF059669))),
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Tone.fg(0xFF059669))),
         if (next != null) ...[
           const SizedBox(height: 6),
           status == 'Ready'
@@ -964,7 +965,7 @@ class _HotelKitchenScreenState extends State<HotelKitchenScreen> {
                   label: Text('Move to $next'),
                 )
               : FilledButton.icon(
-                  style: FilledButton.styleFrom(backgroundColor: status == 'Placed' ? TColors.red600 : TColors.slate900, foregroundColor: Colors.white),
+                  style: FilledButton.styleFrom(backgroundColor: Tone.button(status == 'Placed' ? TColors.red600 : Tone.button(TColors.slate900)!), foregroundColor: Colors.white),
                   onPressed: () => _move(o),
                   iconAlignment: IconAlignment.end,
                   icon: const Icon(Icons.arrow_forward, size: 14),
@@ -999,8 +1000,8 @@ class _HotelKitchenScreenState extends State<HotelKitchenScreen> {
           ]),
           const SizedBox(height: 8),
           Wrap(spacing: 6, runSpacing: 6, children: [
-            if (active > 0) hotelBadge('$active active', const Color(0xFFFEE2E2), const Color(0xFFB91C1C)),
-            if (ready > 0) hotelBadge('$ready ready to serve', const Color(0xFFD1FAE5), const Color(0xFF047857)),
+            if (active > 0) hotelBadge('$active active', const Tone(0xFFFEE2E2), const Tone(0xFFB91C1C)),
+            if (ready > 0) hotelBadge('$ready ready to serve', const Tone(0xFFD1FAE5), const Tone(0xFF047857)),
             hotelBadge('$served served today', TColors.slate100, TColors.slate700),
           ]),
           const SizedBox(height: 10),
@@ -1125,7 +1126,7 @@ class _HotelTablesScreenState extends State<HotelTablesScreen> {
                   final (bg, fg) = _tableTone(t['status']);
                   return Container(
                     padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                    decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
                     child: Column(children: [
                       Text(_tableNo(t), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: TColors.violet700)),
                       Text('${tStr(t['capacity'])} seats', style: const TextStyle(fontSize: 13, color: TColors.slate500)),

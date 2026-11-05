@@ -19,6 +19,7 @@ import 'money_widgets.dart';
 import '../reports/money_reports.dart' show MoneyRail, poultryMoneyRail;
 import '../../shared/reason_select.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Poultry → Money → Loans (Financing), as `app/poultry-loans/page.tsx`: who
 /// lent the farm money, what is still owed, and what each repayment was made
 /// of. Borrowing is not income; repaying principal is not an expense. Water
@@ -31,8 +32,8 @@ const interestTypes = ['Simple', 'ReducingBalance', 'Flat', 'Unknown'];
 const loanFrequencies = ['Weekly', 'BiWeekly', 'Monthly', 'Quarterly', 'Custom'];
 const loanStatusFilters = ['All', 'Active', 'PaidOff', 'Draft', 'Cancelled'];
 
-const _violet600 = Color(0xFF7C3AED);
-const _violet700 = Color(0xFF6D28D9);
+const _violet600 = Tone.fg(0xFF7C3AED);
+const _violet700 = Tone(0xFF6D28D9);
 
 /// A "Loan received" typed on the Cash / Cash Flow page: no loan record behind it.
 bool isFromCashFlow(Map l) => tStr(l['source']) == 'CashAdjustment';
@@ -66,7 +67,7 @@ Map<int, List<Map>> paymentsByLoan(List<Map> payments, [String prefix = 'poultry
   final st = tStr(l['status']);
   if (st == 'PaidOff') return (TColors.emerald100, TColors.emerald800);
   if (st == 'Cancelled') return (TColors.slate100, TColors.slate700);
-  if (l['isOverdue'] == true) return (const Color(0xFFFFE4E6), const Color(0xFF9F1239));
+  if (l['isOverdue'] == true) return (const Tone(0xFFFFE4E6), const Tone(0xFF9F1239));
   if (st == 'Draft') return (TColors.sky100, TColors.sky800);
   return (TColors.amber100, TColors.amber800);
 }
@@ -194,7 +195,7 @@ class _LoansScreenState extends State<LoansScreen> {
     Widget part(String label, num v, {bool cost = false}) => Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(label, style: const TextStyle(fontSize: 11, color: TColors.slate500)),
-            Text(_fmt(v), style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: cost ? TColors.amber700 : null)),
+            Text(_fmt(v), style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: cost ? Tone.fg(0xFFB45309) : null)),
           ]),
         );
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -206,12 +207,12 @@ class _LoansScreenState extends State<LoansScreen> {
         const SizedBox(height: 8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(8)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(_dt(p['paymentDate'], p), style: const TextStyle(fontWeight: FontWeight.w500, color: TColors.slate900)),
+                  Text(_dt(p['paymentDate'], p), style: const TextStyle(fontWeight: FontWeight.w500, color: Tone.fg(0xFF0F172A))),
                   Text(
                     '${_payNo(p)}'
                     '${tStr(p['accountName']).isNotEmpty ? ' · ${tStr(p['accountName'])}' : ''}',
@@ -224,12 +225,12 @@ class _LoansScreenState extends State<LoansScreen> {
               Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                 Text(_fmt(tNum(p['totalAmount'])),
                     style: tStr(p['status']) == 'Reversed'
-                        ? const TextStyle(fontWeight: FontWeight.w600, color: TColors.slate400, decoration: TextDecoration.lineThrough)
-                        : const TextStyle(fontWeight: FontWeight.w600, color: TColors.slate900)),
+                        ? const TextStyle(fontWeight: FontWeight.w600, color: Tone.fg(0xFF7F8EA3), decoration: TextDecoration.lineThrough)
+                        : const TextStyle(fontWeight: FontWeight.w600, color: Tone.fg(0xFF0F172A))),
                 const SizedBox(height: 2),
                 tStr(p['status']) == 'Reversed'
-                    ? TBadge(tStr(p['status']), bg: TColors.slate100, fg: TColors.slate700)
-                    : TBadge(tStr(p['status']), bg: TColors.emerald100, fg: TColors.emerald800),
+                    ? TBadge(tStr(p['status']), bg: Tone.bg(0xFFF1F5F9), fg: Tone.fg(0xFF334155))
+                    : TBadge(tStr(p['status']), bg: TColors.emerald100, fg: Tone.fg(0xFF065F46)),
               ]),
             ]),
             const SizedBox(height: 8),
@@ -261,7 +262,7 @@ class _LoansScreenState extends State<LoansScreen> {
           alignment: Alignment.centerRight,
           child: Text(_fmt(tNum(v)),
               style: TextStyle(
-                color: struck ? TColors.slate400 : color,
+                color: struck ? Tone.fg(0xFF7F8EA3) : color,
                 fontWeight: bold ? FontWeight.w500 : null,
                 decoration: struck ? TextDecoration.lineThrough : null,
               )),
@@ -295,8 +296,8 @@ class _LoansScreenState extends State<LoansScreen> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: tStr(p['status']) == 'Reversed'
-                    ? TBadge(tStr(p['status']), bg: TColors.slate100, fg: TColors.slate700)
-                    : TBadge(tStr(p['status']), bg: TColors.emerald100, fg: TColors.emerald800),
+                    ? TBadge(tStr(p['status']), bg: Tone.bg(0xFFF1F5F9), fg: Tone.fg(0xFF334155))
+                    : TBadge(tStr(p['status']), bg: TColors.emerald100, fg: Tone.fg(0xFF065F46)),
               ),
               Align(
                 alignment: Alignment.centerRight,
@@ -315,7 +316,7 @@ class _LoansScreenState extends State<LoansScreen> {
   Widget _waterTable(List<Map> items) {
     Widget money(Object? v, {bool cost = false, bool bold = false}) => Align(
           alignment: Alignment.centerRight,
-          child: Text(_fmt(tNum(v)), style: TextStyle(color: cost ? TColors.amber700 : null, fontWeight: bold ? FontWeight.w500 : null)),
+          child: Text(_fmt(tNum(v)), style: TextStyle(color: cost ? Tone.fg(0xFFB45309) : null, fontWeight: bold ? FontWeight.w500 : null)),
         );
     return TrackerTable(
       columns: const [
@@ -343,7 +344,7 @@ class _LoansScreenState extends State<LoansScreen> {
               ]),
               Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                 lender == 'Lender not recorded'
-                    ? const Text('Lender not recorded', style: TextStyle(fontStyle: FontStyle.italic, color: TColors.slate400))
+                    ? const Text('Lender not recorded', style: TextStyle(fontStyle: FontStyle.italic, color: Tone.fg(0xFF7F8EA3)))
                     : Text(lender),
                 Text(isFromCashFlow(l) ? 'No lender recorded' : tStr(l['lenderType']), style: const TextStyle(fontSize: 12, color: TColors.slate500)),
               ]),
@@ -353,7 +354,7 @@ class _LoansScreenState extends State<LoansScreen> {
               money(l['outstandingPrincipal'], bold: true),
               money(l['totalInterestPaid'], cost: true),
               money(l['totalFeesPaid'], cost: true),
-              Text(_next(l['nextPaymentDate']), style: TextStyle(color: l['isOverdue'] == true ? TColors.rose600 : null)),
+              Text(_next(l['nextPaymentDate']), style: TextStyle(color: l['isOverdue'] == true ? Tone.fg(0xFFE11D48) : null)),
               Align(alignment: Alignment.centerLeft, child: TBadge(l['isOverdue'] == true ? 'Overdue' : tStr(l['status']), bg: bg, fg: fg)),
               Align(
                 alignment: Alignment.centerRight,
@@ -378,16 +379,16 @@ class _LoansScreenState extends State<LoansScreen> {
           alignment: Alignment.centerRight,
           child: Text(_fmt(tNum(v)),
               style: TextStyle(
-                color: struck ? TColors.slate400 : color,
+                color: struck ? Tone.fg(0xFF7F8EA3) : color,
                 fontWeight: bold ? FontWeight.w500 : null,
                 decoration: struck ? TextDecoration.lineThrough : null,
               )),
         );
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        const Text('Repayment history', style: TextStyle(fontWeight: FontWeight.w500, color: TColors.slate700)),
+        const Text('Repayment history', style: TextStyle(fontWeight: FontWeight.w500, color: Tone.fg(0xFF334155))),
         const SizedBox(height: 6),
         const Text('The total is what left the bank. Only the interest and fee columns reach the profit and loss.',
             style: TextStyle(fontSize: 12, color: TColors.slate500)),
@@ -422,8 +423,8 @@ class _LoansScreenState extends State<LoansScreen> {
                 Align(
                   alignment: Alignment.centerLeft,
                   child: tStr(p['status']) == 'Reversed'
-                      ? TBadge(tStr(p['status']), bg: TColors.slate100, fg: TColors.slate700)
-                      : TBadge(tStr(p['status']), bg: TColors.emerald100, fg: TColors.emerald800),
+                      ? TBadge(tStr(p['status']), bg: Tone.bg(0xFFF1F5F9), fg: Tone.fg(0xFF334155))
+                      : TBadge(tStr(p['status']), bg: TColors.emerald100, fg: Tone.fg(0xFF065F46)),
                 ),
                 Align(
                   alignment: Alignment.centerRight,
@@ -467,13 +468,13 @@ class _LoansScreenState extends State<LoansScreen> {
               Widget money(Object? v, {bool cost = false, bool bold = false}) => Align(
                     alignment: Alignment.centerRight,
                     child: Text(_fmt(tNum(v)),
-                        style: TextStyle(color: cost ? TColors.amber700 : null, fontWeight: bold ? FontWeight.w500 : null)),
+                        style: TextStyle(color: cost ? Tone.fg(0xFFB45309) : null, fontWeight: bold ? FontWeight.w500 : null)),
                   );
               final (bg, fg) = loanStatusTone(l);
               return <Widget>[
                 InkWell(
                   onTap: tog,
-                  child: Icon(isOpen ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right, size: 18, color: TColors.slate400),
+                  child: Icon(isOpen ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right, size: 18, color: Tone.fg(0xFF7F8EA3)),
                 ),
                 InkWell(
                   onTap: tog,
@@ -493,7 +494,7 @@ class _LoansScreenState extends State<LoansScreen> {
                 money(l['outstandingPrincipal'], bold: true),
                 money(l['totalInterestPaid'], cost: true),
                 money(l['totalFeesPaid'], cost: true),
-                Text(_next(l['nextPaymentDate']), style: TextStyle(color: l['isOverdue'] == true ? TColors.rose600 : null)),
+                Text(_next(l['nextPaymentDate']), style: TextStyle(color: l['isOverdue'] == true ? Tone.fg(0xFFE11D48) : null)),
                 Align(alignment: Alignment.centerLeft, child: TBadge(l['isOverdue'] == true ? 'Overdue' : tStr(l['status']), bg: bg, fg: fg)),
                 Align(
                   alignment: Alignment.centerRight,
@@ -516,7 +517,7 @@ class _LoansScreenState extends State<LoansScreen> {
         const SizedBox(height: 10),
         Container(
           padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: TColors.slate50, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(color: Tone.bg(0xFFF8FAFC), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(8)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Text(loanNumber(l, _p), style: const TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 6),
@@ -552,7 +553,7 @@ class _LoansScreenState extends State<LoansScreen> {
               const Icon(Icons.payments_outlined, size: 24, color: _violet600),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TColors.slate900)),
+                child: Text(title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: Tone.fg(0xFF0F172A))),
               ),
             ]),
             const SizedBox(height: 4),
@@ -603,7 +604,7 @@ class _LoansScreenState extends State<LoansScreen> {
             else if (visible.isEmpty)
               Container(
                 padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(12)),
                 child: Text(_loans.isEmpty ? 'No loans recorded yet.' : 'No loans match this filter.',
                     textAlign: TextAlign.center, style: const TextStyle(color: TColors.slate500)),
               )
@@ -764,7 +765,7 @@ class _NewLoanDialogState extends State<NewLoanDialog> {
             Tooltip(
               message: info,
               triggerMode: TooltipTriggerMode.tap,
-              child: const Icon(Icons.info_outline, size: 16, color: TColors.slate400),
+              child: const Icon(Icons.info_outline, size: 16, color: Tone.fg(0xFF7F8EA3)),
             ),
           ],
         ]),
@@ -829,7 +830,7 @@ class _NewLoanDialogState extends State<NewLoanDialog> {
                 ),
             ]),
             const SizedBox(height: 12),
-            formSection('Terms', const Color(0xFF2563EB), [
+            formSection('Terms', const Tone(0xFF2563EB), [
               FilterLabel(
                 'Start date *',
                 AppDateField(
@@ -859,7 +860,7 @@ class _NewLoanDialogState extends State<NewLoanDialog> {
         actions: [
           redCancelButton(_saving ? null : () => Navigator.pop(context, false)),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: widget.rail.accent),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(widget.rail.accent)),
             onPressed: _saving ? null : _save,
             child: Text(_saving ? 'Recording...' : 'Record Loan'),
           ),
@@ -931,7 +932,7 @@ class _ReverseRepaymentDialogState extends State<ReverseRepaymentDialog> {
       child: AlertDialog(
         scrollable: true,
         title: const Row(children: [
-          Icon(Icons.undo, color: TColors.amber600),
+          Icon(Icons.undo, color: Tone.fg(0xFFD97706)),
           SizedBox(width: 6),
           Flexible(child: Text('Reverse Repayment')),
         ]),
@@ -967,7 +968,7 @@ class _ReverseRepaymentDialogState extends State<ReverseRepaymentDialog> {
           redCancelButton(_saving ? null : () => Navigator.pop(context, false)),
           FilledButton(
             onPressed: _saving ? null : _go,
-            style: FilledButton.styleFrom(backgroundColor: TColors.red600, foregroundColor: Colors.white),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFDC2626)), foregroundColor: Colors.white),
             child: Text(_saving ? 'Reversing...' : 'Reverse'),
           ),
         ],

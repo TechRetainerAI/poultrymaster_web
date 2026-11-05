@@ -23,6 +23,7 @@ import '../poultry/trackers/tracker_widgets.dart';
 import '../restaurant/restaurant_expenses_screen.dart' show fmtShortDate;
 import 'hotel_kit.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// The web's payment methods: (value, label).
 const hotelExpenseMethods = [
   ('Cash', 'Cash'),
@@ -295,9 +296,9 @@ class _HotelExpensesScreenState extends State<HotelExpensesScreen> {
           if (_focusId != null) ...[
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(color: TColors.violet50, border: Border.all(color: const Color(0xFFDDD6FE)), borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(color: TColors.violet50, border: Border.all(color: const Tone.line(0xFFDDD6FE)), borderRadius: BorderRadius.circular(8)),
               child: Wrap(spacing: 12, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                Text('Showing expense #$_focusId only.', style: const TextStyle(fontSize: 13, color: Color(0xFF4C1D95))),
+                Text('Showing expense #$_focusId only.', style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF4C1D95))),
                 OutlinedButton(onPressed: () => setState(() => _focusId = null), child: const Text('Show all expenses')),
               ]),
             ),
@@ -316,7 +317,7 @@ class _HotelExpensesScreenState extends State<HotelExpensesScreen> {
                   const SizedBox(width: 6),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6),
-                    decoration: BoxDecoration(color: const Color(0xFFF97316), borderRadius: BorderRadius.circular(999)),
+                    decoration: BoxDecoration(color: const Tone.bg(0xFFF97316), borderRadius: BorderRadius.circular(999)),
                     child: Text('$_activeFilterCount', style: const TextStyle(fontSize: 12, color: Colors.white)),
                   ),
                 ],
@@ -392,7 +393,7 @@ class _HotelExpensesScreenState extends State<HotelExpensesScreen> {
                 actions: (e) => [
                   OutlinedButton.icon(onPressed: () => _expenseDialog(e), icon: const Icon(Icons.edit_outlined, size: 16), label: const Text('Edit')),
                   OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(foregroundColor: TColors.red600, side: const BorderSide(color: Color(0xFFFECACA))),
+                    style: OutlinedButton.styleFrom(foregroundColor: TColors.red600, side: const BorderSide(color: Tone.line(0xFFFECACA))),
                     onPressed: () => _delete(e),
                     icon: const Icon(Icons.delete_outline, size: 16),
                     label: const Text('Delete'),
@@ -456,7 +457,7 @@ class _HotelExpensesScreenState extends State<HotelExpensesScreen> {
               cellText(_paidTo(e).isEmpty ? '—' : _paidTo(e)),
               Align(
                 alignment: Alignment.centerLeft,
-                child: hotelBadge(tStr(e['paymentMethod']).isEmpty ? 'Cash' : tStr(e['paymentMethod']), Colors.white, TColors.slate700),
+                child: hotelBadge(tStr(e['paymentMethod']).isEmpty ? 'Cash' : tStr(e['paymentMethod']), Tone(0xFFFFFFFF), TColors.slate700),
               ),
               cellText(_accountName(e)),
               cellText(_gh(tNum(e['amount'])), color: TColors.red600, bold: true),
@@ -754,7 +755,7 @@ class _CategoriesDialogState extends State<_CategoriesDialog> {
                   decoration: BoxDecoration(border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
                   child: Row(children: [
                     Expanded(child: Text(tStr(c['name']))),
-                    if (c['isActive'] == false) hotelBadge('inactive', Colors.white, TColors.slate600),
+                    if (c['isActive'] == false) hotelBadge('inactive', Tone(0xFFFFFFFF), TColors.slate600),
                   ]),
                 ),
             const SizedBox(height: 4),

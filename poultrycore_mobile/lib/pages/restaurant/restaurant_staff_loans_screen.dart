@@ -24,6 +24,7 @@ import 'restaurant_payroll_screen.dart' show staffLoanTypeLabel;
 import 'restaurant_roles.dart' show restaurantRose;
 import 'restaurant_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 const staffLoanTypes = [('SalaryAdvance', 'Salary advance'), ('EmployeeLoan', 'Staff loan'), ('OtherAdvance', 'Other advance')];
 const staffLoanMethods = [('PayrollDeduction', 'Deduct from payroll'), ('Mixed', 'Payroll and cash'), ('Cash', 'Cash')];
 const staffLoanRepaySources = [('Cash', 'Cash'), ('MoMo', 'Mobile money'), ('Bank', 'Bank')];
@@ -61,13 +62,13 @@ List<Map> filterStaffLoans(List<Map> loans, {String tab = 'OPEN', String staff =
 
 const _statusStyle = {
   'Draft': (TColors.slate100, TColors.slate700, TColors.slate200),
-  'Active': (Color(0xFFEFF6FF), Color(0xFF1D4ED8), Color(0xFFBFDBFE)),
-  'Paid': (Color(0xFFF0FDF4), Color(0xFF15803D), Color(0xFFBBF7D0)),
+  'Active': (Tone(0xFFEFF6FF), Tone(0xFF1D4ED8), Tone(0xFFBFDBFE)),
+  'Paid': (Tone(0xFFF0FDF4), Tone(0xFF15803D), Tone(0xFFBBF7D0)),
   'Cancelled': (TColors.amber50, TColors.amber700, TColors.amber200),
-  'Reversed': (Color(0xFFFEF2F2), Color(0xFFB91C1C), Color(0xFFFECACA)),
+  'Reversed': (Tone(0xFFFEF2F2), Tone(0xFFB91C1C), Tone(0xFFFECACA)),
 };
 Widget _status(Object? s) {
-  final (bg, fg, b) = _statusStyle[tStr(s)] ?? (Colors.white, TColors.slate700, TColors.slate200);
+  final (bg, fg, b) = _statusStyle[tStr(s)] ?? (Tone(0xFFFFFFFF), TColors.slate700, TColors.slate200);
   return rStatusBadge(tStr(s), bg: bg, fg: fg, border: b);
 }
 
@@ -247,7 +248,7 @@ class _RestaurantStaffLoansScreenState extends State<RestaurantStaffLoansScreen>
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(color: TColors.rose50, border: Border.all(color: TColors.rose200), borderRadius: BorderRadius.circular(8)),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Icon(Icons.info_outline, size: 16, color: Color(0xFF881337)),
+            const Icon(Icons.info_outline, size: 16, color: Tone.fg(0xFF881337)),
             const SizedBox(width: 8),
             Expanded(
               child: Text.rich(
@@ -263,12 +264,12 @@ class _RestaurantStaffLoansScreenState extends State<RestaurantStaffLoansScreen>
                     baseline: TextBaseline.alphabetic,
                     child: GestureDetector(
                       onTap: () => openAppHref(context, widget.session, widget.company, '/restaurant-loans', label: 'Loans'),
-                      child: const Text('Loans', style: TextStyle(fontSize: 13, color: Color(0xFF881337), decoration: TextDecoration.underline)),
+                      child: const Text('Loans', style: TextStyle(fontSize: 13, color: Tone.fg(0xFF881337), decoration: TextDecoration.underline)),
                     ),
                   ),
                   const TextSpan(text: ', which is money the restaurant borrowed.'),
                 ]),
-                style: const TextStyle(fontSize: 13, color: Color(0xFF881337)),
+                style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF881337)),
               ),
             ),
           ]),
@@ -292,7 +293,7 @@ class _RestaurantStaffLoansScreenState extends State<RestaurantStaffLoansScreen>
           for (final (v, l) in staffLoanTabs)
             _tab == v
                 ? FilledButton(
-                    style: FilledButton.styleFrom(backgroundColor: restaurantRose, visualDensity: VisualDensity.compact),
+                    style: FilledButton.styleFrom(backgroundColor: Tone.button(restaurantRose), visualDensity: VisualDensity.compact),
                     onPressed: () {},
                     child: Text(l))
                 : OutlinedButton(
@@ -871,7 +872,7 @@ class _LoanPageState extends State<_LoanPage> {
     final live = st == 'Active' || st == 'Paid';
     Widget figure(String label, String value, [Color? c]) => Container(
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(label, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
             FittedBox(
@@ -905,7 +906,7 @@ class _LoanPageState extends State<_LoanPage> {
           twoColumns([
             figure('Given', fmt(tNum(l['principalAmount']))),
             figure('To repay', fmt(tNum(l['totalRepayable']))),
-            figure('Repaid', fmt(tNum(l['totalPrincipalRepaid']) + tNum(l['totalInterestRepaid'])), const Color(0xFF16A34A)),
+            figure('Repaid', fmt(tNum(l['totalPrincipalRepaid']) + tNum(l['totalInterestRepaid'])), const Tone(0xFF16A34A)),
             figure('Owed', live ? fmt(tNum(l['outstandingBalance'])) : '—', TColors.red600),
           ], gap: 8),
           const SizedBox(height: 12),
@@ -914,7 +915,7 @@ class _LoanPageState extends State<_LoanPage> {
           if (tNum(l['draftPayrollClaims']) > 0)
             Text('${fmt(tNum(l['draftPayrollClaims']))} set to be deducted on a draft payroll', style: const TextStyle(fontSize: 13, color: TColors.amber700)),
           if (tStr(l['notes']).isNotEmpty) line('Notes:', tStr(l['notes'])),
-          if (tStr(l['closedReason']).isNotEmpty) Text('$st: ${tStr(l['closedReason'])}', style: const TextStyle(fontSize: 13, color: Color(0xFFB91C1C))),
+          if (tStr(l['closedReason']).isNotEmpty) Text('$st: ${tStr(l['closedReason'])}', style: const TextStyle(fontSize: 13, color: Tone.fg(0xFFB91C1C))),
           const SizedBox(height: 10),
           Wrap(spacing: 8, runSpacing: 8, children: [
             if (st == 'Draft') ...[
@@ -931,7 +932,7 @@ class _LoanPageState extends State<_LoanPage> {
               if (st == 'Active') roseButton('Record repayment', () => _act(() => _p.repay(context, l)), icon: Icons.account_balance_wallet_outlined),
               OutlinedButton.icon(onPressed: () => _edit(l), icon: const Icon(Icons.edit_outlined, size: 16), label: const Text('Edit plan')),
               OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFFB91C1C)),
+                style: OutlinedButton.styleFrom(foregroundColor: const Tone.fg(0xFFB91C1C)),
                 onPressed: () => _act(() => _p.reason(context, 'reverse', loan: l)),
                 icon: const Icon(Icons.undo, size: 16),
                 label: const Text('Reverse loan'),
@@ -962,7 +963,7 @@ class _LoanPageState extends State<_LoanPage> {
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -983,8 +984,8 @@ class _LoanPageState extends State<_LoanPage> {
           ),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
             rp['status'] == 'Posted'
-                ? rStatusBadge('Posted', bg: const Color(0xFFF0FDF4), fg: const Color(0xFF15803D), border: const Color(0xFFBBF7D0))
-                : rStatusBadge(tStr(rp['status']), bg: const Color(0xFFFEF2F2), fg: const Color(0xFFB91C1C), border: const Color(0xFFFECACA)),
+                ? rStatusBadge('Posted', bg: const Tone.bg(0xFFF0FDF4), fg: const Tone.fg(0xFF15803D), border: const Tone.line(0xFFBBF7D0))
+                : rStatusBadge(tStr(rp['status']), bg: const Tone.bg(0xFFFEF2F2), fg: const Tone.fg(0xFFB91C1C), border: const Tone.line(0xFFFECACA)),
             if (rp['status'] == 'Posted' && !payroll)
               IconButton(
                 tooltip: 'Reverse this repayment',

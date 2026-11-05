@@ -6,6 +6,7 @@ import '../../../widgets/module_sidebar.dart';
 import '../../poultry/reports/report_widgets.dart';
 import 'water_report_routes.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 typedef WaterReportItem = ({String slug, String title, String description, IconData icon});
 typedef WaterReportGroup = ({String key, String label, Color color, List<WaterReportItem> reports});
 
@@ -16,7 +17,7 @@ const List<WaterReportGroup> waterReportGroups = [
   (
     key: 'financial',
     label: 'Financial',
-    color: Color(0xFF059669), // emerald-600
+    color: Tone(0xFF059669), // emerald-600
     reports: [
       (slug: 'closing-report', title: 'Closing Report', description: 'Daily closings (including reopened + superseded).', icon: Icons.description_outlined),
       (slug: 'profit-loss', title: 'Profit & Loss', description: 'Revenue, costs, expenses, losses, gross & net profit by period.', icon: Icons.trending_down),
@@ -32,7 +33,7 @@ const List<WaterReportGroup> waterReportGroups = [
   (
     key: 'sales-customers',
     label: 'Sales & Customers',
-    color: Color(0xFF0284C7), // sky-600
+    color: Tone(0xFF0284C7), // sky-600
     reports: [
       (slug: 'sales-report', title: 'Sales Report', description: 'All sales — date, customer, products, status, source.', icon: Icons.shopping_cart_outlined),
       (slug: 'payments-received', title: 'Payments Received', description: 'Collections by date, customer, method, source.', icon: Icons.attach_money),
@@ -44,7 +45,7 @@ const List<WaterReportGroup> waterReportGroups = [
   (
     key: 'production-inventory',
     label: 'Production & Inventory',
-    color: Color(0xFF4F46E5), // indigo-600
+    color: Tone(0xFF4F46E5), // indigo-600
     reports: [
       (slug: 'production-report', title: 'Production Report', description: 'Production records, machine, product, good bags, cost/bag, efficiency.', icon: Icons.factory_outlined),
       (slug: 'raw-material-usage', title: 'Raw Material Usage', description: 'Expected vs actual usage with variance.', icon: Icons.layers_outlined),
@@ -57,7 +58,7 @@ const List<WaterReportGroup> waterReportGroups = [
   (
     key: 'delivery-operations',
     label: 'Delivery & Operations',
-    color: Color(0xFFE11D48), // rose-600
+    color: Tone(0xFFE11D48), // rose-600
     reports: [
       (slug: 'delivery-run-report', title: 'Delivery Run Report', description: 'Loadings, returns, shortages, status.', icon: Icons.local_shipping_outlined),
       (slug: 'driver-accountability', title: 'Driver Accountability', description: 'Per-driver loadings, sales, returns, damages, shortages.', icon: Icons.people_outline),
@@ -89,8 +90,8 @@ class WaterReportsCatalogScreen extends StatelessWidget {
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: const Color(0xFFE0F2FE), borderRadius: BorderRadius.circular(12)),
-              child: const Icon(Icons.bar_chart, color: Color(0xFF0369A1)),
+              decoration: BoxDecoration(color: const Tone.bg(0xFFE0F2FE), borderRadius: BorderRadius.circular(12)),
+              child: const Icon(Icons.bar_chart, color: Tone.fg(0xFF0369A1)),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -119,7 +120,7 @@ class WaterReportsCatalogScreen extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(bottom: 6),
                 child: Material(
-                  color: Colors.white,
+                  color: Tone.bg(0xFFFFFFFF),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                     side: const BorderSide(color: slate200),

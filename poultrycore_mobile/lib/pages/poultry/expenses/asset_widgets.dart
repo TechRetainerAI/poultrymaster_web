@@ -10,6 +10,7 @@ import '../trackers/tracker_widgets.dart';
 import 'asset_logic.dart';
 import '../../shared/reason_select.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// The pieces shared by the register and the investment page:
 /// `components/capital-assets/asset-details-panel.tsx`,
 /// `cost-detail-dialog.tsx`, `correct-original-cost-dialog.tsx`, and the
@@ -46,16 +47,16 @@ Widget assetLine(String label, String value, {Color? color, bool bold = false, S
 
 /// The panel's Figure tile.
 Widget assetFigure(String label, String value, {Color? tone, bool strong = false, String? hint}) {
-  final fg = tone == TColors.amber800 ? TColors.amber800 : tone == TColors.emerald800 ? TColors.emerald800 : TColors.slate900;
-  final border = tone == TColors.amber800
-      ? const Color(0xFFFDE68A)
-      : tone == TColors.emerald800
-          ? const Color(0xFFA7F3D0)
+  final fg = identical(tone, TColors.amber800) ? TColors.amber800 : identical(tone, TColors.emerald800) ? TColors.emerald800 : TColors.slate900;
+  final border = identical(tone, TColors.amber800)
+      ? const Tone(0xFFFDE68A)
+      : identical(tone, TColors.emerald800)
+          ? const Tone(0xFFA7F3D0)
           : TColors.slate200;
   final box = Container(
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
     decoration: BoxDecoration(
-      color: Colors.white,
+      color: Tone.bg(0xFFFFFFFF),
       border: Border.all(color: strong ? TColors.slate300 : border, width: strong ? 1.5 : 1),
       borderRadius: BorderRadius.circular(8),
     ),
@@ -132,8 +133,8 @@ class _AssetDetailsPanelState extends State<AssetDetailsPanel> {
       return Padding(
         padding: const EdgeInsets.all(16),
         child: Wrap(spacing: 10, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
-          const Icon(Icons.warning_amber_rounded, size: 16, color: Color(0xFFB91C1C)),
-          Text(widget.error!, style: const TextStyle(fontSize: 13, color: Color(0xFFB91C1C))),
+          const Icon(Icons.warning_amber_rounded, size: 16, color: Tone.fg(0xFFB91C1C)),
+          Text(widget.error!, style: const TextStyle(fontSize: 13, color: Tone.fg(0xFFB91C1C))),
           if (widget.onRetry != null) OutlinedButton(onPressed: widget.onRetry, child: const Text('Try again')),
         ]),
       );
@@ -269,10 +270,10 @@ class _AssetDetailsPanelState extends State<AssetDetailsPanel> {
   Widget _costBadge(Map c) {
     final src = tStr(c['sourceType']);
     final (bg, fg, border) = src == 'OriginalCostCorrection'
-        ? (const Color(0xFFFFF1F2), TColors.rose700, const Color(0xFFFDA4AF))
+        ? (const Tone(0xFFFFF1F2), TColors.rose700, const Tone(0xFFFDA4AF))
         : src == 'Acquisition'
-            ? (const Color(0xFFEFF6FF), const Color(0xFF1D4ED8), TColors.blue300)
-            : (const Color(0xFFF5F3FF), const Color(0xFF6D28D9), const Color(0xFFC4B5FD));
+            ? (const Tone(0xFFEFF6FF), const Tone(0xFF1D4ED8), TColors.blue300)
+            : (const Tone(0xFFF5F3FF), const Tone(0xFF6D28D9), const Tone(0xFFC4B5FD));
     return TBadge(costTypeLabel(c), bg: bg, fg: fg, border: border);
   }
 
@@ -315,7 +316,7 @@ class _AssetDetailsPanelState extends State<AssetDetailsPanel> {
                 IconButton(
                   tooltip: locked ? _r.t(costLockedByDepreciationNote) : 'Reverse this cost',
                   onPressed: locked ? null : () => widget.onReverseCost!(c),
-                  icon: Icon(Icons.undo, size: 18, color: locked ? null : const Color(0xFFEF4444)),
+                  icon: Icon(Icons.undo, size: 18, color: locked ? null : const Tone.fg(0xFFEF4444)),
                 ),
             ]),
           ])),
@@ -422,7 +423,7 @@ class _AssetDetailsPanelState extends State<AssetDetailsPanel> {
                 if (widget.onReverseDepreciation != null && tStr(d['status']) == 'Posted' && tNum(d['amount']) > 0)
                   TextButton.icon(
                     onPressed: () => widget.onReverseDepreciation!(d),
-                    icon: const Icon(Icons.undo, size: 14, color: Color(0xFFEF4444)),
+                    icon: const Icon(Icons.undo, size: 14, color: Tone.fg(0xFFEF4444)),
                     label: const Text('Reverse'),
                   ),
               ]),
@@ -436,14 +437,14 @@ class _AssetDetailsPanelState extends State<AssetDetailsPanel> {
 
   Widget _box(Widget child) => Container(
         padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
         child: child,
       );
 }
 
 Widget _amberNote(String text) => Container(
       padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(color: TColors.amber50, border: Border.all(color: const Color(0xFFFDE68A)), borderRadius: BorderRadius.circular(6)),
+      decoration: BoxDecoration(color: TColors.amber50, border: Border.all(color: const Tone.line(0xFFFDE68A)), borderRadius: BorderRadius.circular(6)),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const Icon(Icons.warning_amber_rounded, size: 15, color: TColors.amber900),
         const SizedBox(width: 6),
@@ -507,13 +508,13 @@ class CostDetailDialog extends StatelessWidget {
           row('Amount', Text(amount < 0 ? '−${fmt(amount.abs())}' : fmt(amount),
               style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: amount < 0 ? TColors.red600 : null))),
           row('Date', t(dt(c['costDate'], c).isEmpty ? '—' : dt(c['costDate'], c))),
-          row('Cost type', TBadge(label, bg: Colors.white, fg: TColors.slate700, border: TColors.slate300)),
+          row('Cost type', TBadge(label, bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate700, border: TColors.slate300)),
           row(correction ? 'Reason' : 'What it was for', t(tStr(c['description']).isEmpty ? '—' : tStr(c['description']))),
           row(
             'Status',
             tStr(c['status']) == 'Posted'
-                ? TBadge(tStr(c['status']), bg: const Color(0xFFECFDF5), fg: TColors.emerald700, border: TColors.emerald300)
-                : TBadge(tStr(c['status']), bg: const Color(0xFFFEF2F2), fg: const Color(0xFFB91C1C), border: const Color(0xFFFCA5A5)),
+                ? TBadge(tStr(c['status']), bg: const Tone.bg(0xFFECFDF5), fg: TColors.emerald700, border: TColors.emerald300)
+                : TBadge(tStr(c['status']), bg: const Tone.bg(0xFFFEF2F2), fg: const Tone.fg(0xFFB91C1C), border: const Tone.line(0xFFFCA5A5)),
           ),
           if (!correction) ...[
             const SizedBox(height: 12),
@@ -653,18 +654,18 @@ class _CorrectOriginalCostDialogState extends State<CorrectOriginalCostDialog> {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 1),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Expanded(child: Text(label, style: const TextStyle(fontSize: 12, color: Color(0xFF0C4A6E)))),
+          Expanded(child: Text(label, style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF0C4A6E)))),
           Flexible(
             child: same
-                ? Text('${to == 'unchanged' ? from : to} (unchanged)', textAlign: TextAlign.right, style: const TextStyle(fontSize: 12, color: Color(0xFF0C4A6E)))
+                ? Text('${to == 'unchanged' ? from : to} (unchanged)', textAlign: TextAlign.right, style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF0C4A6E)))
                 : Text.rich(
                     TextSpan(children: [
-                      TextSpan(text: from, style: const TextStyle(decoration: TextDecoration.lineThrough, color: Color(0x990C4A6E))),
+                      TextSpan(text: from, style: const TextStyle(decoration: TextDecoration.lineThrough, color: Tone.fg(0x990C4A6E))),
                       const TextSpan(text: ' → '),
                       TextSpan(text: to, style: const TextStyle(fontWeight: FontWeight.w700)),
                     ]),
                     textAlign: TextAlign.right,
-                    style: const TextStyle(fontSize: 12, color: Color(0xFF0C4A6E)),
+                    style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF0C4A6E)),
                   ),
           ),
         ]),
@@ -727,10 +728,10 @@ class _CorrectOriginalCostDialogState extends State<CorrectOriginalCostDialog> {
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: const Color(0xFFF0F9FF), border: Border.all(color: const Color(0xFFBAE6FD)), borderRadius: BorderRadius.circular(6)),
+                decoration: BoxDecoration(color: const Tone.bg(0xFFF0F9FF), border: Border.all(color: const Tone.line(0xFFBAE6FD)), borderRadius: BorderRadius.circular(6)),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   const Text('What this will change — a projection, not yet saved',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0C4A6E))),
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Tone.fg(0xFF0C4A6E))),
                   const SizedBox(height: 6),
                   change('Total capitalised cost', fmt(total), fmt(p.newTotal)),
                   change('Depreciable basis', fmt(curDep), fmt(p.newDepreciable)),
@@ -744,7 +745,7 @@ class _CorrectOriginalCostDialogState extends State<CorrectOriginalCostDialog> {
                     p.difference < 0
                         ? 'Cash already recorded as paid is reduced to the corrected amount and the difference is returned to the account it came from. No second payment and no second expense are created.'
                         : 'The amount recorded as owed rises by ${fmt(p.difference.abs())}. No payment is created — correcting what something cost does not spend money.',
-                    style: const TextStyle(fontSize: 12, color: Color(0xFF0C4A6E)),
+                    style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF0C4A6E)),
                   ),
                 ]),
               ),
@@ -757,10 +758,10 @@ class _CorrectOriginalCostDialogState extends State<CorrectOriginalCostDialog> {
               const SizedBox(height: 10),
               Container(
                 padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: const Color(0xFFFEF2F2), border: Border.all(color: const Color(0xFFFCA5A5)), borderRadius: BorderRadius.circular(6)),
+                decoration: BoxDecoration(color: const Tone.bg(0xFFFEF2F2), border: Border.all(color: const Tone.line(0xFFFCA5A5)), borderRadius: BorderRadius.circular(6)),
                 child: Text(
                   'The residual value of ${fmt(res)} would be more than the corrected cost of ${fmt(p.newTotal)}. Lower the residual value first — book value can never fall below it.',
-                  style: const TextStyle(fontSize: 11.5, color: Color(0xFF991B1B)),
+                  style: const TextStyle(fontSize: 11.5, color: Tone.fg(0xFF991B1B)),
                 ),
               ),
             ],
@@ -771,7 +772,7 @@ class _CorrectOriginalCostDialogState extends State<CorrectOriginalCostDialog> {
             ],
             if (_error != null) ...[
               const SizedBox(height: 10),
-              Text(_error!, style: const TextStyle(fontSize: 13, color: Color(0xFF991B1B))),
+              Text(_error!, style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF991B1B))),
             ],
           ]),
         ),
@@ -869,7 +870,7 @@ class _ReasonTextPromptState extends State<ReasonTextPrompt> {
               ],
               if (_error != null) ...[
                 const SizedBox(height: 6),
-                Text(_error!, style: const TextStyle(fontSize: 13, color: Color(0xFFBE123C))),
+                Text(_error!, style: const TextStyle(fontSize: 13, color: Tone.fg(0xFFBE123C))),
               ],
             ]),
           ),
@@ -877,7 +878,7 @@ class _ReasonTextPromptState extends State<ReasonTextPrompt> {
             TextButton(onPressed: _busy ? null : () => Navigator.pop(context, false), child: const Text('Cancel')),
             FilledButton(
               onPressed: _busy ? null : _go,
-              style: FilledButton.styleFrom(backgroundColor: TColors.red600, foregroundColor: Colors.white),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600), foregroundColor: Colors.white),
               child: Text(widget.confirmLabel),
             ),
           ],

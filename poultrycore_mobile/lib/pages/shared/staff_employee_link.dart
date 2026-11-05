@@ -18,6 +18,7 @@ import '../restaurant/restaurant_staff_form_screen.dart';
 import '../water/water_staff_form_screen.dart';
 import 'employee_form_screen.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// What a new employee or staff form starts from.
 class EmployeePrefill {
   const EmployeePrefill({required this.firstName, required this.lastName, this.phoneNumber = '', this.email = ''});
@@ -70,11 +71,11 @@ Widget _badge(String text, String tip, Color bg, Color fg, Color border) => Tool
 
 /// EmployeeBadge: on a staff row that has a login.
 Widget employeeBadge() =>
-    _badge('Employee', 'Also an employee: has a login', const Color(0xFFEFF6FF), const Color(0xFF1D4ED8), const Color(0xFFBFDBFE));
+    _badge('Employee', 'Also an employee: has a login', const Tone(0xFFEFF6FF), const Tone(0xFF1D4ED8), const Tone(0xFFBFDBFE));
 
 /// StaffBadge: on an employee who is also on the Staff page.
 Widget staffBadge() =>
-    _badge('Staff', 'Also on the Staff page (payroll)', const Color(0xFFEEF2FF), const Color(0xFF4338CA), const Color(0xFFC7D2FE));
+    _badge('Staff', 'Also on the Staff page (payroll)', const Tone(0xFFEEF2FF), const Tone(0xFF4338CA), const Tone(0xFFC7D2FE));
 
 const _linkedUser = '_employeeUserId';
 const _isStaff = '_isStaff';

@@ -23,6 +23,7 @@ import '../trackers/tracker_logic.dart' show tNum, tStr, loc, feedItemKind;
 import '../trackers/tracker_widgets.dart';
 import 'stock_dialogs.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// ok · low · out · inactive.
 typedef StockTone = String;
 
@@ -315,7 +316,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
           child: Padding(
             padding: const EdgeInsets.all(2),
             child: Material(
-              color: _tab == key ? Colors.white : Colors.transparent,
+              color: _tab == key ? Tone.bg(0xFFFFFFFF) : Colors.transparent,
               borderRadius: BorderRadius.circular(6),
               child: InkWell(
                 borderRadius: BorderRadius.circular(6),
@@ -335,7 +336,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
           ),
         );
 
-    final orange = (const Color(0xFFFFEDD5), const Color(0xFFC2410C));
+    final orange = (const Tone(0xFFFFEDD5), const Tone(0xFFC2410C));
     return Scaffold(
       appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: const Text('Poultry inventory')),
       body: ListView(

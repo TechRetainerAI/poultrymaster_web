@@ -9,6 +9,7 @@ import '../api/quick_links_api.dart';
 import '../pages/poultry/trackers/tracker_widgets.dart' show trackerToast, TColors;
 import '../pages/web_nav.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// The menus a user may pin from, in rail order. System and Tools are left
 /// out, as on the web, and so are Reports.
 const quickLinkMenus = ['Operations', 'Sales, Expenses & Money', 'Trackers', 'Setup'];
@@ -149,7 +150,7 @@ class _QuickLinksDialogState extends State<_QuickLinksDialog> {
     }
     return AlertDialog(
       title: const Row(children: [
-        Icon(Icons.star_border, color: Color(0xFFF59E0B)),
+        Icon(Icons.star_border, color: Tone.fg(0xFFF59E0B)),
         SizedBox(width: 8),
         Flexible(child: Text('Your Quick Links')),
       ]),
@@ -184,7 +185,7 @@ class _QuickLinksDialogState extends State<_QuickLinksDialog> {
                             key: ValueKey('ql-${l.href}'),
                             onTap: () => _toggle(l.href),
                             child: Container(
-                              color: _picked.contains(l.href) ? const Color(0x99FFFBEB) : null,
+                              color: _picked.contains(l.href) ? const Tone.bg(0x99FFFBEB) : null,
                               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                               child: Row(children: [
                                 Checkbox(value: _picked.contains(l.href), onChanged: (_) => _toggle(l.href)),

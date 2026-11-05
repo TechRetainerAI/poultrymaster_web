@@ -21,6 +21,7 @@ import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, trackerDate
 import '../trackers/tracker_widgets.dart';
 import 'sales_logic.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 String _newKey() {
   final r = Random();
   String h(int n) => List.generate(n, (_) => r.nextInt(16).toRadixString(16)).join();
@@ -201,7 +202,7 @@ class _SaleDetailsScreenState extends State<SaleDetailsScreen> {
       onTap: () => Navigator.pop(context, SaleShowAction(id)),
       child: Text(
         '#$id',
-        style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1D4ED8), decoration: TextDecoration.underline),
+        style: const TextStyle(fontWeight: FontWeight.w600, color: Tone.fg(0xFF1D4ED8), decoration: TextDecoration.underline),
       ),
     );
 
@@ -230,10 +231,10 @@ class _SaleDetailsScreenState extends State<SaleDetailsScreen> {
           if (corrects != null && corrects != 0) ...[
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(6)),
+              decoration: BoxDecoration(color: const Tone.bg(0xFFEFF6FF), borderRadius: BorderRadius.circular(6)),
               child: Row(
                 children: [
-                  const Text('Correction of sale ', style: TextStyle(fontSize: 13, color: Color(0xFF1E40AF))),
+                  const Text('Correction of sale ', style: TextStyle(fontSize: 13, color: Tone.fg(0xFF1E40AF))),
                   link(corrects),
                 ],
               ),
@@ -255,7 +256,7 @@ class _SaleDetailsScreenState extends State<SaleDetailsScreen> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Tone.bg(0xFFFFFFFF),
                 border: Border.all(color: TColors.slate200),
                 borderRadius: BorderRadius.circular(6),
               ),
@@ -319,7 +320,7 @@ class _SaleDetailsScreenState extends State<SaleDetailsScreen> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(backgroundColor: Colors.white),
+                  style: OutlinedButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF))),
                   onPressed: _saving ? null : _saveNote,
                   icon: _saving ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)) : const SizedBox.shrink(),
                   label: const Text('Save note'),
@@ -339,7 +340,7 @@ class _SaleDetailsScreenState extends State<SaleDetailsScreen> {
           if (_reversed && widget.canRepost && rv?['correctionSaleId'] == null) ...[
             const SizedBox(height: 8),
             FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: TColors.blue600, minimumSize: const Size.fromHeight(44)),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.blue600), minimumSize: const Size.fromHeight(44)),
               onPressed: () => Navigator.pop(context, const SaleRepostAction()),
               icon: const Icon(Icons.restart_alt, size: 18),
               label: const Text('Edit & repost'),
@@ -359,7 +360,7 @@ class _SaleDetailsScreenState extends State<SaleDetailsScreen> {
             ),
             const SizedBox(height: 8),
             FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: TColors.blue600, minimumSize: const Size.fromHeight(44)),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.blue600), minimumSize: const Size.fromHeight(44)),
               onPressed: () => Navigator.pop(context, const SaleReverseAction('correct')),
               icon: const Icon(Icons.restart_alt, size: 18),
               label: const Text('Correct sale'),
@@ -522,7 +523,7 @@ class _ReverseSaleScreenState extends State<ReverseSaleScreen> {
   Widget _figure(String label, String value, {String? tone}) => Container(
     padding: const EdgeInsets.all(10),
     decoration: BoxDecoration(
-      color: Colors.white,
+      color: Tone.bg(0xFFFFFFFF),
       border: Border.all(color: TColors.slate200),
       borderRadius: BorderRadius.circular(6),
     ),
@@ -609,7 +610,7 @@ class _ReverseSaleScreenState extends State<ReverseSaleScreen> {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Tone.bg(0xFFFFFFFF),
         border: Border.all(color: TColors.slate200),
         borderRadius: BorderRadius.circular(6),
       ),
@@ -657,7 +658,7 @@ class _ReverseSaleScreenState extends State<ReverseSaleScreen> {
                     '${tStr(p['paymentNumbers']).isNotEmpty ? 'Payment ${p['paymentNumbers']}' : 'The money received'} is reversed. '
                         '${account.isNotEmpty ? account : 'Its cash account'} decreases by ${_money(allocated)}, shown in Cash Flow as a payment reversal (not an expense).',
                     TColors.red300,
-                    const Color(0x99FEF2F2),
+                    const Tone(0x99FEF2F2),
                   ),
                   _choice(
                     p,
@@ -665,8 +666,8 @@ class _ReverseSaleScreenState extends State<ReverseSaleScreen> {
                     action,
                     'Keep it as customer credit',
                     'The money stays received. ${_money(allocated)} becomes credit the customer can use on another sale. The cash account does not change.',
-                    const Color(0xFF60A5FA),
-                    const Color(0x99EFF6FF),
+                    const Tone(0xFF60A5FA),
+                    const Tone(0x99EFF6FF),
                   ),
                 ],
               ),
@@ -986,7 +987,7 @@ class _ApplyCreditDialogState extends State<_ApplyCreditDialog> {
     child: Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Tone.bg(0xFFFFFFFF),
         border: Border.all(color: TColors.blue200),
         borderRadius: BorderRadius.circular(6),
       ),
@@ -1352,7 +1353,7 @@ class _CustomerCreditPanelState extends State<CustomerCreditPanel> {
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Tone.bg(0xFFFFFFFF),
         border: Border.all(color: TColors.blue200),
         borderRadius: BorderRadius.circular(12),
       ),
@@ -1387,13 +1388,13 @@ class _CustomerCreditPanelState extends State<CustomerCreditPanel> {
                 children: [
                   Text(
                     '${_money(total)} held',
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1D4ED8)),
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Tone.fg(0xFF1D4ED8)),
                   ),
                   InkWell(
                     onTap: () => openPoultryHref(context, widget.session, widget.company, '/customer-credits', label: 'Customer Credits'),
                     child: const Text(
                       'Open Customer Credits',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF1D4ED8)),
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Tone.fg(0xFF1D4ED8)),
                     ),
                   ),
                 ],
@@ -1426,7 +1427,7 @@ class _CustomerCreditPanelState extends State<CustomerCreditPanel> {
                               const TextSpan(text: 'Credit '),
                               TextSpan(
                                 text: _money(tNum(r['availableCredit'])),
-                                style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1D4ED8)),
+                                style: const TextStyle(fontWeight: FontWeight.w600, color: Tone.fg(0xFF1D4ED8)),
                               ),
                               TextSpan(text: ' · Owes ${_money(tNum(r['outstanding']))}'),
                             ],
@@ -1553,8 +1554,8 @@ class _SaleLinesScreenState extends State<SaleLinesScreen> {
             ? null
             : TextButton.icon(
                 style: TextButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: const Color(0xFF1D4ED8),
+                  backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)),
+                  foregroundColor: const Tone.fg(0xFF1D4ED8),
                   visualDensity: VisualDensity.compact,
                   minimumSize: const Size(0, 28),
                 ),
@@ -1566,7 +1567,7 @@ class _SaleLinesScreenState extends State<SaleLinesScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Tone.bg(0xFFFFFFFF),
               border: Border.all(color: TColors.slate200),
               borderRadius: BorderRadius.circular(6),
             ),
@@ -1592,7 +1593,7 @@ class _SaleLinesScreenState extends State<SaleLinesScreen> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Tone.bg(0xFFFFFFFF),
                 border: Border.all(color: TColors.slate200),
                 borderRadius: BorderRadius.circular(6),
               ),
@@ -1626,7 +1627,7 @@ class _SaleLinesScreenState extends State<SaleLinesScreen> {
             ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+            decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
             child: Row(
               children: [
                 const Expanded(

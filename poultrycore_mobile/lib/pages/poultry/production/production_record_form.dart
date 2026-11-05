@@ -18,6 +18,7 @@ import '../egg_packaging.dart';
 import 'production_logic.dart';
 import 'production_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 const feedTypes = ['Starter Feed', 'Grower Feed', 'Layer Feed', 'Broiler Feed', 'Organic Feed', 'Custom Mix'];
 
 /// What the host shows around the form (the modal header and footer).
@@ -176,7 +177,7 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
 
   Widget _amberNote(Widget child) => Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: const Color(0xFFFFFBEB), border: Border.all(color: const Color(0xFFFDE68A)), borderRadius: BorderRadius.circular(8)),
+        decoration: BoxDecoration(color: const Tone.bg(0xFFFFFBEB), border: Border.all(color: const Tone.line(0xFFFDE68A)), borderRadius: BorderRadius.circular(8)),
         child: child,
       );
 
@@ -628,7 +629,7 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
           'Feed was recorded for this day from Feed Usage, but production has not been filled in yet. Fill in the eggs, birds and deaths, '
           'then save. The day counts as recorded once you save.',
           key: ValueKey('feed-only-edit-note'),
-          style: TextStyle(fontSize: 13, color: Color(0xFF78350F)),
+          style: TextStyle(fontSize: 13, color: Tone.fg(0xFF78350F)),
         )),
         const SizedBox(height: 12),
       ],
@@ -637,7 +638,7 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
           Text(
             'Feed is already recorded for this flock on this day${feedOnly.feedLines.isNotEmpty ? ' (${feedOnly.feedLines})' : ''}. '
             'It is kept, and any feed you add below is added to it. Do not enter it again.',
-            style: const TextStyle(fontSize: 13, color: Color(0xFF78350F)),
+            style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF78350F)),
           ),
           const SizedBox(height: 4),
           InkWell(
@@ -646,7 +647,7 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
               builder: (_) => ProductionRecordPage(session: widget.session, company: widget.company, recordId: feedOnly.recordId),
             )),
             child: const Text('Open that record instead',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, decoration: TextDecoration.underline, color: Color(0xFF78350F))),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, decoration: TextDecoration.underline, color: Tone.fg(0xFF78350F))),
           ),
         ])),
         const SizedBox(height: 12),
@@ -761,7 +762,7 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
             ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(color: const Color(0xB3FEF3C7), border: Border.all(color: TColors.amber200), borderRadius: BorderRadius.circular(6)),
+            decoration: BoxDecoration(color: const Tone.bg(0xB3FEF3C7), border: Border.all(color: TColors.amber200), borderRadius: BorderRadius.circular(6)),
             child: Wrap(spacing: 24, runSpacing: 4, children: [
               Text.rich(TextSpan(children: [
                 const TextSpan(text: 'Total picked eggs '),
@@ -1141,7 +1142,7 @@ class _ProductionRecordModalState extends State<_ProductionRecordModal> {
           bottomNavigationBar: SafeArea(
             child: Container(
               padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-              decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: TColors.slate200))),
+              decoration: const BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border(top: BorderSide(color: TColors.slate200))),
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 if (!_s.loading)
                   Wrap(spacing: 14, runSpacing: 2, children: [
@@ -1221,7 +1222,7 @@ class ProductionRecordPage extends StatelessWidget {
           ),
           if (!toEggSorting)
             FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: TColors.red600),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600)),
               onPressed: back,
               icon: const Icon(Icons.close, size: 16),
               label: const Text('Close'),
@@ -1233,7 +1234,7 @@ class ProductionRecordPage extends StatelessWidget {
           Align(
             alignment: Alignment.centerRight,
             child: FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: const Color(0xFFF59E0B)),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(const Tone.bg(0xFFF59E0B))),
               onPressed: back,
               icon: const Icon(Icons.arrow_back, size: 16),
               label: const Text('Back to Egg Sorting'),
@@ -1355,16 +1356,16 @@ class _ProductionCatchUpFlowState extends State<ProductionCatchUpFlow> {
         : Container(
             margin: const EdgeInsets.only(bottom: 14),
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: const Color(0xFFF0F9FF), border: Border.all(color: const Color(0xFFBAE6FD)), borderRadius: BorderRadius.circular(10)),
+            decoration: BoxDecoration(color: const Tone.bg(0xFFF0F9FF), border: Border.all(color: const Tone.line(0xFFBAE6FD)), borderRadius: BorderRadius.circular(10)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const Text('Already in a batch entry that has not been posted — post it instead of entering these again:',
-                  style: TextStyle(fontSize: 14, color: Color(0xFF0C4A6E))),
+                  style: TextStyle(fontSize: 14, color: Tone.fg(0xFF0C4A6E))),
               Wrap(spacing: 12, children: [
                 for (final p in _pending)
                   InkWell(
                     onTap: () => _href(_missingHref(p)),
                     child: Text('${formatWeekdayDate(p['date'])} (batch #${tStr(p['pendingBatchRecordId'])})',
-                        style: const TextStyle(fontSize: 14, color: Color(0xFF0C4A6E), decoration: TextDecoration.underline)),
+                        style: const TextStyle(fontSize: 14, color: Tone.fg(0xFF0C4A6E), decoration: TextDecoration.underline)),
                   ),
               ]),
             ]),
@@ -1408,7 +1409,7 @@ class _ProductionCatchUpFlowState extends State<ProductionCatchUpFlow> {
       Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Tone.bg(0xFFFFFFFF),
           border: const Border(left: BorderSide(color: TColors.amber600, width: 4)),
           borderRadius: BorderRadius.circular(10),
         ),
@@ -1434,7 +1435,7 @@ class _ProductionCatchUpFlowState extends State<ProductionCatchUpFlow> {
                   'saved' => (TColors.emerald50, TColors.emerald200, TColors.emerald800),
                   'skipped' => (TColors.slate100, TColors.slate200, TColors.slate500),
                   'current' => (TColors.amber100, TColors.amber300, TColors.amber900),
-                  _ => (Colors.white, TColors.slate200, TColors.slate600),
+                  _ => (Tone(0xFFFFFFFF), TColors.slate200, TColors.slate600),
                 };
                 return Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
@@ -1498,7 +1499,7 @@ class _ProductionCatchUpFlowState extends State<ProductionCatchUpFlow> {
             label: const Text('Skip this day'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: TColors.emerald600),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.emerald600)),
             onPressed: _saving ? null : () => _forms[current]?.currentState?.submit(),
             child: Text(isLast ? 'Save & finish' : 'Save & next missing day'),
           ),

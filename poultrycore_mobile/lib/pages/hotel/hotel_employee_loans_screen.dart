@@ -29,6 +29,7 @@ import '../shared/reason_select.dart' show cancelReasons, loanReversalReasons;
 import '../water/water_payroll_screen.dart' show showWaterPayrollPrompt;
 import 'hotel_kit.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 const hotelLoanTypes = {'SalaryAdvance': 'Salary advance', 'EmployeeLoan': 'Staff loan', 'OtherAdvance': 'Other advance'};
 const hotelLoanMethods = {
   'PayrollDeduction': 'Deduct from payroll',
@@ -63,11 +64,11 @@ List<Map> filterHotelLoans(List<Map> loans, {String tab = 'OPEN', String staff =
 }
 
 (Color, Color) _tone(Object? s) => switch (tStr(s)) {
-      'Active' => (const Color(0xFFDBEAFE), const Color(0xFF1D4ED8)),
-      'Paid' => (const Color(0xFFD1FAE5), const Color(0xFF047857)),
-      'Cancelled' => (const Color(0xFFFEF3C7), const Color(0xFFB45309)),
-      'Reversed' => (const Color(0xFFFEE2E2), const Color(0xFFB91C1C)),
-      'WrittenOff' => (const Color(0xFFF3E8FF), const Color(0xFF7E22CE)),
+      'Active' => (const Tone(0xFFDBEAFE), const Tone(0xFF1D4ED8)),
+      'Paid' => (const Tone(0xFFD1FAE5), const Tone(0xFF047857)),
+      'Cancelled' => (const Tone(0xFFFEF3C7), const Tone(0xFFB45309)),
+      'Reversed' => (const Tone(0xFFFEE2E2), const Tone(0xFFB91C1C)),
+      'WrittenOff' => (const Tone(0xFFF3E8FF), const Tone(0xFF7E22CE)),
       _ => (TColors.slate100, TColors.slate700),
     };
 Widget _badge(Object? s) {
@@ -294,7 +295,7 @@ class _HotelEmployeeLoansScreenState extends State<HotelEmployeeLoansScreen> {
 
   Widget _stat(String label, String value, {String? hint, Color color = TColors.slate900}) => Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label.toUpperCase(), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, letterSpacing: .5, color: TColors.slate500)),
           const SizedBox(height: 4),
@@ -347,7 +348,7 @@ class _HotelEmployeeLoansScreenState extends State<HotelEmployeeLoansScreen> {
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(color: TColors.violet50, border: Border.all(color: TColors.violet200), borderRadius: BorderRadius.circular(8)),
                   child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    const Icon(Icons.info_outline, size: 16, color: Color(0xFF4C1D95)),
+                    const Icon(Icons.info_outline, size: 16, color: Tone.fg(0xFF4C1D95)),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text.rich(
@@ -365,12 +366,12 @@ class _HotelEmployeeLoansScreenState extends State<HotelEmployeeLoansScreen> {
                             child: InkWell(
                               onTap: () => openAppHref(context, widget.session, widget.company, '/hotel-loans', label: 'Loans (Financing)'),
                               child: const Text('Loans (Financing)',
-                                  style: TextStyle(fontSize: 13, color: Color(0xFF4C1D95), decoration: TextDecoration.underline)),
+                                  style: TextStyle(fontSize: 13, color: Tone.fg(0xFF4C1D95), decoration: TextDecoration.underline)),
                             ),
                           ),
                           const TextSpan(text: ', which is money the hotel borrowed.'),
                         ]),
-                        style: const TextStyle(fontSize: 13, color: Color(0xFF4C1D95)),
+                        style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF4C1D95)),
                       ),
                     ),
                   ]),
@@ -378,9 +379,9 @@ class _HotelEmployeeLoansScreenState extends State<HotelEmployeeLoansScreen> {
                 if (s != null) ...[
                   const SizedBox(height: 12),
                   twoUp([
-                    _stat('Outstanding', _fmt(s['totalOutstanding']), hint: 'What staff still owe the hotel', color: const Color(0xFF4338CA)),
-                    _stat('Advanced', _fmt(s['totalDisbursed']), hint: tNum(s['draftCount']) > 0 ? '${tStr(s['draftCount'])} draft' : null, color: const Color(0xFFE11D48)),
-                    _stat('Repaid', _fmt(s['totalRepaid']), hint: '${_fmt(s['repaidViaPayroll'])} via payroll', color: const Color(0xFF047857)),
+                    _stat('Outstanding', _fmt(s['totalOutstanding']), hint: 'What staff still owe the hotel', color: const Tone(0xFF4338CA)),
+                    _stat('Advanced', _fmt(s['totalDisbursed']), hint: tNum(s['draftCount']) > 0 ? '${tStr(s['draftCount'])} draft' : null, color: const Tone(0xFFE11D48)),
+                    _stat('Repaid', _fmt(s['totalRepaid']), hint: '${_fmt(s['repaidViaPayroll'])} via payroll', color: const Tone(0xFF047857)),
                     _stat('Active advances', '${tNum(s['activeCount']).toInt()}', hint: '${tNum(s['staffWithLoans']).toInt()} member(s) of staff'),
                   ]),
                   if (tNum(s['draftPayrollClaims']) > 0)
@@ -1137,7 +1138,7 @@ class _DetailDialogState extends State<_DetailDialog> {
           twoUp([
             fig('Given', fmt(l['principalAmount'])),
             fig('To repay', fmt(l['totalRepayable'])),
-            fig('Repaid', fmt(tNum(l['totalPrincipalRepaid']) + tNum(l['totalInterestRepaid'])), const Color(0xFF059669)),
+            fig('Repaid', fmt(tNum(l['totalPrincipalRepaid']) + tNum(l['totalInterestRepaid'])), const Tone(0xFF059669)),
             fig('Owed', _owes(l) ? fmt(l['outstandingBalance']) : '—', TColors.red600),
           ]),
           const SizedBox(height: 12),
@@ -1150,7 +1151,7 @@ class _DetailDialogState extends State<_DetailDialog> {
           if (tStr(l['notes']).isNotEmpty) line('Notes', tStr(l['notes'])),
           if (tStr(l['reversedReason']).isNotEmpty)
             Text('${st == 'Cancelled' ? 'Cancelled' : 'Reversed'}: ${tStr(l['reversedReason'])}${tStr(l['reversedBy']).isNotEmpty ? ' — ${tStr(l['reversedBy'])}' : ''}',
-                style: const TextStyle(fontSize: 13, color: Color(0xFFB91C1C))),
+                style: const TextStyle(fontSize: 13, color: Tone.fg(0xFFB91C1C))),
           const SizedBox(height: 12),
           Wrap(spacing: 8, runSpacing: 8, children: [
             if (st == 'Draft') ...[
@@ -1169,7 +1170,7 @@ class _DetailDialogState extends State<_DetailDialog> {
                     style: violet, onPressed: () => _after(widget.onRepay), icon: const Icon(Icons.account_balance_wallet_outlined, size: 16), label: const Text('Record repayment')),
               OutlinedButton.icon(style: out, onPressed: () => _after(widget.onEdit), icon: const Icon(Icons.edit_outlined, size: 16), label: const Text('Edit plan')),
               OutlinedButton.icon(
-                style: out.copyWith(foregroundColor: const WidgetStatePropertyAll(Color(0xFFB91C1C))),
+                style: out.copyWith(foregroundColor: const WidgetStatePropertyAll(Tone.fg(0xFFB91C1C))),
                 onPressed: () => _after(widget.onReverse),
                 icon: const Icon(Icons.undo, size: 16),
                 label: const Text('Reverse loan'),
@@ -1205,8 +1206,8 @@ class _DetailDialogState extends State<_DetailDialog> {
                         ),
                         Text('Owed after ${fmt(rp['balanceAfter'])}', style: const TextStyle(fontSize: 11, color: TColors.slate500)),
                         const SizedBox(height: 4),
-                        hotelBadge(tStr(rp['status']), rp['status'] == 'Posted' ? const Color(0xFFD1FAE5) : const Color(0xFFFEE2E2),
-                            rp['status'] == 'Posted' ? const Color(0xFF047857) : const Color(0xFFB91C1C)),
+                        hotelBadge(tStr(rp['status']), rp['status'] == 'Posted' ? const Tone(0xFFD1FAE5) : const Tone(0xFFFEE2E2),
+                            rp['status'] == 'Posted' ? const Tone(0xFF047857) : const Tone(0xFFB91C1C)),
                         if (tStr(rp['reversedReason']).isNotEmpty) Text(tStr(rp['reversedReason']), style: const TextStyle(fontSize: 11, color: TColors.slate500)),
                       ]),
                     ),

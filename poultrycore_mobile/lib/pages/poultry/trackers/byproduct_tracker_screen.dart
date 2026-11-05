@@ -10,6 +10,7 @@ import '../reports/report_format.dart';
 import 'tracker_logic.dart';
 import 'tracker_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Poultry → Trackers → Broken eggs tracker / Dead birds tracker, as
 /// `components/poultry/byproduct-tracker.tsx` (one component, two pages,
 /// migrations 372-381): byproduct stock is its own ledger, apart from saleable
@@ -89,11 +90,11 @@ const byproductCategoryLabel = {
 /// CATEGORY_TONE: (bg, fg, border).
 (Color, Color, Color) _categoryTone(String key) => switch (key) {
       'Generated' => (TColors.emerald50, TColors.emerald800, TColors.emerald300),
-      'Sold' => (const Color(0xFFEFF6FF), const Color(0xFF1E40AF), TColors.blue300),
-      'Disposed' => (TColors.rose50, TColors.rose800, const Color(0xFFFDA4AF)),
-      'InternalUse' => (TColors.violet50, TColors.violet800, const Color(0xFFC4B5FD)),
-      'ManualIn' => (const Color(0xFFF0FDFA), const Color(0xFF115E59), const Color(0xFF5EEAD4)),
-      'ManualOut' => (const Color(0xFFFFF7ED), const Color(0xFF9A3412), const Color(0xFFFDBA74)),
+      'Sold' => (const Tone(0xFFEFF6FF), const Tone(0xFF1E40AF), TColors.blue300),
+      'Disposed' => (TColors.rose50, TColors.rose800, const Tone(0xFFFDA4AF)),
+      'InternalUse' => (TColors.violet50, TColors.violet800, const Tone(0xFFC4B5FD)),
+      'ManualIn' => (const Tone(0xFFF0FDFA), const Tone(0xFF115E59), const Tone(0xFF5EEAD4)),
+      'ManualOut' => (const Tone(0xFFFFF7ED), const Tone(0xFF9A3412), const Tone(0xFFFDBA74)),
       _ => (TColors.slate50, TColors.slate700, TColors.slate300),
     };
 
@@ -383,7 +384,7 @@ class _ByproductTrackerScreenState extends State<ByproductTrackerScreen> {
       TileGrid(boxed: true, [
         TileData('On hand now', loc(tNum(_data?['onHand'])), color: TColors.sky700, sub: 'All flocks, today'),
         TileData(copy.generated, loc(generated), color: TColors.emerald700, sub: 'In the period'),
-        TileData('Sold', loc(sold), color: const Color(0xFF1D4ED8), sub: revenue != 0 ? '${_money(revenue)} revenue' : 'In the period'),
+        TileData('Sold', loc(sold), color: const Tone.bg(0xFF1D4ED8), sub: revenue != 0 ? '${_money(revenue)} revenue' : 'In the period'),
         TileData('Disposed', loc(disposed), color: TColors.rose700, sub: 'In the period'),
         TileData(
           'Left at end of period',
@@ -447,7 +448,7 @@ class _ByproductTrackerScreenState extends State<ByproductTrackerScreen> {
                             : '${first(flocks[i])} – ${last(flocks[i])}'),
                       ),
                       ('Opening', Text(loc(tNum(flocks[i]['opening'])))),
-                      ('Sold', Text(loc(tNum(flocks[i]['sold'])), style: const TextStyle(color: Color(0xFF1D4ED8)))),
+                      ('Sold', Text(loc(tNum(flocks[i]['sold'])), style: const TextStyle(color: Tone.fg(0xFF1D4ED8)))),
                       ('Disposed', Text(loc(tNum(flocks[i]['disposed'])), style: const TextStyle(color: TColors.rose700))),
                       (
                         'Other ±',
@@ -489,7 +490,7 @@ class _ByproductTrackerScreenState extends State<ByproductTrackerScreen> {
                       cellText(loc(tNum(r['opening']))),
                       cellText(loc(tNum(r['generated'])), color: TColors.emerald700),
                       cellText(loc(tNum(r['manualIn']))),
-                      cellText(loc(tNum(r['sold'])), color: const Color(0xFF1D4ED8)),
+                      cellText(loc(tNum(r['sold'])), color: const Tone.fg(0xFF1D4ED8)),
                       cellText(loc(tNum(r['disposed'])), color: TColors.rose700),
                       cellText(loc(tNum(r['internalUse']))),
                       cellText(loc(tNum(r['manualOut']))),

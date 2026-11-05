@@ -11,7 +11,8 @@ import '../../shared/reason_select.dart';
 import '../trackers/tracker_logic.dart' show tNum, tStr;
 import '../trackers/tracker_widgets.dart';
 
-const creditBlue700 = Color(0xFF1D4ED8);
+import 'package:poultrycore_mobile/design/tone.dart';
+const creditBlue700 = Tone.fg(0xFF1D4ED8);
 
 /// A day as yyyy-MM-dd on the phone's clock (the web dialogs' `today()`).
 String localToday() {
@@ -33,7 +34,7 @@ class CreditTabs extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(4),
     decoration: BoxDecoration(
-      color: Colors.white,
+      color: Tone.bg(0xFFFFFFFF),
       border: Border.all(color: TColors.slate200),
       borderRadius: BorderRadius.circular(12),
       boxShadow: const [BoxShadow(color: Color(0x0D000000), blurRadius: 2, offset: Offset(0, 1))],
@@ -66,7 +67,7 @@ class CreditTabs extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                           decoration: BoxDecoration(
-                            color: value == v ? Colors.white.withValues(alpha: .2) : TColors.slate100,
+                            color: value == v ? Tone.bg(0xFFFFFFFF).withValues(alpha: .2) : TColors.slate100,
                             borderRadius: BorderRadius.circular(999),
                           ),
                           child: Text(
@@ -91,7 +92,7 @@ class CreditTabs extends StatelessWidget {
 Widget creditKpi(String label, String value, {Color color = TColors.slate900}) => Container(
   padding: const EdgeInsets.all(14),
   decoration: BoxDecoration(
-    color: Colors.white,
+    color: Tone.bg(0xFFFFFFFF),
     border: Border.all(color: TColors.slate200),
     borderRadius: BorderRadius.circular(12),
   ),
@@ -118,7 +119,7 @@ Widget creditStatusBadge(Object? status) {
     'Partly used' => (TColors.amber700, TColors.amber300),
     _ => (TColors.slate500, TColors.slate300),
   };
-  return TBadge(s, bg: Colors.white, fg: fg, border: border);
+  return TBadge(s, bg: Tone.bg(0xFFFFFFFF), fg: fg, border: border);
 }
 
 /// The grey "secondary" badge: Reversed, Undone.
@@ -234,7 +235,7 @@ class _CreditEventsDialogState extends State<_CreditEventsDialog> {
               Container(
                 clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: Tone.bg(0xFFFFFFFF),
                   border: Border.all(color: widget.color == FormColor.amber ? TColors.amber200 : TColors.slate200),
                   borderRadius: BorderRadius.circular(widget.color == FormColor.amber ? 12 : 6),
                 ),
@@ -476,8 +477,8 @@ Widget kindOption({required bool selected, required String title, required Strin
       // Amber when chosen, white otherwise, as the web's tinted "Where the
       // credit came from" / "What is it" sections.
       decoration: BoxDecoration(
-        color: selected ? TColors.amber50 : Colors.white,
-        border: Border.all(color: selected ? const Color(0xFFFBBF24) : TColors.slate200),
+        color: selected ? TColors.amber50 : Tone.bg(0xFFFFFFFF),
+        border: Border.all(color: selected ? const Tone.line(0xFFFBBF24) : TColors.slate200),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
@@ -508,8 +509,8 @@ Widget kindOption({required bool selected, required String title, required Strin
 Widget summaryBox(List<InlineSpan> spans, {FormColor? tone}) {
   final (bg, border, fg) = switch (tone) {
     FormColor.amber => (TColors.amber50, TColors.amber200, TColors.amber900),
-    FormColor.blue => (const Color(0xFFEFF6FF), const Color(0xFFBFDBFE), const Color(0xFF1E3A8A)),
-    FormColor.emerald => (const Color(0xFFECFDF5), const Color(0xFFA7F3D0), const Color(0xFF064E3B)),
+    FormColor.blue => (const Tone(0xFFEFF6FF), const Tone(0xFFBFDBFE), const Tone(0xFF1E3A8A)),
+    FormColor.emerald => (const Tone(0xFFECFDF5), const Tone(0xFFA7F3D0), const Tone(0xFF064E3B)),
     _ => (TColors.slate50, null, TColors.slate700),
   };
   return Container(

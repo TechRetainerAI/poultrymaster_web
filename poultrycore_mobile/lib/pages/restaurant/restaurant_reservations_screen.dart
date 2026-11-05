@@ -19,14 +19,15 @@ import 'restaurant_money_kit.dart' show rField, rNumberInput, rDateInput, rDialo
 import 'restaurant_other_select.dart';
 import 'restaurant_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// STATUS_COLORS: background, text.
 const reservationStatusColors = <String, (Color, Color)>{
-  'Pending': (Color(0xFFFEF3C7), Color(0xFFB45309)),
-  'Confirmed': (Color(0xFFDBEAFE), Color(0xFF1D4ED8)),
-  'Seated': (Color(0xFFDCFCE7), Color(0xFF15803D)),
-  'Completed': (Color(0xFFF3F4F6), Color(0xFF374151)),
-  'Cancelled': (Color(0xFFFEE2E2), Color(0xFFB91C1C)),
-  'NoShow': (Color(0xFFFECACA), Color(0xFF991B1B)),
+  'Pending': (Tone(0xFFFEF3C7), Tone(0xFFB45309)),
+  'Confirmed': (Tone(0xFFDBEAFE), Tone(0xFF1D4ED8)),
+  'Seated': (Tone(0xFFDCFCE7), Tone(0xFF15803D)),
+  'Completed': (Tone(0xFFF3F4F6), Tone(0xFF374151)),
+  'Cancelled': (Tone(0xFFFEE2E2), Tone(0xFFB91C1C)),
+  'NoShow': (Tone(0xFFFECACA), Tone(0xFF991B1B)),
 };
 const reservationOccasions = ['Birthday', 'Anniversary', 'Business', 'Date', 'Celebration'];
 
@@ -222,7 +223,7 @@ class _RestaurantReservationsScreenState extends State<RestaurantReservationsScr
                   tabs: [
                     ('reservations', Icons.calendar_month_outlined, 'Reservations',
                         _resStats == null ? null : rBadge('${tNum(_resStats!['totalCount']).toInt()}')),
-                    ('waitlist', Icons.people_outline, 'Waitlist', waiting > 0 ? rBadge('$waiting', bg: const Color(0xFFF59E0B), fg: Colors.white) : null),
+                    ('waitlist', Icons.people_outline, 'Waitlist', waiting > 0 ? rBadge('$waiting', bg: const Tone.bg(0xFFF59E0B), fg: Colors.white) : null),
                   ],
                 ),
                 const SizedBox(height: 14),
@@ -252,10 +253,10 @@ class _RestaurantReservationsScreenState extends State<RestaurantReservationsScr
       if (s != null) ...[
         const SizedBox(height: 10),
         Wrap(spacing: 16, runSpacing: 4, children: [
-          _figure('${tNum(s['confirmedCount']).toInt()}', 'Confirmed', const Color(0xFF2563EB)),
-          _figure('${tNum(s['seatedCount']).toInt()}', 'Seated', const Color(0xFF16A34A)),
-          _figure('${tNum(s['totalCovers']).toInt()}', 'Covers', const Color(0xFF111827)),
-          if (tNum(s['noShowCount']) > 0) _figure('${tNum(s['noShowCount']).toInt()}', 'No-Show', const Color(0xFFDC2626)),
+          _figure('${tNum(s['confirmedCount']).toInt()}', 'Confirmed', const Tone(0xFF2563EB)),
+          _figure('${tNum(s['seatedCount']).toInt()}', 'Seated', const Tone(0xFF16A34A)),
+          _figure('${tNum(s['totalCovers']).toInt()}', 'Covers', const Tone(0xFF111827)),
+          if (tNum(s['noShowCount']) > 0) _figure('${tNum(s['noShowCount']).toInt()}', 'No-Show', const Tone(0xFFDC2626)),
         ]),
       ],
       const SizedBox(height: 10),
@@ -277,12 +278,12 @@ class _RestaurantReservationsScreenState extends State<RestaurantReservationsScr
 
   Widget _resRow(Map r) {
     final status = tStr(r['status']);
-    final (bg, fg) = reservationStatusColors[status] ?? (const Color(0xFFF3F4F6), const Color(0xFF374151));
+    final (bg, fg) = reservationStatusColors[status] ?? (const Tone(0xFFF3F4F6), const Tone(0xFF374151));
     const meta = _meta;
     Widget step(String label, Color color, String to, {bool outlined = false}) => outlined
         ? OutlinedButton(style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact), onPressed: () => _resStatus(r, to), child: Text(label))
         : FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: color, visualDensity: VisualDensity.compact), onPressed: () => _resStatus(r, to), child: Text(label));
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(color), visualDensity: VisualDensity.compact), onPressed: () => _resStatus(r, to), child: Text(label));
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
@@ -292,7 +293,7 @@ class _RestaurantReservationsScreenState extends State<RestaurantReservationsScr
           SizedBox(
             width: 62,
             child: Column(children: [
-              Text(tStr(r['reservationTime']), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+              Text(tStr(r['reservationTime']), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Tone.fg(0xFF111827))),
               if (tStr(r['endTime']).isNotEmpty) Text('to ${tStr(r['endTime'])}', style: const TextStyle(fontSize: 10, color: TColors.slate500)),
             ]),
           ),
@@ -300,8 +301,8 @@ class _RestaurantReservationsScreenState extends State<RestaurantReservationsScr
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                Text(tStr(r['guestName']), style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF111827))),
-                if (r['isVip'] == true) rBadge('★ VIP', bg: const Color(0xFFF3E8FF), fg: const Color(0xFF7E22CE)),
+                Text(tStr(r['guestName']), style: const TextStyle(fontWeight: FontWeight.w600, color: Tone.fg(0xFF111827))),
+                if (r['isVip'] == true) rBadge('★ VIP', bg: const Tone.bg(0xFFF3E8FF), fg: const Tone.fg(0xFF7E22CE)),
                 rBadge(status, bg: bg, fg: fg),
               ]),
               const SizedBox(height: 4),
@@ -315,9 +316,9 @@ class _RestaurantReservationsScreenState extends State<RestaurantReservationsScr
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    const Icon(Icons.warning_amber_rounded, size: 12, color: Color(0xFFB45309)),
+                    const Icon(Icons.warning_amber_rounded, size: 12, color: Tone.fg(0xFFB45309)),
                     const SizedBox(width: 3),
-                    Expanded(child: Text(tStr(r['specialRequests']), style: const TextStyle(fontSize: 12, color: Color(0xFFB45309)))),
+                    Expanded(child: Text(tStr(r['specialRequests']), style: const TextStyle(fontSize: 12, color: Tone.fg(0xFFB45309)))),
                   ]),
                 ),
             ]),
@@ -325,22 +326,22 @@ class _RestaurantReservationsScreenState extends State<RestaurantReservationsScr
         ]),
         const Divider(height: 20, color: TColors.slate200),
         Wrap(spacing: 4, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
-          if (status == 'Pending') step('Confirm', const Color(0xFF2563EB), 'Confirmed'),
-          if (status == 'Confirmed') step('Seat', const Color(0xFF16A34A), 'Seated'),
-          if (status == 'Seated') step('Complete', Colors.white, 'Completed', outlined: true),
+          if (status == 'Pending') step('Confirm', const Tone(0xFF2563EB), 'Confirmed'),
+          if (status == 'Confirmed') step('Seat', const Tone(0xFF16A34A), 'Seated'),
+          if (status == 'Seated') step('Complete', Tone(0xFFFFFFFF), 'Completed', outlined: true),
           if (status == 'Confirmed' || status == 'Pending') ...[
             TextButton(
-                style: TextButton.styleFrom(foregroundColor: const Color(0xFFDC2626), visualDensity: VisualDensity.compact),
+                style: TextButton.styleFrom(foregroundColor: const Tone.fg(0xFFDC2626), visualDensity: VisualDensity.compact),
                 onPressed: () => _resStatus(r, 'NoShow'),
                 child: const Text('No-Show')),
             TextButton(
-                style: TextButton.styleFrom(foregroundColor: const Color(0xFFEF4444), visualDensity: VisualDensity.compact),
+                style: TextButton.styleFrom(foregroundColor: const Tone.fg(0xFFEF4444), visualDensity: VisualDensity.compact),
                 onPressed: () => _resStatus(r, 'Cancelled'),
                 child: const Text('Cancel')),
           ],
           IconButton(tooltip: 'Edit reservation', onPressed: () => _openRes(r), icon: const Icon(Icons.edit_outlined, size: 16)),
           IconButton(
-              tooltip: 'Delete reservation', onPressed: () => _removeRes(r), icon: const Icon(Icons.delete_outline, size: 16, color: Color(0xFFEF4444))),
+              tooltip: 'Delete reservation', onPressed: () => _removeRes(r), icon: const Icon(Icons.delete_outline, size: 16, color: Tone.fg(0xFFEF4444))),
         ]),
       ]),
     );
@@ -352,8 +353,8 @@ class _RestaurantReservationsScreenState extends State<RestaurantReservationsScr
     return [
       if (s != null) ...[
         Wrap(spacing: 16, runSpacing: 4, children: [
-          _figure('${tNum(s['waitingCount']).toInt()}', 'Waiting', const Color(0xFFD97706)),
-          _figure('${tNum(s['notifiedCount']).toInt()}', 'Notified', const Color(0xFF2563EB)),
+          _figure('${tNum(s['waitingCount']).toInt()}', 'Waiting', const Tone(0xFFD97706)),
+          _figure('${tNum(s['notifiedCount']).toInt()}', 'Notified', const Tone(0xFF2563EB)),
           if (s['avgWaitMins'] != null)
             Text.rich(TextSpan(children: [
               const TextSpan(text: 'Avg: '),
@@ -361,7 +362,7 @@ class _RestaurantReservationsScreenState extends State<RestaurantReservationsScr
             ])),
           if (longest > 0)
             Text('Max: ${longest.floor()}m',
-                style: TextStyle(color: longest > 30 ? const Color(0xFFDC2626) : null, fontWeight: longest > 30 ? FontWeight.w700 : null)),
+                style: TextStyle(color: longest > 30 ? const Tone.fg(0xFFDC2626) : null, fontWeight: longest > 30 ? FontWeight.w700 : null)),
         ]),
         const SizedBox(height: 10),
       ],
@@ -398,13 +399,13 @@ class _RestaurantReservationsScreenState extends State<RestaurantReservationsScr
             width: 40,
             height: 40,
             alignment: Alignment.center,
-            decoration: BoxDecoration(color: const Color(0xFFFEF3C7), borderRadius: BorderRadius.circular(12)),
-            child: Text('${i + 1}', style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFFB45309))),
+            decoration: BoxDecoration(color: const Tone.bg(0xFFFEF3C7), borderRadius: BorderRadius.circular(12)),
+            child: Text('${i + 1}', style: const TextStyle(fontWeight: FontWeight.w700, color: Tone.fg(0xFFB45309))),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(tStr(w['guestName']), style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF111827))),
+              Text(tStr(w['guestName']), style: const TextStyle(fontWeight: FontWeight.w600, color: Tone.fg(0xFF111827))),
               Wrap(spacing: 12, runSpacing: 2, children: [
                 _meta(Icons.people_outline, '${tNum(w['partySize']).toInt()}'),
                 if (tStr(w['guestPhone']).isNotEmpty) _meta(Icons.phone_outlined, tStr(w['guestPhone'])),
@@ -415,14 +416,14 @@ class _RestaurantReservationsScreenState extends State<RestaurantReservationsScr
             ]),
           ),
           status == 'Waiting'
-              ? rBadge(status, bg: const Color(0xFFFEF3C7), fg: const Color(0xFFB45309))
-              : rBadge(status, bg: const Color(0xFFDBEAFE), fg: const Color(0xFF1D4ED8)),
+              ? rBadge(status, bg: const Tone.bg(0xFFFEF3C7), fg: const Tone.fg(0xFFB45309))
+              : rBadge(status, bg: const Tone.bg(0xFFDBEAFE), fg: const Tone.fg(0xFF1D4ED8)),
         ]),
         const Divider(height: 20, color: TColors.slate200),
         Wrap(spacing: 6, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
           if (status == 'Waiting')
             FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: const Color(0xFF2563EB), visualDensity: VisualDensity.compact),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(const Tone.bg(0xFF2563EB)), visualDensity: VisualDensity.compact),
               onPressed: () => _waitStatus(w, 'Notified'),
               child: const Text('Notify'),
             ),
@@ -440,12 +441,12 @@ class _RestaurantReservationsScreenState extends State<RestaurantReservationsScr
               ),
             ),
           TextButton(
-            style: TextButton.styleFrom(foregroundColor: const Color(0xFFEF4444), visualDensity: VisualDensity.compact),
+            style: TextButton.styleFrom(foregroundColor: const Tone.fg(0xFFEF4444), visualDensity: VisualDensity.compact),
             onPressed: () => _waitStatus(w, 'Left'),
             child: const Text('Left'),
           ),
           IconButton(
-              tooltip: 'Remove from waitlist', onPressed: () => _removeWait(w), icon: const Icon(Icons.delete_outline, size: 16, color: Color(0xFFEF4444))),
+              tooltip: 'Remove from waitlist', onPressed: () => _removeWait(w), icon: const Icon(Icons.delete_outline, size: 16, color: Tone.fg(0xFFEF4444))),
         ]),
       ]),
     );

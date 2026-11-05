@@ -31,16 +31,16 @@ import 'help/help_types.dart';
 import 'help/poultry_help_content.dart';
 import 'setup_admin_routes.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Questions people actually type, offered before they type anything.
 const helpSuggestions = ['who owes me', "cash doesn't match profit", 'reverse a sale', 'eggs per crate', 'close the day', "can't see a page"];
 
 const _kindLabel = {HelpKind.faq: 'Question', HelpKind.fix: 'Troubleshooting', HelpKind.term: 'Glossary'};
 
-const _indigo = Color(0xFF4F46E5);
-const _indigo100 = Color(0xFFE0E7FF);
-const _indigo200 = Color(0xFFC7D2FE);
-const _indigo700 = Color(0xFF4338CA);
-const _amber100 = Color(0xFFFEF3C7);
+const _indigo100 = Tone.bg(0xFFE0E7FF);
+const _indigo200 = Tone.line(0xFFC7D2FE);
+const _indigo700 = Tone.fg(0xFF4338CA);
+const _amber100 = Tone.bg(0xFFFEF3C7);
 
 class HelpCenterScreen extends StatefulWidget {
   const HelpCenterScreen({super.key, required this.session, required this.company});
@@ -126,25 +126,25 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
             width: 64,
             height: 64,
             decoration: BoxDecoration(color: _indigo100, borderRadius: BorderRadius.circular(16)),
-            child: const Icon(Icons.help_outline, size: 32, color: _indigo),
+            child: const Icon(Icons.help_outline, size: 32, color: Tone.fg(0xFF4F46E5)),
           ),
         ),
         const SizedBox(height: 12),
-        const Text('Help Center', textAlign: TextAlign.center, style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: TColors.slate900)),
+        const Text('Help Center', textAlign: TextAlign.center, style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: Tone.fg(0xFF0F172A))),
         const SizedBox(height: 6),
         const Text('Ask in your own words. Answers, fixes for common problems, what the terms mean, and a quick way to reach us.',
-            textAlign: TextAlign.center, style: TextStyle(color: TColors.slate600)),
+            textAlign: TextAlign.center, style: TextStyle(color: Tone.fg(0xFF475569))),
         const SizedBox(height: 16),
         AppInput(
           key: const ValueKey('help-search'),
           controller: _search,
           hintText: 'e.g. how do I reverse a sale?',
-          prefixIcon: const Icon(Icons.search, color: TColors.slate400),
+          prefixIcon: const Icon(Icons.search, color: Tone.fg(0xFF7F8EA3)),
           suffixIcon: searching
               ? IconButton(
                   key: const ValueKey('help-search-clear'),
                   tooltip: 'Clear search',
-                  icon: const Icon(Icons.close, size: 18, color: TColors.slate400),
+                  icon: const Icon(Icons.close, size: 18, color: Tone.fg(0xFF7F8EA3)),
                   onPressed: () => _setQuery(''),
                 )
               : null,
@@ -160,8 +160,8 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                 onTap: () => _setQuery(s),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                  decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(999)),
-                  child: Text(s, style: const TextStyle(fontSize: 12, color: TColors.slate600)),
+                  decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(999)),
+                  child: Text(s, style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF475569))),
                 ),
               ),
           ]),
@@ -183,7 +183,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
     return [
       if (pageHits.isNotEmpty) ...[
         Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
-          const Text('GO TO PAGE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: .6, color: TColors.slate400)),
+          const Text('GO TO PAGE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: .6, color: Tone.fg(0xFF7F8EA3))),
           for (final p in pageHits)
             InkWell(
               key: ValueKey('help-goto-${p.href}'),
@@ -191,7 +191,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
               onTap: () => _open(p.href, p.title),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _indigo200), borderRadius: BorderRadius.circular(999)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: _indigo200), borderRadius: BorderRadius.circular(999)),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   Flexible(child: Text(p.title, style: const TextStyle(fontSize: 13.5, color: _indigo700))),
                   const SizedBox(width: 4),
@@ -214,7 +214,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
               const SizedBox(height: 12),
               FilledButton.icon(
                 key: const ValueKey('help-ask-support'),
-                style: FilledButton.styleFrom(backgroundColor: _indigo, foregroundColor: Colors.white),
+                style: FilledButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFF4F46E5)), foregroundColor: Colors.white),
                 onPressed: () => _supportKey.currentState?.ask(q),
                 icon: const Icon(Icons.chat_bubble_outline, size: 16),
                 label: const Text('Ask support this question'),
@@ -240,7 +240,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
             InkWell(
               key: const ValueKey('help-ask-support'),
               onTap: () => _supportKey.currentState?.ask(q),
-              child: const Text('Ask support', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: _indigo)),
+              child: const Text('Ask support', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Tone.fg(0xFF4F46E5))),
             ),
           ]),
         ),
@@ -257,9 +257,9 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
     final guides = [for (final g in featureGuides) if (_canOpen(g.path)) g];
     return [
       const Row(children: [
-        Icon(Icons.menu_book_outlined, size: 20, color: _indigo),
+        Icon(Icons.menu_book_outlined, size: 20, color: Tone.fg(0xFF4F46E5)),
         SizedBox(width: 8),
-        Text('Feature Guide', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: TColors.slate900)),
+        Text('Feature Guide', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: Tone.fg(0xFF0F172A))),
       ]),
       const SizedBox(height: 12),
       // Two per row on a phone, as the web's grid-cols-2; the description is
@@ -280,7 +280,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
         scrollDirection: Axis.horizontal,
         child: Container(
           padding: const EdgeInsets.all(3),
-          decoration: BoxDecoration(color: TColors.slate100, borderRadius: BorderRadius.circular(10)),
+          decoration: BoxDecoration(color: Tone.bg(0xFFF1F5F9), borderRadius: BorderRadius.circular(10)),
           child: Row(children: [
             _tabButton(HelpKind.faq, Icons.help_outline, 'Questions', faqs.length),
             _tabButton(HelpKind.fix, Icons.build_outlined, 'Troubleshooting', fixes.length),
@@ -312,7 +312,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
             child: Icon(g.icon, color: tone.tintFg),
           ),
           const SizedBox(height: 8),
-          Text(g.title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: TColors.slate900)),
+          Text(g.title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Tone.fg(0xFF0F172A))),
         ]),
       ),
     );
@@ -327,16 +327,16 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
-          color: on ? Colors.white : Colors.transparent,
+          color: on ? Tone.bg(0xFFFFFFFF) : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
           boxShadow: on ? const [BoxShadow(color: Color(0x14000000), blurRadius: 2, offset: Offset(0, 1))] : null,
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 16, color: on ? TColors.slate900 : TColors.slate600),
+          Icon(icon, size: 16, color: on ? Tone.fg(0xFF0F172A) : Tone.fg(0xFF475569)),
           const SizedBox(width: 6),
-          Text(label, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500, color: on ? TColors.slate900 : TColors.slate600)),
+          Text(label, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500, color: on ? Tone.fg(0xFF0F172A) : Tone.fg(0xFF475569))),
           const SizedBox(width: 5),
-          Text('$count', style: const TextStyle(fontSize: 12, color: TColors.slate400)),
+          Text('$count', style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF7F8EA3))),
         ]),
       ),
     );
@@ -364,7 +364,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
           }),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Text(allOpen ? 'Collapse all' : 'Expand all', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: _indigo)),
+            child: Text(allOpen ? 'Collapse all' : 'Expand all', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Tone.fg(0xFF4F46E5))),
           ),
         ),
       ),
@@ -400,17 +400,17 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
               width: 30,
               height: 30,
               alignment: Alignment.center,
-              decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
-              child: Text(l, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: TColors.slate600)),
+              decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(6)),
+              child: Text(l, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Tone.fg(0xFF475569))),
             ),
           ),
       ]),
       const SizedBox(height: 12),
       Container(
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(12)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           for (final (i, t) in terms.indexed) ...[
-            if (i > 0) const Divider(height: 1, color: TColors.slate100),
+            if (i > 0) const Divider(height: 1, color: Tone.line(0xFFF1F5F9)),
             _term(t, i == 0 || terms[i - 1].title[0].toUpperCase() != t.title[0].toUpperCase()),
           ],
         ]),
@@ -426,18 +426,18 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Wrap(spacing: 12, crossAxisAlignment: WrapCrossAlignment.end, children: [
-          Text(t.title, style: const TextStyle(fontWeight: FontWeight.w600, color: TColors.slate900)),
-          Text(t.category, style: const TextStyle(fontSize: 11, color: TColors.slate400)),
+          Text(t.title, style: const TextStyle(fontWeight: FontWeight.w600, color: Tone.fg(0xFF0F172A))),
+          Text(t.category, style: const TextStyle(fontSize: 11, color: Tone.fg(0xFF7F8EA3))),
         ]),
         const SizedBox(height: 4),
-        Text(t.body, style: const TextStyle(fontSize: 14, height: 1.5, color: TColors.slate600)),
+        Text(t.body, style: const TextStyle(fontSize: 14, height: 1.5, color: Tone.fg(0xFF475569))),
         if (links.isNotEmpty) ...[
           const SizedBox(height: 6),
           Wrap(spacing: 12, runSpacing: 4, children: [
             for (final l in links)
               InkWell(
                 onTap: () => _open(l.href, l.label),
-                child: Text('${l.label} →', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: _indigo)),
+                child: Text('${l.label} →', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Tone.fg(0xFF4F46E5))),
               ),
           ]),
         ],
@@ -463,13 +463,13 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
         decoration: BoxDecoration(
-          color: on ? tone.chipOn : Colors.white,
-          border: Border.all(color: on ? tone.chipOn : TColors.slate200),
+          color: on ? tone.chipOn : Tone.bg(0xFFFFFFFF),
+          border: Border.all(color: on ? tone.chipOn : Tone.line(0xFFE2E8F0)),
           borderRadius: BorderRadius.circular(999),
         ),
         child: Text.rich(TextSpan(children: [
-          TextSpan(text: cat, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: on ? Colors.white : TColors.slate800)),
-          TextSpan(text: '  $n', style: TextStyle(fontSize: 10, color: on ? Colors.white70 : TColors.slate400)),
+          TextSpan(text: cat, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: on ? Colors.white : Tone.fg(0xFF1E293B))),
+          TextSpan(text: '  $n', style: TextStyle(fontSize: 10, color: on ? Colors.white70 : Tone.fg(0xFF7F8EA3))),
         ])),
       ),
     );
@@ -529,9 +529,9 @@ class _EntryCardState extends State<_EntryCard> {
       key: ValueKey('help-entry-${e.id}'),
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Tone.bg(0xFFFFFFFF),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: TColors.slate200),
+        border: Border.all(color: Tone.line(0xFFE2E8F0)),
       ),
       clipBehavior: Clip.antiAlias,
       child: Container(
@@ -545,14 +545,14 @@ class _EntryCardState extends State<_EntryCard> {
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Wrap(spacing: 4, runSpacing: 4, children: [
-                      if (widget.showKind) TBadge(_kindLabel[e.kind]!, bg: Colors.white, fg: TColors.slate500, border: TColors.slate200),
+                      if (widget.showKind) TBadge(_kindLabel[e.kind]!, bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate500, border: Tone.line(0xFFE2E8F0)),
                       TBadge(e.category, bg: tone.badgeBg, fg: tone.badgeFg, border: tone.badgeBorder),
                     ]),
                     const SizedBox(height: 6),
-                    Text.rich(_highlighted(e.title, widget.matched, const TextStyle(fontWeight: FontWeight.w500, color: TColors.slate900))),
+                    Text.rich(_highlighted(e.title, widget.matched, const TextStyle(fontWeight: FontWeight.w500, color: Tone.fg(0xFF0F172A)))),
                   ]),
                 ),
-                Icon(widget.open ? Icons.expand_less : Icons.expand_more, color: TColors.slate400),
+                Icon(widget.open ? Icons.expand_less : Icons.expand_more, color: Tone.fg(0xFF7F8EA3)),
               ]),
             ),
           ),
@@ -560,7 +560,7 @@ class _EntryCardState extends State<_EntryCard> {
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                const Divider(height: 1, color: TColors.slate100),
+                const Divider(height: 1, color: Tone.line(0xFFF1F5F9)),
                 const SizedBox(height: 12),
                 ..._body(e.body),
                 const SizedBox(height: 10),
@@ -572,7 +572,7 @@ class _EntryCardState extends State<_EntryCard> {
                       onTap: () => widget.onLink(l),
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(color: const Color(0xFFEEF2FF), border: Border.all(color: _indigo200), borderRadius: BorderRadius.circular(6)),
+                        decoration: BoxDecoration(color: const Tone.bg(0xFFEEF2FF), border: Border.all(color: _indigo200), borderRadius: BorderRadius.circular(6)),
                         child: Row(mainAxisSize: MainAxisSize.min, children: [
                           Flexible(child: Text(l.label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: _indigo700))),
                           const SizedBox(width: 4),
@@ -587,7 +587,7 @@ class _EntryCardState extends State<_EntryCard> {
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(_copied ? Icons.check : Icons.link, size: 14, color: _copied ? const Color(0xFF059669) : TColors.slate500),
+                        Icon(_copied ? Icons.check : Icons.link, size: 14, color: _copied ? const Tone.fg(0xFF059669) : TColors.slate500),
                         const SizedBox(width: 4),
                         Text(_copied ? 'Link copied' : 'Copy link', style: const TextStyle(fontSize: 12, color: TColors.slate500)),
                       ]),
@@ -601,7 +601,7 @@ class _EntryCardState extends State<_EntryCard> {
     );
   }
 
-  static const _bodyStyle = TextStyle(fontSize: 14, height: 1.5, color: TColors.slate600);
+  static const _bodyStyle = TextStyle(fontSize: 14, height: 1.5, color: Tone.fg(0xFF475569));
 
   /// HelpBody: paragraphs on blank lines; "1. " lines numbered, "- " bulleted.
   List<Widget> _body(String body) {

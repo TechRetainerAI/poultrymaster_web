@@ -19,6 +19,7 @@ import '../pages/restaurant/restaurant_dashboard_view.dart';
 import '../widgets/app_header.dart';
 import '../widgets/company_switcher_sheet.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// The company overview, laid out as the web lays it out on a phone: dark
 /// header, dark company strip, then a two-column grid of stat cards with
 /// uppercase labels, large figures and coloured icon tiles.
@@ -287,7 +288,7 @@ class _SkeletonGrid extends StatelessWidget {
                 child: Container(
                   height: 13,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE2E8F0),
+                    color: const Tone.bg(0xFFE2E8F0),
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),

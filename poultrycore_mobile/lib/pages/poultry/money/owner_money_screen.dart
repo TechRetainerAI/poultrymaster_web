@@ -17,6 +17,7 @@ import 'money_widgets.dart';
 import '../reports/money_reports.dart' show MoneyRail, poultryMoneyRail;
 import '../../shared/reason_select.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Poultry → Money → Owner Money, as `app/poultry-owner-money/page.tsx`: what
 /// the owner put in and took out. A contribution is not revenue and a draw is
 /// not an expense — both move cash, neither touches profit. Water passes
@@ -27,10 +28,10 @@ const ownerPaymentMethods = ['Cash', 'BankTransfer', 'MoMo', 'Cheque', 'Card', '
 const ownerTypeFilters = ['All', 'Contribution', 'Draw'];
 const ownerStatusFilters = ['All', 'Posted', 'Reversed'];
 
-const _orange100 = Color(0xFFFFEDD5);
-const _orange600 = Color(0xFFEA580C);
-const _orange700 = Color(0xFFC2410C);
-const _orange800 = Color(0xFF9A3412);
+const _orange100 = Tone(0xFFFFEDD5);
+const _orange600 = Tone.fg(0xFFEA580C);
+const _orange700 = Tone(0xFFC2410C);
+const _orange800 = Tone(0xFF9A3412);
 
 /// The page's filters: type and status, then filterByDateAndSearch on
 /// transactionDate (calendar days, inclusive) and the five search keys.
@@ -217,7 +218,7 @@ class _OwnerMoneyScreenState extends State<OwnerMoneyScreen> {
               child: Text(
                 '${tStr(o['transactionType']) == 'Draw' ? '−' : '+'}${_fmt(tNum(o['amount']))}',
                 style: tStr(o['status']) == 'Reversed'
-                    ? const TextStyle(decoration: TextDecoration.lineThrough, color: TColors.slate400)
+                    ? const TextStyle(decoration: TextDecoration.lineThrough, color: Tone.fg(0xFF7F8EA3))
                     : const TextStyle(fontWeight: FontWeight.w500),
               ),
             ),
@@ -262,10 +263,10 @@ class _OwnerMoneyScreenState extends State<OwnerMoneyScreen> {
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
           children: [
             Row(children: [
-              Icon(Icons.account_balance_wallet_outlined, size: 24, color: _accent ?? TColors.emerald600),
+              Icon(Icons.account_balance_wallet_outlined, size: 24, color: _accent ?? Tone.fg(0xFF059669)),
               SizedBox(width: 8),
               Expanded(
-                child: Text('Owner Money', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TColors.slate900)),
+                child: Text('Owner Money', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: Tone.fg(0xFF0F172A))),
               ),
             ]),
             const SizedBox(height: 4),
@@ -322,7 +323,7 @@ class _OwnerMoneyScreenState extends State<OwnerMoneyScreen> {
               extras: [
                 Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
                   for (final t in ownerTypeFilters) filterChipButton(t, _type == t, () => setState(() => _type = t), color: _accent),
-                  Container(width: 1, height: 28, color: TColors.slate200),
+                  Container(width: 1, height: 28, color: Tone.bg(0xFFE2E8F0)),
                   for (final st in ownerStatusFilters) filterChipButton(st, _status == st, () => setState(() => _status = st), secondary: true),
                 ]),
               ],
@@ -337,7 +338,7 @@ class _OwnerMoneyScreenState extends State<OwnerMoneyScreen> {
             else if (visible.isEmpty)
               Container(
                 padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(12)),
                 child: Text(
                   _rows.isEmpty
                       ? 'Nothing recorded yet. Use the buttons above when the owner puts money in or takes it out.'
@@ -500,7 +501,7 @@ class _OwnerMoneyDialogState extends State<OwnerMoneyDialog> {
         scrollable: true,
         title: Row(children: [
           Icon(_isDraw ? Icons.arrow_circle_up_outlined : Icons.arrow_circle_down_outlined,
-              color: _isDraw ? (widget.rail.isHotel ? TColors.violet600 : _orange600) : TColors.emerald600),
+              color: _isDraw ? (widget.rail.isHotel ? TColors.violet600 : _orange600) : Tone.fg(0xFF059669)),
           const SizedBox(width: 6),
           Flexible(child: Text(_isDraw ? 'Record Owner Draw' : 'Record Owner Contribution')),
         ]),
@@ -556,11 +557,11 @@ class _OwnerMoneyDialogState extends State<OwnerMoneyDialog> {
                     Flexible(
                       child: Text.rich(
                         TextSpan(children: [
-                          TextSpan(text: fmt(_balance), style: const TextStyle(color: TColors.slate400)),
+                          TextSpan(text: fmt(_balance), style: const TextStyle(color: Tone.fg(0xFF7F8EA3))),
                           const TextSpan(text: ' → '),
                           TextSpan(
                             text: fmt(_after),
-                            style: TextStyle(fontWeight: FontWeight.w500, color: _after < 0 ? TColors.rose600 : TColors.slate900),
+                            style: TextStyle(fontWeight: FontWeight.w500, color: _after < 0 ? Tone.fg(0xFFE11D48) : Tone.fg(0xFF0F172A)),
                           ),
                         ]),
                         textAlign: TextAlign.right,
@@ -573,7 +574,7 @@ class _OwnerMoneyDialogState extends State<OwnerMoneyDialog> {
                       padding: EdgeInsets.only(top: 4),
                       child: Text(
                         'This would take the account below zero, and it is not allowed to go negative. The draw will be rejected.',
-                        style: TextStyle(fontSize: 12, color: TColors.rose600),
+                        style: TextStyle(fontSize: 12, color: Tone.fg(0xFFE11D48)),
                       ),
                     ),
                 ]),
@@ -598,7 +599,7 @@ class _OwnerMoneyDialogState extends State<OwnerMoneyDialog> {
         actions: [
           redCancelButton(_saving ? null : () => Navigator.pop(context, false)),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: widget.rail.accent),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(widget.rail.accent)),
             onPressed: _saving || _wouldOverdraw ? null : _save,
             child: Text(_saving ? 'Recording...' : _isDraw ? 'Record Draw' : 'Record Contribution'),
           ),
@@ -673,7 +674,7 @@ class _ReverseOwnerMoneyDialogState extends State<ReverseOwnerMoneyDialog> {
       child: AlertDialog(
         scrollable: true,
         title: const Row(children: [
-          Icon(Icons.undo, color: TColors.amber600),
+          Icon(Icons.undo, color: Tone.fg(0xFFD97706)),
           SizedBox(width: 6),
           Flexible(child: Text('Reverse Owner Money')),
         ]),
@@ -710,7 +711,7 @@ class _ReverseOwnerMoneyDialogState extends State<ReverseOwnerMoneyDialog> {
           redCancelButton(_saving ? null : () => Navigator.pop(context, false)),
           FilledButton(
             onPressed: _saving ? null : _reverse,
-            style: FilledButton.styleFrom(backgroundColor: TColors.red600, foregroundColor: Colors.white),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFDC2626)), foregroundColor: Colors.white),
             child: Text(_saving ? 'Reversing...' : 'Reverse'),
           ),
         ],

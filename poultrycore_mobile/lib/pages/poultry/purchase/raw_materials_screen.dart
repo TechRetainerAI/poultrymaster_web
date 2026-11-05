@@ -22,6 +22,7 @@ import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, loc, feedIt
 import '../trackers/tracker_widgets.dart';
 import 'raw_material_dialogs.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 const rawTabs = ['items', 'purchases', 'usage'];
 
 String? _day(Object? raw) => RegExp(r'^(\d{4}-\d{2}-\d{2})').firstMatch(tStr(raw))?[1];
@@ -318,7 +319,7 @@ class _RawMaterialsScreenState extends State<RawMaterialsScreen> {
       final card = Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Tone.bg(0xFFFFFFFF),
           border: Border.all(color: tone == 'warn' ? TColors.amber200 : tone == 'bad' ? TColors.red200 : TColors.slate200),
           borderRadius: BorderRadius.circular(12),
         ),
@@ -507,7 +508,7 @@ class _RawMaterialsScreenState extends State<RawMaterialsScreen> {
               const SizedBox(height: 14),
               Container(
                 padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(children: [
@@ -555,7 +556,7 @@ class _RawMaterialsScreenState extends State<RawMaterialsScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
             decoration: BoxDecoration(
-              color: active ? TColors.blue600 : Colors.white,
+              color: active ? TColors.blue600 : Tone.bg(0xFFFFFFFF),
               border: Border.all(color: active ? TColors.blue600 : TColors.slate200),
               borderRadius: BorderRadius.circular(999),
             ),
@@ -760,13 +761,13 @@ class _RawMaterialsScreenState extends State<RawMaterialsScreen> {
     final label = '${produced ? 'Produced' : 'For production'}'
         '${tStr(p['feedProductionBatchNumber']).isNotEmpty ? ' · ${tStr(p['feedProductionBatchNumber'])}' : ''}';
     return TBadge(label,
-        bg: Colors.white, fg: produced ? TColors.emerald700 : const Color(0xFF4338CA), border: produced ? TColors.emerald300 : const Color(0xFFA5B4FC));
+        bg: Tone.bg(0xFFFFFFFF), fg: produced ? TColors.emerald700 : const Tone.fg(0xFF4338CA), border: produced ? TColors.emerald300 : const Tone.line(0xFFA5B4FC));
   }
 
   /// 345: the receipt a lot came in on, and whether that receipt was reversed.
   Widget _receiptBadges(Map p) => Wrap(spacing: 4, children: [
-        if (tStr(p['receiptNumber']).isNotEmpty) TBadge(tStr(p['receiptNumber']), bg: Colors.white, fg: TColors.emerald700, border: TColors.emerald300),
-        if (p['isReversed'] == true) const TBadge('Reversed', bg: Colors.white, fg: TColors.slate500, border: TColors.slate300),
+        if (tStr(p['receiptNumber']).isNotEmpty) TBadge(tStr(p['receiptNumber']), bg: Tone.bg(0xFFFFFFFF), fg: TColors.emerald700, border: TColors.emerald300),
+        if (p['isReversed'] == true) const TBadge('Reversed', bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate500, border: TColors.slate300),
       ]);
 
   /// A feed-production lot belongs to its batch; a receipt's lot is changed
@@ -776,7 +777,7 @@ class _RawMaterialsScreenState extends State<RawMaterialsScreen> {
       return [
         _iconBtn('Open feed production batch', Icons.factory_outlined,
             () => _href('/poultry-feed-production/${p['sourceFeedProductionBatchId']}', 'Feed Production'),
-            color: const Color(0xFF4F46E5)),
+            color: const Tone.fg(0xFF4F46E5)),
       ];
     }
     final hasBalance = tNum(p['balance']) > 0;
@@ -807,7 +808,7 @@ class _RawMaterialsScreenState extends State<RawMaterialsScreen> {
         Container(
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(color: const Color(0xFFF0F9FF), border: Border.all(color: const Color(0xFFBAE6FD)), borderRadius: BorderRadius.circular(6)),
+          decoration: BoxDecoration(color: const Tone.bg(0xFFF0F9FF), border: Border.all(color: const Tone.line(0xFFBAE6FD)), borderRadius: BorderRadius.circular(6)),
           child: Wrap(alignment: WrapAlignment.spaceBetween, crossAxisAlignment: WrapCrossAlignment.center, children: [
             Text.rich(TextSpan(children: [
               const TextSpan(text: 'Showing purchase '),
@@ -818,7 +819,7 @@ class _RawMaterialsScreenState extends State<RawMaterialsScreen> {
                 TextSpan(text: focusSupplier, style: const TextStyle(fontWeight: FontWeight.w700)),
               ],
               const TextSpan(text: '.'),
-            ]), style: const TextStyle(fontSize: 14, color: Color(0xFF0C4A6E))),
+            ]), style: const TextStyle(fontSize: 14, color: Tone.fg(0xFF0C4A6E))),
             TextButton(onPressed: () => setState(() => _focus = null), child: const Text('Show all purchases')),
           ]),
         )
@@ -885,7 +886,7 @@ class _RawMaterialsScreenState extends State<RawMaterialsScreen> {
             title: tStr(u['itemName']),
             badge: tIntOrNull(u['poultryFeedProductionBatchId']) != null
                 ? TBadge('Feed production${tStr(u['feedProductionBatchNumber']).isNotEmpty ? ' · ${tStr(u['feedProductionBatchNumber'])}' : ''}',
-                    bg: Colors.white, fg: const Color(0xFF4338CA), border: const Color(0xFFA5B4FC))
+                    bg: Tone.bg(0xFFFFFFFF), fg: const Tone.fg(0xFF4338CA), border: const Tone.line(0xFFA5B4FC))
                 : Text(fmtDateTime(u['usedDate'], u, _offset), style: const TextStyle(fontSize: 12, color: TColors.slate500)),
             fields: [
               ('Used', '${loc(tNum(u['quantityUsed']))} ${tStr(u['unitOfMeasure'])}', null),
@@ -901,7 +902,7 @@ class _RawMaterialsScreenState extends State<RawMaterialsScreen> {
                 ? [
                     _iconBtn('Open the feed production batch', Icons.factory_outlined,
                         () => _href('/poultry-feed-production/${u['poultryFeedProductionBatchId']}', 'Feed Production'),
-                        color: const Color(0xFF4F46E5)),
+                        color: const Tone.fg(0xFF4F46E5)),
                   ]
                 : const [],
           ),
@@ -919,9 +920,9 @@ class _RawMaterialsScreenState extends State<RawMaterialsScreen> {
 /// never read alike (CategoryTag); every other category stays plain text.
 Widget? rawCategoryTag(Object? category) {
   final (label, icon, bg, border, fg) = switch ('$category') {
-    'FeedIngredient' => ('Feed Ingredient', Icons.grass, const Color(0xFFFFFBEB), const Color(0xFFFDE68A), const Color(0xFF92400E)),
-    'FinishedFeed' => ('Finished Feed', Icons.inventory_2_outlined, const Color(0xFFEEF2FF), const Color(0xFFC7D2FE), const Color(0xFF4338CA)),
-    _ => ('', Icons.circle, Colors.white, Colors.white, Colors.white),
+    'FeedIngredient' => ('Feed Ingredient', Icons.grass, const Tone(0xFFFFFBEB), const Tone(0xFFFDE68A), const Tone(0xFF92400E)),
+    'FinishedFeed' => ('Finished Feed', Icons.inventory_2_outlined, const Tone(0xFFEEF2FF), const Tone(0xFFC7D2FE), const Tone(0xFF4338CA)),
+    _ => ('', Icons.circle, Tone(0xFFFFFFFF), Tone(0xFFFFFFFF), Tone(0xFFFFFFFF)),
   };
   if (label.isEmpty) return null;
   return Container(

@@ -4,6 +4,7 @@
 
 import 'package:flutter/material.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 import 'trackers/tracker_logic.dart' show tNum, tStr;
 import 'trackers/tracker_widgets.dart' show TColors;
 
@@ -136,9 +137,9 @@ String taskSentence(Map task) {
 
 /// STATUS_TONE: (background, text, border).
 (Color, Color, Color) lifecycleStatusTone(Object? status) => switch (tStr(status)) {
-      'Overdue' => (TColors.rose100, TColors.rose800, const Color(0xFFFDA4AF)),
+      'Overdue' => (TColors.rose100, TColors.rose800, const Tone(0xFFFDA4AF)),
       'Due' => (TColors.amber100, TColors.amber800, TColors.amber300),
-      'Upcoming' => (TColors.blue100, const Color(0xFF1E40AF), TColors.blue300),
+      'Upcoming' => (TColors.blue100, const Tone(0xFF1E40AF), TColors.blue300),
       'Completed' => (TColors.emerald100, TColors.emerald800, TColors.emerald300),
       'Skipped' => (TColors.slate100, TColors.slate500, TColors.slate300),
       _ => (TColors.slate100, TColors.slate600, TColors.slate300),

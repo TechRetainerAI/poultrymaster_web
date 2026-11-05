@@ -19,6 +19,7 @@ import '../shared/business_dates.dart';
 import '../shared/company_clock.dart';
 import 'generic_customer_payments_screen.dart' show genericPaymentBadge;
 import 'generic_kit.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import 'generic_products_screen.dart' show genericEmptyCard;
 import 'generic_sales_screen.dart' show genericBackLink, genericCard, genericTotalRow;
 import 'generic_suppliers_screen.dart' show genericOrange;
@@ -388,7 +389,7 @@ class _GenericNewPurchaseScreenState extends State<GenericNewPurchaseScreen> {
   Widget _lineCard(_Line l) => Container(
         key: l.key,
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(children: [
             Expanded(

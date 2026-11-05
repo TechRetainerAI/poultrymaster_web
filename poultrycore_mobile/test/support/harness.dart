@@ -9,6 +9,9 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:poultrycore_mobile/api/api_client.dart';
 import 'package:poultrycore_mobile/design/app_theme.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
+
+import 'dark_audit.dart';
 import 'package:poultrycore_mobile/models/company.dart';
 import 'package:poultrycore_mobile/state/session.dart';
 import 'package:poultrycore_mobile/state/token_store.dart';
@@ -62,6 +65,10 @@ final company = Company(farmId: 'farm-1', name: 'Test Farm', type: CompanyType.p
 /// The same company, owned by an admin.
 final adminCompany = Company(farmId: 'farm-1', name: 'Test Farm', type: CompanyType.poultry, role: 'Admin');
 
+/// True when the suite is run with `--dart-define=DARK=true`: every screen
+/// test then opens its screen in dark mode.
+const darkRun = bool.fromEnvironment('DARK');
+
 /// A small phone, where a too-wide row overflows.
 const phone = Size(360, 780);
 
@@ -81,13 +88,18 @@ Future<void> open(WidgetTester tester, Widget screen, {Size size = const Size(12
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
   final nav = GlobalKey<NavigatorState>();
+  Tone.dark = darkRun;
+  addTearDown(() => Tone.dark = false);
+  auditTest = tester.testDescription;
   await tester.pumpWidget(MaterialApp(
-    theme: AppTheme.light(),
+    theme: darkRun ? AppTheme.dark() : AppTheme.light(),
     navigatorKey: nav,
+    navigatorObservers: [if (auditFile.isNotEmpty) AuditObserver()],
     home: const Scaffold(body: Text('host')),
   ));
   nav.currentState!.push(MaterialPageRoute(builder: (_) => screen));
   await tester.pumpAndSettle();
+  darkAudit('open ${screen.runtimeType}');
 }
 
 /// Opens the dropdown currently showing [shown] and picks [option].

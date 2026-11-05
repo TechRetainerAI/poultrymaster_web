@@ -12,6 +12,7 @@ import '../lookup_loader.dart';
 import '../shared/business_dates.dart';
 import '../shared/reason_dialog.dart';
 import '../web_page_screen.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import '../shared/reason_select.dart' show stockReversalReasons;
 
 /// Poultry → Tools → Distribute Feed, as `app/poultry-feed-distribution/page.tsx`
@@ -466,7 +467,7 @@ class _FeedDistributionScreenState extends State<FeedDistributionScreen> with Si
             ),
             const SizedBox(height: 12),
             if (_error != null)
-              Text(_error!, style: const TextStyle(color: Color(0xFF9F1239)))
+              Text(_error!, style: const TextStyle(color: Tone.fg(0xFF9F1239)))
             else if (_loading)
               const Row(children: [
                 SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
@@ -539,7 +540,7 @@ class _FeedDistributionScreenState extends State<FeedDistributionScreen> with Si
                     ('Available inventory', _kg(available), null),
                     ('Suggested total', _kg(suggested), null),
                     ('Actual distribution', _kg(actual), null),
-                    ('Remaining inventory', _kg(remaining), remaining < 0 ? const Color(0xFFBE123C) : null),
+                    ('Remaining inventory', _kg(remaining), remaining < 0 ? const Tone(0xFFBE123C) : null),
                   ]),
                   const SizedBox(height: 6),
                   Text(recognition, style: muted()),
@@ -562,11 +563,11 @@ class _FeedDistributionScreenState extends State<FeedDistributionScreen> with Si
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               if (_lastPosted != null && nothingEntered)
                 Wrap(children: [
-                  Text('$_lastPosted ', style: const TextStyle(fontSize: 13, color: Color(0xFF047857))),
+                  Text('$_lastPosted ', style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF047857))),
                   InkWell(
                     onTap: () => _tabs.animateTo(1),
                     child: const Text('View in Posted distributions',
-                        style: TextStyle(fontSize: 13, color: Color(0xFF047857), decoration: TextDecoration.underline)),
+                        style: TextStyle(fontSize: 13, color: Tone.fg(0xFF047857), decoration: TextDecoration.underline)),
                   ),
                 ])
               else if (nothingEntered)
@@ -574,11 +575,11 @@ class _FeedDistributionScreenState extends State<FeedDistributionScreen> with Si
               else
                 Text(
                   blocker ?? '${_kg(actual)} to $feeding of $eligible flocks · ${_kg(remaining)} left',
-                  style: TextStyle(fontSize: 13, color: blocker != null ? const Color(0xFFBE123C) : tokens.mutedForeground),
+                  style: TextStyle(fontSize: 13, color: blocker != null ? const Tone.fg(0xFFBE123C) : tokens.mutedForeground),
                 ),
               const SizedBox(height: 8),
               FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669), minimumSize: const Size.fromHeight(46)),
+                style: FilledButton.styleFrom(backgroundColor: Tone.button(const Tone.bg(0xFF059669)), minimumSize: const Size.fromHeight(46)),
                 onPressed: blocker != null || _posting ? null : () => _confirmPost(actual, feeding),
                 child: Text(_posting ? 'Posting…' : 'Post Feed Distribution'),
               ),
@@ -608,7 +609,7 @@ class _FeedDistributionScreenState extends State<FeedDistributionScreen> with Si
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Text('${c['flockName'] ?? ''}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
         if (thisItem > 0) Text('Already ${_kg(thisItem)} of this feed today', style: muted()),
-        if (warn != null) Text('⚠ $warn', style: const TextStyle(fontSize: 12, color: Color(0xFFB45309))),
+        if (warn != null) Text('⚠ $warn', style: const TextStyle(fontSize: 12, color: Tone.fg(0xFFB45309))),
         const SizedBox(height: 4),
         Text('House/Pen: ${c['houseName'] ?? '—'} · Current birds: ${c['birds'] == null ? '—' : fmtNum(c['birds'] as num, 0)}',
             style: muted()),
@@ -627,14 +628,14 @@ class _FeedDistributionScreenState extends State<FeedDistributionScreen> with Si
               InkWell(
                 onTap: () => _openWeb('Record production', '/production-records/new?flockId=$id&date=$_date'),
                 child: const Text('record it first',
-                    style: TextStyle(fontSize: 12, color: Color(0xFF0369A1), decoration: TextDecoration.underline)),
+                    style: TextStyle(fontSize: 12, color: Tone.fg(0xFF0369A1), decoration: TextDecoration.underline)),
               ),
             ] else ...[
               Text('${c['recordCount']} records for this day — ', style: const TextStyle(fontSize: 12)),
               InkWell(
                 onTap: () => _openWeb('Production records', '/production-records?date=$_date'),
                 child: const Text('fix the duplicate',
-                    style: TextStyle(fontSize: 12, color: Color(0xFF0369A1), decoration: TextDecoration.underline)),
+                    style: TextStyle(fontSize: 12, color: Tone.fg(0xFF0369A1), decoration: TextDecoration.underline)),
               ),
             ],
           ])
@@ -651,7 +652,7 @@ class _FeedDistributionScreenState extends State<FeedDistributionScreen> with Si
                   allowDecimal: true,
                   onChanged: (_) => setState(() => _lastPosted = null),
                 ),
-                if (invalid) const Text('Not a valid number', style: TextStyle(fontSize: 11, color: Color(0xFFBE123C))),
+                if (invalid) const Text('Not a valid number', style: TextStyle(fontSize: 11, color: Tone.fg(0xFFBE123C))),
               ]),
             ),
             const SizedBox(width: 8),
@@ -695,11 +696,11 @@ class _FeedDistributionScreenState extends State<FeedDistributionScreen> with Si
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color: posted ? const Color(0xFFD1FAE5) : const Color(0xFFE2E8F0),
+                        color: posted ? const Tone.bg(0xFFD1FAE5) : const Tone.bg(0xFFE2E8F0),
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text('${h['status']}',
-                          style: TextStyle(fontSize: 12, color: posted ? const Color(0xFF047857) : const Color(0xFF475569))),
+                          style: TextStyle(fontSize: 12, color: posted ? const Tone.fg(0xFF047857) : const Tone.fg(0xFF475569))),
                     ),
                   ]),
                   const SizedBox(height: 4),
@@ -728,7 +729,7 @@ class _FeedDistributionScreenState extends State<FeedDistributionScreen> with Si
                     ),
                     if (h['status'] == 'Reversed')
                       Text('Reversed by ${h['reversedBy'] ?? 'unknown'} · ${'${h['reversedAtUtc'] ?? ''}'.replaceFirst('T', ' ').split('.').first} — ${h['reversalReason'] ?? ''}',
-                          style: const TextStyle(fontSize: 12, color: Color(0xFFBE123C))),
+                          style: const TextStyle(fontSize: 12, color: Tone.fg(0xFFBE123C))),
                     const SizedBox(height: 6),
                     for (final l in _docLines[id] ?? const <Map<String, dynamic>>[])
                       Padding(
@@ -813,7 +814,7 @@ class _PostDialogState extends State<_PostDialog> {
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
         FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
+          style: FilledButton.styleFrom(backgroundColor: Tone.button(const Tone.bg(0xFF059669))),
           onPressed: () => Navigator.pop(context, _notes.text.trim()),
           child: const Text('Post'),
         ),

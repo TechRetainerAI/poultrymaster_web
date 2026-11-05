@@ -12,6 +12,7 @@ import '../poultry/trackers/tracker_widgets.dart';
 import '../shared/companies_screen.dart' show BusinessType, businessTypes;
 import '../web_nav.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// `/api/generic-company/{farmId}`: the base of every Generic company call.
 String genericBase(Company c) => '/api/generic-company/${Uri.encodeComponent(c.farmId)}';
 
@@ -251,12 +252,12 @@ void invalidateGenericModules([String? farmId]) {
 
 // ------------------------------------------------------------- widgets
 
-const genericEmerald = Color(0xFF059669); // emerald-600
-const genericIndigo = Color(0xFF4F46E5); // indigo-600
+const genericEmerald = Tone(0xFF059669); // emerald-600
+const genericIndigo = Tone(0xFF4F46E5); // indigo-600
 
 /// The page title row the Generic pages share: an icon, the title, a line.
 class GenericTitle extends StatelessWidget {
-  const GenericTitle({super.key, required this.icon, required this.title, this.subtitle, this.iconColor = TColors.slate700});
+  const GenericTitle({super.key, required this.icon, required this.title, this.subtitle, this.iconColor = const Tone.fg(0xFF334155)});
   final IconData icon;
   final String title;
   final String? subtitle;
@@ -269,7 +270,7 @@ class GenericTitle extends StatelessWidget {
           Row(children: [
             Icon(icon, size: 22, color: iconColor),
             const SizedBox(width: 8),
-            Expanded(child: Text(title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TColors.slate900))),
+            Expanded(child: Text(title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: Tone.fg(0xFF0F172A)))),
           ]),
           if (subtitle != null) ...[
             const SizedBox(height: 2),
@@ -292,15 +293,15 @@ class GenericCard extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: TColors.slate200),
+          color: Tone.bg(0xFFFFFFFF),
+          border: Border.all(color: Tone.line(0xFFE2E8F0)),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             ?titleWidget,
-            if (title != null) Text(title!, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: TColors.slate900)),
+            if (title != null) Text(title!, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Tone.fg(0xFF0F172A))),
             if (description != null) ...[
               const SizedBox(height: 4),
               Text(description!, style: const TextStyle(fontSize: 13, color: TColors.slate500)),
@@ -331,7 +332,7 @@ class GenericToggle extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(label, style: const TextStyle(fontSize: 14, color: TColors.slate900)),
+                  Text(label, style: const TextStyle(fontSize: 14, color: Tone.fg(0xFF0F172A))),
                   if (hint != null) Text(hint!, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
                 ],
               ),

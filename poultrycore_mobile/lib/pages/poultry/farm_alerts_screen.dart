@@ -16,6 +16,7 @@ import 'poultry_links.dart';
 import 'trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import 'trackers/tracker_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Poultry → Tools → Farm Alerts, as `app/poultry-alerts/page.tsx`: everything
 /// that needs the farmer's attention on one page — a status line, four tiles
 /// (Production, Egg sorting, Flock health, Stock) that jump to their section,
@@ -157,9 +158,9 @@ List<FarmAlertTile> tilesFor(FarmAlertBreakdown? d) {
 
 /// TONE: (card bg, card border, icon bg, icon fg, value).
 (Color, Color, Color, Color, Color) _tone(String t) => switch (t) {
-      'ok' => (const Color(0x99ECFDF5), TColors.emerald200, TColors.emerald500, Colors.white, TColors.emerald800),
-      'warn' => (TColors.amber50, TColors.amber300, const Color(0xFFF59E0B), Colors.white, TColors.amber900),
-      _ => (Colors.white, TColors.slate200, TColors.slate200, TColors.slate600, TColors.slate600),
+      'ok' => (const Tone(0x99ECFDF5), TColors.emerald200, TColors.emerald500, Tone(0xFFFFFFFF), TColors.emerald800),
+      'warn' => (TColors.amber50, TColors.amber300, const Tone(0xFFF59E0B), Tone(0xFFFFFFFF), TColors.amber900),
+      _ => (Tone(0xFFFFFFFF), TColors.slate200, TColors.slate200, TColors.slate600, TColors.slate600),
     };
 
 class FarmAlertsScreen extends StatefulWidget {
@@ -220,7 +221,7 @@ class _FarmAlertsScreenState extends State<FarmAlertsScreen> {
         ? (TColors.slate200, TColors.slate50, TColors.slate200)
         : total == 0
             ? (TColors.emerald200, TColors.emerald50, TColors.emerald500)
-            : (TColors.amber200, TColors.amber50, const Color(0xFFF59E0B));
+            : (TColors.amber200, TColors.amber50, const Tone(0xFFF59E0B));
     return Scaffold(
       appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: const Text('Farm Alerts')),
       body: RefreshIndicator(
@@ -233,7 +234,7 @@ class _FarmAlertsScreenState extends State<FarmAlertsScreen> {
             Container(
               clipBehavior: Clip.antiAlias,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Tone.bg(0xFFFFFFFF),
                 border: Border.all(color: statusBorder),
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: const [BoxShadow(color: Color(0x0D000000), blurRadius: 2, offset: Offset(0, 1))],
@@ -241,7 +242,7 @@ class _FarmAlertsScreenState extends State<FarmAlertsScreen> {
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 Container(
                   padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(gradient: LinearGradient(colors: [headBg, Colors.white])),
+                  decoration: BoxDecoration(gradient: LinearGradient(colors: [headBg, Tone.bg(0xFFFFFFFF)])),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                     Row(children: [
                       Stack(clipBehavior: Clip.none, children: [
@@ -413,7 +414,7 @@ class _FarmAlertsScreenState extends State<FarmAlertsScreen> {
 Widget _edgeCard(Color edge, Widget child) => Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Tone.bg(0xFFFFFFFF),
         border: Border.all(color: TColors.slate200),
         borderRadius: BorderRadius.circular(12),
         boxShadow: const [BoxShadow(color: Color(0x0D000000), blurRadius: 2, offset: Offset(0, 1))],
@@ -428,7 +429,7 @@ Widget _edgeCard(Color edge, Widget child) => Container(
 
 Widget _loadingCard(String text) => Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
       child: Row(children: [
         const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
         const SizedBox(width: 8),
@@ -516,7 +517,7 @@ class _FlockAlertsCardState extends State<FlockAlertsCard> {
         .where((a) => isActiveAlertStatus(a['status']))
         .fold<Object?>(null, (w, a) => severityRank(a['severity']) > severityRank(w) ? a['severity'] : w);
     final edge = s.active > 0 ? alertSeverityStyle(worstSeverity).edge : TColors.emerald500;
-    final tile = s.critical > 0 ? TColors.rose500 : (s.active > 0 ? const Color(0xFFF59E0B) : TColors.emerald500);
+    final tile = s.critical > 0 ? TColors.rose500 : (s.active > 0 ? const Tone(0xFFF59E0B) : TColors.emerald500);
     return _edgeCard(
       edge,
       Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -630,13 +631,13 @@ class _StockSupplyCardState extends State<StockSupplyCard> {
     final healthy = rows.where((r) => r['status'] == 'Healthy').length;
     final warning = rows.first['warningDays'] == null ? 7 : tNum(rows.first['warningDays']);
     final bad = urgent.any((r) => const {'Negative', 'OutOfStock', 'Critical'}.contains(r['status']));
-    final edge = bad ? TColors.rose500 : (urgent.isNotEmpty ? const Color(0xFFF59E0B) : TColors.emerald500);
+    final edge = bad ? TColors.rose500 : (urgent.isNotEmpty ? const Tone(0xFFF59E0B) : TColors.emerald500);
     return _edgeCard(
       edge,
       Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         _cardHead(
           Icons.inventory_2_outlined,
-          urgent.isNotEmpty ? const Color(0xFFF59E0B) : TColors.emerald500,
+          urgent.isNotEmpty ? const Tone(0xFFF59E0B) : TColors.emerald500,
           'Inventory Restock Forecast',
           urgent.isEmpty
               ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -741,7 +742,7 @@ class _LifecycleRemindersCardState extends State<LifecycleRemindersCard> {
     final tasks = _tasks;
     if (tasks == null) return _loadingCard('Checking vaccinations and reminders…');
     final overdue = tasks.where((t) => t['status'] == 'Overdue').length;
-    final edge = overdue > 0 ? const Color(0xFFF43F5E) : (tasks.isNotEmpty ? const Color(0xFFF59E0B) : TColors.emerald500);
+    final edge = overdue > 0 ? const Tone(0xFFF43F5E) : (tasks.isNotEmpty ? const Tone(0xFFF59E0B) : TColors.emerald500);
     return _edgeCard(
       edge,
       Column(key: const ValueKey('lifecycle-reminders'), crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -806,7 +807,7 @@ class _LifecycleRemindersCardState extends State<LifecycleRemindersCard> {
           alignment: Alignment.centerLeft,
           child: OutlinedButton(
             key: const ValueKey('lc-open'),
-            style: OutlinedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: TColors.slate800),
+            style: OutlinedButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)), foregroundColor: TColors.slate800),
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(
               builder: (_) => FlockLifecycleScreen(session: widget.session, company: widget.company),
             )),

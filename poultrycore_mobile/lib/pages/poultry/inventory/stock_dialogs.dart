@@ -12,6 +12,7 @@ import '../../../state/session.dart';
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, loc;
 import '../trackers/tracker_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 const birdStockLockedReason =
     'Bird stock comes from the birds left in your flocks — correct it in the flock / production records (record mortality, or edit the flock).';
 
@@ -209,7 +210,7 @@ class _SetProductStockDialogState extends State<SetProductStockDialog> {
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: dirty ? TColors.amber50 : Colors.white,
+        color: dirty ? TColors.amber50 : Tone.bg(0xFFFFFFFF),
         border: Border.all(color: TColors.slate200),
         borderRadius: BorderRadius.circular(8),
       ),

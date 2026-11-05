@@ -21,6 +21,7 @@ import '../shared/reason_select.dart';
 import 'hotel_kit.dart';
 import 'hotel_other_select.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 const _costModeLabels = {'EXPENSE_WHEN_PURCHASED': 'Expense when purchased', 'EXPENSE_WHEN_CONSUMED': 'Expense when consumed'};
 
 const _paymentMethods = ['Cash', 'MoMo', 'Bank', 'Credit'];
@@ -207,7 +208,7 @@ class _HotelSuppliesScreenState extends State<HotelSuppliesScreen> {
                   child: OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
                       foregroundColor: TColors.violet700,
-                      side: const BorderSide(color: Color(0xFFC4B5FD)),
+                      side: const BorderSide(color: Tone.line(0xFFC4B5FD)),
                       minimumSize: const Size.fromHeight(44),
                     ),
                     onPressed: () => _openPurchase(),
@@ -341,7 +342,7 @@ class _HotelSuppliesScreenState extends State<HotelSuppliesScreen> {
                       tStr(p['itemName']),
                       style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: TColors.slate900),
                     ),
-                    hotelBadge(reversed ? 'Reversed' : tStr(p['paymentStatus']), Colors.white, TColors.slate600),
+                    hotelBadge(reversed ? 'Reversed' : tStr(p['paymentStatus']), Tone(0xFFFFFFFF), TColors.slate600),
                   ],
                 ),
                 const SizedBox(height: 3),

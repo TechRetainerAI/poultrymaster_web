@@ -17,12 +17,13 @@ import '../poultry/trackers/tracker_widgets.dart';
 import '../shared/business_dates.dart';
 import '../shared/company_clock.dart';
 import 'generic_kit.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import 'generic_products_screen.dart' show genericBandAmber, genericBandIndigo, genericBandSlate, genericEmptyCard;
 import 'reports/generic_report_kit.dart' show fmtMoney;
 
 const genericSupplierTypes = ['ProductSupplier', 'ServiceProvider', 'Landlord', 'UtilityProvider', 'Contractor', 'Other'];
-const genericOrange = Color(0xFFEA580C); // orange-600
-const _orange700 = Color(0xFFC2410C);
+const genericOrange = Tone.fg(0xFFEA580C); // orange-600
+const _orange700 = Tone.fg(0xFFC2410C);
 
 /// The status badge: Inactive, Owed (we owe them), or OK.
 Widget genericSupplierBadge(Map s) {
@@ -155,7 +156,7 @@ class _GenericSuppliersScreenState extends State<GenericSuppliersScreen> {
                 primary: (s) => tStr(s['supplierName']),
                 onPrimary: _ledger,
                 secondaryBuilder: (s) => Wrap(crossAxisAlignment: WrapCrossAlignment.center, spacing: 4, children: [
-                  TBadge(tStr(s['supplierType']), bg: Colors.white, fg: TColors.slate700, border: TColors.slate200),
+                  TBadge(tStr(s['supplierType']), bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate700, border: TColors.slate200),
                   if (tStr(s['phoneNumber']).isNotEmpty) Text('· ${tStr(s['phoneNumber'])}', style: const TextStyle(fontSize: 12, color: TColors.slate500)),
                 ]),
                 trailing: (s) => Padding(padding: const EdgeInsets.only(left: 6), child: genericSupplierBadge(s)),
@@ -190,7 +191,7 @@ class _GenericSuppliersScreenState extends State<GenericSuppliersScreen> {
                         ),
                         Align(
                           alignment: Alignment.centerLeft,
-                          child: TBadge(tStr(s['supplierType']), bg: Colors.white, fg: TColors.slate700, border: TColors.slate200),
+                          child: TBadge(tStr(s['supplierType']), bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate700, border: TColors.slate200),
                         ),
                         cellText(_orDash(s['phoneNumber'])),
                         cellText(_orDash(s['location'])),
@@ -317,7 +318,7 @@ class _GenericSupplierFormDialogState extends State<GenericSupplierFormDialog> {
               _text('Email', _email, 150, type: TextInputType.emailAddress),
             ]),
             const SizedBox(height: 12),
-            formSection('Address', const Color(0xFF16A34A), [
+            formSection('Address', const Tone(0xFF16A34A), [
               _text('Location', _location, 255),
               _text('Address', _address, 500),
             ]),
@@ -345,7 +346,7 @@ class _GenericSupplierFormDialogState extends State<GenericSupplierFormDialog> {
         actions: [
           OutlinedButton(
             onPressed: _saving ? null : () => Navigator.pop(context, false),
-            style: OutlinedButton.styleFrom(backgroundColor: TColors.red600, foregroundColor: Colors.white, side: BorderSide.none),
+            style: OutlinedButton.styleFrom(backgroundColor: Tone.button(TColors.red600), foregroundColor: Colors.white, side: BorderSide.none),
             child: const Text('Cancel'),
           ),
           FilledButton(onPressed: _saving ? null : _save, child: Text(_saving ? 'Saving…' : (editing ? 'Save changes' : 'Create'))),
@@ -456,7 +457,7 @@ class _GenericSupplierLedgerScreenState extends State<GenericSupplierLedgerScree
             const SizedBox(height: 10),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Text('WE OWE THEM', style: TextStyle(fontSize: 11, color: TColors.slate500)),
                 Text(fmtMoney(s['currentBalance']),
@@ -469,7 +470,7 @@ class _GenericSupplierLedgerScreenState extends State<GenericSupplierLedgerScree
             const SizedBox(height: 14),
             Container(
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 const Text('Transactions', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: TColors.slate900)),
                 const SizedBox(height: 8),

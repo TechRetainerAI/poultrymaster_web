@@ -18,6 +18,7 @@ import 'report_routes.dart';
 import 'report_widgets.dart';
 import 'reports_catalog_screen.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 // The wording of `lib/poultry/financial-classification.ts`.
 const profitVsCashTitle = 'Profit is not the same as cash flow';
 const profitVsCashBody =
@@ -80,12 +81,12 @@ const drillColumns = {
 /// DRILL_TONES: the dialog wears the colour of the card it opened from.
 typedef DrillTone = ({Color band, Color bandText, Color border, Color amount, Color rail, String label});
 const drillTones = <String, DrillTone>{
-  'revenue': (band: Color(0xFFECFDF5), bandText: Color(0xFF064E3B), border: Color(0xFFA7F3D0), amount: Color(0xFF047857), rail: Color(0xFF34D399), label: 'Money in'),
-  'inventory': (band: Color(0xFFFFF1F2), bandText: Color(0xFF881337), border: Color(0xFFFECDD3), amount: Color(0xFFBE123C), rail: Color(0xFFFB7185), label: 'Direct cost'),
-  'expenses': (band: Color(0xFFFFFBEB), bandText: Color(0xFF78350F), border: Color(0xFFFDE68A), amount: Color(0xFFB45309), rail: Color(0xFFFBBF24), label: 'Running cost'),
-  'depreciation': (band: Color(0xFFF5F3FF), bandText: Color(0xFF4C1D95), border: Color(0xFFDDD6FE), amount: Color(0xFF6D28D9), rail: Color(0xFFA78BFA), label: 'Depreciation'),
-  'financing': (band: Color(0xFFF5F3FF), bandText: Color(0xFF4C1D95), border: Color(0xFFDDD6FE), amount: Color(0xFF6D28D9), rail: Color(0xFFA78BFA), label: 'Not profit'),
-  'capital': (band: Color(0xFFF0F9FF), bandText: Color(0xFF0C4A6E), border: Color(0xFFBAE6FD), amount: Color(0xFF0369A1), rail: Color(0xFF38BDF8), label: 'Not an expense'),
+  'revenue': (band: Tone.bg(0xFFECFDF5), bandText: Tone.fg(0xFF064E3B), border: Tone.line(0xFFA7F3D0), amount: Tone.fg(0xFF047857), rail: Tone(0xFF34D399), label: 'Money in'),
+  'inventory': (band: Tone.bg(0xFFFFF1F2), bandText: Tone.fg(0xFF881337), border: Tone.line(0xFFFECDD3), amount: Tone.fg(0xFFBE123C), rail: Tone(0xFFFB7185), label: 'Direct cost'),
+  'expenses': (band: Tone.bg(0xFFFFFBEB), bandText: Tone.fg(0xFF78350F), border: Tone.line(0xFFFDE68A), amount: Tone.fg(0xFFB45309), rail: Tone(0xFFFBBF24), label: 'Running cost'),
+  'depreciation': (band: Tone.bg(0xFFF5F3FF), bandText: Tone.fg(0xFF4C1D95), border: Tone.line(0xFFDDD6FE), amount: Tone.fg(0xFF6D28D9), rail: Tone(0xFFA78BFA), label: 'Depreciation'),
+  'financing': (band: Tone.bg(0xFFF5F3FF), bandText: Tone.fg(0xFF4C1D95), border: Tone.line(0xFFDDD6FE), amount: Tone.fg(0xFF6D28D9), rail: Tone(0xFFA78BFA), label: 'Not profit'),
+  'capital': (band: Tone.bg(0xFFF0F9FF), bandText: Tone.fg(0xFF0C4A6E), border: Tone.line(0xFFBAE6FD), amount: Tone.fg(0xFF0369A1), rail: Tone(0xFF38BDF8), label: 'Not an expense'),
 };
 
 const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -425,16 +426,16 @@ class _ProfitLossScreenState extends State<ProfitLossScreen> {
                   width: 40,
                   height: 40,
                   child: DecoratedBox(
-                    decoration: BoxDecoration(color: Color(0xFFD1FAE5), borderRadius: BorderRadius.all(Radius.circular(8))),
-                    child: Icon(Icons.trending_up, size: 20, color: Color(0xFF047857)),
+                    decoration: BoxDecoration(color: Tone.bg(0xFFD1FAE5), borderRadius: BorderRadius.all(Radius.circular(8))),
+                    child: Icon(Icons.trending_up, size: 20, color: Tone.fg(0xFF047857)),
                   ),
                 ),
                 SizedBox(width: 12),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Profit & Loss', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                    Text('Profit & Loss', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Tone.fg(0xFF0F172A))),
                     Text('Did the business make money from its operations this period?',
-                        style: TextStyle(fontSize: 13, color: Color(0xFF475569))),
+                        style: TextStyle(fontSize: 13, color: Tone.fg(0xFF475569))),
                   ]),
                 ),
               ]),
@@ -494,11 +495,11 @@ class _ProfitLossScreenState extends State<ProfitLossScreen> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFEF2F2),
-                    border: Border.all(color: const Color(0xFFFECACA)),
+                    color: const Tone.bg(0xFFFEF2F2),
+                    border: Border.all(color: const Tone.line(0xFFFECACA)),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Text(_error!, style: const TextStyle(fontSize: 13, color: Color(0xFF991B1B))),
+                  child: Text(_error!, style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF991B1B))),
                 ),
               if (d != null && !_busy) ..._statement(d),
             ]),
@@ -573,7 +574,7 @@ class _ProfitLossScreenState extends State<ProfitLossScreen> {
       // How the costs were recognised.
       Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: slate200), borderRadius: BorderRadius.circular(10)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: slate200), borderRadius: BorderRadius.circular(10)),
         child: Wrap(spacing: 16, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
           const Text('COST RECOGNITION', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, letterSpacing: .5, color: slate500)),
           _kv('Feed:', recognitionSummaryLine(d['feedRecognitionMethod'], overrides)),
@@ -584,13 +585,13 @@ class _ProfitLossScreenState extends State<ProfitLossScreen> {
               message: itemOverrideTooltip,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                decoration: BoxDecoration(border: Border.all(color: const Color(0xFF6EE7B7)), borderRadius: BorderRadius.circular(6)),
+                decoration: BoxDecoration(border: Border.all(color: const Tone.line(0xFF6EE7B7)), borderRadius: BorderRadius.circular(6)),
                 child: const Text('Some item overrides active', style: TextStyle(fontSize: 10.5, color: emerald700)),
               ),
             ),
           InkWell(
             onTap: () => _link('/poultry-financial-settings', 'Financial Settings'),
-            child: const Text('Settings', style: TextStyle(fontSize: 12, color: Color(0xFF0369A1), decoration: TextDecoration.underline)),
+            child: const Text('Settings', style: TextStyle(fontSize: 12, color: Tone.fg(0xFF0369A1), decoration: TextDecoration.underline)),
           ),
         ]),
       ),
@@ -645,12 +646,12 @@ class _ProfitLossScreenState extends State<ProfitLossScreen> {
       Container(
         margin: const EdgeInsets.only(top: 4),
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: const Color(0xFFF0F9FF), border: Border.all(color: const Color(0xFFBAE6FD)), borderRadius: BorderRadius.circular(10)),
+        decoration: BoxDecoration(color: const Tone.bg(0xFFF0F9FF), border: Border.all(color: const Tone.line(0xFFBAE6FD)), borderRadius: BorderRadius.circular(10)),
         child: DefaultTextStyle.merge(
-          style: const TextStyle(fontSize: 12, color: Color(0xFF0C4A6E)),
+          style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF0C4A6E)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Icon(Icons.info_outline, size: 16, color: Color(0xFF0369A1)),
+              Icon(Icons.info_outline, size: 16, color: Tone.fg(0xFF0369A1)),
               SizedBox(width: 8),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -697,11 +698,11 @@ class _ProfitLossScreenState extends State<ProfitLossScreen> {
 // ---------------------------------------------------------------- pieces
 
 // FORMULA_TONES: each term wears the colour of the card that holds it.
-const _revenue = Color(0xFF047857);
-const _direct = Color(0xFFBE123C);
-const _operating = Color(0xFFB45309);
-const _other = Color(0xFF6D28D9);
-const _subtotal = Color(0xFF334155);
+const _revenue = Tone.fg(0xFF047857);
+const _direct = Tone.fg(0xFFBE123C);
+const _operating = Tone.fg(0xFFB45309);
+const _other = Tone.fg(0xFF6D28D9);
+const _subtotal = Tone.fg(0xFF334155);
 
 /// A tile's arithmetic, names over numbers; a negative term is bracketed.
 class PlFormula extends StatelessWidget {
@@ -742,8 +743,8 @@ class PlKpi extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ring = tone == 'emerald' ? const Color(0xFFA7F3D0) : tone == 'red' ? const Color(0xFFFECACA) : slate200;
-    final text = tone == 'emerald' ? emerald700 : tone == 'red' ? const Color(0xFFB91C1C) : slate900;
+    final ring = tone == 'emerald' ? const Tone(0xFFA7F3D0) : tone == 'red' ? const Tone(0xFFFECACA) : slate200;
+    final text = tone == 'emerald' ? emerald700 : tone == 'red' ? const Tone(0xFFB91C1C) : slate900;
     // The meaning is a tooltip on the web; on a phone it is a tap.
     return InkWell(
       onTap: tip == null
@@ -760,7 +761,7 @@ class PlKpi extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Tone.bg(0xFFFFFFFF),
           border: Border.all(color: strong ? slate300 : ring, width: strong ? 1.5 : 1),
           borderRadius: BorderRadius.circular(10),
         ),
@@ -784,10 +785,10 @@ class PlKpi extends StatelessWidget {
 }
 
 const _sectionTones = {
-  'emerald': (head: Color(0xFFECFDF5), headText: Color(0xFF065F46), total: Color(0x99ECFDF5), border: Color(0xFFA7F3D0)),
-  'rose': (head: Color(0xFFFFF1F2), headText: Color(0xFF9F1239), total: Color(0x99FFF1F2), border: Color(0xFFFECDD3)),
-  'amber': (head: Color(0xFFFFFBEB), headText: Color(0xFF92400E), total: Color(0x99FFFBEB), border: Color(0xFFFDE68A)),
-  'violet': (head: Color(0xFFF5F3FF), headText: Color(0xFF5B21B6), total: Color(0x99F5F3FF), border: Color(0xFFDDD6FE)),
+  'emerald': (head: Tone(0xFFECFDF5), headText: Tone.fg(0xFF065F46), total: Tone(0x99ECFDF5), border: Tone.line(0xFFA7F3D0)),
+  'rose': (head: Tone(0xFFFFF1F2), headText: Tone.fg(0xFF9F1239), total: Tone(0x99FFF1F2), border: Tone.line(0xFFFECDD3)),
+  'amber': (head: Tone(0xFFFFFBEB), headText: Tone.fg(0xFF92400E), total: Tone(0x99FFFBEB), border: Tone.line(0xFFFDE68A)),
+  'violet': (head: Tone(0xFFF5F3FF), headText: Tone.fg(0xFF5B21B6), total: Tone(0x99F5F3FF), border: Tone.line(0xFFDDD6FE)),
 };
 
 /// One band of the statement; costs print in brackets. Every line opens the
@@ -819,7 +820,7 @@ class PlSectionCard extends StatelessWidget {
     String money(num n) => negative ? '(${gh(n)})' : gh(n);
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: t.border), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: t.border), borderRadius: BorderRadius.circular(12)),
       clipBehavior: Clip.antiAlias,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Container(
@@ -901,7 +902,7 @@ class PlInfoCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Tone.bg(0xFFFFFFFF),
         border: Border.all(color: slate300, style: BorderStyle.solid),
         borderRadius: BorderRadius.circular(10),
       ),
@@ -925,7 +926,7 @@ class PlInfoCard extends StatelessWidget {
                   TextSpan(text: note.substring(0, at)),
                   TextSpan(
                     text: rule,
-                    style: const TextStyle(backgroundColor: Color(0xFFE0F2FE), color: Color(0xFF0C4A6E), fontWeight: FontWeight.w500),
+                    style: const TextStyle(backgroundColor: Tone.bg(0xFFE0F2FE), color: Tone.fg(0xFF0C4A6E), fontWeight: FontWeight.w500),
                   ),
                   TextSpan(text: note.substring(at + rule.length)),
                 ]),
@@ -961,7 +962,7 @@ class PlInfoCard extends StatelessWidget {
           for (final (href, label) in links)
             InkWell(
               onTap: () => onLink(href, label),
-              child: Text(label, style: const TextStyle(fontSize: 12, color: Color(0xFF0369A1), decoration: TextDecoration.underline)),
+              child: Text(label, style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF0369A1), decoration: TextDecoration.underline)),
             ),
         ]),
       ]),
@@ -1048,7 +1049,7 @@ class _DrilldownPageState extends State<_DrilldownPage> {
     num sum(List<DrillRow>? l) => (l ?? const []).fold<num>(0, (s, r) => s + r.amount);
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Tone.bg(0xFFFFFFFF),
       appBar: AppBar(
         backgroundColor: tone.band,
         foregroundColor: tone.bandText,
@@ -1063,7 +1064,7 @@ class _DrilldownPageState extends State<_DrilldownPage> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: .6),
+                  color: Tone.bg(0xFFFFFFFF).withValues(alpha: .6),
                   border: Border.all(color: tone.amount.withValues(alpha: .3)),
                   borderRadius: BorderRadius.circular(6),
                 ),

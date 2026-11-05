@@ -18,6 +18,7 @@ import '../reports/report_format.dart';
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../trackers/tracker_widgets.dart';
 import 'balances_logic.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import 'payments_received_screen.dart' show fmtDateTimeLike;
 import 'sales_logic.dart' show saleProductOptions;
 
@@ -52,7 +53,7 @@ class AllocationCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(6)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
           Expanded(child: Text(title, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500))),
@@ -99,14 +100,14 @@ class ListFiltersCard extends StatelessWidget {
     final period = from.isNotEmpty && to.isNotEmpty ? rangeToPeriod(from, to) : 'custom';
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(8)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         FilterLabel(
           'Search',
           AppInput(
             controller: search,
             hintText: searchPlaceholder,
-            prefixIcon: const Icon(Icons.search, size: 18, color: TColors.slate400),
+            prefixIcon: const Icon(Icons.search, size: 18, color: Tone.fg(0xFF7F8EA3)),
             onChanged: (_) => onSearch(),
           ),
         ),
@@ -309,7 +310,7 @@ class _ReversePaymentDialogState extends State<ReversePaymentDialog> {
           TintedSection(title: 'This reversal will', color: FormColor.amber, children: [
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+            decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(6)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Row(children: [
                 Expanded(child: Text(tStr(t['partyName']).isEmpty ? 'Walk-in' : tStr(t['partyName']), style: const TextStyle(color: TColors.slate500))),
@@ -321,8 +322,8 @@ class _ReversePaymentDialogState extends State<ReversePaymentDialog> {
               else
                 for (final a in widget.allocations!)
                   Row(children: [
-                    Expanded(child: Text('Sale #${a['documentId']}', style: const TextStyle(fontSize: 12, color: TColors.slate600))),
-                    Text(widget.fmt(tNum(a['amountApplied'])), style: const TextStyle(fontSize: 12, color: TColors.slate600)),
+                    Expanded(child: Text('Sale #${a['documentId']}', style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF475569)))),
+                    Text(widget.fmt(tNum(a['amountApplied'])), style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF475569))),
                   ]),
             ]),
           ),
@@ -361,8 +362,8 @@ bool paymentOnPL(Map row) => tNum(row['plAmount']) > 0 && (row['status'] ?? 'Pos
 Widget paymentPLBadge(Map row) {
   if (!paymentOnPL(row)) return const SizedBox.shrink();
   return row['excludedFromPL'] == true
-      ? const TBadge('Not on P&L', bg: Colors.white, fg: TColors.slate500, border: TColors.slate300)
-      : const TBadge('On P&L', bg: TColors.emerald50, fg: TColors.emerald800, border: TColors.emerald300);
+      ? const TBadge('Not on P&L', bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate500, border: Tone.line(0xFFCBD5E1))
+      : const TBadge('On P&L', bg: Tone.bg(0xFFECFDF5), fg: Tone.fg(0xFF065F46), border: Tone.line(0xFF6EE7B7));
 }
 
 /// Exclude from P&L / Include in P&L, with a confirmation. Owner / admin only
@@ -373,7 +374,7 @@ Widget? paymentPLToggle(BuildContext context,
   if ((company.role ?? '').toLowerCase() == 'staff' || !paymentOnPL(row)) return null;
   final exclude = row['excludedFromPL'] != true;
   return OutlinedButton(
-    style: OutlinedButton.styleFrom(backgroundColor: Colors.white),
+    style: OutlinedButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF))),
     onPressed: () async {
       final fmt = await FarmMoney.load(session, company);
       if (!context.mounted) return;
@@ -439,7 +440,7 @@ class _PLConfirmState extends State<_PLConfirm> {
             color: widget.exclude ? FormColor.slate : FormColor.emerald,
             text: widget.title,
           ),
-          content: SizedBox(width: 420, child: Text(widget.body, style: const TextStyle(fontSize: 13, color: TColors.slate600))),
+          content: SizedBox(width: 420, child: Text(widget.body, style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF475569)))),
           actions: [
             FormDialogFooter(onCancel: () => Navigator.pop(context, false), cancelDisabled: _busy, children: [
               FilledButton(
@@ -881,11 +882,11 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
             TintedSection(title: 'Applies to this ${widget.side.docWord}', color: FormColor.blue, children: [
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+              decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(6)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text.rich(TextSpan(children: [
                   const TextSpan(text: 'Applies to '),
-                  TextSpan(text: '${s['reference'] ?? s['documentId']}', style: const TextStyle(fontWeight: FontWeight.w500, color: TColors.slate900)),
+                  TextSpan(text: '${s['reference'] ?? s['documentId']}', style: const TextStyle(fontWeight: FontWeight.w500, color: Tone.fg(0xFF0F172A))),
                   if (tStr(s['label']).isNotEmpty) TextSpan(text: ' · ${s['label']}'),
                 ]), style: const TextStyle(fontSize: 13, color: TColors.slate500)),
                 const SizedBox(height: 2),
@@ -893,11 +894,11 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
                   TextSpan(text: 'Balance ${_fmt(tNum(s['balance']))} → '),
                   TextSpan(
                     text: _fmt(balanceAfterAllocation(s, _alloc)),
-                    style: TextStyle(fontWeight: FontWeight.w500, color: balanceAfterAllocation(s, _alloc) < 0 ? TColors.red600 : TColors.slate900),
+                    style: TextStyle(fontWeight: FontWeight.w500, color: balanceAfterAllocation(s, _alloc) < 0 ? Tone.fg(0xFFDC2626) : Tone.fg(0xFF0F172A)),
                   ),
                   const TextSpan(text: ' after this payment'),
                   if (_allowUnallocated && v.unallocated > 0)
-                    TextSpan(text: ' · $leftoverLine', style: const TextStyle(color: Color(0xFF1D4ED8))),
+                    TextSpan(text: ' · $leftoverLine', style: const TextStyle(color: Tone.fg(0xFF1D4ED8))),
                 ]), style: const TextStyle(fontSize: 13, color: TColors.slate500)),
               ]),
             ),
@@ -911,8 +912,8 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
             action: Wrap(spacing: 4, children: [
               TextButton.icon(
                 style: TextButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: const Color(0xFF1D4ED8),
+                  backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)),
+                  foregroundColor: const Tone.fg(0xFF1D4ED8),
                   visualDensity: VisualDensity.compact,
                   minimumSize: const Size(0, 32),
                 ),
@@ -927,7 +928,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
               ),
               TextButton.icon(
                 style: TextButton.styleFrom(
-                  backgroundColor: const Color(0x33FFFFFF),
+                  backgroundColor: Tone.button(const Tone.bg(0x33FFFFFF)),
                   foregroundColor: Colors.white,
                   visualDensity: VisualDensity.compact,
                   minimumSize: const Size(0, 32),
@@ -946,18 +947,18 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
           Text.rich(TextSpan(children: [
             const TextSpan(text: 'Allocated ', style: TextStyle(color: TColors.slate500)),
             TextSpan(text: _fmt(allocated), style: const TextStyle(fontWeight: FontWeight.w500)),
-            TextSpan(text: ' / ${_fmt(amount)}', style: const TextStyle(color: TColors.slate400)),
+            TextSpan(text: ' / ${_fmt(amount)}', style: const TextStyle(color: Tone.fg(0xFF7F8EA3))),
             if (v.unallocated != 0)
               TextSpan(
                 text: v.unallocated > 0
                     ? (_allowUnallocated ? '  ($leftoverLine)' : '  (${_fmt(v.unallocated)} unallocated)')
                     : '  (${_fmt(-v.unallocated)} over)',
                 style: TextStyle(
-                    color: v.unallocated > 0 ? (_allowUnallocated ? const Color(0xFF1D4ED8) : TColors.amber600) : TColors.red600),
+                    color: v.unallocated > 0 ? (_allowUnallocated ? const Tone.fg(0xFF1D4ED8) : Tone.fg(0xFFD97706)) : Tone.fg(0xFFDC2626)),
               ),
           ]), style: const TextStyle(fontSize: 13)),
           Container(
-            decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+            decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(6)),
             child: _loading
                 ? const Padding(padding: EdgeInsets.all(20), child: LoadingLine('Loading open items…'))
                 : _docs.isEmpty
@@ -982,13 +983,13 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
             _PayBand(
               title: 'Overpayment (Money Left Over)',
               color: _amber600,
-              border: TColors.amber200,
+              border: Tone.line(0xFFFDE68A),
               tint: _amberTint,
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 Text(
                   '${_fmt(v.unallocated)} is not applied to anything listed. '
                   '${_keepAsCredit ? 'It will be kept as $_creditWord (an advance) -- not on Profit & Loss until it is used.' : 'It will be recorded as a debt we owed the supplier from before the system, paid now.'}',
-                  style: const TextStyle(fontSize: 13, color: TColors.slate800),
+                  style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF1E293B)),
                 ),
                 const SizedBox(height: 6),
                 InkWell(
@@ -1001,7 +1002,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
                     ),
                     const SizedBox(width: 6),
                     Expanded(
-                      child: Text('Keep it as $_creditWord (an advance) instead', style: const TextStyle(fontSize: 12, color: TColors.slate800)),
+                      child: Text('Keep it as $_creditWord (an advance) instead', style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF1E293B))),
                     ),
                   ]),
                 ),
@@ -1028,11 +1029,11 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                             Text(
                               'Count the ${_fmt(debtAllocated)} paid on debts on Profit & Loss as ${widget.side.isCustomer ? 'revenue' : 'an operating expense'}.',
-                              style: const TextStyle(fontSize: 13, color: TColors.emerald900),
+                              style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF064E3B)),
                             ),
                             const Text(
                               'Untick to keep it off Profit & Loss. You can change this later from the payments list.',
-                              style: TextStyle(fontSize: 12, color: TColors.emerald800),
+                              style: TextStyle(fontSize: 12, color: Tone.fg(0xFF065F46)),
                             ),
                           ]),
                         ),
@@ -1040,7 +1041,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
                     )
                   : Text(
                       'The ${_fmt(debtAllocated)} paid on debts goes on Profit & Loss as ${widget.side.isCustomer ? 'revenue' : 'an operating expense'}.',
-                      style: const TextStyle(fontSize: 13, color: TColors.emerald900),
+                      style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF064E3B)),
                     ),
             ),
             ]),
@@ -1091,15 +1092,15 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
   Widget _overpayment(num remaining, num amount, num allocated, String oldDebtSaleType, bool saleTypeMissing) {
     final appliedDocs = [for (final d in _docs) if ((_alloc[docKey(d)] ?? 0) > 0) d];
     final docWord = widget.side.docWord;
-    const body = TextStyle(fontSize: 13, color: TColors.slate600);
+    const body = TextStyle(fontSize: 13, color: Tone.fg(0xFF475569));
     const bold = TextStyle(fontWeight: FontWeight.w700);
 
     Widget radio(bool active, VoidCallback onPick, IconData icon, Color iconBg, Color iconFg, String title, Widget text,
             {Widget? extra}) =>
         Container(
           decoration: BoxDecoration(
-            color: active ? TColors.emerald50 : Colors.white,
-            border: Border.all(color: active ? TColors.emerald300 : TColors.slate200),
+            color: active ? Tone.bg(0xFFECFDF5) : Tone.bg(0xFFFFFFFF),
+            border: Border.all(color: active ? Tone.line(0xFF6EE7B7) : Tone.line(0xFFE2E8F0)),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -1118,9 +1119,9 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
                       height: 16,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                          shape: BoxShape.circle, border: Border.all(color: active ? TColors.blue600 : TColors.slate300, width: 2)),
+                          shape: BoxShape.circle, border: Border.all(color: active ? Tone.line(0xFF2563EB) : Tone.line(0xFFCBD5E1), width: 2)),
                       child: active
-                          ? Container(width: 8, height: 8, decoration: const BoxDecoration(shape: BoxShape.circle, color: TColors.blue600))
+                          ? Container(width: 8, height: 8, decoration: const BoxDecoration(shape: BoxShape.circle, color: Tone.bg(0xFF2563EB)))
                           : null,
                     ),
                     const SizedBox(width: 10),
@@ -1133,7 +1134,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: TColors.slate900)),
+                        Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Tone.fg(0xFF0F172A))),
                         DefaultTextStyle.merge(style: body, child: text),
                       ]),
                     ),
@@ -1158,7 +1159,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  DefaultTextStyle.merge(style: const TextStyle(fontSize: 13, color: TColors.slate900), child: title),
+                  DefaultTextStyle.merge(style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF0F172A)), child: title),
                   Text(detail, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
                 ]),
               ),
@@ -1168,7 +1169,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
 
     Widget breakdownRow(String label, num value, {bool strong = false}) => Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: const BoxDecoration(border: Border(top: BorderSide(color: TColors.slate100))),
+          decoration: const BoxDecoration(border: Border(top: BorderSide(color: Tone.line(0xFFF1F5F9)))),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Expanded(child: Text(label, style: const TextStyle(fontSize: 13))),
             const SizedBox(width: 10),
@@ -1204,7 +1205,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
                 TextSpan(text: _fmt(remaining), style: bold),
                 const TextSpan(text: ' remaining. What would you like to do with it?'),
               ]),
-              style: const TextStyle(fontSize: 13, color: TColors.slate700),
+              style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF334155)),
             ),
           ),
         ]),
@@ -1236,7 +1237,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
               : Container(
                   margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                   padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: TColors.slate50, borderRadius: BorderRadius.circular(6)),
+                  decoration: BoxDecoration(color: Tone.bg(0xFFF8FAFC), borderRadius: BorderRadius.circular(6)),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                     check(
                       _earlierSaleOnPL,
@@ -1278,30 +1279,30 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
                           : _earlierSaleOnPL
                               ? '${_fmt(remaining)} goes on Profit & Loss as Revenue${oldDebtSaleType.isNotEmpty ? ' ($oldDebtSaleType)' : ''}.'
                               : 'Recorded as an earlier sale paid now, but kept off Profit & Loss.',
-                      style: TextStyle(fontSize: 12, color: saleTypeMissing ? TColors.amber700 : TColors.slate500),
+                      style: TextStyle(fontSize: 12, color: saleTypeMissing ? Tone.fg(0xFFB45309) : TColors.slate500),
                     ),
                   ]),
                 ),
         ),
         const SizedBox(height: 12),
         Container(
-          decoration: BoxDecoration(color: _blueTint, border: Border.all(color: TColors.blue200), borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(color: _blueTint, border: Border.all(color: Tone.line(0xFFBFDBFE)), borderRadius: BorderRadius.circular(8)),
           clipBehavior: Clip.antiAlias,
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: Row(children: [
-                Icon(Icons.bar_chart, size: 16, color: TColors.blue600),
+                Icon(Icons.bar_chart, size: 16, color: Tone.fg(0xFF2563EB)),
                 SizedBox(width: 8),
                 Expanded(
                   child: Text('Payment breakdown',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: TColors.slate900)),
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Tone.fg(0xFF0F172A))),
                 ),
                 Text('Amount', style: TextStyle(fontSize: 12, color: TColors.slate500)),
               ]),
             ),
             ColoredBox(
-              color: Colors.white,
+              color: Tone.bg(0xFFFFFFFF),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 breakdownRow('Total received from customer', amount),
                 for (final d in appliedDocs)
@@ -1319,14 +1320,14 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
               ]),
             ),
             Container(
-              color: const Color(0xB3DBEAFE),
+              color: const Tone.bg(0xB3DBEAFE),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: Row(children: [
                 const Expanded(
-                  child: Text('Total allocated', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: TColors.slate900)),
+                  child: Text('Total allocated', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Tone.fg(0xFF0F172A))),
                 ),
                 Text(_fmt(allocated + remaining),
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: TColors.slate900)),
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Tone.fg(0xFF0F172A))),
               ]),
             ),
           ]),
@@ -1343,7 +1344,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: over ? TColors.red50 : null,
-        border: const Border(bottom: BorderSide(color: TColors.slate100)),
+        border: const Border(bottom: BorderSide(color: Tone.line(0xFFF1F5F9))),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
@@ -1353,7 +1354,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
           Text(fmtDateTimeLike(d['documentDate']), style: sm),
           if (d['isOverdue'] == true) ...[
             const SizedBox(width: 6),
-            TBadge('${tIntOrNull(d['ageDays']) ?? 0}d', bg: TColors.red100, fg: TColors.red700),
+            TBadge('${tIntOrNull(d['ageDays']) ?? 0}d', bg: Tone.bg(0xFFFEE2E2), fg: TColors.red700),
           ],
         ]),
         Text(tStr(d['label']).isEmpty ? '—' : tStr(d['label']), style: sm),
@@ -1380,7 +1381,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
         const SizedBox(height: 4),
         Text('Balance after ${_fmt(balanceAfterAllocation(d, _alloc))}', textAlign: TextAlign.right, style: sm),
         for (final p in v.problems.where((p) => p.$1 == key))
-          Text(p.$2, style: const TextStyle(fontSize: 12, color: TColors.red600)),
+          Text(p.$2, style: const TextStyle(fontSize: 12, color: Tone.fg(0xFFDC2626))),
       ]),
     );
   }
@@ -1533,7 +1534,7 @@ class _StatementScreenState extends State<StatementScreen> {
           const SizedBox(height: 16),
           TintedSection(title: widget.side.isCustomer ? 'Charges & payments' : 'Bills & payments', color: FormColor.green, children: [
           Container(
-            decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+            decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(6)),
             child: _loading
                 ? const Padding(padding: EdgeInsets.all(20), child: LoadingLine('Loading statement…'))
                 : _lines.isEmpty
@@ -1544,7 +1545,7 @@ class _StatementScreenState extends State<StatementScreen> {
                     : Column(children: [
                         for (final l in _lines) _line(l, sm),
                         Container(
-                          color: TColors.slate50,
+                          color: Tone.bg(0xFFF8FAFC),
                           padding: const EdgeInsets.all(12),
                           child: Row(children: [
                             Expanded(
@@ -1579,8 +1580,8 @@ class _StatementScreenState extends State<StatementScreen> {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: opening ? TColors.slate50 : null,
-        border: const Border(bottom: BorderSide(color: TColors.slate100)),
+        color: opening ? Tone.bg(0xFFF8FAFC) : null,
+        border: const Border(bottom: BorderSide(color: Tone.line(0xFFF1F5F9))),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
@@ -1596,10 +1597,10 @@ class _StatementScreenState extends State<StatementScreen> {
             ? InkWell(
                 onTap: () => _toggle(pid),
                 child: Row(children: [
-                  Icon(open ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right, size: 16, color: const Color(0xFF0369A1)),
+                  Icon(open ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right, size: 16, color: const Tone.fg(0xFF0369A1)),
                   Expanded(
                     child: Text(tStr(l['description']).isEmpty ? '—' : tStr(l['description']),
-                        style: const TextStyle(fontSize: 13, color: Color(0xFF0369A1))),
+                        style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF0369A1))),
                   ),
                 ]),
               )
@@ -1614,7 +1615,7 @@ class _StatementScreenState extends State<StatementScreen> {
           const SizedBox(height: 6),
           Container(
             padding: const EdgeInsets.all(8),
-            color: const Color(0x99F8FAFC),
+            color: const Tone.bg(0x99F8FAFC),
             child: !_alloc.containsKey(pid)
                 ? const LoadingLine('Loading allocation…')
                 : Column(children: [
@@ -1627,7 +1628,7 @@ class _StatementScreenState extends State<StatementScreen> {
                             if (tStr(a['label']).isNotEmpty) TextSpan(text: '  ${a['label']}', style: const TextStyle(color: TColors.slate500)),
                           ]), style: const TextStyle(fontSize: 13)),
                           Text('${_fmt(tNum(a['balanceBefore']))} → ${_fmt(tNum(a['balanceAfter']))}',
-                              style: const TextStyle(fontSize: 12, color: TColors.slate600)),
+                              style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF475569))),
                           Text(_fmt(tNum(a['amountApplied'])), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                         ]),
                       ),
@@ -1639,16 +1640,16 @@ class _StatementScreenState extends State<StatementScreen> {
   }
 }
 
-const _orange100 = Color(0xFFFFEDD5);
-const _orange200 = Color(0xFFFED7AA);
-const _orange500 = Color(0xFFF97316);
-const _orange600 = Color(0xFFEA580C);
-const _amber600 = Color(0xFFD97706);
-const _blue700 = Color(0xFF1D4ED8);
+const _orange100 = Tone.bg(0xFFFFEDD5);
+const _orange200 = Tone.line(0xFFFED7AA);
+const _orange500 = Tone.bg(0xFFF97316);
+const _orange600 = Tone.fg(0xFFEA580C);
+const _amber600 = Tone.bg(0xFFD97706);
+const _blue700 = Tone(0xFF1D4ED8);
 // The web's tinted FormSection bodies (`-50/40`, orange `-50/30`).
-const _orangeTint = Color(0x4DFFF7ED);
-const _amberTint = Color(0x66FFFBEB);
-const _blueTint = Color(0x66EFF6FF);
+const _orangeTint = Tone.bg(0x4DFFF7ED);
+const _amberTint = Tone.bg(0x66FFFBEB);
+const _blueTint = Tone.bg(0x66EFF6FF);
 
 /// A tinted FormSection (components/ui/form-section.tsx, `tinted`): a solid
 /// coloured header band over a body tinted in the same colour.

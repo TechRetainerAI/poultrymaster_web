@@ -16,6 +16,7 @@ import '../poultry/trackers/tracker_widgets.dart';
 import '../shared/company_timezone_field.dart';
 import 'generic_kit.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 class GenericSetupScreen extends StatefulWidget {
   const GenericSetupScreen({super.key, required this.session, required this.company});
   final Session session;
@@ -203,9 +204,9 @@ class _GenericSetupScreenState extends State<GenericSetupScreen> {
               title: 'Profile',
               descriptionWidget: set
                   ? const Row(children: [
-                      Icon(Icons.check_circle_outline, size: 16, color: Color(0xFF047857)),
+                      Icon(Icons.check_circle_outline, size: 16, color: Tone.fg(0xFF047857)),
                       SizedBox(width: 4),
-                      Text('Already set up', style: TextStyle(fontSize: 13, color: Color(0xFF047857))),
+                      Text('Already set up', style: TextStyle(fontSize: 13, color: Tone.fg(0xFF047857))),
                     ])
                   : null,
               children: [

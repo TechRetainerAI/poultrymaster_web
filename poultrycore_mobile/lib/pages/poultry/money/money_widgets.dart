@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 
 import '../trackers/tracker_widgets.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import '../sales/balances_widgets.dart' show CompactPager;
 
 /// HIGHLIGHT_TONES: (tile bg, border, label, value).
@@ -12,10 +13,10 @@ enum Accent { emerald, blue, violet, amber, rose, slate }
 
 (Color, Color, Color, Color) accentTone(Accent a) => switch (a) {
       Accent.emerald => (TColors.emerald100, TColors.emerald300, TColors.emerald900, TColors.emerald800),
-      Accent.blue => (TColors.blue100, TColors.blue300, TColors.blue900, const Color(0xFF1E40AF)),
-      Accent.violet => (TColors.violet100, const Color(0xFFC4B5FD), const Color(0xFF4C1D95), const Color(0xFF4C1D95)),
+      Accent.blue => (TColors.blue100, TColors.blue300, TColors.blue900, const Tone(0xFF1E40AF)),
+      Accent.violet => (TColors.violet100, const Tone(0xFFC4B5FD), const Tone(0xFF4C1D95), const Tone(0xFF4C1D95)),
       Accent.amber => (TColors.amber100, TColors.amber300, TColors.amber900, TColors.amber800),
-      Accent.rose => (TColors.rose100, const Color(0xFFFDA4AF), const Color(0xFF881337), TColors.rose700),
+      Accent.rose => (TColors.rose100, const Tone(0xFFFDA4AF), const Tone(0xFF881337), TColors.rose700),
       Accent.slate => (TColors.slate100, TColors.slate300, TColors.slate600, TColors.slate900),
     };
 
@@ -157,7 +158,7 @@ class _CardState<T> extends State<_Card<T>> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: widget.stripe ? stripeBg : Colors.white,
+        color: widget.stripe ? stripeBg : Tone.bg(0xFFFFFFFF),
         border: Border.all(color: widget.stripe ? stripeBorder : TColors.slate200),
         borderRadius: BorderRadius.circular(8),
       ),
@@ -216,7 +217,7 @@ class _CardState<T> extends State<_Card<T>> {
         ),
         if (_open && (ds.isNotEmpty || acts.isNotEmpty || l.extra != null)) ...[
           const SizedBox(height: 12),
-          Divider(height: 1, color: widget.stripe ? const Color(0xB3E2E8F0) : TColors.slate100),
+          Divider(height: 1, color: widget.stripe ? const Tone.line(0xB3E2E8F0) : TColors.slate100),
           const SizedBox(height: 10),
           if (ds.isNotEmpty)
             LayoutBuilder(builder: (context, c) {
@@ -261,7 +262,7 @@ class InfoTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             if (icon != null) ...[Icon(icon, size: 14, color: TColors.slate500), const SizedBox(width: 4)],
@@ -302,7 +303,7 @@ Widget twoUp(List<Widget> tiles) => Column(crossAxisAlignment: CrossAxisAlignmen
 /// each on one line.
 Widget moneyStat(String label, String value, {String? hint, Color color = TColors.slate900}) => Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(label.toUpperCase(),
             maxLines: 1,
@@ -320,7 +321,7 @@ Widget filterChipButton(String label, bool on, VoidCallback tap, {bool secondary
         onPressed: tap,
         style: FilledButton.styleFrom(
           visualDensity: VisualDensity.compact,
-          backgroundColor: secondary ? TColors.slate100 : color ?? TColors.slate900,
+          backgroundColor: secondary ? TColors.slate100 : color ?? Tone.button(TColors.slate900)!,
           foregroundColor: secondary ? TColors.slate900 : Colors.white,
         ),
         child: Text(label),
@@ -333,7 +334,7 @@ Widget formSection(String title, Color band, List<Widget> children) => Container
       decoration: BoxDecoration(border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Container(
-          color: band,
+          color: Tone.button(band),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
           child: Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
         ),
@@ -349,6 +350,6 @@ Widget formSection(String title, Color band, List<Widget> children) => Container
 /// The dialogs' red Cancel button.
 Widget redCancelButton(VoidCallback? onTap) => FilledButton(
       onPressed: onTap,
-      style: FilledButton.styleFrom(backgroundColor: TColors.red600, foregroundColor: Colors.white),
+      style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600), foregroundColor: Colors.white),
       child: const Text('Cancel'),
     );

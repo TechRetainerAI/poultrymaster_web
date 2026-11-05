@@ -19,6 +19,7 @@ import '../shared/company_timezone_field.dart';
 import '../shared/currencies.dart' show currencySymbolFor;
 import '../shared/search_picker.dart' show CurrencyPickerField;
 import 'restaurant_other_select.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import 'restaurant_roles.dart' show restaurantRose;
 
 const restaurantServiceTypes = ['DineIn', 'Takeaway', 'Delivery', 'DriveThrough'];
@@ -49,7 +50,7 @@ Widget _label(String text, {bool required = false, IconData? icon}) => Padding(
         Flexible(
           child: Text.rich(TextSpan(children: [
             TextSpan(text: text),
-            if (required) const TextSpan(text: ' *', style: TextStyle(color: Color(0xFFF43F5E))),
+            if (required) const TextSpan(text: ' *', style: TextStyle(color: Tone.fg(0xFFF43F5E))),
           ]), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
         ),
       ]),
@@ -332,18 +333,18 @@ class _RestaurantSetupScreenState extends State<RestaurantSetupScreen> {
 
   Widget _header() => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
-          _tile(Icons.settings_outlined, const Color(0xFFFFE4E6), restaurantRose),
+          _tile(Icons.settings_outlined, const Tone(0xFFFFE4E6), restaurantRose),
           const SizedBox(width: 12),
           const Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Restaurant Setup', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+              Text('Restaurant Setup', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Tone.fg(0xFF111827))),
               Text('Configure your restaurant profile, menu schedules and modifiers', style: TextStyle(fontSize: 13, color: TColors.slate500)),
             ]),
           ),
         ]),
         const SizedBox(height: 10),
         FilledButton.icon(
-          style: FilledButton.styleFrom(backgroundColor: restaurantRose, minimumSize: const Size.fromHeight(44)),
+          style: FilledButton.styleFrom(backgroundColor: Tone.button(restaurantRose), minimumSize: const Size.fromHeight(44)),
           onPressed: _saving ? null : _saveProfile,
           icon: _saving
               ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
@@ -361,7 +362,7 @@ class _RestaurantSetupScreenState extends State<RestaurantSetupScreen> {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Tone.bg(0xFFFFFFFF),
         border: Border.all(color: TColors.slate200),
         borderRadius: BorderRadius.circular(8),
         boxShadow: const [BoxShadow(color: Color(0x0D000000), blurRadius: 2, offset: Offset(0, 1))],
@@ -369,7 +370,7 @@ class _RestaurantSetupScreenState extends State<RestaurantSetupScreen> {
       child: Wrap(spacing: 4, runSpacing: 4, children: [
         for (final (v, icon, label, n) in tabs)
           Material(
-            color: _tab == v ? const Color(0xFFFFF1F2) : Colors.transparent,
+            color: _tab == v ? const Tone.bg(0xFFFFF1F2) : Colors.transparent,
             borderRadius: BorderRadius.circular(6),
             child: InkWell(
               borderRadius: BorderRadius.circular(6),
@@ -377,9 +378,9 @@ class _RestaurantSetupScreenState extends State<RestaurantSetupScreen> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(icon, size: 16, color: _tab == v ? const Color(0xFFBE123C) : TColors.slate600),
+                  Icon(icon, size: 16, color: _tab == v ? const Tone.fg(0xFFBE123C) : TColors.slate600),
                   const SizedBox(width: 6),
-                  Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: _tab == v ? const Color(0xFFBE123C) : TColors.slate600)),
+                  Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: _tab == v ? const Tone.fg(0xFFBE123C) : TColors.slate600)),
                   if (n != null) ...[
                     const SizedBox(width: 6),
                     Container(
@@ -401,7 +402,7 @@ class _RestaurantSetupScreenState extends State<RestaurantSetupScreen> {
         child: TCard(
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Row(children: [
-              Icon(icon, size: 20, color: const Color(0xFFF43F5E)),
+              Icon(icon, size: 20, color: const Tone.fg(0xFFF43F5E)),
               const SizedBox(width: 8),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -453,13 +454,13 @@ class _RestaurantSetupScreenState extends State<RestaurantSetupScreen> {
                   onTap: () => _toggleService(s),
                   child: Container(
                     decoration: BoxDecoration(
-                      color: _services.contains(s) ? const Color(0xFFFFF1F2) : Colors.white,
-                      border: Border.all(color: _services.contains(s) ? const Color(0xFFF43F5E) : const Color(0xFFE5E7EB), width: 2),
+                      color: _services.contains(s) ? const Tone.bg(0xFFFFF1F2) : Tone.bg(0xFFFFFFFF),
+                      border: Border.all(color: _services.contains(s) ? const Tone.line(0xFFF43F5E) : const Tone.line(0xFFE5E7EB), width: 2),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Stack(children: [
                       if (_services.contains(s))
-                        const Positioned(top: 6, right: 6, child: Icon(Icons.check_circle_outline, size: 16, color: Color(0xFFF43F5E))),
+                        const Positioned(top: 6, right: 6, child: Icon(Icons.check_circle_outline, size: 16, color: Tone.fg(0xFFF43F5E))),
                       Center(
                         child: Column(mainAxisSize: MainAxisSize.min, children: [
                           Text(_serviceEmoji[s]!, style: const TextStyle(fontSize: 24)),
@@ -468,7 +469,7 @@ class _RestaurantSetupScreenState extends State<RestaurantSetupScreen> {
                               style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
-                                  color: _services.contains(s) ? const Color(0xFFBE123C) : const Color(0xFF4B5563))),
+                                  color: _services.contains(s) ? const Tone.fg(0xFFBE123C) : const Tone.fg(0xFF4B5563))),
                         ]),
                       ),
                     ]),
@@ -541,7 +542,7 @@ class _RestaurantSetupScreenState extends State<RestaurantSetupScreen> {
         ]),
         const SizedBox(height: 10),
         FilledButton.icon(
-          style: FilledButton.styleFrom(backgroundColor: restaurantRose, minimumSize: const Size.fromHeight(44)),
+          style: FilledButton.styleFrom(backgroundColor: Tone.button(restaurantRose), minimumSize: const Size.fromHeight(44)),
           onPressed: onAdd,
           icon: const Icon(Icons.add, size: 18),
           label: Text(button),
@@ -553,9 +554,9 @@ class _RestaurantSetupScreenState extends State<RestaurantSetupScreen> {
         padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
         decoration: BoxDecoration(border: Border.all(color: TColors.slate200, width: 2), borderRadius: BorderRadius.circular(12)),
         child: Column(children: [
-          Icon(icon, size: 40, color: const Color(0xFFD1D5DB)),
+          Icon(icon, size: 40, color: const Tone.fg(0xFFD1D5DB)),
           const SizedBox(height: 10),
-          Text(title, style: const TextStyle(fontWeight: FontWeight.w500, color: Color(0xFF111827))),
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w500, color: Tone.fg(0xFF111827))),
           const SizedBox(height: 4),
           Text(body, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: TColors.slate500)),
           const SizedBox(height: 14),
@@ -571,7 +572,7 @@ class _RestaurantSetupScreenState extends State<RestaurantSetupScreen> {
 
   Widget _schedulesTab() => TCard(
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          _cardHead(Icons.schedule, const Color(0xFFDBEAFE), const Color(0xFF2563EB), 'Menu Schedules',
+          _cardHead(Icons.schedule, const Tone(0xFFDBEAFE), const Tone(0xFF2563EB), 'Menu Schedules',
               'Define when different menus are available (breakfast, lunch, dinner, happy hour)', 'Add Schedule', () => _openSchedule()),
           if (_schedules.isEmpty)
             _empty(Icons.schedule, 'No menu schedules yet', 'Create schedules like Breakfast (6am-11am), Lunch (11am-3pm), Dinner (5pm-10pm)',
@@ -585,14 +586,14 @@ class _RestaurantSetupScreenState extends State<RestaurantSetupScreen> {
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
                   child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    _tile(Icons.schedule, active ? const Color(0xFFDCFCE7) : const Color(0xFFF3F4F6), active ? const Color(0xFF16A34A) : const Color(0xFF9CA3AF)),
+                    _tile(Icons.schedule, active ? const Tone(0xFFDCFCE7) : const Tone(0xFFF3F4F6), active ? const Tone(0xFF16A34A) : const Tone(0xFF9CA3AF)),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Wrap(spacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                          Text(tStr(s['name']), style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF111827))),
+                          Text(tStr(s['name']), style: const TextStyle(fontWeight: FontWeight.w600, color: Tone.fg(0xFF111827))),
                           active
-                              ? _badge('Active', bg: const Color(0xFFDCFCE7), fg: const Color(0xFF15803D))
+                              ? _badge('Active', bg: const Tone.bg(0xFFDCFCE7), fg: const Tone.fg(0xFF15803D))
                               : _badge('Inactive', bg: TColors.slate100, fg: TColors.slate600),
                         ]),
                         const SizedBox(height: 2),
@@ -606,17 +607,17 @@ class _RestaurantSetupScreenState extends State<RestaurantSetupScreen> {
                                 height: 20,
                                 alignment: Alignment.center,
                                 decoration: BoxDecoration(
-                                    color: days.contains(d) ? const Color(0xFFFFE4E6) : const Color(0xFFF3F4F6), borderRadius: BorderRadius.circular(4)),
+                                    color: days.contains(d) ? const Tone.bg(0xFFFFE4E6) : const Tone.bg(0xFFF3F4F6), borderRadius: BorderRadius.circular(4)),
                                 child: Text(d,
                                     style: TextStyle(
-                                        fontSize: 10, fontWeight: FontWeight.w500, color: days.contains(d) ? const Color(0xFFBE123C) : const Color(0xFF9CA3AF))),
+                                        fontSize: 10, fontWeight: FontWeight.w500, color: days.contains(d) ? const Tone.fg(0xFFBE123C) : const Tone.fg(0xFF9CA3AF))),
                               ),
                           ]),
                         ],
                       ]),
                     ),
                     IconButton(tooltip: 'Edit', icon: const Icon(Icons.edit_outlined, size: 16), onPressed: () => _openSchedule(s)),
-                    IconButton(tooltip: 'Delete', icon: const Icon(Icons.delete_outline, size: 16, color: Color(0xFFEF4444)), onPressed: () => _deleteSchedule(s)),
+                    IconButton(tooltip: 'Delete', icon: const Icon(Icons.delete_outline, size: 16, color: Tone.fg(0xFFEF4444)), onPressed: () => _deleteSchedule(s)),
                   ]),
                 );
               }),
@@ -627,7 +628,7 @@ class _RestaurantSetupScreenState extends State<RestaurantSetupScreen> {
 
   Widget _modifiersTab() => TCard(
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          _cardHead(Icons.restaurant, const Color(0xFFF3E8FF), const Color(0xFF9333EA), 'Modifier Groups',
+          _cardHead(Icons.restaurant, const Tone(0xFFF3E8FF), const Tone(0xFF9333EA), 'Modifier Groups',
               'Create groups of options customers can choose when ordering (sizes, toppings, sauces)', 'Add Group', () => _openGroup()),
           if (_groups.isEmpty)
             _empty(Icons.restaurant, 'No modifier groups yet',
@@ -649,19 +650,19 @@ class _RestaurantSetupScreenState extends State<RestaurantSetupScreen> {
       decoration: BoxDecoration(border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Container(
-          color: const Color(0xCCF9FAFB),
+          color: const Tone.bg(0xCCF9FAFB),
           padding: const EdgeInsets.fromLTRB(14, 10, 4, 10),
           child: Row(children: [
-            _tile(Icons.restaurant, active ? const Color(0xFFF3E8FF) : const Color(0xFFE5E7EB), active ? const Color(0xFF9333EA) : const Color(0xFF9CA3AF),
+            _tile(Icons.restaurant, active ? const Tone(0xFFF3E8FF) : const Tone(0xFFE5E7EB), active ? const Tone(0xFF9333EA) : const Tone(0xFF9CA3AF),
                 size: 32),
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                  Text(tStr(g['name']), style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF111827))),
+                  Text(tStr(g['name']), style: const TextStyle(fontWeight: FontWeight.w600, color: Tone.fg(0xFF111827))),
                   required
-                      ? _badge('Required', bg: const Color(0xFFFFE4E6), fg: const Color(0xFFBE123C))
-                      : _badge('Optional', bg: Colors.white, fg: TColors.slate700, border: TColors.slate200),
+                      ? _badge('Required', bg: const Tone.bg(0xFFFFE4E6), fg: const Tone.fg(0xFFBE123C))
+                      : _badge('Optional', bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate700, border: TColors.slate200),
                   if (!active) _badge('Inactive', bg: TColors.slate100, fg: TColors.slate600),
                 ]),
                 const SizedBox(height: 2),
@@ -670,7 +671,7 @@ class _RestaurantSetupScreenState extends State<RestaurantSetupScreen> {
               ]),
             ),
             IconButton(tooltip: 'Edit', icon: const Icon(Icons.edit_outlined, size: 16), onPressed: () => _openGroup(g)),
-            IconButton(tooltip: 'Delete', icon: const Icon(Icons.delete_outline, size: 16, color: Color(0xFFEF4444)), onPressed: () => _deleteGroup(g)),
+            IconButton(tooltip: 'Delete', icon: const Icon(Icons.delete_outline, size: 16, color: Tone.fg(0xFFEF4444)), onPressed: () => _deleteGroup(g)),
           ]),
         ),
         for (final m in mods) ...[
@@ -681,22 +682,22 @@ class _RestaurantSetupScreenState extends State<RestaurantSetupScreen> {
               Container(
                 width: 8,
                 height: 8,
-                decoration: BoxDecoration(color: m['isAvailable'] != false ? const Color(0xFF22C55E) : const Color(0xFFD1D5DB), shape: BoxShape.circle),
+                decoration: BoxDecoration(color: m['isAvailable'] != false ? const Tone.bg(0xFF22C55E) : const Tone.bg(0xFFD1D5DB), shape: BoxShape.circle),
               ),
               const SizedBox(width: 12),
-              Flexible(child: Text(tStr(m['name']), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF374151)))),
+              Flexible(child: Text(tStr(m['name']), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Tone.fg(0xFF374151)))),
               if (m['isDefault'] == true) ...[
                 const SizedBox(width: 6),
-                _badge('Default', bg: const Color(0xFFEFF6FF), fg: const Color(0xFF2563EB), border: const Color(0xFFBFDBFE)),
+                _badge('Default', bg: const Tone.bg(0xFFEFF6FF), fg: const Tone.fg(0xFF2563EB), border: const Tone.line(0xFFBFDBFE)),
               ],
               const Spacer(),
               if (tNum(m['priceAdjustment']) > 0)
                 Text('+${tNum(m['priceAdjustment']).toStringAsFixed(2)}',
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF16A34A))),
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Tone.fg(0xFF16A34A))),
               if (tNum(m['priceAdjustment']) < 0)
-                Text(tNum(m['priceAdjustment']).toStringAsFixed(2), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFFDC2626))),
+                Text(tNum(m['priceAdjustment']).toStringAsFixed(2), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Tone.fg(0xFFDC2626))),
               IconButton(tooltip: 'Edit', icon: const Icon(Icons.edit_outlined, size: 14), onPressed: () => _openModifier(m: m)),
-              IconButton(tooltip: 'Delete', icon: const Icon(Icons.delete_outline, size: 14, color: Color(0xFFEF4444)), onPressed: () => _deleteModifier(m)),
+              IconButton(tooltip: 'Delete', icon: const Icon(Icons.delete_outline, size: 14, color: Tone.fg(0xFFEF4444)), onPressed: () => _deleteModifier(m)),
             ]),
           ),
         ],
@@ -723,7 +724,7 @@ class _RestaurantSetupScreenState extends State<RestaurantSetupScreen> {
 // A Wrap, so the two buttons stack rather than overflow on a narrow phone.
 Widget _actions(BuildContext context, String confirm, VoidCallback onSave) => Wrap(alignment: WrapAlignment.end, spacing: 8, runSpacing: 8, children: [
       OutlinedButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-      FilledButton(style: FilledButton.styleFrom(backgroundColor: restaurantRose), onPressed: onSave, child: Text(confirm)),
+      FilledButton(style: FilledButton.styleFrom(backgroundColor: Tone.button(restaurantRose)), onPressed: onSave, child: Text(confirm)),
     ]);
 
 /// Add Menu Schedule.
@@ -805,8 +806,8 @@ class _ScheduleDialogState extends State<_ScheduleDialog> {
                     width: 40,
                     height: 36,
                     alignment: Alignment.center,
-                    decoration: BoxDecoration(color: _days.contains(d) ? const Color(0xFFF43F5E) : const Color(0xFFF3F4F6), borderRadius: BorderRadius.circular(8)),
-                    child: Text(d, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: _days.contains(d) ? Colors.white : const Color(0xFF6B7280))),
+                    decoration: BoxDecoration(color: _days.contains(d) ? const Tone.bg(0xFFF43F5E) : const Tone.bg(0xFFF3F4F6), borderRadius: BorderRadius.circular(8)),
+                    child: Text(d, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: _days.contains(d) ? Colors.white : const Tone.fg(0xFF6B7280))),
                   ),
                 ),
             ]),
@@ -891,11 +892,11 @@ class _GroupDialogState extends State<_GroupDialog> {
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: const Color(0xFFF9FAFB), borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(color: const Tone.bg(0xFFF9FAFB), borderRadius: BorderRadius.circular(8)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 Row(children: [
                   const Expanded(child: Text('Customer must select', style: TextStyle(fontSize: 14))),
-                  Switch(value: _required, activeThumbColor: Colors.white, activeTrackColor: const Color(0xFFF43F5E), onChanged: (v) => setState(() => _required = v)),
+                  Switch(value: _required, activeThumbColor: Colors.white, activeTrackColor: const Tone.bg(0xFFF43F5E), onChanged: (v) => setState(() => _required = v)),
                 ]),
                 const SizedBox(height: 8),
                 const Text('Min selections', style: TextStyle(fontSize: 12, color: TColors.slate500)),

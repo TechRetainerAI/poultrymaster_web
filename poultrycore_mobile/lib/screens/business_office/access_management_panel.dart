@@ -8,6 +8,7 @@ import '../../pages/poultry/trackers/tracker_widgets.dart' show FilterLabel;
 import '../../pages/shared/reason_select.dart';
 import '../../state/session.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Business Office → Administration → Access (`components/business-office/iam-panel.tsx`
 /// with `iam/roles-view.tsx`, `matrix-view.tsx`, `people-view.tsx`,
 /// `security-view.tsx`), on the Farm API `/api/Iam/*` endpoints that
@@ -22,43 +23,42 @@ class AccessManagementPanel extends StatefulWidget {
   State<AccessManagementPanel> createState() => _AccessManagementPanelState();
 }
 
-const _slate50 = Color(0xFFF8FAFC);
-const _slate100 = Color(0xFFF1F5F9);
-const _slate200 = Color(0xFFE2E8F0);
-const _slate300 = Color(0xFFCBD5E1);
-const _slate400 = Color(0xFF94A3B8);
-const _slate500 = Color(0xFF64748B);
-const _slate600 = Color(0xFF475569);
-const _slate700 = Color(0xFF334155);
-const _slate800 = Color(0xFF1E293B);
-const _slate900 = Color(0xFF0F172A);
-const _indigo50 = Color(0xFFEEF2FF);
-const _indigo100 = Color(0xFFE0E7FF);
-const _indigo300 = Color(0xFFA5B4FC);
-const _indigo600 = Color(0xFF4F46E5);
-const _indigo700 = Color(0xFF4338CA);
-const _amber50 = Color(0xFFFFFBEB);
-const _amber100 = Color(0xFFFEF3C7);
-const _amber200 = Color(0xFFFDE68A);
-const _amber400 = Color(0xFFFBBF24);
-const _amber500 = Color(0xFFF59E0B);
-const _amber600 = Color(0xFFD97706);
-const _amber700 = Color(0xFFB45309);
-const _amber800 = Color(0xFF92400E);
-const _amber900 = Color(0xFF78350F);
-const _sky50 = Color(0xFFF0F9FF);
-const _sky200 = Color(0xFFBAE6FD);
-const _sky900 = Color(0xFF0C4A6E);
-const _red50 = Color(0xFFFEF2F2);
-const _red100 = Color(0xFFFEE2E2);
-const _red200 = Color(0xFFFECACA);
-const _red600 = Color(0xFFDC2626);
-const _red700 = Color(0xFFB91C1C);
-const _emerald50 = Color(0xFFECFDF5);
-const _emerald100 = Color(0xFFD1FAE5);
-const _emerald200 = Color(0xFFA7F3D0);
-const _emerald600 = Color(0xFF059669);
-const _emerald700 = Color(0xFF047857);
+const _slate50 = Tone.bg(0xFFF8FAFC);
+const _slate100 = Tone(0xFFF1F5F9);
+const _slate200 = Tone.line(0xFFE2E8F0);
+const _slate300 = Tone.fg(0xFFCBD5E1);
+const _slate400 = Tone.fg(0xFF94A3B8);
+const _slate500 = Tone.fg(0xFF64748B);
+const _slate600 = Tone.fg(0xFF475569);
+const _slate700 = Tone.fg(0xFF334155);
+const _slate800 = Tone.fg(0xFF1E293B);
+const _indigo50 = Tone.bg(0xFFEEF2FF);
+const _indigo100 = Tone.bg(0xFFE0E7FF);
+const _indigo300 = Tone.line(0xFFA5B4FC);
+const _indigo600 = Tone.fg(0xFF4F46E5);
+const _indigo700 = Tone.fg(0xFF4338CA);
+const _amber50 = Tone(0xFFFFFBEB);
+const _amber100 = Tone.bg(0xFFFEF3C7);
+const _amber200 = Tone.line(0xFFFDE68A);
+const _amber400 = Tone.fg(0xFFFBBF24);
+const _amber500 = Tone.fg(0xFFF59E0B);
+const _amber600 = Tone(0xFFD97706);
+const _amber700 = Tone.fg(0xFFB45309);
+const _amber800 = Tone.fg(0xFF92400E);
+const _amber900 = Tone(0xFF78350F);
+const _sky50 = Tone(0xFFF0F9FF);
+const _sky200 = Tone(0xFFBAE6FD);
+const _sky900 = Tone(0xFF0C4A6E);
+const _red50 = Tone(0xFFFEF2F2);
+const _red100 = Tone.bg(0xFFFEE2E2);
+const _red200 = Tone.line(0xFFFECACA);
+const _red600 = Tone.fg(0xFFDC2626);
+const _red700 = Tone(0xFFB91C1C);
+const _emerald50 = Tone(0xFFECFDF5);
+const _emerald100 = Tone.bg(0xFFD1FAE5);
+const _emerald200 = Tone(0xFFA7F3D0);
+const _emerald600 = Tone.fg(0xFF059669);
+const _emerald700 = Tone.fg(0xFF047857);
 
 // ---------------------------------------------------------------- shared.ts
 
@@ -158,14 +158,14 @@ Future<({String? error, Object? body})> _write(Future<dynamic> Function() run) a
 
 void _toast(BuildContext context, String title, {String? description, bool error = false}) =>
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      backgroundColor: error ? _red700 : null,
+      backgroundColor: error ? Tone.bg(0xFFB91C1C) : null,
       content: Text(description == null || description.isEmpty ? title : '$title. $description'),
     ));
 
 Widget _card({required Widget child, EdgeInsets padding = const EdgeInsets.all(16), Color? border, Color? color}) => Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: color ?? Colors.white,
+        color: color ?? Tone.bg(0xFFFFFFFF),
         border: Border.all(color: border ?? _slate200),
         borderRadius: BorderRadius.circular(14),
         boxShadow: const [BoxShadow(color: Color(0x08000000), blurRadius: 6, offset: Offset(0, 2))],
@@ -188,7 +188,7 @@ Widget _banner(Color bg, Color border, Color fg, Widget child) => Container(
       child: DefaultTextStyle.merge(style: TextStyle(fontSize: 13, color: fg, height: 1.35), child: child),
     );
 
-Widget _pill(String text, {Color bg = _slate100, Color fg = _slate700, Color? border}) => Container(
+Widget _pill(String text, {Color bg = const Tone.bg(0xFFF1F5F9), Color fg = _slate700, Color? border}) => Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
         color: bg,
@@ -210,7 +210,7 @@ Widget _emptyState(IconData icon, String title, String body, {Color iconColor = 
     );
 
 ButtonStyle _outline({Color fg = _slate700, Color border = _slate200}) => OutlinedButton.styleFrom(
-      backgroundColor: Colors.white,
+      backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)),
       foregroundColor: fg,
       side: BorderSide(color: border),
       padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -224,11 +224,11 @@ Widget _spinner([Color color = Colors.white]) =>
 /// A segmented tab strip that wraps on a phone, as the web's TabsList does.
 Widget _tabStrip(List<(String, IconData, String, Widget?)> tabs, String current, ValueChanged<String> onTap) => Container(
       padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(color: _slate100, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFF1F5F9), borderRadius: BorderRadius.circular(12)),
       child: Wrap(spacing: 4, runSpacing: 4, children: [
         for (final (key, icon, label, badge) in tabs)
           Material(
-            color: current == key ? Colors.white : Colors.transparent,
+            color: current == key ? Tone.bg(0xFFFFFFFF) : Colors.transparent,
             elevation: current == key ? 1 : 0,
             borderRadius: BorderRadius.circular(9),
             child: InkWell(
@@ -237,10 +237,10 @@ Widget _tabStrip(List<(String, IconData, String, Widget?)> tabs, String current,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(icon, size: 16, color: current == key ? _slate900 : _slate500),
+                  Icon(icon, size: 16, color: current == key ? Tone.fg(0xFF0F172A) : _slate500),
                   const SizedBox(width: 6),
                   Text(label,
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: current == key ? _slate900 : _slate500)),
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: current == key ? Tone.fg(0xFF0F172A) : _slate500)),
                   if (badge != null) ...[const SizedBox(width: 6), badge],
                 ]),
               ),
@@ -548,7 +548,7 @@ class _RolesView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       FilledButton.icon(
-        style: FilledButton.styleFrom(backgroundColor: _slate900, minimumSize: const Size.fromHeight(46)),
+        style: FilledButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFF0F172A)), minimumSize: const Size.fromHeight(46)),
         onPressed: canCreate ? () => _openEditor(context) : null,
         icon: const Icon(Icons.add, size: 18),
         label: const Text('New role'),
@@ -566,7 +566,7 @@ class _RolesView extends StatelessWidget {
     final type = _s(r['companyType']);
     final desc = _s(r['description']);
     return Material(
-      color: selected ? _indigo50 : Colors.white,
+      color: selected ? _indigo50 : Tone.bg(0xFFFFFFFF),
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
@@ -583,7 +583,7 @@ class _RolesView extends StatelessWidget {
               Expanded(
                 child: Text(_s(r['name']),
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _slate900)),
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Tone.fg(0xFF0F172A))),
               ),
               const SizedBox(width: 8),
               isSystem ? _pill('Built-in') : _pill('Custom', bg: _indigo100, fg: _indigo700),
@@ -600,7 +600,7 @@ class _RolesView extends StatelessWidget {
                 const SizedBox(width: 3),
                 Text('${_int(r['assignedUserCount'])}', style: const TextStyle(fontSize: 12.5, color: _slate500)),
               ]),
-              if (type.isNotEmpty) _pill('$type only', bg: Colors.white, border: _slate200),
+              if (type.isNotEmpty) _pill('$type only', bg: Tone.bg(0xFFFFFFFF), border: _slate200),
             ]),
             const SizedBox(height: 10),
             Row(children: [
@@ -614,7 +614,7 @@ class _RolesView extends StatelessWidget {
                 const SizedBox(width: 6),
                 IconButton.outlined(
                   tooltip: 'Rename role',
-                  style: IconButton.styleFrom(backgroundColor: Colors.white, side: const BorderSide(color: _slate200)),
+                  style: IconButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)), side: const BorderSide(color: _slate200)),
                   onPressed: canEdit ? () => _openEditor(context, edit: r) : null,
                   icon: const Icon(Icons.edit_outlined, size: 17),
                 ),
@@ -622,7 +622,7 @@ class _RolesView extends StatelessWidget {
                 IconButton.outlined(
                   tooltip: 'Delete role',
                   style: IconButton.styleFrom(
-                      backgroundColor: Colors.white, foregroundColor: _red600, side: const BorderSide(color: _red200)),
+                      backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)), foregroundColor: _red600, side: const BorderSide(color: _red200)),
                   onPressed: canDelete ? () => _delete(context, r) : null,
                   icon: const Icon(Icons.delete_outline, size: 17),
                 ),
@@ -889,7 +889,7 @@ class _MatrixViewState extends State<_MatrixView> {
           const SizedBox(width: 8),
           Expanded(
             child: FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: _slate900, minimumSize: const Size(0, 36)),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFF0F172A)), minimumSize: const Size(0, 36)),
               onPressed: _saving ? null : _save,
               icon: _saving ? _spinner() : const Icon(Icons.save_outlined, size: 16),
               label: Text(_saving ? 'Saving…' : 'Save changes'),
@@ -937,7 +937,7 @@ class _MatrixViewState extends State<_MatrixView> {
             padding: EdgeInsets.zero,
             child: Column(children: [
               for (final (i, row) in rows.indexed) ...[
-                if (i > 0) const Divider(height: 1, color: _slate100),
+                if (i > 0) const Divider(height: 1, color: Tone.line(0xFFF1F5F9)),
                 _matrixRow(row),
               ],
             ]),
@@ -977,7 +977,7 @@ class _MatrixViewState extends State<_MatrixView> {
           ],
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(row.label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _slate900)),
+              Text(row.label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Tone.fg(0xFF0F172A))),
               if (row.description.isNotEmpty) Text(row.description, style: const TextStyle(fontSize: 12, color: _slate500)),
             ]),
           ),
@@ -1007,7 +1007,7 @@ class _MatrixViewState extends State<_MatrixView> {
     final child = Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
       decoration: BoxDecoration(
-        color: on ? (danger ? _amber100 : _emerald100) : Colors.white,
+        color: on ? (danger ? _amber100 : _emerald100) : Tone.bg(0xFFFFFFFF),
         border: Border.all(color: on ? onColor : _slate200),
         borderRadius: BorderRadius.circular(8),
       ),
@@ -1145,14 +1145,14 @@ class _PeopleViewState extends State<_PeopleView> {
                   shrinkWrap: true,
                   padding: EdgeInsets.zero,
                   itemCount: filtered.length,
-                  separatorBuilder: (_, _) => const Divider(height: 1, color: _slate100),
+                  separatorBuilder: (_, _) => const Divider(height: 1, color: Tone.line(0xFFF1F5F9)),
                   itemBuilder: (_, i) {
                     final e = filtered[i];
                     final id = _s(e['id']);
                     final on = id == _selectedId;
                     final sub = _s(e['email']).isNotEmpty ? _s(e['email']) : _s(e['userName']);
                     return Material(
-                      color: on ? _indigo50 : Colors.white,
+                      color: on ? _indigo50 : Tone.bg(0xFFFFFFFF),
                       child: InkWell(
                         onTap: () {
                           setState(() => _selectedId = id);
@@ -1163,7 +1163,7 @@ class _PeopleViewState extends State<_PeopleView> {
                           child: Row(children: [
                             CircleAvatar(
                               radius: 16,
-                              backgroundColor: on ? _indigo100 : _slate100,
+                              backgroundColor: on ? _indigo100 : Tone.bg(0xFFF1F5F9),
                               child: Text(_personName(e).characters.first.toUpperCase(),
                                   style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: on ? _indigo600 : _slate600)),
                             ),
@@ -1172,7 +1172,7 @@ class _PeopleViewState extends State<_PeopleView> {
                               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                 Text(_personName(e),
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _slate900)),
+                                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Tone.fg(0xFF0F172A))),
                                 if (sub.isNotEmpty)
                                   Text(sub, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: _slate500)),
                               ]),
@@ -1209,7 +1209,7 @@ class _PeopleViewState extends State<_PeopleView> {
         spacing: 8,
         runSpacing: 6,
         children: [
-          Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _slate900)),
+          Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Tone.fg(0xFF0F172A))),
           ?action,
         ],
       );
@@ -1239,7 +1239,7 @@ class _PeopleViewState extends State<_PeopleView> {
       _card(
         padding: const EdgeInsets.all(14),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(_personName(selected), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _slate900)),
+          Text(_personName(selected), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Tone.fg(0xFF0F172A))),
           Text(_s(selected['email']).isNotEmpty ? _s(selected['email']) : _s(selected['userName']),
               style: const TextStyle(fontSize: 12.5, color: _slate500)),
         ]),
@@ -1276,7 +1276,7 @@ class _PeopleViewState extends State<_PeopleView> {
                   Expanded(
                     child: Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
                       Text(_s(r['name']), style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: _slate800)),
-                      if (r['isOrgWide'] == true) _pill('All companies', bg: Colors.white, border: _slate200),
+                      if (r['isOrgWide'] == true) _pill('All companies', bg: Tone.bg(0xFFFFFFFF), border: _slate200),
                       if (_s(r['expiresAt']).isNotEmpty) _pill('Until ${_formatDate(r['expiresAt'])}'),
                     ]),
                   ),
@@ -1386,7 +1386,7 @@ class _PeopleViewState extends State<_PeopleView> {
             padding: const EdgeInsets.all(14),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Text(_moduleLabel[m.key] ?? m.key,
-                  style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: _slate900)),
+                  style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: Tone.fg(0xFF0F172A))),
               for (final g in m.value.entries) ...[
                 const SizedBox(height: 10),
                 Text(g.key.toUpperCase(),
@@ -1399,7 +1399,7 @@ class _PeopleViewState extends State<_PeopleView> {
                       triggerMode: TooltipTriggerMode.tap,
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(color: _slate100, borderRadius: BorderRadius.circular(6)),
+                        decoration: BoxDecoration(color: Tone.bg(0xFFF1F5F9), borderRadius: BorderRadius.circular(6)),
                         child: Text('$label: ${_actionText(action)}', style: const TextStyle(fontSize: 11.5, color: _slate700)),
                       ),
                     ),
@@ -1433,7 +1433,7 @@ class _PeopleViewState extends State<_PeopleView> {
               if (_s(o['reason']).isNotEmpty) Text(_s(o['reason']), style: const TextStyle(fontSize: 12, color: _slate600)),
               const SizedBox(height: 4),
               Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                if (o['isOrgWide'] == true) _pill('All companies', bg: Colors.white, border: _slate200),
+                if (o['isOrgWide'] == true) _pill('All companies', bg: Tone.bg(0xFFFFFFFF), border: _slate200),
                 if (_s(o['expiresAt']).isNotEmpty) _pill('${expired ? 'Expired' : 'Until'} ${_formatDate(o['expiresAt'])}'),
                 if (expired)
                   const Row(mainAxisSize: MainAxisSize.min, children: [
@@ -1635,9 +1635,9 @@ class _OverrideDialogState extends State<_OverrideDialog> {
                   : SingleChildScrollView(
                       child: Column(children: [
                         for (final (i, p) in options.indexed) ...[
-                          if (i > 0) const Divider(height: 1, color: _slate100),
+                          if (i > 0) const Divider(height: 1, color: Tone.line(0xFFF1F5F9)),
                           Material(
-                            color: _key == _s(p['permissionKey']) ? _indigo50 : Colors.white,
+                            color: _key == _s(p['permissionKey']) ? _indigo50 : Tone.bg(0xFFFFFFFF),
                             child: InkWell(
                               onTap: () => setState(() => _key = _s(p['permissionKey'])),
                               child: Padding(
@@ -1865,10 +1865,10 @@ class _SecurityViewState extends State<_SecurityView> {
     const never = Text('Never', style: TextStyle(fontSize: 12.5, color: _slate400));
     return _card(
       padding: const EdgeInsets.all(14),
-      color: dormant || stale ? const Color(0x66FFFBEB) : null,
+      color: dormant || stale ? const Tone.bg(0x66FFFBEB) : null,
       border: dormant || stale ? _amber200 : null,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Text(_personName(r), style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: _slate900)),
+        Text(_personName(r), style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: Tone.fg(0xFF0F172A))),
         Text(_s(r['email']).isNotEmpty ? _s(r['email']) : _s(r['userName']), style: const TextStyle(fontSize: 12, color: _slate500)),
         const SizedBox(height: 6),
         Text.rich(
@@ -1959,7 +1959,7 @@ class _SecurityViewState extends State<_SecurityView> {
           _card(
             padding: const EdgeInsets.all(14),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              const Text('Passwords', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _slate900)),
+              const Text('Passwords', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Tone.fg(0xFF0F172A))),
               const SizedBox(height: 12),
               FormPair(_numberField('passwordMinLength', 'Minimum length'),
                   _numberField('passwordExpiryDays', 'Expires after (days)', help: '0 means never.')),
@@ -1973,7 +1973,7 @@ class _SecurityViewState extends State<_SecurityView> {
           _card(
             padding: const EdgeInsets.all(14),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              const Text('Sessions and review', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _slate900)),
+              const Text('Sessions and review', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Tone.fg(0xFF0F172A))),
               const SizedBox(height: 12),
               _numberField('sessionIdleMinutes', 'Sign out after inactivity (minutes)', help: '0 means no idle timeout.'),
               const SizedBox(height: 12),
@@ -2000,7 +2000,7 @@ class _SecurityViewState extends State<_SecurityView> {
               const SizedBox(width: 8),
               Expanded(
                 child: FilledButton.icon(
-                  style: FilledButton.styleFrom(backgroundColor: _slate900, minimumSize: const Size(0, 40)),
+                  style: FilledButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFF0F172A)), minimumSize: const Size(0, 40)),
                   onPressed: !widget.canEdit || _savingPolicy ? null : _savePolicy,
                   icon: _savingPolicy ? _spinner() : const Icon(Icons.save_outlined, size: 16),
                   label: Text(_savingPolicy ? 'Saving…' : 'Save policy'),
@@ -2035,12 +2035,12 @@ class _SecurityViewState extends State<_SecurityView> {
             padding: EdgeInsets.zero,
             child: Column(children: [
               for (final (i, a) in _audit.indexed) ...[
-                if (i > 0) const Divider(height: 1, color: _slate100),
+                if (i > 0) const Divider(height: 1, color: Tone.line(0xFFF1F5F9)),
                 Padding(
                   padding: const EdgeInsets.all(12),
                   child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     switch (_s(a['operation'])) {
-                      'Delete' => _pill('Delete', bg: _red100, fg: _red700),
+                      'Delete' => _pill('Delete', bg: _red100, fg: Tone.fg(0xFFB91C1C)),
                       'Insert' => _pill('Insert', bg: _emerald100, fg: _emerald700),
                       final op => _pill(op),
                     },

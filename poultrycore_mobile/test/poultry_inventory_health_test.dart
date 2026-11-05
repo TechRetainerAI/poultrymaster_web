@@ -201,8 +201,8 @@ void main() {
     final addStock = poultryRecordExtras['poultry-products']!.firstWhere((x) => x.label == 'Add stock');
     expect(addStock.when!(Map<String, dynamic>.from(birds)), isFalse);
     expect(addStock.when!(Map<String, dynamic>.from(eggs)), isTrue);
-    expect(moveTone('Bird Adjustment').$2, const Color(0xFF6D28D9));
-    expect(moveTone('Something new').$1, isNot(const Color(0xFFF3F4F6)), reason: 'dark on grey, readable');
+    expect(moveTone('Bird Adjustment').$2.toARGB32(), 0xFF6D28D9);
+    expect(moveTone('Something new').$1.toARGB32(), isNot(0xFFF3F4F6), reason: 'dark on grey, readable');
   });
 
   testWidgets('stock movements: Birds need the batch and the flock; the count before and after', (tester) async {

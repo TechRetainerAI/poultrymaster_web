@@ -17,13 +17,14 @@ import 'restaurant_money_kit.dart' show rField, rNumberInput, rDialog, rConfirm,
 import 'restaurant_roles.dart' show restaurantRose;
 import 'restaurant_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// STATUS_CONFIG: text, background, border, label.
 const tableStatusConfig = <String, (Color, Color, Color, String)>{
-  'Available': (Color(0xFF15803D), Color(0xFFF0FDF4), Color(0xFF86EFAC), 'Available'),
-  'Occupied': (Color(0xFFB91C1C), Color(0xFFFEF2F2), Color(0xFFFCA5A5), 'Occupied'),
-  'Reserved': (Color(0xFF1D4ED8), Color(0xFFEFF6FF), Color(0xFF93C5FD), 'Reserved'),
-  'NeedsCleaning': (Color(0xFFB45309), Color(0xFFFFFBEB), Color(0xFFFCD34D), 'Needs Cleaning'),
-  'OutOfService': (Color(0xFF374151), Color(0xFFF3F4F6), Color(0xFFD1D5DB), 'Out of Service'),
+  'Available': (Tone(0xFF15803D), Tone(0xFFF0FDF4), Tone(0xFF86EFAC), 'Available'),
+  'Occupied': (Tone(0xFFB91C1C), Tone(0xFFFEF2F2), Tone(0xFFFCA5A5), 'Occupied'),
+  'Reserved': (Tone(0xFF1D4ED8), Tone(0xFFEFF6FF), Tone(0xFF93C5FD), 'Reserved'),
+  'NeedsCleaning': (Tone(0xFFB45309), Tone(0xFFFFFBEB), Tone(0xFFFCD34D), 'Needs Cleaning'),
+  'OutOfService': (Tone(0xFF374151), Tone(0xFFF3F4F6), Tone(0xFFD1D5DB), 'Out of Service'),
 };
 const tableShapes = ['Square', 'Round', 'Booth', 'Bar', 'Long'];
 
@@ -185,7 +186,7 @@ class _RestaurantFloorPlanScreenState extends State<RestaurantFloorPlanScreen> {
                       Row(mainAxisAlignment: MainAxisAlignment.end, children: [
                         IconButton(tooltip: 'Edit area', onPressed: () => _openFloor(f), icon: const Icon(Icons.edit_outlined, size: 16)),
                         IconButton(
-                            tooltip: 'Delete area', onPressed: () => _removeFloor(f), icon: const Icon(Icons.delete_outline, size: 16, color: Color(0xFFEF4444))),
+                            tooltip: 'Delete area', onPressed: () => _removeFloor(f), icon: const Icon(Icons.delete_outline, size: 16, color: Tone.fg(0xFFEF4444))),
                       ]),
                 ],
                 const SizedBox(height: 14),
@@ -229,10 +230,10 @@ class _RestaurantFloorPlanScreenState extends State<RestaurantFloorPlanScreen> {
             tooltip: 'Delete table',
             visualDensity: VisualDensity.compact,
             onPressed: () => _removeTable(t),
-            icon: const Icon(Icons.delete_outline, size: 14, color: Color(0xFFEF4444)),
+            icon: const Icon(Icons.delete_outline, size: 14, color: Tone.fg(0xFFEF4444)),
           ),
         ]),
-        Text(tStr(t['tableNumber']), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+        Text(tStr(t['tableNumber']), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: Tone.fg(0xFF111827))),
         if (tStr(t['tableName']).isNotEmpty)
           Text(tStr(t['tableName']), textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
         const SizedBox(height: 6),
@@ -242,14 +243,14 @@ class _RestaurantFloorPlanScreenState extends State<RestaurantFloorPlanScreen> {
           Text('${tNum(t['capacity']).toInt()}', style: const TextStyle(fontSize: 13, color: TColors.slate500)),
         ]),
         const SizedBox(height: 6),
-        rBadge(tStr(t['shape']), bg: Colors.white, border: TColors.slate200),
+        rBadge(tStr(t['shape']), bg: Tone.bg(0xFFFFFFFF), border: TColors.slate200),
         const SizedBox(height: 6),
         rBadge(label, bg: bg, fg: fg, border: border),
         const SizedBox(height: 6),
         Wrap(alignment: WrapAlignment.center, children: [
-          if (status != 'Available') quick('Free', const Color(0xFF15803D), () => _status(t, 'Available')),
-          if (status != 'Reserved' && status != 'Occupied') quick('Reserve', const Color(0xFF1D4ED8), () => _status(t, 'Reserved')),
-          if (status == 'NeedsCleaning') quick('Clean', const Color(0xFF15803D), () => _status(t, 'Available'), icon: Icons.check_circle_outline),
+          if (status != 'Available') quick('Free', const Tone(0xFF15803D), () => _status(t, 'Available')),
+          if (status != 'Reserved' && status != 'Occupied') quick('Reserve', const Tone(0xFF1D4ED8), () => _status(t, 'Reserved')),
+          if (status == 'NeedsCleaning') quick('Clean', const Tone(0xFF15803D), () => _status(t, 'Available'), icon: Icons.check_circle_outline),
         ]),
       ]),
     );

@@ -4,6 +4,7 @@
 
 import 'package:flutter/material.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 enum HelpKind { faq, fix, term }
 
 class HelpLink {
@@ -61,17 +62,17 @@ class HelpTone {
 }
 
 const _families = <String, HelpTone>{
-  'emerald': HelpTone(chipOn: Color(0xFF059669), rail: Color(0xFF34D399), badgeBg: Color(0xFFECFDF5), badgeBorder: Color(0xFFA7F3D0), badgeFg: Color(0xFF047857), tintBg: Color(0xFFD1FAE5), tintFg: Color(0xFF047857)),
-  'amber': HelpTone(chipOn: Color(0xFFD97706), rail: Color(0xFFFBBF24), badgeBg: Color(0xFFFFFBEB), badgeBorder: Color(0xFFFDE68A), badgeFg: Color(0xFFB45309), tintBg: Color(0xFFFEF3C7), tintFg: Color(0xFFB45309)),
-  'sky': HelpTone(chipOn: Color(0xFF0284C7), rail: Color(0xFF38BDF8), badgeBg: Color(0xFFF0F9FF), badgeBorder: Color(0xFFBAE6FD), badgeFg: Color(0xFF0369A1), tintBg: Color(0xFFE0F2FE), tintFg: Color(0xFF0369A1)),
-  'violet': HelpTone(chipOn: Color(0xFF7C3AED), rail: Color(0xFFA78BFA), badgeBg: Color(0xFFF5F3FF), badgeBorder: Color(0xFFDDD6FE), badgeFg: Color(0xFF6D28D9), tintBg: Color(0xFFEDE9FE), tintFg: Color(0xFF6D28D9)),
-  'rose': HelpTone(chipOn: Color(0xFFE11D48), rail: Color(0xFFFB7185), badgeBg: Color(0xFFFFF1F2), badgeBorder: Color(0xFFFECDD3), badgeFg: Color(0xFFBE123C), tintBg: Color(0xFFFFE4E6), tintFg: Color(0xFFBE123C)),
-  'indigo': HelpTone(chipOn: Color(0xFF4F46E5), rail: Color(0xFF818CF8), badgeBg: Color(0xFFEEF2FF), badgeBorder: Color(0xFFC7D2FE), badgeFg: Color(0xFF4338CA), tintBg: Color(0xFFE0E7FF), tintFg: Color(0xFF4338CA)),
-  'slate': HelpTone(chipOn: Color(0xFF334155), rail: Color(0xFF94A3B8), badgeBg: Color(0xFFF1F5F9), badgeBorder: Color(0xFFE2E8F0), badgeFg: Color(0xFF334155), tintBg: Color(0xFFE2E8F0), tintFg: Color(0xFF334155)),
+  'emerald': HelpTone(chipOn: Tone.bg(0xFF059669), rail: Tone(0xFF34D399), badgeBg: Tone.bg(0xFFECFDF5), badgeBorder: Tone.line(0xFFA7F3D0), badgeFg: Tone.fg(0xFF047857), tintBg: Tone.bg(0xFFD1FAE5), tintFg: Tone.fg(0xFF047857)),
+  'amber': HelpTone(chipOn: Tone.bg(0xFFD97706), rail: Tone(0xFFFBBF24), badgeBg: Tone.bg(0xFFFFFBEB), badgeBorder: Tone.line(0xFFFDE68A), badgeFg: Tone.fg(0xFFB45309), tintBg: Tone.bg(0xFFFEF3C7), tintFg: Tone.fg(0xFFB45309)),
+  'sky': HelpTone(chipOn: Tone.bg(0xFF0284C7), rail: Tone(0xFF38BDF8), badgeBg: Tone.bg(0xFFF0F9FF), badgeBorder: Tone.line(0xFFBAE6FD), badgeFg: Tone.fg(0xFF0369A1), tintBg: Tone.bg(0xFFE0F2FE), tintFg: Tone.fg(0xFF0369A1)),
+  'violet': HelpTone(chipOn: Tone.bg(0xFF7C3AED), rail: Tone(0xFFA78BFA), badgeBg: Tone.bg(0xFFF5F3FF), badgeBorder: Tone.line(0xFFDDD6FE), badgeFg: Tone.fg(0xFF6D28D9), tintBg: Tone.bg(0xFFEDE9FE), tintFg: Tone.fg(0xFF6D28D9)),
+  'rose': HelpTone(chipOn: Tone.bg(0xFFE11D48), rail: Tone(0xFFFB7185), badgeBg: Tone.bg(0xFFFFF1F2), badgeBorder: Tone.line(0xFFFECDD3), badgeFg: Tone.fg(0xFFBE123C), tintBg: Tone.bg(0xFFFFE4E6), tintFg: Tone.fg(0xFFBE123C)),
+  'indigo': HelpTone(chipOn: Tone.bg(0xFF4F46E5), rail: Tone(0xFF818CF8), badgeBg: Tone.bg(0xFFEEF2FF), badgeBorder: Tone.line(0xFFC7D2FE), badgeFg: Tone.fg(0xFF4338CA), tintBg: Tone.bg(0xFFE0E7FF), tintFg: Tone.fg(0xFF4338CA)),
+  'slate': HelpTone(chipOn: Tone.bg(0xFF334155), rail: Tone(0xFF94A3B8), badgeBg: Tone.bg(0xFFF1F5F9), badgeBorder: Tone.line(0xFFE2E8F0), badgeFg: Tone.fg(0xFF334155), tintBg: Tone.bg(0xFFE2E8F0), tintFg: Tone.fg(0xFF334155)),
 };
 
 /// The web's FALLBACK_TONE: indigo chip, slate rail and badge.
-const fallbackHelpTone = HelpTone(chipOn: Color(0xFF4F46E5), rail: Color(0xFFCBD5E1), badgeBg: Color(0xFFF8FAFC), badgeBorder: Color(0xFFE2E8F0), badgeFg: Color(0xFF475569), tintBg: Color(0xFFE2E8F0), tintFg: Color(0xFF334155));
+const fallbackHelpTone = HelpTone(chipOn: Tone.bg(0xFF4F46E5), rail: Tone(0xFFCBD5E1), badgeBg: Tone.bg(0xFFF8FAFC), badgeBorder: Tone.line(0xFFE2E8F0), badgeFg: Tone.fg(0xFF475569), tintBg: Tone.bg(0xFFE2E8F0), tintFg: Tone.fg(0xFF334155));
 
 const _categoryFamily = <String, String>{
   'Getting Started': 'emerald',

@@ -12,6 +12,7 @@ import '../poultry/trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../poultry/trackers/tracker_widgets.dart';
 import '../shared/business_dates.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Record driver return (the web's Record Return dialog on
 /// `app/water-driver-returns/page.tsx`): Step 1 bags per product, Step 2
 /// money collected and the driver's float, how the sale is posted (one
@@ -446,11 +447,11 @@ class _WaterDriverReturnScreenState extends State<WaterDriverReturnScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
-              if (sub != null) Text(sub, style: const TextStyle(fontSize: 12, color: Color(0xFFFFFBEB))),
+              if (sub != null) Text(sub, style: const TextStyle(fontSize: 12, color: Tone.fg(0xFFFFFBEB))),
             ]),
           ),
           Container(
-            color: Colors.white,
+            color: Tone.bg(0xFFFFFFFF),
             padding: const EdgeInsets.all(12),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               for (var i = 0; i < children.length; i++) ...[if (i > 0) const SizedBox(height: 10), children[i]],
@@ -514,7 +515,7 @@ class _WaterDriverReturnScreenState extends State<WaterDriverReturnScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: it.balanced ? Colors.white : TColors.amber50,
+        color: it.balanced ? Tone.bg(0xFFFFFFFF) : TColors.amber50,
         border: Border.all(color: it.balanced ? TColors.slate200 : TColors.amber300),
         borderRadius: BorderRadius.circular(8),
       ),
@@ -546,14 +547,14 @@ class _WaterDriverReturnScreenState extends State<WaterDriverReturnScreen> {
     final mismatch = (lineTotal - total).abs() > 0.01;
     return Container(
       padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
           Expanded(child: Text('Customer ${idx + 1}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
           IconButton(
             tooltip: 'Remove customer',
             onPressed: () => setState(() => _breakdown.remove(r)),
-            icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFEF4444)),
+            icon: const Icon(Icons.delete_outline, size: 18, color: Tone.fg(0xFFEF4444)),
           ),
         ]),
         FilterLabel(
@@ -611,7 +612,7 @@ class _WaterDriverReturnScreenState extends State<WaterDriverReturnScreen> {
                       IconButton(
                         tooltip: 'Remove item',
                         onPressed: () => setState(() => r.items.remove(it)),
-                        icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFEF4444)),
+                        icon: const Icon(Icons.delete_outline, size: 18, color: Tone.fg(0xFFEF4444)),
                       ),
                     ]),
                     Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -651,7 +652,7 @@ class _WaterDriverReturnScreenState extends State<WaterDriverReturnScreen> {
 
   Widget _expenseCard(WaterExpenseRow x) => Container(
         padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
             Expanded(
@@ -675,7 +676,7 @@ class _WaterDriverReturnScreenState extends State<WaterDriverReturnScreen> {
             const Expanded(child: Text('Approved', style: TextStyle(fontSize: 13, color: TColors.slate700))),
             OutlinedButton.icon(
               onPressed: () => setState(() => _expenses.remove(x)),
-              style: OutlinedButton.styleFrom(foregroundColor: TColors.red600, side: const BorderSide(color: Color(0xFFFECACA))),
+              style: OutlinedButton.styleFrom(foregroundColor: TColors.red600, side: const BorderSide(color: Tone.line(0xFFFECACA))),
               icon: const Icon(Icons.delete_outline, size: 16),
               label: const Text('Remove'),
             ),
@@ -690,7 +691,7 @@ class _WaterDriverReturnScreenState extends State<WaterDriverReturnScreen> {
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Icon(_postingMode == value ? Icons.radio_button_checked : Icons.radio_button_unchecked, size: 20, color: const Color(0xFF7C3AED)),
+              Icon(_postingMode == value ? Icons.radio_button_checked : Icons.radio_button_unchecked, size: 20, color: const Tone.fg(0xFF7C3AED)),
               const SizedBox(width: 8),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -765,7 +766,7 @@ class _WaterDriverReturnScreenState extends State<WaterDriverReturnScreen> {
             _band('Step 1 · Reconcile bags per product', TColors.amber600, [for (var i = 0; i < _items.length; i++) _itemCard(_items[i], i)],
                 sub: 'Sold + Returned + Damaged must equal Loaded'),
             const SizedBox(height: 12),
-            formSection('Step 2 · Money collected', const Color(0xFF16A34A), [
+            formSection('Step 2 · Money collected', const Tone.fg(0xFF16A34A), [
               _labelRow('Cash', _numF('cash', _cash, (v) => _cash = v, width: 120), hint: 'Physical cash the driver collected on the run.'),
               _labelRow('MoMo', _numF('momo', _momo, (v) => _momo = v, width: 120), hint: 'Mobile Money (MTN, Vodafone, AirtelTigo).'),
               _labelRow('Bank', _numF('bank', _bank, (v) => _bank = v, width: 120), hint: 'Bank transfers / cheque deposits received today.'),
@@ -786,10 +787,10 @@ class _WaterDriverReturnScreenState extends State<WaterDriverReturnScreen> {
               if (!m.floatBalanced)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  decoration: BoxDecoration(color: const Color(0xFFFFF1F2), border: Border.all(color: const Color(0xFFFECDD3)), borderRadius: BorderRadius.circular(6)),
+                  decoration: BoxDecoration(color: const Tone.bg(0xFFFFF1F2), border: Border.all(color: const Tone.line(0xFFFECDD3)), borderRadius: BorderRadius.circular(6)),
                   child: Text(
                     "Cash returned (${_gh(_cashReturned)}) doesn't match the expected float of ${_gh(m.expectedFloatBack)}${m.expensesTotal > 0 ? ' (opening ${_gh(m.openingFloat)} − approved expenses ${_gh(m.expensesTotal)})' : ' (opening cash ${_gh(m.openingFloat)})'}. You can still save as Draft, but Approve & Reconcile is blocked until it balances.",
-                    style: const TextStyle(fontSize: 12, color: Color(0xFF9F1239)),
+                    style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF9F1239)),
                   ),
                 ),
               const Divider(height: 1),
@@ -797,7 +798,7 @@ class _WaterDriverReturnScreenState extends State<WaterDriverReturnScreen> {
                   hint: "The driver's float coming back (opening cash, minus any approved cash expenses). Not a sale."),
             ]),
             const SizedBox(height: 12),
-            formSection('How should this delivery sale be posted?', const Color(0xFF9333EA), [
+            formSection('How should this delivery sale be posted?', const Tone.fg(0xFF9333EA), [
               _radio('OneCustomer', 'Post all sales to one customer', 'Posts the entire delivery sale to the customer below.',
                   extra: _postingMode == 'OneCustomer'
                       ? Padding(
@@ -847,8 +848,8 @@ class _WaterDriverReturnScreenState extends State<WaterDriverReturnScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                       decoration: BoxDecoration(
-                        color: m.breakdownBalanced ? const Color(0xFFECFDF5) : TColors.amber50,
-                        border: Border.all(color: m.breakdownBalanced ? const Color(0xFFA7F3D0) : const Color(0xFFFDE68A)),
+                        color: m.breakdownBalanced ? const Tone.bg(0xFFECFDF5) : TColors.amber50,
+                        border: Border.all(color: m.breakdownBalanced ? const Tone.line(0xFFA7F3D0) : const Tone.line(0xFFFDE68A)),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: m.breakdownBalanced
@@ -891,12 +892,12 @@ class _WaterDriverReturnScreenState extends State<WaterDriverReturnScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
-                color: m.bagsOk ? const Color(0xFFECFDF5) : const Color(0xFFFFF1F2),
-                border: Border.all(color: m.bagsOk ? const Color(0xFFA7F3D0) : const Color(0xFFFECDD3)),
+                color: m.bagsOk ? const Tone.bg(0xFFECFDF5) : const Tone.bg(0xFFFFF1F2),
+                border: Border.all(color: m.bagsOk ? const Tone.line(0xFFA7F3D0) : const Tone.line(0xFFFECDD3)),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: DefaultTextStyle(
-                style: TextStyle(fontSize: 13, color: m.bagsOk ? TColors.emerald800 : const Color(0xFF9F1239)),
+                style: TextStyle(fontSize: 13, color: m.bagsOk ? TColors.emerald800 : const Tone.fg(0xFF9F1239)),
                 child: Wrap(alignment: WrapAlignment.spaceBetween, spacing: 8, runSpacing: 4, children: [
                   Text.rich(TextSpan(children: [
                     TextSpan(text: 'Sold ${qtyFmt(m.sold)} + Returned ${qtyFmt(m.returned)} + Damaged ${qtyFmt(m.damaged)} = '),
@@ -911,12 +912,12 @@ class _WaterDriverReturnScreenState extends State<WaterDriverReturnScreen> {
             if (m.creditWithoutCustomer) ...[
               const SizedBox(height: 8),
               _note('Credit sales are not assigned to customers. Customer balances will not be accurate unless credit is linked to customers via the breakdown.',
-                  TColors.amber50, const Color(0xFFFDE68A), TColors.amber800),
+                  TColors.amber50, const Tone.fg(0xFFFDE68A), TColors.amber800),
             ],
             if (m.detailedCreditUnassigned) ...[
               const SizedBox(height: 8),
               _note('One or more customer rows have credit but no customer selected. Pick a customer or tick the admin override below.',
-                  const Color(0xFFFFF1F2), const Color(0xFFFECDD3), const Color(0xFF9F1239)),
+                  const Tone.fg(0xFFFFF1F2), const Tone.fg(0xFFFECDD3), const Tone.fg(0xFF9F1239)),
             ],
             if ((m.isDetailed && m.breakdownProvided && !m.breakdownBalanced) || m.detailedCreditUnassigned)
               CheckboxListTile(
@@ -930,8 +931,8 @@ class _WaterDriverReturnScreenState extends State<WaterDriverReturnScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: m.shortage > 0 ? const Color(0xFFFFF1F2) : (m.overage > 0 ? TColors.amber50 : TColors.slate50),
-                border: Border.all(color: m.shortage > 0 ? const Color(0xFFFECDD3) : (m.overage > 0 ? const Color(0xFFFDE68A) : TColors.slate200)),
+                color: m.shortage > 0 ? const Tone.bg(0xFFFFF1F2) : (m.overage > 0 ? TColors.amber50 : TColors.slate50),
+                border: Border.all(color: m.shortage > 0 ? const Tone.line(0xFFFECDD3) : (m.overage > 0 ? const Tone.line(0xFFFDE68A) : TColors.slate200)),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: twoUp([
@@ -947,7 +948,7 @@ class _WaterDriverReturnScreenState extends State<WaterDriverReturnScreen> {
               _note(
                 'Approve & Reconcile is disabled because ${!m.bagsOk ? "the bag counts don't reconcile yet (each product's Sold + Returned + Damaged must equal Loaded)." : "you chose “Post all sales to one customer” but haven't selected the customer yet — pick one above, or switch the posting option."}',
                 TColors.amber50,
-                const Color(0xFFFDE68A),
+                const Tone.fg(0xFFFDE68A),
                 TColors.amber800,
               ),
             ],
@@ -960,7 +961,7 @@ class _WaterDriverReturnScreenState extends State<WaterDriverReturnScreen> {
               ),
               FilledButton(
                 onPressed: _saving || !m.bagsOk || approveBlockedByCustomer ? null : () => _save(approve: true),
-                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669), foregroundColor: Colors.white),
+                style: FilledButton.styleFrom(backgroundColor: Tone.button(const Tone.bg(0xFF059669)), foregroundColor: Colors.white),
                 child: Text(_saving ? 'Working…' : 'Approve & Reconcile'),
               ),
             ]),

@@ -15,8 +15,9 @@ import '../production/production_logic.dart' show eggsPerCrate;
 import '../trackers/tracker_logic.dart' show tIntOrNull;
 import '../trackers/tracker_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 const _sample = 10675;
-const _amber600 = Color(0xFFD97706);
+const _amber600 = Tone.fg(0xFFD97706);
 
 class EggPackagingCard extends StatefulWidget {
   const EggPackagingCard({super.key, required this.session, required this.company, required this.canEdit, this.onChanged});
@@ -169,7 +170,7 @@ class _EggPackagingCardState extends State<EggPackagingCard> {
     return Container(
       key: const ValueKey('egg-packaging-card'),
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Expanded(

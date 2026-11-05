@@ -6,6 +6,7 @@ import '../../../widgets/module_sidebar.dart';
 import 'report_routes.dart';
 import 'report_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 typedef ReportMenuItem = ({String id, String title, String description, IconData icon, String href});
 typedef ReportMenuGroup = ({
   String key,
@@ -24,9 +25,9 @@ const List<ReportMenuGroup> poultryReportMenuGroups = [
     key: 'money',
     label: 'Sales, Money & Profit',
     blurb: "Money in, money out, what's left",
-    color: Color(0xFF15803D),
-    tintBg: Color(0xFFF0FDF4),
-    tintFg: Color(0xFF15803D),
+    color: Tone(0xFF15803D),
+    tintBg: Tone.bg(0xFFF0FDF4),
+    tintFg: Tone.fg(0xFF15803D),
     items: [
       (id: 'profit-loss', title: 'Profit & Loss (Company)', description: 'Company-wide revenue, expenses and net profit.', icon: Icons.balance, href: '/poultry/reports/profit-loss'),
       (id: 'daily-business-summary', title: 'Daily Business Summary', description: 'Full daily snapshot — income, production, purchases, expenses, losses, cash.', icon: Icons.bar_chart, href: '/poultry-daily-summary'),
@@ -48,9 +49,9 @@ const List<ReportMenuGroup> poultryReportMenuGroups = [
     key: 'production',
     label: 'Production & Eggs',
     blurb: "What the birds laid, and what's in store",
-    color: Color(0xFF059669),
-    tintBg: Color(0xFFECFDF5),
-    tintFg: Color(0xFF047857),
+    color: Tone(0xFF059669),
+    tintBg: Tone.bg(0xFFECFDF5),
+    tintFg: Tone.fg(0xFF047857),
     items: [
       (id: 'daily-egg-production', title: 'Daily Egg Production', description: 'Eggs by day and flock, with collection times.', icon: Icons.egg_outlined, href: '/poultry/reports/daily-egg-production'),
       (id: 'flock-production-summary', title: 'Flock Production Summary', description: 'Compare production performance across flocks.', icon: Icons.bar_chart, href: '/poultry/reports/flock-production-summary'),
@@ -65,9 +66,9 @@ const List<ReportMenuGroup> poultryReportMenuGroups = [
     key: 'feed-birds-health',
     label: 'Feed, Birds & Health',
     blurb: 'Feed, head count, losses, vaccines and medicine',
-    color: Color(0xFFCA8A04),
-    tintBg: Color(0xFFFEFCE8),
-    tintFg: Color(0xFFA16207),
+    color: Tone(0xFFCA8A04),
+    tintBg: Tone.bg(0xFFFEFCE8),
+    tintFg: Tone.fg(0xFFA16207),
     items: [
       (id: 'feed-usage', title: 'Feed Usage', description: 'Feed consumed by flock, date and type.', icon: Icons.grass, href: '/poultry/reports/feed-usage'),
       (id: 'feed-inventory-balance', title: 'Feed Inventory Balance', description: 'Current feed stock and days remaining.', icon: Icons.inventory_outlined, href: '/poultry/reports/feed-inventory-balance'),
@@ -84,9 +85,9 @@ const List<ReportMenuGroup> poultryReportMenuGroups = [
     key: 'overview',
     label: 'Overview & Dashboards',
     blurb: 'The whole farm at a glance',
-    color: Color(0xFF2563EB),
-    tintBg: Color(0xFFEFF6FF),
-    tintFg: Color(0xFF1D4ED8),
+    color: Tone(0xFF2563EB),
+    tintBg: Tone.bg(0xFFEFF6FF),
+    tintFg: Tone.fg(0xFF1D4ED8),
     items: [
       (id: 'farm-summary', title: 'Poultry Farm Summary', description: 'High-level snapshot of the whole farm for the period.', icon: Icons.dashboard_outlined, href: '/poultry/reports/farm-summary'),
       (id: 'production-dashboard', title: 'Production Dashboard', description: 'Egg production trends, collection times and flock metrics.', icon: Icons.egg_outlined, href: '/poultry/reports/production'),
@@ -117,8 +118,8 @@ class PoultryReportsCatalogScreen extends StatelessWidget {
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: const Color(0xFFDBEAFE), borderRadius: BorderRadius.circular(12)),
-              child: const Icon(Icons.bar_chart, color: Color(0xFF1D4ED8)),
+              decoration: BoxDecoration(color: const Tone.bg(0xFFDBEAFE), borderRadius: BorderRadius.circular(12)),
+              child: const Icon(Icons.bar_chart, color: Tone.fg(0xFF1D4ED8)),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -132,7 +133,7 @@ class PoultryReportsCatalogScreen extends StatelessWidget {
           for (final g in poultryReportMenuGroups) ...[
             Container(
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Tone.bg(0xFFFFFFFF),
                 border: Border.all(color: slate200),
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: const [BoxShadow(color: Color(0x0D000000), blurRadius: 2, offset: Offset(0, 1))],

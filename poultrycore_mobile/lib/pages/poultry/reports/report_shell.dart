@@ -12,8 +12,9 @@ import 'report_format.dart';
 import 'report_widgets.dart';
 import 'reports_catalog_screen.dart';
 
-const emerald500s = Color(0xFF10B981);
-const emerald600s = Color(0xFF059669);
+import 'package:poultrycore_mobile/design/tone.dart';
+const emerald500s = Tone.bg(0xFF10B981);
+const emerald600s = Tone.bg(0xFF059669);
 
 /// The web's `ReportShell` (components/reports/report-shell.tsx) on a phone:
 /// back to Reports, Email report and Export PDF, the white card with its
@@ -140,7 +141,7 @@ class _ReportShellScreenState extends State<ReportShellScreen> {
             Container(
               width: 40,
               height: 40,
-              decoration: BoxDecoration(color: const Color(0xFFD1FAE5), borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(color: const Tone.bg(0xFFD1FAE5), borderRadius: BorderRadius.circular(8)),
               child: Icon(widget.pageIcon, size: 20, color: emerald700),
             ),
             const SizedBox(width: 12),
@@ -207,7 +208,7 @@ class _ReportShellScreenState extends State<ReportShellScreen> {
         const SizedBox(height: 12),
         Container(
           decoration: widget.page ? null : BoxDecoration(
-            color: Colors.white,
+            color: Tone.bg(0xFFFFFFFF),
             border: Border.all(color: slate200),
             borderRadius: BorderRadius.circular(12),
             boxShadow: const [BoxShadow(color: Color(0x0D000000), blurRadius: 2, offset: Offset(0, 1))],
@@ -311,7 +312,7 @@ class _ReportShellScreenState extends State<ReportShellScreen> {
                     amber800,
                   ),
                 if (widget.error != null)
-                  _banner(widget.error!, const Color(0xFFFFF1F2), const Color(0xFFFECDD3), const Color(0xFF9F1239),
+                  _banner(widget.error!, const Tone(0xFFFFF1F2), const Tone(0xFFFECDD3), const Tone(0xFF9F1239),
                       onDismiss: widget.onClearError),
                 if (widget.busy)
                   const Padding(
@@ -381,7 +382,7 @@ class SummaryTiles extends StatelessWidget {
         child: twoColumns([
           for (final t in tiles)
             Container(
-              decoration: BoxDecoration(color: Colors.white, border: Border.all(color: slate200), borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: slate200), borderRadius: BorderRadius.circular(10)),
               clipBehavior: Clip.antiAlias,
               child: Stack(children: [
                 Padding(
@@ -467,13 +468,13 @@ class _ShellCardsState extends State<ShellCards> {
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: DataTable(
-            headingRowColor: const WidgetStatePropertyAll(Color(0xFFECFDF5)),
-            headingTextStyle: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, letterSpacing: .5, color: Color(0xFF064E3B)),
+            headingRowColor: const WidgetStatePropertyAll(Tone.bg(0xFFECFDF5)),
+            headingTextStyle: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, letterSpacing: .5, color: Tone.fg(0xFF064E3B)),
             columns: [for (final c in cols) DataColumn(label: Text(c.header.toUpperCase()), numeric: c.right)],
             rows: [
               for (final (ri, r) in rows.indexed)
                 DataRow(
-                  color: WidgetStatePropertyAll(ri.isOdd ? const Color(0x99F8FAFC) : Colors.white),
+                  color: WidgetStatePropertyAll(ri.isOdd ? const Tone.bg(0x99F8FAFC) : Tone.bg(0xFFFFFFFF)),
                   cells: [for (final (ci, v) in r.indexed) DataCell(Text(text(v), style: valueStyle(ri, ci, size: 13, w: FontWeight.w400)))],
                 ),
               if (widget.totals != null)
@@ -494,7 +495,7 @@ class _ShellCardsState extends State<ShellCards> {
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Tone.bg(0xFFFFFFFF),
             border: Border.all(color: slate200),
             borderRadius: BorderRadius.circular(8),
             boxShadow: const [BoxShadow(color: Color(0x0D000000), blurRadius: 2, offset: Offset(0, 1))],
@@ -521,18 +522,18 @@ class _ShellCardsState extends State<ShellCards> {
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: const Color(0xFFECFDF5),
-            border: Border.all(color: const Color(0xFFA7F3D0)),
+            color: const Tone.bg(0xFFECFDF5),
+            border: Border.all(color: const Tone.line(0xFFA7F3D0)),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            const Text('TOTALS', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, letterSpacing: .5, color: Color(0xFF064E3B))),
+            const Text('TOTALS', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, letterSpacing: .5, color: Tone.fg(0xFF064E3B))),
             const SizedBox(height: 8),
             twoColumns(gap: 8, [
               for (final (ci, v) in widget.totals!.indexed)
                 if (v.isNotEmpty && ci < cols.length)
                   Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(cols[ci].header, style: const TextStyle(fontSize: 12, color: Color(0xB3065F46))),
+                    Text(cols[ci].header, style: const TextStyle(fontSize: 12, color: Tone.fg(0xB3065F46))),
                     Text(v, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
                   ]),
             ]),

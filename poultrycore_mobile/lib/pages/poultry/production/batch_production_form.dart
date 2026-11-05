@@ -20,6 +20,7 @@ import 'production_logic.dart';
 import 'production_record_form.dart' show feedTypes;
 import 'production_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 const _scopeAll = 'all', _scopeCustom = 'custom';
 
 String _numStr(Object? v) => v == null ? '' : (v is num && v == v.roundToDouble() ? '${v.toInt()}' : tStr(v));
@@ -455,7 +456,7 @@ class BatchProductionRecordFormState extends State<BatchProductionRecordForm> {
               TextSpan(text: ' flock${count == 1 ? '' : 's'} on '),
               TextSpan(text: formatShortDate(m.date), style: b),
               const TextSpan(text: '. They are pre-selected and marked below.'),
-            ]), style: const TextStyle(fontSize: 14, color: Color(0xFF78350F))),
+            ]), style: const TextStyle(fontSize: 14, color: Tone.fg(0xFF78350F))),
             const SizedBox(height: 4),
             Text.rich(TextSpan(children: [
               const TextSpan(text: 'Production is recorded when this batch is allocated and '),
@@ -466,7 +467,7 @@ class BatchProductionRecordFormState extends State<BatchProductionRecordForm> {
               if (_flocksLoaded && _prefillMatched < m.flockIds.length)
                 TextSpan(
                     text: ' $left flagged flock${left == 1 ? ' is' : 's are'} no longer active and${left == 1 ? ' was' : ' were'} left out.'),
-            ]), style: const TextStyle(fontSize: 12, color: Color(0xFF78350F))),
+            ]), style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF78350F))),
           ]),
         ),
       ]),
@@ -565,7 +566,7 @@ class BatchProductionRecordFormState extends State<BatchProductionRecordForm> {
             Container(
               margin: const EdgeInsets.only(top: 12),
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: const Color(0x99F0F9FF), border: Border.all(color: const Color(0xFFBAE6FD)), borderRadius: BorderRadius.circular(6)),
+              decoration: BoxDecoration(color: const Tone.bg(0x99F0F9FF), border: Border.all(color: const Tone.line(0xFFBAE6FD)), borderRadius: BorderRadius.circular(6)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 const Text.rich(TextSpan(children: [
                   TextSpan(text: 'Flocks in this batch'),
@@ -589,7 +590,7 @@ class BatchProductionRecordFormState extends State<BatchProductionRecordForm> {
                             Flexible(child: Text(tStr(f['name']), style: const TextStyle(fontSize: 14, color: TColors.slate700))),
                             if (_missingIds.contains(tIntOrNull(f['flockId']))) ...[
                               const SizedBox(width: 6),
-                              const TBadge('missing', bg: TColors.amber100, fg: Color(0xFF92400E)),
+                              const TBadge('missing', bg: TColors.amber100, fg: Tone.fg(0xFF92400E)),
                             ],
                           ]),
                         ),
@@ -643,7 +644,7 @@ class BatchProductionRecordFormState extends State<BatchProductionRecordForm> {
             ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(color: const Color(0xB3FEF3C7), border: Border.all(color: TColors.amber200), borderRadius: BorderRadius.circular(6)),
+            decoration: BoxDecoration(color: const Tone.bg(0xB3FEF3C7), border: Border.all(color: TColors.amber200), borderRadius: BorderRadius.circular(6)),
             child: Wrap(spacing: 24, runSpacing: 4, children: [
               Text.rich(TextSpan(children: [
                 const TextSpan(text: 'Total picked eggs '),
@@ -949,7 +950,7 @@ class _BatchModalState extends State<_BatchModal> {
           backgroundColor: TColors.slate50,
           appBar: AppBar(
             automaticallyImplyLeading: false,
-            backgroundColor: const Color(0xFFE0F2FE),
+            backgroundColor: const Tone.bg(0xFFE0F2FE),
             titleSpacing: 12,
             title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(_edit ? 'Edit Batch Production Record' : 'Add Batch Production Record',
@@ -982,7 +983,7 @@ class _BatchModalState extends State<_BatchModal> {
           bottomNavigationBar: SafeArea(
             child: Container(
               padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-              decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: TColors.slate200))),
+              decoration: const BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border(top: BorderSide(color: TColors.slate200))),
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 if (s != null && !loading)
                   Wrap(spacing: 14, runSpacing: 2, children: [
@@ -1048,8 +1049,8 @@ class BatchProductionRecordPage extends StatelessWidget {
           Container(
             width: 40,
             height: 40,
-            decoration: BoxDecoration(color: const Color(0xFFE0F2FE), borderRadius: BorderRadius.circular(8)),
-            child: const Icon(Icons.inventory_2_outlined, size: 20, color: Color(0xFF0284C7)),
+            decoration: BoxDecoration(color: const Tone.bg(0xFFE0F2FE), borderRadius: BorderRadius.circular(8)),
+            child: const Icon(Icons.inventory_2_outlined, size: 20, color: Tone.fg(0xFF0284C7)),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1061,7 +1062,7 @@ class BatchProductionRecordPage extends StatelessWidget {
             ]),
           ),
           FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: TColors.red600),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600)),
             onPressed: back,
             icon: const Icon(Icons.close, size: 16),
             label: const Text('Close'),

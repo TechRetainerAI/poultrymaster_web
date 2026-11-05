@@ -10,6 +10,7 @@ import '../reports/report_routes.dart' show openAppHref;
 import '../trackers/tracker_logic.dart' show tNum, tStr;
 import '../trackers/tracker_widgets.dart';
 import 'money_widgets.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import '../reports/money_reports.dart' show MoneyRail, poultryMoneyRail;
 
 /// The Cash Account pages' dialogs, from `app/poultry-cash-accounts/page.tsx`,
@@ -83,9 +84,9 @@ const cashTransferReasons = [
   'Petty cash top-up', 'Funding payroll', 'Funding supplier payment', 'Consolidating balances', 'Safe keeping', 'Other',
 ];
 
-const _sky600 = Color(0xFF0284C7);
-const _blue600 = Color(0xFF2563EB);
-const _indigo600 = Color(0xFF4F46E5);
+const _sky600 = Tone.fg(0xFF0284C7);
+const _blue600 = Tone.fg(0xFF2563EB);
+const _indigo600 = Tone(0xFF4F46E5);
 
 Widget _numberField(TextEditingController c, VoidCallback changed) => AppInput(
       controller: c,
@@ -96,9 +97,9 @@ Widget _numberField(TextEditingController c, VoidCallback changed) => AppInput(
 
 Widget _switchRow(String text, bool value, ValueChanged<bool> on) => Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+      decoration: BoxDecoration(border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(6)),
       child: Row(children: [
-        Expanded(child: Text(text, style: const TextStyle(fontSize: 14, color: TColors.slate700))),
+        Expanded(child: Text(text, style: const TextStyle(fontSize: 14, color: Tone.fg(0xFF334155)))),
         Switch(value: value, onChanged: on),
       ]),
     );
@@ -267,7 +268,7 @@ class _CashAccountFormDialogState extends State<CashAccountFormDialog> {
         actions: [
           redCancelButton(_saving ? null : () => Navigator.pop(context, false)),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: _r.accent),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(_r.accent)),
             onPressed: _saving ? null : _save,
             child: Text(_saving ? 'Saving…' : 'Save'),
           ),
@@ -396,7 +397,7 @@ class _CashTransferQuickDialogState extends State<CashTransferQuickDialog> {
       actions: [
         redCancelButton(() => Navigator.pop(context, false)),
         FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: _r.accent),
+          style: FilledButton.styleFrom(backgroundColor: Tone.button(_r.accent)),
           onPressed: _save,
           child: Text(_r.isHotel ? 'Record transfer' : 'Create & approve'),
         ),
@@ -506,7 +507,7 @@ class _RecordCashAdjustmentDialogState extends State<RecordCashAdjustmentDialog>
                   const Padding(
                     padding: EdgeInsets.only(top: 4),
                     child: Text('This company has no active cash account. Create one before recording an adjustment.',
-                        style: TextStyle(fontSize: 11, color: Color(0xFFBE123C))),
+                        style: TextStyle(fontSize: 11, color: Tone.fg(0xFFBE123C))),
                   ),
               ]),
               FilterLabel(
@@ -553,11 +554,11 @@ class _RecordCashAdjustmentDialogState extends State<RecordCashAdjustmentDialog>
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                    color: TColors.amber50, border: Border.all(color: const Color(0xFFFDE68A)), borderRadius: BorderRadius.circular(6)),
+                    color: Tone.bg(0xFFFFFBEB), border: Border.all(color: const Tone.line(0xFFFDE68A)), borderRadius: BorderRadius.circular(6)),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(
                     'A ${_reason.toLowerCase()} means reality disagreed with the books, and reconciling the account records that properly — with the balance you actually checked, the evidence, and the ability to reverse it. An adjustment here would move the balance and lose all of that.',
-                    style: const TextStyle(fontSize: 12, color: TColors.amber900),
+                    style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF78350F)),
                   ),
                   const SizedBox(height: 8),
                   OutlinedButton.icon(
@@ -576,10 +577,10 @@ class _RecordCashAdjustmentDialogState extends State<RecordCashAdjustmentDialog>
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: TColors.slate50, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFF8FAFC), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(6)),
                 child: Text(
                   'A ${_direction == 'out' ? 'money-out' : 'money-in'} transaction of ${widget.fmt(_signed.abs())} will be posted to this account. It appears in the ledger and can be reversed.',
-                  style: const TextStyle(fontSize: 11.5, color: TColors.slate600),
+                  style: const TextStyle(fontSize: 11.5, color: Tone.fg(0xFF475569)),
                 ),
               ),
             ],
@@ -588,7 +589,7 @@ class _RecordCashAdjustmentDialogState extends State<RecordCashAdjustmentDialog>
         actions: [
           TextButton(onPressed: _saving ? null : () => Navigator.pop(context, false), child: const Text('Cancel')),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: _r.accent),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(_r.accent)),
             onPressed: _canSubmit ? _submit : null,
             child: Text(_saving ? 'Saving…' : 'Record adjustment'),
           ),

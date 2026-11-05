@@ -7,6 +7,7 @@
 
 import 'package:flutter/material.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 import '../shared/business_dates.dart' show fmtNum;
 import 'trackers/tracker_logic.dart' show tNum, tStr;
 import 'trackers/tracker_widgets.dart' show TColors;
@@ -73,11 +74,11 @@ String campaignStatusLabel(Object? s) => s == 'InProgress' ? 'In Progress' : tSt
 
 /// statusStyle: (border, background, text).
 (Color, Color, Color) campaignStatusStyle(Object? s) => switch (s) {
-      'Scheduled' => (const Color(0xFFBAE6FD), const Color(0xFFF0F9FF), TColors.sky700),
+      'Scheduled' => (const Tone(0xFFBAE6FD), const Tone(0xFFF0F9FF), TColors.sky700),
       'InProgress' => (TColors.amber200, TColors.amber50, TColors.amber800),
       'Completed' => (TColors.emerald200, TColors.emerald50, TColors.emerald700),
       'Cancelled' => (TColors.slate200, TColors.slate100, TColors.slate600),
-      _ => (TColors.slate200, Colors.white, TColors.slate600),
+      _ => (TColors.slate200, Tone(0xFFFFFFFF), TColors.slate600),
     };
 
 DateTime? _utc(String d) {

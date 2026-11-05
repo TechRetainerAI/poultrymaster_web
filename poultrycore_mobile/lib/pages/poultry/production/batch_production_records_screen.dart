@@ -25,17 +25,18 @@ import 'batch_production_allocate_screen.dart';
 import 'batch_production_form.dart';
 import 'batch_production_logic.dart';
 import 'production_logic.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import 'production_records_screen.dart' show ProdCard;
 
 const _monthsShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const _statusColors = <String, (Color, Color, Color)>{
-  'PendingAllocation': (TColors.amber100, Color(0xFF92400E), TColors.amber200),
-  'Allocated': (TColors.blue100, Color(0xFF1E40AF), Color(0xFFBFDBFE)),
-  'Posted': (TColors.emerald100, TColors.emerald800, Color(0xFFA7F3D0)),
+  'PendingAllocation': (TColors.amber100, Tone(0xFF92400E), TColors.amber200),
+  'Allocated': (TColors.blue100, Tone(0xFF1E40AF), Tone(0xFFBFDBFE)),
+  'Posted': (TColors.emerald100, TColors.emerald800, Tone(0xFFA7F3D0)),
   'Reversed': (TColors.slate100, TColors.slate700, TColors.slate200),
-  'Draft': (Color(0xFFF3F4F6), Color(0xFF374151), Color(0xFFE5E7EB)),
-  'Cancelled': (Color(0xFFFEE2E2), TColors.red700, Color(0xFFFECACA)),
+  'Draft': (Tone(0xFFF3F4F6), Tone(0xFF374151), Tone(0xFFE5E7EB)),
+  'Cancelled': (Tone(0xFFFEE2E2), TColors.red700, Tone(0xFFFECACA)),
 };
 
 Widget batchStatusBadge(Object? status) {
@@ -242,7 +243,7 @@ class _BatchProductionRecordsScreenState extends State<BatchProductionRecordsScr
               actions: [
                 TextButton(onPressed: busy ? null : () => Navigator.pop(ctx), child: const Text('Cancel')),
                 FilledButton(
-                  style: type == 'delete' ? FilledButton.styleFrom(backgroundColor: TColors.red600) : null,
+                  style: type == 'delete' ? FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600)) : null,
                   onPressed: busy
                       ? null
                       : () async {
@@ -606,7 +607,7 @@ class _BatchProductionRecordsScreenState extends State<BatchProductionRecordsScr
 
     Widget tile(String label, String value, {Color? color, String? sub}) => Container(
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(label.toUpperCase(),
                 overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, letterSpacing: .6, color: TColors.slate500)),
@@ -641,7 +642,7 @@ class _BatchProductionRecordsScreenState extends State<BatchProductionRecordsScr
             ]),
             const SizedBox(height: 12),
             FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: TColors.emerald600, minimumSize: const Size.fromHeight(44)),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.emerald600), minimumSize: const Size.fromHeight(44)),
               onPressed: () => _openForm(),
               icon: const Icon(Icons.add, size: 18),
               label: const Text('Log Batch Production'),
@@ -668,7 +669,7 @@ class _BatchProductionRecordsScreenState extends State<BatchProductionRecordsScr
                   const SizedBox(width: 6),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                    decoration: BoxDecoration(color: const Color(0xFFF97316), borderRadius: BorderRadius.circular(999)),
+                    decoration: BoxDecoration(color: const Tone.bg(0xFFF97316), borderRadius: BorderRadius.circular(999)),
                     child: Text('$active', style: const TextStyle(fontSize: 12, color: Colors.white)),
                   ),
                 ],
@@ -758,9 +759,9 @@ class _BatchProductionRecordsScreenState extends State<BatchProductionRecordsScr
     final deaths = tNum(r['deaths']);
     final picks = [
       ('1st Pick', 'firstPickTotal', TColors.blue600),
-      ('2nd Pick', 'secondPickTotal', const Color(0xFFC2410C)),
-      ('3rd Pick', 'thirdPickTotal', const Color(0xFF7E22CE)),
-      if (_picks.enableFourth) ('4th Pick', 'fourthPickTotal', const Color(0xFF0F766E)),
+      ('2nd Pick', 'secondPickTotal', const Tone(0xFFC2410C)),
+      ('3rd Pick', 'thirdPickTotal', const Tone(0xFF7E22CE)),
+      if (_picks.enableFourth) ('4th Pick', 'fourthPickTotal', const Tone(0xFF0F766E)),
       ('Broken', 'brokenEggs', TColors.red700),
     ];
     return ProdCard(
@@ -782,7 +783,7 @@ class _BatchProductionRecordsScreenState extends State<BatchProductionRecordsScr
           Expanded(child: tile('Eggs', loc(tNum(r['totalEggs'])), TColors.emerald100, TColors.emerald300, TColors.emerald800)),
           const SizedBox(width: 8),
           Expanded(
-            child: tile('Birds Left', r['birdsLeft'] != null ? loc(tNum(r['birdsLeft'])) : '—', TColors.blue100, TColors.blue300, const Color(0xFF1E40AF)),
+            child: tile('Birds Left', r['birdsLeft'] != null ? loc(tNum(r['birdsLeft'])) : '—', TColors.blue100, TColors.blue300, const Tone(0xFF1E40AF)),
           ),
         ]),
       ]),
@@ -839,9 +840,9 @@ class _BatchProductionRecordsScreenState extends State<BatchProductionRecordsScr
             ]),
             cellText(batchFormatAge(r)),
             cellText(_n(tNum(r['firstPickTotal'])), color: TColors.blue600),
-            cellText(_n(tNum(r['secondPickTotal'])), color: const Color(0xFFC2410C)),
-            cellText(_n(tNum(r['thirdPickTotal'])), color: const Color(0xFF7E22CE)),
-            if (fourth) cellText(_n(tNum(r['fourthPickTotal'])), color: const Color(0xFF0F766E)),
+            cellText(_n(tNum(r['secondPickTotal'])), color: const Tone.fg(0xFFC2410C)),
+            cellText(_n(tNum(r['thirdPickTotal'])), color: const Tone.fg(0xFF7E22CE)),
+            if (fourth) cellText(_n(tNum(r['fourthPickTotal'])), color: const Tone.fg(0xFF0F766E)),
             cellText(_n(tNum(r['brokenEggs'])), color: TColors.red700),
             cellText(_n(tNum(r['totalEggs'])), bold: true),
             cellText(batchEggPercent(r)),
@@ -1027,7 +1028,7 @@ class _BatchProductionDetailScreenState extends State<BatchProductionDetailScree
             actions: [
               OutlinedButton(onPressed: _busy ? null : () => Navigator.pop(ctx), child: const Text('Cancel')),
               FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: TColors.red600),
+                style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600)),
                 onPressed: _busy
                     ? null
                     : () async {
@@ -1106,7 +1107,7 @@ class _BatchProductionDetailScreenState extends State<BatchProductionDetailScree
           Text(batchScopeLabel(b), style: const TextStyle(fontSize: 14, color: TColors.slate500)),
           const SizedBox(height: 10),
           Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
-            TBadge(batchStatusLabel(status), bg: Colors.white, fg: TColors.slate800, border: TColors.slate200),
+            TBadge(batchStatusLabel(status), bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate800, border: TColors.slate200),
             if (canAllocate)
               FilledButton.icon(
                 onPressed: _allocate,
@@ -1116,7 +1117,7 @@ class _BatchProductionDetailScreenState extends State<BatchProductionDetailScree
             if (canRepost) FilledButton.icon(onPressed: _busy ? null : _repost, icon: const Icon(Icons.send, size: 16), label: const Text('Repost')),
             if (status == 'Posted')
               FilledButton.icon(
-                style: FilledButton.styleFrom(backgroundColor: TColors.red600),
+                style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600)),
                 onPressed: _busy ? null : _reverse,
                 icon: const Icon(Icons.undo, size: 16),
                 label: const Text('Reverse'),

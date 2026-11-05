@@ -16,11 +16,12 @@ import 'package:flutter/material.dart';
 import '../poultry/trackers/tracker_logic.dart' show tNum, tStr;
 import '../shared/chart_period.dart';
 
-const chartBlue = Color(0xFF2A78D6), chartOrange = Color(0xFFEB6834), chartAqua = Color(0xFF1BAF7A);
-const chartYellow = Color(0xFFEDA100), chartMagenta = Color(0xFFE87BA4);
+import 'package:poultrycore_mobile/design/tone.dart';
+const chartBlue = Tone(0xFF2A78D6), chartOrange = Tone(0xFFEB6834), chartAqua = Tone(0xFF1BAF7A);
+const chartYellow = Tone(0xFFEDA100), chartMagenta = Tone(0xFFE87BA4);
 const _series = [chartBlue, chartOrange, chartAqua, chartYellow, chartMagenta];
-const _ink = Color(0xFF0B0B0B), _ink2 = Color(0xFF52514E), _muted = Color(0xFF898781);
-const _grid = Color(0xFFE1E0D9), _baseline = Color(0xFFC3C2B7);
+const _ink = Tone.fg(0xFF0B0B0B), _ink2 = Tone(0xFF52514E), _muted = Tone.fg(0xFF898781);
+const _grid = Tone.line(0xFFE1E0D9), _baseline = Tone(0xFFC3C2B7);
 
 Object? _v(Map m, String k) => m[k] ?? m[k.toLowerCase()];
 String _day(Object? v) => tStr(v).length >= 10 ? tStr(v).substring(0, 10) : tStr(v);
@@ -128,9 +129,9 @@ class HotelChartCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 14),
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Tone.bg(0xFFFFFFFF),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0x1A0B0B0B)),
+          border: Border.all(color: const Tone.line(0x1A0B0B0B)),
           boxShadow: const [BoxShadow(color: Color(0x0F1E1B4B), blurRadius: 18, offset: Offset(0, 6))],
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -138,8 +139,8 @@ class HotelChartCard extends StatelessWidget {
             if (icon != null) ...[
               Container(
                 padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(color: const Color(0xFFF5F3FF), borderRadius: BorderRadius.circular(8)),
-                child: Icon(icon, size: 16, color: const Color(0xFF7C3AED)),
+                decoration: BoxDecoration(color: const Tone.bg(0xFFF5F3FF), borderRadius: BorderRadius.circular(8)),
+                child: Icon(icon, size: 16, color: const Tone.fg(0xFF7C3AED)),
               ),
               const SizedBox(width: 10),
             ],
@@ -310,7 +311,7 @@ class _RoomMixDonutState extends State<MixDonut> with SingleTickerProviderStateM
           onTap: () => setState(() => _picked = _picked == i ? null : i),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            decoration: BoxDecoration(color: _picked == i ? const Color(0xFFF4F4F2) : null, borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(color: _picked == i ? const Tone.bg(0xFFF4F4F2) : null, borderRadius: BorderRadius.circular(8)),
             child: Row(children: [
               Container(width: 12, height: 12, decoration: BoxDecoration(color: s.color, borderRadius: BorderRadius.circular(4))),
               const SizedBox(width: 10),
@@ -342,7 +343,7 @@ class _DonutPainter extends CustomPainter {
     canvas.drawCircle(c, r, Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = stroke
-      ..color = const Color(0xFFF0EFEC));
+      ..color = const Tone(0xFFF0EFEC));
     if (total <= 0) return;
     final sweepAll = 2 * math.pi * t;
     var start = -math.pi / 2;
@@ -440,7 +441,7 @@ class _PairedColumnsState extends State<PairedColumns> with SingleTickerProvider
         child: Container(
           key: ValueKey(i),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(color: const Color(0xFFF9F9F7), borderRadius: BorderRadius.circular(10)),
+          decoration: BoxDecoration(color: const Tone.bg(0xFFF9F9F7), borderRadius: BorderRadius.circular(10)),
           child: Row(children: [
             Expanded(
               child: Text(i == null ? 'Total' : widget.dayLabel(widget.days[i]),
@@ -567,7 +568,7 @@ class _ColumnsPainter extends CustomPainter {
       if (picked == i || days[i] == highlight) {
         canvas.drawRRect(
           RRect.fromRectAndRadius(Rect.fromLTWH(left + slot * i + 1, 4, slot - 2, plotH + 4), const Radius.circular(6)),
-          Paint()..color = picked == i ? const Color(0xFFEDE9FE) : const Color(0xFFF6F5F2),
+          Paint()..color = picked == i ? const Tone(0xFFEDE9FE) : const Tone(0xFFF6F5F2),
         );
       }
       // Each day starts a little after the one before, so the bars ripple in.
@@ -649,7 +650,7 @@ class _PaymentMixBarState extends State<PaymentMixBar> with SingleTickerProvider
                 Expanded(flex: math.max(1, (s.value / total * 1000 * eased.value).round()), child: ColoredBox(color: s.color)),
               ],
               // The rest of the track until the bar has grown.
-              if (eased.value < 1) Expanded(flex: math.max(1, (1000 * (1 - eased.value)).round()), child: const ColoredBox(color: Color(0xFFF0EFEC))),
+              if (eased.value < 1) Expanded(flex: math.max(1, (1000 * (1 - eased.value)).round()), child: const ColoredBox(color: Tone.bg(0xFFF0EFEC))),
             ]),
           ),
         ),

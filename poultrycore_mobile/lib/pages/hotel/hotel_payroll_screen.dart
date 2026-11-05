@@ -27,6 +27,7 @@ import '../shared/reason_select.dart' show cancelReasons, reopenReasons;
 import '../water/water_payroll_screen.dart' show showWaterPayrollPrompt;
 import 'hotel_kit.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// currency(): "GH₵ 1200.00".
 String hotelPayrollMoney(Object? v) => 'GH₵ ${tNum(v).toStringAsFixed(2)}';
 
@@ -36,10 +37,10 @@ const _loanTypes = {'SalaryAdvance': 'Salary advance', 'EmployeeLoan': 'Staff lo
 String hotelLoanTypeLabel(Object? v) => _loanTypes[tStr(v)] ?? tStr(v);
 
 (Color, Color) _statusTone(String s) => switch (s) {
-      'Approved' => (const Color(0xFFDBEAFE), const Color(0xFF1D4ED8)),
-      'Paid' => (const Color(0xFFDCFCE7), const Color(0xFF15803D)),
-      'Cancelled' => (const Color(0xFFFEE2E2), const Color(0xFFB91C1C)),
-      _ => (const Color(0xFFF1F5F9), const Color(0xFF334155)),
+      'Approved' => (const Tone(0xFFDBEAFE), const Tone(0xFF1D4ED8)),
+      'Paid' => (const Tone(0xFFDCFCE7), const Tone(0xFF15803D)),
+      'Cancelled' => (const Tone(0xFFFEE2E2), const Tone(0xFFB91C1C)),
+      _ => (const Tone(0xFFF1F5F9), const Tone(0xFF334155)),
     };
 
 Widget _statusBadge(Object? s) {
@@ -184,14 +185,14 @@ class _HotelPayrollScreenState extends State<HotelPayrollScreen> {
     return [
       b('Details', Icons.visibility_outlined, () => _openDetail(r)),
       if (st == 'Draft') ...[
-        b('Approve', Icons.check, () => _approve(r), const Color(0xFF2563EB)),
-        b('Cancel', Icons.close, () => _cancel(r), const Color(0xFFEA580C)),
+        b('Approve', Icons.check, () => _approve(r), const Tone(0xFF2563EB)),
+        b('Cancel', Icons.close, () => _cancel(r), const Tone(0xFFEA580C)),
         b('Delete', Icons.delete_outline, () => _delete(r), TColors.red600),
       ],
       if (st == 'Approved') ...[
-        b('Mark Paid', Icons.account_balance_wallet_outlined, () => _markPaid(r), const Color(0xFF16A34A)),
+        b('Mark Paid', Icons.account_balance_wallet_outlined, () => _markPaid(r), const Tone(0xFF16A34A)),
         b('Reopen to correct', Icons.restart_alt, () => _reopen(r), TColors.slate600),
-        b('Cancel', Icons.close, () => _cancel(r), const Color(0xFFEA580C)),
+        b('Cancel', Icons.close, () => _cancel(r), const Tone(0xFFEA580C)),
       ],
       if (st == 'Cancelled') b('Delete', Icons.delete_outline, () => _delete(r), TColors.red600),
     ];
@@ -205,7 +206,7 @@ class _HotelPayrollScreenState extends State<HotelPayrollScreen> {
     final paid = _runs.where((r) => tStr(r['status']) == 'Paid').fold<num>(0, (s, r) => s + tNum(r['totalnetpay']));
     Widget stat(String label, String value, Color color) => Container(
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(label, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
             const SizedBox(height: 4),
@@ -247,8 +248,8 @@ class _HotelPayrollScreenState extends State<HotelPayrollScreen> {
           twoUp([
             stat('Total Runs', '${_runs.length}', TColors.slate900),
             stat('Draft', '${_runs.where((r) => tStr(r['status']) == 'Draft').length}', TColors.slate700),
-            stat('Approved', '${_runs.where((r) => tStr(r['status']) == 'Approved').length}', const Color(0xFF1D4ED8)),
-            stat('Total Net Paid', hotelPayrollMoney(paid), const Color(0xFF15803D)),
+            stat('Approved', '${_runs.where((r) => tStr(r['status']) == 'Approved').length}', const Tone(0xFF1D4ED8)),
+            stat('Total Net Paid', hotelPayrollMoney(paid), const Tone(0xFF15803D)),
           ]),
           const SizedBox(height: 14),
           AppSelect<String>(
@@ -748,7 +749,7 @@ class _HotelPayrollRunScreenState extends State<HotelPayrollRunScreen> {
       for (final (i, w) in [
         card('Gross Pay', hotelPayrollMoney(_run['totalgrosspay']), TColors.slate900),
         card('Deductions', hotelPayrollMoney(_run['totaldeductions']), TColors.red600),
-        card('Net Pay', hotelPayrollMoney(_run['totalnetpay']), const Color(0xFF15803D)),
+        card('Net Pay', hotelPayrollMoney(_run['totalnetpay']), const Tone(0xFF15803D)),
         card(
           'Staff loan repayments',
           hotelPayrollMoney(hotelPayrollLoanTotal(_detail ?? const {})),
@@ -778,7 +779,7 @@ class _HotelPayrollRunScreenState extends State<HotelPayrollRunScreen> {
         Container(
           margin: const EdgeInsets.only(bottom: 8),
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
+          decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Expanded(
@@ -832,7 +833,7 @@ class _HotelPayrollRunScreenState extends State<HotelPayrollRunScreen> {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(color: TColors.emerald50, border: Border.all(color: TColors.emerald200), borderRadius: BorderRadius.circular(8)),
         child: Row(children: [
-          const Icon(Icons.check, size: 16, color: Color(0xFF059669)),
+          const Icon(Icons.check, size: 16, color: Tone.fg(0xFF059669)),
           const SizedBox(width: 8),
           Expanded(
             child: Text('All ${_items.length} active staff members have been added to this run.',
@@ -849,7 +850,7 @@ class _HotelPayrollRunScreenState extends State<HotelPayrollRunScreen> {
       final sorted = depts.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
       out.add(Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: TColors.violet50, border: Border.all(color: const Color(0xFFDDD6FE)), borderRadius: BorderRadius.circular(8)),
+        decoration: BoxDecoration(color: TColors.violet50, border: Border.all(color: const Tone.line(0xFFDDD6FE)), borderRadius: BorderRadius.circular(8)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Text.rich(
             TextSpan(children: [
@@ -860,7 +861,7 @@ class _HotelPayrollRunScreenState extends State<HotelPayrollRunScreen> {
           ),
           const SizedBox(height: 8),
           OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(foregroundColor: TColors.violet700, side: const BorderSide(color: Color(0xFFC4B5FD))),
+            style: OutlinedButton.styleFrom(foregroundColor: TColors.violet700, side: const BorderSide(color: Tone.line(0xFFC4B5FD))),
             onPressed: _bulkAdding ? null : _addAll,
             icon: Icon(_bulkAdding ? Icons.hourglass_empty : Icons.group_outlined, size: 16),
             label: Text(_bulkAdding ? 'Adding...' : 'Add All Staff'),
@@ -975,12 +976,12 @@ class _HotelPayrollRunScreenState extends State<HotelPayrollRunScreen> {
     final net = gross - _n(_deductions) - _loans.fold<num>(0, (s, l) => s + l.value);
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: TColors.violet50, border: Border.all(color: const Color(0xFFDDD6FE)), borderRadius: BorderRadius.circular(8)),
+      decoration: BoxDecoration(color: TColors.violet50, border: Border.all(color: const Tone.line(0xFFDDD6FE)), borderRadius: BorderRadius.circular(8)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
-          const Icon(Icons.savings_outlined, size: 16, color: Color(0xFF5B21B6)),
+          const Icon(Icons.savings_outlined, size: 16, color: Tone.fg(0xFF5B21B6)),
           const SizedBox(width: 6),
-          const Text('Staff loan deductions', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF5B21B6))),
+          const Text('Staff loan deductions', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Tone.fg(0xFF5B21B6))),
           if (_loansLoading) ...[
             const SizedBox(width: 8),
             const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2)),
@@ -1006,7 +1007,7 @@ class _HotelPayrollRunScreenState extends State<HotelPayrollRunScreen> {
         const SizedBox(height: 8),
         const Text(
           'Deducted from net pay; nothing leaves the cash account for it. The loan balance falls when this run is approved. Set 0 to skip a loan this period.',
-          style: TextStyle(fontSize: 12, color: Color(0xFF5B21B6)),
+          style: TextStyle(fontSize: 12, color: Tone.fg(0xFF5B21B6)),
         ),
         const SizedBox(height: 6),
         Text(

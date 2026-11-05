@@ -8,6 +8,7 @@ import '../../state/session.dart';
 import '../lookup_loader.dart';
 import 'search_picker.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// The web's CompanyTimeZoneField (`components/settings/company-timezone-field.tsx`),
 /// shared by every company type's setup page: the business timezone, its own
 /// Save / Confirm button (it saves on its own, not with the form), today's
@@ -137,7 +138,7 @@ class _CompanyTimeZoneFieldState extends State<CompanyTimeZoneField> {
           Text(
             'This was guessed from your currency and has not been confirmed. '
             'If it is right, save it once to confirm.',
-            style: small(const Color(0xFFB45309)), // amber-700
+            style: small(const Tone(0xFFB45309)), // amber-700
           ),
         ],
         if (changed) ...[
@@ -154,7 +155,7 @@ class _CompanyTimeZoneFieldState extends State<CompanyTimeZoneField> {
         ],
         if (_justSaved && !changed) ...[
           const SizedBox(height: 6),
-          Text('✓ Timezone confirmed.', style: small(const Color(0xFF047857))),
+          Text('✓ Timezone confirmed.', style: small(const Tone(0xFF047857))),
         ],
         if (ctx != null && (changed || needsConfirming)) ...[
           const SizedBox(height: 8),

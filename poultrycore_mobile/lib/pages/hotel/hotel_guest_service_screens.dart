@@ -22,6 +22,7 @@ import '../poultry/trackers/tracker_widgets.dart';
 import 'hotel_kit.dart';
 import 'hotel_other_select.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 Object? _v(Map m, String k) => m[k] ?? m[k.toLowerCase()];
 String _day(Object? v) => tStr(v).length >= 10 ? tStr(v).substring(0, 10) : tStr(v);
 String _dash(Object? v) => tStr(v).isEmpty ? '—' : tStr(v);
@@ -35,11 +36,11 @@ String _local(Object? v) {
   return '${d.day}/${d.month}/${d.year}, ${two(d.hour)}:${two(d.minute)}:${two(d.second)}';
 }
 
-const _amber = (Color(0xFFFEF3C7), Color(0xFFB45309));
-const _blue = (Color(0xFFDBEAFE), Color(0xFF1D4ED8));
-const _green = (Color(0xFFD1FAE5), Color(0xFF047857));
+const _amber = (Tone(0xFFFEF3C7), Tone(0xFFB45309));
+const _blue = (Tone(0xFFDBEAFE), Tone(0xFF1D4ED8));
+const _green = (Tone(0xFFD1FAE5), Tone(0xFF047857));
 const _slate = (TColors.slate100, TColors.slate700);
-const _red = (Color(0xFFFEE2E2), Color(0xFFB91C1C));
+const _red = (Tone(0xFFFEE2E2), Tone(0xFFB91C1C));
 
 Widget _badge(String text, (Color, Color)? tone) => hotelBadge(text, (tone ?? _slate).$1, (tone ?? _slate).$2);
 
@@ -193,16 +194,16 @@ class _HotelGuestLogScreenState extends State<HotelGuestLogScreen> {
   List<Widget> _actions(Map r) {
     final st = tStr(r['status']);
     return [
-      if (st == 'Open') IconButton(tooltip: 'Start', onPressed: () => _set(r, 'InProgress'), icon: const Icon(Icons.play_arrow, size: 18, color: Color(0xFF2563EB))),
+      if (st == 'Open') IconButton(tooltip: 'Start', onPressed: () => _set(r, 'InProgress'), icon: const Icon(Icons.play_arrow, size: 18, color: Tone.fg(0xFF2563EB))),
       if (st == 'Open' || st == 'InProgress')
-        IconButton(tooltip: 'Resolve', onPressed: () => _set(r, 'Resolved'), icon: const Icon(Icons.check_circle_outline, size: 18, color: Color(0xFF059669))),
+        IconButton(tooltip: 'Resolve', onPressed: () => _set(r, 'Resolved'), icon: const Icon(Icons.check_circle_outline, size: 18, color: Tone.fg(0xFF059669))),
       if (st == 'Resolved') IconButton(tooltip: 'Close', onPressed: () => _set(r, 'Closed'), icon: const Icon(Icons.cancel_outlined, size: 18, color: TColors.slate500)),
     ];
   }
 
   Widget _count(String label, int n, Color color) => Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
           Text('$n', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: color)),
@@ -226,9 +227,9 @@ class _HotelGuestLogScreenState extends State<HotelGuestLogScreen> {
           SizedBox(width: double.infinity, child: hotelAddButton('Log Entry', _log)),
           const SizedBox(height: 12),
           twoUp([
-            _count('Open', n('Open'), const Color(0xFFB45309)),
-            _count('In Progress', n('InProgress'), const Color(0xFF1D4ED8)),
-            _count('Resolved', n('Resolved'), const Color(0xFF047857)),
+            _count('Open', n('Open'), const Tone(0xFFB45309)),
+            _count('In Progress', n('InProgress'), const Tone(0xFF1D4ED8)),
+            _count('Resolved', n('Resolved'), const Tone(0xFF047857)),
             _count('Total', _items.length, TColors.slate900),
           ]),
           const SizedBox(height: 12),
@@ -278,7 +279,7 @@ class _HotelGuestLogScreenState extends State<HotelGuestLogScreen> {
                       cellText(_day(r['createdat'])),
                       cellText('${tStr(r['firstname'])} ${tStr(r['lastname'])}', bold: true),
                       cellText(_dash(r['roomnumber'])),
-                      Align(alignment: Alignment.centerLeft, child: _badge(tStr(r['commtype']), (Colors.white, TColors.slate700))),
+                      Align(alignment: Alignment.centerLeft, child: _badge(tStr(r['commtype']), (Tone(0xFFFFFFFF), TColors.slate700))),
                       cellText(tStr(r['subject']).isNotEmpty ? tStr(r['subject']) : _dash(r['message'])),
                       Align(alignment: Alignment.centerLeft, child: _badge(tStr(r['priority']), _priorityTone[tStr(r['priority'])])),
                       Align(alignment: Alignment.centerLeft, child: _badge(tStr(r['status']), _commStatusTone[tStr(r['status'])])),
@@ -525,11 +526,11 @@ class _HotelGuestRequestsScreenState extends State<HotelGuestRequestsScreen> {
   List<Widget> _actions(Map r) {
     final st = tStr(r['status']);
     return [
-      if (st == 'Pending') IconButton(tooltip: 'Start', onPressed: () => _act(r, 'InProgress'), icon: const Icon(Icons.play_arrow, size: 18, color: Color(0xFF2563EB))),
+      if (st == 'Pending') IconButton(tooltip: 'Start', onPressed: () => _act(r, 'InProgress'), icon: const Icon(Icons.play_arrow, size: 18, color: Tone.fg(0xFF2563EB))),
       if (st == 'Pending' || st == 'InProgress')
-        IconButton(tooltip: 'Complete', onPressed: () => _act(r, 'Completed'), icon: const Icon(Icons.check_circle_outline, size: 18, color: Color(0xFF059669))),
+        IconButton(tooltip: 'Complete', onPressed: () => _act(r, 'Completed'), icon: const Icon(Icons.check_circle_outline, size: 18, color: Tone.fg(0xFF059669))),
       if (st != 'Completed' && st != 'Cancelled')
-        IconButton(tooltip: 'Cancel', onPressed: () => _act(r, 'Cancelled'), icon: const Icon(Icons.cancel_outlined, size: 18, color: Color(0xFFEF4444))),
+        IconButton(tooltip: 'Cancel', onPressed: () => _act(r, 'Cancelled'), icon: const Icon(Icons.cancel_outlined, size: 18, color: Tone.fg(0xFFEF4444))),
     ];
   }
 
@@ -581,13 +582,13 @@ class _HotelGuestRequestsScreenState extends State<HotelGuestRequestsScreen> {
                   Wrap(spacing: 8, runSpacing: 8, children: [
                     if (st == 'Pending')
                       FilledButton.icon(
-                        style: FilledButton.styleFrom(backgroundColor: const Color(0xFF2563EB)),
+                        style: FilledButton.styleFrom(backgroundColor: Tone.button(const Tone.bg(0xFF2563EB))),
                         onPressed: () => go('InProgress'),
                         icon: const Icon(Icons.play_arrow, size: 16),
                         label: const Text('Start'),
                       ),
                     FilledButton.icon(
-                      style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
+                      style: FilledButton.styleFrom(backgroundColor: Tone.button(const Tone.bg(0xFF059669))),
                       onPressed: () => go('Completed'),
                       icon: const Icon(Icons.check_circle_outline, size: 16),
                       label: const Text('Complete'),
@@ -616,7 +617,7 @@ class _HotelGuestRequestsScreenState extends State<HotelGuestRequestsScreen> {
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Tone.bg(0xFFFFFFFF),
             border: Border.all(color: _status == status ? color.withValues(alpha: .45) : TColors.slate200, width: _status == status ? 1.5 : 1),
             borderRadius: BorderRadius.circular(12),
           ),
@@ -645,10 +646,10 @@ class _HotelGuestRequestsScreenState extends State<HotelGuestRequestsScreen> {
           const SizedBox(height: 12),
           twoUp([
             _card('ALL', 'All', _items.length, TColors.violet700),
-            _card('Pending', 'Pending', n('Pending'), const Color(0xFFB45309)),
-            _card('InProgress', 'In Progress', n('InProgress'), const Color(0xFF1D4ED8)),
-            _card('Completed', 'Completed', n('Completed'), const Color(0xFF047857)),
-            _card('Cancelled', 'Cancelled', n('Cancelled'), const Color(0xFFB91C1C)),
+            _card('Pending', 'Pending', n('Pending'), const Tone(0xFFB45309)),
+            _card('InProgress', 'In Progress', n('InProgress'), const Tone(0xFF1D4ED8)),
+            _card('Completed', 'Completed', n('Completed'), const Tone(0xFF047857)),
+            _card('Cancelled', 'Cancelled', n('Cancelled'), const Tone(0xFFB91C1C)),
           ]),
           const SizedBox(height: 12),
           _search(_q, 'Search guest, room, type...', () => setState(() => _page = 1)),
@@ -686,7 +687,7 @@ class _HotelGuestRequestsScreenState extends State<HotelGuestRequestsScreen> {
                   for (final r in items)
                     [
                       InkWell(onTap: () => _detail(r), child: cellText(_day(r['createdat']))),
-                      Align(alignment: Alignment.centerLeft, child: _badge(_dash(r['roomnumber']), (Colors.white, TColors.slate700))),
+                      Align(alignment: Alignment.centerLeft, child: _badge(_dash(r['roomnumber']), (Tone(0xFFFFFFFF), TColors.slate700))),
                       InkWell(
                         onTap: () => _detail(r),
                         child: cellText(tStr(r['firstname']).isNotEmpty ? '${tStr(r['firstname'])} ${tStr(r['lastname'])}' : '—', bold: true),
@@ -984,7 +985,7 @@ class _HotelLostFoundScreenState extends State<HotelLostFoundScreen> {
           Wrap(alignment: WrapAlignment.end, spacing: 8, runSpacing: 8, children: [
             OutlinedButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
             FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(const Tone.bg(0xFF059669))),
               onPressed: () {
                 if (name.text.trim().isEmpty) return trackerToast(ctx, 'Enter name', error: true);
                 Navigator.pop(ctx, name.text);
@@ -1068,7 +1069,7 @@ class _HotelLostFoundScreenState extends State<HotelLostFoundScreen> {
                       cellText(_day(r['founddate'])),
                       cellText(_dash(r['roomnumber'])),
                       cellText(tStr(r['itemdescription']), bold: true),
-                      Align(alignment: Alignment.centerLeft, child: _badge(tStr(r['category']), (Colors.white, TColors.slate700))),
+                      Align(alignment: Alignment.centerLeft, child: _badge(tStr(r['category']), (Tone(0xFFFFFFFF), TColors.slate700))),
                       cellText(_dash(r['foundby'])),
                       cellText(_dash(r['foundlocation'])),
                       cellText(_dash(r['storagelocation'])),

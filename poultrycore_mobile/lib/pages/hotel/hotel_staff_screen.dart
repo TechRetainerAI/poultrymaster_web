@@ -20,6 +20,7 @@ import '../poultry/trackers/tracker_widgets.dart';
 import '../shared/staff_employee_link.dart';
 import 'hotel_kit.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 const hotelDepartments = [
   'Front Desk',
   'Housekeeping',
@@ -82,16 +83,16 @@ const hotelStaffRoles = [
 
 /// DEPT_COLOR (bg-*-100 text-*-700; anything else slate).
 (Color, Color) _deptColors(String d) => switch (d) {
-  'Front Desk' => (TColors.blue100, const Color(0xFF1D4ED8)),
+  'Front Desk' => (TColors.blue100, const Tone(0xFF1D4ED8)),
   'Housekeeping' => (TColors.emerald100, TColors.emerald700),
   'Restaurant' => (TColors.violet100, TColors.violet700),
-  'Kitchen' => (const Color(0xFFFFEDD5), const Color(0xFFC2410C)),
+  'Kitchen' => (const Tone(0xFFFFEDD5), const Tone(0xFFC2410C)),
   'Bar' => (TColors.amber100, TColors.amber700),
   'Security' => (TColors.red100, TColors.red700),
-  'Management' => (const Color(0xFFE0E7FF), const Color(0xFF4338CA)),
-  'Finance' => (const Color(0xFFCCFBF1), const Color(0xFF0F766E)),
-  'Laundry' => (const Color(0xFFCFFAFE), const Color(0xFF0E7490)),
-  'Spa' => (const Color(0xFFFCE7F3), const Color(0xFFBE185D)),
+  'Management' => (const Tone(0xFFE0E7FF), const Tone(0xFF4338CA)),
+  'Finance' => (const Tone(0xFFCCFBF1), const Tone(0xFF0F766E)),
+  'Laundry' => (const Tone(0xFFCFFAFE), const Tone(0xFF0E7490)),
+  'Spa' => (const Tone(0xFFFCE7F3), const Tone(0xFFBE185D)),
   _ => (TColors.slate100, TColors.slate700),
 };
 
@@ -231,7 +232,7 @@ class _HotelStaffScreenState extends State<HotelStaffScreen> {
                     runSpacing: 8,
                     children: [
                       _chip('All (${_staff.length})', _status == 'all', hotelViolet, () => setState(() => _status = 'all')),
-                      _chip('Active ($active)', _status == 'active', const Color(0xFF16A34A), () => setState(() => _status = 'active')),
+                      _chip('Active ($active)', _status == 'active', const Tone(0xFF16A34A), () => setState(() => _status = 'active')),
                       _chip('Inactive ($inactive)', _status == 'inactive', TColors.red600, () => setState(() => _status = 'inactive')),
                     ],
                   ),
@@ -257,7 +258,7 @@ class _HotelStaffScreenState extends State<HotelStaffScreen> {
   Widget _chip(String label, bool on, Color color, VoidCallback onTap) => on
       ? FilledButton(
           style: FilledButton.styleFrom(
-            backgroundColor: color,
+            backgroundColor: Tone.button(color),
             minimumSize: const Size(0, 34),
             padding: const EdgeInsets.symmetric(horizontal: 12),
           ),

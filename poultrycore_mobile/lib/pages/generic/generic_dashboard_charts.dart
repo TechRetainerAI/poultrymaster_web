@@ -15,12 +15,13 @@ import '../../models/company.dart';
 import '../../state/session.dart';
 import '../hotel/hotel_dashboard_charts.dart';
 import '../shared/chart_period.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import '../poultry/poultry_dashboard_charts.dart' show dayOf, fieldOf, isoDay, topGroups;
 import '../poultry/trackers/tracker_logic.dart' show tNum, tStr;
 import '../poultry/trackers/tracker_widgets.dart' show rowsOf;
 import 'generic_kit.dart' show genericBase;
 
-const _ink2 = Color(0xFF52514E);
+const _ink2 = Tone.fg(0xFF52514E);
 const _colors = [chartBlue, chartOrange, chartAqua, chartYellow];
 
 bool _approved(Map r) => tStr(fieldOf(r, 'status')) == 'Approved';

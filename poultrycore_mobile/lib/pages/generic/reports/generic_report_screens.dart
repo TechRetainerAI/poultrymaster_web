@@ -15,10 +15,11 @@ import '../../web_nav.dart' show NavLink;
 import '../generic_kit.dart';
 import 'generic_report_kit.dart';
 
-const _emerald700 = Color(0xFF047857);
-const _rose600 = Color(0xFFE11D48);
-const _rose700 = Color(0xFFBE123C);
-const _slate400 = Color(0xFF94A3B8);
+import 'package:poultrycore_mobile/design/tone.dart';
+const _emerald700 = Tone.fg(0xFF047857);
+const _rose600 = Tone.fg(0xFFE11D48);
+const _rose700 = Tone.fg(0xFFBE123C);
+const _slate400 = Tone.fg(0xFF94A3B8);
 
 abstract class _Report extends StatefulWidget {
   const _Report({super.key, required this.session, required this.company});
@@ -180,7 +181,7 @@ class _CashState extends _ReportState<GenericCashSummaryScreen> {
               RCol(
                 'Status',
                 (a) => a['isActive'] == true
-                    ? reportBadge('Active', bg: const Color(0xFFD1FAE5), fg: const Color(0xFF065F46))
+                    ? reportBadge('Active', bg: const Tone.bg(0xFFD1FAE5), fg: const Tone.fg(0xFF065F46))
                     : reportBadge('Inactive'),
               ),
             ],
@@ -258,7 +259,7 @@ class _ExpenseState extends _ReportState<GenericExpenseReportScreen> {
             RCol('Category', (r) => tStr(r['categoryName'])),
             RCol('Count', (r) => '${tNum(r['expenseCount']).toInt()}', right: true),
             RCol('Amount', (r) => fmtMoney(r['totalAmount']), right: true, bold: true),
-            RCol('Share', (r) => total > 0 ? shareCell(tNum(r['totalAmount']) * 100 / total, const Color(0xFFF59E0B)) : '—', right: true),
+            RCol('Share', (r) => total > 0 ? shareCell(tNum(r['totalAmount']) * 100 / total, const Tone(0xFFF59E0B)) : '—', right: true),
           ],
         ),
         ReportTable(
@@ -375,7 +376,7 @@ class _StaffCostState extends _ReportState<GenericStaffCostScreen> {
             RCol('Role', (r) => tStr(r['staffRole'])),
             RCol('People', (r) => '${tNum(r['peopleCount']).toInt()}', right: true),
             RCol('Paid', (r) => fmtMoney(r['totalPaid']), right: true),
-            RCol('Share', (r) => shareCell(tNum(r['pctOfTotal']), const Color(0xFF0EA5E9)), right: true),
+            RCol('Share', (r) => shareCell(tNum(r['pctOfTotal']), const Tone(0xFF0EA5E9)), right: true),
           ],
         ),
       ],
@@ -856,7 +857,7 @@ class _HostingState extends _ReportState<GenericHostingCostScreen> {
           margin: const EdgeInsets.only(bottom: 14),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Tone.bg(0xFFFFFFFF),
             border: Border.all(color: TColors.slate200),
             borderRadius: BorderRadius.circular(12),
           ),
@@ -1079,7 +1080,7 @@ class _BreakEvenState extends _ReportState<GenericBreakEvenScreen> {
                 Text(
                   'There is no answer yet: it needs at least one active ${l.subscription.toLowerCase()} with a recurring '
                   'price. Add one and this fills in.',
-                  style: const TextStyle(fontSize: 13, color: Color(0xFFB45309)),
+                  style: const TextStyle(fontSize: 13, color: Tone.fg(0xFFB45309)),
                 ),
             ],
           ),
@@ -1116,7 +1117,7 @@ class _ByProductState extends _ReportState<GenericSalesByProductScreen> {
         href: '/generic-reports/sales-by-product',
         title: 'Sales by product',
         icon: Icons.shopping_cart_outlined,
-        iconColor: const Color(0xFF0284C7),
+        iconColor: const Tone.fg(0xFF0284C7),
         range: range,
         onRangeChange: setRange,
         showDates: false,
@@ -1172,7 +1173,7 @@ class _ByCustomerState extends _ReportState<GenericSalesByCustomerScreen> {
         href: '/generic-reports/sales-by-customer',
         title: 'Sales by customer',
         icon: Icons.people_outline,
-        iconColor: const Color(0xFF0891B2),
+        iconColor: const Tone.fg(0xFF0891B2),
         range: range,
         onRangeChange: setRange,
         showDates: false,
@@ -1248,7 +1249,7 @@ class _InventoryState extends _ReportState<GenericInventoryValueScreen> {
               label: const Text('Back to reports', style: TextStyle(fontSize: 13)),
             ),
           ),
-          const GenericTitle(icon: Icons.inventory_2_outlined, iconColor: Color(0xFFEA580C), title: 'Inventory value'),
+          const GenericTitle(icon: Icons.inventory_2_outlined, iconColor: Tone.fg(0xFFEA580C), title: 'Inventory value'),
           const SizedBox(height: 14),
           if (loading)
             const Row(children: [

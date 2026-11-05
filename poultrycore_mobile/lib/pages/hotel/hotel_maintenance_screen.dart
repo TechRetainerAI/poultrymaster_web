@@ -19,24 +19,25 @@ import '../poultry/trackers/tracker_widgets.dart';
 import 'hotel_kit.dart';
 import 'hotel_other_select.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 const hotelMaintenanceStatuses = ['Open', 'Assigned', 'InProgress', 'Completed', 'Cancelled'];
 const _priorities = ['Low', 'Normal', 'High', 'Critical'];
 
 (Color, Color) _priorityColors(String p) => switch (p) {
   'Low' => (TColors.slate100, TColors.slate700),
-  'Normal' => (TColors.blue100, const Color(0xFF1D4ED8)),
+  'Normal' => (TColors.blue100, const Tone(0xFF1D4ED8)),
   'High' => (TColors.amber100, TColors.amber700),
   'Critical' => (TColors.red100, TColors.red700),
-  _ => (Colors.white, TColors.slate600),
+  _ => (Tone(0xFFFFFFFF), TColors.slate600),
 };
 
 (Color, Color) _statusColors(String s) => switch (s) {
-  'Open' => (TColors.blue100, const Color(0xFF1D4ED8)),
+  'Open' => (TColors.blue100, const Tone(0xFF1D4ED8)),
   'Assigned' => (TColors.amber100, TColors.amber700),
   'InProgress' => (TColors.violet100, TColors.violet700),
   'Completed' => (TColors.emerald100, TColors.emerald700),
   'Cancelled' => (TColors.slate100, TColors.slate700),
-  _ => (Colors.white, TColors.slate600),
+  _ => (Tone(0xFFFFFFFF), TColors.slate600),
 };
 
 class HotelMaintenanceScreen extends StatefulWidget {
@@ -174,7 +175,7 @@ class _HotelMaintenanceScreenState extends State<HotelMaintenanceScreen> {
   Widget _chip(String label, bool on, VoidCallback onTap) => on
       ? FilledButton(
           style: FilledButton.styleFrom(
-            backgroundColor: hotelViolet,
+            backgroundColor: Tone.button(hotelViolet),
             minimumSize: const Size(0, 34),
             padding: const EdgeInsets.symmetric(horizontal: 12),
           ),

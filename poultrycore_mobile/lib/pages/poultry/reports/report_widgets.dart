@@ -12,30 +12,31 @@ import 'report_defs.dart';
 import 'report_export.dart';
 import 'report_format.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 // Tailwind tones.
-const slate50 = Color(0xFFF8FAFC);
-const slate100 = Color(0xFFF1F5F9);
-const slate200 = Color(0xFFE2E8F0);
-const slate300 = Color(0xFFCBD5E1);
-const slate400 = Color(0xFF7F8EA3);  // a shade darker than Tailwind's, for legibility
-const slate500 = Color(0xFF566579);  // a shade darker than Tailwind's, for legibility
-const slate600 = Color(0xFF475569);
-const slate700 = Color(0xFF334155);
-const slate800 = Color(0xFF1E293B);
-const slate900 = Color(0xFF0F172A);
-const emerald500 = Color(0xFF10B981);
-const emerald700 = Color(0xFF047857);
-const rose500 = Color(0xFFF43F5E);
-const rose700 = Color(0xFFBE123C);
-const indigo500 = Color(0xFF6366F1);
-const indigo700 = Color(0xFF4338CA);
-const amber50 = Color(0xFFFFFBEB);
-const amber100 = Color(0xFFFEF3C7);
-const amber200 = Color(0xFFFDE68A);
-const amber400 = Color(0xFFFBBF24);
-const amber500 = Color(0xFFF59E0B);
-const amber700 = Color(0xFFB45309);
-const amber800 = Color(0xFF92400E);
+const slate50 = Tone.bg(0xFFF8FAFC);
+const slate100 = Tone(0xFFF1F5F9);
+const slate200 = Tone.line(0xFFE2E8F0);
+const slate300 = Tone(0xFFCBD5E1);
+const slate400 = Tone.fg(0xFF7F8EA3);  // a shade darker than Tailwind's, for legibility
+const slate500 = Tone.fg(0xFF566579);  // a shade darker than Tailwind's, for legibility
+const slate600 = Tone.fg(0xFF475569);
+const slate700 = Tone.fg(0xFF334155);
+const slate800 = Tone.fg(0xFF1E293B);
+const slate900 = Tone.fg(0xFF0F172A);
+const emerald500 = Tone(0xFF10B981);
+const emerald700 = Tone(0xFF047857);
+const rose500 = Tone.fg(0xFFF43F5E);
+const rose700 = Tone(0xFFBE123C);
+const indigo500 = Tone(0xFF6366F1);
+const indigo700 = Tone(0xFF4338CA);
+const amber50 = Tone.bg(0xFFFFFBEB);
+const amber100 = Tone.bg(0xFFFEF3C7);
+const amber200 = Tone.line(0xFFFDE68A);
+const amber400 = Tone.bg(0xFFFBBF24);
+const amber500 = Tone.bg(0xFFF59E0B);
+const amber700 = Tone.fg(0xFFB45309);
+const amber800 = Tone.fg(0xFF92400E);
 
 Color accentValue(String? a) => switch (a) {
       'green' => emerald700,
@@ -65,9 +66,9 @@ class ReportStatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = status.toLowerCase();
     final (bg, fg, border) = _good.contains(s)
-        ? (const Color(0xFFD1FAE5), const Color(0xFF065F46), const Color(0xFFA7F3D0))
+        ? (const Tone(0xFFD1FAE5), const Tone(0xFF065F46), const Tone(0xFFA7F3D0))
         : _bad.contains(s)
-            ? (const Color(0xFFFFE4E6), const Color(0xFF9F1239), const Color(0xFFFECDD3))
+            ? (const Tone(0xFFFFE4E6), const Tone(0xFF9F1239), const Tone(0xFFFECDD3))
             : _warn.contains(s)
                 ? (amber100, amber800, amber200)
                 : (slate100, slate700, slate200);
@@ -103,7 +104,7 @@ class ReportEmpty extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 40),
         child: Column(children: [
-          const Icon(Icons.inbox_outlined, size: 40, color: slate300),
+          const Icon(Icons.inbox_outlined, size: 40, color: Tone.fg(0xFFCBD5E1)),
           const SizedBox(height: 8),
           const Text('No data for this selection', style: TextStyle(fontWeight: FontWeight.w500, color: slate700)),
           const SizedBox(height: 4),
@@ -122,18 +123,18 @@ class ReportError extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
         decoration: BoxDecoration(
-          color: const Color(0xFFFFF1F2),
-          border: Border.all(color: const Color(0xFFFECDD3)),
+          color: const Tone.bg(0xFFFFF1F2),
+          border: Border.all(color: const Tone.line(0xFFFECDD3)),
           borderRadius: BorderRadius.circular(6),
         ),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Padding(padding: EdgeInsets.only(top: 2), child: Icon(Icons.error_outline, size: 16, color: Color(0xFF9F1239))),
+          const Padding(padding: EdgeInsets.only(top: 2), child: Icon(Icons.error_outline, size: 16, color: Tone.fg(0xFF9F1239))),
           const SizedBox(width: 8),
-          Expanded(child: Text(message, style: const TextStyle(fontSize: 13, color: Color(0xFF9F1239)))),
+          Expanded(child: Text(message, style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF9F1239)))),
           if (onRetry != null)
             TextButton(
               onPressed: onRetry,
-              style: TextButton.styleFrom(foregroundColor: const Color(0xFFE11D48), visualDensity: VisualDensity.compact),
+              style: TextButton.styleFrom(foregroundColor: const Tone.fg(0xFFE11D48), visualDensity: VisualDensity.compact),
               child: const Text('Retry', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
             ),
         ]),
@@ -194,7 +195,7 @@ class SummaryCards extends StatelessWidget {
         for (final c in cards)
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Tone.bg(0xFFFFFFFF),
               border: Border.all(color: slate200),
               borderRadius: BorderRadius.circular(10),
               boxShadow: const [BoxShadow(color: Color(0x0D000000), blurRadius: 2, offset: Offset(0, 1))],
@@ -326,7 +327,7 @@ class _ReportTableState extends State<ReportTable> {
             Container(
               padding: const EdgeInsets.symmetric(vertical: 6),
               decoration: BoxDecoration(
-                border: ci == (bold ? 0 : 1) ? null : Border(top: BorderSide(color: bold ? slate200 : slate100)),
+                border: ci == (bold ? 0 : 1) ? null : Border(top: BorderSide(color: bold ? slate200 : Tone.line(0xFFF1F5F9))),
               ),
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(cols[ci].header, style: const TextStyle(fontSize: 12, color: slate500)),
@@ -372,7 +373,7 @@ class _ReportTableState extends State<ReportTable> {
       for (final (ri, r) in pageRows.indexed) ...[
         Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Tone.bg(0xFFFFFFFF),
             border: Border.all(color: slate200),
             borderRadius: BorderRadius.circular(8),
             boxShadow: const [BoxShadow(color: Color(0x0D000000), blurRadius: 2, offset: Offset(0, 1))],
@@ -405,8 +406,8 @@ class _ReportTableState extends State<ReportTable> {
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: slate100,
-            border: Border.all(color: slate300, width: 2),
+            color: Tone.bg(0xFFF1F5F9),
+            border: Border.all(color: Tone.line(0xFFCBD5E1), width: 2),
             borderRadius: BorderRadius.circular(8),
           ),
           child: dl(widget.totals!, bold: true),
@@ -509,8 +510,8 @@ class ReportBreakdown extends StatelessWidget {
                     child: LinearProgressIndicator(
                       value: clampPct(it.percent(summary)) / 100,
                       minHeight: 8,
-                      color: g.green ? emerald500 : rose500,
-                      backgroundColor: slate100,
+                      color: g.green ? Tone.fg(0xFF10B981) : rose500,
+                      backgroundColor: Tone.bg(0xFFF1F5F9),
                     ),
                   ),
                 ]),
@@ -539,7 +540,7 @@ class ReportAnalysis extends StatelessWidget {
         for (final a in items)
           Container(
             margin: const EdgeInsets.only(bottom: 8),
-            decoration: BoxDecoration(color: Colors.white, border: Border.all(color: slate200), borderRadius: BorderRadius.circular(6)),
+            decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: slate200), borderRadius: BorderRadius.circular(6)),
             clipBehavior: Clip.antiAlias,
             child: Stack(children: [
               Padding(
@@ -549,7 +550,7 @@ class ReportAnalysis extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w600,
-                        color: a.tone == 'good' ? const Color(0xFF065F46) : a.tone == 'watch' ? amber800 : slate800,
+                        color: a.tone == 'good' ? const Tone.fg(0xFF065F46) : a.tone == 'watch' ? amber800 : slate800,
                       )),
                   const SizedBox(height: 3),
                   Text(a.detail, style: const TextStyle(fontSize: 11.5, color: slate600, height: 1.35)),
@@ -560,7 +561,7 @@ class ReportAnalysis extends StatelessWidget {
                 top: 0,
                 bottom: 0,
                 width: 4,
-                child: ColoredBox(color: a.tone == 'good' ? emerald500 : a.tone == 'watch' ? amber500 : slate300),
+                child: ColoredBox(color: a.tone == 'good' ? Tone.bg(0xFF10B981) : a.tone == 'watch' ? amber500 : Tone.bg(0xFFCBD5E1)),
               ),
             ]),
           ),
@@ -924,7 +925,7 @@ class ReportCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Tone.bg(0xFFFFFFFF),
           border: Border.all(color: slate200),
           borderRadius: BorderRadius.circular(12),
           boxShadow: const [BoxShadow(color: Color(0x0D000000), blurRadius: 2, offset: Offset(0, 1))],

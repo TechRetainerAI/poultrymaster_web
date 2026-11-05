@@ -23,6 +23,7 @@ import '../poultry/trackers/tracker_widgets.dart';
 import 'hotel_dashboard_charts.dart';
 import 'hotel_kit.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 Object? _v(Map m, String k) => m[k] ?? m[k.toLowerCase()];
 String _day(Object? v) => tStr(v).length >= 10 ? tStr(v).substring(0, 10) : tStr(v);
 
@@ -80,12 +81,12 @@ String _clock(DateTime d) => [d.hour, d.minute, d.second].map((n) => n.toString(
 
 // The web's StatCard colours: (tint, foreground, border).
 const _tones = {
-  'violet': (Color(0xFFF5F3FF), Color(0xFF7C3AED), Color(0xFFDDD6FE)),
-  'emerald': (Color(0xFFECFDF5), Color(0xFF059669), Color(0xFFA7F3D0)),
-  'blue': (Color(0xFFEFF6FF), Color(0xFF2563EB), Color(0xFFBFDBFE)),
-  'amber': (Color(0xFFFFFBEB), Color(0xFFD97706), Color(0xFFFDE68A)),
-  'orange': (Color(0xFFFFF7ED), Color(0xFFEA580C), Color(0xFFFED7AA)),
-  'red': (Color(0xFFFEF2F2), Color(0xFFDC2626), Color(0xFFFECACA)),
+  'violet': (Tone(0xFFF5F3FF), Tone(0xFF7C3AED), Tone(0xFFDDD6FE)),
+  'emerald': (Tone(0xFFECFDF5), Tone(0xFF059669), Tone(0xFFA7F3D0)),
+  'blue': (Tone(0xFFEFF6FF), Tone(0xFF2563EB), Tone(0xFFBFDBFE)),
+  'amber': (Tone(0xFFFFFBEB), Tone(0xFFD97706), Tone(0xFFFDE68A)),
+  'orange': (Tone(0xFFFFF7ED), Tone(0xFFEA580C), Tone(0xFFFED7AA)),
+  'red': (Tone(0xFFFEF2F2), Tone(0xFFDC2626), Tone(0xFFFECACA)),
 };
 
 class HotelDashboardView extends StatefulWidget {
@@ -184,7 +185,7 @@ class _HotelDashboardViewState extends State<HotelDashboardView> {
       child: Row(children: [
         Container(
           padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.6), border: Border.all(color: t.$3), borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF).withValues(alpha: 0.6), border: Border.all(color: t.$3), borderRadius: BorderRadius.circular(8)),
           child: Icon(icon, size: 20, color: t.$2),
         ),
         const SizedBox(width: 10),
@@ -212,7 +213,7 @@ class _HotelDashboardViewState extends State<HotelDashboardView> {
   Widget _panel(IconData icon, Color iconColor, String title, String empty, List<Widget> rows) => Container(
         margin: const EdgeInsets.only(bottom: 14),
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(children: [
             Icon(icon, size: 20, color: iconColor),
@@ -244,8 +245,8 @@ class _HotelDashboardViewState extends State<HotelDashboardView> {
       );
 
   Widget _owes(num balance) => balance > 0
-      ? hotelBadge('Owes ${balance.toStringAsFixed(2)}', const Color(0xFFFEE2E2), const Color(0xFFB91C1C))
-      : hotelBadge('Paid', const Color(0xFFD1FAE5), const Color(0xFF047857));
+      ? hotelBadge('Owes ${balance.toStringAsFixed(2)}', const Tone(0xFFFEE2E2), const Tone(0xFFB91C1C))
+      : hotelBadge('Paid', const Tone(0xFFD1FAE5), const Tone(0xFF047857));
 
   @override
   Widget build(BuildContext context) {
@@ -309,35 +310,35 @@ class _HotelDashboardViewState extends State<HotelDashboardView> {
           _panel(Icons.people_outline, hotelViolet, 'In-House Guests (${f.checkedIn})', 'No guests currently checked in', [
             for (final g in f.balances) _row(g.guest, 'Room ${g.room} | ${g.ref}', _owes(g.balance), TColors.slate50, TColors.slate200),
           ]),
-          _panel(Icons.login, const Color(0xFF2563EB), 'Expected Arrivals (${f.todayArrivals.length})', 'No arrivals today', [
+          _panel(Icons.login, const Tone(0xFF2563EB), 'Expected Arrivals (${f.todayArrivals.length})', 'No arrivals today', [
             for (final a in f.todayArrivals)
               _row(
                 '${tStr(_v(a, 'guestFirstName'))} ${tStr(_v(a, 'guestLastName'))}',
                 '${tStr(_v(a, 'roomTypeName'))} | ${tStr(_v(a, 'roomNumber')).isEmpty ? 'Unassigned' : tStr(_v(a, 'roomNumber'))}',
-                hotelBadge(tStr(_v(a, 'bookingRef')), const Color(0xFFDBEAFE), const Color(0xFF1D4ED8)),
-                const Color(0xFFEFF6FF),
-                const Color(0xFFDBEAFE),
+                hotelBadge(tStr(_v(a, 'bookingRef')), const Tone(0xFFDBEAFE), const Tone(0xFF1D4ED8)),
+                const Tone(0xFFEFF6FF),
+                const Tone(0xFFDBEAFE),
               ),
           ]),
-          _panel(Icons.logout, const Color(0xFFD97706), 'Expected Departures (${f.todayDepartures.length})', 'No departures today', [
+          _panel(Icons.logout, const Tone(0xFFD97706), 'Expected Departures (${f.todayDepartures.length})', 'No departures today', [
             for (final d in f.todayDepartures)
               _row(
                 '${tStr(_v(d, 'guestFirstName'))} ${tStr(_v(d, 'guestLastName'))}',
                 'Room ${tStr(_v(d, 'roomNumber'))} | ${tNum(_v(d, 'totalAmount')).toStringAsFixed(2)}',
                 _owes(f.balances.where((b) => b.ref == tStr(_v(d, 'bookingRef'))).firstOrNull?.balance ?? 0),
-                const Color(0xFFFFFBEB),
-                const Color(0xFFFEF3C7),
+                const Tone(0xFFFFFBEB),
+                const Tone(0xFFFEF3C7),
               ),
           ]),
-          _panel(Icons.credit_card, const Color(0xFF059669), 'Recent Payments', 'No payments yet', [
+          _panel(Icons.credit_card, const Tone(0xFF059669), 'Recent Payments', 'No payments yet', [
             for (final p in f.payments.take(6))
               _row(
                 tNum(p['amount']).toStringAsFixed(2),
                 '${tStr(_v(p, 'paymentMethod'))} | ${_day(_v(p, 'paymentDate'))}',
                 Text(tStr(p['reference']).isEmpty ? '—' : tStr(p['reference']), style: const TextStyle(fontSize: 12, fontFamily: 'monospace', color: TColors.slate400)),
-                const Color(0xFFECFDF5),
-                const Color(0xFFD1FAE5),
-                titleColor: const Color(0xFF047857),
+                const Tone(0xFFECFDF5),
+                const Tone(0xFFD1FAE5),
+                titleColor: const Tone.fg(0xFF047857),
               ),
           ]),
           const SizedBox(height: 4),

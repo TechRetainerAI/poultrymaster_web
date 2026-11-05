@@ -20,6 +20,7 @@ import '../shared/business_dates.dart';
 import '../shared/company_clock.dart';
 import '../shared/reason_select.dart' show ReasonSelect, rejectReasons, stockAdjustmentReasons;
 import 'generic_kit.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import 'generic_products_screen.dart' show genericBandAmber, genericBandBlue, genericBandIndigo, genericEmptyCard;
 
 const genericAdjustmentStatuses = ['All', 'Draft', 'Submitted', 'Approved', 'Rejected'];
@@ -200,7 +201,7 @@ class _GenericStockAdjustmentsScreenState extends State<GenericStockAdjustmentsS
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
           children: [
             const Row(children: [
-              Icon(Icons.inventory_2_outlined, size: 24, color: Color(0xFF0891B2)),
+              Icon(Icons.inventory_2_outlined, size: 24, color: Tone.fg(0xFF0891B2)),
               SizedBox(width: 8),
               Expanded(child: Text('Stock adjustments', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TColors.slate900))),
             ]),
@@ -351,7 +352,7 @@ class _GenericStockAdjustmentDialogState extends State<GenericStockAdjustmentDia
       child: AlertDialog(
         scrollable: true,
         title: const Row(children: [
-          Icon(Icons.inventory_2_outlined, size: 20, color: Color(0xFF0891B2)),
+          Icon(Icons.inventory_2_outlined, size: 20, color: Tone.fg(0xFF0891B2)),
           SizedBox(width: 8),
           Expanded(child: Text('New stock adjustment')),
         ]),
@@ -413,7 +414,7 @@ class _GenericStockAdjustmentDialogState extends State<GenericStockAdjustmentDia
         actions: [
           OutlinedButton(
             onPressed: _saving ? null : () => Navigator.pop(context, false),
-            style: OutlinedButton.styleFrom(backgroundColor: TColors.red600, foregroundColor: Colors.white, side: BorderSide.none),
+            style: OutlinedButton.styleFrom(backgroundColor: Tone.button(TColors.red600), foregroundColor: Colors.white, side: BorderSide.none),
             child: const Text('Cancel'),
           ),
           FilledButton(onPressed: _saving ? null : _save, child: Text(_saving ? 'Saving…' : 'Create & submit')),

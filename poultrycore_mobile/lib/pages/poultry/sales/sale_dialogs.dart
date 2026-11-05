@@ -17,6 +17,7 @@ import '../reports/report_format.dart';
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, loc;
 import '../trackers/tracker_widgets.dart';
 import 'sales_logic.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import 'balances_logic.dart' show BalanceSide;
 import 'credit_widgets.dart' show showReverseWithReason;
 
@@ -158,7 +159,7 @@ class _RecordPaymentDialogState extends State<_RecordPaymentDialog> {
           ),
         OutlinedButton(onPressed: _saving ? null : () => Navigator.pop(context), child: const Text('Cancel')),
         FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: TColors.emerald600),
+          style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.emerald600)),
           onPressed: _saving ? null : _record,
           child: Text(_saving ? 'Saving…' : 'Record payment'),
         ),
@@ -369,7 +370,7 @@ class _PaymentHistoryState extends State<_PaymentHistory> {
               color: FormColor.green,
               children: [
             Container(
-              decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
               child: _loading
                   ? const Padding(
                       padding: EdgeInsets.all(24),
@@ -409,10 +410,10 @@ class _PaymentHistoryState extends State<_PaymentHistory> {
     final sm = const TextStyle(fontSize: 12, color: TColors.slate500);
     return Container(
       decoration: BoxDecoration(
-        color: open ? const Color(0xB3C7D2FE) : reversed ? const Color(0xB3FFE4E6) : null,
+        color: open ? const Tone.bg(0xB3C7D2FE) : reversed ? const Tone.bg(0xB3FFE4E6) : null,
         border: Border(
           left: BorderSide(
-              color: open ? const Color(0xFF4F46E5) : reversed ? const Color(0xFFFB7185) : Colors.transparent, width: 4),
+              color: open ? const Tone.line(0xFF4F46E5) : reversed ? const Tone.line(0xFFFB7185) : Colors.transparent, width: 4),
         ),
       ),
       padding: const EdgeInsets.all(12),
@@ -462,7 +463,7 @@ class _PaymentHistoryState extends State<_PaymentHistory> {
           if (widget.canReverse && !reversed && !_manualCreditSources.contains(tStr(row['sourceType']))) ...[
             const SizedBox(height: 8),
             OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(backgroundColor: Colors.white, minimumSize: const Size.fromHeight(40)),
+              style: OutlinedButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)), minimumSize: const Size.fromHeight(40)),
               onPressed: () => _reverse(row),
               icon: const Icon(Icons.undo, size: 16),
               label: const Text('Reverse'),
@@ -493,7 +494,7 @@ class _PaymentHistoryState extends State<_PaymentHistory> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Tone.bg(0xFFFFFFFF),
         border: Border.all(color: TColors.slate200),
         borderRadius: BorderRadius.circular(6),
       ),
@@ -552,10 +553,10 @@ class SaleInvoiceScreen extends StatelessWidget {
       ? lines!
       : [InvoiceLine(label: '', quantity: tNum(sale['quantity']), unitPrice: tNum(sale['unitPrice']), totalAmount: _figures.total)];
 
-  static const _accent = Color(0xFF0D4A42);
-  static const _accentSoft = Color(0xFFE9F5F2);
-  static const _muted = Color(0xFF5C6578);
-  static const _line = Color(0xFFE8ECF2);
+  static const _accent = Tone(0xFF0D4A42);
+  static const _accentSoft = Tone.bg(0xFFE9F5F2);
+  static const _muted = Tone.fg(0xFF5C6578);
+  static const _line = Tone.line(0xFFE8ECF2);
 
   ({num total, num paid, num owed, String status}) get _figures {
     final total = tNum(sale['totalAmount']);
@@ -667,10 +668,10 @@ class SaleInvoiceScreen extends StatelessWidget {
     final inv = _inv;
     final isEggs = isEggProductName(sale['product']);
     final (badgeBg, badgeFg, badgeBorder) = f.owed <= 0
-        ? (const Color(0xFFECFDF5), const Color(0xFF047857), const Color(0xFFA7F3D0))
+        ? (const Tone(0xFFECFDF5), const Tone(0xFF047857), const Tone(0xFFA7F3D0))
         : f.paid > 0
-            ? (const Color(0xFFEFF6FF), const Color(0xFF1D4ED8), const Color(0xFFBFDBFE))
-            : (const Color(0xFFFFFBEB), const Color(0xFFB45309), const Color(0xFFFDE68A));
+            ? (const Tone(0xFFEFF6FF), const Tone(0xFF1D4ED8), const Tone(0xFFBFDBFE))
+            : (const Tone(0xFFFFFBEB), const Tone(0xFFB45309), const Tone(0xFFFDE68A));
     Widget label(String s) => Text(s.toUpperCase(),
         style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1.3, color: _muted));
     Widget metaCell(String l, String strong, String? sub) => Container(
@@ -707,7 +708,7 @@ class SaleInvoiceScreen extends StatelessWidget {
           Container(
             clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Tone.bg(0xFFFFFFFF),
               border: Border.all(color: _line),
               borderRadius: BorderRadius.circular(10),
             ),
@@ -715,13 +716,13 @@ class SaleInvoiceScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(18),
                 decoration: const BoxDecoration(
-                  gradient: LinearGradient(colors: [Color(0xFF0D4A42), Color(0xFF14655A), Color(0xFF1C8574)]),
+                  gradient: LinearGradient(colors: [Tone.bg(0xFF0D4A42), Tone.bg(0xFF14655A), Tone.bg(0xFF1C8574)]),
                 ),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(farmName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white)),
                   const SizedBox(height: 12),
                   const Text('TAX INVOICE',
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 2.5, color: Color(0xB8FFFFFF))),
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 2.5, color: Tone.fg(0xB8FFFFFF))),
                   Text(inv, style: const TextStyle(fontFamily: 'monospace', fontSize: 17, fontWeight: FontWeight.w700, color: Colors.white)),
                   const SizedBox(height: 8),
                   Container(
@@ -781,14 +782,14 @@ class SaleInvoiceScreen extends StatelessWidget {
                     const SizedBox(height: 6),
                     Row(children: [
                       const Expanded(child: Text('Amount paid', style: TextStyle(color: _muted))),
-                      Text('-${money(f.paid)}', style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF047857))),
+                      Text('-${money(f.paid)}', style: const TextStyle(fontWeight: FontWeight.w600, color: Tone.fg(0xFF047857))),
                     ]),
                   ],
                   const SizedBox(height: 8),
                   Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: f.owed <= 0 ? const Color(0xFFECFDF5) : _accentSoft,
+                      color: f.owed <= 0 ? const Tone.bg(0xFFECFDF5) : _accentSoft,
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Row(children: [
@@ -797,12 +798,12 @@ class SaleInvoiceScreen extends StatelessWidget {
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 1,
-                              color: f.owed <= 0 ? const Color(0xFF047857) : _accent))),
+                              color: f.owed <= 0 ? const Tone.fg(0xFF047857) : _accent))),
                       Text(money(f.owed),
                           style: TextStyle(
                               fontSize: 19,
                               fontWeight: FontWeight.w800,
-                              color: f.owed <= 0 ? const Color(0xFF047857) : _accent)),
+                              color: f.owed <= 0 ? const Tone.fg(0xFF047857) : _accent)),
                     ]),
                   ),
                   const SizedBox(height: 16),
@@ -810,7 +811,7 @@ class SaleInvoiceScreen extends StatelessWidget {
                     TextSpan(children: [
                       const TextSpan(
                           text: 'Thank you for your business. If you have questions about this invoice, quote invoice number '),
-                      TextSpan(text: inv, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF0C1222))),
+                      TextSpan(text: inv, style: const TextStyle(fontWeight: FontWeight.w700, color: Tone.fg(0xFF0C1222))),
                       const TextSpan(text: '.'),
                     ]),
                     style: const TextStyle(fontSize: 12.5, color: _muted),

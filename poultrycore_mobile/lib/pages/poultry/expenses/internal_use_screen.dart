@@ -16,6 +16,7 @@ import '../sales/balances_logic.dart' show pageSlice;
 import '../sales/balances_widgets.dart';
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../trackers/tracker_widgets.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import 'deferred_costs_screen.dart' show qtyFmt;
 
 /// Poultry → Expenses → Internal Use, as `app/poultry-internal-use/page.tsx`:
@@ -82,7 +83,7 @@ String describeInternalQty(Map r) {
 
 /// (bg, fg) of STATUS_BADGE.
 (Color, Color) internalUseTone(Object? s) => switch (tStr(s)) {
-      'Posted' => (const Color(0xFFDCFCE7), const Color(0xFF15803D)),
+      'Posted' => (const Tone(0xFFDCFCE7), const Tone(0xFF15803D)),
       'Reversed' => (TColors.amber100, TColors.amber700),
       _ => (TColors.slate100, TColors.slate700),
     };
@@ -189,7 +190,7 @@ class _InternalUseScreenState extends State<InternalUseScreen> {
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: destructive ? FilledButton.styleFrom(backgroundColor: TColors.red600) : null,
+            style: destructive ? FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600)) : null,
             child: Text(action),
           ),
         ],
@@ -261,14 +262,14 @@ class _InternalUseScreenState extends State<InternalUseScreen> {
       'Draft' => [
           view,
           b('Edit', Icons.edit_outlined, () => _openForm(r)),
-          b('Post', Icons.check_circle_outline, () => _post(r), color: const Color(0xFF16A34A)),
+          b('Post', Icons.check_circle_outline, () => _post(r), color: const Tone(0xFF16A34A)),
           b('Delete', Icons.delete_outline, () => _delete(r), color: TColors.red600),
         ],
       'Posted' => [view, b('Reverse', Icons.undo, () => _reverse(r), color: TColors.amber600)],
       _ => [
           view,
           b('Edit', Icons.edit_outlined, () => _openForm(r)),
-          b('Post again', Icons.check_circle_outline, () => _post(r, again: true), color: const Color(0xFF16A34A)),
+          b('Post again', Icons.check_circle_outline, () => _post(r, again: true), color: const Tone(0xFF16A34A)),
           b('Delete', Icons.delete_outline, () => _delete(r, reversed: true), color: TColors.red600),
         ],
     };
@@ -286,7 +287,7 @@ class _InternalUseScreenState extends State<InternalUseScreen> {
     final postedCost = visible.where((r) => tStr(r['status']) == 'Posted').fold<num>(0, (s, r) => s + tNum(r['totalCostValue']));
     Widget stat(String label, String value) => Container(
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(label, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
             Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: TColors.slate900)),
@@ -301,7 +302,7 @@ class _InternalUseScreenState extends State<InternalUseScreen> {
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
           children: [
             const Row(children: [
-              Icon(Icons.remove_shopping_cart_outlined, size: 24, color: Color(0xFF0284C7)),
+              Icon(Icons.remove_shopping_cart_outlined, size: 24, color: Tone.fg(0xFF0284C7)),
               SizedBox(width: 8),
               Expanded(child: Text('Internal Use', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: TColors.slate900))),
             ]),
@@ -313,7 +314,7 @@ class _InternalUseScreenState extends State<InternalUseScreen> {
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(color: const Color(0xFFF0F9FF), border: Border.all(color: const Color(0xFFBAE6FD)), borderRadius: BorderRadius.circular(6)),
+              decoration: BoxDecoration(color: const Tone.bg(0xFFF0F9FF), border: Border.all(color: const Tone.line(0xFFBAE6FD)), borderRadius: BorderRadius.circular(6)),
               child: const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Icon(Icons.info_outline, size: 16, color: TColors.sky900),
                 SizedBox(width: 6),
@@ -379,7 +380,7 @@ class _InternalUseScreenState extends State<InternalUseScreen> {
             else if (visible.isEmpty)
               Container(
                 padding: const EdgeInsets.all(32),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
                 child: const Text('No internal use recorded yet.', textAlign: TextAlign.center, style: TextStyle(color: TColors.slate500)),
               )
             else
@@ -442,7 +443,7 @@ class _InternalUseScreenState extends State<InternalUseScreen> {
 
   Widget _noProducts() => Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: TColors.amber50, border: Border.all(color: const Color(0xFFFDE68A)), borderRadius: BorderRadius.circular(8)),
+        decoration: BoxDecoration(color: TColors.amber50, border: Border.all(color: const Tone.line(0xFFFDE68A)), borderRadius: BorderRadius.circular(8)),
         child: Wrap(children: [
           const Text('No products in this company yet. ', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: TColors.amber900)),
           const Text('Internal Use takes stock off a product, so add one before recording anything. ', style: TextStyle(fontSize: 13, color: TColors.amber800)),
@@ -622,8 +623,8 @@ class _InternalUseFormDialogState extends State<InternalUseFormDialog> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: active ? const Color(0xFFF0F9FF) : Colors.white,
-              border: Border.all(color: active ? const Color(0xFF0EA5E9) : TColors.slate200, width: 2),
+              color: active ? const Tone.bg(0xFFF0F9FF) : Tone.bg(0xFFFFFFFF),
+              border: Border.all(color: active ? const Tone.line(0xFF0EA5E9) : TColors.slate200, width: 2),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -667,7 +668,7 @@ class _InternalUseFormDialogState extends State<InternalUseFormDialog> {
             const Text('This reduces stock and records the cost. It does not create a sale, a customer balance or a cash transaction.',
                 style: TextStyle(fontSize: 13, color: TColors.slate500)),
             const SizedBox(height: 12),
-            formSection('What was used, and why', const Color(0xFF0284C7), [
+            formSection('What was used, and why', const Tone(0xFF0284C7), [
               FilterLabel(
                 'Date',
                 AppDateField(
@@ -694,11 +695,11 @@ class _InternalUseFormDialogState extends State<InternalUseFormDialog> {
               ]),
             ]),
             const SizedBox(height: 12),
-            formSection('How much', const Color(0xFF2563EB), [
+            formSection('How much', const Tone(0xFF2563EB), [
               if (widget.products.isEmpty)
                 Container(
                   padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: TColors.amber50, border: Border.all(color: const Color(0xFFFDE68A)), borderRadius: BorderRadius.circular(8)),
+                  decoration: BoxDecoration(color: TColors.amber50, border: Border.all(color: const Tone.line(0xFFFDE68A)), borderRadius: BorderRadius.circular(8)),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     const Text('This company has no products yet.', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: TColors.amber900)),
                     const SizedBox(height: 4),
@@ -835,8 +836,8 @@ class _InternalUseDetail extends StatelessWidget {
           width: double.infinity,
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: amber ? TColors.amber50 : Colors.white,
-            border: Border.all(color: amber ? const Color(0xFFFDE68A) : TColors.slate200),
+            color: amber ? TColors.amber50 : Tone.bg(0xFFFFFFFF),
+            border: Border.all(color: amber ? const Tone.line(0xFFFDE68A) : TColors.slate200),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -928,8 +929,8 @@ class _InternalUseDetail extends StatelessWidget {
             Column(children: [
               ...[
                 step('Created', r['createdBy'], r['createdAt'], TColors.slate300),
-                step('Posted', r['postedBy'], r['postedAt'], const Color(0xFF10B981)),
-                step('Reversed', r['reversedBy'], r['reversedAt'], const Color(0xFFF59E0B)),
+                step('Posted', r['postedBy'], r['postedAt'], const Tone(0xFF10B981)),
+                step('Reversed', r['reversedBy'], r['reversedAt'], const Tone(0xFFF59E0B)),
               ].whereType<Widget>(),
             ]),
             title: 'History',

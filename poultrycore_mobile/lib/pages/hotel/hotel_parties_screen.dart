@@ -23,6 +23,7 @@ import '../poultry/trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../poultry/trackers/tracker_widgets.dart';
 import 'hotel_kit.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// What differs between the Customers and the Suppliers page.
 class HotelPartyKind {
   const HotelPartyKind._({
@@ -71,10 +72,10 @@ class HotelPartyKind {
     ledgerIdKey: 'hotelCustomerLedgerId',
     ledgerColors: {
       'OpeningBalance': (TColors.slate100, TColors.slate700),
-      'InvoiceCredit': (TColors.blue100, Color(0xFF1D4ED8)),
+      'InvoiceCredit': (TColors.blue100, Tone(0xFF1D4ED8)),
       'PaymentDebit': (TColors.emerald100, TColors.emerald700),
       'AdjustmentCredit': (TColors.amber100, TColors.amber700),
-      'AdjustmentDebit': (Color(0xFFF3E8FF), Color(0xFF7E22CE)),
+      'AdjustmentDebit': (Tone(0xFFF3E8FF), Tone(0xFF7E22CE)),
     },
   );
 
@@ -97,10 +98,10 @@ class HotelPartyKind {
     ledgerIdKey: 'hotelSupplierLedgerId',
     ledgerColors: {
       'OpeningBalance': (TColors.slate100, TColors.slate700),
-      'ExpenseCredit': (TColors.blue100, Color(0xFF1D4ED8)),
+      'ExpenseCredit': (TColors.blue100, Tone(0xFF1D4ED8)),
       'PaymentDebit': (TColors.emerald100, TColors.emerald700),
       'AdjustmentCredit': (TColors.amber100, TColors.amber700),
-      'AdjustmentDebit': (Color(0xFFF3E8FF), Color(0xFF7E22CE)),
+      'AdjustmentDebit': (Tone(0xFFF3E8FF), Tone(0xFF7E22CE)),
     },
   );
 }
@@ -262,7 +263,7 @@ class _HotelPartiesScreenState extends State<HotelPartiesScreen> {
   Widget _summaryCard(String label, String value, Color color) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     decoration: BoxDecoration(
-      color: Colors.white,
+      color: Tone.bg(0xFFFFFFFF),
       border: Border.all(color: TColors.slate200),
       borderRadius: BorderRadius.circular(12),
     ),
@@ -304,7 +305,7 @@ class _HotelPartiesScreenState extends State<HotelPartiesScreen> {
                 tStr(r[_k.nameKey]),
                 style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: TColors.slate900),
               ),
-              hotelBadge(tStr(r[_k.typeKey]), Colors.white, TColors.slate600),
+              hotelBadge(tStr(r[_k.typeKey]), Tone.bg(0xFFFFFFFF), TColors.slate600),
             ],
           ),
           const SizedBox(height: 3),
@@ -596,7 +597,7 @@ class _HotelPartyLedgerScreenState extends State<HotelPartyLedgerScreen> {
   Widget _info(String label, Widget value) => Container(
     padding: const EdgeInsets.all(12),
     decoration: BoxDecoration(
-      color: Colors.white,
+      color: Tone.bg(0xFFFFFFFF),
       border: Border.all(color: TColors.slate200),
       borderRadius: BorderRadius.circular(12),
     ),
@@ -661,7 +662,7 @@ class _HotelPartyLedgerScreenState extends State<HotelPartyLedgerScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Tone.bg(0xFFFFFFFF),
         border: Border.all(color: TColors.slate200),
         borderRadius: BorderRadius.circular(12),
       ),

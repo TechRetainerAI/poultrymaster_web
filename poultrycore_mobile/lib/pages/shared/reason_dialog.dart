@@ -6,6 +6,7 @@ import '../../state/session.dart';
 import 'business_dates.dart';
 import 'reason_select.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// The web's ReasonDialog (`components/closing/daily-closing-dialogs.tsx`):
 /// a required reason before a reversal, rejection or reopen. Completes with
 /// the trimmed reason, or null when cancelled.
@@ -93,7 +94,7 @@ class _ReasonDialogState extends State<_ReasonDialog> {
         TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
         FilledButton(
           style: widget.destructive
-              ? FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error)
+              ? FilledButton.styleFrom(backgroundColor: Tone.button(Theme.of(context).colorScheme.error))
               : null,
           onPressed: ok ? () => Navigator.of(context).pop(_value) : null,
           child: Text(widget.confirmLabel),

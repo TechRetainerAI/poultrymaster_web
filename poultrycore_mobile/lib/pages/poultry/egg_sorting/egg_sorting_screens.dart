@@ -28,6 +28,7 @@ import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../trackers/tracker_widgets.dart';
 import 'egg_sorting_logic.dart';
 import 'egg_sorting_widgets.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import '../../shared/reason_select.dart' show stockReversalReasons;
 
 typedef PickLabels = ({String first, String second, String third, String fourth, String fifth, String sixth});
@@ -48,7 +49,7 @@ bool _canWrite(Company c) => (c.role ?? '').toLowerCase() != 'staff';
 
 Widget _stat(String label, String value, {String? sub, String? tone}) => Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(label.toUpperCase(), style: const TextStyle(fontSize: 10.5, letterSpacing: .4, color: TColors.slate500)),
         Text(value,
@@ -81,7 +82,7 @@ Widget _statusChip(String status, {bool sold = false}) {
   return TBadge(statusLabel[status] ?? status, bg: bg, fg: fg);
 }
 
-const _accents = [Color(0xFFFBBF24), Color(0xFF38BDF8), Color(0xFFA78BFA), Color(0xFF34D399), Color(0xFFFB7185), Color(0xFF2DD4BF)];
+const _accents = [Tone(0xFFFBBF24), Tone(0xFF38BDF8), Tone(0xFFA78BFA), Tone(0xFF34D399), Tone(0xFFFB7185), Tone(0xFF2DD4BF)];
 
 // ------------------------------------------------------------------ workspace
 
@@ -458,9 +459,9 @@ class _EggSortingWorkspaceScreenState extends State<EggSortingWorkspaceScreen> {
             if (_duplicates.isNotEmpty) ...[
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: const Color(0xFFFFF1F2), border: Border.all(color: TColors.rose200), borderRadius: BorderRadius.circular(10)),
+                decoration: BoxDecoration(color: const Tone.bg(0xFFFFF1F2), border: Border.all(color: TColors.rose200), borderRadius: BorderRadius.circular(10)),
                 child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Icon(Icons.warning_amber_rounded, size: 16, color: Color(0xFF881337)),
+                  const Icon(Icons.warning_amber_rounded, size: 16, color: Tone.fg(0xFF881337)),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -472,7 +473,7 @@ class _EggSortingWorkspaceScreenState extends State<EggSortingWorkspaceScreen> {
                           const TextSpan(
                               text: ', from before the one-record-per-day rule. Each record is sorted on its own; merge them in Production Records when you can.'),
                         ]),
-                        style: const TextStyle(fontSize: 13, color: Color(0xFF881337)),
+                        style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF881337)),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -509,9 +510,9 @@ class _EggSortingWorkspaceScreenState extends State<EggSortingWorkspaceScreen> {
             ],
             // Phone: a 2 × 2 grid, so every tab is visible without scrolling.
             _grid([
-              _tabButton('workspace', 'Workspace', Icons.egg_outlined, const Color(0xFFF59E0B)),
-              _tabButton('sessions', 'Sortings', Icons.history, const Color(0xFF0284C7)),
-              _tabButton('reports', 'Size reports', Icons.bar_chart, const Color(0xFF7C3AED)),
+              _tabButton('workspace', 'Workspace', Icons.egg_outlined, const Tone(0xFFF59E0B)),
+              _tabButton('sessions', 'Sortings', Icons.history, const Tone(0xFF0284C7)),
+              _tabButton('reports', 'Size reports', Icons.bar_chart, const Tone(0xFF7C3AED)),
               _tabButton('settings', 'Sizes & settings', Icons.tune, TColors.emerald600),
             ]),
             const SizedBox(height: 14),
@@ -565,7 +566,7 @@ class _EggSortingWorkspaceScreenState extends State<EggSortingWorkspaceScreen> {
       child: Container(
         height: 42,
         decoration: BoxDecoration(
-          color: on ? color : Colors.white,
+          color: on ? color : Tone.bg(0xFFFFFFFF),
           border: Border.all(color: on ? color : TColors.slate200),
           borderRadius: BorderRadius.circular(8),
         ),
@@ -738,7 +739,7 @@ class _EggSortingWorkspaceScreenState extends State<EggSortingWorkspaceScreen> {
 
   Widget _box(Widget child) => Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
         child: child,
       );
 
@@ -751,12 +752,12 @@ class _EggSortingWorkspaceScreenState extends State<EggSortingWorkspaceScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(color: const Color(0xB3F1F5F9), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: const Tone.bg(0xB3F1F5F9), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
       child: Stack(children: [
         Positioned(left: 0, top: 0, bottom: 0, width: 4, child: ColoredBox(color: accent)),
         Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Container(
-            color: Colors.white,
+            color: Tone.bg(0xFFFFFFFF),
             padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
@@ -807,7 +808,7 @@ class _EggSortingWorkspaceScreenState extends State<EggSortingWorkspaceScreen> {
         const SizedBox(width: 8),
         Expanded(
           child: FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: TColors.emerald600),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.emerald600)),
             onPressed: !canSort || d.left <= 0 ? null : () => _sortAll(d, days),
             icon: const Icon(Icons.layers_outlined, size: 16),
             label: const Text('Sort all'),
@@ -822,7 +823,7 @@ class _EggSortingWorkspaceScreenState extends State<EggSortingWorkspaceScreen> {
         _stat('Can be sorted', fmtCount(d.left), tone: d.left > 0 ? 'warn' : 'good', sub: d.soldUnsorted != 0 ? '${fmtCount(d.soldUnsorted)} sold unsorted' : null),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             // Wraps: in a narrow tile the chip goes under the label.
             Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
@@ -836,7 +837,7 @@ class _EggSortingWorkspaceScreenState extends State<EggSortingWorkspaceScreen> {
                 value: progress / 100,
                 minHeight: 8,
                 backgroundColor: TColors.slate100,
-                color: d.left <= 0 ? TColors.emerald500 : const Color(0xFFF59E0B),
+                color: d.left <= 0 ? TColors.emerald500 : const Tone.fg(0xFFF59E0B),
               ),
             ),
             Text('${progress.toStringAsFixed(1)}%', style: const TextStyle(fontSize: 11, color: TColors.slate500)),
@@ -931,7 +932,7 @@ class _EggSortingWorkspaceScreenState extends State<EggSortingWorkspaceScreen> {
       if (sessions != null && sessions.isEmpty) const Text('No sortings yet.', style: TextStyle(fontSize: 13, color: TColors.slate500)),
       if (sessions != null && sessions.isNotEmpty)
         Container(
-          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
           child: Column(children: [
             for (final s in pageSlice(sessions, _sPage, _sPageSize)) _sessionCard(s),
             CompactPager(
@@ -1208,7 +1209,7 @@ class _SortEggsScreenState extends State<SortEggsScreen> {
 
   Widget _fact(String label, String value, {String? sub, bool strong = false}) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label.toUpperCase(), style: const TextStyle(fontSize: 10.5, letterSpacing: .4, color: TColors.slate500)),
           Text(value, style: TextStyle(fontWeight: strong ? FontWeight.w700 : FontWeight.w600)),
@@ -1251,7 +1252,7 @@ class _SortEggsScreenState extends State<SortEggsScreen> {
         bottomNavigationBar: SafeArea(
           child: Container(
             padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-            decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: TColors.slate200))),
+            decoration: const BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border(top: BorderSide(color: TColors.slate200))),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -1284,7 +1285,7 @@ class _SortEggsScreenState extends State<SortEggsScreen> {
                 const SizedBox(width: 6),
                 Expanded(
                   child: FilledButton(
-                    style: FilledButton.styleFrom(backgroundColor: TColors.emerald600),
+                    style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.emerald600)),
                     onPressed: !widget.canPost || _busy != null || blocker != null || dateProblem != null || sizes.isEmpty ? null : () => _submit(true),
                     child: Text(_busy == 'post' ? 'Posting…' : 'Post sorting'),
                   ),
@@ -1348,7 +1349,7 @@ class _SortEggsScreenState extends State<SortEggsScreen> {
     final openIds = [for (final d in all) if (d.left > 0) d.productionRecordId];
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: const Color(0x99FFFBEB), border: Border.all(color: TColors.amber300, width: 2), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: const Tone.bg(0x99FFFBEB), border: Border.all(color: TColors.amber300, width: 2), borderRadius: BorderRadius.circular(12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         const Text('Days to sort together', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: TColors.amber800)),
         const Text('Tick two or more days to sort them in one go.', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: TColors.amber700)),
@@ -1356,7 +1357,7 @@ class _SortEggsScreenState extends State<SortEggsScreen> {
           const SizedBox(height: 6),
           Row(children: [
             FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: const Color(0xFFF59E0B), minimumSize: const Size(0, 32)),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(const Tone.bg(0xFFF59E0B)), minimumSize: const Size(0, 32)),
               onPressed: openIds.every(_scope.contains) ? null : () => setState(() => _scope = openIds.toSet()),
               child: const Text('Select all'),
             ),
@@ -1378,7 +1379,7 @@ class _SortEggsScreenState extends State<SortEggsScreen> {
                 opacity: d.left <= 0 ? .6 : 1,
                 // Material, not a coloured box: a ListTile paints on its Material.
                 child: Material(
-                  color: _scope.contains(d.productionRecordId) ? const Color(0xFFFEF3C7) : Colors.white,
+                  color: _scope.contains(d.productionRecordId) ? const Tone.bg(0xFFFEF3C7) : Tone.bg(0xFFFFFFFF),
                   child: CheckboxListTile(
                     dense: true,
                     controlAffinity: ListTileControlAffinity.leading,
@@ -1423,7 +1424,7 @@ class _SortEggsScreenState extends State<SortEggsScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: loss ? const Color(0x80FFF1F2) : null,
+        color: loss ? const Tone.bg(0x80FFF1F2) : null,
         border: Border(top: BorderSide(color: firstLoss ? TColors.slate300 : TColors.slate100, width: firstLoss ? 2 : 1)),
       ),
       child: Row(children: [

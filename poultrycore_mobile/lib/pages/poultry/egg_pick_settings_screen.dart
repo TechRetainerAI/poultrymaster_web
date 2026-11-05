@@ -13,6 +13,7 @@ import 'trackers/egg_class_ledger.dart' show cratesText, fmtCount;
 import 'trackers/tracker_logic.dart' show tNum;
 import 'trackers/tracker_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Poultry → Setup → Production → **Egg Configuration**
 /// (`app/business-office/egg-pick-settings/page.tsx`, was "Egg Pick Time
 /// Settings"): one place for the farm's egg settings, as four tabs --
@@ -67,16 +68,16 @@ const _tabs = <(String, String, IconData)>[
   ('sizes', 'Egg sizes', Icons.layers_outlined),
 ];
 
-const _amber50 = Color(0xFFFFFBEB);
-const _amber200 = Color(0xFFFDE68A);
-const _amber500 = Color(0xFFF59E0B);
-const _amber900 = Color(0xFF78350F);
-const _emerald100 = Color(0xFFD1FAE5);
-const _emerald200 = Color(0xFFA7F3D0);
-const _emerald500 = Color(0xFF10B981);
-const _emerald600 = Color(0xFF059669);
-const _emerald700 = Color(0xFF047857);
-const _emerald800 = Color(0xFF065F46);
+const _amber50 = Tone.bg(0xFFFFFBEB);
+const _amber200 = Tone.line(0xFFFDE68A);
+const _amber500 = Tone.bg(0xFFF59E0B);
+const _amber900 = Tone.fg(0xFF78350F);
+const _emerald100 = Tone.bg(0xFFD1FAE5);
+const _emerald200 = Tone.line(0xFFA7F3D0);
+const _emerald500 = Tone.bg(0xFF10B981);
+const _emerald600 = Tone.fg(0xFF059669);
+const _emerald700 = Tone.fg(0xFF047857);
+const _emerald800 = Tone.fg(0xFF065F46);
 
 /// formatPickTime: "16:00" -> "4:00 PM".
 String formatPickTime(String hhmm) {
@@ -293,8 +294,8 @@ class _EggPickSettingsScreenState extends State<EggPickSettingsScreen> {
   Widget _header() => Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(colors: [_amber50, Colors.white, Color(0xFFECFDF5)]),
-          border: Border.all(color: const Color(0xFFFEF3C7)),
+          gradient: const LinearGradient(colors: [_amber50, Tone.bg(0xFFFFFFFF), Tone.bg(0xFFECFDF5)]),
+          border: Border.all(color: const Tone.line(0xFFFEF3C7)),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -319,7 +320,7 @@ class _EggPickSettingsScreenState extends State<EggPickSettingsScreen> {
           const SizedBox(height: 10),
           OutlinedButton.icon(
             key: const ValueKey('egg-config-open-sorting'),
-            style: OutlinedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: TColors.slate800),
+            style: OutlinedButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)), foregroundColor: TColors.slate800),
             onPressed: () => openAppHref(context, widget.session, widget.company, '/poultry-egg-sorting', label: 'Egg Sorting'),
             icon: const Icon(Icons.open_in_new, size: 16),
             label: const Text('Open Egg Sorting'),
@@ -357,7 +358,7 @@ class _EggPickSettingsScreenState extends State<EggPickSettingsScreen> {
 
     return Container(
       padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
       child: Column(children: [
         for (var i = 0; i < _tabs.length; i += 2)
           IntrinsicHeight(
@@ -387,7 +388,7 @@ class _EggPickSettingsScreenState extends State<EggPickSettingsScreen> {
     return [
       Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           const Row(children: [
             Icon(Icons.schedule, size: 16, color: _emerald600),
@@ -410,7 +411,7 @@ class _EggPickSettingsScreenState extends State<EggPickSettingsScreen> {
               for (final (i, p) in enabledPicks.indexed) ...[
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _emerald200), borderRadius: BorderRadius.circular(999)),
+                  decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: _emerald200), borderRadius: BorderRadius.circular(999)),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
                     Container(width: 6, height: 6, decoration: const BoxDecoration(color: _emerald500, shape: BoxShape.circle)),
                     const SizedBox(width: 5),
@@ -432,7 +433,7 @@ class _EggPickSettingsScreenState extends State<EggPickSettingsScreen> {
         key: const ValueKey('egg-config-save-bar'),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: _picksDirty ? _amber50 : Colors.white,
+          color: _picksDirty ? _amber50 : Tone.bg(0xFFFFFFFF),
           border: Border.all(color: _picksDirty ? _amber200 : TColors.slate200),
           borderRadius: BorderRadius.circular(12),
         ),
@@ -443,7 +444,7 @@ class _EggPickSettingsScreenState extends State<EggPickSettingsScreen> {
           Row(children: [
             Expanded(
               child: OutlinedButton(
-                style: OutlinedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: TColors.slate800),
+                style: OutlinedButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)), foregroundColor: TColors.slate800),
                 onPressed: _saving || !_picksDirty
                     ? null
                     : () => setState(() {
@@ -483,7 +484,7 @@ class _EggPickSettingsScreenState extends State<EggPickSettingsScreen> {
       key: ValueKey('egg-config-pick-$n'),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: enabled ? Colors.white : TColors.slate50,
+        color: enabled ? Tone.bg(0xFFFFFFFF) : TColors.slate50,
         border: Border.all(color: TColors.slate200),
         borderRadius: BorderRadius.circular(12),
       ),
@@ -513,7 +514,7 @@ class _EggPickSettingsScreenState extends State<EggPickSettingsScreen> {
           child: OutlinedButton.icon(
             key: ValueKey('egg-config-time-$n'),
             onPressed: _saving ? null : () => _pick(key),
-            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(44), alignment: Alignment.centerLeft, backgroundColor: Colors.white),
+            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(44), alignment: Alignment.centerLeft, backgroundColor: Tone.bg(0xFFFFFFFF)),
             icon: const Icon(Icons.schedule, size: 18),
             label: Text(time.isEmpty ? '--:--' : time),
           ),

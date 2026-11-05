@@ -13,6 +13,7 @@ import '../pages/web_page_screen.dart';
 import '../state/session.dart';
 import 'quick_links_dialog.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// The web's sidebar as it appears on a phone, for Poultry, Water, Restaurant and Hotel (`components/dashboard/sidebar.tsx`,
 /// the `lg:hidden` drawer): a slate-900 panel that slides in from the left,
 /// 85% of the screen wide and never more than 320, over a black/50 backdrop.
@@ -144,15 +145,14 @@ void openNavLink(
 }
 
 // Tailwind slate, as the web sidebar uses it.
-const _slate900 = Color(0xFF0F172A);
-const _slate800 = Color(0xFF1E293B);
-const _slate700 = Color(0xFF334155);
-const _slate500 = Color(0xFF64748B);
-const _slate400 = Color(0xFF94A3B8);
-const _slate300 = Color(0xFFCBD5E1);
-const _slate200 = Color(0xFFE2E8F0);
-const _blue400 = Color(0xFF60A5FA);
-const _orange400 = Color(0xFFFB923C);
+const _slate900 = Tone.bg(0xFF0F172A);
+const _slate800 = Tone(0xFF1E293B);
+const _slate700 = Tone.bg(0xFF334155);
+const _slate500 = Tone.fg(0xFF64748B);
+const _slate400 = Tone.fg(0xFF94A3B8);
+const _slate300 = Tone.fg(0xFFCBD5E1);
+const _slate200 = Tone.fg(0xFFE2E8F0);
+const _orange400 = Tone.fg(0xFFFB923C);
 
 /// The web's lucide icon for each row, in Material terms.
 const Map<String, IconData> _iconByHref = {
@@ -420,17 +420,17 @@ Future<void> showSystemAlertsDialog(BuildContext context, {List<({String title, 
         title: const Text('System Alerts and Notifications'),
         content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           if (alerts.isEmpty)
-            const Text('No alerts', style: TextStyle(color: Color(0xFF475569)))
+            const Text('No alerts', style: TextStyle(color: Tone.fg(0xFF475569)))
           else
             for (final a in alerts)
               Container(
                 margin: const EdgeInsets.only(bottom: 10),
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(border: Border.all(color: const Color(0xFFE2E8F0)), borderRadius: BorderRadius.circular(6)),
+                decoration: BoxDecoration(border: Border.all(color: const Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(6)),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(a.title, style: const TextStyle(fontWeight: FontWeight.w500, color: Color(0xFF0F172A))),
-                  if (a.description != null) Text(a.description!, style: const TextStyle(fontSize: 14, color: Color(0xFF475569))),
-                  if (a.time != null) Text(a.time!, style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+                  Text(a.title, style: const TextStyle(fontWeight: FontWeight.w500, color: Tone.fg(0xFF0F172A))),
+                  if (a.description != null) Text(a.description!, style: const TextStyle(fontSize: 14, color: Tone.fg(0xFF475569))),
+                  if (a.time != null) Text(a.time!, style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF64748B))),
                 ]),
               ),
         ]),
@@ -582,7 +582,7 @@ class _PoultrySidebarState extends State<_PoultrySidebar> {
     final menus = _groups.where((g) => g.title != 'System' && !sheetOnlyGroups.contains(g.title));
 
     return Material(
-      color: _slate900,
+      color: Tone.button(_slate900)!,
       elevation: 16,
       child: SizedBox(
         width: width > 320 ? 320 : width,
@@ -643,7 +643,7 @@ class _PoultrySidebarState extends State<_PoultrySidebar> {
       height: 64,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: _slate800)),
+        border: Border(bottom: BorderSide(color: Tone.line(0xFF1E293B))),
       ),
       child: Row(
         children: [
@@ -652,7 +652,7 @@ class _PoultrySidebarState extends State<_PoultrySidebar> {
             width: 32,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: .12),
+              color: Tone.bg(0xFFFFFFFF).withValues(alpha: .12),
               borderRadius: BorderRadius.circular(8),
             ),
             child: const Icon(Icons.visibility, size: 18, color: Colors.white),
@@ -729,7 +729,7 @@ class _PoultrySidebarState extends State<_PoultrySidebar> {
             margin: const EdgeInsets.only(left: 16, top: 4),
             padding: const EdgeInsets.only(left: 4),
             decoration: const BoxDecoration(
-              border: Border(left: BorderSide(color: _slate800)),
+              border: Border(left: BorderSide(color: Tone.line(0xFF1E293B))),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -804,7 +804,7 @@ class _PoultrySidebarState extends State<_PoultrySidebar> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: _slate800)),
+        border: Border(top: BorderSide(color: Tone.line(0xFF1E293B))),
       ),
       child: _Row(
         icon: Icons.logout,
@@ -836,7 +836,7 @@ class _Row extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: active ? _slate700 : Colors.transparent,
+      color: active ? Tone.button(_slate700)! : Colors.transparent,
       borderRadius: BorderRadius.circular(6),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -850,13 +850,13 @@ class _Row extends StatelessWidget {
             border: Border(
               left: BorderSide(
                 width: 3,
-                color: active ? _blue400 : Colors.transparent,
+                color: active ? Tone.line(0xFF60A5FA) : Colors.transparent,
               ),
             ),
           ),
           child: Row(
             children: [
-              Icon(icon, size: 20, color: active ? _blue400 : _slate400),
+              Icon(icon, size: 20, color: active ? Tone.fg(0xFF60A5FA) : _slate400),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
@@ -884,6 +884,6 @@ class _Divider extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         height: 1,
         margin: const EdgeInsets.symmetric(horizontal: 8),
-        color: _slate800,
+        color: Tone.button(Tone.bg(0xFF1E293B))!,
       );
 }

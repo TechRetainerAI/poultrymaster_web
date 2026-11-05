@@ -12,6 +12,7 @@ import '../poultry/sales/sale_dialogs.dart' show showPaymentHistory;
 import '../poultry/trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, tBool;
 import '../poultry/trackers/tracker_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Water → Sales, Expenses & Money → Sales → Sales, as
 /// `app/water-sales/page.tsx`: the sales list (phone cards), New water sale
 /// with per-line selling units (migration 084) and "Paid now", Details,
@@ -80,7 +81,7 @@ Widget waterMethodBadge(Object? method) {
   if (method == null || tStr(method).isEmpty) return const Text('—', style: TextStyle(color: TColors.slate400));
   return Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-    decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(4)),
+    decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(4)),
     child: Text(tStr(method), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: TColors.slate700)),
   );
 }
@@ -265,7 +266,7 @@ class _WaterSalesScreenState extends State<WaterSalesScreen> {
 
   Widget _markPaid(Map s, {bool compact = false}) => FilledButton.icon(
         style: FilledButton.styleFrom(
-          backgroundColor: TColors.emerald600,
+          backgroundColor: Tone.button(TColors.emerald600),
           foregroundColor: Colors.white,
           minimumSize: Size(0, compact ? 32 : 40),
           padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -330,7 +331,7 @@ class _WaterSalesScreenState extends State<WaterSalesScreen> {
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
           children: [
             const Row(children: [
-              Icon(Icons.shopping_cart_outlined, size: 24, color: Color(0xFF0284C7)),
+              Icon(Icons.shopping_cart_outlined, size: 24, color: Tone.fg(0xFF0284C7)),
               SizedBox(width: 8),
               Expanded(child: Text('Water sales', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TColors.slate900))),
             ]),
@@ -346,8 +347,8 @@ class _WaterSalesScreenState extends State<WaterSalesScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF0F9FF),
-                  border: Border.all(color: const Color(0xFFBAE6FD)),
+                  color: const Tone.bg(0xFFF0F9FF),
+                  border: Border.all(color: const Tone.line(0xFFBAE6FD)),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Row(children: [
@@ -385,7 +386,7 @@ class _WaterSalesScreenState extends State<WaterSalesScreen> {
             else if (_sales.isEmpty)
               Container(
                 padding: const EdgeInsets.all(32),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
                 child: const Text('No sales yet.', textAlign: TextAlign.center, style: TextStyle(color: TColors.slate500)),
               )
             else if (visible.isNotEmpty)
@@ -464,7 +465,7 @@ class _WaterSalesScreenState extends State<WaterSalesScreen> {
                             IconButton(
                               tooltip: 'Delete sale',
                               onPressed: () => _delete(s),
-                              icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFEF4444)),
+                              icon: const Icon(Icons.delete_outline, size: 18, color: Tone.fg(0xFFEF4444)),
                             ),
                         ]),
                       ],
@@ -741,7 +742,7 @@ class _NewWaterSaleScreenState extends State<_NewWaterSaleScreen> {
         IconButton(
           tooltip: 'Remove line',
           onPressed: () => _removeLine(i),
-          icon: const Icon(Icons.close, size: 18, color: Color(0xFFEF4444)),
+          icon: const Icon(Icons.close, size: 18, color: Tone.fg(0xFFEF4444)),
         ),
       ]),
     ]);
@@ -921,7 +922,7 @@ class _WaterSaleDetailDialogState extends State<_WaterSaleDetailDialog> {
               width: 32,
               height: 32,
               decoration: BoxDecoration(color: TColors.sky100, borderRadius: BorderRadius.circular(8)),
-              child: const Icon(Icons.receipt_outlined, size: 16, color: Color(0xFF0284C7)),
+              child: const Icon(Icons.receipt_outlined, size: 16, color: Tone.fg(0xFF0284C7)),
             ),
             const SizedBox(width: 8),
             Flexible(child: Text('Sale #${tStr(s['waterSaleId'])}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600))),

@@ -23,6 +23,7 @@ import '../trackers/tracker_widgets.dart';
 import 'balances_logic.dart' show BalanceSide;
 import 'credit_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 const customerDebtEntryLabel = {
   'OpeningBalance': 'Opening balance',
   'HistoricalDebt': 'Historical sale / debt',
@@ -322,7 +323,7 @@ class _SupplierCreditPanelState extends State<SupplierCreditPanel> {
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.blue200), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.blue200), borderRadius: BorderRadius.circular(12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Icon(Icons.savings_outlined, size: 16, color: TColors.blue600),

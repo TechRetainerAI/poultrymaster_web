@@ -4,6 +4,7 @@
 
 import 'package:flutter/material.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../trackers/tracker_widgets.dart' show TColors;
 
@@ -14,7 +15,7 @@ String prettyCategory(String c) => c.replaceAllMapped(RegExp(r'([a-z])([A-Z])'),
 
 /// LOAD_STATUS (and the detail page's extra Draft / Approved tones).
 (Color, Color) loadStatusTone(Object? s) => switch (tStr(s)) {
-      'Loaded' => (TColors.blue100, const Color(0xFF1D4ED8)),
+      'Loaded' => (TColors.blue100, const Tone(0xFF1D4ED8)),
       'Returned' => (TColors.amber100, TColors.amber700),
       'Reconciled' || 'Approved' => (TColors.green100, TColors.green700),
       'Draft' => (TColors.slate100, TColors.slate600),

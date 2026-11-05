@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import '../trackers/tracker_logic.dart' show tStr;
 import '../trackers/tracker_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 const assetStatuses = ['Draft', 'Active', 'FullyDepreciated', 'Disposed', 'Reversed'];
 
 String assetStatusLabel(Object? s) => switch (tStr(s)) {
@@ -21,10 +22,10 @@ String assetStatusLabel(Object? s) => switch (tStr(s)) {
 
 /// ASSET_STATUS_CLASS: (bg, fg, border).
 (Color, Color, Color) assetStatusTone(Object? s) => switch (tStr(s)) {
-      'Active' => (const Color(0xFFECFDF5), TColors.emerald700, TColors.emerald300),
-      'FullyDepreciated' => (const Color(0xFFF0F9FF), TColors.sky700, TColors.sky300),
+      'Active' => (const Tone(0xFFECFDF5), TColors.emerald700, TColors.emerald300),
+      'FullyDepreciated' => (const Tone(0xFFF0F9FF), TColors.sky700, TColors.sky300),
       'Disposed' => (TColors.amber50, TColors.amber800, TColors.amber300),
-      'Reversed' => (const Color(0xFFFEF2F2), const Color(0xFFB91C1C), const Color(0xFFFCA5A5)),
+      'Reversed' => (const Tone(0xFFFEF2F2), const Tone(0xFFB91C1C), const Tone(0xFFFCA5A5)),
       _ => (TColors.slate50, TColors.slate700, TColors.slate300),
     };
 
@@ -193,7 +194,7 @@ class AssetRail {
   bool get hasFullPage => !isHotel;
 
   /// Hotel's violet in place of the app's primary colour.
-  Color? get accent => isHotel ? const Color(0xFF7C3AED) : null;
+  Color? get accent => isHotel ? const Tone(0xFF7C3AED) : null;
 
   /// listCashAccounts: Restaurant's live under /finance, named `name`.
   String get cashAccountsPath => isRestaurant ? '/api/Restaurant/finance/accounts' : isHotel ? '/api/Hotel/finance/cash-accounts' : '$api/cash-accounts';

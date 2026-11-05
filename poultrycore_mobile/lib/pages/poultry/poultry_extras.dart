@@ -15,6 +15,7 @@ import 'trackers/egg_tracker_screen.dart';
 import 'trackers/feed_inventory_tracker_screen.dart';
 import 'trackers/tracker_logic.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// What the Poultry web pages offer beyond Add / Edit / Delete.
 
 final Map<String, List<ListExtra>> poultryListExtras = {
@@ -166,14 +167,14 @@ class _DefaultBadge extends StatelessWidget {
       );
 }
 
-const _sky50 = Color(0xFFF0F9FF);
-const _sky100 = Color(0xFFE0F2FE);
-const _sky200 = Color(0xFFBAE6FD);
-const _sky300 = Color(0xFF7DD3FC);
-const _sky600 = Color(0xFF0284C7);
-const _sky700 = Color(0xFF0369A1);
-const _sky800 = Color(0xFF075985);
-const _sky900 = Color(0xFF0C4A6E);
+const _sky50 = Tone.bg(0xFFF0F9FF);
+const _sky100 = Tone(0xFFE0F2FE);
+const _sky200 = Tone.line(0xFFBAE6FD);
+const _sky300 = Tone.line(0xFF7DD3FC);
+const _sky600 = Tone.fg(0xFF0284C7);
+const _sky700 = Tone.fg(0xFF0369A1);
+const _sky800 = Tone.fg(0xFF075985);
+const _sky900 = Tone.fg(0xFF0C4A6E);
 
 /// Panels above a list (ListBanner).
 final Map<String, ListBanner> poultryListBanners = {
@@ -255,7 +256,7 @@ class _FeedDefaultsBannerState extends State<_FeedDefaultsBanner> {
             alignment: Alignment.centerLeft,
             child: OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
-                backgroundColor: Colors.white,
+                backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)),
                 foregroundColor: _sky800,
                 side: const BorderSide(color: _sky300),
                 overlayColor: _sky100,

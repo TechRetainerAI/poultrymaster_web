@@ -17,6 +17,7 @@ import 'trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import 'trackers/tracker_widgets.dart';
 import '../shared/reason_select.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Poultry → Tools → Flock Lifecycle, as `app/poultry-lifecycle/page.tsx`
 /// (migration 347): reminders for the milestones the FARM defines, worked out
 /// from each flock's age. Three tabs — Tasks, Plans, Assignments.
@@ -26,10 +27,10 @@ const lifecycleCreateKey = 'poultry.lifecycle.create';
 const lifecycleEditKey = 'poultry.lifecycle.edit';
 const lifecycleDeleteKey = 'poultry.lifecycle.delete';
 
-const _indigo600 = Color(0xFF4F46E5);
-const _indigo500 = Color(0xFF6366F1);
-const _indigo50 = Color(0xFFEEF2FF);
-const _blue700 = Color(0xFF1D4ED8);
+const _indigo600 = Tone.fg(0xFF4F46E5);
+const _indigo500 = Tone.line(0xFF6366F1);
+const _indigo50 = Tone.bg(0xFFEEF2FF);
+const _blue700 = Tone.fg(0xFF1D4ED8);
 
 String _day(Object? v) {
   final s = tStr(v);
@@ -414,9 +415,9 @@ class _FlockLifecycleScreenState extends State<FlockLifecycleScreen> {
                     final half = (c.maxWidth - 12) / 2;
                     final s = _summary;
                     return Wrap(spacing: 12, runSpacing: 12, children: [
-                      SizedBox(width: half, child: _tile('Overdue', s?['overdue'], TColors.rose100, const Color(0xFFFDA4AF), TColors.rose800, () => _showView('Overdue'))),
+                      SizedBox(width: half, child: _tile('Overdue', s?['overdue'], TColors.rose100, const Tone(0xFFFDA4AF), TColors.rose800, () => _showView('Overdue'))),
                       SizedBox(width: half, child: _tile('Due now', s?['due'], TColors.amber100, TColors.amber300, TColors.amber800, () => _showView('Due'))),
-                      SizedBox(width: half, child: _tile('Coming up', s?['upcoming'], TColors.blue100, TColors.blue300, const Color(0xFF1E40AF), () => _showView('Upcoming'))),
+                      SizedBox(width: half, child: _tile('Coming up', s?['upcoming'], TColors.blue100, TColors.blue300, const Tone(0xFF1E40AF), () => _showView('Upcoming'))),
                       SizedBox(
                           width: half,
                           child: _tile('Completed (30 days)', s?['completedLast30'], TColors.emerald100, TColors.emerald300, TColors.emerald800,
@@ -465,7 +466,7 @@ class _FlockLifecycleScreenState extends State<FlockLifecycleScreen> {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Tone.bg(0xFFFFFFFF),
         border: Border.all(color: TColors.slate200),
         borderRadius: BorderRadius.circular(12),
         boxShadow: const [BoxShadow(color: Color(0x0D000000), blurRadius: 2, offset: Offset(0, 1))],
@@ -493,7 +494,7 @@ class _FlockLifecycleScreenState extends State<FlockLifecycleScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                         decoration: BoxDecoration(
-                          color: _tab == v ? Colors.white.withValues(alpha: .2) : TColors.slate100,
+                          color: _tab == v ? Tone.bg(0xFFFFFFFF).withValues(alpha: .2) : TColors.slate100,
                           borderRadius: BorderRadius.circular(999),
                         ),
                         child: Text(count,
@@ -621,7 +622,7 @@ class _FlockLifecycleScreenState extends State<FlockLifecycleScreen> {
     final via = tStr(task['assignedVia']) == 'Batch' ? ' (via batch ${tStr(task['batchCode'])})' : '';
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Wrap(alignment: WrapAlignment.spaceBetween, spacing: 8, runSpacing: 6, children: [
           Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
@@ -634,7 +635,7 @@ class _FlockLifecycleScreenState extends State<FlockLifecycleScreen> {
               Tooltip(
                 message: 'Repeats ${repeatLabel(task['repeatEveryDays']) ?? ''}',
                 child: TBadge('↻ Repeat ${tNum(task['occurrence']).toInt()}',
-                    key: ValueKey('repeat-${taskKey(task)}'), bg: const Color(0xFFF5F3FF), fg: const Color(0xFF5B21B6), border: const Color(0xFFC4B5FD)),
+                    key: ValueKey('repeat-${taskKey(task)}'), bg: const Tone.bg(0xFFF5F3FF), fg: const Tone.fg(0xFF5B21B6), border: const Tone.line(0xFFC4B5FD)),
               ),
             if (task['isEstimated'] == true) const TBadge('Estimated', bg: TColors.amber50, fg: TColors.amber800, border: TColors.amber300),
           ]),
@@ -719,16 +720,16 @@ class _FlockLifecycleScreenState extends State<FlockLifecycleScreen> {
         Container(
           key: const ValueKey('national-schedule-panel'),
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: const Color(0xFFF0F9FF), border: Border.all(color: const Color(0xFFBAE6FD)), borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(color: const Tone.bg(0xFFF0F9FF), border: Border.all(color: const Tone.line(0xFFBAE6FD)), borderRadius: BorderRadius.circular(12)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Icon(Icons.vaccines_outlined, size: 20, color: Color(0xFF0284C7)),
+              Icon(Icons.vaccines_outlined, size: 20, color: Tone.fg(0xFF0284C7)),
               SizedBox(width: 10),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Ghana national vaccination schedule', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF0C4A6E))),
+                  Text('Ghana national vaccination schedule', style: TextStyle(fontWeight: FontWeight.w600, color: Tone.fg(0xFF0C4A6E))),
                   SizedBox(height: 4),
-                  Text.rich(TextSpan(style: TextStyle(fontSize: 13, color: Color(0xFF0C4A6E)), children: [
+                  Text.rich(TextSpan(style: TextStyle(fontSize: 13, color: Tone.fg(0xFF0C4A6E)), children: [
                     TextSpan(text: 'Two plans — '),
                     TextSpan(text: 'Commercial Layers', style: TextStyle(fontWeight: FontWeight.w700)),
                     TextSpan(text: ' and '),
@@ -736,7 +737,7 @@ class _FlockLifecycleScreenState extends State<FlockLifecycleScreen> {
                     TextSpan(text: ' — follow the Veterinary Services national vaccination schedule, including the Newcastle boosters every 3 months. Assign one to a batch to get its reminders.'),
                   ])),
                   SizedBox(height: 4),
-                  Text.rich(TextSpan(style: TextStyle(fontSize: 13, color: Color(0xFF0C4A6E)), children: [
+                  Text.rich(TextSpan(style: TextStyle(fontSize: 13, color: Tone.fg(0xFF0C4A6E)), children: [
                     TextSpan(text: 'Schedules differ by area, disease pressure and vaccine brand. '),
                     TextSpan(text: 'Confirm with your vet', style: TextStyle(fontWeight: FontWeight.w700)),
                     TextSpan(text: ", and edit the plan to match what your vet prescribes — an edited plan becomes your farm's own."),
@@ -750,7 +751,7 @@ class _FlockLifecycleScreenState extends State<FlockLifecycleScreen> {
                 alignment: Alignment.centerLeft,
                 child: OutlinedButton.icon(
                   key: const ValueKey('add-national-plans'),
-                  style: OutlinedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: const Color(0xFF075985), side: const BorderSide(color: Color(0xFF7DD3FC))),
+                  style: OutlinedButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)), foregroundColor: const Tone.fg(0xFF075985), side: const BorderSide(color: Tone.line(0xFF7DD3FC))),
                   onPressed: _restoring || _loading ? null : _restoreDefaults,
                   icon: _restoring
                       ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
@@ -789,7 +790,7 @@ class _FlockLifecycleScreenState extends State<FlockLifecycleScreen> {
                   if (p['isDefault'] == true)
                     const Tooltip(
                       message: "Built in from the national schedule. Editing it makes it your farm's own plan.",
-                      child: TBadge('National schedule', bg: Color(0xFFF0F9FF), fg: Color(0xFF075985), border: Color(0xFF7DD3FC)),
+                      child: TBadge('National schedule', bg: Tone.bg(0xFFF0F9FF), fg: Tone.fg(0xFF075985), border: Tone.line(0xFF7DD3FC)),
                     ),
                 ]),
                 Text('${tStr(p['breed']).isNotEmpty ? 'For ${tStr(p['breed'])}' : 'Any breed'}${active ? '' : ' · Inactive'}',
@@ -863,7 +864,7 @@ class _FlockLifecycleScreenState extends State<FlockLifecycleScreen> {
     final age = tNum(a['ageAtStartDays']).toInt();
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
       child: Wrap(alignment: WrapAlignment.spaceBetween, crossAxisAlignment: WrapCrossAlignment.center, spacing: 8, runSpacing: 8, children: [
         Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
           Text.rich(
@@ -1229,10 +1230,10 @@ class _PlanEditorDialogState extends State<_PlanEditorDialog> {
               Container(
                 key: const ValueKey('national-plan-note'),
                 padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: const Color(0xFFF0F9FF), border: Border.all(color: const Color(0xFFBAE6FD)), borderRadius: BorderRadius.circular(6)),
+                decoration: BoxDecoration(color: const Tone.bg(0xFFF0F9FF), border: Border.all(color: const Tone.line(0xFFBAE6FD)), borderRadius: BorderRadius.circular(6)),
                 child: const Text(
                   "This is the national vaccination schedule. Saving changes makes it your farm's own plan — change it to match what your vet prescribes.",
-                  style: TextStyle(fontSize: 13, color: Color(0xFF0C4A6E)),
+                  style: TextStyle(fontSize: 13, color: Tone.fg(0xFF0C4A6E)),
                 ),
               ),
             ],

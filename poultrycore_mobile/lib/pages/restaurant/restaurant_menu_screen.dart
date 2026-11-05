@@ -20,21 +20,22 @@ import '../../widgets/module_sidebar.dart';
 import '../poultry/sales/balances_widgets.dart' show LoadingLine;
 import '../poultry/trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../poultry/trackers/tracker_widgets.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import 'restaurant_roles.dart' show restaurantRose;
 
 /// DIETARY_OPTIONS: key, label, emoji, and the chip's bg / fg / border.
 const restaurantDietary = <(String, String, String, Color, Color, Color)>[
-  ('isVegetarian', 'Vegetarian', '🥬', Color(0xFFDCFCE7), Color(0xFF15803D), Color(0xFFBBF7D0)),
-  ('isVegan', 'Vegan', '🌱', Color(0xFFD1FAE5), Color(0xFF047857), Color(0xFFA7F3D0)),
-  ('isGlutenFree', 'Gluten-Free', '🌾', Color(0xFFFEF3C7), Color(0xFFB45309), Color(0xFFFDE68A)),
-  ('isHalal', 'Halal', '☪️', Color(0xFFDBEAFE), Color(0xFF1D4ED8), Color(0xFFBFDBFE)),
-  ('isKosher', 'Kosher', '✡️', Color(0xFFF3E8FF), Color(0xFF7E22CE), Color(0xFFE9D5FF)),
+  ('isVegetarian', 'Vegetarian', '🥬', Tone(0xFFDCFCE7), Tone(0xFF15803D), Tone(0xFFBBF7D0)),
+  ('isVegan', 'Vegan', '🌱', Tone(0xFFD1FAE5), Tone(0xFF047857), Tone(0xFFA7F3D0)),
+  ('isGlutenFree', 'Gluten-Free', '🌾', Tone(0xFFFEF3C7), Tone(0xFFB45309), Tone(0xFFFDE68A)),
+  ('isHalal', 'Halal', '☪️', Tone(0xFFDBEAFE), Tone(0xFF1D4ED8), Tone(0xFFBFDBFE)),
+  ('isKosher', 'Kosher', '✡️', Tone(0xFFF3E8FF), Tone(0xFF7E22CE), Tone(0xFFE9D5FF)),
 ];
 
 /// The margin on a price, rounded, or null without a cost.
 int? menuMargin(num price, num cost) => cost > 0 && price != 0 ? ((price - cost) / price * 100).round() : null;
 
-Color _marginColor(int m) => m >= 60 ? const Color(0xFF16A34A) : m >= 30 ? const Color(0xFFD97706) : const Color(0xFFDC2626);
+Color _marginColor(int m) => m >= 60 ? const Tone(0xFF16A34A) : m >= 30 ? const Tone(0xFFD97706) : const Tone(0xFFDC2626);
 
 /// An image the web stored as a data URI, or a plain URL; nothing when it
 /// cannot be read (the web hides a broken image).
@@ -286,7 +287,7 @@ class _RestaurantMenuScreenState extends State<RestaurantMenuScreen> {
           actions: [
             OutlinedButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
             FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: restaurantRose),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(restaurantRose)),
               onPressed: () => Navigator.pop(ctx, true),
               child: const Text('Add to Combo'),
             ),
@@ -338,7 +339,7 @@ class _RestaurantMenuScreenState extends State<RestaurantMenuScreen> {
       );
 
   Widget _roseButton(String label, VoidCallback onTap, {bool full = false}) => FilledButton.icon(
-        style: FilledButton.styleFrom(backgroundColor: restaurantRose, minimumSize: full ? const Size.fromHeight(44) : null),
+        style: FilledButton.styleFrom(backgroundColor: Tone.button(restaurantRose), minimumSize: full ? const Size.fromHeight(44) : null),
         onPressed: onTap,
         icon: const Icon(Icons.add, size: 18),
         label: Text(label),
@@ -346,11 +347,11 @@ class _RestaurantMenuScreenState extends State<RestaurantMenuScreen> {
 
   Widget _header() => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
-          _tile(Icons.restaurant, const Color(0xFFFFE4E6), restaurantRose),
+          _tile(Icons.restaurant, const Tone(0xFFFFE4E6), restaurantRose),
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Menu Management', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+              const Text('Menu Management', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Tone.fg(0xFF111827))),
               Text('${_items.length} items across ${_categories.length} categories', style: const TextStyle(fontSize: 13, color: TColors.slate500)),
             ]),
           ),
@@ -362,10 +363,10 @@ class _RestaurantMenuScreenState extends State<RestaurantMenuScreen> {
   Widget _stats() {
     final available = _items.where((i) => i['isAvailable'] == true).length;
     final cards = [
-      ('Total Items', _items.length, const Color(0xFF111827), Colors.white),
-      ('Available', available, const Color(0xFF15803D), const Color(0xFFF0FDF4)),
-      ("86'd Items", _items.length - available, const Color(0xFFB91C1C), const Color(0xFFFEF2F2)),
-      ('Combos', _combos.length, const Color(0xFF1D4ED8), const Color(0xFFEFF6FF)),
+      ('Total Items', _items.length, const Tone(0xFF111827), Tone(0xFFFFFFFF)),
+      ('Available', available, const Tone(0xFF15803D), const Tone(0xFFF0FDF4)),
+      ("86'd Items", _items.length - available, const Tone(0xFFB91C1C), const Tone(0xFFFEF2F2)),
+      ('Combos', _combos.length, const Tone(0xFF1D4ED8), const Tone(0xFFEFF6FF)),
     ];
     // A set tile height: a width ratio left the tiles too short on a 360 px phone.
     return GridView(
@@ -395,7 +396,7 @@ class _RestaurantMenuScreenState extends State<RestaurantMenuScreen> {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Tone.bg(0xFFFFFFFF),
         border: Border.all(color: TColors.slate200),
         borderRadius: BorderRadius.circular(8),
         boxShadow: const [BoxShadow(color: Color(0x0D000000), blurRadius: 2, offset: Offset(0, 1))],
@@ -403,7 +404,7 @@ class _RestaurantMenuScreenState extends State<RestaurantMenuScreen> {
       child: Wrap(spacing: 4, runSpacing: 4, children: [
         for (final (v, icon, label, n) in tabs)
           Material(
-            color: _tab == v ? const Color(0xFFFFF1F2) : Colors.transparent,
+            color: _tab == v ? const Tone.bg(0xFFFFF1F2) : Colors.transparent,
             borderRadius: BorderRadius.circular(6),
             child: InkWell(
               borderRadius: BorderRadius.circular(6),
@@ -411,10 +412,10 @@ class _RestaurantMenuScreenState extends State<RestaurantMenuScreen> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(icon, size: 16, color: _tab == v ? const Color(0xFFBE123C) : TColors.slate600),
+                  Icon(icon, size: 16, color: _tab == v ? const Tone.fg(0xFFBE123C) : TColors.slate600),
                   const SizedBox(width: 6),
                   Text(label,
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: _tab == v ? const Color(0xFFBE123C) : TColors.slate600)),
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: _tab == v ? const Tone.fg(0xFFBE123C) : TColors.slate600)),
                   const SizedBox(width: 6),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
@@ -429,7 +430,7 @@ class _RestaurantMenuScreenState extends State<RestaurantMenuScreen> {
     );
   }
 
-  Widget _chip(String text, {Color bg = const Color(0xFFF9FAFB), Color fg = TColors.slate700, Color border = TColors.slate200}) => Container(
+  Widget _chip(String text, {Color bg = const Tone.bg(0xFFF9FAFB), Color fg = TColors.slate700, Color border = TColors.slate200}) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
         decoration: BoxDecoration(color: bg, border: Border.all(color: border), borderRadius: BorderRadius.circular(999)),
         child: Text(text, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: fg)),
@@ -439,9 +440,9 @@ class _RestaurantMenuScreenState extends State<RestaurantMenuScreen> {
         padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 16),
         decoration: BoxDecoration(border: Border.all(color: TColors.slate200, width: 2), borderRadius: BorderRadius.circular(12)),
         child: Column(children: [
-          Icon(icon, size: 44, color: const Color(0xFFD1D5DB)),
+          Icon(icon, size: 44, color: const Tone.fg(0xFFD1D5DB)),
           const SizedBox(height: 10),
-          Text(title, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w500, color: Color(0xFF111827))),
+          Text(title, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w500, color: Tone.fg(0xFF111827))),
           const SizedBox(height: 4),
           Text(body, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: TColors.slate500)),
           if (action != null) ...[const SizedBox(height: 14), action],
@@ -497,8 +498,8 @@ class _RestaurantMenuScreenState extends State<RestaurantMenuScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: available ? null : const Color(0x80FEF2F2),
-        border: Border.all(color: available ? TColors.slate200 : const Color(0xFFFECACA)),
+        color: available ? null : const Tone.bg(0x80FEF2F2),
+        border: Border.all(color: available ? TColors.slate200 : const Tone.line(0xFFFECACA)),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -507,9 +508,9 @@ class _RestaurantMenuScreenState extends State<RestaurantMenuScreen> {
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                Text(tStr(i['name']), style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF111827))),
+                Text(tStr(i['name']), style: const TextStyle(fontWeight: FontWeight.w600, color: Tone.fg(0xFF111827))),
                 if (tStr(i['categoryName']).isNotEmpty) _chip(tStr(i['categoryName'])),
-                if (!available) _chip("86'd — Unavailable", bg: const Color(0xFFFEE2E2), fg: const Color(0xFFB91C1C), border: const Color(0xFFFEE2E2)),
+                if (!available) _chip("86'd — Unavailable", bg: const Tone.bg(0xFFFEE2E2), fg: const Tone.fg(0xFFB91C1C), border: const Tone.line(0xFFFEE2E2)),
                 for (final (key, label, emoji, bg, fg, border) in restaurantDietary)
                   if (i[key] == true) _chip('$emoji $label', bg: bg, fg: fg, border: border),
                 if (spicy > 0) Text('🌶️' * spicy.clamp(0, 5), style: const TextStyle(fontSize: 12)),
@@ -532,7 +533,7 @@ class _RestaurantMenuScreenState extends State<RestaurantMenuScreen> {
           ),
           const SizedBox(width: 8),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text(price.toStringAsFixed(2), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+            Text(price.toStringAsFixed(2), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: Tone.fg(0xFF111827))),
             if (cost > 0)
               Text.rich(TextSpan(children: [
                 TextSpan(text: 'Cost: ${cost.toStringAsFixed(2)}'),
@@ -545,11 +546,11 @@ class _RestaurantMenuScreenState extends State<RestaurantMenuScreen> {
           IconButton(
             tooltip: available ? "Mark 86'd" : 'Back on menu',
             icon: Icon(available ? Icons.visibility_off_outlined : Icons.visibility_outlined, size: 18,
-                color: available ? TColors.slate500 : const Color(0xFF16A34A)),
+                color: available ? TColors.slate500 : const Tone.fg(0xFF16A34A)),
             onPressed: () => _toggle86(i),
           ),
           IconButton(tooltip: 'Edit', icon: const Icon(Icons.edit_outlined, size: 18), onPressed: () => _openItem(i)),
-          IconButton(tooltip: 'Delete', icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFEF4444)), onPressed: () => _deleteItem(i)),
+          IconButton(tooltip: 'Delete', icon: const Icon(Icons.delete_outline, size: 18, color: Tone.fg(0xFFEF4444)), onPressed: () => _deleteItem(i)),
         ]),
       ]),
     );
@@ -574,7 +575,7 @@ class _RestaurantMenuScreenState extends State<RestaurantMenuScreen> {
 
   Widget _categoriesTab() => TCard(
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          _cardHead(Icons.grid_view, const Color(0xFFFEF3C7), const Color(0xFFD97706), 'Menu Categories',
+          _cardHead(Icons.grid_view, const Tone(0xFFFEF3C7), const Tone(0xFFD97706), 'Menu Categories',
               'Organize your menu items into logical groups', 'Add Category', () => _openCategory()),
           if (_categories.isEmpty)
             _empty(Icons.grid_view, 'No categories yet', 'Create categories like Appetizers, Main Course, Desserts, Beverages',
@@ -588,13 +589,13 @@ class _RestaurantMenuScreenState extends State<RestaurantMenuScreen> {
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
                   child: Row(children: [
-                    _tile(Icons.grid_view, active ? const Color(0xFFFFE4E6) : const Color(0xFFF3F4F6), active ? restaurantRose : const Color(0xFF9CA3AF),
+                    _tile(Icons.grid_view, active ? const Tone(0xFFFFE4E6) : const Tone(0xFFF3F4F6), active ? restaurantRose : const Tone(0xFF9CA3AF),
                         size: 48, radius: 12),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Wrap(spacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                          Text(tStr(c['name']), style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF111827))),
+                          Text(tStr(c['name']), style: const TextStyle(fontWeight: FontWeight.w600, color: Tone.fg(0xFF111827))),
                           if (!active) _chip('Inactive', bg: TColors.slate100, border: TColors.slate100),
                         ]),
                         if (tStr(c['description']).isNotEmpty)
@@ -604,7 +605,7 @@ class _RestaurantMenuScreenState extends State<RestaurantMenuScreen> {
                       ]),
                     ),
                     IconButton(tooltip: 'Edit', icon: const Icon(Icons.edit_outlined, size: 16), onPressed: () => _openCategory(c)),
-                    IconButton(tooltip: 'Delete', icon: const Icon(Icons.delete_outline, size: 16, color: Color(0xFFEF4444)), onPressed: () => _deleteCategory(c)),
+                    IconButton(tooltip: 'Delete', icon: const Icon(Icons.delete_outline, size: 16, color: Tone.fg(0xFFEF4444)), onPressed: () => _deleteCategory(c)),
                   ]),
                 );
               }),
@@ -615,7 +616,7 @@ class _RestaurantMenuScreenState extends State<RestaurantMenuScreen> {
 
   Widget _combosTab() => TCard(
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          _cardHead(Icons.inventory_2_outlined, const Color(0xFFDBEAFE), const Color(0xFF2563EB), 'Combos & Meal Deals',
+          _cardHead(Icons.inventory_2_outlined, const Tone(0xFFDBEAFE), const Tone(0xFF2563EB), 'Combos & Meal Deals',
               'Bundle menu items together at a special price', 'Add Combo', () => _openCombo()),
           if (_combos.isEmpty)
             _empty(Icons.inventory_2_outlined, 'No combos yet', 'Create meal deals by bundling items together at a discounted price',
@@ -639,29 +640,29 @@ class _RestaurantMenuScreenState extends State<RestaurantMenuScreen> {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(14, 12, 4, 12),
             child: Row(children: [
-              _tile(Icons.inventory_2_outlined, active ? const Color(0xFFDBEAFE) : const Color(0xFFF3F4F6),
-                  active ? const Color(0xFF2563EB) : const Color(0xFF9CA3AF)),
+              _tile(Icons.inventory_2_outlined, active ? const Tone(0xFFDBEAFE) : const Tone(0xFFF3F4F6),
+                  active ? const Tone(0xFF2563EB) : const Tone(0xFF9CA3AF)),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Wrap(spacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                    Text(tStr(cb['name']), style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF111827))),
+                    Text(tStr(cb['name']), style: const TextStyle(fontWeight: FontWeight.w600, color: Tone.fg(0xFF111827))),
                     if (!active) _chip('Inactive', bg: TColors.slate100, border: TColors.slate100),
                   ]),
                   if (tStr(cb['description']).isNotEmpty)
                     Text(tStr(cb['description']), style: const TextStyle(fontSize: 13, color: TColors.slate500)),
                 ]),
               ),
-              Text(tNum(cb['price']).toStringAsFixed(2), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
-              Icon(open ? Icons.expand_more : Icons.chevron_right, size: 18, color: const Color(0xFF9CA3AF)),
+              Text(tNum(cb['price']).toStringAsFixed(2), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: Tone.fg(0xFF111827))),
+              Icon(open ? Icons.expand_more : Icons.chevron_right, size: 18, color: const Tone.fg(0xFF9CA3AF)),
               IconButton(tooltip: 'Edit', icon: const Icon(Icons.edit_outlined, size: 16), onPressed: () => _openCombo(cb)),
-              IconButton(tooltip: 'Delete', icon: const Icon(Icons.delete_outline, size: 16, color: Color(0xFFEF4444)), onPressed: () => _deleteCombo(cb)),
+              IconButton(tooltip: 'Delete', icon: const Icon(Icons.delete_outline, size: 16, color: Tone.fg(0xFFEF4444)), onPressed: () => _deleteCombo(cb)),
             ]),
           ),
         ),
         if (open)
           Container(
-            decoration: const BoxDecoration(color: Color(0x80F9FAFB), border: Border(top: BorderSide(color: TColors.slate200))),
+            decoration: const BoxDecoration(color: Tone.bg(0x80F9FAFB), border: Border(top: BorderSide(color: TColors.slate200))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               for (final (k, ci) in rows.indexed) ...[
                 if (k > 0) const Divider(height: 1, color: TColors.slate200),
@@ -677,12 +678,12 @@ class _RestaurantMenuScreenState extends State<RestaurantMenuScreen> {
                             : tStr(ci['categoryName']).isNotEmpty
                                 ? tStr(ci['categoryName'])
                                 : 'Unknown',
-                        style: const TextStyle(fontSize: 14, color: Color(0xFF374151)),
+                        style: const TextStyle(fontSize: 14, color: Tone.fg(0xFF374151)),
                       ),
                     ),
                     IconButton(
                       tooltip: 'Remove',
-                      icon: const Icon(Icons.delete_outline, size: 14, color: Color(0xFFEF4444)),
+                      icon: const Icon(Icons.delete_outline, size: 14, color: Tone.fg(0xFFEF4444)),
                       onPressed: () => _removeComboItem(ci, id),
                     ),
                   ]),
@@ -713,7 +714,7 @@ Widget _label(String text, {bool required = false}) => Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Text.rich(TextSpan(children: [
         TextSpan(text: text),
-        if (required) const TextSpan(text: ' *', style: TextStyle(color: Color(0xFFF43F5E))),
+        if (required) const TextSpan(text: ' *', style: TextStyle(color: Tone.fg(0xFFF43F5E))),
       ]), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
     );
 
@@ -823,7 +824,7 @@ class _CategoryDialogState extends State<_CategoryDialog> {
         ),
         actions: [
           OutlinedButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          FilledButton(style: FilledButton.styleFrom(backgroundColor: restaurantRose), onPressed: _save, child: Text(c != null ? 'Update' : 'Create Category')),
+          FilledButton(style: FilledButton.styleFrom(backgroundColor: Tone.button(restaurantRose)), onPressed: _save, child: Text(c != null ? 'Update' : 'Create Category')),
         ],
       );
 }
@@ -897,7 +898,7 @@ class _ComboDialogState extends State<_ComboDialog> {
         ),
         actions: [
           OutlinedButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          FilledButton(style: FilledButton.styleFrom(backgroundColor: restaurantRose), onPressed: _save, child: Text(cb != null ? 'Update' : 'Create Combo')),
+          FilledButton(style: FilledButton.styleFrom(backgroundColor: Tone.button(restaurantRose)), onPressed: _save, child: Text(cb != null ? 'Update' : 'Create Combo')),
         ],
       );
 }
@@ -1200,7 +1201,7 @@ class _RestaurantMenuItemFormState extends State<RestaurantMenuItemForm> {
                     onTap: () => setState(() => _imageUrl = ''),
                     child: Container(
                       padding: const EdgeInsets.all(2),
-                      decoration: const BoxDecoration(color: Color(0xFFEF4444), borderRadius: BorderRadius.only(bottomLeft: Radius.circular(8))),
+                      decoration: const BoxDecoration(color: Tone.bg(0xFFEF4444), borderRadius: BorderRadius.only(bottomLeft: Radius.circular(8))),
                       child: const Icon(Icons.delete_outline, size: 12, color: Colors.white),
                     ),
                   ),
@@ -1220,7 +1221,7 @@ class _RestaurantMenuItemFormState extends State<RestaurantMenuItemForm> {
           Container(
             height: 44,
             alignment: Alignment.center,
-            decoration: BoxDecoration(color: const Color(0xFFF9FAFB), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+            decoration: BoxDecoration(color: const Tone.bg(0xFFF9FAFB), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
             child: Text(cost != 0 && price != 0 ? '${((price - cost) / price * 100).round()}%' : '—',
                 style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
           ),
@@ -1242,8 +1243,8 @@ class _RestaurantMenuItemFormState extends State<RestaurantMenuItemForm> {
                   width: 36,
                   height: 36,
                   alignment: Alignment.center,
-                  decoration: BoxDecoration(color: _spicy == l ? const Color(0xFFEF4444) : const Color(0xFFF3F4F6), borderRadius: BorderRadius.circular(8)),
-                  child: Text(l == 0 ? '0' : '🌶️', style: TextStyle(fontSize: 14, color: _spicy == l ? Colors.white : const Color(0xFF6B7280))),
+                  decoration: BoxDecoration(color: _spicy == l ? const Tone.bg(0xFFEF4444) : const Tone.bg(0xFFF3F4F6), borderRadius: BorderRadius.circular(8)),
+                  child: Text(l == 0 ? '0' : '🌶️', style: TextStyle(fontSize: 14, color: _spicy == l ? Colors.white : const Tone.fg(0xFF6B7280))),
                 ),
               ),
           ]),
@@ -1252,7 +1253,7 @@ class _RestaurantMenuItemFormState extends State<RestaurantMenuItemForm> {
           AppInput(controller: _sku, hintText: 'Optional'),
           const SizedBox(height: 12),
           Row(children: [
-            const Icon(Icons.warning_amber_outlined, size: 14, color: Color(0xFFF59E0B)),
+            const Icon(Icons.warning_amber_outlined, size: 14, color: Tone.fg(0xFFF59E0B)),
             const SizedBox(width: 6),
             Expanded(child: _label('Allergens')),
           ]),
@@ -1268,11 +1269,11 @@ class _RestaurantMenuItemFormState extends State<RestaurantMenuItemForm> {
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     color: _dietary[key] == true ? bg : null,
-                    border: Border.all(color: _dietary[key] == true ? fg : const Color(0xFFE5E7EB), width: 2),
+                    border: Border.all(color: _dietary[key] == true ? fg : const Tone.line(0xFFE5E7EB), width: 2),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text('$emoji $label',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: _dietary[key] == true ? fg : const Color(0xFF6B7280))),
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: _dietary[key] == true ? fg : const Tone.fg(0xFF6B7280))),
                 ),
               ),
           ]),
@@ -1299,7 +1300,7 @@ class _RestaurantMenuItemFormState extends State<RestaurantMenuItemForm> {
                   Text(_lineCost(r).toStringAsFixed(2), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                   IconButton(
                     tooltip: 'Remove',
-                    icon: const Icon(Icons.delete_outline, size: 14, color: Color(0xFFEF4444)),
+                    icon: const Icon(Icons.delete_outline, size: 14, color: Tone.fg(0xFFEF4444)),
                     onPressed: () async {
                       await _api.delete('/api/Restaurant/inventory/recipes/${r['recipeId']}', query: {'farmId': _farmId});
                       await _loadRecipe();
@@ -1331,7 +1332,7 @@ class _RestaurantMenuItemFormState extends State<RestaurantMenuItemForm> {
               const SizedBox(width: 8),
               IconButton.filled(
                 tooltip: 'Add ingredient',
-                style: IconButton.styleFrom(backgroundColor: restaurantRose),
+                style: IconButton.styleFrom(backgroundColor: Tone.button(restaurantRose)),
                 onPressed: _addIngredient == 0 ? null : _addToRecipe,
                 icon: const Icon(Icons.add, size: 18),
               ),
@@ -1346,7 +1347,7 @@ class _RestaurantMenuItemFormState extends State<RestaurantMenuItemForm> {
           Container(
             padding: const EdgeInsets.all(12),
             margin: const EdgeInsets.only(bottom: 22),
-            decoration: BoxDecoration(color: const Color(0xFFF9FAFB), borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(color: const Tone.bg(0xFFF9FAFB), borderRadius: BorderRadius.circular(8)),
             child: const Row(children: [
               Icon(Icons.inventory_2_outlined, size: 16, color: TColors.slate500),
               SizedBox(width: 6),
@@ -1367,7 +1368,7 @@ class _RestaurantMenuItemFormState extends State<RestaurantMenuItemForm> {
           const SizedBox(width: 12),
           Expanded(
             child: FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: restaurantRose, minimumSize: const Size.fromHeight(46)),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(restaurantRose), minimumSize: const Size.fromHeight(46)),
               onPressed: _saving ? null : _save,
               child: Text(_editing ? 'Update Item' : 'Add Item'),
             ),

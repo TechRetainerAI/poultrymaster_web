@@ -15,6 +15,7 @@ import '../poultry/sales/balances_widgets.dart';
 import '../poultry/trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../poultry/trackers/tracker_widgets.dart';
 import 'generic_kit.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import 'generic_products_screen.dart' show genericEmptyCard, genericQty;
 
 /// The row's status: "na" (not tracked), "out", "low" or "ok".
@@ -112,7 +113,7 @@ class _GenericInventoryScreenState extends State<GenericInventoryScreen> {
     // StatCard: a tinted icon, the label, the figure ("…" while loading).
     Widget stat(String label, String v, IconData icon, Color bg, Color fg) => Container(
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
           child: Row(children: [
             Container(
               padding: const EdgeInsets.all(8),
@@ -148,7 +149,7 @@ class _GenericInventoryScreenState extends State<GenericInventoryScreen> {
             OutlinedButton(onPressed: () => _open('/generic-stock-adjustments', 'Stock adjustments'), child: const Text('Stock adjustments')),
             const SizedBox(height: 14),
             twoUp([
-              stat('Total products', '${_rows.length}', Icons.inventory_2_outlined, const Color(0xFFE0E7FF), const Color(0xFF4338CA)),
+              stat('Total products', '${_rows.length}', Icons.inventory_2_outlined, const Tone(0xFFE0E7FF), const Tone(0xFF4338CA)),
               stat('Low stock', '$low', Icons.warning_amber_rounded, TColors.amber100, TColors.amber700),
               stat('Out of stock', '$out', Icons.error_outline, TColors.rose100, TColors.rose700),
               stat('Stock value (cost)', _fmt(value), Icons.inventory_2_outlined, TColors.emerald100, TColors.emerald700),

@@ -11,6 +11,7 @@ import '../poultry/sales/balances_widgets.dart' show CompactPager;
 import '../web_page_screen.dart';
 import 'business_dates.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// The Missing Activity Detector, as `components/dashboard/farm-completeness-card.tsx`
 /// with `flock-missing-dates.tsx`, `missing-by-date.tsx` and the helpers of
 /// `lib/activity/completeness.ts`. The Farm API derives the report for any
@@ -51,10 +52,10 @@ const productionCheckKey = 'poultry.production.daily';
 
 /// severityStyle: (label, badge bg, badge fg, accent).
 (String, Color, Color, Color) severityStyle(Object? s) => switch (s) {
-      'Critical' => ('Critical', const Color(0xFFFEE2E2), const Color(0xFFB91C1C), const Color(0xFFEF4444)),
-      'Warning' => ('Warning', const Color(0xFFFEF3C7), const Color(0xFF92400E), const Color(0xFFF59E0B)),
-      'Information' => ('Info', const Color(0xFFE0F2FE), const Color(0xFF0369A1), const Color(0xFF0EA5E9)),
-      _ => ('Complete', const Color(0xFFD1FAE5), const Color(0xFF047857), const Color(0xFF10B981)),
+      'Critical' => ('Critical', const Tone(0xFFFEE2E2), const Tone(0xFFB91C1C), const Tone(0xFFEF4444)),
+      'Warning' => ('Warning', const Tone(0xFFFEF3C7), const Tone(0xFF92400E), const Tone(0xFFF59E0B)),
+      'Information' => ('Info', const Tone(0xFFE0F2FE), const Tone(0xFF0369A1), const Tone(0xFF0EA5E9)),
+      _ => ('Complete', const Tone(0xFFD1FAE5), const Tone(0xFF047857), const Tone(0xFF10B981)),
     };
 
 int _int(Object? v) => v is num ? v.toInt() : int.tryParse('${v ?? ''}') ?? 0;
@@ -358,7 +359,7 @@ class _FarmCompletenessCardState extends State<FarmCompletenessCard> {
       ],
       const SizedBox(height: 8),
       if (missing == 0 && backlogDates == 0)
-        const Text('✓ All expected flock production has been recorded.', style: TextStyle(fontSize: 13, color: Color(0xFF047857)))
+        const Text('✓ All expected flock production has been recorded.', style: TextStyle(fontSize: 13, color: Tone.fg(0xFF047857)))
       else if (backlogDates == 0 && '${p['severityReason'] ?? ''}'.isNotEmpty)
         Text('${p['severityReason']}', style: muted(12)),
       if (awaiting > 0)
@@ -366,7 +367,7 @@ class _FarmCompletenessCardState extends State<FarmCompletenessCard> {
             style: muted(12)),
       if (duplicates > 0)
         Text('$duplicates flock${duplicates == 1 ? ' has' : 's have'} more than one production record for this day.',
-            style: const TextStyle(fontSize: 12, color: Color(0xFFB45309))),
+            style: const TextStyle(fontSize: 12, color: Tone.fg(0xFFB45309))),
     ]);
   }
 
@@ -444,7 +445,7 @@ class _FarmCompletenessCardState extends State<FarmCompletenessCard> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: hasWork ? const Color(0xFFF59E0B) : const Color(0xFF10B981),
+                color: hasWork ? const Tone.bg(0xFFF59E0B) : const Tone.bg(0xFF10B981),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(hasWork ? Icons.warning_amber_rounded : Icons.fact_check_outlined, color: Colors.white),
@@ -496,7 +497,7 @@ class _FarmCompletenessCardState extends State<FarmCompletenessCard> {
                         const TextSpan(text: 'Earlier: '),
                         TextSpan(
                           text: '$backlogFlockDays missing',
-                          style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFFBE123C)),
+                          style: const TextStyle(fontWeight: FontWeight.w600, color: Tone.fg(0xFFBE123C)),
                         ),
                       ])),
                     Container(
@@ -508,14 +509,14 @@ class _FarmCompletenessCardState extends State<FarmCompletenessCard> {
                   const SizedBox(height: 4),
                   if (missing == 0 && backlogDates == 0)
                     const Text('✓ All expected flock production has been recorded.',
-                        style: TextStyle(fontSize: 13, color: Color(0xFF047857)))
+                        style: TextStyle(fontSize: 13, color: Tone.fg(0xFF047857)))
                   else if (backlogDates > 0)
                     Text(
                       '${missing == 0 ? '${isToday ? 'Today' : 'This day'} is complete, but ' : 'Also missing: '}'
                       '$backlogFlockDays production record${backlogFlockDays == 1 ? '' : 's'}'
                       '${missing == 0 ? '${backlogFlockDays == 1 ? ' is' : ' are'} still missing' : ''} across '
                       '$backlogDates earlier day${backlogDates == 1 ? '' : 's'}.',
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFFBE123C)),
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Tone.fg(0xFFBE123C)),
                     )
                   else if ('${p['severityReason'] ?? ''}'.isNotEmpty)
                     Text('${p['severityReason']}', style: muted(12)),
@@ -527,7 +528,7 @@ class _FarmCompletenessCardState extends State<FarmCompletenessCard> {
                   if (duplicates > 0)
                     Text(
                       '$duplicates flock${duplicates == 1 ? ' has' : 's have'} more than one production record for this day.',
-                      style: const TextStyle(fontSize: 12, color: Color(0xFFB45309)),
+                      style: const TextStyle(fontSize: 12, color: Tone.fg(0xFFB45309)),
                     ),
                   if (unsorted != null && _int(unsorted['outstandingCount']) > 0)
                     // Egg sorting (344): earlier days' eggs still unsorted.
@@ -536,13 +537,13 @@ class _FarmCompletenessCardState extends State<FarmCompletenessCard> {
                       child: Wrap(crossAxisAlignment: WrapCrossAlignment.center, spacing: 4, children: [
                         Text(
                           '${unsorted['severityReason'] ?? '${fmtNum(_int((unsorted['counters'] as Map?)?['eggs']), 0)} eggs from earlier days are still unsorted.'}',
-                          style: const TextStyle(fontSize: 12, color: Color(0xFFB45309)),
+                          style: const TextStyle(fontSize: 12, color: Tone.fg(0xFFB45309)),
                         ),
                         InkWell(
                           onTap: () => openPoultryHref(context, widget.session, widget.company, '/poultry-egg-sorting', label: 'Egg Sorting'),
                           child: const Text('Sort eggs',
                               style: TextStyle(
-                                  fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFFB45309), decoration: TextDecoration.underline)),
+                                  fontSize: 12, fontWeight: FontWeight.w500, color: Tone.fg(0xFFB45309), decoration: TextDecoration.underline)),
                         ),
                       ]),
                     ),
@@ -570,7 +571,7 @@ class _FarmCompletenessCardState extends State<FarmCompletenessCard> {
             Align(
               alignment: Alignment.centerLeft,
               child: FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: const Color(0xFFD97706), foregroundColor: Colors.white),
+                style: FilledButton.styleFrom(backgroundColor: Tone.button(const Tone.bg(0xFFD97706)), foregroundColor: Colors.white),
                 onPressed: () => openPoultryHref(context, widget.session, widget.company, '/poultry-farm-completeness',
                     label: 'Farm Completeness'),
                 child: const Text('Complete Missing Production'),
@@ -711,8 +712,8 @@ class _FlockRow extends StatelessWidget {
                   if (awaiting)
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                      decoration: BoxDecoration(color: const Color(0xFFF0F9FF), borderRadius: BorderRadius.circular(4)),
-                      child: const Text('awaiting posting', style: TextStyle(fontSize: 11, color: Color(0xFF0369A1))),
+                      decoration: BoxDecoration(color: const Tone.bg(0xFFF0F9FF), borderRadius: BorderRadius.circular(4)),
+                      child: const Text('awaiting posting', style: TextStyle(fontSize: 11, color: Tone.fg(0xFF0369A1))),
                     ),
                 ]),
                 const SizedBox(height: 4),
@@ -801,7 +802,7 @@ class _FlockMissingDatesState extends State<_FlockMissingDates> {
     final tokens = context.tokens;
     final small = TextStyle(fontSize: 12, color: tokens.mutedForeground);
     if (_error != null) {
-      return Padding(padding: const EdgeInsets.fromLTRB(28, 0, 10, 10), child: Text(_error!, style: const TextStyle(fontSize: 12, color: Color(0xFFBE123C))));
+      return Padding(padding: const EdgeInsets.fromLTRB(28, 0, 10, 10), child: Text(_error!, style: const TextStyle(fontSize: 12, color: Tone.fg(0xFFBE123C))));
     }
     final data = _data;
     if (data == null) {
@@ -825,7 +826,7 @@ class _FlockMissingDatesState extends State<_FlockMissingDates> {
                         : 'No production record',
                     style: TextStyle(
                       fontSize: 12,
-                      color: d['pendingBatchRecordId'] != null ? const Color(0xFF075985) : const Color(0xFF92400E),
+                      color: d['pendingBatchRecordId'] != null ? const Tone.fg(0xFF075985) : const Tone.fg(0xFF92400E),
                     ),
                   ),
                   Text(daysAgoLabel(d['date'], data['businessDate']), style: small),
@@ -935,7 +936,7 @@ class _MissingByDateState extends State<_MissingByDate> {
   Widget build(BuildContext context) {
     final tokens = context.tokens;
     final small = TextStyle(fontSize: 12, color: tokens.mutedForeground);
-    if (_error != null) return Text(_error!, style: const TextStyle(fontSize: 13, color: Color(0xFFBE123C)));
+    if (_error != null) return Text(_error!, style: const TextStyle(fontSize: 13, color: Tone.fg(0xFFBE123C)));
     final data = _data;
     if (data == null) return Text('Loading…', style: small);
     final groups = _groups(data['entries'] as List? ?? const []);
@@ -979,7 +980,7 @@ class _MissingByDateState extends State<_MissingByDate> {
                               missingDateHref((b['flocks'] as List<Map>).first['flockId'], date, b['id'], b['status']),
                             ),
                             child: Text('batch #${b['id']} (${(b['flocks'] as List).length})',
-                                style: const TextStyle(fontSize: 12, color: Color(0xFF0369A1), decoration: TextDecoration.underline)),
+                                style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF0369A1), decoration: TextDecoration.underline)),
                           ),
                       ]),
                     if (href != null) ...[
@@ -1067,10 +1068,10 @@ class _Tile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (border, bg, fg) = switch (tone) {
-      _TileTone.emerald => (const Color(0xFFA7F3D0), const Color(0xFFECFDF5), const Color(0xFF047857)),
-      _TileTone.amber => (const Color(0xFFFDE68A), const Color(0xFFFFFBEB), const Color(0xFFB45309)),
-      _TileTone.rose => (const Color(0xFFFECDD3), const Color(0xFFFFF1F2), const Color(0xFFBE123C)),
-      _TileTone.sky => (const Color(0xFFBAE6FD), const Color(0xFFF0F9FF), const Color(0xFF0369A1)),
+      _TileTone.emerald => (const Tone(0xFFA7F3D0), const Tone(0xFFECFDF5), const Tone(0xFF047857)),
+      _TileTone.amber => (const Tone(0xFFFDE68A), const Tone(0xFFFFFBEB), const Tone(0xFFB45309)),
+      _TileTone.rose => (const Tone(0xFFFECDD3), const Tone(0xFFFFF1F2), const Tone(0xFFBE123C)),
+      _TileTone.sky => (const Tone(0xFFBAE6FD), const Tone(0xFFF0F9FF), const Tone(0xFF0369A1)),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

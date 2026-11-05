@@ -23,6 +23,7 @@ import 'restaurant_money_kit.dart';
 import 'restaurant_roles.dart' show restaurantRose;
 import 'restaurant_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 const _staffLoanTypes = {'SalaryAdvance': 'Salary advance', 'EmployeeLoan': 'Staff loan', 'OtherAdvance': 'Other advance'};
 String staffLoanTypeLabel(Object? v) => _staffLoanTypes[tStr(v)] ?? tStr(v);
 
@@ -33,12 +34,12 @@ String _plain(num v) => v == v.roundToDouble() ? v.toInt().toString() : '$v';
 
 const _statusStyle = {
   'Draft': (TColors.slate100, TColors.slate700, TColors.slate200),
-  'Approved': (Color(0xFFEFF6FF), Color(0xFF1D4ED8), Color(0xFFBFDBFE)),
-  'Paid': (Color(0xFFF0FDF4), Color(0xFF15803D), Color(0xFFBBF7D0)),
-  'Cancelled': (Color(0xFFFEF2F2), Color(0xFFB91C1C), Color(0xFFFECACA)),
+  'Approved': (Tone(0xFFEFF6FF), Tone(0xFF1D4ED8), Tone(0xFFBFDBFE)),
+  'Paid': (Tone(0xFFF0FDF4), Tone(0xFF15803D), Tone(0xFFBBF7D0)),
+  'Cancelled': (Tone(0xFFFEF2F2), Tone(0xFFB91C1C), Tone(0xFFFECACA)),
 };
 Widget _status(Object? s) {
-  final (bg, fg, b) = _statusStyle[tStr(s)] ?? (Colors.white, TColors.slate700, TColors.slate200);
+  final (bg, fg, b) = _statusStyle[tStr(s)] ?? (Tone(0xFFFFFFFF), TColors.slate700, TColors.slate200);
   return rStatusBadge(tStr(s), bg: bg, fg: fg, border: b);
 }
 
@@ -194,12 +195,12 @@ class _RestaurantPayrollScreenState extends State<RestaurantPayrollScreen> {
     return [
       IconButton(tooltip: 'Open', icon: const Icon(Icons.visibility_outlined, size: 18), onPressed: () => _open(r)),
       if (st == 'Draft') ...[
-        b('Approve', Icons.check_circle_outline, const Color(0xFF2563EB), () => _p.approve(context, r)),
+        b('Approve', Icons.check_circle_outline, const Tone(0xFF2563EB), () => _p.approve(context, r)),
         b('Cancel', Icons.block, TColors.amber600, () => _p.reason(context, r, reopen: false)),
         b('Delete', Icons.delete_outline, TColors.red600, () => _p.delete(context, r)),
       ],
       if (st == 'Approved') ...[
-        b('Mark paid', Icons.account_balance_wallet_outlined, const Color(0xFF16A34A), () => _p.markPaid(context, r, _accounts, _gh)),
+        b('Mark paid', Icons.account_balance_wallet_outlined, const Tone(0xFF16A34A), () => _p.markPaid(context, r, _accounts, _gh)),
         b('Reopen to correct', Icons.undo, TColors.slate600, () => _p.reason(context, r, reopen: true)),
         b('Cancel', Icons.block, TColors.amber600, () => _p.reason(context, r, reopen: false)),
       ],
@@ -461,7 +462,7 @@ class _MarkPaidDialogState extends State<_MarkPaidDialog> {
       ],
       actions: [
         OutlinedButton(onPressed: () => Navigator.pop(context), child: const Text('Back')),
-        rConfirm('Mark paid', _saving ? null : _go, color: const Color(0xFF16A34A)),
+        rConfirm('Mark paid', _saving ? null : _go, color: const Tone(0xFF16A34A)),
       ],
     );
   }
@@ -704,7 +705,7 @@ class _RunPageState extends State<_RunPage> {
     final loanTotal = tNum(run['totalLoanDeductions']);
     Widget figure(String label, String value, Color c) => Container(
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(label, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
             FittedBox(
@@ -731,7 +732,7 @@ class _RunPageState extends State<_RunPage> {
           figure('Gross pay', _gh(tNum(run['totalGross'])), TColors.slate900),
           figure('Other deductions', _gh(tNum(run['totalDeductions']) - loanTotal), TColors.amber700),
           figure('Staff loan repayments', _gh(loanTotal), TColors.rose700),
-          figure('Net pay', _gh(tNum(run['totalNet'])), const Color(0xFF15803D)),
+          figure('Net pay', _gh(tNum(run['totalNet'])), const Tone.fg(0xFF15803D)),
         ], gap: 8),
         if (loanTotal > 0) ...[
           const SizedBox(height: 8),
@@ -776,7 +777,7 @@ class _RunPageState extends State<_RunPage> {
                     style: const TextStyle(fontSize: 13, color: TColors.rose800)),
                 const SizedBox(height: 8),
                 OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(foregroundColor: TColors.rose700, side: const BorderSide(color: Color(0xFFFDA4AF))),
+                  style: OutlinedButton.styleFrom(foregroundColor: TColors.rose700, side: const BorderSide(color: Tone.line(0xFFFDA4AF))),
                   onPressed: _saving ? null : _addAll,
                   icon: const Icon(Icons.groups_outlined, size: 16),
                   label: const Text('Add all at base pay'),
@@ -793,14 +794,14 @@ class _RunPageState extends State<_RunPage> {
         Wrap(spacing: 8, runSpacing: 8, children: [
           if (isDraft)
             FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: const Color(0xFF2563EB)),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(const Tone.bg(0xFF2563EB))),
               onPressed: _saving || _lines.isEmpty ? null : () => _act(() => _p.approve(context, run)),
               icon: const Icon(Icons.check_circle_outline, size: 16),
               label: const Text('Approve'),
             ),
           if (st == 'Approved') ...[
             FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: const Color(0xFF16A34A)),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(const Tone.bg(0xFF16A34A))),
               onPressed: () => _act(() => _p.markPaid(context, run, widget.accounts, _gh)),
               icon: const Icon(Icons.account_balance_wallet_outlined, size: 16),
               label: const Text('Mark paid'),
@@ -842,7 +843,7 @@ class _RunPageState extends State<_RunPage> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: _editingLineId == id ? TColors.rose50 : Colors.white,
+        color: _editingLineId == id ? TColors.rose50 : Tone.bg(0xFFFFFFFF),
         border: Border.all(color: TColors.slate200),
         borderRadius: BorderRadius.circular(10),
       ),

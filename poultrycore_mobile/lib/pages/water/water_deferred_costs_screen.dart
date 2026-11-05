@@ -17,6 +17,7 @@ import '../poultry/sales/balances_logic.dart' show pageSlice;
 import '../poultry/sales/balances_widgets.dart';
 import '../poultry/trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../poultry/trackers/tracker_widgets.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import '../poultry/expenses/deferred_costs_screen.dart'
     show qtyFmt, deferredQueueNote, deferredStatusColors, explainLoadFailure, recognizedCostTooltip, deferredExceptionTooltip, noSecondPaymentTooltip;
 
@@ -212,7 +213,7 @@ class _DeferredCostsScreenState extends State<WaterDeferredCostsScreen> {
 
   Widget _summary(Map s) {
     final ex = tNum(s['exceptions']);
-    Widget card(Widget head, String value, Widget sub, {Color bg = Colors.white, Color border = TColors.slate200, Color fg = TColors.slate900, Widget? extra}) =>
+    Widget card(Widget head, String value, Widget sub, {Color bg = const Tone.bg(0xFFFFFFFF), Color border = TColors.slate200, Color fg = TColors.slate900, Widget? extra}) =>
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(color: bg, border: Border.all(color: border), borderRadius: BorderRadius.circular(12)),
@@ -240,7 +241,7 @@ class _DeferredCostsScreenState extends State<WaterDeferredCostsScreen> {
         _gh(tNum(s['remainingDeferredCost'])),
         Text('across ${_int(n)} purchase${n == 1 ? '' : 's'}', style: const TextStyle(fontSize: 12, color: TColors.amber700)),
         bg: TColors.amber50,
-        border: const Color(0xFFFDE68A),
+        border: const Tone.line(0xFFFDE68A),
         fg: TColors.amber900,
         extra: tNum(s['blockedPurchases']) > 0
             ? Padding(
@@ -257,7 +258,7 @@ class _DeferredCostsScreenState extends State<WaterDeferredCostsScreen> {
             style: const TextStyle(fontSize: 12, color: TColors.slate400)),
       ),
       card(
-        head(Icons.inventory_2_outlined, 'Purchases shown', const Color(0xFF2563EB)),
+        head(Icons.inventory_2_outlined, 'Purchases shown', const Tone(0xFF2563EB)),
         _int(s['purchaseCount']),
         Text('${_int(s['fullyRecognized'])} fully expensed · ${_int(s['notRecognized'])} not started',
             style: const TextStyle(fontSize: 12, color: TColors.slate400)),
@@ -267,9 +268,9 @@ class _DeferredCostsScreenState extends State<WaterDeferredCostsScreen> {
         _int(ex),
         Text(ex > 0 ? '${_gh(tNum(s['exceptionDrift']).abs())} unexplained' : 'all figures agree',
             style: const TextStyle(fontSize: 12, color: TColors.slate400)),
-        bg: ex > 0 ? const Color(0xFFFEF2F2) : Colors.white,
-        border: ex > 0 ? const Color(0xFFFECACA) : TColors.slate200,
-        fg: ex > 0 ? const Color(0xFFB91C1C) : TColors.slate900,
+        bg: ex > 0 ? const Tone.bg(0xFFFEF2F2) : Tone.bg(0xFFFFFFFF),
+        border: ex > 0 ? const Tone.line(0xFFFECACA) : TColors.slate200,
+        fg: ex > 0 ? const Tone.fg(0xFFB91C1C) : TColors.slate900,
       ),
     ]);
   }
@@ -281,7 +282,7 @@ class _DeferredCostsScreenState extends State<WaterDeferredCostsScreen> {
     final hint = waterDeferredScopes.where((x) => x.$1 == _scope).firstOrNull?.$3;
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         FilterLabel(
           'Show',
@@ -424,7 +425,7 @@ class _DeferredCostsScreenState extends State<WaterDeferredCostsScreen> {
                     Tooltip(
                       message: q,
                       child: Text('behind ${qtyFmt(p['quantityAheadInQueue'], p['productionUnit'])}',
-                          style: const TextStyle(fontSize: 11, color: Color(0xFF0369A1))),
+                          style: const TextStyle(fontSize: 11, color: Tone.fg(0xFF0369A1))),
                     ),
                 ]),
                 IconButton(tooltip: 'Purchase detail', onPressed: () => _detail(p), icon: const Icon(Icons.receipt_long, size: 18, color: TColors.slate500)),
@@ -489,8 +490,8 @@ class _DeferredCostsScreenState extends State<WaterDeferredCostsScreen> {
                   const SizedBox(height: 10),
                   Container(
                     padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(color: const Color(0xFFF0F9FF), border: Border.all(color: const Color(0xFFBAE6FD)), borderRadius: BorderRadius.circular(6)),
-                    child: const Text(waterDeferredPageIntro, style: TextStyle(fontSize: 12, color: Color(0xFF0C4A6E))),
+                    decoration: BoxDecoration(color: const Tone.bg(0xFFF0F9FF), border: Border.all(color: const Tone.line(0xFFBAE6FD)), borderRadius: BorderRadius.circular(6)),
+                    child: const Text(waterDeferredPageIntro, style: TextStyle(fontSize: 12, color: Tone.fg(0xFF0C4A6E))),
                   ),
                   const SizedBox(height: 12),
                   _filters(all),
@@ -511,7 +512,7 @@ class _DeferredCostsScreenState extends State<WaterDeferredCostsScreen> {
                     if (rows.isEmpty)
                       Container(
                         padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
                         child: Text(
                           _scope == 'DEFERRED'
                               ? 'No purchases are holding cost back from Profit & Loss. On a company that expenses stock when it is bought, this is the expected result.'
@@ -523,7 +524,7 @@ class _DeferredCostsScreenState extends State<WaterDeferredCostsScreen> {
                     else
                       Container(
                         padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
                         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                           _table(pageRows),
                           const SizedBox(height: 8),
@@ -550,9 +551,9 @@ class _DeferredCostsScreenState extends State<WaterDeferredCostsScreen> {
     final x = explainLoadFailure(error, 'deferred inventory costs');
     return Container(
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
       child: Column(children: [
-        const Icon(Icons.warning_amber_rounded, size: 32, color: Color(0xFFF59E0B)),
+        const Icon(Icons.warning_amber_rounded, size: 32, color: Tone.fg(0xFFF59E0B)),
         const SizedBox(height: 8),
         Text(x.headline, textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: TColors.slate900)),
         const SizedBox(height: 4),
@@ -655,7 +656,7 @@ class WaterHistoryPanel extends StatelessWidget {
                         tStr(x['sourceLabel']).isNotEmpty
                             ? tStr(x['sourceLabel'])
                             : (tStr(x['batchNumber']).isNotEmpty ? tStr(x['batchNumber']) : 'Batch #${tStr(x['waterProductionBatchId'])}'),
-                        style: const TextStyle(color: Color(0xFF0369A1), decoration: TextDecoration.underline, decorationStyle: TextDecorationStyle.dotted),
+                        style: const TextStyle(color: Tone.fg(0xFF0369A1), decoration: TextDecoration.underline, decorationStyle: TextDecorationStyle.dotted),
                       ),
                     )
                   else
@@ -700,8 +701,8 @@ class WaterHistoryPanel extends StatelessWidget {
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: const Color(0xFFFEF2F2), border: Border.all(color: const Color(0xFFFECACA)), borderRadius: BorderRadius.circular(6)),
-            child: Text(tStr(p['exceptionReason']), style: const TextStyle(fontSize: 12, color: Color(0xFF7F1D1D))),
+            decoration: BoxDecoration(color: const Tone.bg(0xFFFEF2F2), border: Border.all(color: const Tone.line(0xFFFECACA)), borderRadius: BorderRadius.circular(6)),
+            child: Text(tStr(p['exceptionReason']), style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF7F1D1D))),
           ),
         ],
       ]),
@@ -787,7 +788,7 @@ class WaterPurchaseDetailDialog extends StatelessWidget {
                 value: (pct.clamp(0, 100)) / 100,
                 minHeight: 6,
                 backgroundColor: TColors.slate200,
-                color: const Color(0xFF10B981),
+                color: const Tone.fg(0xFF10B981),
               ),
             ),
           ],
@@ -795,13 +796,13 @@ class WaterPurchaseDetailDialog extends StatelessWidget {
             const SizedBox(height: 10),
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: const Color(0xFFFEF2F2), border: Border.all(color: const Color(0xFFFECACA)), borderRadius: BorderRadius.circular(6)),
+              decoration: BoxDecoration(color: const Tone.bg(0xFFFEF2F2), border: Border.all(color: const Tone.line(0xFFFECACA)), borderRadius: BorderRadius.circular(6)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('Needs checking', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF7F1D1D))),
-                Text(tStr(p['exceptionReason']), style: const TextStyle(fontSize: 12, color: Color(0xFF7F1D1D))),
+                const Text('Needs checking', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Tone.fg(0xFF7F1D1D))),
+                Text(tStr(p['exceptionReason']), style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF7F1D1D))),
                 const SizedBox(height: 4),
                 Text('Lot balance says ${fmt(tNum(p['recognizedCost']))}; its usages say ${fmt(tNum(p['allocatedRecognizedCost']))}.',
-                    style: const TextStyle(fontSize: 12, color: Color(0xFF7F1D1D))),
+                    style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF7F1D1D))),
               ]),
             ),
           ],

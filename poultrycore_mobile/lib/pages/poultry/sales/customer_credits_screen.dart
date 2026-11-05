@@ -20,6 +20,7 @@ import '../trackers/tracker_widgets.dart';
 import 'balances_logic.dart' show pageSlice;
 import 'balances_widgets.dart';
 import 'credit_widgets.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import 'sale_reversal.dart' show showRefundCredit;
 import 'sales_logic.dart' show refundMethods;
 
@@ -342,7 +343,7 @@ class _CustomerCreditsScreenState extends State<CustomerCreditsScreen> {
             Wrap(spacing: 8, runSpacing: 8, children: [
               if (_canManage)
                 FilledButton.icon(
-                  style: FilledButton.styleFrom(backgroundColor: TColors.blue600),
+                  style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.blue600)),
                   onPressed: _addCredit,
                   icon: const Icon(Icons.add, size: 16),
                   label: const Text('Add credit'),
@@ -557,7 +558,7 @@ class _CustomerCreditsScreenState extends State<CustomerCreditsScreen> {
                   cellText(_dt(r['creditDate'], r), color: reversed ? TColors.slate400 : null),
                   cellText(_customer(r), color: reversed ? TColors.slate400 : null),
                   Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    TBadge(_kindLabel(r['kind']), bg: Colors.white, fg: fg, border: border),
+                    TBadge(_kindLabel(r['kind']), bg: Tone.bg(0xFFFFFFFF), fg: fg, border: border),
                     if (r['kind'] == 'Deposit' && tStr(r['cashAccountName']).isNotEmpty)
                       Text([r['cashAccountName'], r['paymentMethod']].map(tStr).where((s) => s.isNotEmpty).join(' · '),
                           style: const TextStyle(fontSize: 11, color: TColors.slate500)),
@@ -646,7 +647,7 @@ class _CustomerCreditsScreenState extends State<CustomerCreditsScreen> {
                         style: const TextStyle(fontSize: 11),
                       ),
                   ]),
-                  reversed ? greyBadge(tStr(r['status'])) : TBadge(tStr(r['status']), bg: Colors.white, fg: TColors.slate700, border: TColors.slate300),
+                  reversed ? greyBadge(tStr(r['status'])) : TBadge(tStr(r['status']), bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate700, border: TColors.slate300),
                   Align(
                     alignment: Alignment.centerRight,
                     child: _canManage && !reversed ? TextButton(onPressed: () => _reverseRefund(r), child: const Text('Reverse')) : const SizedBox.shrink(),

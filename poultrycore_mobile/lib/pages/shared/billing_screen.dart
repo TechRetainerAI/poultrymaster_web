@@ -16,6 +16,7 @@ import '../../state/session.dart';
 import '../../widgets/module_sidebar.dart';
 import '../poultry/trackers/tracker_logic.dart' show tNum, tStr, tBool;
 import '../poultry/trackers/tracker_widgets.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import 'reason_select.dart' show ReasonSelectField, marketChangeReasons;
 
 const billingReturnPath = '/business-office/billing';
@@ -44,12 +45,12 @@ List<(String, List<Map>)> billingCompanyGroups(List<Map> companies) {
 
 /// TypeTile: each business type's icon and tile colours.
 (IconData, Color, Color) billingTypeTile(String type) => switch (type.toLowerCase()) {
-      'poultry' => (Icons.egg_outlined, const Color(0xFFFFFBEB), const Color(0xFFD97706)),
-      'water' => (Icons.water_drop_outlined, const Color(0xFFF0F9FF), const Color(0xFF0284C7)),
-      'hotel' => (Icons.bed_outlined, const Color(0xFFFFF1F2), const Color(0xFFE11D48)),
-      'restaurant' => (Icons.restaurant, const Color(0xFFFFF7ED), const Color(0xFFEA580C)),
-      'generic' => (Icons.shopping_bag_outlined, const Color(0xFFF5F3FF), const Color(0xFF7C3AED)),
-      _ => (Icons.business_outlined, const Color(0xFFF1F5F9), const Color(0xFF64748B)),
+      'poultry' => (Icons.egg_outlined, const Tone(0xFFFFFBEB), const Tone(0xFFD97706)),
+      'water' => (Icons.water_drop_outlined, const Tone(0xFFF0F9FF), const Tone(0xFF0284C7)),
+      'hotel' => (Icons.bed_outlined, const Tone(0xFFFFF1F2), const Tone(0xFFE11D48)),
+      'restaurant' => (Icons.restaurant, const Tone(0xFFFFF7ED), const Tone(0xFFEA580C)),
+      'generic' => (Icons.shopping_bag_outlined, const Tone(0xFFF5F3FF), const Tone(0xFF7C3AED)),
+      _ => (Icons.business_outlined, const Tone(0xFFF1F5F9), const Tone(0xFF64748B)),
     };
 
 String billingMoney(Object? v, Object? currency) {
@@ -85,9 +86,9 @@ Widget tierBadge(Object? name) {
   final n = tStr(name);
   if (n.isEmpty) return const Text('—', style: TextStyle(color: TColors.slate400));
   final (bg, fg) = switch (n.toLowerCase()) {
-    'growth' => (const Color(0xFFEEF2FF), const Color(0xFF4338CA)),
-    'business' => (const Color(0xFFF5F3FF), const Color(0xFF6D28D9)),
-    'enterprise' => (TColors.amber50, const Color(0xFF92400E)),
+    'growth' => (const Tone(0xFFEEF2FF), const Tone(0xFF4338CA)),
+    'business' => (const Tone(0xFFF5F3FF), const Tone(0xFF6D28D9)),
+    'enterprise' => (TColors.amber50, const Tone(0xFF92400E)),
     _ => (TColors.slate50, TColors.slate600),
   };
   return TBadge(n, bg: bg, fg: fg);
@@ -95,8 +96,8 @@ Widget tierBadge(Object? name) {
 
 Widget billingStatusBadge(String status) {
   final (bg, fg) = switch (status.toLowerCase()) {
-    'active' || 'paid' || 'succeeded' => (const Color(0xFFF0FDF4), const Color(0xFF15803D)),
-    'trial' || 'open' || 'evaluation' => (TColors.amber50, const Color(0xFF92400E)),
+    'active' || 'paid' || 'succeeded' => (const Tone(0xFFF0FDF4), const Tone(0xFF15803D)),
+    'trial' || 'open' || 'evaluation' => (TColors.amber50, const Tone(0xFF92400E)),
     'pastdue' || 'failed' || 'suspended' => (TColors.red50, TColors.red700),
     _ => (TColors.slate50, TColors.slate600),
   };
@@ -294,7 +295,7 @@ class _BillingScreenState extends State<BillingScreen> {
     final cur = preview['currencyCode'];
     final annual = tStr(acct['billingCycle']) == 'annual';
     const strong = TextStyle(fontWeight: FontWeight.w700);
-    Widget link(String t, VoidCallback onTap, {Color color = const Color(0xFF4F46E5)}) =>
+    Widget link(String t, VoidCallback onTap, {Color color = const Tone(0xFF4F46E5)}) =>
         InkWell(onTap: onTap, child: Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Text(t, style: TextStyle(fontSize: 14, color: color))));
     Widget totalRow(String l, String v, {Color? color, bool bold = false}) => Padding(
           padding: const EdgeInsets.symmetric(vertical: 2),
@@ -309,7 +310,7 @@ class _BillingScreenState extends State<BillingScreen> {
         Container(
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(color: const Color(0x99EEF2FF), border: Border.all(color: const Color(0xFFC7D2FE)), borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(color: const Tone.bg(0x99EEF2FF), border: Border.all(color: const Tone.line(0xFFC7D2FE)), borderRadius: BorderRadius.circular(8)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             for (final p in pending)
               Text.rich(TextSpan(children: [
@@ -317,14 +318,14 @@ class _BillingScreenState extends State<BillingScreen> {
                 const TextSpan(text: ' now qualifies for '),
                 TextSpan(text: tStr(p['toTierName']), style: strong),
                 TextSpan(text: ' — its plan changes from ${tStr(p['fromTierName'])} on ${_date(p['effectiveDate'])}. Nothing changes mid-period.'),
-              ]), style: const TextStyle(fontSize: 14, color: Color(0xFF312E81))),
+              ]), style: const TextStyle(fontSize: 14, color: Tone.fg(0xFF312E81))),
           ]),
         ),
       if (tStr(acct['pendingMarketCode']).isNotEmpty)
         Container(
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
           child: Wrap(alignment: WrapAlignment.spaceBetween, crossAxisAlignment: WrapCrossAlignment.center, spacing: 8, children: [
             Text.rich(TextSpan(children: [
               const TextSpan(text: 'Billing market changes to '),
@@ -338,11 +339,11 @@ class _BillingScreenState extends State<BillingScreen> {
         Container(
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(color: const Color(0x99FEF2F2), border: Border.all(color: TColors.red200), borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(color: const Tone.bg(0x99FEF2F2), border: Border.all(color: TColors.red200), borderRadius: BorderRadius.circular(8)),
           child: Wrap(alignment: WrapAlignment.spaceBetween, crossAxisAlignment: WrapCrossAlignment.center, spacing: 8, runSpacing: 6, children: [
             Text(
                 'Your subscription will not renew. Full access continues through ${acct['currentPeriodEnd'] != null ? _date(acct['currentPeriodEnd']) : 'the period end'}.',
-                style: const TextStyle(fontSize: 14, color: Color(0xFF7F1D1D))),
+                style: const TextStyle(fontSize: 14, color: Tone.fg(0xFF7F1D1D))),
             OutlinedButton(onPressed: () => _act(() => _post('/api/PlatformBilling/reactivate', {'userId': _userId})), child: const Text('Reactivate')),
           ]),
         ),
@@ -375,14 +376,14 @@ class _BillingScreenState extends State<BillingScreen> {
           ),
           Container(
             padding: const EdgeInsets.all(18),
-            decoration: const BoxDecoration(color: Color(0xB3F8FAFC), border: Border(top: BorderSide(color: TColors.slate100))),
+            decoration: const BoxDecoration(color: Tone.bg(0xB3F8FAFC), border: Border(top: BorderSide(color: TColors.slate100))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               const Text('Next bill', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: TColors.slate500)),
               Text(billingMoney(preview['total'], cur), style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700, color: TColors.slate900)),
               Text.rich(TextSpan(children: [
                 TextSpan(text: '${_date(preview['periodStart'])} – ${_date(preview['periodEnd'])}'),
                 if (tNum(preview['discountAmount']) > 0)
-                  TextSpan(text: ' · includes ${_thousands(preview['discountPercent'])}% discount', style: const TextStyle(color: Color(0xFF16A34A))),
+                  TextSpan(text: ' · includes ${_thousands(preview['discountPercent'])}% discount', style: const TextStyle(color: Tone.fg(0xFF16A34A))),
               ]), style: const TextStyle(fontSize: 12, color: TColors.slate500)),
               const SizedBox(height: 14),
               FilledButton.icon(
@@ -420,13 +421,13 @@ class _BillingScreenState extends State<BillingScreen> {
             const Divider(height: 1, color: TColors.slate100),
           ],
           Container(
-            color: const Color(0xB3F8FAFC),
+            color: const Tone.bg(0xB3F8FAFC),
             padding: const EdgeInsets.all(14),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               totalRow('Subtotal', billingMoney(preview['subtotal'], cur)),
               if (tNum(preview['discountAmount']) > 0)
                 totalRow('Multi-company discount (${_thousands(preview['discountPercent'])}%)', '-${billingMoney(preview['discountAmount'], cur)}',
-                    color: const Color(0xFF15803D)),
+                    color: const Tone.bg(0xFF15803D)),
               if (tNum(preview['taxAmount']) > 0) totalRow('Tax', billingMoney(preview['taxAmount'], cur)),
               const Divider(height: 10),
               totalRow('Total / month', billingMoney(preview['total'], cur), bold: true),
@@ -506,7 +507,7 @@ class _BillingScreenState extends State<BillingScreen> {
       InkWell(
         onTap: () => setState(() => open ? _openTypes.remove(family) : _openTypes.add(family)),
         child: Container(
-          color: const Color(0x66F8FAFC),
+          color: const Tone.bg(0x66F8FAFC),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(children: [
             Container(
@@ -572,7 +573,7 @@ class _BillingScreenState extends State<BillingScreen> {
         ),
         const SizedBox(width: 8),
         if (unpriced)
-          const TBadge('Pricing pending', bg: TColors.amber50, fg: Color(0xFF92400E))
+          const TBadge('Pricing pending', bg: TColors.amber50, fg: Tone.fg(0xFF92400E))
         else if (evaluation)
           Text('Free until ${c['evaluationUntilUtc'] != null ? _date(c['evaluationUntilUtc']) : 'review'}', style: const TextStyle(fontSize: 12, color: TColors.slate500))
         else if (inactive)
@@ -683,13 +684,13 @@ class _MarketDialogState extends State<_MarketDialog> {
             const SizedBox(height: 10),
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: const Color(0xB3F8FAFC), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(color: const Tone.bg(0xB3F8FAFC), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
               child: p['marketActive'] != true
                   ? Text('${tStr(p['marketName'])} is not open yet — the request will be declined until VisibilityCore launches there.',
-                      style: const TextStyle(fontSize: 14, color: Color(0xFF92400E)))
+                      style: const TextStyle(fontSize: 14, color: Tone.fg(0xFF92400E)))
                   : inner['hasUnpricedCompanies'] == true
                       ? Text('Pricing for some of your business types is not configured in ${tStr(p['marketName'])} yet.',
-                          style: const TextStyle(fontSize: 14, color: Color(0xFF92400E)))
+                          style: const TextStyle(fontSize: 14, color: Tone.fg(0xFF92400E)))
                       : Text.rich(TextSpan(children: [
                           const TextSpan(text: 'Estimated new total: '),
                           TextSpan(text: '${tStr(inner['currencyCode'])} ${_thousands(inner['total'])}', style: const TextStyle(fontWeight: FontWeight.w700)),

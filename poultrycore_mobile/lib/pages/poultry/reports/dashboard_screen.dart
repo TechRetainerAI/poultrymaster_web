@@ -18,6 +18,7 @@ import 'report_format.dart';
 import 'report_widgets.dart';
 import 'reports_catalog_screen.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// production | financial | daily | insights
 const dashboardViewMeta = {
   'production': (title: 'Production', description: 'Egg production trends, collection times and flock metrics.'),
@@ -477,7 +478,7 @@ DashContent buildDashboardContent(String view, DashboardData d) {
                   _loc(f.value.mortality),
                 ],
             ],
-            cellColor: (row, col) => col == 1 ? const Color(0xFF3730A3) : null,
+            cellColor: (row, col) => col == 1 ? const Tone(0xFF3730A3) : null,
           ),
         ],
       );
@@ -567,7 +568,7 @@ class DashboardFilterBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: slate200), borderRadius: BorderRadius.circular(6)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: slate200), borderRadius: BorderRadius.circular(6)),
         child: Row(children: [
           Expanded(
             child: AppInput(
@@ -603,7 +604,7 @@ class DashboardBody extends StatelessWidget {
           Container(
             margin: const EdgeInsets.only(bottom: 14),
             padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: Colors.white, border: Border.all(color: slate200), borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: slate200), borderRadius: BorderRadius.circular(12)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Text(t.title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: slate900)),
               if (t.description != null)
@@ -825,7 +826,7 @@ class _ReportsTabsScreenState extends State<ReportsTabsScreen> {
           twoColumns(gap: 6, [
             for (final (key, label, icon) in tabs)
               Material(
-                color: _tab == key ? Colors.white : slate100,
+                color: _tab == key ? Tone.bg(0xFFFFFFFF) : slate100,
                 borderRadius: BorderRadius.circular(8),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(8),

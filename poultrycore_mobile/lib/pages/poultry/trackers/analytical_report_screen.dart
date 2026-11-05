@@ -13,6 +13,7 @@ import '../reports/report_export.dart';
 import '../production/production_logic.dart' show eggsPerCrate;
 import 'tracker_logic.dart';
 import 'tracker_widgets.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 
 const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const _monShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -710,7 +711,7 @@ class _AnalyticalReportScreenState extends State<AnalyticalReportScreen> {
         TileData('Total Revenue', ghs(r.totalRevenue), color: TColors.violet700),
         TileData('Total Expenses', ghs(r.totalExpenses), color: TColors.amber700),
         TileData('Eggs in Stock', loc(r.eggsInStock),
-            color: r.eggsInStock >= 0 ? TColors.slate800 : TColors.rose700, sub: stockHint),
+            color: r.eggsInStock >= 0 ? Tone.button(TColors.slate800)! : TColors.rose700, sub: stockHint),
         TileData('Net Balance', ghs(r.netBalance), color: r.netBalance >= 0 ? TColors.emerald700 : TColors.rose700),
       ]),
       gap,

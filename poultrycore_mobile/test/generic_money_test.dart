@@ -218,7 +218,7 @@ void main() {
     await tapIn(tester, inDialog(find.widgetWithText(FilledButton, 'Record')));
     final b = a.lastBody('$base/owner-entries');
     expect((b['entryType'], b['amount'], b['cashAccountId'], b['paymentMethod'], b['entryDate'], b['ownerName']),
-        ('Draw', 150, 1, 'Bank', '2026-11-04T00:00:00Z', null));
+        ('Draw', 150, 1, 'Bank', '${DateTime.now().toUtc().toIso8601String().substring(0, 10)}T00:00:00Z', null));
     expect(find.textContaining('Draw recorded.'), findsOneWidget);
     clearToasts(tester);
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'company.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// One destination in a company's navigation, mirroring the web's per-type nav.
 class AppModule {
   const AppModule({
@@ -37,29 +38,29 @@ class NavTheme {
   final Color inactive;
 
   static const _orange = NavTheme(
-    bar: Color(0xFFF97316), // orange-500
-    borderTop: Color(0xFFEA580C), // orange-600
-    inactive: Color(0xE6FFEDD5), // orange-100 at 90%
+    bar: Tone.bg(0xFFF97316), // orange-500
+    borderTop: Tone.bg(0xFFEA580C), // orange-600
+    inactive: Tone.bg(0xE6FFEDD5), // orange-100 at 90%
   );
   static const _sky = NavTheme(
-    bar: Color(0xFF0284C7), // sky-600
-    borderTop: Color(0xFF0369A1), // sky-700
-    inactive: Color(0xE6E0F2FE), // sky-100 at 90%
+    bar: Tone.bg(0xFF0284C7), // sky-600
+    borderTop: Tone.bg(0xFF0369A1), // sky-700
+    inactive: Tone.bg(0xE6E0F2FE), // sky-100 at 90%
   );
   static const _emerald = NavTheme(
-    bar: Color(0xFF059669), // emerald-600
-    borderTop: Color(0xFF047857), // emerald-700
-    inactive: Color(0xE6D1FAE5), // emerald-100 at 90%
+    bar: Tone.bg(0xFF059669), // emerald-600
+    borderTop: Tone.bg(0xFF047857), // emerald-700
+    inactive: Tone.bg(0xE6D1FAE5), // emerald-100 at 90%
   );
   static const _violet = NavTheme(
-    bar: Color(0xFF7C3AED), // violet-600
-    borderTop: Color(0xFF6D28D9), // violet-700
-    inactive: Color(0xE6EDE9FE), // violet-100 at 90%
+    bar: Tone.bg(0xFF7C3AED), // violet-600
+    borderTop: Tone.bg(0xFF6D28D9), // violet-700
+    inactive: Tone.bg(0xE6EDE9FE), // violet-100 at 90%
   );
   static const _rose = NavTheme(
-    bar: Color(0xFFE11D48), // rose-600
-    borderTop: Color(0xFFBE123C), // rose-700
-    inactive: Color(0xE6FFE4E6), // rose-100 at 90%
+    bar: Tone.bg(0xFFE11D48), // rose-600
+    borderTop: Tone.bg(0xFFBE123C), // rose-700
+    inactive: Tone.bg(0xE6FFE4E6), // rose-100 at 90%
   );
 
   static NavTheme forType(CompanyType type) => switch (type) {

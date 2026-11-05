@@ -24,6 +24,7 @@ import '../reports/report_format.dart' show FarmMoney;
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../trackers/tracker_widgets.dart';
 import 'production_logic.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import 'production_record_form.dart' show ProductionRecordPage;
 import 'production_widgets.dart' show ConsumptionLines;
 
@@ -113,10 +114,10 @@ String? splitBlocker(String itemName, num totalKg, List<num> parts) {
 
 const recordStatusLabel = {'Recorded': 'production recorded', 'FeedOnly': 'feed only so far', 'None': 'no record yet', 'Duplicate': 'duplicate records'};
 const _statusTone = {
-  'Recorded': (Color(0xFFECFDF5), Color(0xFF047857)),
-  'FeedOnly': (Color(0xFFFFFBEB), Color(0xFF92400E)),
-  'None': (Color(0xFFF1F5F9), Color(0xFF475569)),
-  'Duplicate': (Color(0xFFFFF1F2), Color(0xFFBE123C)),
+  'Recorded': (Tone(0xFFECFDF5), Tone(0xFF047857)),
+  'FeedOnly': (Tone(0xFFFFFBEB), Tone(0xFF92400E)),
+  'None': (Tone(0xFFF1F5F9), Tone(0xFF475569)),
+  'Duplicate': (Tone(0xFFFFF1F2), Tone(0xFFBE123C)),
 };
 
 Widget statusPill(String status) {
@@ -312,7 +313,7 @@ class _FeedUsageScreenState extends State<FeedUsageScreen> {
             const SizedBox(height: 10),
             FilledButton.icon(
               key: const ValueKey('feed-usage-record'),
-              style: FilledButton.styleFrom(backgroundColor: TColors.emerald600, foregroundColor: Colors.white),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.emerald600), foregroundColor: Colors.white),
               onPressed: _today.isEmpty ? null : _record,
               icon: const Icon(Icons.add, size: 18),
               label: const Text('Record feed usage'),
@@ -374,7 +375,7 @@ class _FeedUsageScreenState extends State<FeedUsageScreen> {
 
   Widget _dateBox(String value, VoidCallback onTap, Key key) => OutlinedButton.icon(
         key: key,
-        style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(44), alignment: Alignment.centerLeft, backgroundColor: Colors.white),
+        style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(44), alignment: Alignment.centerLeft, backgroundColor: Tone.bg(0xFFFFFFFF)),
         onPressed: onTap,
         icon: const Icon(Icons.calendar_today_outlined, size: 16),
         label: Text(value.isEmpty ? '—' : formatShortDate(value), overflow: TextOverflow.ellipsis),
@@ -389,7 +390,7 @@ class _FeedUsageScreenState extends State<FeedUsageScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8),
         alignment: Alignment.center,
-        decoration: BoxDecoration(color: on ? Colors.white : Colors.transparent, borderRadius: BorderRadius.circular(8)),
+        decoration: BoxDecoration(color: on ? Tone.bg(0xFFFFFFFF) : Colors.transparent, borderRadius: BorderRadius.circular(8)),
         child: Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: on ? TColors.slate900 : TColors.slate600)),
       ),
     );
@@ -400,7 +401,7 @@ class _FeedUsageScreenState extends State<FeedUsageScreen> {
         width: double.infinity,
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, letterSpacing: .6, color: TColors.slate500)),
           const SizedBox(height: 4),
@@ -439,7 +440,7 @@ class _FeedUsageScreenState extends State<FeedUsageScreen> {
 
   Widget _emptyCard(String text) => Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
         child: Text(text, style: const TextStyle(fontSize: 14, color: TColors.slate500)),
       );
 
@@ -455,7 +456,7 @@ class _FeedUsageScreenState extends State<FeedUsageScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Expanded(
@@ -476,11 +477,11 @@ class _FeedUsageScreenState extends State<FeedUsageScreen> {
         if (rid != null) ...[
           const SizedBox(height: 6),
           Wrap(spacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
-            if (r['feedOnly'] == true) const TBadge('Production not filled', bg: Color(0xFFFFFBEB), fg: Color(0xFF92400E)),
+            if (r['feedOnly'] == true) const TBadge('Production not filled', bg: Tone.bg(0xFFFFFBEB), fg: Tone.fg(0xFF92400E)),
             InkWell(
               onTap: () => _openRecord(rid),
               child: Text(r['feedOnly'] == true ? 'Fill in production' : 'Open',
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF0369A1))),
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Tone.fg(0xFF0369A1))),
             ),
           ]),
         ],
@@ -517,7 +518,7 @@ class _FeedUsageScreenState extends State<FeedUsageScreen> {
       key: ValueKey('feed-usage-entry-$id'),
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         InkWell(
           onTap: () => _toggleEntry(id),
@@ -550,11 +551,11 @@ class _FeedUsageScreenState extends State<FeedUsageScreen> {
         ),
         const SizedBox(height: 8),
         Wrap(spacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
-          TBadge(tStr(e['status']), bg: posted ? const Color(0xFFD1FAE5) : TColors.slate100, fg: posted ? const Color(0xFF047857) : TColors.slate600),
+          TBadge(tStr(e['status']), bg: posted ? const Tone.bg(0xFFD1FAE5) : TColors.slate100, fg: posted ? const Tone.fg(0xFF047857) : TColors.slate600),
           if (posted && _canDelete)
             OutlinedButton.icon(
               key: ValueKey('feed-usage-reverse-$id'),
-              style: OutlinedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: TColors.rose700),
+              style: OutlinedButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)), foregroundColor: TColors.rose700),
               onPressed: () => _reverse(e),
               icon: const Icon(Icons.undo, size: 14),
               label: const Text('Reverse'),
@@ -579,7 +580,7 @@ class _FeedUsageScreenState extends State<FeedUsageScreen> {
                   Wrap(children: [
                     InkWell(
                       onTap: () => _openRecord(l['productionRecordId']),
-                      child: Text('#${l['productionRecordId']}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF0369A1))),
+                      child: Text('#${l['productionRecordId']}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Tone.fg(0xFF0369A1))),
                     ),
                     if (l['createdRecord'] == true) const Text(' · made feed-only', style: TextStyle(fontSize: 12, color: TColors.slate500)),
                     if (tStr(l['reversalNote']).isNotEmpty) Text(' · ${l['reversalNote']}', style: const TextStyle(fontSize: 12, color: TColors.slate500)),
@@ -838,7 +839,7 @@ class _RecordFeedUsageScreenState extends State<RecordFeedUsageScreen> {
           'Date',
           OutlinedButton.icon(
             key: const ValueKey('rfu-date'),
-            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(44), alignment: Alignment.centerLeft, backgroundColor: Colors.white),
+            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(44), alignment: Alignment.centerLeft, backgroundColor: Tone.bg(0xFFFFFFFF)),
             onPressed: _saving ? null : _pickDate,
             icon: const Icon(Icons.calendar_today_outlined, size: 16),
             label: Text(formatLongDate(_date)),
@@ -882,7 +883,7 @@ class _RecordFeedUsageScreenState extends State<RecordFeedUsageScreen> {
               '${recordStatusNote(tStr(flock['recordStatus']))}${tStr(flock['feedLines']).isNotEmpty ? ' Feed already on it: ${flock['feedLines']}.' : ''}',
               style: TextStyle(
                 fontSize: 12,
-                color: flock['recordStatus'] == 'None' || flock['recordStatus'] == 'FeedOnly' ? const Color(0xFF92400E) : TColors.slate500,
+                color: flock['recordStatus'] == 'None' || flock['recordStatus'] == 'FeedOnly' ? const Tone.fg(0xFF92400E) : TColors.slate500,
               ),
             ),
           ],
@@ -951,7 +952,7 @@ class _RecordFeedUsageScreenState extends State<RecordFeedUsageScreen> {
           child: Row(children: [
             Expanded(
               child: OutlinedButton(
-                style: OutlinedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: TColors.slate800),
+                style: OutlinedButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)), foregroundColor: TColors.slate800),
                 onPressed: _saving ? null : () => Navigator.of(context).pop(),
                 child: const Text('Cancel'),
               ),
@@ -961,7 +962,7 @@ class _RecordFeedUsageScreenState extends State<RecordFeedUsageScreen> {
               flex: 2,
               child: FilledButton(
                 key: const ValueKey('rfu-save'),
-                style: FilledButton.styleFrom(backgroundColor: TColors.emerald600, foregroundColor: Colors.white),
+                style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.emerald600), foregroundColor: Colors.white),
                 onPressed: _saving || blocker != null ? null : _save,
                 child: Text(_saving ? 'Saving…' : 'Record feed usage'),
               ),
@@ -974,14 +975,14 @@ class _RecordFeedUsageScreenState extends State<RecordFeedUsageScreen> {
 
   Widget _choice(String label, bool on, VoidCallback onTap, Key key) => on
       ? FilledButton(key: key, onPressed: onTap, child: Text(label))
-      : OutlinedButton(key: key, style: OutlinedButton.styleFrom(backgroundColor: Colors.white), onPressed: onTap, child: Text(label));
+      : OutlinedButton(key: key, style: OutlinedButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF))), onPressed: onTap, child: Text(label));
 
   Widget _splitPanel(({int batchId, String batchName, List<Map> flocks}) batch, List<({int itemId, String name, num qty})> totals, Map<int, Map<int, num>> shares) {
     final feedable = _batchFlocks;
     return Container(
       key: const ValueKey('rfu-split'),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: const Color(0x80F0F9FF), border: Border.all(color: const Color(0xFFBAE6FD)), borderRadius: BorderRadius.circular(8)),
+      decoration: BoxDecoration(color: const Tone.bg(0x80F0F9FF), border: Border.all(color: const Tone.line(0xFFBAE6FD)), borderRadius: BorderRadius.circular(8)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         const Text('Split across the flocks', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: TColors.slate900)),
         const Text('Every kilogram must go to a flock before you can save.', style: TextStyle(fontSize: 12, color: TColors.slate600)),
@@ -997,7 +998,7 @@ class _RecordFeedUsageScreenState extends State<RecordFeedUsageScreen> {
             opacity: canFeed(bf) ? 1 : .5,
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFFE0F2FE)))),
+              decoration: const BoxDecoration(border: Border(top: BorderSide(color: Tone.line(0xFFE0F2FE)))),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 Text(tStr(bf['flockName']), style: const TextStyle(fontWeight: FontWeight.w500, color: TColors.slate900)),
                 const SizedBox(height: 2),
@@ -1031,7 +1032,7 @@ class _RecordFeedUsageScreenState extends State<RecordFeedUsageScreen> {
           ),
         Container(
           padding: const EdgeInsets.only(top: 8),
-          decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFFBAE6FD)))),
+          decoration: const BoxDecoration(border: Border(top: BorderSide(color: Tone.line(0xFFBAE6FD)))),
           child: Column(children: [
             for (final f in totals)
               (() {
@@ -1048,7 +1049,7 @@ class _RecordFeedUsageScreenState extends State<RecordFeedUsageScreen> {
         if (feedable.any((b) => b['recordStatus'] == 'None')) ...[
           const SizedBox(height: 6),
           const Text('Flocks with no record yet get a feed-only record. Their production for this day still shows as missing until it is filled in.',
-              style: TextStyle(fontSize: 12, color: Color(0xFF92400E))),
+              style: TextStyle(fontSize: 12, color: Tone.fg(0xFF92400E))),
         ],
       ]),
     );

@@ -27,6 +27,7 @@ import '../../poultry/trackers/tracker_widgets.dart';
 import '../restaurant_roles.dart' show restaurantRose;
 import 'restaurant_reports_catalog.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 // ---------------------------------------------------------------------------
 // Formatting (makeFmt)
 // ---------------------------------------------------------------------------
@@ -208,7 +209,7 @@ class RDef {
 // Presentation
 // ---------------------------------------------------------------------------
 
-const _tones = [Color(0xFF10B981), Color(0xFFF43F5E), Color(0xFF6366F1), Color(0xFFF59E0B)];
+const _tones = [Tone(0xFF10B981), Tone(0xFFF43F5E), Tone(0xFF6366F1), Tone(0xFFF59E0B)];
 
 class StatGrid extends StatelessWidget {
   const StatGrid(this.cards, {super.key});
@@ -236,14 +237,14 @@ class StatGrid extends StatelessWidget {
   // round a border whose sides differ in colour).
   Widget _card(RCard c, Color tone) => Container(
         clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: TColors.slate200)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), borderRadius: BorderRadius.circular(10), border: Border.all(color: Tone.line(0xFFE2E8F0))),
         child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Container(width: 4, color: tone),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-                Text(c.value, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: TColors.slate900)),
+                Text(c.value, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: Tone.fg(0xFF0F172A))),
                 const SizedBox(height: 2),
                 Text(c.label, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
               ]),
@@ -256,10 +257,10 @@ class StatGrid extends StatelessWidget {
 /// ToneBadge: good / warn / bad / muted.
 Widget toneBadge(String text, String tone) {
   final (bg, fg, border) = switch (tone) {
-    'good' => (const Color(0xFFECFDF5), const Color(0xFF047857), const Color(0xFFA7F3D0)),
-    'warn' => (const Color(0xFFFFFBEB), const Color(0xFFB45309), const Color(0xFFFDE68A)),
-    'bad' => (const Color(0xFFFEF2F2), const Color(0xFFB91C1C), const Color(0xFFFECACA)),
-    _ => (const Color(0xFFF8FAFC), const Color(0xFF475569), TColors.slate200),
+    'good' => (const Tone(0xFFECFDF5), const Tone(0xFF047857), const Tone(0xFFA7F3D0)),
+    'warn' => (const Tone(0xFFFFFBEB), const Tone(0xFFB45309), const Tone(0xFFFDE68A)),
+    'bad' => (const Tone(0xFFFEF2F2), const Tone(0xFFB91C1C), const Tone(0xFFFECACA)),
+    _ => (const Tone(0xFFF8FAFC), const Tone(0xFF475569), TColors.slate200),
   };
   return Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -272,12 +273,12 @@ Widget toneBadge(String text, String tone) {
 Widget coloured(String text, Color color, {bool bold = false}) =>
     Text(text, textAlign: TextAlign.right, style: TextStyle(fontSize: 12, color: color, fontWeight: bold ? FontWeight.w600 : FontWeight.w500));
 
-const red700 = Color(0xFFB91C1C);
-const red600 = Color(0xFFDC2626);
-const amber700 = Color(0xFFB45309);
-const amber600 = Color(0xFFD97706);
-const emerald700 = Color(0xFF047857);
-const rose700 = Color(0xFFBE123C);
+const red700 = Tone(0xFFB91C1C);
+const red600 = Tone(0xFFDC2626);
+const amber700 = Tone(0xFFB45309);
+const amber600 = Tone(0xFFD97706);
+const emerald700 = Tone(0xFF047857);
+const rose700 = Tone.fg(0xFFBE123C);
 
 /// A titled card, as the web's chartCard / card.
 Widget reportCard(String title, String? hint, Widget body) => TCard(
@@ -319,7 +320,7 @@ class BarChartRows extends StatelessWidget {
               Row(mainAxisSize: MainAxisSize.min, children: [
                 Container(width: 10, height: 10, decoration: BoxDecoration(color: s.$2, borderRadius: BorderRadius.circular(2))),
                 const SizedBox(width: 4),
-                Text(s.$1, style: const TextStyle(fontSize: 11, color: TColors.slate600)),
+                Text(s.$1, style: const TextStyle(fontSize: 11, color: Tone.fg(0xFF475569))),
               ]),
           ]),
         ),
@@ -327,7 +328,7 @@ class BarChartRows extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Text(items[i], maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: TColors.slate700)),
+            Text(items[i], maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF334155))),
             for (final (k, s) in series.indexed)
               Padding(
                 padding: const EdgeInsets.only(top: 3),
@@ -338,15 +339,15 @@ class BarChartRows extends StatelessWidget {
                       child: LinearProgressIndicator(
                         value: maxes[k] == 0 ? 0 : (s.$3[i].abs() / maxes[k]).clamp(0, 1).toDouble(),
                         minHeight: 8,
-                        color: signed && s.$3[i] < 0 ? const Color(0xFFE11D48) : s.$2,
-                        backgroundColor: TColors.slate100,
+                        color: signed && s.$3[i] < 0 ? const Tone.fg(0xFFE11D48) : s.$2,
+                        backgroundColor: Tone.bg(0xFFF1F5F9),
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   SizedBox(
                     width: 110,
-                    child: Text(s.$4(s.$3[i]), textAlign: TextAlign.right, style: const TextStyle(fontSize: 11, color: TColors.slate700)),
+                    child: Text(s.$4(s.$3[i]), textAlign: TextAlign.right, style: const TextStyle(fontSize: 11, color: Tone.fg(0xFF334155))),
                   ),
                 ]),
               ),
@@ -360,7 +361,7 @@ class BarChartRows extends StatelessWidget {
 Widget shareBars(List<(String, num)> slices, {String Function(num)? fmt}) {
   final total = slices.fold<num>(0, (t, s) => t + s.$2);
   const colors = [
-    Color(0xFFE11D48), Color(0xFFF43F5E), Color(0xFFFB7185), Color(0xFFFDA4AF), Color(0xFFFECDD3), Color(0xFF9F1239), Color(0xFFBE123C), Color(0xFF881337),
+    Tone(0xFFE11D48), Tone(0xFFF43F5E), Tone(0xFFFB7185), Tone(0xFFFDA4AF), Tone(0xFFFECDD3), Tone(0xFF9F1239), Tone(0xFFBE123C), Tone(0xFF881337),
   ];
   return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
     for (final (i, (name, v)) in slices.indexed)
@@ -368,9 +369,9 @@ Widget shareBars(List<(String, num)> slices, {String Function(num)? fmt}) {
         padding: const EdgeInsets.only(bottom: 8),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(children: [
-            Expanded(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: TColors.slate700))),
+            Expanded(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF334155)))),
             Text('${fmt != null ? '${fmt(v)}  ' : ''}${total == 0 ? 0 : (v / total * 100).toStringAsFixed(0)}%',
-                style: const TextStyle(fontSize: 12, color: TColors.slate700)),
+                style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF334155))),
           ]),
           const SizedBox(height: 3),
           ClipRRect(
@@ -379,7 +380,7 @@ Widget shareBars(List<(String, num)> slices, {String Function(num)? fmt}) {
               value: total == 0 ? 0 : (v / total).clamp(0, 1).toDouble(),
               minHeight: 8,
               color: colors[i % colors.length],
-              backgroundColor: TColors.slate100,
+              backgroundColor: Tone.bg(0xFFF1F5F9),
             ),
           ),
         ]),
@@ -402,8 +403,8 @@ class ReportTableCard extends StatelessWidget {
       return Text(c.value(r, fmt),
           textAlign: heading || !c.numeric ? TextAlign.left : TextAlign.right,
           style: heading
-              ? const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: TColors.slate900)
-              : const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: TColors.slate900));
+              ? const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Tone.fg(0xFF0F172A))
+              : const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Tone.fg(0xFF0F172A)));
     }
 
     return TCard(
@@ -419,7 +420,7 @@ class ReportTableCard extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 36),
             child: Column(children: [
-              const Icon(Icons.description_outlined, size: 32, color: Color(0xFFCBD5E1)),
+              const Icon(Icons.description_outlined, size: 32, color: Tone.fg(0xFFCBD5E1)),
               const SizedBox(height: 8),
               Text(def.emptyText ?? 'No data for this period.',
                   textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: TColors.slate500)),
@@ -430,7 +431,7 @@ class ReportTableCard extends StatelessWidget {
             Container(
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(8)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 cell(cols.first, r, heading: true),
                 const SizedBox(height: 6),
@@ -511,8 +512,8 @@ class ReportFlavor {
 
 const restaurantReportFlavor = ReportFlavor(
   accent: restaurantRose,
-  accentSoft: Color(0xFFFFF1F2),
-  accentBorder: Color(0xFFFDA4AF),
+  accentSoft: Tone.bg(0xFFFFF1F2),
+  accentBorder: Tone.line(0xFFFDA4AF),
   accentText: rose700,
   href: '/restaurant-reports',
   profilePath: '/api/Restaurant/setup/profile',
@@ -714,7 +715,7 @@ class _RestaurantReportScreenState extends State<RestaurantReportScreen> {
         Align(
           alignment: Alignment.centerLeft,
           child: TextButton.icon(
-            style: TextButton.styleFrom(foregroundColor: TColors.slate600),
+            style: TextButton.styleFrom(foregroundColor: Tone.fg(0xFF475569)),
             onPressed: () => widget.flavor.openCatalog(context, widget.session, widget.company),
             icon: const Icon(Icons.arrow_back, size: 16),
             label: const Text('All reports'),
@@ -730,11 +731,11 @@ class _RestaurantReportScreenState extends State<RestaurantReportScreen> {
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Wrap(spacing: 8, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                Text(m.report.title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: TColors.slate900)),
+                Text(m.report.title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Tone.fg(0xFF0F172A))),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                  decoration: BoxDecoration(border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(999)),
-                  child: Text(m.group.label.toUpperCase(), style: const TextStyle(fontSize: 10, letterSpacing: .5, color: TColors.slate600)),
+                  decoration: BoxDecoration(border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(999)),
+                  child: Text(m.group.label.toUpperCase(), style: const TextStyle(fontSize: 10, letterSpacing: .5, color: Tone.fg(0xFF475569))),
                 ),
               ]),
               const SizedBox(height: 2),
@@ -831,7 +832,7 @@ class _RestaurantReportScreenState extends State<RestaurantReportScreen> {
                 final active = v.from == _range.from && v.to == _range.to;
                 return active
                     ? FilledButton(
-                        style: FilledButton.styleFrom(backgroundColor: widget.flavor.accent, visualDensity: VisualDensity.compact),
+                        style: FilledButton.styleFrom(backgroundColor: Tone.button(widget.flavor.accent), visualDensity: VisualDensity.compact),
                         onPressed: () => _setRange(v),
                         child: Text(label, style: const TextStyle(fontSize: 12)),
                       )
@@ -972,12 +973,12 @@ class _RestaurantReportEmailDialogState extends State<RestaurantReportEmailDialo
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
                           color: _attach == a ? widget.flavor.accentSoft : null,
-                          border: Border.all(color: _attach == a ? widget.flavor.accentBorder : TColors.slate200),
+                          border: Border.all(color: _attach == a ? widget.flavor.accentBorder : Tone.line(0xFFE2E8F0)),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text.rich(TextSpan(children: [
-                          TextSpan(text: a.toUpperCase(), style: TextStyle(fontWeight: FontWeight.w500, color: _attach == a ? widget.flavor.accentText : TColors.slate600)),
-                          TextSpan(text: a == 'pdf' ? ' formatted' : ' spreadsheet', style: const TextStyle(fontSize: 11, color: TColors.slate400)),
+                          TextSpan(text: a.toUpperCase(), style: TextStyle(fontWeight: FontWeight.w500, color: _attach == a ? widget.flavor.accentText : Tone.fg(0xFF475569))),
+                          TextSpan(text: a == 'pdf' ? ' formatted' : ' spreadsheet', style: const TextStyle(fontSize: 11, color: Tone.fg(0xFF7F8EA3))),
                         ]), style: const TextStyle(fontSize: 14)),
                       ),
                     ),
@@ -993,7 +994,7 @@ class _RestaurantReportEmailDialogState extends State<RestaurantReportEmailDialo
           actions: [
             OutlinedButton(onPressed: _sending ? null : () => Navigator.pop(context), child: const Text('Cancel')),
             FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: widget.flavor.accent),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(widget.flavor.accent)),
               onPressed: _sending ? null : _send,
               icon: _sending
                   ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))

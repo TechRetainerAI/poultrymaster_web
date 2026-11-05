@@ -21,6 +21,7 @@ import '../sales/credit_widgets.dart';
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, loc;
 import '../trackers/tracker_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 const manualDeferredEntryLabel = {
   'OpeningDeferredCost': 'Opening deferred cost',
   'HistoricalDeferredCost': 'Historical deferred cost',
@@ -29,8 +30,7 @@ const manualDeferredEntryLabel = {
   'Other': 'Other',
 };
 
-const _violet600 = Color(0xFF7C3AED);
-const _violet700 = Color(0xFF6D28D9);
+const _violet700 = Tone.fg(0xFF6D28D9);
 const _root = '/api/Poultry/deferred-inventory-costs';
 
 class ManualDeferredCostPanel extends StatefulWidget {
@@ -121,18 +121,18 @@ class _ManualDeferredCostPanelState extends State<ManualDeferredCostPanel> {
     final waiting = _rows.where((r) => r['status'] == 'Posted').fold<num>(0, (t, r) => t + tNum(r['remaining']));
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.violet200), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: Tone.line(0xFFDDD6FE)), borderRadius: BorderRadius.circular(12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         InkWell(
           onTap: _rows.isEmpty ? null : () => setState(() => _open = !_open),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             if (_rows.isNotEmpty) Icon(_open ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right, size: 18, color: TColors.slate500),
-            const Icon(Icons.layers_outlined, size: 16, color: _violet600),
+            const Icon(Icons.layers_outlined, size: 16, color: Tone.fg(0xFF7C3AED)),
             const SizedBox(width: 6),
             const Expanded(
               child: Text.rich(
                 TextSpan(children: [
-                  TextSpan(text: 'Manual entries', style: TextStyle(fontWeight: FontWeight.w600, color: TColors.slate900)),
+                  TextSpan(text: 'Manual entries', style: TextStyle(fontWeight: FontWeight.w600, color: Tone.fg(0xFF0F172A))),
                   TextSpan(text: ' — cost for stock no purchase covers (e.g. opening stock)', style: TextStyle(color: TColors.slate500)),
                 ]),
                 style: TextStyle(fontSize: 13),
@@ -146,7 +146,7 @@ class _ManualDeferredCostPanelState extends State<ManualDeferredCostPanel> {
             Text('${_money(waiting)} waiting', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _violet700)),
           if (_isAdmin)
             FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: _violet600),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFF7C3AED))),
               onPressed: _add,
               icon: const Icon(Icons.add, size: 16),
               label: const Text('Manual deferred cost entry'),
@@ -174,7 +174,7 @@ class _ManualDeferredCostPanelState extends State<ManualDeferredCostPanel> {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+      decoration: BoxDecoration(border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(6)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
           Expanded(
@@ -192,11 +192,11 @@ class _ManualDeferredCostPanelState extends State<ManualDeferredCostPanel> {
         kv('Waiting', _money(tNum(r['remaining'])), color: reversed ? TColors.slate400 : _violet700, bold: true),
         if (detail.isNotEmpty) ...[
           const SizedBox(height: 4),
-          Text(detail, style: TextStyle(fontSize: 12, color: reversed ? TColors.slate400 : TColors.slate600)),
+          Text(detail, style: TextStyle(fontSize: 12, color: reversed ? Tone.fg(0xFF7F8EA3) : Tone.fg(0xFF475569))),
         ],
         if (reversed)
           Text('Reversed ${r['reversedAmount'] != null ? _money(tNum(r['reversedAmount'])) : ''}: ${tStr(r['reversalReason'])}',
-              style: const TextStyle(fontSize: 12, color: TColors.slate400)),
+              style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF7F8EA3))),
         if (!reversed && _isAdmin) ...[
           const SizedBox(height: 6),
           Align(alignment: Alignment.centerRight, child: cardAction('Reverse', Icons.undo, () => _reverse(r))),
@@ -285,7 +285,7 @@ class _ManualDeferredCostDialogState extends State<_ManualDeferredCostDialog> {
       child: AlertDialog(
         scrollable: true,
         title: const Row(children: [
-          Icon(Icons.layers_outlined, color: _violet600),
+          Icon(Icons.layers_outlined, color: Tone.fg(0xFF7C3AED)),
           SizedBox(width: 8),
           Flexible(child: Text('Manual deferred cost entry')),
         ]),
@@ -380,7 +380,7 @@ class _ManualDeferredCostDialogState extends State<_ManualDeferredCostDialog> {
         actions: [
           OutlinedButton(onPressed: _saving ? null : () => Navigator.pop(context), child: const Text('Cancel')),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: _violet600),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFF7C3AED))),
             onPressed: !_valid || _saving ? null : _save,
             child: Text(_saving ? 'Recording…' : 'Record entry'),
           ),

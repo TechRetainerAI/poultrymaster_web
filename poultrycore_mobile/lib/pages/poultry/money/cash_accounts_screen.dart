@@ -16,6 +16,7 @@ import '../trackers/tracker_widgets.dart';
 import 'cash_account_dialogs.dart';
 import 'money_widgets.dart';
 import 'reconciliation_screen.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import 'cash_flow_screen.dart' show sourceTypeLabel;
 import '../../shared/reason_select.dart' show ReasonSelectField;
 import '../reports/money_reports.dart' show MoneyRail, poultryMoneyRail;
@@ -90,7 +91,7 @@ List<Map> accountLedger(List<Map> rows, num opening, [String p = 'poultry']) {
   return out.reversed.toList();
 }
 
-const _sky600 = Color(0xFF0284C7);
+const _sky600 = Tone.fg(0xFF0284C7);
 
 class CashAccountsScreen extends StatefulWidget {
   const CashAccountsScreen({super.key, required this.session, required this.company, this.rail = poultryMoneyRail});
@@ -301,7 +302,7 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
                       Align(
                         alignment: Alignment.centerRight,
                         child: Text(_fmt(tNum(r['amount'])),
-                            style: TextStyle(color: tNum(r['amount']) < 0 ? TColors.rose600 : const Color(0xFF15803D))),
+                            style: TextStyle(color: tNum(r['amount']) < 0 ? TColors.rose600 : const Tone.fg(0xFF15803D))),
                       ),
                       Text(tStr(r['description']).isEmpty ? '—' : tStr(r['description'])),
                     ],
@@ -365,7 +366,7 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
                         ]),
                       ),
                       Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                        Text(_fmt(signed), style: TextStyle(fontWeight: FontWeight.w600, color: signed < 0 ? TColors.rose600 : const Color(0xFF15803D))),
+                        Text(_fmt(signed), style: TextStyle(fontWeight: FontWeight.w600, color: signed < 0 ? TColors.rose600 : const Tone.fg(0xFF15803D))),
                         Text(_fmt(tNum(r['balanceafter'])), style: const TextStyle(fontSize: 11, color: TColors.slate500)),
                         if (adj)
                           OutlinedButton.icon(
@@ -407,7 +408,7 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: TColors.red600, foregroundColor: Colors.white),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600), foregroundColor: Colors.white),
             onPressed: () {
               if (reason.text.trim().isEmpty) return trackerToast(ctx, 'A reason is required', error: true);
               Navigator.pop(ctx, true);
@@ -434,7 +435,7 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
     if (_water) {
       return Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
           Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: TColors.slate900)),
@@ -453,8 +454,8 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
   }
 
   Widget _activeBadge(Map a) => a['isActive'] == true
-      ? const TBadge('Active', bg: Color(0xFFDCFCE7), fg: Color(0xFF15803D))
-      : const TBadge('Inactive', bg: Colors.white, fg: TColors.slate700, border: TColors.slate300);
+      ? const TBadge('Active', bg: Tone.bg(0xFFDCFCE7), fg: Tone.fg(0xFF15803D))
+      : const TBadge('Inactive', bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate700, border: TColors.slate300);
 
   Widget _accountsTable(List<Map> items, Map<String, Map> statusById) => TrackerTable(
         columns: const [
@@ -519,7 +520,7 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
                   if (!_hotel) Tooltip(message: 'Quick transactions', child: act('Txns', () => _quickTransactions(a))),
                   act('Reconcile', () => _reconcile(tIntOrNull(a['${_r.idPrefix}CashAccountId']))),
                   act('Edit', () => _dialog(CashAccountFormDialog(session: widget.session, company: widget.company, rail: _r, editing: a))),
-                  IconButton(tooltip: 'Delete account', onPressed: () => _delete(a), icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFEF4444))),
+                  IconButton(tooltip: 'Delete account', onPressed: () => _delete(a), icon: const Icon(Icons.delete_outline, size: 18, color: Tone.fg(0xFFEF4444))),
                 ]),
               ];
             }(),
@@ -570,7 +571,7 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
                   () => _dialog(CashTransferQuickDialog(session: widget.session, company: widget.company, rail: _r, accounts: _accounts))),
               headerButton(Icons.account_balance_wallet_outlined, 'Create default account', _saving ? null : _createDefault),
               FilledButton.icon(
-                style: FilledButton.styleFrom(backgroundColor: _r.accent),
+                style: FilledButton.styleFrom(backgroundColor: Tone.button(_r.accent)),
                 onPressed: () => _dialog(CashAccountFormDialog(session: widget.session, company: widget.company, rail: _r)),
                 icon: const Icon(Icons.add, size: 16),
                 label: const Text('New account'),
@@ -617,12 +618,12 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
             else if (_accounts.isEmpty)
               Container(
                 padding: const EdgeInsets.all(32),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
                 child: Column(children: [
                   const Text('No cash accounts yet.', style: TextStyle(color: TColors.slate500)),
                   const SizedBox(height: 12),
                   FilledButton.icon(
-                    style: FilledButton.styleFrom(backgroundColor: _r.accent),
+                    style: FilledButton.styleFrom(backgroundColor: Tone.button(_r.accent)),
                     onPressed: _saving ? null : _createDefault,
                     icon: const Icon(Icons.account_balance_wallet_outlined, size: 16),
                     label: const Text('Create default account'),
@@ -661,7 +662,7 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
                   ),
                   OutlinedButton.icon(
                     onPressed: () => _delete(a),
-                    style: OutlinedButton.styleFrom(foregroundColor: TColors.red600, side: const BorderSide(color: Color(0xFFFECACA))),
+                    style: OutlinedButton.styleFrom(foregroundColor: TColors.red600, side: const BorderSide(color: Tone.line(0xFFFECACA))),
                     icon: const Icon(Icons.delete_outline, size: 16),
                     label: const Text('Delete'),
                   ),
@@ -682,7 +683,7 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
               const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   Row(children: [
                     const Expanded(child: Text('Recent transfers', style: TextStyle(fontWeight: FontWeight.w500, color: TColors.slate700))),
@@ -702,7 +703,7 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
                     secondary: (t) => fmtDateTime(t['transferDate'], t, _offset),
                     trailing: (t) => Padding(
                       padding: const EdgeInsets.only(left: 6),
-                      child: TBadge(tStr(t['status']), bg: Colors.white, fg: TColors.slate700, border: TColors.slate300),
+                      child: TBadge(tStr(t['status']), bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate700, border: TColors.slate300),
                     ),
                     details: (t) => [
                       ('Date', fmtDateTime(t['transferDate'], t, _offset)),
@@ -715,12 +716,12 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
                       if (tStr(t['status']) == 'Draft') ...[
                         OutlinedButton(
                           onPressed: () => _transferAction(t, 'approve'),
-                          style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFF15803D), side: const BorderSide(color: Color(0xFFBBF7D0))),
+                          style: OutlinedButton.styleFrom(foregroundColor: const Tone.fg(0xFF15803D), side: const BorderSide(color: Tone.line(0xFFBBF7D0))),
                           child: const Text('Approve'),
                         ),
                         OutlinedButton(
                           onPressed: () => _transferAction(t, 'cancel'),
-                          style: OutlinedButton.styleFrom(foregroundColor: TColors.red600, side: const BorderSide(color: Color(0xFFFECACA))),
+                          style: OutlinedButton.styleFrom(foregroundColor: TColors.red600, side: const BorderSide(color: Tone.line(0xFFFECACA))),
                           child: const Text('Cancel'),
                         ),
                       ],
@@ -743,7 +744,7 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
                             Align(alignment: Alignment.centerRight, child: Text(_fmt(tNum(t['amount'])))),
                             Align(
                               alignment: Alignment.centerLeft,
-                              child: TBadge(tStr(t['status']), bg: Colors.white, fg: TColors.slate700, border: TColors.slate300),
+                              child: TBadge(tStr(t['status']), bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate700, border: TColors.slate300),
                             ),
                             Wrap(alignment: WrapAlignment.end, children: [
                               if (tStr(t['status']) == 'Draft') ...[
@@ -768,7 +769,7 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
 const _clearingTones = {
   'Uncleared': (TColors.slate100, TColors.slate600),
   'Cleared': (TColors.emerald100, TColors.emerald700),
-  'Disputed': (Color(0xFFFFE4E6), Color(0xFFBE123C)),
+  'Disputed': (Tone(0xFFFFE4E6), Tone(0xFFBE123C)),
 };
 
 class CashAccountDetailScreen extends StatefulWidget {
@@ -943,7 +944,7 @@ class _CashAccountDetailScreenState extends State<CashAccountDetailScreen> {
     final pageRows = pageSlice(visible, _page, _pageSize);
     Widget stat(String label, num v, {Color? color}) => Container(
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(label, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
             Text(gh(v), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 19, fontWeight: FontWeight.w600, color: color)),
@@ -975,7 +976,7 @@ class _CashAccountDetailScreenState extends State<CashAccountDetailScreen> {
               Icon(Icons.account_balance_wallet_outlined, size: 24, color: _r.accent ?? _sky600),
               Text(a != null ? tStr(a['accountName']) : (_loading ? 'Loading…' : 'Account #$_id'),
                   style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TColors.slate900)),
-              if (a != null) TBadge(tStr(a['accountType']), bg: Colors.white, fg: TColors.slate700, border: TColors.slate300),
+              if (a != null) TBadge(tStr(a['accountType']), bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate700, border: TColors.slate300),
               if (a != null && a['isActive'] != true) const TBadge('Inactive', bg: TColors.amber100, fg: TColors.amber700),
             ]),
             const SizedBox(height: 10),
@@ -989,7 +990,7 @@ class _CashAccountDetailScreenState extends State<CashAccountDetailScreen> {
               FilledButton.icon(onPressed: _adjust, icon: const Icon(Icons.balance, size: 16), label: const Text('Adjust balance')),
               OutlinedButton.icon(
                 onPressed: _delete,
-                style: OutlinedButton.styleFrom(foregroundColor: TColors.red600, side: const BorderSide(color: Color(0xFFFECACA))),
+                style: OutlinedButton.styleFrom(foregroundColor: TColors.red600, side: const BorderSide(color: Tone.line(0xFFFECACA))),
                 icon: const Icon(Icons.delete_outline, size: 16),
                 label: const Text('Delete'),
               ),
@@ -1006,7 +1007,7 @@ class _CashAccountDetailScreenState extends State<CashAccountDetailScreen> {
             else ...[
               twoUp([
                 stat('Opening balance', tNum(a['openingBalance'])),
-                stat('Total money in', totalIn, color: const Color(0xFF15803D)),
+                stat('Total money in', totalIn, color: const Tone(0xFF15803D)),
                 stat('Total money out', totalOut, color: TColors.rose600),
                 stat('Current balance', tNum(a['currentBalance'])),
               ]),
@@ -1079,7 +1080,7 @@ class _CashAccountDetailScreenState extends State<CashAccountDetailScreen> {
                           cellText(categoryLabel(r['sourceType'])),
                           Align(
                             alignment: Alignment.centerRight,
-                            child: Text(tNum(r['amount']) > 0 ? gh(tNum(r['amount'])) : '—', style: const TextStyle(color: Color(0xFF15803D))),
+                            child: Text(tNum(r['amount']) > 0 ? gh(tNum(r['amount'])) : '—', style: const TextStyle(color: Tone.fg(0xFF15803D))),
                           ),
                           Align(
                             alignment: Alignment.centerRight,

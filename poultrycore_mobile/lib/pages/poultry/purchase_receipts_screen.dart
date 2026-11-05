@@ -20,6 +20,7 @@ import 'sales/balances_logic.dart' show pageSlice;
 import 'sales/balances_widgets.dart';
 import 'trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import 'trackers/tracker_widgets.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import '../shared/reason_select.dart' show stockReversalReasons;
 
 /// Poultry → Tools → Receive Purchase, as `app/poultry-purchase-receipts/page.tsx`
@@ -32,11 +33,11 @@ const receiptCreateKey = 'poultry.purchase-receipts.create';
 const receiptApproveKey = 'poultry.purchase-receipts.approve';
 const supplierPayKey = 'poultry.supplier-payments.create';
 
-const _emerald600 = Color(0xFF059669);
-const _indigo = Color(0xFF4F46E5);
-const _blue = Color(0xFF2563EB);
-const _slateBand = Color(0xFF475569);
-const _amberBand = Color(0xFFD97706);
+const _emerald600 = Tone.fg(0xFF059669);
+const _indigo = Tone.fg(0xFF4F46E5);
+const _blue = Tone.fg(0xFF2563EB);
+const _slateBand = Tone.bg(0xFF475569);
+const _amberBand = Tone.bg(0xFFD97706);
 
 String _day(Object? v) {
   final s = tStr(v);
@@ -57,7 +58,7 @@ String newClientRequestId() {
 (Color, Color, Color) _statusTone(Object? s) => switch (s) {
       'Paid' => (TColors.emerald100, TColors.emerald800, TColors.emerald300),
       'Part paid' => (TColors.amber100, TColors.amber800, TColors.amber300),
-      'Unpaid' => (TColors.rose100, TColors.rose800, const Color(0xFFFDA4AF)),
+      'Unpaid' => (TColors.rose100, TColors.rose800, const Tone(0xFFFDA4AF)),
       _ => (TColors.slate100, TColors.slate600, TColors.slate300),
     };
 
@@ -65,7 +66,7 @@ Widget receiptStatusBadge(Map r) {
   final (bg, fg, border) = _statusTone(r['paymentStatus']);
   return Wrap(spacing: 4, children: [
     TBadge(tStr(r['paymentStatus']), bg: bg, fg: fg, border: border),
-    if (r['isOverdue'] == true) const TBadge('Overdue', bg: TColors.rose50, fg: TColors.rose700, border: Color(0xFFFDA4AF)),
+    if (r['isOverdue'] == true) const TBadge('Overdue', bg: TColors.rose50, fg: TColors.rose700, border: Tone.line(0xFFFDA4AF)),
   ]);
 }
 
@@ -255,7 +256,7 @@ class _PurchaseReceiptsScreenState extends State<PurchaseReceiptsScreen> {
                   style: TextStyle(fontSize: 13, color: TColors.slate600)),
               InkWell(
                 onTap: () => openPoultryHref(context, widget.session, widget.company, '/supplier-balances', label: 'Supplier Balances'),
-                child: const Text('Supplier Balances', style: TextStyle(fontSize: 13, color: Color(0xFF1D4ED8))),
+                child: const Text('Supplier Balances', style: TextStyle(fontSize: 13, color: Tone.fg(0xFF1D4ED8))),
               ),
               const Text('.', style: TextStyle(fontSize: 13, color: TColors.slate600)),
             ]),
@@ -353,7 +354,7 @@ class _PurchaseReceiptsScreenState extends State<PurchaseReceiptsScreen> {
                       [
                         InkWell(
                           onTap: () => _openDetail(tIntOrNull(r['poultryPurchaseReceiptId']) ?? 0),
-                          child: Text(tStr(r['receiptNumber']), style: const TextStyle(fontWeight: FontWeight.w500, color: Color(0xFF1D4ED8))),
+                          child: Text(tStr(r['receiptNumber']), style: const TextStyle(fontWeight: FontWeight.w500, color: Tone.fg(0xFF1D4ED8))),
                         ),
                         cellText(fmtDateTime(r['purchaseDate'], r, _offset)),
                         cellText(tStr(r['supplierName'])),
@@ -387,7 +388,7 @@ class _PurchaseReceiptsScreenState extends State<PurchaseReceiptsScreen> {
   }
 
   Widget _tile(String label, String value, {Accent? tone}) {
-    final (bg, border, lc, vc) = tone == null ? (Colors.white, TColors.slate200, TColors.slate500, TColors.slate900) : accentTone(tone);
+    final (bg, border, lc, vc) = tone == null ? (Tone(0xFFFFFFFF), TColors.slate200, TColors.slate500, TColors.slate900) : accentTone(tone);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(color: bg, border: Border.all(color: border), borderRadius: BorderRadius.circular(8)),
@@ -408,7 +409,7 @@ Widget _sectionLabel(String text) => Text(text.toUpperCase(),
 
 Widget _figure(String label, String value, {Color? tone}) => Container(
       padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(label, style: const TextStyle(fontSize: 11, color: TColors.slate500)),
         Text(value, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: tone ?? TColors.slate900)),
@@ -546,7 +547,7 @@ class _ReceiptDetailDialogState extends State<_ReceiptDetailDialog> {
               const Text('Pay the balance from ', style: small),
               InkWell(
                 onTap: () => openPoultryHref(context, widget.session, widget.company, '/supplier-balances', label: 'Supplier Balances'),
-                child: const Text('Supplier Balances', style: TextStyle(fontSize: 12, color: Color(0xFF1D4ED8))),
+                child: const Text('Supplier Balances', style: TextStyle(fontSize: 12, color: Tone.fg(0xFF1D4ED8))),
               ),
               const Text('.', style: small),
             ]),
@@ -573,11 +574,11 @@ class _ReceiptDetailDialogState extends State<_ReceiptDetailDialog> {
                 ),
                 const SizedBox(height: 4),
                 Wrap(spacing: 6, runSpacing: 4, children: [
-                  if (tStr(l['recognitionLabel']).isNotEmpty) TBadge(tStr(l['recognitionLabel']), bg: Colors.white, fg: TColors.slate900, border: TColors.slate300),
+                  if (tStr(l['recognitionLabel']).isNotEmpty) TBadge(tStr(l['recognitionLabel']), bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate900, border: TColors.slate300),
                   if (posted && tNum(l['consumedQuantity']) > 0)
-                    TBadge('${fmtNum(tNum(l['consumedQuantity']), 3)} used', bg: Colors.white, fg: TColors.amber800, border: TColors.amber300),
+                    TBadge('${fmtNum(tNum(l['consumedQuantity']), 3)} used', bg: Tone.bg(0xFFFFFFFF), fg: TColors.amber800, border: TColors.amber300),
                   if (posted && tNum(l['balance']) > 0)
-                    TBadge('${gh(tNum(l['balance']))} owed', bg: Colors.white, fg: TColors.amber800, border: TColors.amber300),
+                    TBadge('${gh(tNum(l['balance']))} owed', bg: Tone.bg(0xFFFFFFFF), fg: TColors.amber800, border: TColors.amber300),
                 ]),
               ]),
             ),
@@ -607,7 +608,7 @@ class _ReceiptDetailDialogState extends State<_ReceiptDetailDialog> {
             Align(
               alignment: Alignment.centerLeft,
               child: OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(foregroundColor: TColors.rose700, side: const BorderSide(color: Color(0xFFFDA4AF))),
+                style: OutlinedButton.styleFrom(foregroundColor: TColors.rose700, side: const BorderSide(color: Tone.line(0xFFFDA4AF))),
                 onPressed: () => _reverse(r),
                 icon: const Icon(Icons.undo, size: 16),
                 label: const Text('Reverse receipt'),
@@ -1029,7 +1030,7 @@ class _ReceivePurchaseScreenState extends State<ReceivePurchaseScreen> {
           width: double.infinity,
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: on ? TColors.emerald50 : Colors.white,
+            color: on ? TColors.emerald50 : Tone.bg(0xFFFFFFFF),
             border: Border.all(color: on ? TColors.emerald500 : TColors.slate200, width: on ? 2 : 1),
             borderRadius: BorderRadius.circular(8),
           ),
@@ -1051,7 +1052,7 @@ class _ReceivePurchaseScreenState extends State<ReceivePurchaseScreen> {
     return Container(
       key: ValueKey('line-${l.key}'),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
           Expanded(
@@ -1061,7 +1062,7 @@ class _ReceivePurchaseScreenState extends State<ReceivePurchaseScreen> {
             TBadge(deferred ? 'Expensed when used' : 'Expensed as paid',
                 bg: deferred ? TColors.violet50 : TColors.amber50,
                 fg: deferred ? TColors.violet800 : TColors.amber800,
-                border: deferred ? const Color(0xFFC4B5FD) : TColors.amber300),
+                border: deferred ? const Tone.line(0xFFC4B5FD) : TColors.amber300),
           if (_lines.length > 1)
             IconButton(
               tooltip: 'Remove item',

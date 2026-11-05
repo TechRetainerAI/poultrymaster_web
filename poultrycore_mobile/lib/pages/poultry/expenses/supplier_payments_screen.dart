@@ -21,6 +21,7 @@ import '../sales/balances_widgets.dart';
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../trackers/tracker_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Poultry → Expenses → Supplier Payments, as `app/supplier-payments/page.tsx`
 /// → `components/balances/payments-ledger-page.tsx`: every payment made to a
 /// supplier, what it paid, and its reversal.
@@ -254,7 +255,7 @@ class _SupplierPaymentsScreenState extends State<SupplierPaymentsScreen> {
       body: [
         Container(
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+          decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
           child: Row(children: [
             Expanded(
               child: Text(tStr(r['partyName']).isEmpty ? 'the supplier' : tStr(r['partyName']),
@@ -360,7 +361,7 @@ class _SupplierPaymentsScreenState extends State<SupplierPaymentsScreen> {
   void _href(String href, String label) => openAppHref(context, widget.session, widget.company, href, label: label);
 
   Widget _statusBadge(Map r) => tStr(r['status']) == 'Reversed'
-      ? const TBadge('Reversed', bg: Colors.white, fg: TColors.slate500, border: TColors.slate300)
+      ? const TBadge('Reversed', bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate500, border: TColors.slate300)
       : const TBadge('Posted', bg: TColors.slate100, fg: TColors.slate800);
 
 
@@ -451,7 +452,7 @@ class _SupplierPaymentsScreenState extends State<SupplierPaymentsScreen> {
                     ? InkWell(
                         onTap: () => _href(_rail.suppliersHref, 'Suppliers'),
                         child: Text(tStr(r['partyName']).isNotEmpty ? tStr(r['partyName']) : '#${tStr(r['partyId'])}',
-                            style: const TextStyle(color: Color(0xFF0369A1))),
+                            style: const TextStyle(color: Tone.fg(0xFF0369A1))),
                       )
                     : const Text('No supplier', style: TextStyle(color: TColors.slate400)),
                 multi
@@ -516,7 +517,7 @@ class _SupplierPaymentsScreenState extends State<SupplierPaymentsScreen> {
     final money = [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))];
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         FilterLabel('Search', AppInput(controller: _search, hintText: 'Supplier, payment #, item, reference', onChanged: (v) => setState(() => _f.search = v))),
         const SizedBox(height: 10),
@@ -637,7 +638,7 @@ class _SupplierPaymentsScreenState extends State<SupplierPaymentsScreen> {
     final posted = filtered.where((r) => tStr(r['status']) == 'Posted').fold<num>(0, (s, r) => s + tNum(r['totalAmount']));
     Widget stat(String label, String value) => Container(
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(label, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
             const SizedBox(height: 4),
@@ -662,7 +663,7 @@ class _SupplierPaymentsScreenState extends State<SupplierPaymentsScreen> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: FilledButton.icon(
-                  style: FilledButton.styleFrom(backgroundColor: TColors.amber600),
+                  style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.amber600)),
                   onPressed: _recordPayment,
                   icon: const Icon(Icons.payments_outlined, size: 16),
                   label: const Text('Record supplier payment'),
@@ -700,7 +701,7 @@ class _SupplierPaymentsScreenState extends State<SupplierPaymentsScreen> {
             else if (filtered.isEmpty)
               Container(
                 padding: const EdgeInsets.all(32),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
                 child: const Text('No supplier payments match these filters.', textAlign: TextAlign.center, style: TextStyle(color: TColors.slate500)),
               )
             else

@@ -20,6 +20,7 @@ import '../../shared/business_dates.dart';
 import 'water_report_kit.dart';
 import 'water_reports_catalog_screen.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 // Water → Reports: the pages that are more than one table — Cash Movement,
 // Cash Flow Detail, Cash Account Report, Money Movement, Daily Business
 // Summary, the Operational dashboard and Profit & Loss.
@@ -527,7 +528,7 @@ class _WaterDailySummaryScreenState extends State<WaterDailySummaryScreen> {
 
   Widget _card(String label, String value, String? accent) => Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: slate200), borderRadius: BorderRadius.circular(10)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: slate200), borderRadius: BorderRadius.circular(10)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label.toUpperCase(), style: const TextStyle(fontSize: 10.5, letterSpacing: .5, color: slate500)),
           const SizedBox(height: 4),
@@ -569,7 +570,7 @@ class _WaterDailySummaryScreenState extends State<WaterDailySummaryScreen> {
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: Colors.white, border: Border.all(color: slate200), borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: slate200), borderRadius: BorderRadius.circular(12)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Container(
                 padding: const EdgeInsets.only(bottom: 12),
@@ -735,14 +736,14 @@ class _WaterOperationalScreenState extends State<WaterOperationalScreen> {
 
   Widget _stat(String label, String value, [String? accent]) => Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: slate200), borderRadius: BorderRadius.circular(6)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: slate200), borderRadius: BorderRadius.circular(6)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: const TextStyle(fontSize: 12, color: slate500)),
           Text(value,
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: accent == 'green' ? const Color(0xFF15803D) : accent == 'rose' ? const Color(0xFFE11D48) : slate900,
+                color: accent == 'green' ? const Tone.fg(0xFF15803D) : accent == 'rose' ? const Tone.fg(0xFFE11D48) : slate900,
               )),
         ]),
       );
@@ -789,7 +790,7 @@ class _WaterOperationalScreenState extends State<WaterOperationalScreen> {
                 padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   Row(children: [
-                    const Icon(Icons.bar_chart, color: Color(0xFF0284C7)),
+                    const Icon(Icons.bar_chart, color: Tone.fg(0xFF0284C7)),
                     const SizedBox(width: 8),
                     const Expanded(
                       child: Text('Water reports', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w600, color: slate900)),
@@ -805,7 +806,7 @@ class _WaterOperationalScreenState extends State<WaterOperationalScreen> {
                   const SizedBox(height: 12),
                   Container(
                     padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(color: Colors.white, border: Border.all(color: slate200), borderRadius: BorderRadius.circular(10)),
+                    decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: slate200), borderRadius: BorderRadius.circular(10)),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                       const Text('Period', style: TextStyle(fontSize: 12, color: slate600)),
                       const SizedBox(height: 4),
@@ -1144,12 +1145,12 @@ class _WaterProfitLossScreenState extends State<WaterProfitLossScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(color: amber50, border: Border.all(color: amber200), borderRadius: BorderRadius.circular(6)),
                   child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    const Padding(padding: EdgeInsets.only(top: 1), child: Icon(Icons.warning_amber_rounded, size: 14, color: Color(0xFF78350F))),
+                    const Padding(padding: EdgeInsets.only(top: 1), child: Icon(Icons.warning_amber_rounded, size: 14, color: Tone.fg(0xFF78350F))),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         "${gh(v('capitalInExpenses'))} of capital asset purchases is being charged to this period's profit. A major purchase is money the company still owns and normally reaches profit gradually, through depreciation. The water P&L counts it as an expense; the poultry one does not.",
-                        style: const TextStyle(fontSize: 12, color: Color(0xFF78350F)),
+                        style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF78350F)),
                       ),
                     ),
                   ]),
@@ -1226,19 +1227,19 @@ class _WaterProfitLossScreenState extends State<WaterProfitLossScreen> {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF0F9FF),
-                  border: Border.all(color: const Color(0xFFBAE6FD)),
+                  color: const Tone.bg(0xFFF0F9FF),
+                  border: Border.all(color: const Tone.line(0xFFBAE6FD)),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Padding(padding: EdgeInsets.only(top: 2), child: Icon(Icons.info_outline, size: 16, color: Color(0xFF0369A1))),
+                    Padding(padding: EdgeInsets.only(top: 2), child: Icon(Icons.info_outline, size: 16, color: Tone.fg(0xFF0369A1))),
                     SizedBox(width: 8),
                     Expanded(
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(_profitVsCashTitle, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF0C4A6E))),
+                        Text(_profitVsCashTitle, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Tone.fg(0xFF0C4A6E))),
                         SizedBox(height: 4),
-                        Text(_profitVsCashBody, style: TextStyle(fontSize: 12, color: Color(0xFF0C4A6E))),
+                        Text(_profitVsCashBody, style: TextStyle(fontSize: 12, color: Tone.fg(0xFF0C4A6E))),
                       ]),
                     ),
                   ]),
@@ -1247,11 +1248,11 @@ class _WaterProfitLossScreenState extends State<WaterProfitLossScreen> {
                     ("Cash out that is not this period's cost", _cashNotProfit),
                     ('Costs that did not move cash this period', _profitNotCash),
                   ]) ...[
-                    Text(head, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF0C4A6E))),
+                    Text(head, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Tone.fg(0xFF0C4A6E))),
                     for (final x in items)
                       Padding(
                         padding: const EdgeInsets.only(left: 8, top: 2),
-                        child: Text('•  $x', style: const TextStyle(fontSize: 12, color: Color(0xFF0C4A6E))),
+                        child: Text('•  $x', style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF0C4A6E))),
                       ),
                     const SizedBox(height: 8),
                   ],
@@ -1260,7 +1261,7 @@ class _WaterProfitLossScreenState extends State<WaterProfitLossScreen> {
                       InkWell(
                         onTap: () => _link(href, label),
                         child: Text(label,
-                            style: const TextStyle(fontSize: 12, color: Color(0xFF075985), decoration: TextDecoration.underline)),
+                            style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF075985), decoration: TextDecoration.underline)),
                       ),
                   ]),
                 ]),
@@ -1368,7 +1369,7 @@ class _WaterDrillPageState extends State<_WaterDrillPage> {
                             return Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: Colors.white,
+                                color: Tone.bg(0xFFFFFFFF),
                                 border: Border.all(color: slate200),
                                 borderRadius: BorderRadius.circular(6),
                               ),
@@ -1406,7 +1407,7 @@ class _WaterDrillPageState extends State<_WaterDrillPage> {
                                   style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w600,
-                                    color: toNum(widget.line['amount']) < 0 ? const Color(0xFFDC2626) : slate900,
+                                    color: toNum(widget.line['amount']) < 0 ? const Tone.fg(0xFFDC2626) : slate900,
                                   )),
                               if (filtered) Text('filtered · ${gh(sum(all))} in full', style: const TextStyle(fontSize: 11, color: slate500)),
                             ]),

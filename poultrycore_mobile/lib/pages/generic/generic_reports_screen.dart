@@ -12,6 +12,7 @@ import '../poultry/trackers/tracker_widgets.dart';
 import '../web_nav.dart' show NavLink;
 import 'generic_kit.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// One report card: where it goes, what it says, its icon and accent.
 class GenericReportCard {
   const GenericReportCard(this.href, this.title, this.description, this.icon, this.accent);
@@ -20,14 +21,14 @@ class GenericReportCard {
   final (Color fg, Color bg) accent;
 }
 
-const _emerald = (Color(0xFF059669), Color(0xFFECFDF5));
-const _sky = (Color(0xFF0284C7), Color(0xFFF0F9FF));
-const _cyan = (Color(0xFF0891B2), Color(0xFFECFEFF));
-const _amber = (Color(0xFFD97706), Color(0xFFFFFBEB));
-const _orange = (Color(0xFFEA580C), Color(0xFFFFF7ED));
-const _slate = (Color(0xFF475569), Color(0xFFF1F5F9));
-const _rose = (Color(0xFFE11D48), Color(0xFFFFF1F2));
-const _violet = (Color(0xFF7C3AED), Color(0xFFF5F3FF));
+const _emerald = (Tone(0xFF059669), Tone(0xFFECFDF5));
+const _sky = (Tone(0xFF0284C7), Tone(0xFFF0F9FF));
+const _cyan = (Tone(0xFF0891B2), Tone(0xFFECFEFF));
+const _amber = (Tone(0xFFD97706), Tone(0xFFFFFBEB));
+const _orange = (Tone(0xFFEA580C), Tone(0xFFFFF7ED));
+const _slate = (Tone(0xFF475569), Tone(0xFFF1F5F9));
+const _rose = (Tone(0xFFE11D48), Tone(0xFFFFF1F2));
+const _violet = (Tone(0xFF7C3AED), Tone(0xFFF5F3FF));
 
 /// coreReports: every Generic company gets these.
 List<GenericReportCard> genericCoreReports(GenericLabels l) => [
@@ -103,7 +104,7 @@ class _GenericReportsScreenState extends State<GenericReportsScreen> {
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: Material(
-                color: Colors.white,
+                color: Tone.bg(0xFFFFFFFF),
                 shape: RoundedRectangleBorder(
                   side: const BorderSide(color: TColors.slate200),
                   borderRadius: BorderRadius.circular(12),

@@ -18,6 +18,7 @@ import '../poultry/trackers/tracker_widgets.dart';
 import '../shared/business_dates.dart';
 import '../shared/company_clock.dart';
 import 'generic_kit.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import 'generic_products_screen.dart' show genericEmptyCard;
 import 'generic_sales_screen.dart' show genericBackLink, genericCard;
 import 'reports/generic_report_kit.dart' show fmtMoney;
@@ -33,7 +34,7 @@ const genericExpensePayMethods = [
   ('Credit', 'Credit'),
 ];
 
-const _amber600 = Color(0xFFD97706);
+const _amber600 = Tone.fg(0xFFD97706);
 
 /// badgeClass: Approved emerald, Rejected rose, Submitted sky, Cancelled and
 /// anything else slate.

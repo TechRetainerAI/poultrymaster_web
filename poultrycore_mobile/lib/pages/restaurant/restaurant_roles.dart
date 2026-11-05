@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
 
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// RESTAURANT_ROLES and ROLE_PERMISSIONS from `app/restaurant-staff/page.tsx`.
 class RestaurantRole {
   const RestaurantRole(this.value, this.label, this.description, this.icon, this.permissions);
@@ -38,4 +38,4 @@ RestaurantRole roleFor(String value) =>
     restaurantRoles.firstWhere((r) => r.value == value, orElse: () => restaurantRoles.last);
 
 /// The module's colour on the web: rose-600 buttons, rose-500 selection.
-const restaurantRose = Color(0xFFE11D48);
+const restaurantRose = Tone(0xFFE11D48);

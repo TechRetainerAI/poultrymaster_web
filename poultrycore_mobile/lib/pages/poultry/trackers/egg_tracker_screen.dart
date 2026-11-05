@@ -12,6 +12,7 @@ import 'egg_class_ledger.dart';
 import 'tracker_logic.dart';
 import 'tracker_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Poultry → Trackers → Egg tracker, as `app/egg-tracker/page.tsx`.
 ///
 /// The ledger is built from production records (collected in, broken / meaty /
@@ -315,7 +316,7 @@ class _EggTrackerScreenState extends State<EggTrackerScreen> {
     final adjust = RegExp('adjust', caseSensitive: false);
     final onHand = l.currentEggsAtHand;
     return TCard(
-      bg: const Color(0x80FFFBEB),
+      bg: const Tone.bg(0x80FFFBEB),
       border: TColors.amber200,
       eyebrow: 'Egg tracker',
       titleWidget: const Text('Estimated egg inventory',
@@ -331,7 +332,7 @@ class _EggTrackerScreenState extends State<EggTrackerScreen> {
         children: [
           TileGrid([
             TileData('Eggs on hand', loc(onHand.round()),
-                color: onHand < 0 ? TColors.red600 : TColors.slate900,
+                color: onHand < 0 ? TColors.red600 : Tone.button(TColors.slate900)!,
                 suffix: 'eggs',
                 sub: eggCratesLine(onHand),
                 action: CopyButton(
@@ -341,7 +342,7 @@ class _EggTrackerScreenState extends State<EggTrackerScreen> {
                 )),
             TileData('Egg produced', loc(sumIn((r) => r.type == 'Production')), color: TColors.sky700, sub: eggCratesLine(sumIn((r) => r.type == 'Production'))),
             TileData('Egg sales (units)', loc(sumOut((r) => r.type == 'Sale')), color: TColors.amber800, sub: eggCratesLine(sumOut((r) => r.type == 'Sale'))),
-            TileData('Last ledger event', rows.isEmpty ? '—' : trackerDate(l.lastUpdatedIso), color: TColors.slate600),
+            TileData('Last ledger event', rows.isEmpty ? '—' : trackerDate(l.lastUpdatedIso), color: Tone.button(TColors.slate600)!),
             TileData('Eggs in (adjustments)', loc(sumIn((r) => adjust.hasMatch(r.type))), color: TColors.emerald700,
                 sub: eggCratesLine(sumIn((r) => adjust.hasMatch(r.type)))),
             TileData('Eggs out (adjustments)', loc(sumOut((r) => adjust.hasMatch(r.type))), color: TColors.rose600,

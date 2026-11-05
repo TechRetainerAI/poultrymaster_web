@@ -17,6 +17,7 @@ import '../web_nav.dart';
 import 'water_company_setup_screen.dart';
 import 'water_setup_forms.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Water → Setup → Company → Setup ("Water company setup"), as
 /// `app/water-setup/page.tsx`: one hub, tabbed by setup area. Company edits
 /// the profile and the farm's currency; every other area lists its records
@@ -197,7 +198,7 @@ final _tabs = <_Tab>[
   ),
 ];
 
-const _sky = Color(0xFF0284C7); // sky-600
+const _sky = Tone.fg(0xFF0284C7); // sky-600
 
 class _WaterSetupScreenState extends State<WaterSetupScreen> {
   String _tab = 'company';
@@ -259,10 +260,10 @@ class _AreaGrid extends StatelessWidget {
             SizedBox(
               width: w,
               child: Material(
-                color: key == selected ? const Color(0xFFF0F9FF) : tokens.card, // sky-50
+                color: key == selected ? const Tone.bg(0xFFF0F9FF) : tokens.card, // sky-50
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
-                  side: BorderSide(color: key == selected ? const Color(0xFF0EA5E9) : tokens.border),
+                  side: BorderSide(color: key == selected ? const Tone.line(0xFF0EA5E9) : tokens.border),
                 ),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(8),
@@ -272,14 +273,14 @@ class _AreaGrid extends StatelessWidget {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(icon, size: 17, color: key == selected ? const Color(0xFF0369A1) : tokens.mutedForeground),
+                        Icon(icon, size: 17, color: key == selected ? const Tone.fg(0xFF0369A1) : tokens.mutedForeground),
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(label,
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: key == selected ? FontWeight.w600 : FontWeight.w400,
-                                color: key == selected ? const Color(0xFF0369A1) : null, // sky-700
+                                color: key == selected ? const Tone.fg(0xFF0369A1) : null, // sky-700
                               )),
                         ),
                       ],
@@ -362,7 +363,7 @@ class _SetupSectionState extends State<_SetupSection> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(Theme.of(ctx).colorScheme.error)),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Delete'),
           ),

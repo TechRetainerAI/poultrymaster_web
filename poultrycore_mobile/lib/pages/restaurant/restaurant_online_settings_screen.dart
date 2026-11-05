@@ -21,6 +21,7 @@ import 'restaurant_money_kit.dart' show rField, rNumberInput, rDialog, rConfirm,
 import 'restaurant_qr.dart';
 import 'restaurant_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// The page's starting settings, before the saved ones are read.
 const onlineSettingsDefaults = <String, Object?>{
   'isEnabled': false,
@@ -278,7 +279,7 @@ class _RestaurantOnlineSettingsScreenState extends State<RestaurantOnlineSetting
                 actions: [
                   FilledButton.icon(
                     style: FilledButton.styleFrom(
-                        backgroundColor: accepting ? const Color(0xFF0F172A) : const Color(0xFFDC2626), minimumSize: const Size.fromHeight(44)),
+                        backgroundColor: Tone.button(accepting ? const Tone.bg(0xFF0F172A) : const Tone.bg(0xFFDC2626)), minimumSize: const Size.fromHeight(44)),
                     onPressed: _toggleAccepting,
                     icon: Icon(accepting ? Icons.power_settings_new : Icons.power_off_outlined, size: 18),
                     label: Text(accepting ? 'Accepting Orders' : 'Orders Paused'),
@@ -343,7 +344,7 @@ class _RestaurantOnlineSettingsScreenState extends State<RestaurantOnlineSetting
           rField('Welcome Message', AppInput(controller: _welcome, maxLines: 3, minLines: 2)),
           const SizedBox(height: 14),
           FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0F172A), minimumSize: const Size.fromHeight(44)),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(const Tone.bg(0xFF0F172A)), minimumSize: const Size.fromHeight(44)),
             onPressed: _saving ? null : _saveSettings,
             icon: _saving
                 ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
@@ -368,12 +369,12 @@ class _RestaurantOnlineSettingsScreenState extends State<RestaurantOnlineSetting
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: const Color(0x80FFF1F2),
-            border: Border.all(color: const Color(0xFFFECDD3)),
+            color: const Tone.bg(0x80FFF1F2),
+            border: Border.all(color: const Tone.line(0xFFFECDD3)),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Restaurant QR code', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF111827))),
+            const Text('Restaurant QR code', style: TextStyle(fontWeight: FontWeight.w600, color: Tone.fg(0xFF111827))),
             const SizedBox(height: 2),
             const Text(
               'One code for the whole restaurant. Put it where the queue forms — a guest scans it, sees your full menu, '
@@ -384,7 +385,7 @@ class _RestaurantOnlineSettingsScreenState extends State<RestaurantOnlineSetting
             hasVenue
                 ? rBadge('Created')
                 : FilledButton.icon(
-                    style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0F172A)),
+                    style: FilledButton.styleFrom(backgroundColor: Tone.button(const Tone.bg(0xFF0F172A))),
                     onPressed: _genRestaurantQr,
                     icon: const Icon(Icons.add, size: 16),
                     label: const Text('Create it'),
@@ -418,8 +419,8 @@ class _RestaurantOnlineSettingsScreenState extends State<RestaurantOnlineSetting
         ),
         const SizedBox(height: 10),
         Wrap(spacing: 6, runSpacing: 4, alignment: WrapAlignment.center, crossAxisAlignment: WrapCrossAlignment.center, children: [
-          if (tStr(q['codeType']) == 'Restaurant') rBadge('Whole restaurant', bg: const Color(0xFFE11D48), fg: Colors.white),
-          active ? rBadge('Active', bg: const Color(0xFF0F172A), fg: Colors.white) : rBadge('Inactive'),
+          if (tStr(q['codeType']) == 'Restaurant') rBadge('Whole restaurant', bg: const Tone.bg(0xFFE11D48), fg: Colors.white),
+          active ? rBadge('Active', bg: const Tone.bg(0xFF0F172A), fg: Colors.white) : rBadge('Inactive'),
           Text('$scans scan${scans == 1 ? '' : 's'}${last.isEmpty ? '' : ' · last ${fmtInstant(last, _offset)}'}',
               style: const TextStyle(fontSize: 12, color: TColors.slate500)),
         ]),
@@ -429,7 +430,7 @@ class _RestaurantOnlineSettingsScreenState extends State<RestaurantOnlineSetting
           OutlinedButton.icon(onPressed: () => _png(q), icon: const Icon(Icons.download, size: 15), label: const Text('PNG')),
           OutlinedButton.icon(
               onPressed: () => _print(only: tNum(q['qrCodeId']).toInt()), icon: const Icon(Icons.print_outlined, size: 15), label: const Text('Print')),
-          IconButton(tooltip: 'Delete QR', onPressed: () => _delQr(q), icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFEF4444))),
+          IconButton(tooltip: 'Delete QR', onPressed: () => _delQr(q), icon: const Icon(Icons.delete_outline, size: 18, color: Tone.fg(0xFFEF4444))),
         ]),
       ]),
     );
@@ -442,7 +443,7 @@ class _RestaurantOnlineSettingsScreenState extends State<RestaurantOnlineSetting
             const SizedBox(width: 8),
             const Expanded(child: Text('Promo Codes', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600))),
             FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0F172A)),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(const Tone.bg(0xFF0F172A))),
               onPressed: () => _openPromo(),
               icon: const Icon(Icons.add, size: 16),
               label: const Text('Add Promo'),
@@ -472,15 +473,15 @@ class _RestaurantOnlineSettingsScreenState extends State<RestaurantOnlineSetting
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Wrap(spacing: 8, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
               Text(tStr(p['code']), style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.w700)),
-              rBadge(promoValueLabel(p), bg: Colors.white, border: TColors.slate200),
+              rBadge(promoValueLabel(p), bg: Tone.bg(0xFFFFFFFF), border: TColors.slate200),
             ]),
             const SizedBox(height: 2),
             Text(meta, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
           ]),
         ),
-        active ? rBadge('Active', bg: const Color(0xFF0F172A), fg: Colors.white) : rBadge('Inactive'),
+        active ? rBadge('Active', bg: const Tone.bg(0xFF0F172A), fg: Colors.white) : rBadge('Inactive'),
         IconButton(tooltip: 'Edit promo', onPressed: () => _openPromo(p), icon: const Icon(Icons.edit_outlined, size: 18)),
-        IconButton(tooltip: 'Delete promo', onPressed: () => _delPromo(p), icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFEF4444))),
+        IconButton(tooltip: 'Delete promo', onPressed: () => _delPromo(p), icon: const Icon(Icons.delete_outline, size: 18, color: Tone.fg(0xFFEF4444))),
       ]),
     );
   }

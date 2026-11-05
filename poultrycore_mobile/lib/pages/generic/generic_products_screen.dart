@@ -15,13 +15,14 @@ import '../poultry/sales/balances_widgets.dart';
 import '../poultry/trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../poultry/trackers/tracker_widgets.dart';
 import 'generic_kit.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import 'reports/generic_report_kit.dart' show fmtMoney;
 
 /// Section bands of the web's FormSection colours.
-const genericBandIndigo = Color(0xFF4F46E5);
-const genericBandBlue = Color(0xFF2563EB);
-const genericBandAmber = Color(0xFFD97706);
-const genericBandSlate = Color(0xFF475569);
+const genericBandIndigo = Tone.bg(0xFF4F46E5);
+const genericBandBlue = Tone.bg(0xFF2563EB);
+const genericBandAmber = Tone.bg(0xFFD97706);
+const genericBandSlate = Tone.bg(0xFF475569);
 
 /// `toLocaleString(undefined, { maximumFractionDigits: 3 })`.
 String genericQty(Object? n) {
@@ -44,8 +45,8 @@ Widget genericProductBadge(Map p) {
   if (p['isActive'] != true) return const TBadge('Inactive', bg: TColors.slate100, fg: TColors.slate900);
   final low = p['trackInventory'] == true && tNum(p['currentStock']) <= tNum(p['minimumStockAlert']);
   return low
-      ? const TBadge('Low stock', bg: TColors.rose100, fg: Color(0xFF9F1239))
-      : const TBadge('OK', bg: Color(0xFFD1FAE5), fg: Color(0xFF065F46));
+      ? const TBadge('Low stock', bg: TColors.rose100, fg: Tone.fg(0xFF9F1239))
+      : const TBadge('OK', bg: Tone.bg(0xFFD1FAE5), fg: Tone.fg(0xFF065F46));
 }
 
 class GenericProductsScreen extends StatefulWidget {
@@ -213,7 +214,7 @@ class _EmptyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
         child: child ?? Text(text, textAlign: TextAlign.center, style: const TextStyle(color: TColors.slate500)),
       );
 }
@@ -372,7 +373,7 @@ class _GenericProductFormDialogState extends State<GenericProductFormDialog> {
         actions: [
           OutlinedButton(
             onPressed: _saving ? null : () => Navigator.pop(context, false),
-            style: OutlinedButton.styleFrom(backgroundColor: TColors.red600, foregroundColor: Colors.white, side: BorderSide.none),
+            style: OutlinedButton.styleFrom(backgroundColor: Tone.button(TColors.red600), foregroundColor: Colors.white, side: BorderSide.none),
             child: const Text('Cancel'),
           ),
           FilledButton(onPressed: _saving ? null : _save, child: Text(_saving ? 'Saving…' : (editing ? 'Save changes' : 'Create'))),

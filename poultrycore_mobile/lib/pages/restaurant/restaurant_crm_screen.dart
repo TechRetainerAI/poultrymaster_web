@@ -17,12 +17,13 @@ import '../shared/business_dates.dart' show fmtInstant;
 import '../shared/company_clock.dart';
 import 'restaurant_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// SEGMENTS: value, emoji, badge colours.
 const crmSegments = <(String, String, Color, Color)>[
-  ('New', '🆕', Color(0xFFDBEAFE), Color(0xFF1D4ED8)),
-  ('Regular', '🔄', Color(0xFFDCFCE7), Color(0xFF15803D)),
-  ('VIP', '👑', Color(0xFFF3E8FF), Color(0xFF7E22CE)),
-  ('Lapsed', '😴', Color(0xFFF3F4F6), Color(0xFF374151)),
+  ('New', '🆕', Tone(0xFFDBEAFE), Tone(0xFF1D4ED8)),
+  ('Regular', '🔄', Tone(0xFFDCFCE7), Tone(0xFF15803D)),
+  ('VIP', '👑', Tone(0xFFF3E8FF), Tone(0xFF7E22CE)),
+  ('Lapsed', '😴', Tone(0xFFF3F4F6), Tone(0xFF374151)),
 ];
 
 const crmCampaignTypes = ['Birthday', 'WinBack', 'Promotion', 'Announcement'];
@@ -213,11 +214,11 @@ class _RestaurantCrmScreenState extends State<RestaurantCrmScreen> {
                   const SizedBox(height: 14),
                   twoColumns([
                     for (final (label, value, icon, color) in [
-                      ('Total', '${tNum(_custStats!['totalCustomers']).toInt()}', Icons.groups_outlined, const Color(0xFF111827)),
-                      ('New', '${tNum(_custStats!['newCount']).toInt()}', Icons.person_add_alt, const Color(0xFF1D4ED8)),
-                      ('Regular', '${tNum(_custStats!['regularCount']).toInt()}', Icons.groups_outlined, const Color(0xFF15803D)),
-                      ('VIP', '${tNum(_custStats!['vipCount']).toInt()}', Icons.workspace_premium_outlined, const Color(0xFF7E22CE)),
-                      ('Lifetime Value', tNum(_custStats!['totalLifetimeValue']).toStringAsFixed(0), Icons.attach_money, const Color(0xFFBE123C)),
+                      ('Total', '${tNum(_custStats!['totalCustomers']).toInt()}', Icons.groups_outlined, const Tone(0xFF111827)),
+                      ('New', '${tNum(_custStats!['newCount']).toInt()}', Icons.person_add_alt, const Tone(0xFF1D4ED8)),
+                      ('Regular', '${tNum(_custStats!['regularCount']).toInt()}', Icons.groups_outlined, const Tone(0xFF15803D)),
+                      ('VIP', '${tNum(_custStats!['vipCount']).toInt()}', Icons.workspace_premium_outlined, const Tone(0xFF7E22CE)),
+                      ('Lifetime Value', tNum(_custStats!['totalLifetimeValue']).toStringAsFixed(0), Icons.attach_money, const Tone(0xFFBE123C)),
                     ])
                       TCard(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -240,7 +241,7 @@ class _RestaurantCrmScreenState extends State<RestaurantCrmScreen> {
                   onChanged: (v) => setState(() => _tab = v),
                   tabs: [
                     ('customers', Icons.groups_outlined, 'Customers', rBadge('${_customers.length}')),
-                    ('feedback', Icons.star_border, 'Feedback', fbNew > 0 ? rBadge('$fbNew', bg: const Color(0xFFF59E0B), fg: Colors.white) : null),
+                    ('feedback', Icons.star_border, 'Feedback', fbNew > 0 ? rBadge('$fbNew', bg: const Tone.bg(0xFFF59E0B), fg: Colors.white) : null),
                     ('campaigns', Icons.campaign_outlined, 'Campaigns', null),
                   ],
                 ),
@@ -302,12 +303,12 @@ class _RestaurantCrmScreenState extends State<RestaurantCrmScreen> {
         Row(children: [
           Expanded(
             child: Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
-              Text(tStr(c['name']), style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF111827))),
-              rBadge(tStr(c['segment']), bg: seg?.$3 ?? const Color(0xFFF3F4F6), fg: seg?.$4 ?? const Color(0xFF374151)),
+              Text(tStr(c['name']), style: const TextStyle(fontWeight: FontWeight.w600, color: Tone.fg(0xFF111827))),
+              rBadge(tStr(c['segment']), bg: seg?.$3 ?? const Tone.bg(0xFFF3F4F6), fg: seg?.$4 ?? const Tone.fg(0xFF374151)),
             ]),
           ),
           IconButton(tooltip: 'Edit', icon: const Icon(Icons.edit_outlined, size: 16), onPressed: () => _openCustomer(c)),
-          IconButton(tooltip: 'Delete', icon: const Icon(Icons.delete_outline, size: 16, color: Color(0xFFEF4444)), onPressed: () => _deleteCustomer(c)),
+          IconButton(tooltip: 'Delete', icon: const Icon(Icons.delete_outline, size: 16, color: Tone.fg(0xFFEF4444)), onPressed: () => _deleteCustomer(c)),
         ]),
         Padding(
           padding: const EdgeInsets.only(right: 8),
@@ -348,7 +349,7 @@ class _RestaurantCrmScreenState extends State<RestaurantCrmScreen> {
       ],
       TCard(
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          _cardHead(Icons.star_border, const Color(0xFFFEF3C7), const Color(0xFFD97706), 'Customer Feedback', 'Reviews and ratings'),
+          _cardHead(Icons.star_border, const Tone(0xFFFEF3C7), const Tone(0xFFD97706), 'Customer Feedback', 'Reviews and ratings'),
           const SizedBox(height: 10),
           roseButton('Add Feedback', _addFeedback),
           const SizedBox(height: 12),
@@ -382,9 +383,9 @@ class _RestaurantCrmScreenState extends State<RestaurantCrmScreen> {
   Widget _feedbackRow(Map f) {
     final status = tStr(f['status']);
     final (sbg, sfg) = switch (status) {
-      'New' => (const Color(0xFFDBEAFE), const Color(0xFF1D4ED8)),
-      'Responded' => (const Color(0xFFDCFCE7), const Color(0xFF15803D)),
-      _ => (const Color(0xFFF3F4F6), const Color(0xFF374151)),
+      'New' => (const Tone(0xFFDBEAFE), const Tone(0xFF1D4ED8)),
+      'Responded' => (const Tone(0xFFDCFCE7), const Tone(0xFF15803D)),
+      _ => (const Tone(0xFFF3F4F6), const Tone(0xFF374151)),
     };
     final rating = tNum(f['rating']).toInt().clamp(0, 5);
     return Container(
@@ -394,22 +395,22 @@ class _RestaurantCrmScreenState extends State<RestaurantCrmScreen> {
         Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
           Text('⭐' * rating, style: const TextStyle(fontSize: 15)),
           if (tStr(f['customerName']).isNotEmpty) Text(tStr(f['customerName']), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-          rBadge(tStr(f['source']), bg: Colors.white, border: TColors.slate200),
+          rBadge(tStr(f['source']), bg: Tone.bg(0xFFFFFFFF), border: TColors.slate200),
           rBadge(status, bg: sbg, fg: sfg),
         ]),
         const SizedBox(height: 2),
         Text(fmtInstant(f['createdAt'], _offset), style: const TextStyle(fontSize: 12, color: TColors.slate500)),
         if (tStr(f['comment']).isNotEmpty) ...[
           const SizedBox(height: 6),
-          Text(tStr(f['comment']), style: const TextStyle(fontSize: 13, color: Color(0xFF374151))),
+          Text(tStr(f['comment']), style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF374151))),
         ],
         if (tStr(f['response']).isNotEmpty) ...[
           const SizedBox(height: 6),
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: const Color(0xFFF0FDF4), borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(color: const Tone.bg(0xFFF0FDF4), borderRadius: BorderRadius.circular(8)),
             child: Text.rich(TextSpan(children: [
-              const TextSpan(text: 'Response:', style: TextStyle(fontWeight: FontWeight.w500, color: Color(0xFF15803D))),
+              const TextSpan(text: 'Response:', style: TextStyle(fontWeight: FontWeight.w500, color: Tone.fg(0xFF15803D))),
               TextSpan(text: ' ${tStr(f['response'])}'),
             ]), style: const TextStyle(fontSize: 13)),
           ),
@@ -418,7 +419,7 @@ class _RestaurantCrmScreenState extends State<RestaurantCrmScreen> {
           Align(
             alignment: Alignment.centerLeft,
             child: TextButton.icon(
-              style: TextButton.styleFrom(foregroundColor: const Color(0xFFE11D48)),
+              style: TextButton.styleFrom(foregroundColor: const Tone.fg(0xFFE11D48)),
               onPressed: () => _respond(f),
               icon: const Icon(Icons.chat_bubble_outline, size: 14),
               label: const Text('Respond', style: TextStyle(fontSize: 12)),
@@ -430,7 +431,7 @@ class _RestaurantCrmScreenState extends State<RestaurantCrmScreen> {
 
   Widget _campaignsTab() => TCard(
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          _cardHead(Icons.campaign_outlined, const Color(0xFFE0E7FF), const Color(0xFF4F46E5), 'Marketing Campaigns',
+          _cardHead(Icons.campaign_outlined, const Tone(0xFFE0E7FF), const Tone(0xFF4F46E5), 'Marketing Campaigns',
               'Reach your customers with targeted messages'),
           const SizedBox(height: 10),
           roseButton('Create Campaign', _createCampaign),
@@ -451,10 +452,10 @@ class _RestaurantCrmScreenState extends State<RestaurantCrmScreen> {
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
                         Text(tStr(ca['name']), style: const TextStyle(fontWeight: FontWeight.w600)),
-                        rBadge(tStr(ca['campaignType']), bg: Colors.white, border: TColors.slate200),
-                        rBadge(tStr(ca['channel']), bg: Colors.white, border: TColors.slate200),
+                        rBadge(tStr(ca['campaignType']), bg: Tone.bg(0xFFFFFFFF), border: TColors.slate200),
+                        rBadge(tStr(ca['channel']), bg: Tone.bg(0xFFFFFFFF), border: TColors.slate200),
                         tStr(ca['status']) == 'Sent'
-                            ? rBadge('Sent', bg: const Color(0xFFDCFCE7), fg: const Color(0xFF15803D))
+                            ? rBadge('Sent', bg: const Tone.bg(0xFFDCFCE7), fg: const Tone.fg(0xFF15803D))
                             : rBadge(tStr(ca['status'])),
                       ]),
                       const SizedBox(height: 4),
@@ -465,7 +466,7 @@ class _RestaurantCrmScreenState extends State<RestaurantCrmScreen> {
                       ),
                     ]),
                   ),
-                  IconButton(tooltip: 'Delete', icon: const Icon(Icons.delete_outline, size: 16, color: Color(0xFFEF4444)), onPressed: () => _deleteCampaign(ca)),
+                  IconButton(tooltip: 'Delete', icon: const Icon(Icons.delete_outline, size: 16, color: Tone.fg(0xFFEF4444)), onPressed: () => _deleteCampaign(ca)),
                 ]),
               ),
               const SizedBox(height: 8),
@@ -659,7 +660,7 @@ class _FeedbackDialogState extends State<_FeedbackDialog> {
                     width: 40,
                     height: 40,
                     alignment: Alignment.center,
-                    decoration: BoxDecoration(color: _rating >= r ? const Color(0xFFFEF3C7) : const Color(0xFFF3F4F6), borderRadius: BorderRadius.circular(8)),
+                    decoration: BoxDecoration(color: _rating >= r ? const Tone.bg(0xFFFEF3C7) : const Tone.bg(0xFFF3F4F6), borderRadius: BorderRadius.circular(8)),
                     child: const Text('⭐', style: TextStyle(fontSize: 18)),
                   ),
                 ),

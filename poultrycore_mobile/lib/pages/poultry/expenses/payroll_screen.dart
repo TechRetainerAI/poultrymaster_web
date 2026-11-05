@@ -18,6 +18,7 @@ import '../trackers/tracker_widgets.dart';
 import '../reports/money_reports.dart' show MoneyRail, poultryMoneyRail;
 import '../../shared/reason_select.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Poultry → Expenses → Payroll, as `app/poultry-payroll/page.tsx`: payroll
 /// runs (Draft → Approved → Paid, reopen, cancel, delete), their staff lines
 /// and the deductions behind each line (`payroll-deductions-dialog.tsx`).
@@ -33,10 +34,10 @@ String payrollDeductionTypeLabel(Object? t) => payrollDeductionTypes.where((e) =
 
 /// STATUS_STYLE: (bg, fg).
 (Color, Color) payrollStatusTone(Object? s) => switch (tStr(s)) {
-      'Approved' => (TColors.blue100, const Color(0xFF1D4ED8)),
-      'Paid' => (const Color(0xFFDCFCE7), const Color(0xFF15803D)),
+      'Approved' => (TColors.blue100, const Tone(0xFF1D4ED8)),
+      'Paid' => (const Tone(0xFFDCFCE7), const Tone(0xFF15803D)),
       'Reopened' => (TColors.amber100, TColors.amber700),
-      'Cancelled' => (const Color(0xFFFFE4E6), TColors.rose700),
+      'Cancelled' => (const Tone(0xFFFFE4E6), TColors.rose700),
       _ => (TColors.slate100, TColors.slate700),
     };
 
@@ -156,7 +157,7 @@ class _PayrollScreenState extends State<PayrollScreen> {
         return AlertDialog(
           scrollable: true,
           title: const Row(children: [
-            Icon(Icons.check_circle_outline, color: Color(0xFF16A34A)),
+            Icon(Icons.check_circle_outline, color: Tone.fg(0xFF16A34A)),
             SizedBox(width: 6),
             Flexible(child: Text('Mark paid')),
           ]),
@@ -252,8 +253,8 @@ class _PayrollScreenState extends State<PayrollScreen> {
     return [
       b('Details', Icons.visibility_outlined, () => _details(r)),
       b('Lines', Icons.people_outline, () => _lines(r)),
-      if (st == 'Draft' || st == 'Reopened') b('Approve', Icons.check_circle_outline, () => _approve(r), color: const Color(0xFF1D4ED8)),
-      if (st == 'Approved') b('Mark paid', Icons.payments_outlined, () => _markPaid(r), color: const Color(0xFF15803D)),
+      if (st == 'Draft' || st == 'Reopened') b('Approve', Icons.check_circle_outline, () => _approve(r), color: const Tone(0xFF1D4ED8)),
+      if (st == 'Approved') b('Mark paid', Icons.payments_outlined, () => _markPaid(r), color: const Tone(0xFF15803D)),
       if (st == 'Approved' || st == 'Paid') b('Reopen', Icons.replay, () => _reason(r, 'unapprove'), color: TColors.amber700),
       if (st == 'Draft' || st == 'Approved') b('Cancel', Icons.cancel_outlined, () => _reason(r, 'cancel'), color: TColors.rose600),
       if (st == 'Draft' || st == 'Reopened' || st == 'Cancelled') b('Delete', Icons.delete_outline, () => _delete(r), color: TColors.red600),
@@ -272,7 +273,7 @@ class _PayrollScreenState extends State<PayrollScreen> {
     final netPaid = _runs.where((r) => tStr(r['status']) == 'Paid').fold<num>(0, (s, r) => s + tNum(r['totalNetPay']));
     Widget stat(String label, String value, {Color? color}) => Container(
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(label, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
             Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 19, fontWeight: FontWeight.w600, color: color)),
@@ -288,7 +289,7 @@ class _PayrollScreenState extends State<PayrollScreen> {
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
           children: [
             const Row(children: [
-              Icon(Icons.payments_outlined, size: 24, color: Color(0xFF16A34A)),
+              Icon(Icons.payments_outlined, size: 24, color: Tone.fg(0xFF16A34A)),
               SizedBox(width: 8),
               Expanded(child: Text('Payroll', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TColors.slate900))),
             ]),
@@ -306,7 +307,7 @@ class _PayrollScreenState extends State<PayrollScreen> {
               stat('Total runs', '${_runs.length}'),
               stat('Draft', '${_runs.where((r) => tStr(r['status']) == 'Draft').length}'),
               stat('Approved', '${_runs.where((r) => tStr(r['status']) == 'Approved').length}'),
-              stat('Total net paid', _gh(netPaid), color: const Color(0xFF15803D)),
+              stat('Total net paid', _gh(netPaid), color: const Tone(0xFF15803D)),
             ]),
             const SizedBox(height: 12),
             Row(children: [
@@ -326,7 +327,7 @@ class _PayrollScreenState extends State<PayrollScreen> {
             else if (_runs.isEmpty)
               Container(
                 padding: const EdgeInsets.all(32),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
                 child: const Text('No payroll runs yet. Create one to start paying staff.', textAlign: TextAlign.center, style: TextStyle(color: TColors.slate500)),
               )
             else
@@ -440,7 +441,7 @@ class _NewRunDialogState extends State<_NewRunDialog> {
   Widget build(BuildContext context) => AlertDialog(
         scrollable: true,
         title: const Row(children: [
-          Icon(Icons.payments_outlined, color: Color(0xFF16A34A)),
+          Icon(Icons.payments_outlined, color: Tone.fg(0xFF16A34A)),
           SizedBox(width: 6),
           Flexible(child: Text('New payroll run')),
         ]),
@@ -449,7 +450,7 @@ class _NewRunDialogState extends State<_NewRunDialog> {
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             const Text('Create a Draft run, then add staff lines', style: TextStyle(fontSize: 13, color: TColors.slate500)),
             const SizedBox(height: 12),
-            formSection('Period', const Color(0xFF4F46E5), [
+            formSection('Period', const Tone(0xFF4F46E5), [
               FilterLabel('Period start *', AppDateField(value: businessDateAsDateTime(_start), onChanged: (d) => setState(() => _start = d == null ? _start : isoDay(d)))),
               FilterLabel('Period end *', AppDateField(value: businessDateAsDateTime(_end), onChanged: (d) => setState(() => _end = d == null ? _end : isoDay(d)))),
               FilterLabel(
@@ -728,7 +729,7 @@ class _PayrollLinesScreenState extends State<PayrollLinesScreen> {
             for (final it in items) ...[
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Expanded(
@@ -745,7 +746,7 @@ class _PayrollLinesScreenState extends State<PayrollLinesScreen> {
                       IconButton(
                         tooltip: 'Remove line',
                         onPressed: () => _removeItem(it),
-                        icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFEF4444)),
+                        icon: const Icon(Icons.delete_outline, size: 18, color: Tone.fg(0xFFEF4444)),
                       ),
                   ]),
                   const SizedBox(height: 6),
@@ -814,12 +815,12 @@ class _PayrollLinesScreenState extends State<PayrollLinesScreen> {
               if (_staffId != '0' && (_loansBusy || _staffLoans.isNotEmpty))
                 Container(
                   padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: const Color(0xFFEEF2FF), border: Border.all(color: const Color(0xFFC7D2FE)), borderRadius: BorderRadius.circular(6)),
+                  decoration: BoxDecoration(color: const Tone.bg(0xFFEEF2FF), border: Border.all(color: const Tone.line(0xFFC7D2FE)), borderRadius: BorderRadius.circular(6)),
                   child: _loansBusy
                       ? const LoadingLine('Checking advances…')
                       : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                           Text(_staffLoans.length == 1 ? '1 active advance' : '${_staffLoans.length} active advances',
-                              style: const TextStyle(fontWeight: FontWeight.w500, color: Color(0xFF312E81))),
+                              style: const TextStyle(fontWeight: FontWeight.w500, color: Tone.fg(0xFF312E81))),
                           const SizedBox(height: 4),
                           for (final e in _staffLoans)
                             Padding(
@@ -827,8 +828,8 @@ class _PayrollLinesScreenState extends State<PayrollLinesScreen> {
                               child: Wrap(alignment: WrapAlignment.spaceBetween, spacing: 12, children: [
                                 Text.rich(TextSpan(children: [
                                   TextSpan(text: tStr(e['loanNumber'])),
-                                  TextSpan(text: ' · ${_gh(tNum(e['outstandingBalance']))} outstanding', style: const TextStyle(color: Color(0xB34338CA))),
-                                ]), style: const TextStyle(fontSize: 13, color: Color(0xFF312E81))),
+                                  TextSpan(text: ' · ${_gh(tNum(e['outstandingBalance']))} outstanding', style: const TextStyle(color: Tone.fg(0xB34338CA))),
+                                ]), style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF312E81))),
                                 Builder(builder: (_) {
                                   final will = payrollDeductionFor(e);
                                   final byPayroll = tStr(e['repaymentMethod']) == 'PayrollDeduction' || tStr(e['repaymentMethod']) == 'Mixed';
@@ -836,16 +837,16 @@ class _PayrollLinesScreenState extends State<PayrollLinesScreen> {
                                       ? Text.rich(TextSpan(children: [
                                           const TextSpan(text: 'will deduct '),
                                           TextSpan(text: _gh(will), style: const TextStyle(fontWeight: FontWeight.w700)),
-                                        ]), style: const TextStyle(fontSize: 12, color: Color(0xFF312E81)))
+                                        ]), style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF312E81)))
                                       : Text(
                                           byPayroll ? 'no amount set — add it by hand' : 'repaid by ${tStr(e['repaymentMethod']).toLowerCase()} — not deducted here',
-                                          style: const TextStyle(fontSize: 12, color: Color(0xFF312E81)));
+                                          style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF312E81)));
                                 }),
                               ]),
                             ),
                           const Text(
                             'Added automatically when you add the line, and editable afterwards from the Deductions figure. Nothing is repaid until the payroll is approved.',
-                            style: TextStyle(fontSize: 11, color: Color(0xCC4338CA)),
+                            style: TextStyle(fontSize: 11, color: Tone.fg(0xCC4338CA)),
                           ),
                         ]),
                 ),
@@ -997,7 +998,7 @@ class _PayrollDeductionsDialogState extends State<PayrollDeductionsDialog> {
                                         () => _api.delete('${_r.api}/payroll-deductions/${tStr(r['${_r.idPrefix}PayrollItemDeductionId'])}'
                                             '?farmId=${Uri.encodeQueryComponent(widget.company.farmId)}&deletedBy=${Uri.encodeQueryComponent(widget.session.tokens.userId ?? '')}'),
                                         'Deduction removed'),
-                                icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFEF4444)),
+                                icon: const Icon(Icons.delete_outline, size: 18, color: Tone.fg(0xFFEF4444)),
                               )
                             : const SizedBox.shrink(),
                       ],
@@ -1114,7 +1115,7 @@ class _PayrollDeductionsDialogState extends State<PayrollDeductionsDialog> {
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: const Color(0xFFF0F9FF), border: Border.all(color: const Color(0xFFBAE6FD)), borderRadius: BorderRadius.circular(6)),
+                  decoration: BoxDecoration(color: const Tone.bg(0xFFF0F9FF), border: Border.all(color: const Tone.line(0xFFBAE6FD)), borderRadius: BorderRadius.circular(6)),
                   child: const Text.rich(
                     TextSpan(children: [
                       TextSpan(text: 'Nothing here changes what a worker owes yet. Advances are only repaid when this payroll is '),
@@ -1170,7 +1171,7 @@ class _PayrollRunDetailScreenState extends State<PayrollRunDetailScreen> {
 
   Widget _stat(String label, String value, {Color? color, double size = 19}) => Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
           Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: size, fontWeight: FontWeight.w600, color: color)),
@@ -1179,7 +1180,7 @@ class _PayrollRunDetailScreenState extends State<PayrollRunDetailScreen> {
 
   Widget _card(String title, Widget child) => Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Text(title, style: const TextStyle(fontWeight: FontWeight.w500, color: TColors.slate700)),
           const SizedBox(height: 8),
@@ -1224,7 +1225,7 @@ class _PayrollRunDetailScreenState extends State<PayrollRunDetailScreen> {
             const Padding(padding: EdgeInsets.all(32), child: Center(child: Text('Payroll run not found.', style: TextStyle(color: TColors.slate500))))
           else ...[
             Wrap(spacing: 8, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
-              const Icon(Icons.payments_outlined, color: Color(0xFF16A34A)),
+              const Icon(Icons.payments_outlined, color: Tone.fg(0xFF16A34A)),
               Text('Payroll · ${payrollDay(run['periodStart'])} → ${payrollDay(run['periodEnd'])}',
                   style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: TColors.slate900)),
               payrollBadge(run['status']),
@@ -1233,7 +1234,7 @@ class _PayrollRunDetailScreenState extends State<PayrollRunDetailScreen> {
             twoUp([
               _stat('Gross pay', gh(tNum(run['totalGrossPay']))),
               _stat('Deductions', gh(tNum(run['totalDeductions'])), color: TColors.rose600),
-              _stat('Net pay', gh(tNum(run['totalNetPay'])), color: const Color(0xFF15803D)),
+              _stat('Net pay', gh(tNum(run['totalNetPay'])), color: const Tone(0xFF15803D)),
               _stat('Pay date', payrollDay(run['payDate'])),
             ]),
             const SizedBox(height: 12),
@@ -1262,7 +1263,7 @@ class _PayrollRunDetailScreenState extends State<PayrollRunDetailScreen> {
               const SizedBox(height: 12),
               twoUp([
                 _stat('YTD gross (${tStr(ytd['year'])})', gh(tNum(ytd['ytdGrossPaid'])), size: 17),
-                _stat('YTD net paid', gh(tNum(ytd['ytdNetPaid'])), color: const Color(0xFF15803D), size: 17),
+                _stat('YTD net paid', gh(tNum(ytd['ytdNetPaid'])), color: const Tone(0xFF15803D), size: 17),
                 _stat('Payroll runs', tStr(ytd['totalPayrollRuns']), size: 17),
                 _stat('Staff paid', tStr(ytd['totalStaffPaid']), size: 17),
               ]),

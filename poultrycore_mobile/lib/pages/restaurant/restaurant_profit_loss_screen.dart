@@ -19,14 +19,15 @@ import '../poultry/reports/report_export.dart';
 import '../poultry/reports/report_format.dart';
 import '../poultry/reports/report_routes.dart';
 import '../poultry/reports/report_widgets.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import '../poultry/trackers/tracker_logic.dart' show tNum, tStr;
 import '../poultry/trackers/tracker_widgets.dart' show TColors, rowsOf;
 
-const _revenueTone = Color(0xFF047857);
-const _directTone = Color(0xFFBE123C);
-const _operatingTone = Color(0xFFB45309);
-const _otherTone = Color(0xFF6D28D9);
-const _subtotalTone = Color(0xFF334155);
+const _revenueTone = Tone.fg(0xFF047857);
+const _directTone = Tone.fg(0xFFBE123C);
+const _operatingTone = Tone.fg(0xFFB45309);
+const _otherTone = Tone.fg(0xFF6D28D9);
+const _subtotalTone = Tone.fg(0xFF334155);
 
 /// The statement's totals; costs as positive figures (the lines are profit-signed).
 typedef RestaurantPnlTotals = ({num revenue, num direct, num operating, num other, num total, num gross, num operatingProfit, num net});
@@ -241,8 +242,8 @@ class _RestaurantProfitLossScreenState extends State<RestaurantProfitLossScreen>
             width: 40,
             height: 40,
             child: DecoratedBox(
-              decoration: BoxDecoration(color: Color(0xFFFFE4E6), borderRadius: BorderRadius.all(Radius.circular(8))),
-              child: Icon(Icons.trending_up, size: 20, color: Color(0xFFE11D48)),
+              decoration: BoxDecoration(color: Tone.bg(0xFFFFE4E6), borderRadius: BorderRadius.all(Radius.circular(8))),
+              child: Icon(Icons.trending_up, size: 20, color: Tone.fg(0xFFE11D48)),
             ),
           ),
           SizedBox(width: 12),
@@ -277,18 +278,18 @@ class _RestaurantProfitLossScreenState extends State<RestaurantProfitLossScreen>
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFFFEF2F2),
-              border: Border.all(color: const Color(0xFFFECACA)),
+              color: const Tone.bg(0xFFFEF2F2),
+              border: Border.all(color: const Tone.line(0xFFFECACA)),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Text(_error, style: const TextStyle(fontSize: 13, color: Color(0xFF991B1B))),
+            child: Text(_error, style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF991B1B))),
           ),
           const SizedBox(height: 12),
         ],
         if (_loading)
           Container(
             padding: const EdgeInsets.symmetric(vertical: 40),
-            decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
             child: const Center(child: Text('Loading…', style: TextStyle(color: TColors.slate600))),
           )
         else if (_summary != null)
@@ -390,7 +391,7 @@ class _RestaurantProfitLossScreenState extends State<RestaurantProfitLossScreen>
       _section('Depreciation & financing', 'violet', _bySection('Other'), 'Total depreciation & financing', t.other, negative: true),
       Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
         child: Wrap(spacing: 12, runSpacing: 10, children: [
           for (final (k, v) in [
             ('Food cost', _pct(s['foodCostPct'])),
@@ -411,7 +412,7 @@ class _RestaurantProfitLossScreenState extends State<RestaurantProfitLossScreen>
       const SizedBox(height: 12),
       Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Text('Profit is not cash', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: TColors.slate900)),
           const SizedBox(height: 4),
@@ -445,10 +446,10 @@ class _RestaurantProfitLossScreenState extends State<RestaurantProfitLossScreen>
       );
 
   static const _tones = {
-    'emerald': (head: Color(0xFFECFDF5), headText: Color(0xFF065F46), total: Color(0x99ECFDF5), border: Color(0xFFA7F3D0)),
-    'rose': (head: Color(0xFFFFF1F2), headText: Color(0xFF9F1239), total: Color(0x99FFF1F2), border: Color(0xFFFECDD3)),
-    'amber': (head: Color(0xFFFFFBEB), headText: Color(0xFF92400E), total: Color(0x99FFFBEB), border: Color(0xFFFDE68A)),
-    'violet': (head: Color(0xFFF5F3FF), headText: Color(0xFF5B21B6), total: Color(0x99F5F3FF), border: Color(0xFFDDD6FE)),
+    'emerald': (head: Tone(0xFFECFDF5), headText: Tone.fg(0xFF065F46), total: Tone(0x99ECFDF5), border: Tone.line(0xFFA7F3D0)),
+    'rose': (head: Tone(0xFFFFF1F2), headText: Tone.fg(0xFF9F1239), total: Tone(0x99FFF1F2), border: Tone.line(0xFFFECDD3)),
+    'amber': (head: Tone(0xFFFFFBEB), headText: Tone.fg(0xFF92400E), total: Tone(0x99FFFBEB), border: Tone.line(0xFFFDE68A)),
+    'violet': (head: Tone(0xFFF5F3FF), headText: Tone.fg(0xFF5B21B6), total: Tone(0x99F5F3FF), border: Tone.line(0xFFDDD6FE)),
   };
 
   /// One band of the statement; a cost band prints its lines as costs in brackets.
@@ -457,7 +458,7 @@ class _RestaurantProfitLossScreenState extends State<RestaurantProfitLossScreen>
     String money(num n) => negative ? '(${_gh(n)})' : _gh(n);
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: t.border), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: t.border), borderRadius: BorderRadius.circular(12)),
       clipBehavior: Clip.antiAlias,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Container(

@@ -13,6 +13,7 @@ import '../../design/ui/inputs.dart';
 import '../poultry/trackers/tracker_logic.dart' show tNum, tStr;
 import '../poultry/trackers/tracker_widgets.dart';
 import '../shared/reason_select.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import 'restaurant_money_kit.dart' show rField, rFin, rDialog, rCancel;
 
 double round2(num n) => (n * 100).roundToDouble() / 100;
@@ -206,8 +207,8 @@ class _TakePaymentDialogState extends State<TakePaymentDialog> {
         child: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: green ? const Color(0xFFF0FDF4) : null,
-            border: Border.all(color: green ? const Color(0xFFBBF7D0) : TColors.slate200),
+            color: green ? const Tone.bg(0xFFF0FDF4) : null,
+            border: Border.all(color: green ? const Tone.line(0xFFBBF7D0) : TColors.slate200),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Column(children: [
@@ -232,9 +233,9 @@ class _TakePaymentDialogState extends State<TakePaymentDialog> {
     final paid = tNum(o['paidAmount']);
     final problem = _problem;
     Widget line(String k, num v, {bool red = false, bool neg = false}) => Row(children: [
-          Text(k, style: TextStyle(fontSize: 12, color: red ? const Color(0xFFDC2626) : null)),
+          Text(k, style: TextStyle(fontSize: 12, color: red ? const Tone.fg(0xFFDC2626) : null)),
           const Spacer(),
-          Text('${neg ? '-' : ''}${orderMoney(v)}', style: TextStyle(fontSize: 12, color: red ? const Color(0xFFDC2626) : null)),
+          Text('${neg ? '-' : ''}${orderMoney(v)}', style: TextStyle(fontSize: 12, color: red ? const Tone.fg(0xFFDC2626) : null)),
         ]);
     return rDialog(
       title: 'Take payment — ${tStr(o['orderNumber'])}',
@@ -243,7 +244,7 @@ class _TakePaymentDialogState extends State<TakePaymentDialog> {
         if (tNum(o['taxAmount']) > 0 || tNum(o['serviceChargeAmount']) > 0 || tNum(o['discountAmount']) > 0)
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: const Color(0xFFF9FAFB), borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(color: const Tone.bg(0xFFF9FAFB), borderRadius: BorderRadius.circular(8)),
             child: Column(children: [
               line('Subtotal', tNum(o['subtotal'])),
               if (tNum(o['discountAmount']) > 0) line('Discount', tNum(o['discountAmount']), red: true, neg: true),
@@ -261,19 +262,19 @@ class _TakePaymentDialogState extends State<TakePaymentDialog> {
           children: [
             for (final (id, icon, label) in orderPayMethods)
               Material(
-                color: _method == id ? const Color(0xFFFFF1F2) : Colors.white,
+                color: _method == id ? const Tone.bg(0xFFFFF1F2) : Tone.bg(0xFFFFFFFF),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: _method == id ? const Color(0xFFF43F5E) : TColors.slate200, width: 2),
+                  side: BorderSide(color: _method == id ? const Tone.line(0xFFF43F5E) : TColors.slate200, width: 2),
                 ),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(12),
                   onTap: () => setState(() => _method = id),
                   child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Icon(icon, size: 20, color: _method == id ? const Color(0xFFE11D48) : TColors.slate500),
+                    Icon(icon, size: 20, color: _method == id ? const Tone.fg(0xFFE11D48) : TColors.slate500),
                     const SizedBox(height: 4),
                     Text(label,
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: _method == id ? const Color(0xFFBE123C) : TColors.slate600)),
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: _method == id ? const Tone.fg(0xFFBE123C) : TColors.slate600)),
                   ]),
                 ),
               ),
@@ -318,19 +319,19 @@ class _TakePaymentDialogState extends State<TakePaymentDialog> {
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: Text('Part payment — ${orderMoney(_due - _applied)} will still be due.',
-                      style: const TextStyle(fontSize: 12, color: Color(0xFFB45309))),
+                      style: const TextStyle(fontSize: 12, color: Tone.fg(0xFFB45309))),
                 ),
             ]),
           ),
         ],
         if (_method != 'GiftCard')
           rField('Tip (optional)', AppInput(controller: _tip, keyboardType: const TextInputType.numberWithOptions(decimal: true), onChanged: (_) => setState(() {}))),
-        if (problem != null && _due > 0) Text(problem, style: const TextStyle(fontSize: 12, color: Color(0xFFBE123C))),
+        if (problem != null && _due > 0) Text(problem, style: const TextStyle(fontSize: 12, color: Tone.fg(0xFFBE123C))),
       ],
       actions: [
         rCancel(context, 'Cancel', busy: _saving),
         FilledButton.icon(
-          style: FilledButton.styleFrom(backgroundColor: const Color(0xFF16A34A)),
+          style: FilledButton.styleFrom(backgroundColor: Tone.button(const Tone.bg(0xFF16A34A))),
           onPressed: problem != null || _saving ? null : _submit,
           icon: _saving
               ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
@@ -428,12 +429,12 @@ class _RefundDialogState extends State<RefundDialog> {
         ),
         rField('Reason', ReasonSelect(options: orderRefundReasons, value: _reason, onChanged: (v) => setState(() => _reason = v))),
         if (_method == 'Cash') _TillPicker(shifts: _shifts, value: _shiftId, onChanged: (v) => setState(() => _shiftId = v)),
-        if (problem != null && _paid > 0) Text(problem, style: const TextStyle(fontSize: 12, color: Color(0xFFBE123C))),
+        if (problem != null && _paid > 0) Text(problem, style: const TextStyle(fontSize: 12, color: Tone.fg(0xFFBE123C))),
       ],
       actions: [
         rCancel(context, 'Cancel', busy: _saving),
         FilledButton.icon(
-          style: FilledButton.styleFrom(backgroundColor: const Color(0xFFE11D48)),
+          style: FilledButton.styleFrom(backgroundColor: Tone.button(const Tone.bg(0xFFE11D48))),
           onPressed: problem != null || _saving ? null : _submit,
           icon: const Icon(Icons.replay, size: 16),
           label: Text('Refund ${orderMoney(_amt)}'),

@@ -2,29 +2,30 @@ import 'package:flutter/material.dart';
 
 import '../tokens.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Header-band colours, matching Tailwind's `*-600` shades used by the web
 /// `FormSection` component.
 enum SectionColor { indigo, blue, green, sky, emerald, amber, rose, purple, slate }
 
 const Map<SectionColor, Color> _sectionColors = {
-  SectionColor.indigo: Color(0xFF4F46E5),
-  SectionColor.blue: Color(0xFF2563EB),
-  SectionColor.green: Color(0xFF16A34A),
-  SectionColor.sky: Color(0xFF0284C7),
-  SectionColor.emerald: Color(0xFF059669),
-  SectionColor.amber: Color(0xFFD97706),
-  SectionColor.rose: Color(0xFFE11D48),
-  SectionColor.purple: Color(0xFF9333EA),
-  SectionColor.slate: Color(0xFF475569),
+  SectionColor.indigo: Tone.bg(0xFF4F46E5),
+  SectionColor.blue: Tone.bg(0xFF2563EB),
+  SectionColor.green: Tone.bg(0xFF16A34A),
+  SectionColor.sky: Tone.bg(0xFF0284C7),
+  SectionColor.emerald: Tone.bg(0xFF059669),
+  SectionColor.amber: Tone.bg(0xFFD97706),
+  SectionColor.rose: Tone.bg(0xFFE11D48),
+  SectionColor.purple: Tone.bg(0xFF9333EA),
+  SectionColor.slate: Tone.bg(0xFF475569),
 };
 
 /// Slate shades the web forms use directly (outside the shadcn token set).
 class Slate {
   const Slate._();
-  static const s400 = Color(0xFF94A3B8);
-  static const s500 = Color(0xFF64748B);
-  static const s600 = Color(0xFF475569);
-  static const s700 = Color(0xFF334155);
+  static const s400 = Tone.fg(0xFF94A3B8);
+  static const s500 = Tone(0xFF64748B);
+  static const s600 = Tone(0xFF475569);
+  static const s700 = Tone(0xFF334155);
 }
 
 /// A titled form section: coloured header band over a bordered body holding a

@@ -23,6 +23,7 @@ import 'restaurant_money_kit.dart';
 import 'restaurant_roles.dart' show restaurantRose;
 import 'restaurant_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 const restaurantAccountTypes = ['Till', 'CashBox', 'PettyCash', 'MobileMoney', 'Bank', 'Other'];
 const restaurantAccountTypeLabels = {
   'Till': 'Till (cash drawer)',
@@ -192,12 +193,12 @@ class _RestaurantCashAccountsScreenState extends State<RestaurantCashAccountsScr
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   decoration: BoxDecoration(
-                    color: _tab == k ? Colors.white : null,
+                    color: _tab == k ? Tone.bg(0xFFFFFFFF) : null,
                     border: _tab == k ? Border.all(color: TColors.slate200) : null,
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
                   ),
                   child: Text(l,
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: _tab == k ? const Color(0xFFE11D48) : TColors.slate500)),
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: _tab == k ? const Tone.fg(0xFFE11D48) : TColors.slate500)),
                 ),
               ),
           ]),
@@ -217,11 +218,11 @@ class _RestaurantCashAccountsScreenState extends State<RestaurantCashAccountsScr
   }
 
   static const _tileTones = {
-    'violet': (Color(0xFFEDE9FE), Color(0xFFC4B5FD), Color(0xFF4C1D95), Color(0xFF4C1D95)),
+    'violet': (Tone.bg(0xFFEDE9FE), Tone.line(0xFFC4B5FD), Tone.fg(0xFF4C1D95), Tone.fg(0xFF4C1D95)),
     'emerald': (TColors.emerald100, TColors.emerald300, TColors.emerald900, TColors.emerald800),
-    'amber': (Color(0xFFFEF3C7), TColors.amber300, TColors.amber900, Color(0xFF92400E)),
-    'blue': (TColors.blue100, TColors.blue300, TColors.blue900, Color(0xFF1E40AF)),
-    'rose': (Color(0xFFFFE4E6), Color(0xFFFDA4AF), Color(0xFF881337), TColors.rose800),
+    'amber': (Tone.bg(0xFFFEF3C7), TColors.amber300, TColors.amber900, Tone.fg(0xFF92400E)),
+    'blue': (TColors.blue100, TColors.blue300, TColors.blue900, Tone.fg(0xFF1E40AF)),
+    'rose': (Tone.bg(0xFFFFE4E6), Tone.line(0xFFFDA4AF), Tone.fg(0xFF881337), TColors.rose800),
   };
 
   /// Poultry's coloured cash-account tile.
@@ -316,7 +317,7 @@ class _RestaurantCashAccountsScreenState extends State<RestaurantCashAccountsScr
         primary: (c) => tStr(c['accountName']),
         secondary: (c) => tStr(c['countDate']).length >= 10 ? tStr(c['countDate']).substring(0, 10) : tStr(c['countDate']),
         trailing: (c) => c['status'] == 'Posted'
-            ? rStatusBadge('Posted', bg: const Color(0xFFDCFCE7), fg: const Color(0xFF166534), border: const Color(0xFFBBF7D0))
+            ? rStatusBadge('Posted', bg: const Tone.bg(0xFFDCFCE7), fg: const Tone.fg(0xFF166534), border: const Tone.line(0xFFBBF7D0))
             : rStatusBadge(tStr(c['status']), bg: TColors.slate100, fg: TColors.slate600),
         highlights: (c) {
           final d = tNum(c['difference']);
@@ -355,10 +356,10 @@ class _RestaurantCashAccountsScreenState extends State<RestaurantCashAccountsScr
                   ]),
                   cellText(_gh(tNum(c['systemBalance']))),
                   cellText(_gh(tNum(c['countedBalance']))),
-                  cellText(_diffText(d), color: d > 0 ? const Color(0xFF16A34A) : d < 0 ? TColors.red600 : TColors.slate700, bold: true),
+                  cellText(_diffText(d), color: d > 0 ? const Tone.fg(0xFF16A34A) : d < 0 ? TColors.red600 : TColors.slate700, bold: true),
                   Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                     c['status'] == 'Posted'
-                        ? rStatusBadge('Posted', bg: const Color(0xFFDCFCE7), fg: const Color(0xFF166534), border: const Color(0xFFBBF7D0))
+                        ? rStatusBadge('Posted', bg: const Tone.bg(0xFFDCFCE7), fg: const Tone.fg(0xFF166534), border: const Tone.line(0xFFBBF7D0))
                         : rStatusBadge(tStr(c['status']), bg: TColors.slate100, fg: TColors.slate600),
                     if (c['status'] != 'Posted' && tStr(c['reversalReason']).isNotEmpty)
                       Text(tStr(c['reversalReason']), style: const TextStyle(fontSize: 11, color: TColors.slate500)),
@@ -595,7 +596,7 @@ class _LedgerDialogState extends State<_LedgerDialog> {
                     cellText(tStr(r['txnDate']).length >= 10 ? tStr(r['txnDate']).substring(0, 10) : tStr(r['txnDate']), color: TColors.slate500),
                     cellText(ledgerSourceLabel(r['sourceType'])),
                     cellText(tStr(r['description']).isEmpty ? '—' : tStr(r['description']), color: TColors.slate600),
-                    cellText('${a >= 0 ? '+' : '−'}${gh(a.abs())}', color: a >= 0 ? const Color(0xFF16A34A) : TColors.red600, bold: true),
+                    cellText('${a >= 0 ? '+' : '−'}${gh(a.abs())}', color: a >= 0 ? const Tone.fg(0xFF16A34A) : TColors.red600, bold: true),
                     cellText(gh(bal), color: bal < 0 ? TColors.red600 : null),
                   ];
                 }(),
@@ -690,7 +691,7 @@ class _CountDialogState extends State<_CountDialog> {
               style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
-                  color: diff > 0 ? const Color(0xFF16A34A) : diff < 0 ? TColors.red600 : TColors.slate700),
+                  color: diff > 0 ? const Tone.fg(0xFF16A34A) : diff < 0 ? TColors.red600 : TColors.slate700),
             ),
           rField('Notes', AppInput(controller: _notes, hintText: 'Optional')),
         ],

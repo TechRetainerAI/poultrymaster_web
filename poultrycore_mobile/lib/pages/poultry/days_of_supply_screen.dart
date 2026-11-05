@@ -11,6 +11,7 @@ import '../lookup_loader.dart';
 import '../shared/business_dates.dart';
 import '../web_page_screen.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Poultry → Tools → Inventory Restock Forecast (formerly "Days of Supply"), as
 /// `app/poultry-restock-forecast/page.tsx`
 /// with the wording of `lib/inventory/days-of-supply.ts`: every raw material,
@@ -52,13 +53,13 @@ void sortBySeverity(List<Map> rows) => rows.sort((a, b) {
 
 /// supplyStatusStyle: (label, background, foreground).
 (String, Color, Color) supplyStatusStyle(String s) => switch (s) {
-      'Negative' => ('Negative stock', const Color(0xFFFFE4E6), const Color(0xFFBE123C)),
-      'OutOfStock' => ('Out of stock', const Color(0xFFFFE4E6), const Color(0xFFBE123C)),
-      'Critical' => ('Critical', const Color(0xFFFFE4E6), const Color(0xFFBE123C)),
-      'Warning' => ('Warning', const Color(0xFFFEF3C7), const Color(0xFF92400E)),
-      'Healthy' => ('Healthy', const Color(0xFFD1FAE5), const Color(0xFF047857)),
-      'InsufficientHistory' => ('Not enough history', const Color(0xFFF1F5F9), const Color(0xFF475569)),
-      _ => ('No recent usage', const Color(0xFFF1F5F9), const Color(0xFF475569)),
+      'Negative' => ('Negative stock', const Tone(0xFFFFE4E6), const Tone(0xFFBE123C)),
+      'OutOfStock' => ('Out of stock', const Tone(0xFFFFE4E6), const Tone(0xFFBE123C)),
+      'Critical' => ('Critical', const Tone(0xFFFFE4E6), const Tone(0xFFBE123C)),
+      'Warning' => ('Warning', const Tone(0xFFFEF3C7), const Tone(0xFF92400E)),
+      'Healthy' => ('Healthy', const Tone(0xFFD1FAE5), const Tone(0xFF047857)),
+      'InsufficientHistory' => ('Not enough history', const Tone(0xFFF1F5F9), const Tone(0xFF475569)),
+      _ => ('No recent usage', const Tone(0xFFF1F5F9), const Tone(0xFF475569)),
     };
 
 num? _n(Object? v) => v is num ? v : num.tryParse('${v ?? ''}');
@@ -238,11 +239,11 @@ class _DaysOfSupplyScreenState extends State<DaysOfSupplyScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF1F2),
-                  border: Border.all(color: const Color(0xFFFECDD3)),
+                  color: const Tone.bg(0xFFFFF1F2),
+                  border: Border.all(color: const Tone.line(0xFFFECDD3)),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Text(_error!, style: const TextStyle(fontSize: 13, color: Color(0xFF9F1239))),
+                child: Text(_error!, style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF9F1239))),
               )
             else if (rows == null)
               const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()))
@@ -319,9 +320,9 @@ class _SupplyCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(_explain(r), style: TextStyle(fontSize: 12, color: tokens.mutedForeground)),
           const SizedBox(height: 6),
-          line('Current stock', supplyQty(r['currentQuantity'], unit), color: negative ? const Color(0xFFBE123C) : null),
+          line('Current stock', supplyQty(r['currentQuantity'], unit), color: negative ? const Tone.line(0xFFBE123C) : null),
           if (bags != null) line('', bags),
-          if (r['belowReorder'] == true) line('', 'At or below reorder level', color: const Color(0xFFB45309)),
+          if (r['belowReorder'] == true) line('', 'At or below reorder level', color: const Tone.line(0xFFB45309)),
           line('Avg daily use', supplyQty(r['avgDailyUsage'], unit, 2)),
           if (showExpected) line('Expected (feed rate)', supplyQty(r['expectedDailyUsage'], unit, 2)),
           line('Days remaining', supplyDaysText(r)),

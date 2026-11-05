@@ -55,15 +55,15 @@ void main() {
     expect(kdsTime(.5), '<1m');
     expect(kdsTime(12.9), '12m');
     expect(kdsTime(65), '1h5m');
-    expect(kdsTiming(3).$1, const Color(0xFF22C55E));
-    expect(kdsTiming(20).$1, const Color(0xFFEF4444));
+    expect(kdsTiming(3).$1.toARGB32(), 0xFF22C55E);
+    expect(kdsTiming(20).$1.toARGB32(), 0xFFEF4444);
     final g = kdsGroups([
       {'orderId': 1, 'orderNumber': 'A'},
       {'orderId': 2, 'orderNumber': 'B'},
       {'orderId': 1, 'orderNumber': 'A'},
     ]);
     expect(g.map((x) => x.length), [2, 1]);
-    expect(pendingWaitTone(12).$2, const Color(0xFFFEF2F2));
+    expect(pendingWaitTone(12).$2.toARGB32(), 0xFFFEF2F2);
     final list = [
       {'orderId': 1, 'onlineSource': 'QR'},
       {'orderId': 2},

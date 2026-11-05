@@ -22,6 +22,7 @@ import '../sales/sales_logic.dart' show pageNumbers, salePageSizes;
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, trackerDate, sortRows, toggleSort, SortState, loc;
 import '../trackers/tracker_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 // ------------------------------------------------------------ rules
 
 /// batchTogglesFromStatus / batchStatusFromToggles (lib/utils/batch-status.ts).
@@ -46,7 +47,7 @@ num batchOutstanding(Map b) => (batchTotal(b) - tNum(b['amountPaid'])).clamp(0, 
 /// paymentStatus (lib/poultry/batch-purchase.ts): label, background, text.
 (String, Color, Color) batchPaymentStatus(num total, num paid) {
   if (total <= 0) return ('No cost set', TColors.slate100, TColors.slate600);
-  if (paid >= total) return ('Paid in full', TColors.green100, const Color(0xFF166534));
+  if (paid >= total) return ('Paid in full', TColors.green100, const Tone(0xFF166534));
   if (paid <= 0) return ('Unpaid', TColors.red100, TColors.red800);
   return ('Part payment', TColors.amber100, TColors.amber900);
 }
@@ -228,7 +229,7 @@ class _FlockBatchesScreenState extends State<FlockBatchesScreen> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("I'll Do This Later")),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: TColors.blue600),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.blue600)),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Divide Into Flocks'),
           ),
@@ -265,7 +266,7 @@ class _FlockBatchesScreenState extends State<FlockBatchesScreen> {
               actions: [
                 TextButton(onPressed: busy ? null : () => Navigator.pop(ctx), child: const Text('Cancel')),
                 FilledButton(
-                  style: FilledButton.styleFrom(backgroundColor: TColors.red600),
+                  style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600)),
                   onPressed: busy
                       ? null
                       : () async {
@@ -409,7 +410,7 @@ class _FlockBatchesScreenState extends State<FlockBatchesScreen> {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(color: TColors.green100, borderRadius: BorderRadius.circular(8)),
-                child: const Icon(Icons.flutter_dash, size: 20, color: Color(0xFF16A34A)),
+                child: const Icon(Icons.flutter_dash, size: 20, color: Tone.fg(0xFF16A34A)),
               ),
               const SizedBox(width: 12),
               const Expanded(
@@ -421,7 +422,7 @@ class _FlockBatchesScreenState extends State<FlockBatchesScreen> {
             ]),
             const SizedBox(height: 12),
             FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: TColors.blue600, minimumSize: const Size.fromHeight(44)),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.blue600), minimumSize: const Size.fromHeight(44)),
               onPressed: () => _openForm(),
               icon: const Icon(Icons.add, size: 18),
               label: const Text('Add Flock Batch'),
@@ -450,8 +451,8 @@ class _FlockBatchesScreenState extends State<FlockBatchesScreen> {
                 description: 'Birds that have arrived across all batches.',
                 note: purchased > 0 && purchased != arrived ? 'of ${loc(purchased)} purchased' : null,
                 icon: Icons.flutter_dash,
-                chip: (TColors.blue100, const Color(0xFF1D4ED8)),
-                color: const Color(0xFF1D4ED8),
+                chip: (TColors.blue100, const Tone.bg(0xFF1D4ED8)),
+                color: const Tone.bg(0xFF1D4ED8),
               ),
               _ScoreCard(
                 label: 'Active Batches',
@@ -465,7 +466,7 @@ class _FlockBatchesScreenState extends State<FlockBatchesScreen> {
             ],
             Container(
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+              decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
               child: Row(children: [
                 Expanded(
                   child: AppInput(
@@ -503,7 +504,7 @@ class _FlockBatchesScreenState extends State<FlockBatchesScreen> {
                     const Text('Get started by creating your first flock batch.', style: TextStyle(color: TColors.slate600)),
                     const SizedBox(height: 18),
                     FilledButton.icon(
-                      style: FilledButton.styleFrom(backgroundColor: TColors.blue600),
+                      style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.blue600)),
                       onPressed: () => _openForm(),
                       icon: const Icon(Icons.add, size: 18),
                       label: const Text('Add Flock Batch'),
@@ -532,7 +533,7 @@ class _FlockBatchesScreenState extends State<FlockBatchesScreen> {
                       width: w,
                       child: Container(
                         padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Text(label.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: .4, color: TColors.slate500)),
                           const SizedBox(height: 4),
@@ -556,8 +557,8 @@ class _FlockBatchesScreenState extends State<FlockBatchesScreen> {
 
   Widget _statusBadge(Map b) => switch (batchStatusOf(b)) {
         'pending' => const TBadge('Pending', bg: TColors.amber50, fg: TColors.amber800, border: TColors.amber200),
-        'active' => const TBadge('Active', bg: TColors.green100, fg: Color(0xFF166534), border: Color(0xFFBBF7D0)),
-        _ => const TBadge('Inactive', bg: Color(0xFFF3F4F6), fg: Color(0xFF1F2937)),
+        'active' => const TBadge('Active', bg: TColors.green100, fg: Tone.fg(0xFF166534), border: Tone.line(0xFFBBF7D0)),
+        _ => const TBadge('Inactive', bg: Tone.bg(0xFFF3F4F6), fg: Tone.fg(0xFF1F2937)),
       };
 
   String _supplierLabel(Map b) {
@@ -575,7 +576,7 @@ class _FlockBatchesScreenState extends State<FlockBatchesScreen> {
         ]);
     Widget action(String label, IconData icon, VoidCallback onTap, {Color? fg, Color? border}) => OutlinedButton.icon(
           style: OutlinedButton.styleFrom(
-            backgroundColor: Colors.white,
+            backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)),
             foregroundColor: fg ?? TColors.slate800,
             side: border == null ? null : BorderSide(color: border),
             minimumSize: const Size.fromHeight(40),
@@ -586,7 +587,7 @@ class _FlockBatchesScreenState extends State<FlockBatchesScreen> {
         );
     final actions = [
       if (owed > 0) action('Pay', Icons.account_balance_wallet_outlined, () => _pay(b), fg: TColors.emerald600, border: TColors.emerald200),
-      if (_unallocated(b) > 0) action('Divide', Icons.call_split, () => _allocate(tIntOrNull(b['batchId']) ?? 0), fg: const Color(0xFF4F46E5), border: const Color(0xFFC7D2FE)),
+      if (_unallocated(b) > 0) action('Divide', Icons.call_split, () => _allocate(tIntOrNull(b['batchId']) ?? 0), fg: const Tone.fg(0xFF4F46E5), border: const Tone.line(0xFFC7D2FE)),
       action('Edit', Icons.edit_outlined, () => _openForm(tIntOrNull(b['batchId']))),
       if (_canDelete) action('Delete', Icons.delete_outline, () => _delete(b), fg: TColors.red600, border: TColors.red200),
     ];
@@ -598,7 +599,7 @@ class _FlockBatchesScreenState extends State<FlockBatchesScreen> {
         Text(tStr(b['batchName']), style: const TextStyle(fontWeight: FontWeight.w600, color: TColors.slate900)),
         const SizedBox(height: 4),
         Wrap(spacing: 8, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
-          TBadge(tStr(b['batchCode']), bg: Colors.white, fg: TColors.slate800, border: TColors.slate200),
+          TBadge(tStr(b['batchCode']), bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate800, border: TColors.slate200),
           Text('${loc(tNum(b['numberOfBirds']))} birds', style: const TextStyle(color: TColors.slate600)),
           Text(tStr(b['breed']), style: const TextStyle(color: TColors.slate500)),
           _statusBadge(b),
@@ -685,15 +686,15 @@ class _FlockBatchesScreenState extends State<FlockBatchesScreen> {
                 : Align(
                     alignment: Alignment.centerLeft,
                     child: tStr(b['supplierType']).toLowerCase() == 'foreign'
-                        ? TBadge(_cap(tStr(b['supplierType'])), bg: const Color(0xFFFAF5FF), fg: const Color(0xFF6B21A8), border: const Color(0xFFE9D5FF))
-                        : TBadge(_cap(tStr(b['supplierType'])), bg: const Color(0xFFEFF6FF), fg: const Color(0xFF1E40AF), border: TColors.blue200),
+                        ? TBadge(_cap(tStr(b['supplierType'])), bg: const Tone.bg(0xFFFAF5FF), fg: const Tone.fg(0xFF6B21A8), border: const Tone.line(0xFFE9D5FF))
+                        : TBadge(_cap(tStr(b['supplierType'])), bg: const Tone.bg(0xFFEFF6FF), fg: const Tone.fg(0xFF1E40AF), border: TColors.blue200),
                   ),
             Align(alignment: Alignment.centerLeft, child: _statusBadge(b)),
             cellText(tStr(b['startDate']).isEmpty ? '—' : fmtDateTime(b['startDate'], b, _offset), color: TColors.slate600),
             Wrap(alignment: WrapAlignment.center, children: [
               if (batchTotal(b) - tNum(b['amountPaid']) > 0) icon('Pay balance', Icons.account_balance_wallet_outlined, () => _pay(b), color: TColors.emerald600),
               if (_unallocated(b) > 0)
-                icon('Divide into flocks', Icons.call_split, () => _allocate(tIntOrNull(b['batchId']) ?? 0), color: const Color(0xFF4F46E5)),
+                icon('Divide into flocks', Icons.call_split, () => _allocate(tIntOrNull(b['batchId']) ?? 0), color: const Tone.fg(0xFF4F46E5)),
               icon(null, Icons.edit_outlined, () => _openForm(tIntOrNull(b['batchId']))),
               if (_canDelete) icon(null, Icons.delete_outline, () => _delete(b), color: TColors.red600),
             ]),
@@ -773,7 +774,7 @@ class _ScoreCard extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Container(
@@ -814,7 +815,7 @@ class _BatchCardState extends State<_BatchCard> {
   @override
   Widget build(BuildContext context) => Container(
         decoration: BoxDecoration(
-          color: widget.striped ? TColors.amber100 : Colors.white,
+          color: widget.striped ? TColors.amber100 : Tone.bg(0xFFFFFFFF),
           border: Border.all(color: widget.striped ? TColors.amber300 : TColors.slate200),
           borderRadius: BorderRadius.circular(12),
         ),
@@ -911,8 +912,8 @@ class _BatchFlocksDialogState extends State<_BatchFlocksDialog> {
                       alignment: Alignment.centerLeft,
                       child: switch (flockLifecycle(f)) {
                         'pending' => const TBadge('Pending', bg: TColors.amber100, fg: TColors.amber900, border: TColors.amber200),
-                        'active' => const TBadge('Active', bg: TColors.green100, fg: Color(0xFF166534)),
-                        _ => const TBadge('Inactive', bg: Color(0xFFF3F4F6), fg: Color(0xFF1F2937)),
+                        'active' => const TBadge('Active', bg: TColors.green100, fg: Tone.fg(0xFF166534)),
+                        _ => const TBadge('Inactive', bg: Tone.bg(0xFFF3F4F6), fg: Tone.fg(0xFF1F2937)),
                       },
                     ),
                   ],
@@ -1404,7 +1405,7 @@ class _FlockBatchDialogState extends State<FlockBatchDialog> {
     return AlertDialog(
       scrollable: true,
       title: Row(children: [
-        Icon(_edit ? Icons.edit_outlined : Icons.flutter_dash, size: 20, color: _edit ? TColors.blue600 : const Color(0xFF16A34A)),
+        Icon(_edit ? Icons.edit_outlined : Icons.flutter_dash, size: 20, color: _edit ? TColors.blue600 : const Tone.fg(0xFF16A34A)),
         const SizedBox(width: 8),
         Flexible(child: Text(_edit ? 'Edit Flock Batch' : 'Add New Flock Batch')),
       ]),
@@ -1418,11 +1419,11 @@ class _FlockBatchDialogState extends State<FlockBatchDialog> {
           if (_fetching)
             const Padding(padding: EdgeInsets.all(24), child: Text('Loading flock batch...', textAlign: TextAlign.center))
           else ...[
-            formSection('Batch Details', const Color(0xFF4F46E5), identity),
+            formSection('Batch Details', const Tone(0xFF4F46E5), identity),
             const SizedBox(height: 12),
-            formSection('Purchase Details', const Color(0xFF059669), purchase),
+            formSection('Purchase Details', const Tone(0xFF059669), purchase),
             const SizedBox(height: 12),
-            formSection('Order & Delivery', const Color(0xFF0284C7), [
+            formSection('Order & Delivery', const Tone(0xFF0284C7), [
               _cell('Order Placement Date', _date(_order, (v) => _order = v), hint: 'When you placed the order with the supplier.'),
               _cell('Estimated Arrival Date', _date(_arrival, (v) => _arrival = v), hint: 'When the birds are expected to arrive.'),
               Container(
@@ -1435,7 +1436,7 @@ class _FlockBatchDialogState extends State<FlockBatchDialog> {
               ),
             ]),
             const SizedBox(height: 12),
-            formSection('Status & Notes', const Color(0xFF16A34A), [
+            formSection('Status & Notes', const Tone(0xFF16A34A), [
               _switch(_hasArrived, _saving ? null : (v) => setState(() => _hasArrived = v), 'Batch Has Arrived',
                   _edit ? '(Turn on once birds physically arrive)' : '(Leave off until birds physically arrive — status stays Pending)'),
               _switch(_active, _saving || !_hasArrived ? null : (v) => setState(() => _active = v), 'Active Batch',
@@ -1567,7 +1568,7 @@ class _FlockBatchEditScreenState extends State<FlockBatchEditScreen> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(color: TColors.green100, borderRadius: BorderRadius.circular(8)),
-              child: const Icon(Icons.flutter_dash, size: 20, color: Color(0xFF16A34A)),
+              child: const Icon(Icons.flutter_dash, size: 20, color: Tone.fg(0xFF16A34A)),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -1581,9 +1582,9 @@ class _FlockBatchEditScreenState extends State<FlockBatchEditScreen> {
           const SizedBox(height: 14),
           if (_error.isNotEmpty) ...[TrackerBanner.error(_error), const SizedBox(height: 12)],
           if (_loading)
-            formSection('Batch Details', const Color(0xFF4F46E5), [const LinearProgressIndicator()])
+            formSection('Batch Details', const Tone.fg(0xFF4F46E5), [const LinearProgressIndicator()])
           else ...[
-            formSection('Batch Details', const Color(0xFF4F46E5), [
+            formSection('Batch Details', const Tone.fg(0xFF4F46E5), [
               _cell('Batch Name *', AppInput(controller: _name, enabled: !_saving, hintText: 'e.g., Batch A - Rhode Island Reds')),
               _cell('Batch Code *', AppInput(controller: _code, enabled: !_saving, hintText: 'e.g., B-001')),
               _cell('Breed', BreedPicker(value: _breed, enabled: !_saving, onChanged: (v) => setState(() => _breed = v))),

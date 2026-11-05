@@ -22,6 +22,7 @@ import 'feed_production_form.dart';
 import 'production_records_screen.dart' show ProdCard;
 import '../../shared/reason_select.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 const feedSourceLabels = {'FromInventory': 'From inventory', 'BoughtDuringProduction': 'Bought during production', 'MixedSource': 'Mixed source'};
 
 const productionCostTooltip =
@@ -33,7 +34,7 @@ const expensedAtPurchaseTooltip = 'This stock was charged to Profit & Loss when 
 
 Widget feedStatusBadge(Object? status) => switch (tStr(status)) {
   'Posted' => const TBadge('Posted', bg: TColors.emerald600, fg: Colors.white),
-  'Reversed' => const TBadge('Reversed', bg: Colors.white, fg: TColors.slate500, border: TColors.slate200),
+  'Reversed' => const TBadge('Reversed', bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate500, border: TColors.slate200),
   final s => TBadge(s, bg: TColors.slate100, fg: TColors.slate800),
 };
 
@@ -149,7 +150,7 @@ class _FeedProductionScreenState extends State<FeedProductionScreen> {
     Widget stat(IconData icon, Color color, String label, String value) => Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Tone.bg(0xFFFFFFFF),
         border: Border.all(color: TColors.slate200),
         borderRadius: BorderRadius.circular(12),
       ),
@@ -179,7 +180,7 @@ class _FeedProductionScreenState extends State<FeedProductionScreen> {
     );
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFB),
+      backgroundColor: const Tone.bg(0xFFF9FAFB),
       appBar: AppBar(leading: lead.leading, leadingWidth: lead.width, title: const Text('Feed Production')),
       body: RefreshIndicator(
         onRefresh: _load,
@@ -379,7 +380,7 @@ class _FeedProductionScreenState extends State<FeedProductionScreen> {
               children: [
                 Expanded(child: produced),
                 const SizedBox(width: 8),
-                Expanded(child: tile('Total cost', _gh(tNum(b['totalProductionCost'])), TColors.violet100, const Color(0xFFC4B5FD), const Color(0xFF4C1D95))),
+                Expanded(child: tile('Total cost', _gh(tNum(b['totalProductionCost'])), TColors.violet100, const Tone(0xFFC4B5FD), const Tone(0xFF4C1D95))),
               ],
             )
           else
@@ -413,7 +414,7 @@ class _FeedProductionScreenState extends State<FeedProductionScreen> {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(backgroundColor: Colors.white, minimumSize: const Size.fromHeight(40)),
+                  style: OutlinedButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)), minimumSize: const Size.fromHeight(40)),
                   onPressed: () => _open(b),
                   icon: const Icon(Icons.visibility_outlined, size: 16),
                   label: const Text('Open'),
@@ -424,7 +425,7 @@ class _FeedProductionScreenState extends State<FeedProductionScreen> {
                 Expanded(
                   child: OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
-                      backgroundColor: Colors.white,
+                      backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)),
                       foregroundColor: TColors.red600,
                       side: const BorderSide(color: TColors.red200),
                       minimumSize: const Size.fromHeight(40),
@@ -498,7 +499,7 @@ class FeedProductionNewScreen extends StatelessWidget {
   final Company company;
   @override
   Widget build(BuildContext context) => Scaffold(
-    backgroundColor: const Color(0xFFF9FAFB),
+    backgroundColor: const Tone.bg(0xFFF9FAFB),
     appBar: AppBar(title: const Text('New Feed Production Batch')),
     body: ListView(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
@@ -608,7 +609,7 @@ class _FeedProductionBatchScreenState extends State<FeedProductionBatchScreen> {
               actions: [
                 OutlinedButton(onPressed: busy ? null : () => Navigator.pop(ctx), child: const Text('Cancel')),
                 FilledButton.icon(
-                  style: FilledButton.styleFrom(backgroundColor: TColors.red600),
+                  style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600)),
                   onPressed: busy
                       ? null
                       : () async {
@@ -684,7 +685,7 @@ class _FeedProductionBatchScreenState extends State<FeedProductionBatchScreen> {
     final status = tStr(b?['status']);
     final form = b != null && (status == 'Draft' || (status == 'Reversed' && _editing));
     return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFB),
+      backgroundColor: const Tone.bg(0xFFF9FAFB),
       appBar: AppBar(title: Text(b == null ? 'Feed Production' : 'Batch ${tStr(b['batchNumber'])}')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
@@ -726,7 +727,7 @@ class _FeedProductionBatchScreenState extends State<FeedProductionBatchScreen> {
   List<Widget> _detail(Map b) {
     final status = tStr(b['status']);
     Widget line(String label, String value, {bool bold = false, String? hint, String? tone}) {
-      final color = tone == 'amber' ? const Color(0xFF92400E) : (tone == 'muted' ? TColors.slate500 : null);
+      final color = tone == 'amber' ? const Tone(0xFF92400E) : (tone == 'muted' ? TColors.slate500 : null);
       final row = Padding(
         padding: const EdgeInsets.symmetric(vertical: 3),
         child: Row(
@@ -801,7 +802,7 @@ class _FeedProductionBatchScreenState extends State<FeedProductionBatchScreen> {
         children: [
           TextButton.icon(onPressed: () => Navigator.of(context).maybePop(), icon: const Icon(Icons.arrow_back, size: 16), label: const Text('Back')),
           Text('Batch ${tStr(b['batchNumber'])}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
-          status == 'Posted' ? feedStatusBadge(status) : TBadge(status, bg: Colors.white, fg: TColors.slate700, border: TColors.slate200),
+          status == 'Posted' ? feedStatusBadge(status) : TBadge(status, bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate700, border: TColors.slate200),
         ],
       ),
       const SizedBox(height: 8),

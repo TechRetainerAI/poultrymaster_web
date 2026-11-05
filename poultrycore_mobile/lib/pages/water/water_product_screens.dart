@@ -8,6 +8,7 @@ import '../../design/ui/inputs.dart';
 import '../../models/company.dart';
 import '../../state/session.dart';
 import '../lookup_loader.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import '../poultry/reports/report_format.dart' show FarmMoney;
 
 // Water → Setup → Production → Products, as `app/water-products/page.tsx`
@@ -73,7 +74,7 @@ Widget _footer(BuildContext context, {required String label, required bool busy,
       Expanded(
         child: FilledButton(
           style: FilledButton.styleFrom(
-            backgroundColor: const Color(0xFFDC2626),
+            backgroundColor: Tone.button(const Tone.bg(0xFFDC2626)),
             foregroundColor: Colors.white,
             minimumSize: const Size.fromHeight(48),
           ),
@@ -236,7 +237,7 @@ class _WaterProductFormScreenState extends State<WaterProductFormScreen> {
           builder: (ctx) => AlertDialog(
             title: const Row(
               children: [
-                Icon(Icons.restaurant_menu, color: Color(0xFF0284C7)),
+                Icon(Icons.restaurant_menu, color: Tone.fg(0xFF0284C7)),
                 SizedBox(width: 8),
                 Expanded(child: Text('Product created successfully')),
               ],
@@ -845,8 +846,8 @@ class _WaterProductDetailsScreenState extends State<WaterProductDetailsScreen> {
               Container(
                 width: 40,
                 height: 40,
-                decoration: BoxDecoration(color: const Color(0xFFE0F2FE), borderRadius: BorderRadius.circular(8)),
-                child: const Icon(Icons.shopping_bag_outlined, color: Color(0xFF0284C7), size: 20),
+                decoration: BoxDecoration(color: const Tone.bg(0xFFE0F2FE), borderRadius: BorderRadius.circular(8)),
+                child: const Icon(Icons.shopping_bag_outlined, color: Tone.fg(0xFF0284C7), size: 20),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -891,8 +892,8 @@ class _WaterProductDetailsScreenState extends State<WaterProductDetailsScreen> {
                   stat(
                     'Status',
                     p['isActive'] != false
-                        ? const Text('Active', style: TextStyle(color: Color(0xFF059669)))
-                        : const Text('Inactive', style: TextStyle(color: Color(0xFF94A3B8))),
+                        ? const Text('Active', style: TextStyle(color: Tone.fg(0xFF059669)))
+                        : const Text('Inactive', style: TextStyle(color: Tone.fg(0xFF94A3B8))),
                   ),
                   stat('Recipe items', Text('${_rows.length}')),
                 ])
@@ -967,13 +968,13 @@ class _WaterProductDetailsScreenState extends State<WaterProductDetailsScreen> {
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFFFFFBEB),
-              border: Border.all(color: const Color(0xFFFDE68A)),
+              color: const Tone.bg(0xFFFFFBEB),
+              border: Border.all(color: const Tone.line(0xFFFDE68A)),
               borderRadius: BorderRadius.circular(Dim.radiusMd),
             ),
             child: const Text.rich(
               TextSpan(
-                style: TextStyle(fontSize: 13.5, color: Color(0xFF78350F)),
+                style: TextStyle(fontSize: 13.5, color: Tone.fg(0xFF78350F)),
                 children: [
                   TextSpan(text: 'Recipes only apply to finished goods. Change the product type to'),
                   TextSpan(
@@ -1117,7 +1118,7 @@ class _WaterProductDetailsScreenState extends State<WaterProductDetailsScreen> {
               Text('Stock: $stock', style: TextStyle(fontSize: 12.5, color: tokens.mutedForeground)),
               IconButton(
                 tooltip: 'Remove',
-                icon: const Icon(Icons.delete_outline, color: Color(0xFFEF4444)),
+                icon: const Icon(Icons.delete_outline, color: Tone.fg(0xFFEF4444)),
                 onPressed: () => setState(() => _rows.removeAt(i).dispose()),
               ),
             ],

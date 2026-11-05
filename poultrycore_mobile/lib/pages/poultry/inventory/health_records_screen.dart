@@ -17,6 +17,7 @@ import '../sales/balances_widgets.dart' show CompactPager;
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, trackerDate, SortState, SortDir;
 import '../trackers/tracker_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 const healthRecordTypes = ['Vaccination', 'Medication', 'Treatment', 'Illness', 'Mortality'];
 
 final _typePrefix = RegExp(r'^\[Type:[^\]]+\]\s*', caseSensitive: false);
@@ -260,7 +261,7 @@ class _HealthRecordsScreenState extends State<HealthRecordsScreen> {
               actions: [
                 TextButton(onPressed: busy ? null : () => Navigator.pop(ctx), child: const Text('Cancel')),
                 FilledButton(
-                  style: FilledButton.styleFrom(backgroundColor: TColors.red600),
+                  style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600)),
                   onPressed: busy
                       ? null
                       : () async {
@@ -353,7 +354,7 @@ class _HealthRecordsScreenState extends State<HealthRecordsScreen> {
           child: Padding(
             padding: const EdgeInsets.all(2),
             child: Material(
-              color: _tab == key ? Colors.white : Colors.transparent,
+              color: _tab == key ? Tone.bg(0xFFFFFFFF) : Colors.transparent,
               borderRadius: BorderRadius.circular(6),
               child: InkWell(
                 borderRadius: BorderRadius.circular(6),
@@ -398,7 +399,7 @@ class _HealthRecordsScreenState extends State<HealthRecordsScreen> {
             ]),
             const SizedBox(height: 12),
             FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: TColors.blue600, minimumSize: const Size.fromHeight(44)),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.blue600), minimumSize: const Size.fromHeight(44)),
               onPressed: () => _openForm(),
               icon: const Icon(Icons.add, size: 18),
               label: const Text('Add Health Record'),
@@ -417,7 +418,7 @@ class _HealthRecordsScreenState extends State<HealthRecordsScreen> {
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+              decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
               child: Row(children: [
                 Expanded(
                   child: AppInput(
@@ -449,7 +450,7 @@ class _HealthRecordsScreenState extends State<HealthRecordsScreen> {
                     Text(copy.emptyDescription, textAlign: TextAlign.center, style: const TextStyle(color: TColors.slate600)),
                     const SizedBox(height: 18),
                     FilledButton.icon(
-                      style: FilledButton.styleFrom(backgroundColor: TColors.blue600),
+                      style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.blue600)),
                       onPressed: () => _openForm(),
                       icon: const Icon(Icons.add, size: 18),
                       label: Text(copy.addLabel),
@@ -492,8 +493,8 @@ class _HealthRecordsScreenState extends State<HealthRecordsScreen> {
         ]),
       );
 
-  Widget _vaccination(Map r) => _pill(tStr(r['vaccination']), Icons.medication_outlined, const Color(0xFFEFF6FF), const Color(0xFF1D4ED8));
-  Widget _medication(Map r) => _pill(tStr(r['medication']), Icons.favorite_border, const Color(0xFFF0FDF4), TColors.green700);
+  Widget _vaccination(Map r) => _pill(tStr(r['vaccination']), Icons.medication_outlined, const Tone(0xFFEFF6FF), const Tone(0xFF1D4ED8));
+  Widget _medication(Map r) => _pill(tStr(r['medication']), Icons.favorite_border, const Tone(0xFFF0FDF4), TColors.green700);
 
   Widget _card(Map r, int i) {
     final notes = tStr(r['notes']);
@@ -504,7 +505,7 @@ class _HealthRecordsScreenState extends State<HealthRecordsScreen> {
         Text(r['recordDate'] != null ? trackerDate(r['recordDate']) : '—', style: const TextStyle(fontWeight: FontWeight.w600, color: TColors.slate900)),
         const SizedBox(height: 4),
         Wrap(spacing: 6, runSpacing: 4, children: [
-          TBadge(_entity(r), bg: Colors.white, fg: TColors.slate800, border: TColors.slate200),
+          TBadge(_entity(r), bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate800, border: TColors.slate200),
           if (tStr(r['vaccination']).isNotEmpty) _vaccination(r),
           if (tStr(r['medication']).isNotEmpty) _medication(r),
         ]),
@@ -524,7 +525,7 @@ class _HealthRecordsScreenState extends State<HealthRecordsScreen> {
         Row(children: [
           Expanded(
             child: OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(backgroundColor: Colors.white, minimumSize: const Size.fromHeight(40)),
+              style: OutlinedButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)), minimumSize: const Size.fromHeight(40)),
               onPressed: () => _openForm(r),
               icon: const Icon(Icons.edit_outlined, size: 16),
               label: const Text('Edit'),
@@ -534,7 +535,7 @@ class _HealthRecordsScreenState extends State<HealthRecordsScreen> {
           Expanded(
             child: OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
-                backgroundColor: Colors.white,
+                backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)),
                 foregroundColor: TColors.red600,
                 side: const BorderSide(color: TColors.red200),
                 minimumSize: const Size.fromHeight(40),
@@ -578,7 +579,7 @@ class _HealthRecordsScreenState extends State<HealthRecordsScreen> {
             tStr(r['medication']).isNotEmpty ? Align(alignment: Alignment.centerLeft, child: _medication(r)) : cellText('-', color: TColors.slate400),
             r['waterConsumption'] != null
                 ? Row(children: [
-                    const Icon(Icons.water_drop_outlined, size: 16, color: Color(0xFF3B82F6)),
+                    const Icon(Icons.water_drop_outlined, size: 16, color: Tone.fg(0xFF3B82F6)),
                     const SizedBox(width: 4),
                     Text('${_jsNum(tNum(r['waterConsumption']))}L'),
                   ])
@@ -614,7 +615,7 @@ class _HealthCardState extends State<_HealthCard> {
   @override
   Widget build(BuildContext context) => Container(
         decoration: BoxDecoration(
-          color: widget.striped ? TColors.amber100 : Colors.white,
+          color: widget.striped ? TColors.amber100 : Tone.bg(0xFFFFFFFF),
           border: Border.all(color: widget.striped ? TColors.amber300 : TColors.slate200),
           borderRadius: BorderRadius.circular(12),
         ),
@@ -808,7 +809,7 @@ class _HealthRecordDialogState extends State<HealthRecordDialog> {
             ),
           ]),
           const SizedBox(height: 12),
-          formSection('Treatment Details', const Color(0xFF16A34A), [
+          formSection('Treatment Details', const Tone(0xFF16A34A), [
             _cell('Name', AppInput(controller: _name, hintText: 'Medication/vaccine name')),
             _cell('Treatment', AppInput(controller: _treatment, hintText: 'Disease or condition treated')),
             _cell(

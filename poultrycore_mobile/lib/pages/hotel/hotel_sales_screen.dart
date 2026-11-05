@@ -29,6 +29,7 @@ import '../restaurant/restaurant_sales_screen.dart' show saleStatusBadge, saleSt
 import '../shared/business_dates.dart' show isoDay;
 import 'hotel_kit.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// The balances prefix for Hotel (lib/api/balances.ts: "/Hotel/balances").
 const hotelBalancesApi = '/api/Hotel/balances';
 
@@ -488,7 +489,7 @@ class _HotelSalesScreenState extends State<HotelSalesScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: FilledButton(
-                        style: FilledButton.styleFrom(backgroundColor: hotelViolet, minimumSize: const Size.fromHeight(48)),
+                        style: FilledButton.styleFrom(backgroundColor: Tone.button(hotelViolet), minimumSize: const Size.fromHeight(48)),
                         onPressed: () {
                           final reload = from != _from || to != _to;
                           setState(() {
@@ -590,7 +591,7 @@ class _HotelSalesScreenState extends State<HotelSalesScreen> {
                 child: Row(
                   children: [
                     const Expanded(
-                      child: Text('Showing one stay.', style: TextStyle(fontSize: 13, color: Color(0xFF4C1D95))),
+                      child: Text('Showing one stay.', style: TextStyle(fontSize: 13, color: Tone.fg(0xFF4C1D95))),
                     ),
                     InkWell(
                       onTap: () => setState(() => _focus = null),
@@ -626,7 +627,7 @@ class _HotelSalesScreenState extends State<HotelSalesScreen> {
                         const SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6),
-                          decoration: BoxDecoration(color: const Color(0xFFF97316), borderRadius: BorderRadius.circular(999)),
+                          decoration: BoxDecoration(color: const Tone.bg(0xFFF97316), borderRadius: BorderRadius.circular(999)),
                           child: Text('$_activeCount', style: const TextStyle(fontSize: 12, color: Colors.white)),
                         ),
                       ],
@@ -923,7 +924,7 @@ class _SaleCardState extends State<_SaleCard> {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: widget.striped ? TColors.amber100 : Colors.white,
+        color: widget.striped ? TColors.amber100 : Tone.bg(0xFFFFFFFF),
         border: Border.all(color: widget.striped ? TColors.amber300 : TColors.slate200),
         borderRadius: BorderRadius.circular(12),
       ),

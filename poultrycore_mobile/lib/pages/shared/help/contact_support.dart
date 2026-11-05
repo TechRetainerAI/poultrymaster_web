@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../design/ui/inputs.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import '../../poultry/trackers/tracker_widgets.dart' show TColors;
 
 const supportEmail = 'techretainer@gmail.com';
@@ -52,13 +53,13 @@ Future<void> openExternal(BuildContext context, String url) async {
   }
 }
 
-const _indigo50 = Color(0x80EEF2FF);
-const _indigo100 = Color(0xFFE0E7FF);
-const _indigo200 = Color(0xFFC7D2FE);
-const _indigo500 = Color(0xFF6366F1);
-const _indigo700 = Color(0xFF4338CA);
-const _indigo900 = Color(0xFF312E81);
-const _emerald600 = Color(0xFF059669);
+const _indigo50 = Tone.bg(0x80EEF2FF);
+const _indigo100 = Tone.line(0xFFE0E7FF);
+const _indigo200 = Tone.line(0xFFC7D2FE);
+const _indigo500 = Tone.fg(0xFF6366F1);
+const _indigo700 = Tone.fg(0xFF4338CA);
+const _indigo900 = Tone.fg(0xFF312E81);
+const _emerald600 = Tone.bg(0xFF059669);
 
 class ContactSupport extends StatefulWidget {
   const ContactSupport({super.key});
@@ -138,14 +139,14 @@ class ContactSupportState extends State<ContactSupport> {
         Wrap(spacing: 8, runSpacing: 8, children: [
           FilledButton.icon(
             key: const ValueKey('support-whatsapp'),
-            style: FilledButton.styleFrom(backgroundColor: _emerald600, foregroundColor: Colors.white),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(_emerald600), foregroundColor: Colors.white),
             onPressed: () => openExternal(context, whatsappLink(_message.text)),
             icon: const Icon(Icons.chat_bubble_outline, size: 16),
             label: const Text('Send on WhatsApp'),
           ),
           OutlinedButton.icon(
             key: const ValueKey('support-mail'),
-            style: OutlinedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: TColors.slate800),
+            style: OutlinedButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)), foregroundColor: TColors.slate800),
             onPressed: () => openExternal(context, mailtoLink(_message.text)),
             icon: const Icon(Icons.mail_outline, size: 16),
             label: const Text('Send by email'),

@@ -12,6 +12,7 @@ import '../reports/report_routes.dart';
 import 'tracker_logic.dart';
 import 'tracker_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Everything the two halves say differently (the web's COPY table).
 class _Copy {
   const _Copy({
@@ -60,7 +61,7 @@ final _copy = {
       ('/feed-usage', 'Feed usage (record OUT)'),
       ('/feed-ingredient-tracker', 'Ingredients only tracker'),
     ],
-    accentBg: const Color(0x66ECFDF5),
+    accentBg: const Tone.bg(0x66ECFDF5),
     accentBorder: TColors.emerald200,
     iconBg: TColors.emerald100,
     iconFg: TColors.emerald800,
@@ -92,7 +93,7 @@ final _copy = {
       ('/poultry-feed-production', 'Feed Production (record OUT)'),
       ('/feed-tracker', 'Feed tracker'),
     ],
-    accentBg: const Color(0x66FFFBEB),
+    accentBg: const Tone.bg(0x66FFFBEB),
     accentBorder: TColors.amber200,
     iconBg: TColors.amber100,
     iconFg: TColors.amber800,
@@ -473,7 +474,7 @@ class _FeedStockTrackerScreenState extends State<FeedStockTrackerScreen> {
         children: [
           TileGrid([
             TileData('$noun left / at hand$_unitBit', q1(atHand),
-                color: atHand < 0 ? TColors.red600 : TColors.slate900,
+                color: atHand < 0 ? TColors.red600 : Tone.button(TColors.slate900)!,
                 action: CopyButton(
                   value: jsNum(((atHand + 2.220446049250313e-16) * 100).round() / 100),
                   label: 'Copy ${noun.toLowerCase()} left',
@@ -482,11 +483,11 @@ class _FeedStockTrackerScreenState extends State<FeedStockTrackerScreen> {
             TileData('$noun purchased$_unitBit', q1(sumIn((r) => r.type == 'Purchase IN')), color: TColors.sky700),
             TileData('$noun used$_unitBit', q1(sumOut((r) => r.type == 'Usage OUT')), color: TColors.amber800),
             TileData('Last ledger event', rows.isEmpty ? '—' : trackerDate(l.lastUpdatedIso),
-                color: TColors.slate600, sub: rows.isEmpty ? '—' : trackerTime(l.lastUpdatedIso)),
+                color: Tone.button(TColors.slate600)!, sub: rows.isEmpty ? '—' : trackerTime(l.lastUpdatedIso)),
             TileData('$noun in (adjustments)', q1(sumIn((r) => adjust.hasMatch(r.type))), color: TColors.emerald700),
             TileData('$noun out (adjustments)', q1(sumOut((r) => adjust.hasMatch(r.type))), color: TColors.rose600),
             TileData('Total IN (ledger)', q1(l.totalIn), color: TColors.emerald800),
-            TileData('Total OUT (ledger)', q1(l.totalOut), color: TColors.slate800),
+            TileData('Total OUT (ledger)', q1(l.totalOut), color: Tone.button(TColors.slate800)!),
           ]),
           const SizedBox(height: 8),
           Text.rich(

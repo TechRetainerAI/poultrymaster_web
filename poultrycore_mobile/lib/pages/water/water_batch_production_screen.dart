@@ -16,6 +16,7 @@ import '../poultry/trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../poultry/trackers/tracker_widgets.dart';
 import '../shared/business_dates.dart';
 import '../shared/company_clock.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import 'water_production_screen.dart' show WaterProductionDetailScreen, waterShifts;
 
 /// Water → Operations → Production → Batch Production, as
@@ -49,10 +50,10 @@ Widget waterDailyStatusBadge(Object? status) {
   final s = tStr(status);
   final (bg, fg) = switch (s) {
     'PendingAllocation' => (TColors.amber100, TColors.amber800),
-    'Allocated' => (TColors.blue100, const Color(0xFF1D4ED8)),
+    'Allocated' => (TColors.blue100, const Tone(0xFF1D4ED8)),
     'Posted' => (TColors.emerald100, TColors.emerald700),
-    'Reversed' => (const Color(0xFFF3E8FF), const Color(0xFF7E22CE)),
-    'Cancelled' => (const Color(0xFFFEE2E2), const Color(0xFFB91C1C)),
+    'Reversed' => (const Tone(0xFFF3E8FF), const Tone(0xFF7E22CE)),
+    'Cancelled' => (const Tone(0xFFFEE2E2), const Tone(0xFFB91C1C)),
     _ => (TColors.slate100, TColors.slate700),
   };
   return TBadge(waterDailyStatusLabels[s] ?? s, bg: bg, fg: fg);
@@ -362,7 +363,7 @@ class _WaterBatchProductionScreenState extends State<WaterBatchProductionScreen>
           actions: [
             TextButton(onPressed: busy ? null : () => Navigator.pop(ctx, false), child: const Text('Cancel')),
             FilledButton(
-              style: destructive ? FilledButton.styleFrom(backgroundColor: TColors.red600) : null,
+              style: destructive ? FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600)) : null,
               onPressed: busy
                   ? null
                   : () async {
@@ -415,32 +416,32 @@ class _WaterBatchProductionScreenState extends State<WaterBatchProductionScreen>
     final allocate = IconButton(
       tooltip: 'Allocate across machines',
       onPressed: () => _go(WaterBatchAllocateScreen(session: s, company: c, id: id)),
-      icon: const Icon(Icons.layers_outlined, size: 18, color: Color(0xFF2563EB)),
+      icon: const Icon(Icons.layers_outlined, size: 18, color: Tone.fg(0xFF2563EB)),
     );
     final del = IconButton(
       tooltip: 'Delete',
       onPressed: () => _confirm('delete', r, 'Delete this batch production record?',
           "The day's totals, machine list and allocation will be removed. This cannot be undone.", 'Delete', destructive: true),
-      icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFDC2626)),
+      icon: const Icon(Icons.delete_outline, size: 18, color: Tone.fg(0xFFDC2626)),
     );
     final post = IconButton(
       tooltip: 'Post',
       onPressed: () => _confirm('post', r, "Post this day's production?",
           'One production record is created and approved per machine. Finished goods, raw material lots, expenses and losses are all updated.', 'Post'),
-      icon: const Icon(Icons.check_circle_outline, size: 18, color: Color(0xFF059669)),
+      icon: const Icon(Icons.check_circle_outline, size: 18, color: Tone.fg(0xFF059669)),
     );
     final repost = IconButton(
       tooltip: 'Repost',
       onPressed: () => _confirm('repost', r, "Repost this day's production?",
           'Fresh production records are created and approved for each machine, at a new posting version.', 'Repost'),
-      icon: const Icon(Icons.check_circle_outline, size: 18, color: Color(0xFF059669)),
+      icon: const Icon(Icons.check_circle_outline, size: 18, color: Tone.fg(0xFF059669)),
     );
     final reverse = IconButton(
       tooltip: 'Reverse',
       onPressed: () => _confirm('reverse', r, "Reverse this day's production?",
           "Each machine's production record is reopened and cancelled: finished goods come back out of stock, raw material lots are restored, linked expenses are cancelled. The day stays available to re-allocate and repost.",
           'Reverse', destructive: true),
-      icon: const Icon(Icons.undo, size: 18, color: Color(0xFF9333EA)),
+      icon: const Icon(Icons.undo, size: 18, color: Tone.fg(0xFF9333EA)),
     );
     final d = _canDelete ? del : null;
     return [
@@ -457,7 +458,7 @@ class _WaterBatchProductionScreenState extends State<WaterBatchProductionScreen>
 
   Widget _score(String label, String value) => Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
           Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: TColors.slate900)),
@@ -491,8 +492,8 @@ class _WaterBatchProductionScreenState extends State<WaterBatchProductionScreen>
               Container(
                 width: 40,
                 height: 40,
-                decoration: BoxDecoration(color: const Color(0xFFE0F2FE), borderRadius: BorderRadius.circular(8)),
-                child: const Icon(Icons.calendar_month_outlined, color: Color(0xFF0284C7)),
+                decoration: BoxDecoration(color: const Tone.bg(0xFFE0F2FE), borderRadius: BorderRadius.circular(8)),
+                child: const Icon(Icons.calendar_month_outlined, color: Tone.fg(0xFF0284C7)),
               ),
               const SizedBox(width: 10),
               const Expanded(
@@ -551,7 +552,7 @@ class _WaterBatchProductionScreenState extends State<WaterBatchProductionScreen>
             if (filtered.isEmpty)
               Container(
                 padding: const EdgeInsets.all(32),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
                 child: const Text("No batch production records yet. Log the day's totals to get started.",
                     textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: TColors.slate500)),
               )
@@ -941,7 +942,7 @@ class _WaterBatchProductionFormScreenState extends State<WaterBatchProductionFor
         );
     return Container(
       padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
           Expanded(
@@ -963,7 +964,7 @@ class _WaterBatchProductionFormScreenState extends State<WaterBatchProductionFor
           IconButton(
             tooltip: 'Remove material',
             onPressed: () => setState(() => _materials.remove(m..dispose())),
-            icon: const Icon(Icons.delete_outline, color: Color(0xFFDC2626)),
+            icon: const Icon(Icons.delete_outline, color: Tone.fg(0xFFDC2626)),
           ),
         ]),
         const SizedBox(height: 8),
@@ -1014,18 +1015,18 @@ class _WaterBatchProductionFormScreenState extends State<WaterBatchProductionFor
           children: [
             Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: const Color(0xFFF0F9FF), border: Border.all(color: const Color(0xFFBAE6FD)), borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: const Tone.bg(0xFFF0F9FF), border: Border.all(color: const Tone.line(0xFFBAE6FD)), borderRadius: BorderRadius.circular(10)),
               child: const Text.rich(
                 TextSpan(children: [
                   TextSpan(text: 'Enter the batch totals only. ', style: TextStyle(fontWeight: FontWeight.w600)),
                   TextSpan(
                       text: 'Record everything the factory produced and consumed, combined across every machine. This record does nothing on its own — stock, expenses and finished goods are only touched once you allocate the batch across machines and post it.'),
                 ]),
-                style: TextStyle(fontSize: 13, color: Color(0xFF0C4A6E)),
+                style: TextStyle(fontSize: 13, color: Tone.fg(0xFF0C4A6E)),
               ),
             ),
             const SizedBox(height: 12),
-            formSection('Batch & scope', const Color(0xFF2563EB), [
+            formSection('Batch & scope', const Tone.fg(0xFF2563EB), [
               FilterLabel(
                 'Production date *',
                 AppDateField(
@@ -1079,7 +1080,7 @@ class _WaterBatchProductionFormScreenState extends State<WaterBatchProductionFor
               if (_scope == 'CustomMachines')
                 Container(
                   padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+                  decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
                   child: Material(type: MaterialType.transparency, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                     const Text('Select the machines that ran', style: TextStyle(fontSize: 12, color: TColors.slate500)),
                     for (final m in _machines)
@@ -1106,7 +1107,7 @@ class _WaterBatchProductionFormScreenState extends State<WaterBatchProductionFor
               ),
             ]),
             const SizedBox(height: 12),
-            formSection('Batch output', const Color(0xFF059669), [
+            formSection('Batch output', const Tone.fg(0xFF059669), [
               FilterLabel('Bags produced *', _num(_bags)),
               FilterLabel('Sachets per bag', _num(_perBag)),
               FilterLabel('Loose sachets', _num(_loose)),
@@ -1128,7 +1129,7 @@ class _WaterBatchProductionFormScreenState extends State<WaterBatchProductionFor
               ),
             ]),
             const SizedBox(height: 12),
-            formSection('Raw materials used', const Color(0xFF059669), [
+            formSection('Raw materials used', const Tone.fg(0xFF059669), [
               if (_materials.isEmpty)
                 const Text('No materials yet. Seed them from the product recipe, or add lines by hand.',
                     style: TextStyle(fontSize: 13, color: TColors.slate400)),
@@ -1150,11 +1151,11 @@ class _WaterBatchProductionFormScreenState extends State<WaterBatchProductionFor
               ),
             ]),
             const SizedBox(height: 12),
-            formSection('Notes', const Color(0xFF2563EB), [AppInput(controller: _notes, minLines: 2, maxLines: 4)]),
+            formSection('Notes', const Tone.fg(0xFF2563EB), [AppInput(controller: _notes, minLines: 2, maxLines: 4)]),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
               child: twoUp([
                 fig('Production cost', _gh(totalCost)),
                 fig('Material cost', _gh(matCost)),
@@ -1235,7 +1236,7 @@ class _WaterBatchProductionDetailScreenState extends State<WaterBatchProductionD
   }
 
   Widget _card(String? title, List<Widget> children) => Container(
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
         padding: const EdgeInsets.all(12),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           if (title != null) ...[Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: TColors.slate700)), const SizedBox(height: 8)],
@@ -1365,9 +1366,9 @@ class _WaterBatchProductionDetailScreenState extends State<WaterBatchProductionD
                             ? InkWell(
                                 onTap: () => _go(WaterProductionDetailScreen(session: s, company: c, batchId: tIntOrNull(a['generatedWaterProductionBatchId'])!)),
                                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                  Flexible(child: Text(tStr(a['generatedBatchNumber']), style: const TextStyle(fontSize: 12, color: Color(0xFF0284C7)))),
+                                  Flexible(child: Text(tStr(a['generatedBatchNumber']), style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF0284C7)))),
                                   const SizedBox(width: 4),
-                                  const Icon(Icons.open_in_new, size: 12, color: Color(0xFF0284C7)),
+                                  const Icon(Icons.open_in_new, size: 12, color: Tone.fg(0xFF0284C7)),
                                 ]),
                               )
                             : tStr(a['generatedBatchNumber']).isNotEmpty
@@ -1675,8 +1676,8 @@ class _WaterBatchAllocateScreenState extends State<WaterBatchAllocateScreen> {
             Wrap(spacing: 6, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
               TextButton.icon(onPressed: _busy ? null : () => Navigator.pop(context), icon: const Icon(Icons.arrow_back, size: 16), label: const Text('Back')),
               Text('Allocate $name', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: TColors.slate900)),
-              TBadge(_day10(day['productionDate']), bg: Colors.white, fg: TColors.slate700, border: TColors.slate300),
-              TBadge(tStr(day['productName']).isEmpty ? '—' : tStr(day['productName']), bg: Colors.white, fg: TColors.slate700, border: TColors.slate300),
+              TBadge(_day10(day['productionDate']), bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate700, border: TColors.slate300),
+              TBadge(tStr(day['productName']).isEmpty ? '—' : tStr(day['productName']), bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate700, border: TColors.slate300),
             ]),
             if (_readOnly) ...[
               const SizedBox(height: 8),
@@ -1718,7 +1719,7 @@ class _WaterBatchAllocateScreenState extends State<WaterBatchAllocateScreen> {
             ]),
             const SizedBox(height: 8),
             Container(
-              decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Table(
@@ -1741,7 +1742,7 @@ class _WaterBatchAllocateScreenState extends State<WaterBatchAllocateScreen> {
                         final r = _rows[i];
                         final errs = waterRowErrors(r, perBag);
                         return TableRow(
-                          decoration: BoxDecoration(color: errs.isNotEmpty ? const Color(0xFFFEF2F2) : null, border: const Border(top: BorderSide(color: TColors.slate100))),
+                          decoration: BoxDecoration(color: errs.isNotEmpty ? const Tone.bg(0xFFFEF2F2) : null, border: const Border(top: BorderSide(color: TColors.slate100))),
                           children: [
                             cell(
                               Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [

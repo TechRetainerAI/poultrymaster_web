@@ -15,6 +15,7 @@ import '../trackers/tracker_widgets.dart';
 import 'sale_reversal.dart' show customerCreditTotal;
 import 'sales_logic.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 export 'sales_logic.dart' show defaultCashAccountId;
 
 /// What a saved sale hands back to the Sales page: enough to offer the
@@ -445,7 +446,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
     return Container(
       key: ValueKey('${l.key}:amount'),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(color: const Color(0xB3FFFBEB), border: Border.all(color: const Color(0xFFFEF3C7)), borderRadius: BorderRadius.circular(6)),
+      decoration: BoxDecoration(color: const Tone.bg(0xB3FFFBEB), border: Border.all(color: const Tone.line(0xFFFEF3C7)), borderRadius: BorderRadius.circular(6)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Container(
@@ -560,7 +561,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
   Widget _line(int index, SaleItem l, ({num available, String units, bool short})? stock) {
     final egg = l.isEggs;
     final first = index == 1;
-    final edge = egg ? const Color(0xFFF59E0B) : const Color(0xFF0EA5E9);
+    final edge = egg ? const Tone(0xFFF59E0B) : const Tone(0xFF0EA5E9);
     final shown = [
       for (final c in _classes)
         if (c['classKind'] == 'Unsorted' || c['isActive'] == true || tIntOrNull(c['poultryProductId']) == l.eggProductId) c,
@@ -572,8 +573,8 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
         Container(
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border.all(color: egg ? TColors.amber200 : const Color(0xFFBAE6FD)),
+            color: Tone.bg(0xFFFFFFFF),
+            border: Border.all(color: egg ? TColors.amber200 : const Tone.line(0xFFBAE6FD)),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Stack(
@@ -609,7 +610,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
                         if (f.hasExtraLines)
                           IconButton(
                             tooltip: 'Remove line',
-                            icon: const Icon(Icons.close, size: 18, color: Color(0xFFEF4444)),
+                            icon: const Icon(Icons.close, size: 18, color: Tone.fg(0xFFEF4444)),
                             onPressed: () => setState(() => f.removeLine(l)),
                           ),
                       ],
@@ -815,7 +816,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
         height: 42,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: on ? color : Colors.white,
+          color: on ? color : Tone.bg(0xFFFFFFFF),
           border: Border.all(color: on ? color : TColors.slate200, width: 2),
           borderRadius: BorderRadius.circular(8),
         ),
@@ -834,7 +835,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: f.useCredit ? const Color(0xFFEFF6FF) : Colors.white,
+        color: f.useCredit ? const Tone.bg(0xFFEFF6FF) : Tone.bg(0xFFFFFFFF),
         border: Border.all(color: f.useCredit ? TColors.blue300 : TColors.slate200),
         borderRadius: BorderRadius.circular(8),
       ),
@@ -863,7 +864,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
                 Text.rich(
                   TextSpan(children: [
                     TextSpan(text: '${f.customerName} has '),
-                    TextSpan(text: _money(f.creditAvailable), style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF1D4ED8))),
+                    TextSpan(text: _money(f.creditAvailable), style: const TextStyle(fontWeight: FontWeight.w700, color: Tone.fg(0xFF1D4ED8))),
                     const TextSpan(text: ' of credit. No new payment is recorded and no cash moves.'),
                   ]),
                   style: const TextStyle(fontSize: 12, color: TColors.slate600),
@@ -880,7 +881,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
                 children: [
                   _label(
                     'Credit to use',
-                    color: const Color(0xFF1E40AF),
+                    color: const Tone.fg(0xFF1E40AF),
                     _num(_creditCtl, (v) => setState(() => f.creditAmount = v.isEmpty ? null : num.tryParse(v)), decimal: true, hint: '0.00'),
                   ),
                   const SizedBox(height: 6),
@@ -929,7 +930,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
         child: Container(
           padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
           decoration: const BoxDecoration(
-            color: Colors.white,
+            color: Tone.bg(0xFFFFFFFF),
             border: Border(top: BorderSide(color: TColors.slate200)),
           ),
           // Pinned while the form scrolls; Cancel under Record sale, as the web's phone layout.
@@ -938,7 +939,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: TColors.blue600, minimumSize: const Size.fromHeight(44)),
+                style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.blue600), minimumSize: const Size.fromHeight(44)),
                 onPressed: _saving ? null : _save,
                 child: Text(_saving ? 'Saving…' : 'Record sale · ${_money(total)}'),
               ),
@@ -969,16 +970,16 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(6)),
+              decoration: BoxDecoration(color: const Tone.bg(0xFFEFF6FF), borderRadius: BorderRadius.circular(6)),
               child: Text(
                 '${_money(fix.creditKept)} from the reversed sale is held as customer credit. '
                 'Save this as Pay later and you will be offered to apply it -- no new money is recorded.',
-                style: const TextStyle(fontSize: 13, color: Color(0xFF1E40AF)),
+                style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF1E40AF)),
               ),
             ),
           ],
           const SizedBox(height: 14),
-          _section('Customer & Date', TColors.blue600, const Color(0x66EFF6FF), TColors.blue200, [
+          _section('Customer & Date', TColors.blue600, const Tone.fg(0x66EFF6FF), TColors.blue200, [
             _label(
               'Customer *',
               trailing: const Tooltip(
@@ -1082,21 +1083,21 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
           const SizedBox(height: 16),
           _section(
             'Items',
-            const Color(0xFFF59E0B),
-            const Color(0x66FFFBEB),
+            const Tone.fg(0xFFF59E0B),
+            const Tone.fg(0x66FFFBEB),
             TColors.amber200,
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
-                  decoration: BoxDecoration(color: const Color(0x40FFFFFF), borderRadius: BorderRadius.circular(999)),
+                  decoration: BoxDecoration(color: const Tone.bg(0x40FFFFFF), borderRadius: BorderRadius.circular(999)),
                   child: Text('${f.items.length}', style: const TextStyle(fontSize: 12, color: Colors.white)),
                 ),
                 const SizedBox(width: 8),
                 FilledButton.icon(
                   style: FilledButton.styleFrom(
-                    backgroundColor: Colors.white,
+                    backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)),
                     foregroundColor: TColors.amber700,
                     minimumSize: const Size(0, 34),
                     padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -1183,7 +1184,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          _section('Payment', const Color(0xFF16A34A), const Color(0x66F0FDF4), const Color(0xFFBBF7D0), [
+          _section('Payment', const Tone.fg(0xFF16A34A), const Tone.fg(0x66F0FDF4), const Tone.fg(0xFFBBF7D0), [
             // Only when this customer holds credit: money they already paid,
             // kept for them (e.g. from a reversed sale).
             if (f.creditAvailable > 0) _creditBox(),
@@ -1198,7 +1199,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
                     _statusChoice(
                       'Paid now',
                       paidNowOn,
-                      const Color(0xFF16A34A),
+                      const Tone(0xFF16A34A),
                       () => setState(() {
                         f.partPayment = false;
                         f.paid = true;
@@ -1218,7 +1219,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
                     _statusChoice(
                       'Pay later',
                       payLaterOn,
-                      const Color(0xFFF59E0B),
+                      const Tone(0xFFF59E0B),
                       () => setState(() {
                         f.partPayment = false;
                         f.paid = false;
@@ -1244,7 +1245,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFEFF6FF),
+                      color: const Tone.bg(0xFFEFF6FF),
                       border: Border.all(color: TColors.blue200),
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -1253,7 +1254,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
                       children: [
                         _label(
                           'Amount paid now *',
-                          color: const Color(0xFF1E40AF),
+                          color: const Tone.fg(0xFF1E40AF),
                           _num(_partPaid, (v) => setState(() => f.partPaidAmount = v.isEmpty ? null : num.tryParse(v)), decimal: true, hint: '0.00'),
                         ),
                         const SizedBox(height: 8),
@@ -1284,7 +1285,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: Tone.bg(0xFFFFFFFF),
                   border: Border.all(color: TColors.slate200),
                   borderRadius: BorderRadius.circular(8),
                 ),

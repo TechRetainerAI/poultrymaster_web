@@ -21,6 +21,7 @@ import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, loc;
 import '../trackers/tracker_widgets.dart';
 import '../../shared/reason_select.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 const lossTypes = ['Damage', 'Mortality', 'Theft', 'Spoilage', 'MissingStock', 'Other'];
 
 /// The save body: an unset product, quantity or value goes as null.
@@ -205,7 +206,7 @@ class _LossRecordsScreenState extends State<LossRecordsScreen> {
     final pending = tStr(l['status']) == 'Pending';
     Widget btn(String label, IconData icon, VoidCallback onTap, {Color? fg, Color? border}) => OutlinedButton.icon(
           style: OutlinedButton.styleFrom(
-            backgroundColor: Colors.white,
+            backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)),
             foregroundColor: fg ?? TColors.slate800,
             side: border == null ? null : BorderSide(color: border),
             minimumSize: const Size.fromHeight(40),
@@ -227,9 +228,9 @@ class _LossRecordsScreenState extends State<LossRecordsScreen> {
             maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
         const SizedBox(height: 10),
         Row(children: [
-          Expanded(child: tile(tStr(l['lossType']), _qty(l), TColors.rose100, const Color(0xFFFDA4AF), const Color(0xFF881337), TColors.rose800)),
+          Expanded(child: tile(tStr(l['lossType']), _qty(l), TColors.rose100, const Tone(0xFFFDA4AF), const Tone(0xFF881337), TColors.rose800)),
           const SizedBox(width: 8),
-          Expanded(child: tile('Value', _value(l), TColors.violet100, const Color(0xFFC4B5FD), const Color(0xFF4C1D95), const Color(0xFF4C1D95))),
+          Expanded(child: tile('Value', _value(l), TColors.violet100, const Tone(0xFFC4B5FD), const Tone(0xFF4C1D95), const Tone(0xFF4C1D95))),
         ]),
       ]),
       body: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -245,7 +246,7 @@ class _LossRecordsScreenState extends State<LossRecordsScreen> {
           Row(children: [
             Expanded(
                 child: btn('Approve', Icons.check_circle_outline, () => _post(l, 'approve', 'Approved'),
-                    fg: TColors.green700, border: const Color(0xFFBBF7D0))),
+                    fg: TColors.green700, border: const Tone.line(0xFFBBF7D0))),
             const SizedBox(width: 8),
             Expanded(child: btn('Edit', Icons.edit_outlined, () => _form(l))),
           ]),
@@ -305,7 +306,7 @@ class _LossCardState extends State<_LossCard> {
   @override
   Widget build(BuildContext context) => Container(
         decoration: BoxDecoration(
-          color: widget.striped ? TColors.amber100 : Colors.white,
+          color: widget.striped ? TColors.amber100 : Tone.bg(0xFFFFFFFF),
           border: Border.all(color: widget.striped ? TColors.amber300 : TColors.slate200),
           borderRadius: BorderRadius.circular(12),
         ),
@@ -390,7 +391,7 @@ class _LossRecordDialogState extends State<LossRecordDialog> {
         title: Text(_e != null ? 'Edit loss record' : 'New loss record'),
         content: SizedBox(
           width: 480,
-          child: formSection('Loss details', const Color(0xFFD97706), [
+          child: formSection('Loss details', const Tone(0xFFD97706), [
             _cell('Date', AppDateField(value: businessDateAsDateTime(_date), onChanged: (v) => setState(() => _date = v == null ? '' : isoDay(v)))),
             _cell(
               'Type',

@@ -10,6 +10,7 @@ import '../../design/ui/form_dialog.dart';
 import '../../design/ui/inputs.dart';
 import '../poultry/trackers/tracker_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 const hotelViolet = TColors.violet600;
 
 List<Map<String, dynamic>> hotelRows(Object? r) => [
@@ -35,7 +36,7 @@ String hotelYmd(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-
 /// The date in a "2026-10-26…" value, or null.
 DateTime? hotelParseYmd(String v) => v.length < 10 ? null : DateTime.tryParse(v.substring(0, 10));
 
-ButtonStyle get hotelPrimary => FilledButton.styleFrom(backgroundColor: hotelViolet, foregroundColor: Colors.white);
+ButtonStyle get hotelPrimary => FilledButton.styleFrom(backgroundColor: Tone.button(hotelViolet), foregroundColor: Colors.white);
 
 /// The page header: the violet icon tile, the title (with an optional badge
 /// beside it) and the description.
@@ -95,7 +96,7 @@ class HotelCard extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(14),
     decoration: BoxDecoration(
-      color: Colors.white,
+      color: Tone.bg(0xFFFFFFFF),
       border: Border.all(color: TColors.slate200),
       borderRadius: BorderRadius.circular(14),
       boxShadow: const [BoxShadow(color: Color(0x08000000), blurRadius: 6, offset: Offset(0, 2))],
@@ -116,7 +117,7 @@ class HotelCard extends StatelessWidget {
                 if (icon != null) ...[
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
-                    child: Icon(icon, size: 20, color: const Color(0xFF8B5CF6)),
+                    child: Icon(icon, size: 20, color: const Tone.fg(0xFF8B5CF6)),
                   ),
                   const SizedBox(width: 8),
                 ],

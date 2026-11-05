@@ -24,6 +24,7 @@ import '../poultry/trackers/tracker_widgets.dart';
 import '../shared/business_dates.dart' show isoDay;
 import 'restaurant_expenses_screen.dart' show fmtShortDate;
 import 'restaurant_money_kit.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import 'restaurant_roles.dart' show restaurantRose;
 
 num orderPaid(Map o) => tNum(o['paidAmount']);
@@ -452,8 +453,8 @@ class _RestaurantSalesScreenState extends State<RestaurantSalesScreen> {
             Container(
               width: 40,
               height: 40,
-              decoration: BoxDecoration(color: const Color(0xFFFFE4E6), borderRadius: BorderRadius.circular(8)),
-              child: const Icon(Icons.shopping_cart_outlined, size: 20, color: Color(0xFFE11D48)),
+              decoration: BoxDecoration(color: const Tone.bg(0xFFFFE4E6), borderRadius: BorderRadius.circular(8)),
+              child: const Icon(Icons.shopping_cart_outlined, size: 20, color: Tone.fg(0xFFE11D48)),
             ),
             const SizedBox(width: 12),
             const Expanded(
@@ -465,7 +466,7 @@ class _RestaurantSalesScreenState extends State<RestaurantSalesScreen> {
           ]),
           const SizedBox(height: 12),
           FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: restaurantRose, minimumSize: const Size.fromHeight(44)),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(restaurantRose), minimumSize: const Size.fromHeight(44)),
             onPressed: () => _go('/restaurant-pos', 'POS / New Order'),
             icon: const Icon(Icons.add, size: 18),
             label: const Text('Add Sale'),
@@ -476,7 +477,7 @@ class _RestaurantSalesScreenState extends State<RestaurantSalesScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(color: TColors.rose50, border: Border.all(color: TColors.rose200), borderRadius: BorderRadius.circular(6)),
               child: Row(children: [
-                const Expanded(child: Text('Showing one order.', style: TextStyle(fontSize: 13, color: Color(0xFF881337)))),
+                const Expanded(child: Text('Showing one order.', style: TextStyle(fontSize: 13, color: Tone.fg(0xFF881337)))),
                 InkWell(
                   onTap: () => setState(() => _focus = null),
                   child: const Text('Show all sales', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: TColors.rose700)),
@@ -502,7 +503,7 @@ class _RestaurantSalesScreenState extends State<RestaurantSalesScreen> {
                   const SizedBox(width: 6),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6),
-                    decoration: BoxDecoration(color: const Color(0xFFF97316), borderRadius: BorderRadius.circular(999)),
+                    decoration: BoxDecoration(color: const Tone.bg(0xFFF97316), borderRadius: BorderRadius.circular(999)),
                     child: Text('$_activeCount', style: const TextStyle(fontSize: 12, color: Colors.white)),
                   ),
                 ],
@@ -708,7 +709,7 @@ class _SaleCardState extends State<_SaleCard> {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: widget.striped ? TColors.amber100 : Colors.white,
+        color: widget.striped ? TColors.amber100 : Tone.bg(0xFFFFFFFF),
         border: Border.all(color: widget.striped ? TColors.amber300 : TColors.slate200),
         borderRadius: BorderRadius.circular(12),
       ),
@@ -864,7 +865,7 @@ class _InvoiceScreenState extends State<_InvoiceScreen> {
         Wrap(alignment: WrapAlignment.end, spacing: 8, children: [
           OutlinedButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
           FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: restaurantRose),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(restaurantRose)),
             onPressed: _lines == null ? null : _print,
             icon: const Icon(Icons.print_outlined, size: 16),
             label: const Text('Print'),

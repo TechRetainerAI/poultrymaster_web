@@ -5,6 +5,7 @@ import '../design/web_mobile.dart';
 import '../models/company.dart';
 import '../widgets/company_type_badge.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// The dark app header the web shows on a phone: hamburger, the VisibilityCore
 /// wordmark, a chat icon and the user avatar.
 class WebAppHeader extends StatelessWidget implements PreferredSizeWidget {
@@ -59,7 +60,7 @@ class WebAppHeader extends StatelessWidget implements PreferredSizeWidget {
               width: 26,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: .12),
+                color: Tone.bg(0xFFFFFFFF).withValues(alpha: .12),
                 borderRadius: BorderRadius.circular(7),
               ),
               child: const Icon(Icons.visibility, size: 15, color: Colors.white),
@@ -100,7 +101,7 @@ class WebAppHeader extends StatelessWidget implements PreferredSizeWidget {
                     height: 18,
                     padding: const EdgeInsets.symmetric(horizontal: 4),
                     alignment: Alignment.center,
-                    decoration: BoxDecoration(color: const Color(0xFFDC2626), borderRadius: BorderRadius.circular(999)),
+                    decoration: BoxDecoration(color: const Tone.bg(0xFFDC2626), borderRadius: BorderRadius.circular(999)),
                     child: Text(alertCount! > 99 ? '99+' : '$alertCount',
                         style: const TextStyle(fontSize: 10, color: Colors.white)),
                   ),
@@ -121,7 +122,7 @@ class WebAppHeader extends StatelessWidget implements PreferredSizeWidget {
               width: 30,
               alignment: Alignment.center,
               decoration: const BoxDecoration(
-                color: Color(0xFF9333EA), // purple avatar
+                color: Tone.bg(0xFF9333EA), // purple avatar
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.person, size: 17, color: Colors.white),

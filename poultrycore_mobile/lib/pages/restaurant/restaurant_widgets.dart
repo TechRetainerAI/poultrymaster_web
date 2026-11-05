@@ -6,6 +6,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 import '../poultry/trackers/tracker_widgets.dart' show TColors;
 import 'restaurant_roles.dart' show restaurantRose;
 
@@ -31,7 +32,7 @@ class RPageHeader extends StatelessWidget {
     required this.title,
     this.subtitle,
     this.actions = const [],
-    this.tileColor = const Color(0xFFFFE4E6),
+    this.tileColor = const Tone.bg(0xFFFFE4E6),
     this.iconColor = restaurantRose,
   });
   final IconData icon;
@@ -53,7 +54,7 @@ class RPageHeader extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+              Text(title, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w700, color: Tone.fg(0xFF111827))),
               if (subtitle != null) Text(subtitle!, style: const TextStyle(fontSize: 13, color: TColors.slate500)),
             ]),
           ),
@@ -69,7 +70,7 @@ class RPageHeader extends StatelessWidget {
 
 /// The rose primary button the pages use.
 Widget roseButton(String label, VoidCallback? onTap, {IconData icon = Icons.add, Color color = restaurantRose}) => FilledButton.icon(
-      style: FilledButton.styleFrom(backgroundColor: color, minimumSize: const Size.fromHeight(44)),
+      style: FilledButton.styleFrom(backgroundColor: Tone.button(color), minimumSize: const Size.fromHeight(44)),
       onPressed: onTap,
       icon: Icon(icon, size: 18),
       label: Text(label),
@@ -77,13 +78,13 @@ Widget roseButton(String label, VoidCallback? onTap, {IconData icon = Icons.add,
 
 /// StatCard colours (border-l-* and the icon tile).
 const rStatColors = <String, (Color, Color, Color)>{
-  'rose': (Color(0xFFF43F5E), Color(0xFFFFF1F2), Color(0xFFE11D48)),
-  'green': (Color(0xFF22C55E), Color(0xFFF0FDF4), Color(0xFF16A34A)),
-  'blue': (Color(0xFF3B82F6), Color(0xFFEFF6FF), Color(0xFF2563EB)),
-  'amber': (Color(0xFFF59E0B), Color(0xFFFFFBEB), Color(0xFFD97706)),
-  'purple': (Color(0xFFA855F7), Color(0xFFFAF5FF), Color(0xFF9333EA)),
-  'red': (Color(0xFFEF4444), Color(0xFFFEF2F2), Color(0xFFDC2626)),
-  'indigo': (Color(0xFF6366F1), Color(0xFFEEF2FF), Color(0xFF4F46E5)),
+  'rose': (Tone(0xFFF43F5E), Tone(0xFFFFF1F2), Tone(0xFFE11D48)),
+  'green': (Tone(0xFF22C55E), Tone(0xFFF0FDF4), Tone(0xFF16A34A)),
+  'blue': (Tone(0xFF3B82F6), Tone(0xFFEFF6FF), Tone(0xFF2563EB)),
+  'amber': (Tone(0xFFF59E0B), Tone(0xFFFFFBEB), Tone(0xFFD97706)),
+  'purple': (Tone(0xFFA855F7), Tone(0xFFFAF5FF), Tone(0xFF9333EA)),
+  'red': (Tone(0xFFEF4444), Tone(0xFFFEF2F2), Tone(0xFFDC2626)),
+  'indigo': (Tone(0xFF6366F1), Tone(0xFFEEF2FF), Tone(0xFF4F46E5)),
 };
 
 class RStatCard extends StatelessWidget {
@@ -98,7 +99,7 @@ class RStatCard extends StatelessWidget {
     final (stripe, tileBg, tileFg) = rStatColors[color] ?? rStatColors['rose']!;
     return Container(
       clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: TColors.slate200)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), borderRadius: BorderRadius.circular(10), border: Border.all(color: TColors.slate200)),
       child: IntrinsicHeight(
         child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Container(width: 4, color: stripe),
@@ -155,16 +156,16 @@ class REmptyState extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 16),
         decoration: BoxDecoration(border: Border.all(color: TColors.slate200, width: 2), borderRadius: BorderRadius.circular(12)),
         child: Column(children: [
-          Icon(icon, size: 44, color: const Color(0xFFD1D5DB)),
+          Icon(icon, size: 44, color: const Tone.fg(0xFFD1D5DB)),
           const SizedBox(height: 10),
-          Text(title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF6B7280))),
+          Text(title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Tone.fg(0xFF6B7280))),
           if (description != null) ...[
             const SizedBox(height: 4),
-            Text(description!, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: Color(0xFF9CA3AF))),
+            Text(description!, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF9CA3AF))),
           ],
           if (actionLabel != null && onAction != null) ...[
             const SizedBox(height: 14),
-            FilledButton(style: FilledButton.styleFrom(backgroundColor: restaurantRose), onPressed: onAction, child: Text(actionLabel!)),
+            FilledButton(style: FilledButton.styleFrom(backgroundColor: Tone.button(restaurantRose)), onPressed: onAction, child: Text(actionLabel!)),
           ],
         ]),
       );
@@ -181,7 +182,7 @@ class RTabs extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Tone.bg(0xFFFFFFFF),
           border: Border.all(color: TColors.slate200),
           borderRadius: BorderRadius.circular(8),
           boxShadow: const [BoxShadow(color: Color(0x0D000000), blurRadius: 2, offset: Offset(0, 1))],
@@ -189,7 +190,7 @@ class RTabs extends StatelessWidget {
         child: Wrap(spacing: 4, runSpacing: 4, children: [
           for (final (v, icon, label, badge) in tabs)
             Material(
-              color: value == v ? const Color(0xFFFFF1F2) : Colors.transparent,
+              color: value == v ? const Tone.bg(0xFFFFF1F2) : Colors.transparent,
               borderRadius: BorderRadius.circular(6),
               child: InkWell(
                 borderRadius: BorderRadius.circular(6),
@@ -197,9 +198,9 @@ class RTabs extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(icon, size: 16, color: value == v ? const Color(0xFFBE123C) : TColors.slate600),
+                    Icon(icon, size: 16, color: value == v ? const Tone.fg(0xFFBE123C) : TColors.slate600),
                     const SizedBox(width: 6),
-                    Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: value == v ? const Color(0xFFBE123C) : TColors.slate600)),
+                    Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: value == v ? const Tone.fg(0xFFBE123C) : TColors.slate600)),
                     if (badge != null) ...[const SizedBox(width: 6), badge],
                   ]),
                 ),
@@ -210,7 +211,7 @@ class RTabs extends StatelessWidget {
 }
 
 /// A small pill badge.
-Widget rBadge(String text, {Color bg = const Color(0xFFF3F4F6), Color fg = const Color(0xFF374151), Color? border}) => Container(
+Widget rBadge(String text, {Color bg = const Tone.bg(0xFFF3F4F6), Color fg = const Tone.fg(0xFF374151), Color? border}) => Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
       decoration: BoxDecoration(color: bg, border: Border.all(color: border ?? bg), borderRadius: BorderRadius.circular(999)),
       child: Text(text, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: fg)),
@@ -221,7 +222,7 @@ Widget rLabel(String text, {bool required = false}) => Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Text.rich(TextSpan(children: [
         TextSpan(text: text),
-        if (required) const TextSpan(text: ' *', style: TextStyle(color: Color(0xFFF43F5E))),
+        if (required) const TextSpan(text: ' *', style: TextStyle(color: Tone.fg(0xFFF43F5E))),
       ]), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
     );
 
@@ -229,5 +230,5 @@ Widget rLabel(String text, {bool required = false}) => Padding(
 Widget rDialogActions(BuildContext context, String confirm, VoidCallback? onConfirm, {Color color = restaurantRose}) =>
     Wrap(alignment: WrapAlignment.end, spacing: 8, runSpacing: 8, children: [
       OutlinedButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-      FilledButton(style: FilledButton.styleFrom(backgroundColor: color), onPressed: onConfirm, child: Text(confirm)),
+      FilledButton(style: FilledButton.styleFrom(backgroundColor: Tone.button(color)), onPressed: onConfirm, child: Text(confirm)),
     ]);

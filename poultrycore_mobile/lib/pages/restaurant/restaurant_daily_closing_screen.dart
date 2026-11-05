@@ -24,6 +24,7 @@ import 'restaurant_money_kit.dart' show rField, rFin, rDateInput, rDialog, rCanc
 import 'restaurant_roles.dart' show restaurantRose;
 import 'restaurant_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// `nice`: "Tue, 21 Oct 2026", or "—".
 String closingNice(Object? iso) {
   final s = tStr(iso);
@@ -32,13 +33,13 @@ String closingNice(Object? iso) {
 }
 
 const closingStatusColors = <String, (Color, Color)>{
-  'Open': (Color(0xFFF1F5F9), Color(0xFF334155)),
-  'Closed': (Color(0xFFDCFCE7), Color(0xFF166534)),
-  'Reopened': (Color(0xFFFEF3C7), Color(0xFF92400E)),
+  'Open': (Tone(0xFFF1F5F9), Tone(0xFF334155)),
+  'Closed': (Tone(0xFFDCFCE7), Tone(0xFF166534)),
+  'Reopened': (Tone(0xFFFEF3C7), Tone(0xFF92400E)),
 };
 
 Widget closingBadge(String status) {
-  final (bg, fg) = closingStatusColors[status] ?? (const Color(0xFFF3F4F6), const Color(0xFF374151));
+  final (bg, fg) = closingStatusColors[status] ?? (const Tone(0xFFF3F4F6), const Tone(0xFF374151));
   return rBadge(status, bg: bg, fg: fg);
 }
 
@@ -162,7 +163,7 @@ class _RestaurantDailyClosingScreenState extends State<RestaurantDailyClosingScr
         ),
         const SizedBox(width: 8),
         FilledButton.icon(
-          style: FilledButton.styleFrom(backgroundColor: restaurantRose),
+          style: FilledButton.styleFrom(backgroundColor: Tone.button(restaurantRose)),
           onPressed: _newClosing,
           icon: const Icon(Icons.add, size: 16),
           label: const Text('New closing'),
@@ -213,12 +214,12 @@ class _RestaurantDailyClosingScreenState extends State<RestaurantDailyClosingScr
 
   Widget _dayTiles(num orders, String sales, String cash) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
-          Expanded(child: _tile('Orders', '${orders.toInt()}', const Color(0xFFD1FAE5), const Color(0xFF6EE7B7), const Color(0xFF065F46))),
+          Expanded(child: _tile('Orders', '${orders.toInt()}', const Tone(0xFFD1FAE5), const Tone(0xFF6EE7B7), const Tone(0xFF065F46))),
           const SizedBox(width: 8),
-          Expanded(child: _tile('Net sales', sales, const Color(0xFFDBEAFE), const Color(0xFF93C5FD), const Color(0xFF1E40AF))),
+          Expanded(child: _tile('Net sales', sales, const Tone(0xFFDBEAFE), const Tone(0xFF93C5FD), const Tone(0xFF1E40AF))),
         ]),
         const SizedBox(height: 8),
-        _tile('Cash in − out', cash, const Color(0xFFEDE9FE), const Color(0xFFC4B5FD), const Color(0xFF4C1D95)),
+        _tile('Cash in − out', cash, const Tone(0xFFEDE9FE), const Tone(0xFFC4B5FD), const Tone(0xFF4C1D95)),
       ]);
 
   Widget _pair(String k, String v, {Color? color}) => Text.rich(
@@ -234,26 +235,26 @@ class _RestaurantDailyClosingScreenState extends State<RestaurantDailyClosingScr
     final last = tStr(p['lastClosedDate']);
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: const Color(0xFFFFF1F2), border: Border.all(color: const Color(0xFFFECDD3)), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: const Tone.bg(0xFFFFF1F2), border: Border.all(color: const Tone.line(0xFFFECDD3)), borderRadius: BorderRadius.circular(12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Wrap(spacing: 8, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
-          Text(closingNice(p['closingDate']), style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF0F172A))),
+          Text(closingNice(p['closingDate']), style: const TextStyle(fontWeight: FontWeight.w600, color: Tone.fg(0xFF0F172A))),
           closingBadge(closed ? 'Closed' : 'Open'),
         ]),
         const SizedBox(height: 8),
-        Container(color: Colors.white, child: rDateInput(_date, _setDate, max: rTodayIso())),
+        Container(color: Tone.bg(0xFFFFFFFF), child: rDateInput(_date, _setDate, max: rTodayIso())),
         const SizedBox(height: 10),
         _dayTiles(tNum(p['orderCount']), _gh(tNum(p['netSales'])), _gh(tNum(p['moneyIn']) - tNum(p['moneyOut']))),
-        const Divider(height: 18, color: Color(0xFFFECDD3)),
+        const Divider(height: 18, color: Tone.line(0xFFFECDD3)),
         Row(children: [
-          Expanded(child: _pair('Money in', _gh(tNum(p['moneyIn'])), color: const Color(0xFF047857))),
-          Expanded(child: _pair('Money out', _gh(tNum(p['moneyOut'])), color: const Color(0xFFBE123C))),
+          Expanded(child: _pair('Money in', _gh(tNum(p['moneyIn'])), color: const Tone(0xFF047857))),
+          Expanded(child: _pair('Money out', _gh(tNum(p['moneyOut'])), color: const Tone(0xFFBE123C))),
         ]),
         const SizedBox(height: 4),
         Row(children: [
           Expanded(child: _pair('Takings', _gh(dayTakings(p)))),
           Expanded(
-              child: _pair('Over / short', _gh(tNum(p['cashVariance'])), color: tNum(p['cashVariance']) < 0 ? const Color(0xFFBE123C) : null)),
+              child: _pair('Over / short', _gh(tNum(p['cashVariance'])), color: tNum(p['cashVariance']) < 0 ? const Tone(0xFFBE123C) : null)),
         ]),
         const SizedBox(height: 8),
         Text(
@@ -266,7 +267,7 @@ class _RestaurantDailyClosingScreenState extends State<RestaurantDailyClosingScr
         Row(children: [
           Expanded(
             child: OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(backgroundColor: Colors.white, minimumSize: const Size.fromHeight(42)),
+              style: OutlinedButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)), minimumSize: const Size.fromHeight(42)),
               onPressed: () => _openClosing(),
               icon: const Icon(Icons.visibility_outlined, size: 16),
               label: const Text('Open closing'),
@@ -276,7 +277,7 @@ class _RestaurantDailyClosingScreenState extends State<RestaurantDailyClosingScr
             const SizedBox(width: 8),
             Expanded(
               child: FilledButton.icon(
-                style: FilledButton.styleFrom(backgroundColor: restaurantRose, minimumSize: const Size.fromHeight(42)),
+                style: FilledButton.styleFrom(backgroundColor: Tone.button(restaurantRose), minimumSize: const Size.fromHeight(42)),
                 onPressed: tNum(p['openShifts']) > 0 ? null : _close,
                 icon: const Icon(Icons.lock_outline, size: 16),
                 label: const Text('Close this day'),
@@ -292,12 +293,12 @@ class _RestaurantDailyClosingScreenState extends State<RestaurantDailyClosingScr
     final shifts = tNum(p['openShifts']).toInt();
     final orders = tNum(p['openOrders']).toInt();
     final unpaid = tNum(p['unpaidOrders']).toInt();
-    const style = TextStyle(fontSize: 13, color: Color(0xFF78350F));
+    const style = TextStyle(fontSize: 13, color: Tone.fg(0xFF78350F));
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: const Color(0xFFFFFBEB), border: Border.all(color: const Color(0xFFFDE68A)), borderRadius: BorderRadius.circular(8)),
+      decoration: BoxDecoration(color: const Tone.bg(0xFFFFFBEB), border: Border.all(color: const Tone.line(0xFFFDE68A)), borderRadius: BorderRadius.circular(8)),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Icon(Icons.warning_amber_rounded, size: 16, color: Color(0xFFB45309)),
+        const Icon(Icons.warning_amber_rounded, size: 16, color: Tone.fg(0xFFB45309)),
         const SizedBox(width: 8),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -334,7 +335,7 @@ class _RestaurantDailyClosingScreenState extends State<RestaurantDailyClosingScr
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: striped ? const Color(0xFFF8FAFC) : Colors.white,
+        color: striped ? const Tone.bg(0xFFF8FAFC) : Tone.bg(0xFFFFFFFF),
         border: Border.all(color: TColors.slate200),
         borderRadius: BorderRadius.circular(12),
       ),
@@ -348,16 +349,16 @@ class _RestaurantDailyClosingScreenState extends State<RestaurantDailyClosingScr
         const SizedBox(height: 8),
         _dayTiles(tNum(h['orderCount']), _gh(tNum(h['netSales'])), _gh(tNum(h['moneyIn']) - tNum(h['moneyOut']))),
         const SizedBox(height: 8),
-        detail('Money in', Text(_gh(tNum(h['moneyIn'])), style: const TextStyle(fontSize: 13, color: Color(0xFF047857)))),
-        detail('Money out', Text(_gh(tNum(h['moneyOut'])), style: const TextStyle(fontSize: 13, color: Color(0xFFBE123C)))),
+        detail('Money in', Text(_gh(tNum(h['moneyIn'])), style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF047857)))),
+        detail('Money out', Text(_gh(tNum(h['moneyOut'])), style: const TextStyle(fontSize: 13, color: Tone.fg(0xFFBE123C)))),
         detail('Over / short',
-            Text(_gh(tNum(h['cashVariance'])), style: TextStyle(fontSize: 13, color: tNum(h['cashVariance']) < 0 ? const Color(0xFFBE123C) : null))),
+            Text(_gh(tNum(h['cashVariance'])), style: TextStyle(fontSize: 13, color: tNum(h['cashVariance']) < 0 ? const Tone.fg(0xFFBE123C) : null))),
         detail('Closed by', Text(tStr(h['closedBy']).isEmpty ? '—' : tStr(h['closedBy']), style: const TextStyle(fontSize: 13))),
         const SizedBox(height: 8),
         Row(children: [
           Expanded(
             child: OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(backgroundColor: Colors.white, minimumSize: const Size.fromHeight(42)),
+              style: OutlinedButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)), minimumSize: const Size.fromHeight(42)),
               onPressed: () => _openClosing(tStr(h['closingDate'])),
               icon: const Icon(Icons.visibility_outlined, size: 16),
               label: const Text('Open closing'),
@@ -367,7 +368,7 @@ class _RestaurantDailyClosingScreenState extends State<RestaurantDailyClosingScr
             const SizedBox(width: 8),
             Expanded(
               child: OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(backgroundColor: Colors.white, minimumSize: const Size.fromHeight(42)),
+                style: OutlinedButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)), minimumSize: const Size.fromHeight(42)),
                 onPressed: () => _reopen(h),
                 icon: const Icon(Icons.lock_open_outlined, size: 16),
                 label: const Text('Reopen'),
@@ -397,7 +398,7 @@ class _NewClosingDialogState extends State<_NewClosingDialog> {
         actions: [
           rCancel(context, 'Cancel'),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: restaurantRose),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(restaurantRose)),
             onPressed: _day.isEmpty ? null : () => Navigator.pop(context, _day),
             child: const Text('Review day'),
           ),
@@ -414,16 +415,16 @@ class _ViewDialog extends StatelessWidget {
 
   Widget _tile(String label, String value, {String? accent}) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: const TextStyle(fontSize: 11, color: TColors.slate500)),
           Text(value,
               style: TextStyle(
                 fontWeight: FontWeight.w600,
                 color: switch (accent) {
-                  'green' => const Color(0xFF047857),
-                  'rose' => const Color(0xFFBE123C),
-                  _ => const Color(0xFF0F172A),
+                  'green' => const Tone.fg(0xFF047857),
+                  'rose' => const Tone.fg(0xFFBE123C),
+                  _ => const Tone.fg(0xFF0F172A),
                 },
               )),
         ]),
@@ -479,7 +480,7 @@ class _ViewDialog extends StatelessWidget {
         Wrap(spacing: 8, runSpacing: 8, alignment: WrapAlignment.end, children: [
           if (!closed)
             FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: restaurantRose),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(restaurantRose)),
               onPressed: tNum(p['openShifts']) > 0 ? null : () => Navigator.pop(context, true),
               icon: const Icon(Icons.lock_outline, size: 16),
               label: const Text('Close this day'),
@@ -534,7 +535,7 @@ class _CloseDayDialogState extends State<_CloseDayDialog> {
         actions: [
           rCancel(context, 'Cancel', busy: _saving),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: restaurantRose),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(restaurantRose)),
             onPressed: _saving ? null : _submit,
             child: const Text('Close the day'),
           ),
@@ -581,7 +582,7 @@ class _ReopenDialogState extends State<_ReopenDialog> {
         actions: [
           rCancel(context, 'Cancel', busy: _saving),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: restaurantRose),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(restaurantRose)),
             onPressed: _saving || _reason.trim().isEmpty ? null : _submit,
             child: const Text('Reopen'),
           ),

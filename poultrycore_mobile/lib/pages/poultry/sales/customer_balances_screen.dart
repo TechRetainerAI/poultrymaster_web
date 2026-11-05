@@ -18,6 +18,7 @@ import 'debt_dialogs.dart';
 import 'sale_reversal.dart';
 import 'sales_screen.dart';
 import '../../water/water_sales_screen.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import '../reports/report_routes.dart' show openAppHref;
 
 /// Poultry → Sales, Expenses & Money → Sales → Customer Balances, as
@@ -369,7 +370,7 @@ class _CustomerBalancesScreenState extends State<CustomerBalancesScreen> {
           children: [
             Row(children: [
               _side.isCustomer
-                  ? const Icon(Icons.people_outline, size: 24, color: Color(0xFF0284C7))
+                  ? const Icon(Icons.people_outline, size: 24, color: Tone.fg(0xFF0284C7))
                   : const Icon(Icons.account_balance_wallet_outlined, size: 24, color: TColors.amber600),
               const SizedBox(width: 8),
               Expanded(
@@ -381,7 +382,7 @@ class _CustomerBalancesScreenState extends State<CustomerBalancesScreen> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: FilledButton.icon(
-                  style: FilledButton.styleFrom(backgroundColor: TColors.amber600),
+                  style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.amber600)),
                   onPressed: _recordDebt,
                   icon: const Icon(Icons.add, size: 16),
                   label: Text(_side.isCustomer ? 'Record customer debt' : 'Record supplier debt'),
@@ -404,7 +405,7 @@ class _CustomerBalancesScreenState extends State<CustomerBalancesScreen> {
                       child: Container(
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: Tone.bg(0xFFFFFFFF),
                           border: Border.all(color: TColors.slate200),
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -545,7 +546,7 @@ class _CustomerBalancesScreenState extends State<CustomerBalancesScreen> {
             ),
             const SizedBox(height: 14),
             Container(
-              decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
               child: _loading
                   ? const Padding(padding: EdgeInsets.all(24), child: LoadingLine('Loading…'))
                   : visible.isEmpty
@@ -685,7 +686,7 @@ class _PartyCardState extends State<_PartyCard> {
             label: Text(label),
           )
         : OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(backgroundColor: Colors.white, minimumSize: const Size.fromHeight(40)),
+            style: OutlinedButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)), minimumSize: const Size.fromHeight(40)),
             onPressed: on,
             icon: Icon(icon, size: 16),
             label: Text(label),
@@ -694,7 +695,7 @@ class _PartyCardState extends State<_PartyCard> {
     return Container(
       padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
       decoration: BoxDecoration(
-        color: widget.striped ? TColors.amber100 : Colors.white,
+        color: widget.striped ? TColors.amber100 : Tone.bg(0xFFFFFFFF),
         border: Border.all(color: widget.striped ? TColors.amber300 : TColors.slate200),
         borderRadius: BorderRadius.circular(12),
       ),
@@ -716,7 +717,7 @@ class _PartyCardState extends State<_PartyCard> {
             Row(children: [
               Expanded(
                 child: box('Balance', fmt(tNum(p['totalBalance'])), TColors.violet100, TColors.violet200,
-                    const Color(0xFF4C1D95), const Color(0xFF4C1D95)),
+                    const Tone(0xFF4C1D95), const Tone(0xFF4C1D95)),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -751,7 +752,7 @@ class _PartyCardState extends State<_PartyCard> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: const Color(0xFFEFF6FF),
+                color: const Tone.bg(0xFFEFF6FF),
                 border: Border.all(color: TColors.blue200),
                 borderRadius: BorderRadius.circular(8),
               ),
@@ -778,7 +779,7 @@ class _PartyCardState extends State<_PartyCard> {
       child: Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.blue200), borderRadius: BorderRadius.circular(6)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.blue200), borderRadius: BorderRadius.circular(6)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Expanded(

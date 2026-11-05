@@ -7,6 +7,7 @@ import '../../design/ui/form_section.dart';
 import '../../design/ui/inputs.dart';
 import '../../models/company.dart';
 import '../../state/session.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import 'staff_employee_link.dart' show EmployeePrefill, suggestUserName;
 
 /// Users & Permissions → Add / Edit employee, as the web's
@@ -630,7 +631,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
               Padding(
                 padding: const EdgeInsets.only(bottom: 6),
                 child: Material(
-                  color: _access.containsKey(c.farmId) ? const Color(0xFFEEF2FF) : Colors.white,
+                  color: _access.containsKey(c.farmId) ? const Tone.bg(0xFFEEF2FF) : Tone.bg(0xFFFFFFFF),
                   borderRadius: BorderRadius.circular(10),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(10),
@@ -639,15 +640,15 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: _access.containsKey(c.farmId) ? const Color(0xFFC7D2FE) : const Color(0xFFE2E8F0)),
+                        border: Border.all(color: _access.containsKey(c.farmId) ? const Tone.line(0xFFC7D2FE) : const Tone.line(0xFFE2E8F0)),
                       ),
                       child: Row(children: [
                         Container(
                           width: 20,
                           height: 20,
                           decoration: BoxDecoration(
-                            color: _access.containsKey(c.farmId) ? const Color(0xFF4F46E5) : Colors.white,
-                            border: Border.all(color: _access.containsKey(c.farmId) ? const Color(0xFF4F46E5) : const Color(0xFFCBD5E1)),
+                            color: _access.containsKey(c.farmId) ? const Tone.bg(0xFF4F46E5) : Tone.bg(0xFFFFFFFF),
+                            border: Border.all(color: _access.containsKey(c.farmId) ? const Tone.line(0xFF4F46E5) : const Tone.line(0xFFCBD5E1)),
                             borderRadius: BorderRadius.circular(5),
                           ),
                           child: _busyFarm == c.farmId
@@ -658,7 +659,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
                         ),
                         const SizedBox(width: 12),
                         Expanded(child: Text(c.name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14))),
-                        Text(c.type.wire, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                        Text(c.type.wire, style: const TextStyle(fontSize: 11, color: Tone.fg(0xFF64748B))),
                       ]),
                     ),
                   ),
@@ -670,7 +671,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
         label: '',
         full: true,
         child: Text('Toggling access adds or removes this employee from the company. Changes apply immediately.',
-            style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
+            style: TextStyle(fontSize: 12, color: Tone.fg(0xFF94A3B8))),
       ),
     ]);
   }
@@ -678,10 +679,10 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
   /// Business Office: "Company · Assign to company *", as the web's orange band.
   Widget _companyPicker() => Container(
         clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(border: Border.all(color: const Color(0xFFFED7AA)), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(border: Border.all(color: const Tone.line(0xFFFED7AA)), borderRadius: BorderRadius.circular(12)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Container(
-            color: const Color(0xFFF97316),
+            color: const Tone.bg(0xFFF97316),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
             child: const Text('Company', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
           ),
@@ -796,7 +797,7 @@ class _Note extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0x99ECFEFF), // cyan-50/60
+        color: const Tone.bg(0x99ECFEFF), // cyan-50/60
         border: Border.all(color: tokens.border),
         borderRadius: BorderRadius.circular(Dim.radiusMd),
       ),

@@ -21,33 +21,30 @@ import '../../api/api_client.dart';
 import '../../models/company.dart';
 import '../../state/session.dart';
 import '../../widgets/module_sidebar.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import '../poultry/trackers/tracker_logic.dart' show tNum, tStr;
 import '../shared/business_dates.dart' show fmtInstant;
 import 'restaurant_widgets.dart' show restaurantImage;
 
-const _rose600 = Color(0xFFE11D48);
-const _rose700 = Color(0xFFBE123C);
-const _rose50 = Color(0xFFFFF1F2);
-const _rose200 = Color(0xFFFECDD3);
-const _stone50 = Color(0xFFFAFAF9);
-const _stone100 = Color(0xFFF5F5F4);
-const _stone200 = Color(0xFFE7E5E4);
-const _stone300 = Color(0xFFD6D3D1);
-const _stone400 = Color(0xFFA8A29E);
-const _stone500 = Color(0xFF78716C);
-const _stone600 = Color(0xFF57534E);
-const _stone700 = Color(0xFF44403C);
-const _stone900 = Color(0xFF1C1917);
-const _page = Color(0xFFFAF7F6);
-const _amber50 = Color(0xFFFFFBEB);
-const _amber200 = Color(0xFFFDE68A);
-const _amber400 = Color(0xFFFBBF24);
-const _amber600 = Color(0xFFD97706);
-const _amber700 = Color(0xFFB45309);
-const _amber900 = Color(0xFF78350F);
-const _emerald50 = Color(0xFFECFDF5);
-const _emerald600 = Color(0xFF059669);
-const _emerald900 = Color(0xFF064E3B);
+const _rose600 = Tone(0xFFE11D48);
+const _rose700 = Tone(0xFFBE123C);
+const _rose50 = Tone.bg(0xFFFFF1F2);
+const _stone50 = Tone.bg(0xFFFAFAF9);
+const _stone100 = Tone.bg(0xFFF5F5F4);
+const _stone300 = Tone.fg(0xFFD6D3D1);
+const _stone400 = Tone.fg(0xFFA8A29E);
+const _stone500 = Tone.fg(0xFF78716C);
+const _stone600 = Tone.fg(0xFF57534E);
+const _stone700 = Tone.fg(0xFF44403C);
+const _page = Tone.bg(0xFFFAF7F6);
+const _amber50 = Tone.bg(0xFFFFFBEB);
+const _amber400 = Tone.fg(0xFFFBBF24);
+const _amber600 = Tone.fg(0xFFD97706);
+const _amber700 = Tone.fg(0xFFB45309);
+const _amber900 = Tone.fg(0xFF78350F);
+const _emerald50 = Tone.bg(0xFFECFDF5);
+const _emerald600 = Tone(0xFF059669);
+const _emerald900 = Tone.fg(0xFF064E3B);
 
 const _done = ['Completed', 'Cancelled', 'Refunded', 'Served'];
 
@@ -560,13 +557,13 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
     final lead = c == null ? null : sidebarLeading(context, widget.session, c, href: '/restaurant-order-online');
     final Widget body;
     if (_loading) {
-      body = const Center(child: CircularProgressIndicator(color: _rose600));
+      body = const Center(child: CircularProgressIndicator(color: Tone.fg(0xFFE11D48)));
     } else if (_tracking != null) {
       body = _trackingView();
     } else if (_farmId.isEmpty || _settings == null) {
       body = _shell([
         _stateIcon(Icons.search, tone: 'stone'),
-        const Text('Restaurant not found', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _stone900)),
+        const Text('Restaurant not found', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Tone.fg(0xFF1C1917))),
         const SizedBox(height: 8),
         const Text("That code didn't match a restaurant. Please scan the QR code again, or ask a member of staff for help.",
             textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: _stone500)),
@@ -590,8 +587,8 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
             constraints: const BoxConstraints(maxWidth: 380),
             padding: const EdgeInsets.all(28),
             decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(color: _stone200),
+              color: Tone.bg(0xFFFFFFFF),
+              border: Border.all(color: Tone.line(0xFFE7E5E4)),
               borderRadius: BorderRadius.circular(24),
               boxShadow: const [BoxShadow(color: Color(0x1F000000), blurRadius: 32, offset: Offset(0, 12), spreadRadius: -12)],
             ),
@@ -622,7 +619,7 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
       return _shell([
         _stateIcon(Icons.storefront_outlined, tone: 'stone'),
         Text(name.isNotEmpty ? "$name isn't taking phone orders yet" : "This restaurant isn't taking phone orders yet",
-            textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _stone900)),
+            textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Tone.fg(0xFF1C1917))),
         const SizedBox(height: 8),
         const Text('Please order at the counter.', style: TextStyle(fontSize: 14, color: _stone500)),
         const SizedBox(height: 20),
@@ -644,7 +641,7 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
     final reason = tStr(_settings!['pausedReason']);
     return _shell([
       _stateIcon(Icons.schedule, tone: 'amber'),
-      const Text('Orders are paused right now', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _stone900)),
+      const Text('Orders are paused right now', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Tone.fg(0xFF1C1917))),
       const SizedBox(height: 8),
       Text(reason.isNotEmpty ? reason : 'The kitchen has stopped taking new orders for the moment. Please ask a member of staff.',
           textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, color: _stone500)),
@@ -674,7 +671,7 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
             Flexible(
                 child: Text(v,
                     textAlign: TextAlign.right,
-                    style: TextStyle(fontSize: 14, fontWeight: bold ? FontWeight.w700 : FontWeight.w500, color: _stone900))),
+                    style: TextStyle(fontSize: 14, fontWeight: bold ? FontWeight.w700 : FontWeight.w500, color: Tone.fg(0xFF1C1917)))),
           ]),
         );
 
@@ -683,7 +680,7 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
         Align(
           alignment: Alignment.centerLeft,
           child: TextButton.icon(
-            style: TextButton.styleFrom(backgroundColor: Colors.white, foregroundColor: _stone600, shape: const StadiumBorder()),
+            style: TextButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)), foregroundColor: _stone600, shape: const StadiumBorder()),
             onPressed: _dismissTracking,
             icon: const Icon(Icons.chevron_left, size: 18),
             label: const Text('Back to menu', style: TextStyle(fontWeight: FontWeight.w600)),
@@ -692,14 +689,14 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
       const SizedBox(height: 12),
       Container(
         clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _stone200), borderRadius: BorderRadius.circular(24)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: Tone.line(0xFFE7E5E4)), borderRadius: BorderRadius.circular(24)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Stack(children: [
             Container(
               padding: const EdgeInsets.fromLTRB(24, 28, 24, 28),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: rejected ? const [Color(0xFF57534E), Color(0xFF44403C)] : const [_rose600, _rose700],
+                  colors: rejected ? const [Tone.bg(0xFF57534E), Tone.bg(0xFF44403C)] : const [Tone.bg(0xFFE11D48), Tone.bg(0xFFBE123C)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -708,7 +705,7 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
                 Container(
                   width: 56,
                   height: 56,
-                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: .15), borderRadius: BorderRadius.circular(16)),
+                  decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF).withValues(alpha: .15), borderRadius: BorderRadius.circular(16)),
                   child: Icon(rejected ? Icons.error_outline : Icons.check_circle_outline, size: 28, color: Colors.white),
                 ),
                 const SizedBox(height: 12),
@@ -736,9 +733,9 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
               if (rejected)
                 Container(
                   padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(color: _stone50, border: Border.all(color: _stone200), borderRadius: BorderRadius.circular(16)),
+                  decoration: BoxDecoration(color: _stone50, border: Border.all(color: Tone.line(0xFFE7E5E4)), borderRadius: BorderRadius.circular(16)),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    const Text('This order was not accepted', style: TextStyle(fontWeight: FontWeight.w600, color: _stone900)),
+                    const Text('This order was not accepted', style: TextStyle(fontWeight: FontWeight.w600, color: Tone.fg(0xFF1C1917))),
                     const SizedBox(height: 4),
                     Text(tStr(t['cancelReason']).isNotEmpty ? tStr(t['cancelReason']) : 'The restaurant could not take this order.',
                         style: const TextStyle(fontSize: 14, color: _stone600)),
@@ -752,7 +749,7 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
                 if (waiting) ...[
                   Container(
                     padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(color: _amber50, border: Border.all(color: _amber200), borderRadius: BorderRadius.circular(16)),
+                    decoration: BoxDecoration(color: _amber50, border: Border.all(color: Tone.line(0xFFFDE68A)), borderRadius: BorderRadius.circular(16)),
                     child: const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: _amber600)),
                       SizedBox(width: 12),
@@ -776,7 +773,7 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
                         width: 36,
                         height: 36,
                         alignment: Alignment.center,
-                        decoration: BoxDecoration(color: i <= step ? _rose600 : _stone100, shape: BoxShape.circle),
+                        decoration: BoxDecoration(color: i <= step ? Tone.bg(0xFFE11D48) : _stone100, shape: BoxShape.circle),
                         child: i <= step
                             ? const Icon(Icons.check, size: 16, color: Colors.white)
                             : Text('${i + 1}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _stone400)),
@@ -786,7 +783,7 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
                         width: 56,
                         child: FittedBox(
                           fit: BoxFit.scaleDown,
-                          child: Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: i <= step ? _rose700 : _stone400)),
+                          child: Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: i <= step ? Tone.fg(0xFFBE123C) : _stone400)),
                         ),
                       ),
                     ]),
@@ -795,7 +792,7 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
                         child: Container(
                           margin: const EdgeInsets.only(top: 17),
                           height: 2,
-                          color: i < step ? _rose600 : _stone200,
+                          color: i < step ? Tone.bg(0xFFE11D48) : Tone.bg(0xFFE7E5E4),
                         ),
                       ),
                   ],
@@ -819,7 +816,7 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
                 const SizedBox(height: 16),
                 FilledButton.icon(
                   style: FilledButton.styleFrom(
-                    backgroundColor: _stone100,
+                    backgroundColor: Tone.button(_stone100),
                     foregroundColor: _stone700,
                     minimumSize: const Size.fromHeight(50),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -861,10 +858,10 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
         padding: const EdgeInsets.only(top: 16),
         child: Container(
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: _amber50, border: Border.all(color: _amber200), borderRadius: BorderRadius.circular(16)),
+          decoration: BoxDecoration(color: _amber50, border: Border.all(color: Tone.line(0xFFFDE68A)), borderRadius: BorderRadius.circular(16)),
           child: Column(children: [
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              for (var n = 1; n <= 5; n++) Icon(r >= n ? Icons.star_rounded : Icons.star_outline_rounded, size: 22, color: r >= n ? _amber400 : _amber200),
+              for (var n = 1; n <= 5; n++) Icon(r >= n ? Icons.star_rounded : Icons.star_outline_rounded, size: 22, color: r >= n ? _amber400 : Tone.fg(0xFFFDE68A)),
             ]),
             const SizedBox(height: 8),
             Text(_fbThanks ? 'Thank you - that means a lot.' : 'You rated this visit',
@@ -882,12 +879,12 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(colors: [_amber50, Colors.white], begin: Alignment.topCenter, end: Alignment.bottomCenter),
-          border: Border.all(color: _amber200),
+          gradient: const LinearGradient(colors: [_amber50, Tone.bg(0xFFFFFFFF)], begin: Alignment.topCenter, end: Alignment.bottomCenter),
+          border: Border.all(color: Tone.line(0xFFFDE68A)),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          const Text('How was everything?', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _stone900)),
+          const Text('How was everything?', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Tone.fg(0xFF1C1917))),
           const SizedBox(height: 2),
           Text(name.isNotEmpty ? 'Tell $name how they did' : 'Your rating helps the team',
               textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, color: _stone500)),
@@ -896,7 +893,7 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
           if (_fbRating > 0) ...[
             Text(const ['', 'Not good', 'Could be better', 'Fine', 'Really good', 'Excellent'][_fbRating],
                 textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _amber700)),
-            const Divider(height: 28, color: _amber200),
+            const Divider(height: 28, color: Tone.line(0xFFFDE68A)),
             const Text('ANYTHING MORE? (OPTIONAL)',
                 textAlign: TextAlign.center, style: TextStyle(fontSize: 11, letterSpacing: 1.2, fontWeight: FontWeight.w500, color: _stone400)),
             const SizedBox(height: 8),
@@ -917,16 +914,16 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
               decoration: InputDecoration(
                 hintText: 'Tell them what you loved, or what could be better...',
                 filled: true,
-                fillColor: Colors.white,
+                fillColor: Tone.bg(0xFFFFFFFF),
                 counterText: '',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _stone200)),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Tone.line(0xFFE7E5E4))),
               ),
             ),
             if (_fbError != null) ...[const SizedBox(height: 8), _errorBox(_fbError!)],
             const SizedBox(height: 12),
             FilledButton.icon(
               style: FilledButton.styleFrom(
-                  backgroundColor: _rose600, minimumSize: const Size.fromHeight(50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                  backgroundColor: Tone.button(Tone.bg(0xFFE11D48)), minimumSize: const Size.fromHeight(50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
               onPressed: _fbSending || _fbRating < 1 ? null : _sendFeedback,
               icon: _fbSending
                   ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
@@ -941,8 +938,8 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
 
   Widget _errorBox(String text) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(color: _rose50, border: Border.all(color: _rose200), borderRadius: BorderRadius.circular(12)),
-        child: Text(text, style: const TextStyle(fontSize: 13, color: _rose700)),
+        decoration: BoxDecoration(color: _rose50, border: Border.all(color: Tone.line(0xFFFECDD3)), borderRadius: BorderRadius.circular(12)),
+        child: Text(text, style: const TextStyle(fontSize: 13, color: Tone.fg(0xFFBE123C))),
       );
 
   /* ── Menu ── */
@@ -991,10 +988,10 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
                         },
                       ),
                 filled: true,
-                fillColor: Colors.white,
+                fillColor: Tone.bg(0xFFFFFFFF),
                 isDense: true,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: _stone200)),
-                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: _stone200)),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Tone.line(0xFFE7E5E4))),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Tone.line(0xFFE7E5E4))),
               ),
             ),
             const SizedBox(height: 10),
@@ -1029,8 +1026,8 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
   Widget _typeChip(String type, IconData icon) {
     final on = _orderType == type;
     return Material(
-      color: on ? _stone900 : Colors.white,
-      shape: StadiumBorder(side: BorderSide(color: on ? _stone900 : _stone200)),
+      color: on ? Tone.button(Tone.bg(0xFF1C1917))! : Tone.bg(0xFFFFFFFF),
+      shape: StadiumBorder(side: BorderSide(color: on ? Tone.line(0xFF1C1917) : Tone.line(0xFFE7E5E4))),
       child: InkWell(
         customBorder: const StadiumBorder(),
         onTap: () => _set(() => _orderType = type),
@@ -1051,8 +1048,8 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
     Widget chip(String label, bool on, VoidCallback onTap) => Padding(
           padding: const EdgeInsets.only(right: 8),
           child: Material(
-            color: on ? _rose600 : Colors.white,
-            shape: StadiumBorder(side: BorderSide(color: on ? _rose600 : _stone200)),
+            color: on ? Tone.bg(0xFFE11D48) : Tone.bg(0xFFFFFFFF),
+            shape: StadiumBorder(side: BorderSide(color: on ? Tone.line(0xFFE11D48) : Tone.line(0xFFE7E5E4))),
             child: InkWell(
               customBorder: const StadiumBorder(),
               onTap: onTap,
@@ -1079,7 +1076,7 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
       width: size,
       height: size,
       clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(color: Colors.white.withValues(alpha: .15), borderRadius: BorderRadius.circular(size / 4)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF).withValues(alpha: .15), borderRadius: BorderRadius.circular(size / 4)),
       child: restaurantImage(url, fallback: Icon(Icons.restaurant, size: icon, color: Colors.white)),
     );
   }
@@ -1097,7 +1094,7 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
       decoration: const BoxDecoration(
-        gradient: LinearGradient(colors: [_rose600, _rose600, _rose700], begin: Alignment.topLeft, end: Alignment.bottomRight),
+        gradient: LinearGradient(colors: [Tone.bg(0xFFE11D48), Tone.bg(0xFFE11D48), Tone.bg(0xFFBE123C)], begin: Alignment.topLeft, end: Alignment.bottomRight),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
@@ -1110,10 +1107,10 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
                 if (_isVenueCode)
                   _heroBadge('SKIP THE QUEUE', Colors.white.withValues(alpha: .2), Colors.white)
                 else if (_tableNumber.isNotEmpty)
-                  _heroBadge('TABLE $_tableNumber', Colors.white, _rose700),
+                  _heroBadge('TABLE $_tableNumber', Tone(0xFFFFFFFF), _rose700),
                 if (hours != null)
                   _heroBadge('${hours.open ? 'Open' : 'Closed'} · ${hours.label}',
-                      hours.open ? const Color(0x3334D399) : const Color(0x33000000), hours.open ? const Color(0xFFECFDF5) : Colors.white70),
+                      hours.open ? const Tone(0x3334D399) : const Color(0x33000000), hours.open ? const Tone(0xFFECFDF5) : Colors.white70),
               ]),
               if (facts.isNotEmpty) Text(facts, style: const TextStyle(fontSize: 11, color: Colors.white70)),
             ]),
@@ -1126,8 +1123,8 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
         if (_pastOrders.isNotEmpty) ...[
           const SizedBox(height: 10),
           Material(
-            color: Colors.white.withValues(alpha: .15),
-            shape: const StadiumBorder(side: BorderSide(color: Color(0x40FFFFFF))),
+            color: Tone.bg(0xFFFFFFFF).withValues(alpha: .15),
+            shape: const StadiumBorder(side: BorderSide(color: Tone.line(0x40FFFFFF))),
             child: InkWell(
               customBorder: const StadiumBorder(),
               onTap: _openHistory,
@@ -1139,7 +1136,7 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
                   Text('My orders (${_pastOrders.length})', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white)),
                   if (liveOrder) ...[
                     const SizedBox(width: 6),
-                    Container(width: 8, height: 8, decoration: const BoxDecoration(color: Color(0xFF6EE7B7), shape: BoxShape.circle)),
+                    Container(width: 8, height: 8, decoration: const BoxDecoration(color: Tone.bg(0xFF6EE7B7), shape: BoxShape.circle)),
                   ],
                 ]),
               ),
@@ -1159,7 +1156,7 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
   Widget _compactBar() {
     final name = tStr(_profile?['restaurantName']);
     return Material(
-      color: Colors.white.withValues(alpha: .95),
+      color: Tone.bg(0xFFFFFFFF).withValues(alpha: .95),
       elevation: 1,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
@@ -1168,13 +1165,13 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
             Container(
               width: 32,
               height: 32,
-              decoration: BoxDecoration(color: _rose600, borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(color: Tone.bg(0xFFE11D48), borderRadius: BorderRadius.circular(8)),
               child: const Icon(Icons.restaurant, size: 16, color: Colors.white),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(name.isEmpty ? 'Order online' : name,
-                  overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _stone900)),
+                  overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Tone.fg(0xFF1C1917))),
             ),
             IconButton(
               tooltip: 'Search the menu',
@@ -1186,7 +1183,7 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
             ),
             if (_cartCount > 0)
               FilledButton.icon(
-                style: FilledButton.styleFrom(backgroundColor: _rose600, visualDensity: VisualDensity.compact, shape: const StadiumBorder()),
+                style: FilledButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFE11D48)), visualDensity: VisualDensity.compact, shape: const StadiumBorder()),
                 onPressed: _openCart,
                 icon: const Icon(Icons.shopping_bag_outlined, size: 14),
                 label: Text('$_cartCount'),
@@ -1203,7 +1200,7 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 140),
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 60),
-      decoration: BoxDecoration(color: Colors.white.withValues(alpha: .6), border: Border.all(color: _stone200), borderRadius: BorderRadius.circular(24)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF).withValues(alpha: .6), border: Border.all(color: Tone.line(0xFFE7E5E4)), borderRadius: BorderRadius.circular(24)),
       child: Column(children: [
         const Icon(Icons.restaurant, size: 40, color: _stone300),
         const SizedBox(height: 12),
@@ -1238,8 +1235,8 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: qty > 0 ? const Color(0xFFFDA4AF) : _stone200),
+        color: Tone.bg(0xFFFFFFFF),
+        border: Border.all(color: qty > 0 ? const Tone.line(0xFFFDA4AF) : Tone.line(0xFFE7E5E4)),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -1252,7 +1249,7 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
               child: Stack(fit: StackFit.expand, children: [
                 Container(
                   decoration: const BoxDecoration(gradient: LinearGradient(colors: [_rose50, _stone100], begin: Alignment.topLeft, end: Alignment.bottomRight)),
-                  child: restaurantImage(url, fallback: const Icon(Icons.restaurant, size: 32, color: _rose200)),
+                  child: restaurantImage(url, fallback: const Icon(Icons.restaurant, size: 32, color: Tone.fg(0xFFFECDD3))),
                 ),
                 Positioned(
                   left: 8,
@@ -1274,7 +1271,7 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
                       height: 24,
                       alignment: Alignment.center,
                       padding: const EdgeInsets.symmetric(horizontal: 6),
-                      decoration: BoxDecoration(color: _rose600, borderRadius: BorderRadius.circular(12)),
+                      decoration: BoxDecoration(color: Tone.bg(0xFFE11D48), borderRadius: BorderRadius.circular(12)),
                       child: Text('$qty', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
                     ),
                   ),
@@ -1285,14 +1282,14 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
         Padding(
             padding: const EdgeInsets.all(10),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Text(name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _stone900)),
+              Text(name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Tone.fg(0xFF1C1917))),
               if (tStr(item['description']).isNotEmpty)
                 Text(tStr(item['description']), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: _stone500)),
               const SizedBox(height: 6),
               Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(_money(tNum(item['price'])), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _stone900)),
+                    Text(_money(tNum(item['price'])), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Tone.fg(0xFF1C1917))),
                     if (tNum(item['prepTime']) > 0)
                       Row(children: [
                         const Icon(Icons.schedule, size: 12, color: _stone400),
@@ -1304,7 +1301,7 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
                 if (qty == 0)
                   IconButton.filled(
                     tooltip: 'Add $name to your order',
-                    style: IconButton.styleFrom(backgroundColor: _rose600, fixedSize: const Size(36, 36), minimumSize: const Size(36, 36)),
+                    style: IconButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFE11D48)), fixedSize: const Size(36, 36), minimumSize: const Size(36, 36)),
                     onPressed: () => _add(item),
                     icon: const Icon(Icons.add, size: 16, color: Colors.white),
                   ),
@@ -1312,19 +1309,19 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
               if (qty > 0) ...[
                 const SizedBox(height: 6),
                 Container(
-                  decoration: BoxDecoration(color: _rose50, border: Border.all(color: _rose200), borderRadius: BorderRadius.circular(999)),
+                  decoration: BoxDecoration(color: _rose50, border: Border.all(color: Tone.line(0xFFFECDD3)), borderRadius: BorderRadius.circular(999)),
                   child: Row(children: [
                     IconButton(
                       tooltip: 'Remove one $name',
                       visualDensity: VisualDensity.compact,
                       onPressed: () => _dec(id),
-                      icon: const Icon(Icons.remove, size: 16, color: _rose700),
+                      icon: const Icon(Icons.remove, size: 16, color: Tone.fg(0xFFBE123C)),
                     ),
-                    Expanded(child: Text('$qty', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w700, color: _rose700))),
+                    Expanded(child: Text('$qty', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w700, color: Tone.fg(0xFFBE123C)))),
                     IconButton.filled(
                       tooltip: 'Add another $name',
                       visualDensity: VisualDensity.compact,
-                      style: IconButton.styleFrom(backgroundColor: _rose600),
+                      style: IconButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFE11D48))),
                       onPressed: () => _add(item),
                       icon: const Icon(Icons.add, size: 16, color: Colors.white),
                     ),
@@ -1340,15 +1337,15 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
   Widget _cartBar() => Container(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
         decoration: const BoxDecoration(
-          color: Colors.white,
-          border: Border(top: BorderSide(color: _stone200)),
+          color: Tone.bg(0xFFFFFFFF),
+          border: Border(top: BorderSide(color: Tone.line(0xFFE7E5E4))),
           boxShadow: [BoxShadow(color: Color(0x40000000), blurRadius: 32, offset: Offset(0, -8), spreadRadius: -16)],
         ),
         child: SafeArea(
           top: false,
           child: FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: _rose600,
+              backgroundColor: Tone.button(Tone.bg(0xFFE11D48)),
               minimumSize: const Size.fromHeight(52),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             ),
@@ -1359,7 +1356,7 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
                 height: 24,
                 alignment: Alignment.center,
                 padding: const EdgeInsets.symmetric(horizontal: 6),
-                decoration: BoxDecoration(color: Colors.white.withValues(alpha: .25), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF).withValues(alpha: .25), borderRadius: BorderRadius.circular(12)),
                 child: Text('$_cartCount', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
               ),
               const SizedBox(width: 8),
@@ -1377,7 +1374,7 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: Tone.bg(0xFFFFFFFF),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (sheet) => FractionallySizedBox(
         heightFactor: .92,
@@ -1394,20 +1391,20 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
       child: Column(children: [
         Container(
           padding: const EdgeInsets.fromLTRB(12, 12, 8, 12),
-          decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _stone200))),
+          decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Tone.line(0xFFE7E5E4)))),
           child: Row(children: [
             if (details)
               IconButton(tooltip: 'Back to order', onPressed: () => _set(() => _step = 'cart'), icon: const Icon(Icons.chevron_left, size: 20)),
             Padding(
               padding: EdgeInsets.only(left: details ? 0 : 6),
-              child: Text(details ? 'Your details' : 'Your order', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _stone900)),
+              child: Text(details ? 'Your details' : 'Your order', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Tone.fg(0xFF1C1917))),
             ),
             if (_cartCount > 0 && !details) ...[
               const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(color: _rose50, borderRadius: BorderRadius.circular(999)),
-                child: Text('$_cartCount', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _rose700)),
+                child: Text('$_cartCount', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Tone.fg(0xFFBE123C))),
               ),
             ],
             const Spacer(),
@@ -1424,10 +1421,10 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
                       const SizedBox(height: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(color: _amber50, border: Border.all(color: _amber200), borderRadius: BorderRadius.circular(12)),
+                        decoration: BoxDecoration(color: _amber50, border: Border.all(color: Tone.line(0xFFFDE68A)), borderRadius: BorderRadius.circular(12)),
                         child: Text(
                             'Minimum order is ${_money(tNum(_settings!['minOrderAmount']))}. Add ${_money(tNum(_settings!['minOrderAmount']) - _subtotal)} more.',
-                            style: const TextStyle(fontSize: 14, color: Color(0xFF92400E))),
+                            style: const TextStyle(fontSize: 14, color: Tone.fg(0xFF92400E))),
                       ),
                     ],
                   ] else
@@ -1439,7 +1436,7 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
         if (_cart.isNotEmpty)
           Container(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-            decoration: const BoxDecoration(border: Border(top: BorderSide(color: _stone200))),
+            decoration: const BoxDecoration(border: Border(top: BorderSide(color: Tone.line(0xFFE7E5E4)))),
             child: SafeArea(
               top: false,
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -1467,7 +1464,7 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
 
   Widget _bigButton(String label, VoidCallback? onTap, {Widget? icon}) => FilledButton(
         style: FilledButton.styleFrom(
-            backgroundColor: _rose600, minimumSize: const Size.fromHeight(50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+            backgroundColor: Tone.button(Tone.bg(0xFFE11D48)), minimumSize: const Size.fromHeight(50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
         onPressed: onTap,
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           if (icon != null) ...[icon, const SizedBox(width: 8)],
@@ -1477,7 +1474,7 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
 
   Widget _emptyCart() => Container(
         padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 16),
-        decoration: BoxDecoration(border: Border.all(color: _stone200), borderRadius: BorderRadius.circular(16)),
+        decoration: BoxDecoration(border: Border.all(color: Tone.line(0xFFE7E5E4)), borderRadius: BorderRadius.circular(16)),
         child: const Column(mainAxisSize: MainAxisSize.min, children: [
           Icon(Icons.shopping_bag_outlined, size: 32, color: _stone300),
           SizedBox(height: 8),
@@ -1493,12 +1490,12 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
         child: Row(children: [
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(line.name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _stone900)),
+              Text(line.name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Tone.fg(0xFF1C1917))),
               Text('${_money(line.price)} each', style: const TextStyle(fontSize: 12, color: _stone500)),
             ]),
           ),
           Container(
-            decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _stone200), borderRadius: BorderRadius.circular(999)),
+            decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: Tone.line(0xFFE7E5E4)), borderRadius: BorderRadius.circular(999)),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               IconButton(
                 tooltip: 'Decrease quantity',
@@ -1519,7 +1516,7 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
           SizedBox(
             width: 64,
             child: Text(_money(line.price * line.quantity),
-                textAlign: TextAlign.right, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _stone900)),
+                textAlign: TextAlign.right, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Tone.fg(0xFF1C1917))),
           ),
           IconButton(
             tooltip: 'Remove ${line.name}',
@@ -1533,13 +1530,13 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
   Widget _totals() => Column(children: [
         _totalRow('Subtotal', _money(_subtotal)),
         if (_orderType == 'Delivery')
-          _totalRow('Delivery', _freeDelivery ? 'Free' : _money(_actualDeliveryFee), valueColor: _freeDelivery ? _emerald600 : null),
-        if (_promoDiscount > 0) _totalRow('Promo · ${_promo.text}', '-${_money(_promoDiscount)}', color: _emerald600, valueColor: _emerald600),
-        const Divider(height: 16, color: _stone200),
+          _totalRow('Delivery', _freeDelivery ? 'Free' : _money(_actualDeliveryFee), valueColor: _freeDelivery ? Tone.fg(0xFF059669) : null),
+        if (_promoDiscount > 0) _totalRow('Promo · ${_promo.text}', '-${_money(_promoDiscount)}', color: Tone.bg(0xFF059669), valueColor: Tone.fg(0xFF059669)),
+        const Divider(height: 16, color: Tone.line(0xFFE7E5E4)),
         Row(children: [
-          const Text('Total', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _stone900)),
+          const Text('Total', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Tone.fg(0xFF1C1917))),
           const Spacer(),
-          Text(_money(_total), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _stone900)),
+          Text(_money(_total), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Tone.fg(0xFF1C1917))),
         ]),
       ]);
 
@@ -1557,8 +1554,8 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
         isDense: true,
         filled: true,
         fillColor: _stone50,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _stone200)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: bad ? const Color(0xFFFB7185) : _stone200)),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Tone.line(0xFFE7E5E4))),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: bad ? const Tone.line(0xFFFB7185) : Tone.line(0xFFE7E5E4))),
       );
 
   Widget _label(String text, {bool required = false, String? note}) => Padding(
@@ -1566,7 +1563,7 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
         child: Text.rich(
           TextSpan(children: [
             TextSpan(text: text),
-            if (required) const TextSpan(text: ' *', style: TextStyle(color: _rose600)),
+            if (required) const TextSpan(text: ' *', style: TextStyle(color: Tone.fg(0xFFE11D48))),
             if (note != null) TextSpan(text: ' $note', style: const TextStyle(fontWeight: FontWeight.w400, color: _stone400)),
           ]),
           style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: _stone600),
@@ -1598,19 +1595,19 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
             color: r['valid'] == true ? _emerald50 : _rose50,
-            border: Border.all(color: r['valid'] == true ? const Color(0xFFA7F3D0) : _rose200),
+            border: Border.all(color: r['valid'] == true ? const Tone.line(0xFFA7F3D0) : Tone.line(0xFFFECDD3)),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Text(tStr(r['message']), style: TextStyle(fontSize: 14, color: r['valid'] == true ? const Color(0xFF047857) : _rose700)),
+          child: Text(tStr(r['message']), style: TextStyle(fontSize: 14, color: r['valid'] == true ? const Tone.fg(0xFF047857) : Tone.fg(0xFFBE123C))),
         ),
       ],
       if (_recalled) ...[
         const SizedBox(height: 14),
         Container(
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: _emerald50, border: Border.all(color: const Color(0xFFA7F3D0)), borderRadius: BorderRadius.circular(16)),
+          decoration: BoxDecoration(color: _emerald50, border: Border.all(color: const Tone.line(0xFFA7F3D0)), borderRadius: BorderRadius.circular(16)),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Icon(Icons.how_to_reg_outlined, size: 16, color: _emerald600),
+            const Icon(Icons.how_to_reg_outlined, size: 16, color: Tone.fg(0xFF059669)),
             const SizedBox(width: 10),
             Expanded(
               child: Wrap(crossAxisAlignment: WrapCrossAlignment.center, children: [
@@ -1650,7 +1647,7 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
         const Padding(
           padding: EdgeInsets.only(top: 6),
           child: Text('That email address does not look right. Leave it blank if you would rather not give one.',
-              style: TextStyle(fontSize: 12, color: _rose600)),
+              style: TextStyle(fontSize: 12, color: Tone.fg(0xFFE11D48))),
         ),
       if (_orderType == 'Delivery') ...[
         const SizedBox(height: 12),
@@ -1664,10 +1661,10 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
           if (i > 0) const SizedBox(width: 8),
           Expanded(
             child: Material(
-              color: _payIntent == value ? _rose50 : Colors.white,
+              color: _payIntent == value ? _rose50 : Tone.bg(0xFFFFFFFF),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: BorderSide(color: _payIntent == value ? const Color(0xFFF43F5E) : _stone200),
+                side: BorderSide(color: _payIntent == value ? const Tone.line(0xFFF43F5E) : Tone.line(0xFFE7E5E4)),
               ),
               child: InkWell(
                 borderRadius: BorderRadius.circular(16),
@@ -1675,11 +1672,11 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
                   child: Column(children: [
-                    Icon(icon, size: 20, color: _payIntent == value ? _rose700 : _stone500),
+                    Icon(icon, size: 20, color: _payIntent == value ? Tone.fg(0xFFBE123C) : _stone500),
                     const SizedBox(height: 6),
                     Text(label,
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _payIntent == value ? _rose700 : _stone500)),
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _payIntent == value ? Tone.fg(0xFFBE123C) : _stone500)),
                   ]),
                 ),
               ),
@@ -1705,14 +1702,14 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
   /* ── My orders ── */
 
   static const _statusTone = <String, (Color, Color)>{
-    'Placed': (Color(0xFFFEF3C7), Color(0xFF92400E)),
-    'Confirmed': (Color(0xFFDBEAFE), Color(0xFF1E40AF)),
-    'Preparing': (Color(0xFFE0E7FF), Color(0xFF3730A3)),
-    'Ready': (Color(0xFFD1FAE5), Color(0xFF065F46)),
-    'Served': (Color(0xFFD1FAE5), Color(0xFF065F46)),
+    'Placed': (Tone(0xFFFEF3C7), Tone(0xFF92400E)),
+    'Confirmed': (Tone(0xFFDBEAFE), Tone(0xFF1E40AF)),
+    'Preparing': (Tone(0xFFE0E7FF), Tone(0xFF3730A3)),
+    'Ready': (Tone(0xFFD1FAE5), Tone(0xFF065F46)),
+    'Served': (Tone(0xFFD1FAE5), Tone(0xFF065F46)),
     'Completed': (_stone100, _stone600),
-    'Cancelled': (Color(0xFFFFE4E6), _rose700),
-    'Refunded': (Color(0xFFFFE4E6), _rose700),
+    'Cancelled': (Tone(0xFFFFE4E6), _rose700),
+    'Refunded': (Tone(0xFFFFE4E6), _rose700),
   };
   static const _statusWords = <String, String>{
     'Placed': 'Waiting for the restaurant',
@@ -1727,7 +1724,7 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
   Future<void> _openHistory() => showModalBottomSheet<void>(
         context: context,
         isScrollControlled: true,
-        backgroundColor: Colors.white,
+        backgroundColor: Tone.bg(0xFFFFFFFF),
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
         builder: (sheet) => ConstrainedBox(
           constraints: BoxConstraints(maxHeight: MediaQuery.of(sheet).size.height * .85),
@@ -1736,11 +1733,11 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
             builder: (_, _, _) => Column(mainAxisSize: MainAxisSize.min, children: [
               Container(
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-                decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _stone200))),
+                decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Tone.line(0xFFE7E5E4)))),
                 child: const Row(children: [
-                  Icon(Icons.history, size: 16, color: _rose600),
+                  Icon(Icons.history, size: 16, color: Tone.fg(0xFFE11D48)),
                   SizedBox(width: 8),
-                  Text('Your recent orders', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _stone900)),
+                  Text('Your recent orders', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Tone.fg(0xFF1C1917))),
                 ]),
               ),
               Flexible(
@@ -1750,7 +1747,7 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
               ),
               Container(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                decoration: const BoxDecoration(border: Border(top: BorderSide(color: _stone200))),
+                decoration: const BoxDecoration(border: Border(top: BorderSide(color: Tone.line(0xFFE7E5E4)))),
                 child: SafeArea(
                   top: false,
                   child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -1776,8 +1773,8 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
-        color: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: _stone200)),
+        color: Tone.bg(0xFFFFFFFF),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: Tone.line(0xFFE7E5E4))),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: () async {
@@ -1794,7 +1791,7 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
             child: Row(children: [
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(tStr(o['orderNumber']), style: const TextStyle(fontFamily: 'monospace', fontSize: 14, fontWeight: FontWeight.w700, color: _stone900)),
+                  Text(tStr(o['orderNumber']), style: const TextStyle(fontFamily: 'monospace', fontSize: 14, fontWeight: FontWeight.w700, color: Tone.fg(0xFF1C1917))),
                   Text('${tStr(o['orderType'])} · ${fmtInstant(o['placedAt'], Duration.zero)} · ${_localTime(o['placedAt'], seconds: false)}',
                       style: const TextStyle(fontSize: 12, color: _stone500)),
                   const SizedBox(height: 6),
@@ -1807,8 +1804,8 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
                 ]),
               ),
               Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                Text(_money(tNum(o['total'])), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _stone900)),
-                const Text('Track', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: _rose600)),
+                Text(_money(tNum(o['total'])), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Tone.fg(0xFF1C1917))),
+                const Text('Track', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: Tone.fg(0xFFE11D48))),
               ]),
             ]),
           ),

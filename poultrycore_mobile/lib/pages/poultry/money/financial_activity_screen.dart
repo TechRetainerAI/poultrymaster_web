@@ -17,6 +17,7 @@ import '../trackers/tracker_logic.dart' show tNum, tStr, sortRows, toggleSort, S
 import '../trackers/tracker_widgets.dart';
 import 'money_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 // ------------------------------------------------------------------ logic
 
 const faTips = {
@@ -345,8 +346,8 @@ class _FinancialActivityScreenState extends State<FinancialActivityScreen> {
               Container(
                 width: 40,
                 height: 40,
-                decoration: BoxDecoration(color: hotel ? const Color(0xFFEDE9FE) : rest ? const Color(0xFFFFE4E6) : const Color(0xFFE0E7FF), borderRadius: BorderRadius.circular(8)),
-                child: Icon(Icons.show_chart, size: 20, color: hotel ? const Color(0xFF7C3AED) : rest ? const Color(0xFFE11D48) : const Color(0xFF4338CA)),
+                decoration: BoxDecoration(color: hotel ? const Tone.bg(0xFFEDE9FE) : rest ? const Tone.bg(0xFFFFE4E6) : const Tone.bg(0xFFE0E7FF), borderRadius: BorderRadius.circular(8)),
+                child: Icon(Icons.show_chart, size: 20, color: hotel ? const Tone.fg(0xFF7C3AED) : rest ? const Tone.fg(0xFFE11D48) : const Tone.fg(0xFF4338CA)),
               ),
               const SizedBox(width: 12),
               const Expanded(
@@ -386,13 +387,13 @@ class _FinancialActivityScreenState extends State<FinancialActivityScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: hotel ? const Color(0xFFF5F3FF) : rest ? const Color(0xFFFFF1F2) : const Color(0xFFEEF2FF),
-                border: Border.all(color: hotel ? const Color(0xFFDDD6FE) : rest ? const Color(0xFFFECDD3) : const Color(0xFFC7D2FE)),
+                color: hotel ? const Tone.bg(0xFFF5F3FF) : rest ? const Tone.bg(0xFFFFF1F2) : const Tone.bg(0xFFEEF2FF),
+                border: Border.all(color: hotel ? const Tone.line(0xFFDDD6FE) : rest ? const Tone.line(0xFFFECDD3) : const Tone.line(0xFFC7D2FE)),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
                 'Financial Activity combines cash movement and profit recognition so you can see why cash flow and profit may differ.',
-                style: TextStyle(fontSize: 12, color: hotel ? const Color(0xFF4C1D95) : rest ? const Color(0xFF881337) : const Color(0xFF312E81)),
+                style: TextStyle(fontSize: 12, color: hotel ? const Tone.fg(0xFF4C1D95) : rest ? const Tone.fg(0xFF881337) : const Tone.fg(0xFF312E81)),
               ),
             ),
             const SizedBox(height: 12),
@@ -575,7 +576,7 @@ class _FinancialActivityScreenState extends State<FinancialActivityScreen> {
     final size = n > 17 ? 13.0 : n > 14 ? 15.0 : n > 11 ? 17.0 : 22.0;
     final body = Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(label.toUpperCase(),
             overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: TColors.slate500)),
@@ -641,7 +642,7 @@ class _FinancialActivityScreenState extends State<FinancialActivityScreen> {
           InkWell(
             onTap: () => _go(link.$1, link.$2),
             child: Text('${link.$2} →',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: widget.hotel ? const Color(0xFF6D28D9) : widget.restaurant ? TColors.rose700 : TColors.blue600)),
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: widget.hotel ? const Tone.fg(0xFF6D28D9) : widget.restaurant ? TColors.rose700 : TColors.blue600)),
           ),
       ]),
     ]);
@@ -686,7 +687,7 @@ class _FinancialActivityScreenState extends State<FinancialActivityScreen> {
                 InkWell(onTap: tog, child: cellText(formatActivityMoment(r['occurredAt'], r['createdAt'], _offset))),
                 Wrap(crossAxisAlignment: WrapCrossAlignment.center, spacing: 4, children: [
                   Text(tStr(r['type']), style: const TextStyle(fontWeight: FontWeight.w500)),
-                  if (r['isInternalTransfer'] == true) const TBadge('internal', bg: Colors.white, fg: TColors.slate600, border: TColors.slate200),
+                  if (r['isInternalTransfer'] == true) const TBadge('internal', bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate600, border: TColors.slate200),
                 ]),
                 cellText(tStr(r['category']), color: TColors.slate600),
                 cellText(tStr(r['description']).isEmpty ? '—' : tStr(r['description'])),

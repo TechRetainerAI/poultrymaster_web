@@ -30,6 +30,7 @@ import '../trackers/tracker_widgets.dart';
 import '../sales/credit_widgets.dart' show showReverseWithReason;
 import 'stock_dialogs.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// MOVEMENTS: what a manual entry can be, and which way it moves stock.
 const stockMovements = [('Increase', 1), ('Adjustment', 1), ('Decrease', -1), ('Damage/Loss', -1)];
 
@@ -38,20 +39,20 @@ const stockMovements = [('Increase', 1), ('Adjustment', 1), ('Decrease', -1), ('
       'Production' => (TColors.emerald100, TColors.emerald700),
       'Adjustment' || 'Adjust' => (TColors.slate100, TColors.slate700),
       'Decrease' || 'Return' || 'Delivery Return' => (TColors.amber100, TColors.amber700),
-      'Sale' => (TColors.blue100, const Color(0xFF1D4ED8)),
+      'Sale' => (TColors.blue100, const Tone(0xFF1D4ED8)),
       'Damage/Loss' => (TColors.red100, TColors.red700),
-      'Delivery Load' => (const Color(0xFFE0E7FF), const Color(0xFF4338CA)),
-      'Bird Adjustment' => (const Color(0xFFEDE9FE), const Color(0xFF6D28D9)),
-      'Sale Reversal' => (const Color(0xFFE0F2FE), TColors.sky800),
-      'Bird Sale' => (TColors.blue100, const Color(0xFF1D4ED8)),
-      'Sorting In' => (const Color(0xFFCCFBF1), const Color(0xFF115E59)),
-      'Sorting Out' => (const Color(0xFFFFEDD5), const Color(0xFF9A3412)),
+      'Delivery Load' => (const Tone(0xFFE0E7FF), const Tone(0xFF4338CA)),
+      'Bird Adjustment' => (const Tone(0xFFEDE9FE), const Tone(0xFF6D28D9)),
+      'Sale Reversal' => (const Tone(0xFFE0F2FE), TColors.sky800),
+      'Bird Sale' => (TColors.blue100, const Tone(0xFF1D4ED8)),
+      'Sorting In' => (const Tone(0xFFCCFBF1), const Tone(0xFF115E59)),
+      'Sorting Out' => (const Tone(0xFFFFEDD5), const Tone(0xFF9A3412)),
       'Egg Loss' => (TColors.red100, TColors.red700),
       'Internal Use' => (TColors.amber100, TColors.amber800),
       // 372: byproduct stock (Broken Eggs / Dead Birds); 373: manual movements.
       'Broken Egg Prod' || 'Mortality In' || 'Sorting Breakage' || 'Breakage In' || 'Hist Mortality In' =>
         (TColors.rose100, TColors.rose800),
-      'Broken Egg Disposal' || 'Mortality Disposal' || 'Disposal' || 'Hist Mortality Disp' => (const Color(0xFFE7E5E4), const Color(0xFF292524)),
+      'Broken Egg Disposal' || 'Mortality Disposal' || 'Disposal' || 'Hist Mortality Disp' => (const Tone(0xFFE7E5E4), const Tone(0xFF292524)),
       // Sorting Reversal, Opening and any type not listed: dark text on grey.
       _ => (TColors.slate200, TColors.slate800),
     };
@@ -808,7 +809,7 @@ class _NewStockMovementDialogState extends State<NewStockMovementDialog> {
       content: SizedBox(
         width: 440,
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          formSection('Movement', const Color(0xFF2563EB), [
+          formSection('Movement', const Tone(0xFF2563EB), [
             cell(
               'Item *',
               AppSelect<String>(

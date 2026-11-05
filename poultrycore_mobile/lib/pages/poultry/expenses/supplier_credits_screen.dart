@@ -22,6 +22,7 @@ import '../sales/sales_logic.dart' show refundMethods;
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../trackers/tracker_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Poultry → Expenses → Supplier Credits, as `app/supplier-credits/page.tsx`
 /// with `components/suppliers/supplier-credit-dialogs.tsx` (migration 370):
 /// money a supplier holds for the business — an advance paid before delivery,
@@ -352,14 +353,14 @@ class _SupplierCreditsScreenState extends State<SupplierCreditsScreen> {
             Wrap(spacing: 8, runSpacing: 8, children: [
               if (_canPay)
                 FilledButton.icon(
-                  style: FilledButton.styleFrom(backgroundColor: TColors.amber600),
+                  style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.amber600)),
                   onPressed: _payAdvance,
                   icon: const Icon(Icons.account_balance_wallet_outlined, size: 16),
                   label: const Text('Pay advance'),
                 ),
               if (_canManage)
                 FilledButton.icon(
-                  style: FilledButton.styleFrom(backgroundColor: TColors.blue600),
+                  style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.blue600)),
                   onPressed: _addCredit,
                   icon: const Icon(Icons.add, size: 16),
                   label: const Text('Add credit'),
@@ -522,7 +523,7 @@ class _SupplierCreditsScreenState extends State<SupplierCreditsScreen> {
                       Text('Undone: ${tStr(r['reversalReason'])}', style: const TextStyle(fontSize: 11)),
                   ]),
                   Align(alignment: Alignment.centerRight, child: cellText(_money(tNum(r['amount'])), strike: undone, color: grey)),
-                  undone ? greyBadge('Undone') : const TBadge('Applied', bg: Colors.white, fg: TColors.slate700, border: TColors.slate300),
+                  undone ? greyBadge('Undone') : const TBadge('Applied', bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate700, border: TColors.slate300),
                   Align(
                     alignment: Alignment.centerRight,
                     child: _canManage && !undone ? TextButton(onPressed: () => _unapply(r), child: const Text('Unapply')) : const SizedBox.shrink(),
@@ -589,7 +590,7 @@ class _SupplierCreditsScreenState extends State<SupplierCreditsScreen> {
                         style: const TextStyle(fontSize: 11),
                       ),
                   ]),
-                  reversed ? greyBadge(tStr(r['status'])) : TBadge(tStr(r['status']), bg: Colors.white, fg: TColors.slate700, border: TColors.slate300),
+                  reversed ? greyBadge(tStr(r['status'])) : TBadge(tStr(r['status']), bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate700, border: TColors.slate300),
                   Align(
                     alignment: Alignment.centerRight,
                     child: _canManage && !reversed ? TextButton(onPressed: () => _reverseRefund(r), child: const Text('Reverse')) : const SizedBox.shrink(),

@@ -15,6 +15,7 @@ import '../poultry/trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../poultry/trackers/tracker_widgets.dart';
 import '../shared/business_dates.dart';
 import '../shared/company_clock.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import '../shared/reason_select.dart' show cancelReasons;
 import 'water_payroll_screen.dart' show showWaterPayrollPrompt;
 
@@ -92,8 +93,8 @@ String waterPaidToLabel(Map e) {
 }
 
 (Color, Color) waterExpenseStatusTone(String s) => switch (s) {
-      'Submitted' => (TColors.blue100, const Color(0xFF1D4ED8)),
-      'Approved' => (const Color(0xFFDCFCE7), const Color(0xFF15803D)),
+      'Submitted' => (TColors.blue100, const Tone(0xFF1D4ED8)),
+      'Approved' => (const Tone(0xFFDCFCE7), const Tone(0xFF15803D)),
       'Rejected' => (TColors.rose100, TColors.rose700),
       'Cancelled' => (TColors.amber100, TColors.amber700),
       _ => (TColors.slate100, TColors.slate700),
@@ -302,7 +303,7 @@ class _WaterExpensesScreenState extends State<WaterExpensesScreen> {
     final s = waterExpenseSource(e);
     if (s == null) return const Text('—', style: TextStyle(color: TColors.slate400));
     if (s.$2 == null) return Text(s.$1, style: const TextStyle(fontSize: 12, color: TColors.slate500));
-    return InkWell(onTap: () => _href(s.$2!, s.$1), child: Text(s.$1, style: const TextStyle(fontSize: 12, color: Color(0xFF4338CA))));
+    return InkWell(onTap: () => _href(s.$2!, s.$1), child: Text(s.$1, style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF4338CA))));
   }
 
   Widget _deliveryLink(Map d) {
@@ -328,7 +329,7 @@ class _WaterExpensesScreenState extends State<WaterExpensesScreen> {
     final pageRows = pageSlice(visible, _page, _pageSize);
     Widget stat(String label, String value) => Container(
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(label, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
             Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: TColors.slate900)),
@@ -341,7 +342,7 @@ class _WaterExpensesScreenState extends State<WaterExpensesScreen> {
         onRefresh: _load,
         child: ListView(padding: const EdgeInsets.fromLTRB(14, 12, 14, 28), children: [
           const Row(children: [
-            Icon(Icons.receipt_outlined, size: 24, color: Color(0xFF0284C7)),
+            Icon(Icons.receipt_outlined, size: 24, color: Tone.fg(0xFF0284C7)),
             SizedBox(width: 8),
             Expanded(child: Text('Water expenses', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TColors.slate900))),
           ]),
@@ -388,7 +389,7 @@ class _WaterExpensesScreenState extends State<WaterExpensesScreen> {
           else if (all.isEmpty)
             Container(
               padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
               child: Text('No expenses ${_status != 'ALL' ? 'with status "$_status" ' : ''}yet.',
                   textAlign: TextAlign.center, style: const TextStyle(color: TColors.slate500)),
             )
@@ -401,7 +402,7 @@ class _WaterExpensesScreenState extends State<WaterExpensesScreen> {
               secondaryBuilder: (e) => Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
                 Text(_day(e.date)),
                 _statusBadge(e.status),
-                TBadge(e.direct ? 'Direct' : 'Delivery', bg: Colors.white, fg: TColors.slate700, border: TColors.slate300),
+                TBadge(e.direct ? 'Direct' : 'Delivery', bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate700, border: TColors.slate300),
               ]),
               highlights: (e) => [Highlight('Amount', _f2(e.row['amount']), accent: Accent.rose, wide: true)],
               details: (e) => e.direct
@@ -440,7 +441,7 @@ class _WaterExpensesScreenState extends State<WaterExpensesScreen> {
                   if (st == 'Draft' || st == 'Submitted')
                     OutlinedButton.icon(
                       onPressed: () => _action(d, 'approve'),
-                      style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFF15803D)),
+                      style: OutlinedButton.styleFrom(foregroundColor: const Tone.fg(0xFF15803D)),
                       icon: const Icon(Icons.check_circle_outline, size: 16),
                       label: const Text('Approve'),
                     ),
@@ -487,7 +488,7 @@ class _WaterExpensesScreenState extends State<WaterExpensesScreen> {
                               IconButton(
                                   tooltip: 'Approve',
                                   onPressed: () => _action(d, 'approve'),
-                                  icon: const Icon(Icons.check_circle_outline, size: 18, color: Color(0xFF16A34A))),
+                                  icon: const Icon(Icons.check_circle_outline, size: 18, color: Tone.fg(0xFF16A34A))),
                             if (_canPay && st == 'Approved' && tNum(d['balance']) > 0 && d['supplierId'] != null && tStr(d['sourceType']).isEmpty)
                               IconButton(
                                   tooltip: 'Record a payment against this bill',
@@ -679,7 +680,7 @@ class _RecordWaterExpenseScreenState extends State<_RecordWaterExpenseScreen> {
       body: ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 28), children: [
         const Text('Log a new expense for review and approval', style: TextStyle(fontSize: 13, color: TColors.slate500)),
         const SizedBox(height: 12),
-        formSection('Basics', const Color(0xFF4F46E5), [
+        formSection('Basics', const Tone.fg(0xFF4F46E5), [
           FilterLabel('Expense date *', FilterDate(value: _date, hint: 'Pick a date', onChanged: (v) => setState(() => _date = v))),
           const SizedBox(height: 8),
           FilterLabel(
@@ -783,7 +784,7 @@ class _RecordWaterExpenseScreenState extends State<_RecordWaterExpenseScreen> {
         ]),
         const SizedBox(height: 16),
         Wrap(alignment: WrapAlignment.end, spacing: 8, runSpacing: 8, children: [
-          FilledButton(style: FilledButton.styleFrom(backgroundColor: TColors.red600), onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600)), onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
           FilledButton(onPressed: _saving ? null : _save, child: Text(_saving ? 'Saving…' : 'Save as Draft')),
         ]),
       ]),
@@ -912,14 +913,14 @@ class _CategoriesDialogState extends State<_CategoriesDialog> {
   Widget build(BuildContext context) => AlertDialog(
         scrollable: true,
         title: const Row(children: [
-          Icon(Icons.sell_outlined, color: Color(0xFF2563EB)),
+          Icon(Icons.sell_outlined, color: Tone.fg(0xFF2563EB)),
           SizedBox(width: 8),
           Flexible(child: Text('Expense categories')),
         ]),
         content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           const Text('Manage the categories used to organise expenses', style: TextStyle(fontSize: 13, color: TColors.slate500)),
           const SizedBox(height: 12),
-          formSection('Existing categories', const Color(0xFF4F46E5), [
+          formSection('Existing categories', const Tone(0xFF4F46E5), [
             for (final c in widget.categories)
               Container(
                 margin: const EdgeInsets.only(bottom: 6),
@@ -927,7 +928,7 @@ class _CategoriesDialogState extends State<_CategoriesDialog> {
                 decoration: BoxDecoration(border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(4)),
                 child: Row(children: [
                   Expanded(child: Text(tStr(c['name']))),
-                  if (c['isActive'] != true) const TBadge('inactive', bg: Colors.white, fg: TColors.slate700, border: TColors.slate300),
+                  if (c['isActive'] != true) const TBadge('inactive', bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate700, border: TColors.slate300),
                 ]),
               ),
           ]),

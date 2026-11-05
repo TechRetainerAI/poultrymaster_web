@@ -19,6 +19,7 @@ import 'sale_reversal.dart';
 import 'sales_screen.dart';
 import '../../water/water_sales_screen.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Poultry → Sales, Expenses & Money → Sales → Payments, as
 /// `components/payments/payments-received-page.tsx` (module "poultry"): one
 /// row per payment the customer actually made, a part-paid sale folded to one
@@ -233,7 +234,7 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
       ));
 
   Widget _manageCreditButton(Map row, double height) => OutlinedButton.icon(
-        style: OutlinedButton.styleFrom(backgroundColor: Colors.white, minimumSize: Size.fromHeight(height)),
+        style: OutlinedButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)), minimumSize: Size.fromHeight(height)),
         onPressed: () => _manageCredit(row),
         iconAlignment: IconAlignment.end,
         icon: const Icon(Icons.arrow_forward, size: 16),
@@ -341,7 +342,7 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
           children: [
             Row(children: [
-              const Icon(Icons.account_balance_wallet_outlined, size: 24, color: Color(0xFF0284C7)),
+              const Icon(Icons.account_balance_wallet_outlined, size: 24, color: Tone.fg(0xFF0284C7)),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(title,
@@ -353,7 +354,7 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: FilledButton.icon(
-                  style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0284C7)),
+                  style: FilledButton.styleFrom(backgroundColor: Tone.button(const Tone.bg(0xFF0284C7))),
                   onPressed: _recordPayment,
                   icon: const Icon(Icons.payments_outlined, size: 16),
                   label: const Text('Record customer payment'),
@@ -480,7 +481,7 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: Tone.bg(0xFFFFFFFF),
                         border: Border.all(color: TColors.slate200),
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -500,7 +501,7 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
             const SizedBox(height: 14),
             Container(
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Tone.bg(0xFFFFFFFF),
                 border: Border.all(color: TColors.slate200),
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -564,7 +565,7 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: stripe ? TColors.blue100 : Colors.white,
+        color: stripe ? TColors.blue100 : Tone.bg(0xFFFFFFFF),
         border: Border.all(color: stripe ? TColors.blue300 : TColors.slate200),
         borderRadius: BorderRadius.circular(12),
       ),
@@ -582,7 +583,7 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
                         decoration: reversed ? TextDecoration.lineThrough : null,
                       )),
                   reversed
-                      ? const TBadge('Reversed', bg: Colors.white, fg: TColors.slate500, border: TColors.slate200)
+                      ? const TBadge('Reversed', bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate500, border: TColors.slate200)
                       : const TBadge('Posted', bg: TColors.slate100, fg: TColors.slate800),
                   if (widget.rail.isPoultry) paymentPLBadge(row),
                 ]),
@@ -620,8 +621,8 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: const Color(0xCCFFFFFF),
-              border: Border.all(color: const Color(0xB3E2E8F0)),
+              color: const Tone.bg(0xCCFFFFFF),
+              border: Border.all(color: const Tone.line(0xB3E2E8F0)),
               borderRadius: BorderRadius.circular(6),
             ),
             child: Column(children: [
@@ -632,7 +633,7 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
                     InkWell(
                       onTap: () => _openSale(one.saleId),
                       child: Text('#${one.saleId}',
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF0369A1))),
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Tone.fg(0xFF0369A1))),
                     ),
                     if (times != null) Text(' (paid $times times)', style: const TextStyle(fontSize: 12, color: TColors.slate400)),
                   ]),
@@ -658,7 +659,7 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
           const SizedBox(height: 8),
           OutlinedButton.icon(
             key: ValueKey('sale-details-$id'),
-            style: OutlinedButton.styleFrom(backgroundColor: Colors.white, minimumSize: const Size.fromHeight(40)),
+            style: OutlinedButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)), minimumSize: const Size.fromHeight(40)),
             onPressed: () => _saleDetails(row),
             icon: const Icon(Icons.visibility_outlined, size: 16),
             label: const Text('Sale details'),
@@ -671,7 +672,7 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
         if (_canReverse && !reversed && !isManualCreditPayment(row)) ...[
           const SizedBox(height: 8),
           OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(backgroundColor: Colors.white, minimumSize: const Size.fromHeight(40)),
+            style: OutlinedButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)), minimumSize: const Size.fromHeight(40)),
             onPressed: () => _reverse(row),
             icon: const Icon(Icons.undo, size: 16),
             label: const Text('Reverse'),
@@ -692,8 +693,8 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: const Color(0xCCFFFFFF),
-              border: Border.all(color: const Color(0xB3E2E8F0)),
+              color: const Tone.bg(0xCCFFFFFF),
+              border: Border.all(color: const Tone.line(0xB3E2E8F0)),
               borderRadius: BorderRadius.circular(6),
             ),
             child: !_allocations.containsKey(id)
@@ -720,14 +721,14 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
     final list = _trails[saleId];
     return Container(
       padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(color: const Color(0xFFEEF2FF), borderRadius: BorderRadius.circular(6)),
+      decoration: BoxDecoration(color: const Tone.bg(0xFFEEF2FF), borderRadius: BorderRadius.circular(6)),
       child: list == null
           ? const LoadingLine('Loading the sale’s payments…')
           : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                 child: Text('SALE #$saleId · PAID ${list.length} TIMES',
-                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF3730A3))),
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Tone.fg(0xFF3730A3))),
               ),
               for (final p in [...list]..sort((a, b) => tStr(a['paymentDate']).compareTo(tStr(b['paymentDate']))))
                 _trailCard(p, tStr(p['paymentId']) == currentId),
@@ -743,8 +744,8 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
       margin: const EdgeInsets.only(top: 8),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: isThis ? const Color(0xFF818CF8) : TColors.slate200),
+        color: Tone.bg(0xFFFFFFFF),
+        border: Border.all(color: isThis ? const Tone.line(0xFF818CF8) : TColors.slate200),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -779,7 +780,7 @@ class _PaymentsReceivedScreenState extends State<PaymentsReceivedScreen> {
           Padding(
             padding: const EdgeInsets.only(top: 6),
             child: OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(backgroundColor: Colors.white, minimumSize: const Size.fromHeight(34)),
+              style: OutlinedButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)), minimumSize: const Size.fromHeight(34)),
               onPressed: () => _reverse(p),
               icon: const Icon(Icons.undo, size: 14),
               label: const Text('Reverse'),

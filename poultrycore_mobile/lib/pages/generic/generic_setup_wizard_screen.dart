@@ -15,6 +15,7 @@ import '../shared/companies_screen.dart' show BusinessType;
 import '../web_nav.dart' show NavLink;
 import 'generic_kit.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// MODULE_ROWS: the ten switches step 2 shows, in the web's order.
 const genericWizardModules = [
   ('enableSubscriptions', 'Subscriptions', 'Bill the same customer every period'),
@@ -128,9 +129,9 @@ class _GenericSetupWizardScreenState extends State<GenericSetupWizardScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: _choice?.id == c.id ? const Color(0xFFEEF2FF) : Colors.white,
+                    color: _choice?.id == c.id ? const Tone.bg(0xFFEEF2FF) : Tone.bg(0xFFFFFFFF),
                     border: Border.all(
-                      color: _choice?.id == c.id ? const Color(0xFF6366F1) : TColors.slate200,
+                      color: _choice?.id == c.id ? const Tone.line(0xFF6366F1) : TColors.slate200,
                       width: _choice?.id == c.id ? 1.5 : 1,
                     ),
                     borderRadius: BorderRadius.circular(10),

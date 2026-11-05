@@ -3,23 +3,24 @@ import 'package:flutter/material.dart';
 import '../../design/ui/inputs.dart';
 import 'farm_setup_wizard.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 // The three dialogs Initial Farm Setup opens from inside a step, as
 // `components/poultry/pen-capacity-dialog.tsx`, `new-pen-dialog.tsx` and
 // `batch-size-dialog.tsx`: each fixes a number where it was found wrong.
 
-const _amber700 = Color(0xFFB45309);
-const _blue700 = Color(0xFF1D4ED8);
+const _amber700 = Tone.fg(0xFFB45309);
+const _blue700 = Tone.fg(0xFF1D4ED8);
 
 Widget _figure(BuildContext context, String label, String value, {Color? color}) => Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
+          color: const Tone.bg(0xFFF8FAFC),
+          border: Border.all(color: const Tone.line(0xFFE2E8F0)),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+          Text(label, style: const TextStyle(fontSize: 11, color: Tone.fg(0xFF64748B))),
           Text(value, style: TextStyle(fontWeight: FontWeight.w600, color: color)),
         ]),
       ),
@@ -136,7 +137,7 @@ class _PenCapacityDialogState extends State<_PenCapacityDialog> {
             AppNumberInput(controller: _value, enabled: !_saving, onChanged: (_) => setState(() {})),
             const SizedBox(height: 4),
             Text('${fmtInt(_total)} birds are in this pen. Leave it at 0 if the pen has no limit.',
-                style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+                style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF64748B))),
             if (tooSmall) ...[
               const SizedBox(height: 6),
               Text('That is less than the ${fmtInt(_total)} birds already in the pen. You can still save it.',
@@ -144,7 +145,7 @@ class _PenCapacityDialogState extends State<_PenCapacityDialog> {
             ],
             if (_error.isNotEmpty) ...[
               const SizedBox(height: 6),
-              Text(_error, style: const TextStyle(fontSize: 12, color: Color(0xFFDC2626))),
+              Text(_error, style: const TextStyle(fontSize: 12, color: Tone.fg(0xFFDC2626))),
             ],
           ]),
         ),
@@ -299,19 +300,19 @@ class _NewPenDialogState extends State<_NewPenDialog> {
           Text(
             'Leave the capacity blank if the pen has no set limit.'
             '${_mode == 'multiple' ? ' Capacity and location apply to every pen.' : ''}',
-            style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+            style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF64748B)),
           ),
           if (_mode == 'multiple' && preview.isNotEmpty) ...[
             const SizedBox(height: 6),
             Text(
               'Will add: ${preview.length <= 4 ? preview.map((r) => r.houseName).join(', ') : '${preview[0].houseName}, ${preview[1].houseName} … ${preview.last.houseName}'}'
               ' (${preview.length} pen${preview.length == 1 ? '' : 's'})',
-              style: const TextStyle(fontSize: 12, color: Color(0xFF475569)),
+              style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF475569)),
             ),
           ],
           if (_error.isNotEmpty) ...[
             const SizedBox(height: 6),
-            Text(_error, style: const TextStyle(fontSize: 12, color: Color(0xFFDC2626))),
+            Text(_error, style: const TextStyle(fontSize: 12, color: Tone.fg(0xFFDC2626))),
           ],
         ]),
       ),
@@ -437,7 +438,7 @@ class _BatchSizeDialogState extends State<_BatchSizeDialog> {
             AppNumberInput(controller: _value, enabled: !_saving, onChanged: (_) => setState(() {})),
             const SizedBox(height: 4),
             Text('Your flocks account for ${fmtInt(_accounted)} birds from this batch.',
-                style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+                style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF64748B))),
             if (changesStock) ...[
               const SizedBox(height: 6),
               Text(
@@ -449,7 +450,7 @@ class _BatchSizeDialogState extends State<_BatchSizeDialog> {
             ],
             if (_error.isNotEmpty) ...[
               const SizedBox(height: 6),
-              Text(_error, style: const TextStyle(fontSize: 12, color: Color(0xFFDC2626))),
+              Text(_error, style: const TextStyle(fontSize: 12, color: Tone.fg(0xFFDC2626))),
             ],
           ]),
         ),

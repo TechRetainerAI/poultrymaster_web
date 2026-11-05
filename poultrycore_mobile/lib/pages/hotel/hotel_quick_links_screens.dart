@@ -24,6 +24,7 @@ import '../poultry/trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../poultry/trackers/tracker_widgets.dart';
 import 'hotel_kit.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 Object? _v(Map m, String k) => m[k] ?? m[k.toLowerCase()];
 
 /// new Date().toISOString().slice(0, 10): the UTC day, as the web uses.
@@ -215,16 +216,16 @@ class _HotelDailyClosingScreenState extends State<HotelDailyClosingScreen> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Wrap(spacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
           Text(hotelNiceDate(_todayIso()), style: const TextStyle(fontWeight: FontWeight.w600, color: TColors.slate900)),
-          closed ? hotelBadge('Closed', const Color(0xFFDCFCE7), const Color(0xFF166534)) : hotelBadge('Open', TColors.slate100, TColors.slate700),
+          closed ? hotelBadge('Closed', const Tone(0xFFDCFCE7), const Tone(0xFF166534)) : hotelBadge('Open', TColors.slate100, TColors.slate700),
         ]),
         const SizedBox(height: 10),
         twoUp([
           _tile('Rooms occupied', '${_live.occupied}/${_live.totalRooms}', TColors.emerald100, TColors.emerald300, TColors.emerald900, TColors.emerald800),
-          _tile('Revenue', _gh(_live.revenue), TColors.blue100, TColors.blue300, TColors.blue900, const Color(0xFF1E40AF)),
+          _tile('Revenue', _gh(_live.revenue), TColors.blue100, TColors.blue300, TColors.blue900, const Tone(0xFF1E40AF)),
         ]),
         const SizedBox(height: 8),
-        _tile('Net (revenue − expenses)', _gh(_liveNet), TColors.violet100, const Color(0xFFC4B5FD), const Color(0xFF4C1D95),
-            _liveNet < 0 ? TColors.rose700 : const Color(0xFF4C1D95)),
+        _tile('Net (revenue − expenses)', _gh(_liveNet), TColors.violet100, const Tone(0xFFC4B5FD), const Tone(0xFF4C1D95),
+            _liveNet < 0 ? TColors.rose700 : const Tone(0xFF4C1D95)),
         const Divider(height: 20, color: TColors.violet200),
         twoUp([
           _fact('Expenses', _gh(_live.expenses), color: TColors.rose700),
@@ -236,7 +237,7 @@ class _HotelDailyClosingScreenState extends State<HotelDailyClosingScreen> {
         Row(children: [
           Expanded(
             child: OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(minimumSize: const Size(0, 40), backgroundColor: Colors.white),
+              style: OutlinedButton.styleFrom(minimumSize: const Size(0, 40), backgroundColor: Tone.bg(0xFFFFFFFF)),
               onPressed: () => _view(_todayAsClosing),
               icon: const Icon(Icons.visibility_outlined, size: 16),
               label: const Text('Open closing'),
@@ -299,7 +300,7 @@ class _HotelDailyClosingScreenState extends State<HotelDailyClosingScreen> {
                 items: page,
                 keyOf: (h) => h.id == 0 ? h.date : '${h.id}',
                 primary: (h) => hotelNiceDate(h.date),
-                trailing: (_) => hotelBadge('Closed', const Color(0xFFDCFCE7), const Color(0xFF166534)),
+                trailing: (_) => hotelBadge('Closed', const Tone(0xFFDCFCE7), const Tone(0xFF166534)),
                 secondary: (h) => h.notes,
                 highlights: (h) => [
                   Highlight('Rooms occupied', '${h.occupied}/${h.rooms}', accent: Accent.emerald),
@@ -317,7 +318,7 @@ class _HotelDailyClosingScreenState extends State<HotelDailyClosingScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(minimumSize: const Size(0, 40), backgroundColor: Colors.white),
+                      style: OutlinedButton.styleFrom(minimumSize: const Size(0, 40), backgroundColor: Tone.bg(0xFFFFFFFF)),
                       onPressed: () => _view(h),
                       icon: const Icon(Icons.visibility_outlined, size: 16),
                       label: const Text('Open closing'),
@@ -343,7 +344,7 @@ class _HotelDailyClosingScreenState extends State<HotelDailyClosingScreen> {
                         cellText(hotelNiceDate(h.date), bold: true),
                         cellText(_gh(h.revenue), bold: true, color: TColors.emerald700),
                         cellText(_gh(h.expenses), color: TColors.red600),
-                        cellText(_gh(h.net), bold: true, color: h.net >= 0 ? TColors.emerald700 : const Color(0xFFB91C1C)),
+                        cellText(_gh(h.net), bold: true, color: h.net >= 0 ? TColors.emerald700 : const Tone.fg(0xFFB91C1C)),
                         cellText('${h.occupancy.toStringAsFixed(1)}%'),
                         cellText('${h.occupied}/${h.rooms}'),
                         cellText(_gh(h.adr)),
@@ -438,8 +439,8 @@ class _NewClosingDialogState extends State<_NewClosingDialog> {
                 TextSpan(text: ' (${l.occupied}/${l.totalRooms})'),
               ]), style: const TextStyle(fontSize: 13)),
               fact('Revenue', gh(l.revenue), color: TColors.emerald700),
-              fact('Expenses', gh(l.expenses), color: const Color(0xFFB91C1C)),
-              fact('Net', gh(net), color: net >= 0 ? TColors.emerald700 : const Color(0xFFB91C1C)),
+              fact('Expenses', gh(l.expenses), color: const Tone(0xFFB91C1C)),
+              fact('Net', gh(net), color: net >= 0 ? TColors.emerald700 : const Tone(0xFFB91C1C)),
               fact('In-house guests', '${l.checkedIn}'),
               fact('ADR', gh(l.occupied > 0 ? l.revenue / l.occupied : 0)),
             ]),
@@ -471,7 +472,7 @@ class _ClosingDialog extends StatelessWidget {
 
   Widget _tile(String label, String value, {Color? color}) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: const TextStyle(fontSize: 11, color: TColors.slate500)),
           Text(value, style: TextStyle(fontWeight: FontWeight.w600, color: color ?? TColors.slate900)),
@@ -558,7 +559,7 @@ HotelAuditPreview hotelAuditPreview({
 int hotelAuditIssues(HotelAuditPreview p) =>
     (p.outstanding > 0 ? 1 : 0) + (p.pendingHousekeeping > 0 ? 1 : 0) + (p.openMaintenance > 0 ? 1 : 0) + (p.day.arrivals > 0 ? 1 : 0);
 
-const _amber50 = Color(0xFFFFFBEB), _amber200 = Color(0xFFFDE68A), _amber600 = Color(0xFFD97706), _amber700 = Color(0xFFB45309);
+const _amber50 = Tone.bg(0xFFFFFBEB), _amber200 = Tone(0xFFFDE68A), _amber600 = Tone(0xFFD97706), _amber700 = Tone(0xFFB45309);
 
 class HotelNightAuditScreen extends StatefulWidget {
   const HotelNightAuditScreen({super.key, required this.session, required this.company});
@@ -630,7 +631,7 @@ class _HotelNightAuditScreenState extends State<HotelNightAuditScreen> {
 
   Widget _card(IconData icon, Color iconColor, String value, Color valueColor, String label, {String? hint, Color? bg, Color? border}) => Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: bg ?? Colors.white, border: Border.all(color: border ?? TColors.slate200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: bg ?? Tone.bg(0xFFFFFFFF), border: Border.all(color: border ?? TColors.slate200), borderRadius: BorderRadius.circular(12)),
         child: Column(children: [
           Icon(icon, size: 20, color: iconColor),
           const SizedBox(height: 4),
@@ -643,9 +644,9 @@ class _HotelNightAuditScreenState extends State<HotelNightAuditScreen> {
   Widget _alert(IconData icon, Widget text, {bool blue = false}) => Container(
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: blue ? const Color(0xFFEFF6FF) : _amber50, borderRadius: BorderRadius.circular(6)),
+        decoration: BoxDecoration(color: blue ? const Tone.bg(0xFFEFF6FF) : _amber50, borderRadius: BorderRadius.circular(6)),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(icon, size: 16, color: blue ? const Color(0xFF2563EB) : _amber600),
+          Icon(icon, size: 16, color: blue ? const Tone.fg(0xFF2563EB) : _amber600),
           const SizedBox(width: 8),
           Expanded(child: DefaultTextStyle.merge(style: const TextStyle(fontSize: 13), child: text)),
         ]),
@@ -675,26 +676,26 @@ class _HotelNightAuditScreenState extends State<HotelNightAuditScreen> {
           else ...[
             twoUp([
               _card(Icons.bed_outlined, hotelViolet, '${p.day.occupied}/${p.day.totalRooms}', TColors.violet700, 'Rooms Occupied', hint: '$_occRate% occupancy'),
-              _card(Icons.people_outline, const Color(0xFF2563EB), '${p.day.checkedIn}', const Color(0xFF1D4ED8), 'In-House Guests'),
-              _card(Icons.trending_up, const Color(0xFF059669), p.day.revenue.toStringAsFixed(0), TColors.emerald700, "Today's Revenue"),
-              _card(Icons.trending_down, TColors.red600, p.day.expenses.toStringAsFixed(0), const Color(0xFFB91C1C), "Today's Expenses"),
+              _card(Icons.people_outline, const Tone(0xFF2563EB), '${p.day.checkedIn}', const Tone(0xFF1D4ED8), 'In-House Guests'),
+              _card(Icons.trending_up, const Tone(0xFF059669), p.day.revenue.toStringAsFixed(0), TColors.emerald700, "Today's Revenue"),
+              _card(Icons.trending_down, TColors.red600, p.day.expenses.toStringAsFixed(0), const Tone(0xFFB91C1C), "Today's Expenses"),
               _card(Icons.account_balance_wallet_outlined, _amber600, p.outstanding.toStringAsFixed(0), owed ? _amber700 : TColors.emerald700, 'Outstanding',
-                  bg: owed ? _amber50 : null, border: owed ? const Color(0xFFFCD34D) : null),
+                  bg: owed ? _amber50 : null, border: owed ? const Tone.line(0xFFFCD34D) : null),
               _card(
                 issues > 0 ? Icons.warning_amber_rounded : Icons.check_circle_outline,
-                issues > 0 ? _amber600 : const Color(0xFF059669),
+                issues > 0 ? _amber600 : const Tone(0xFF059669),
                 '$issues',
                 issues > 0 ? _amber700 : TColors.emerald700,
                 issues > 0 ? 'Issues Found' : 'All Clear',
-                bg: issues > 0 ? _amber50 : const Color(0xFFECFDF5),
-                border: issues > 0 ? const Color(0xFFFCD34D) : const Color(0xFF6EE7B7),
+                bg: issues > 0 ? _amber50 : const Tone.bg(0xFFECFDF5),
+                border: issues > 0 ? const Tone.line(0xFFFCD34D) : const Tone.line(0xFF6EE7B7),
               ),
             ]),
             if (issues > 0) ...[
               const SizedBox(height: 14),
               Container(
                 padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _amber200), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: _amber200), borderRadius: BorderRadius.circular(12)),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   const Row(children: [
                     Icon(Icons.warning_amber_rounded, size: 16, color: _amber700),
@@ -776,7 +777,7 @@ Widget _kv(String k, String v, {Color? color, bool bold = false}) => Column(cros
 
 Widget _auditStatus(Map a) => Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(color: const Color(0xFFD1FAE5), border: Border.all(color: const Color(0xFF6EE7B7)), borderRadius: BorderRadius.circular(6)),
+      decoration: BoxDecoration(color: const Tone.bg(0xFFD1FAE5), border: Border.all(color: const Tone.line(0xFF6EE7B7)), borderRadius: BorderRadius.circular(6)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         const Icon(Icons.check_circle_outline, size: 12, color: TColors.emerald700),
         const SizedBox(width: 4),
@@ -838,7 +839,7 @@ class _RunAuditDialogState extends State<_RunAuditDialog> {
               fact('Rooms', '${d.occupied}/${d.totalRooms} occupied'),
               fact('Occupancy', '${widget.occRate}%'),
               fact('Revenue', d.revenue.toStringAsFixed(2), color: TColors.emerald700),
-              fact('Expenses', d.expenses.toStringAsFixed(2), color: const Color(0xFFB91C1C)),
+              fact('Expenses', d.expenses.toStringAsFixed(2), color: const Tone(0xFFB91C1C)),
               fact('Outstanding', p.outstanding.toStringAsFixed(2), color: p.outstanding > 0 ? _amber700 : TColors.emerald700),
               fact('In-house', '${d.checkedIn} guests'),
             ]),
@@ -908,16 +909,16 @@ class _AuditDetailDialog extends StatelessWidget {
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: const Color(0xFFECFDF5), borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(color: const Tone.bg(0xFFECFDF5), borderRadius: BorderRadius.circular(8)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const Text('Net Revenue', style: TextStyle(fontSize: 12, color: TColors.slate500)),
-              Text(net.toStringAsFixed(2), style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: net >= 0 ? TColors.emerald700 : const Color(0xFFB91C1C))),
+              Text(net.toStringAsFixed(2), style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: net >= 0 ? TColors.emerald700 : const Tone.fg(0xFFB91C1C))),
               Text('Rev: ${rev.toStringAsFixed(2)} | Exp: ${exp.toStringAsFixed(2)}', style: const TextStyle(fontSize: 12)),
             ]),
           ),
           const SizedBox(height: 10),
           twoUp([
-            _count('${n('checkinCount')}', 'Check-ins', color: const Color(0xFF1D4ED8)),
+            _count('${n('checkinCount')}', 'Check-ins', color: const Tone(0xFF1D4ED8)),
             _count('${n('checkoutCount')}', 'Check-outs', color: TColors.slate700),
             _count('${n('noshowCount')}', 'No-shows', color: _amber700),
             _count('${n('pendingHouseTasks')}', 'Pending Housekeeping'),
@@ -932,7 +933,7 @@ class _AuditDetailDialog extends StatelessWidget {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Text('Issues Recorded:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _amber700)),
                 const SizedBox(height: 4),
-                Text(issues, style: const TextStyle(fontSize: 13, color: Color(0xFF92400E))),
+                Text(issues, style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF92400E))),
               ]),
             ),
           ],
@@ -951,8 +952,8 @@ const hotelShiftTypes = ['Morning', 'Afternoon', 'Night'];
 
 const _handoverStatusColors = {
   'Draft': (TColors.slate100, TColors.slate700),
-  'Submitted': (Color(0xFFDBEAFE), Color(0xFF1D4ED8)),
-  'Acknowledged': (Color(0xFFD1FAE5), TColors.emerald700),
+  'Submitted': (Tone(0xFFDBEAFE), Tone(0xFF1D4ED8)),
+  'Acknowledged': (Tone(0xFFD1FAE5), TColors.emerald700),
 };
 
 class HotelShiftHandoverScreen extends StatefulWidget {
@@ -1019,7 +1020,7 @@ class _HotelShiftHandoverScreenState extends State<HotelShiftHandoverScreen> {
           Wrap(alignment: WrapAlignment.end, spacing: 8, runSpacing: 8, children: [
             OutlinedButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
             FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(const Tone.bg(0xFF059669))),
               onPressed: () => Navigator.pop(ctx, true),
               icon: const Icon(Icons.check_circle_outline, size: 16),
               label: const Text('Acknowledge'),
@@ -1055,14 +1056,14 @@ class _HotelShiftHandoverScreenState extends State<HotelShiftHandoverScreen> {
   Widget _card(Map h) {
     final acked = h['status'] == 'Acknowledged';
     final to = tStr(h['handoverto']).isNotEmpty ? tStr(h['handoverto']) : tStr(h['receivedby']);
-    final c = _handoverStatusColors[h['status']] ?? (Colors.white, TColors.slate700);
+    final c = _handoverStatusColors[h['status']] ?? (Tone(0xFFFFFFFF), TColors.slate700);
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Tone.bg(0xFFFFFFFF),
         border: Border(
-          left: BorderSide(color: acked ? const Color(0xFF10B981) : const Color(0xFF3B82F6), width: 4),
+          left: BorderSide(color: acked ? const Tone.line(0xFF10B981) : const Tone.line(0xFF3B82F6), width: 4),
           top: const BorderSide(color: TColors.slate200),
           right: const BorderSide(color: TColors.slate200),
           bottom: const BorderSide(color: TColors.slate200),
@@ -1071,7 +1072,7 @@ class _HotelShiftHandoverScreenState extends State<HotelShiftHandoverScreen> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Wrap(spacing: 8, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
           Text(_day(h['shiftdate']), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
-          hotelBadge('${tStr(h['shifttype'])} Shift', Colors.white, TColors.slate700),
+          hotelBadge('${tStr(h['shifttype'])} Shift', Tone(0xFFFFFFFF), TColors.slate700),
           hotelBadge(tStr(h['status']), c.$1, c.$2),
         ]),
         const SizedBox(height: 4),
@@ -1083,7 +1084,7 @@ class _HotelShiftHandoverScreenState extends State<HotelShiftHandoverScreen> {
         if (tStr(h['keymessages']).isNotEmpty) _note('Key Messages', tStr(h['keymessages']), TColors.slate50),
         if (tStr(h['pendingitems']).isNotEmpty) _note('Pending Items', tStr(h['pendingitems']), _amber50),
         if (tStr(h['vipguests']).isNotEmpty) _note('VIP Guests', tStr(h['vipguests']), TColors.violet50),
-        if (tStr(h['incidents']).isNotEmpty) _note('Incidents', tStr(h['incidents']), const Color(0xFFFEF2F2)),
+        if (tStr(h['incidents']).isNotEmpty) _note('Incidents', tStr(h['incidents']), const Tone(0xFFFEF2F2)),
         if (h['cashbalance'] != null)
           Padding(
             padding: const EdgeInsets.only(top: 10),
@@ -1098,7 +1099,7 @@ class _HotelShiftHandoverScreenState extends State<HotelShiftHandoverScreen> {
             child: Align(
               alignment: Alignment.centerLeft,
               child: FilledButton.icon(
-                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
+                style: FilledButton.styleFrom(backgroundColor: Tone.button(const Tone.bg(0xFF059669))),
                 onPressed: () => _acknowledge(h),
                 icon: const Icon(Icons.check_circle_outline, size: 16),
                 label: const Text('Acknowledge'),
@@ -1224,7 +1225,7 @@ class _HandoverDialogState extends State<_HandoverDialog> {
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             const Text('Pass notes and pending items to the incoming shift', style: TextStyle(fontSize: 13, color: TColors.slate500)),
             const SizedBox(height: 12),
-            _section('Shift Info', const Color(0xFF4F46E5), [
+            _section('Shift Info', const Tone(0xFF4F46E5), [
               FilterLabel('Date', AppDateField(value: hotelParseYmd(_date), onChanged: (d) => setState(() => _date = d == null ? '' : hotelYmd(d)))),
               FilterLabel(
                 'Shift',
@@ -1235,7 +1236,7 @@ class _HandoverDialogState extends State<_HandoverDialog> {
                 ),
               ),
             ]),
-            _section('Handover Details', const Color(0xFFD97706), [
+            _section('Handover Details', const Tone(0xFFD97706), [
               FilterLabel('Handover By *', AppSelect<String>(value: _by, items: _people(), onChanged: (v) => setState(() => _by = v ?? ''))),
               FilterLabel(
                 'Handover To *',
@@ -1246,7 +1247,7 @@ class _HandoverDialogState extends State<_HandoverDialog> {
               FilterLabel('VIP Guests', _area(_vip, 'VIP arrivals/departures, special treatment', 2)),
               FilterLabel('Incidents', _area(_incidents, 'Any incidents or issues', 2)),
             ]),
-            _section('Cash', const Color(0xFF16A34A), [
+            _section('Cash', const Tone(0xFF16A34A), [
               FilterLabel(
                 'Cash Balance',
                 AppInput(

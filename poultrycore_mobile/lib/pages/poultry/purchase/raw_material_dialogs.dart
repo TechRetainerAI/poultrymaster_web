@@ -16,6 +16,7 @@ import '../reports/report_format.dart';
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, loc;
 import '../trackers/tracker_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 // ------------------------------------------------------------ vocabulary
 
 const rawMaterialCategories = [
@@ -84,7 +85,7 @@ Widget _cell(String label, Widget child, {String? hint}) => Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
         if (label.isNotEmpty) ...[
-          Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: TColors.slate700)),
+          Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Tone.fg(0xFF334155))),
           const SizedBox(height: 6),
         ],
         child,
@@ -96,18 +97,18 @@ Widget _readOnly(String text) => Container(
       height: 44,
       alignment: Alignment.centerLeft,
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(color: TColors.slate100, border: Border.all(color: TColors.slate300), borderRadius: BorderRadius.circular(6)),
-      child: Text(text, style: const TextStyle(fontWeight: FontWeight.w500, color: TColors.slate600)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFF1F5F9), border: Border.all(color: Tone.line(0xFFCBD5E1)), borderRadius: BorderRadius.circular(6)),
+      child: Text(text, style: const TextStyle(fontWeight: FontWeight.w500, color: Tone.fg(0xFF475569))),
     );
 
 Widget _switchRow(String title, String hint, bool value, ValueChanged<bool> on) => Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(color: TColors.slate50, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFF8FAFC), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(8)),
       child: Row(children: [
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: TColors.slate700)),
+            Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Tone.fg(0xFF334155))),
             Text(hint, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
           ]),
         ),
@@ -115,8 +116,8 @@ Widget _switchRow(String title, String hint, bool value, ValueChanged<bool> on) 
       ]),
     );
 
-const _indigo = Color(0xFF4F46E5), _blue = Color(0xFF2563EB), _amber = Color(0xFFD97706), _slate = Color(0xFF475569);
-const _emerald = Color(0xFF059669);
+const _indigo = Tone.fg(0xFF4F46E5), _blue = Tone(0xFF2563EB), _amber = Tone(0xFFD97706), _slate = Tone(0xFF475569);
+const _emerald = Tone(0xFF059669);
 
 // ------------------------------------------------------------ purchase
 
@@ -343,7 +344,7 @@ class _RawPurchaseDialogState extends State<RawPurchaseDialog> {
                   const Padding(
                     padding: EdgeInsets.only(top: 4),
                     child: Text('Pick a supplier if you want what is owed on this purchase to appear in Supplier Balances.',
-                        style: TextStyle(fontSize: 12, color: TColors.amber700)),
+                        style: TextStyle(fontSize: 12, color: Tone.fg(0xFFB45309))),
                   ),
               ]),
             ),
@@ -546,9 +547,9 @@ class _RawItemDialogState extends State<RawItemDialog> {
   Widget _radioCard(bool selected, VoidCallback onTap, String title, String hint) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: Material(
-          color: selected ? TColors.emerald50 : Colors.white,
+          color: selected ? Tone.bg(0xFFECFDF5) : Tone.bg(0xFFFFFFFF),
           shape: RoundedRectangleBorder(
-            side: BorderSide(color: selected ? TColors.emerald600 : TColors.slate200),
+            side: BorderSide(color: selected ? Tone.line(0xFF059669) : Tone.line(0xFFE2E8F0)),
             borderRadius: BorderRadius.circular(6),
           ),
           child: InkWell(
@@ -557,11 +558,11 @@ class _RawItemDialogState extends State<RawItemDialog> {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Icon(selected ? Icons.radio_button_checked : Icons.radio_button_unchecked, size: 18, color: TColors.emerald600),
+                Icon(selected ? Icons.radio_button_checked : Icons.radio_button_unchecked, size: 18, color: Tone.fg(0xFF059669)),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: TColors.slate800)),
+                    Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Tone.fg(0xFF1E293B))),
                     Text(hint, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
                   ]),
                 ),
@@ -574,11 +575,11 @@ class _RawItemDialogState extends State<RawItemDialog> {
   Widget _warn(Widget text) => Container(
         margin: const EdgeInsets.only(top: 8),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(color: TColors.amber50, border: Border.all(color: TColors.amber300), borderRadius: BorderRadius.circular(6)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFBEB), border: Border.all(color: Tone.line(0xFFFCD34D)), borderRadius: BorderRadius.circular(6)),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Icon(Icons.warning_amber_outlined, size: 16, color: TColors.amber600),
+          const Icon(Icons.warning_amber_outlined, size: 16, color: Tone.fg(0xFFD97706)),
           const SizedBox(width: 8),
-          Expanded(child: DefaultTextStyle.merge(style: const TextStyle(fontSize: 12, color: TColors.amber800), child: text)),
+          Expanded(child: DefaultTextStyle.merge(style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF92400E)), child: text)),
         ]),
       );
 
@@ -668,7 +669,7 @@ class _RawItemDialogState extends State<RawItemDialog> {
                   const TextSpan(text: 'Effective for this item: '),
                   TextSpan(text: methodLabel(eff.method), style: const TextStyle(fontWeight: FontWeight.w700)),
                   TextSpan(text: eff.source == 'ItemOverride' ? ' (overriding the farm default)' : ' (from the farm default)'),
-                ]), style: const TextStyle(fontSize: 12, color: TColors.slate600)),
+                ]), style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF475569))),
                 if (overrideChanged) _warn(const Text(changeWarning)),
                 if (eff.method == expenseWhenConsumed) _warn(const Text(deferredActiveNote)),
               ]),
@@ -811,7 +812,7 @@ class _RecalculateStockDialogState extends State<RecalculateStockDialog> {
                         style: const TextStyle(fontWeight: FontWeight.w500)),
                     const TextSpan(text: ', floored at 0. Finished products are not affected.'),
                   ]),
-                  style: const TextStyle(fontSize: 14, color: TColors.slate600),
+                  style: const TextStyle(fontSize: 14, color: Tone.fg(0xFF475569)),
                 ),
                 const SizedBox(height: 12),
                 FilterLabel(
@@ -833,9 +834,9 @@ class _RecalculateStockDialogState extends State<RecalculateStockDialog> {
               ])
             : Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 if (res.isEmpty)
-                  const Text('Everything already matched — no stock figures needed changing.', style: TextStyle(fontSize: 14, color: TColors.slate600))
+                  const Text('Everything already matched — no stock figures needed changing.', style: TextStyle(fontSize: 14, color: Tone.fg(0xFF475569)))
                 else ...[
-                  Text('${res.length} item(s) updated:', style: const TextStyle(fontSize: 14, color: TColors.slate600)),
+                  Text('${res.length} item(s) updated:', style: const TextStyle(fontSize: 14, color: Tone.fg(0xFF475569))),
                   const SizedBox(height: 8),
                   TrackerTable(
                     columns: const [TCol('Item', width: 170), TCol('Was', right: true, width: 80), TCol('Now', right: true, width: 80), TCol('Change', right: true, width: 80)],
@@ -844,12 +845,12 @@ class _RecalculateStockDialogState extends State<RecalculateStockDialog> {
                         [
                           Text.rich(TextSpan(children: [
                             TextSpan(text: tStr(x['itemName']), style: const TextStyle(fontWeight: FontWeight.w500)),
-                            if (tStr(x['category']).isNotEmpty) TextSpan(text: ' — ${tStr(x['category'])}', style: const TextStyle(color: TColors.slate400)),
+                            if (tStr(x['category']).isNotEmpty) TextSpan(text: ' — ${tStr(x['category'])}', style: const TextStyle(color: Tone.fg(0xFF7F8EA3))),
                           ])),
                           cellText(loc(tNum(x['oldQuantity']))),
                           cellText(loc(tNum(x['newQuantity']))),
                           cellText('${tNum(x['delta']) > 0 ? '+' : ''}${loc(tNum(x['delta']))}',
-                              color: tNum(x['delta']) < 0 ? TColors.red600 : TColors.green700),
+                              color: tNum(x['delta']) < 0 ? Tone.fg(0xFFDC2626) : TColors.green700),
                         ],
                     ],
                   ),

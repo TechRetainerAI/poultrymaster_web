@@ -26,6 +26,7 @@ import 'restaurant_money_kit.dart' show rField, rFin, rNumberInput, rDateInput, 
 import 'restaurant_roles.dart' show restaurantRose;
 import 'restaurant_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// `when`: the web's toLocaleString, or "—".
 String tillWhen(Object? s) {
   final d = DateTime.tryParse(tStr(s));
@@ -235,7 +236,7 @@ class _RestaurantTillsScreenState extends State<RestaurantTillsScreen> {
 
   Widget _figure(String label, String value) => Container(
         padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: const Color(0xFFF9FAFB), borderRadius: BorderRadius.circular(8)),
+        decoration: BoxDecoration(color: const Tone.bg(0xFFF9FAFB), borderRadius: BorderRadius.circular(8)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
           Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
@@ -247,8 +248,8 @@ class _RestaurantTillsScreenState extends State<RestaurantTillsScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: s != null ? const Color(0xFF86EFAC) : TColors.slate200),
+        color: Tone.bg(0xFFFFFFFF),
+        border: Border.all(color: s != null ? const Tone.line(0xFF86EFAC) : TColors.slate200),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -264,14 +265,14 @@ class _RestaurantTillsScreenState extends State<RestaurantTillsScreen> {
             ]),
           ),
           s != null
-              ? rBadge('Open', bg: const Color(0xFF16A34A), fg: Colors.white)
+              ? rBadge('Open', bg: const Tone.bg(0xFF16A34A), fg: Colors.white)
               : Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                   decoration: BoxDecoration(border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(999)),
                   child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.lock_outline, size: 11, color: Color(0xFF374151)),
+                    Icon(Icons.lock_outline, size: 11, color: Tone.fg(0xFF374151)),
                     SizedBox(width: 3),
-                    Text('Closed', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF374151))),
+                    Text('Closed', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Tone.fg(0xFF374151))),
                   ]),
                 ),
         ]),
@@ -294,7 +295,7 @@ class _RestaurantTillsScreenState extends State<RestaurantTillsScreen> {
             ),
           ])
         else
-          roseButton('Open shift', () => _openShift(till), icon: Icons.meeting_room_outlined, color: const Color(0xFF16A34A)),
+          roseButton('Open shift', () => _openShift(till), icon: Icons.meeting_room_outlined, color: const Tone(0xFF16A34A)),
       ]),
     );
   }
@@ -327,10 +328,10 @@ class _RestaurantTillsScreenState extends State<RestaurantTillsScreen> {
   Widget _historyRow(Map s) {
     final v = tNum(s['variance']);
     final vColor = v < 0
-        ? const Color(0xFFDC2626)
+        ? const Tone(0xFFDC2626)
         : v > 0
-            ? const Color(0xFFD97706)
-            : const Color(0xFF15803D);
+            ? const Tone(0xFFD97706)
+            : const Tone(0xFF15803D);
     Widget cell(String k, String val, {Color? color, bool bold = false}) => Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(k, style: const TextStyle(fontSize: 11, color: TColors.slate500)),
@@ -408,7 +409,7 @@ class _NewTillDialogState extends State<_NewTillDialog> {
         actions: [
           rCancel(context, 'Cancel'),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: restaurantRose),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(restaurantRose)),
             onPressed: _saving || _name.text.trim().isEmpty ? null : _create,
             child: const Text('Create'),
           ),
@@ -490,7 +491,7 @@ class _OpenShiftDialogState extends State<_OpenShiftDialog> {
         actions: [
           rCancel(context, 'Cancel', busy: _saving),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF16A34A)),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(const Tone.bg(0xFF16A34A))),
             onPressed: _saving ? null : _submit,
             child: const Text('Open shift'),
           ),
@@ -573,10 +574,10 @@ class _CloseShiftDialogState extends State<_CloseShiftDialog> {
     final gh = widget.gh;
     final v = _variance;
     final (bg, fg) = v == 0
-        ? (const Color(0xFFF0FDF4), const Color(0xFF166534))
+        ? (const Tone(0xFFF0FDF4), const Tone(0xFF166534))
         : v > 0
-            ? (const Color(0xFFFFFBEB), const Color(0xFF92400E))
-            : (const Color(0xFFFEF2F2), const Color(0xFF991B1B));
+            ? (const Tone(0xFFFFFBEB), const Tone(0xFF92400E))
+            : (const Tone(0xFFFEF2F2), const Tone(0xFF991B1B));
     final float = tNum(widget.shift['openingFloat']);
     return rDialog(
       title: 'Close & count — ${tStr(widget.shift['tillName'])}',
@@ -584,7 +585,7 @@ class _CloseShiftDialogState extends State<_CloseShiftDialog> {
       children: [
         Container(
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: const Color(0xFFF9FAFB), borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(color: const Tone.bg(0xFFF9FAFB), borderRadius: BorderRadius.circular(8)),
           child: Row(children: [
             const Expanded(child: Text('System expects', style: TextStyle(fontSize: 14))),
             Flexible(child: Text(gh(_expected), textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w700))),
@@ -616,7 +617,7 @@ class _CloseShiftDialogState extends State<_CloseShiftDialog> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: TextButton(
-                  style: TextButton.styleFrom(foregroundColor: const Color(0xFFBE123C), padding: EdgeInsets.zero, visualDensity: VisualDensity.compact),
+                  style: TextButton.styleFrom(foregroundColor: const Tone.fg(0xFFBE123C), padding: EdgeInsets.zero, visualDensity: VisualDensity.compact),
                   onPressed: () => setState(() => _drop.text = (_countedNum - float > 0 ? _countedNum - float : 0).toStringAsFixed(2)),
                   child: Text('Leave the float (${gh(float)}) in the till', style: const TextStyle(fontSize: 12, decoration: TextDecoration.underline)),
                 ),
@@ -638,7 +639,7 @@ class _CloseShiftDialogState extends State<_CloseShiftDialog> {
       actions: [
         rCancel(context, 'Cancel', busy: _saving),
         FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: restaurantRose),
+          style: FilledButton.styleFrom(backgroundColor: Tone.button(restaurantRose)),
           onPressed: _saving || _counted.text.isEmpty ? null : _submit,
           child: const Text('Close shift'),
         ),
@@ -682,7 +683,7 @@ class _ZReportDialog extends StatelessWidget {
           const SizedBox(height: 10),
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Text('${tStr(shift['tillName'])} — ${tStr(shift['shiftNumber'])}', textAlign: TextAlign.center, style: mono.copyWith(fontWeight: FontWeight.w700)),
               row('Opened', tillWhen(shift['openedAt'])),
@@ -712,7 +713,7 @@ class _ZReportDialog extends StatelessWidget {
         Wrap(alignment: WrapAlignment.end, spacing: 8, children: [
           OutlinedButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
           FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: restaurantRose),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(restaurantRose)),
             onPressed: () async {
               final bytes = await zReportPdf(shift, lines, gh);
               await ReportExport.sharer('Z-report_${tStr(shift['shiftNumber'])}.pdf', bytes, 'application/pdf', 'Z-report');

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../design/tokens.dart';
 import '../models/company.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Company-type colours, taken from the web.
 ///
 /// Two separate palettes exist there and both are reproduced here:
@@ -21,23 +22,23 @@ class TypeColors {
   const TypeColors._();
 
   // Tailwind palette values used by the web.
-  static const amber100 = Color(0xFFFEF3C7);
-  static const amber700 = Color(0xFFB45309);
-  static const blue100 = Color(0xFFDBEAFE);
-  static const blue700 = Color(0xFF1D4ED8);
-  static const slate100 = Color(0xFFF1F5F9);
-  static const slate700 = Color(0xFF334155);
-  static const rose100 = Color(0xFFFFE4E6);
-  static const rose700 = Color(0xFFBE123C);
-  static const violet100 = Color(0xFFEDE9FE);
-  static const violet700 = Color(0xFF6D28D9);
+  static const amber100 = Tone.bg(0xFFFEF3C7);
+  static const amber700 = Tone.fg(0xFFB45309);
+  static const blue100 = Tone.bg(0xFFDBEAFE);
+  static const blue700 = Tone.fg(0xFF1D4ED8);
+  static const slate100 = Tone.bg(0xFFF1F5F9);
+  static const slate700 = Tone.fg(0xFF334155);
+  static const rose100 = Tone.bg(0xFFFFE4E6);
+  static const rose700 = Tone.fg(0xFFBE123C);
+  static const violet100 = Tone.bg(0xFFEDE9FE);
+  static const violet700 = Tone.fg(0xFF6D28D9);
 
   // Nav accents.
-  static const sky600 = Color(0xFF0284C7); // Water
-  static const orange500 = Color(0xFFF97316); // Poultry
-  static const emerald600 = Color(0xFF059669); // Generic
-  static const violet600 = Color(0xFF7C3AED); // Hotel
-  static const rose600 = Color(0xFFE11D48); // Restaurant
+  static const sky600 = Tone(0xFF0284C7); // Water
+  static const orange500 = Tone(0xFFF97316); // Poultry
+  static const emerald600 = Tone(0xFF059669); // Generic
+  static const violet600 = Tone(0xFF7C3AED); // Hotel
+  static const rose600 = Tone(0xFFE11D48); // Restaurant
 
   /// The solid colour the web tints a company's nav panel with.
   static Color accent(CompanyType type) => switch (type) {

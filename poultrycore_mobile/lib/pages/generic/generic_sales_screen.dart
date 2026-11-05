@@ -19,6 +19,7 @@ import '../poultry/trackers/tracker_widgets.dart';
 import '../shared/business_dates.dart';
 import '../shared/company_clock.dart';
 import 'generic_kit.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import 'generic_products_screen.dart' show genericEmptyCard;
 import 'reports/generic_report_kit.dart' show fmtMoney;
 
@@ -63,13 +64,13 @@ Widget genericTotalRow(String label, String value, {bool bold = false, Color? co
         Expanded(
           child: Text(label, style: TextStyle(fontSize: 14, color: bold ? TColors.slate900 : TColors.slate600, fontWeight: bold ? FontWeight.w600 : FontWeight.w400)),
         ),
-        Text(value, style: TextStyle(fontSize: 14, color: color ?? TColors.slate900, fontWeight: bold || color == TColors.rose700 ? FontWeight.w700 : FontWeight.w400)),
+        Text(value, style: TextStyle(fontSize: 14, color: color ?? TColors.slate900, fontWeight: bold || identical(color, TColors.rose700) ? FontWeight.w700 : FontWeight.w400)),
       ]),
     );
 
 Widget genericCard(String? title, List<Widget> children, {bool smallTitle = false}) => Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         if (title != null) ...[
           Text(smallTitle ? title.toUpperCase() : title,
@@ -416,7 +417,7 @@ class _GenericNewSaleScreenState extends State<GenericNewSaleScreen> {
   Widget _lineCard(_Line l) => Container(
         key: l.key,
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(8)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(children: [
             SizedBox(
@@ -719,7 +720,7 @@ class _GenericSaleDetailScreenState extends State<GenericSaleDetailScreen> {
                 if (tStr(s['status']) == 'Draft') ...[
                   FilledButton.icon(
                     onPressed: _acting ? null : () => _act('approve', 'Sale #$_id approved', 'Inventory, cash and customer ledger updated.', 'Approve failed'),
-                    style: FilledButton.styleFrom(backgroundColor: TColors.emerald600),
+                    style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.emerald600)),
                     icon: _acting
                         ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                         : const Icon(Icons.check, size: 16),

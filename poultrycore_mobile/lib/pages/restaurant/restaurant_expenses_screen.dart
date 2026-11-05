@@ -24,6 +24,7 @@ import 'restaurant_money_kit.dart';
 import 'restaurant_roles.dart' show restaurantRose;
 import 'restaurant_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 const restaurantExpensePaymentMethods = ['Cash', 'Card', 'Bank Transfer', 'MobileMoney', 'Cheque'];
 
 /// fmtShortDate: "Sep 28, 26", read off the yyyy-mm-dd string.
@@ -61,7 +62,7 @@ String _day(Object? d) => tStr(d).length >= 10 ? tStr(d).substring(0, 10) : tStr
 const _statusBadge = {
   'Paid': (TColors.emerald50, TColors.emerald700, TColors.emerald200),
   'PartiallyPaid': (TColors.amber50, TColors.amber700, TColors.amber200),
-  'Unpaid': (Color(0xFFFEF2F2), Color(0xFFB91C1C), Color(0xFFFECACA)),
+  'Unpaid': (Tone.bg(0xFFFEF2F2), Tone.bg(0xFFB91C1C), Tone.bg(0xFFFECACA)),
 };
 
 class RestaurantExpensesScreen extends StatefulWidget {
@@ -295,7 +296,7 @@ class _RestaurantExpensesScreenState extends State<RestaurantExpensesScreen> {
 
   Widget _statusChip(Map p) {
     final st = tStr(p['paymentStatus']);
-    final (bg, fg, border) = _statusBadge[st] ?? (Colors.white, TColors.slate700, TColors.slate200);
+    final (bg, fg, border) = _statusBadge[st] ?? (Tone(0xFFFFFFFF), TColors.slate700, TColors.slate200);
     return rStatusBadge(paymentStatusLabels[st] ?? st, bg: bg, fg: fg, border: border);
   }
 
@@ -334,7 +335,7 @@ class _RestaurantExpensesScreenState extends State<RestaurantExpensesScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(color: TColors.rose50, border: Border.all(color: TColors.rose200), borderRadius: BorderRadius.circular(8)),
               child: Wrap(spacing: 12, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                Text('Showing expense #$_focusId only.', style: const TextStyle(fontSize: 13, color: Color(0xFF881337))),
+                Text('Showing expense #$_focusId only.', style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF881337))),
                 OutlinedButton(onPressed: () => setState(() => _focusId = null), child: const Text('Show all expenses')),
               ]),
             ),
@@ -353,7 +354,7 @@ class _RestaurantExpensesScreenState extends State<RestaurantExpensesScreen> {
                   const SizedBox(width: 6),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6),
-                    decoration: BoxDecoration(color: const Color(0xFFF97316), borderRadius: BorderRadius.circular(999)),
+                    decoration: BoxDecoration(color: const Tone.bg(0xFFF97316), borderRadius: BorderRadius.circular(999)),
                     child: Text('$_activeFilterCount', style: const TextStyle(fontSize: 12, color: Colors.white)),
                   ),
                 ],
@@ -400,7 +401,7 @@ class _RestaurantExpensesScreenState extends State<RestaurantExpensesScreen> {
                 primary: (e) => fmtShortDate(e['expenseDate']),
                 trailing: (e) => tStr(e['categoryName']).isEmpty
                     ? null
-                    : rStatusBadge(tStr(e['categoryName']), bg: const Color(0xFFFFE4E6), fg: TColors.rose700, border: TColors.rose200),
+                    : rStatusBadge(tStr(e['categoryName']), bg: const Tone.bg(0xFFFFE4E6), fg: TColors.rose700, border: TColors.rose200),
                 secondaryBuilder: (e) => Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
                   Text(_gh(tNum(e['amount'])), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: TColors.red600)),
                   const SizedBox(width: 12),
@@ -419,7 +420,7 @@ class _RestaurantExpensesScreenState extends State<RestaurantExpensesScreen> {
                 actions: (e) => [
                   OutlinedButton.icon(onPressed: () => _expenseDialog(e), icon: const Icon(Icons.edit_outlined, size: 16), label: const Text('Edit')),
                   OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(foregroundColor: TColors.red600, side: const BorderSide(color: Color(0xFFFECACA))),
+                    style: OutlinedButton.styleFrom(foregroundColor: TColors.red600, side: const BorderSide(color: Tone.line(0xFFFECACA))),
                     onPressed: () => _delete(e),
                     icon: const Icon(Icons.delete_outline, size: 16),
                     label: const Text('Delete'),
@@ -530,7 +531,7 @@ class _RestaurantExpensesScreenState extends State<RestaurantExpensesScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                   decoration: BoxDecoration(border: i == 0 ? null : const Border(top: BorderSide(color: TColors.slate200))),
                   child: Row(children: [
-                    const Icon(Icons.sell_outlined, size: 16, color: Color(0xFFF43F5E)),
+                    const Icon(Icons.sell_outlined, size: 16, color: Tone.fg(0xFFF43F5E)),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Wrap(spacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
@@ -712,7 +713,7 @@ class _ExpenseDialogState extends State<_ExpenseDialog> {
           decoration: BoxDecoration(border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Container(
-              color: const Color(0xFF0284C7),
+              color: const Tone.bg(0xFF0284C7),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: const Text('Supplier & Payment Status', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white)),
             ),

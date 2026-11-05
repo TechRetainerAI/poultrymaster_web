@@ -16,6 +16,7 @@ import '../poultry/trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, Sor
 import '../poultry/trackers/tracker_widgets.dart';
 import '../shared/business_dates.dart';
 import '../shared/company_clock.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import 'water_expenses_screen.dart' show WaterAddSupplierDialog;
 
 /// Water → Operations → Inventory → Raw materials & supplies, as
@@ -277,17 +278,17 @@ class _WaterRawMaterialsScreenState extends State<WaterRawMaterialsScreen> {
       );
 
   Widget _box(Widget child) => Container(
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
         child: child,
       );
 
   Widget _empty(String t) => Padding(padding: const EdgeInsets.all(32), child: Text(t, textAlign: TextAlign.center, style: const TextStyle(color: TColors.slate500)));
 
   Widget _activeBadge(Map it) => it['isActive'] == true
-      ? const TBadge('Active', bg: Color(0xFFDCFCE7), fg: Color(0xFF15803D))
-      : const TBadge('Inactive', bg: Colors.white, fg: TColors.slate700, border: TColors.slate300);
+      ? const TBadge('Active', bg: Tone.bg(0xFFDCFCE7), fg: Tone.fg(0xFF15803D))
+      : const TBadge('Inactive', bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate700, border: TColors.slate300);
 
-  Widget _outline(String s) => TBadge(s, bg: Colors.white, fg: TColors.slate700, border: TColors.slate300);
+  Widget _outline(String s) => TBadge(s, bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate700, border: TColors.slate300);
 
   List<Widget> _itemsTab() {
     final units = <String>{for (final i in _items) ...[if (tStr(i['unitOfMeasure']).isNotEmpty) tStr(i['unitOfMeasure']), if (tStr(i['purchaseUnitOfMeasure']).isNotEmpty) tStr(i['purchaseUnitOfMeasure'])]}.toList()
@@ -317,7 +318,7 @@ class _WaterRawMaterialsScreenState extends State<WaterRawMaterialsScreen> {
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: TColors.amber50, border: Border.all(color: const Color(0xFFFDE68A)), borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(color: TColors.amber50, border: Border.all(color: const Tone.line(0xFFFDE68A)), borderRadius: BorderRadius.circular(12)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('Low-stock items (${low.length})', style: const TextStyle(fontWeight: FontWeight.w500, color: TColors.amber900)),
             const SizedBox(height: 4),
@@ -351,7 +352,7 @@ class _WaterRawMaterialsScreenState extends State<WaterRawMaterialsScreen> {
                     OutlinedButton.icon(onPressed: () => _itemDialog(i), icon: const Icon(Icons.edit_outlined, size: 16), label: const Text('Edit')),
                     OutlinedButton.icon(
                       onPressed: () => _deleteItem(i),
-                      style: OutlinedButton.styleFrom(foregroundColor: TColors.red600, side: const BorderSide(color: Color(0xFFFECACA))),
+                      style: OutlinedButton.styleFrom(foregroundColor: TColors.red600, side: const BorderSide(color: Tone.line(0xFFFECACA))),
                       icon: const Icon(Icons.delete_outline, size: 16),
                       label: const Text('Delete'),
                     ),
@@ -374,13 +375,13 @@ class _WaterRawMaterialsScreenState extends State<WaterRawMaterialsScreen> {
                           cellText(tStr(i['unitOfMeasure']).isEmpty ? '—' : tStr(i['unitOfMeasure'])),
                           Align(
                             alignment: Alignment.centerRight,
-                            child: cellText(qtyFmt(i['currentQuantity']), color: isLow(i) ? const Color(0xFFE11D48) : null, bold: isLow(i)),
+                            child: cellText(qtyFmt(i['currentQuantity']), color: isLow(i) ? const Tone.fg(0xFFE11D48) : null, bold: isLow(i)),
                           ),
                           Align(alignment: Alignment.centerRight, child: cellText(qtyFmt(i['minimumStockAlert']))),
                           Align(alignment: Alignment.centerLeft, child: _activeBadge(i)),
                           Wrap(alignment: WrapAlignment.end, children: [
                             IconButton(tooltip: 'Edit', onPressed: () => _itemDialog(i), icon: const Icon(Icons.edit_outlined, size: 18)),
-                            IconButton(tooltip: 'Delete', onPressed: () => _deleteItem(i), icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFEF4444))),
+                            IconButton(tooltip: 'Delete', onPressed: () => _deleteItem(i), icon: const Icon(Icons.delete_outline, size: 18, color: Tone.fg(0xFFEF4444))),
                           ]),
                         ],
                     ],
@@ -408,7 +409,7 @@ class _WaterRawMaterialsScreenState extends State<WaterRawMaterialsScreen> {
           OutlinedButton.icon(onPressed: () => _purchaseDialog(p), icon: const Icon(Icons.edit_outlined, size: 16), label: const Text('Edit')),
           OutlinedButton.icon(
             onPressed: () => _deletePurchase(p),
-            style: OutlinedButton.styleFrom(foregroundColor: TColors.red600, side: const BorderSide(color: Color(0xFFFECACA))),
+            style: OutlinedButton.styleFrom(foregroundColor: TColors.red600, side: const BorderSide(color: Tone.line(0xFFFECACA))),
             icon: const Icon(Icons.delete_outline, size: 16),
             label: const Text('Delete'),
           ),
@@ -417,7 +418,7 @@ class _WaterRawMaterialsScreenState extends State<WaterRawMaterialsScreen> {
       if (_focus != null) ...[
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(color: const Color(0xFFF0F9FF), border: Border.all(color: const Color(0xFFBAE6FD)), borderRadius: BorderRadius.circular(6)),
+          decoration: BoxDecoration(color: const Tone.bg(0xFFF0F9FF), border: Border.all(color: const Tone.line(0xFFBAE6FD)), borderRadius: BorderRadius.circular(6)),
           child: Wrap(spacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
             Text.rich(
               TextSpan(children: [
@@ -430,7 +431,7 @@ class _WaterRawMaterialsScreenState extends State<WaterRawMaterialsScreen> {
                 ],
                 const TextSpan(text: '.'),
               ]),
-              style: const TextStyle(fontSize: 13, color: Color(0xFF0C4A6E)),
+              style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF0C4A6E)),
             ),
             TextButton(onPressed: () => setState(() => _focus = null), child: const Text('Show all purchases')),
           ]),
@@ -490,7 +491,7 @@ class _WaterRawMaterialsScreenState extends State<WaterRawMaterialsScreen> {
                       cellText(tStr(p['paymentMethod']).isEmpty ? '—' : tStr(p['paymentMethod'])),
                       Align(
                         alignment: Alignment.centerRight,
-                        child: cellText(_gh(tNum(p['balance'])), color: tNum(p['balance']) > 0 ? const Color(0xFFE11D48) : null),
+                        child: cellText(_gh(tNum(p['balance'])), color: tNum(p['balance']) > 0 ? const Tone.fg(0xFFE11D48) : null),
                       ),
                       Wrap(alignment: WrapAlignment.end, children: [
                         if (tNum(p['balance']) > 0)
@@ -500,7 +501,7 @@ class _WaterRawMaterialsScreenState extends State<WaterRawMaterialsScreen> {
                             icon: const Icon(Icons.account_balance_wallet_outlined, size: 18, color: TColors.emerald700),
                           ),
                         IconButton(tooltip: 'Edit', onPressed: () => _purchaseDialog(p), icon: const Icon(Icons.edit_outlined, size: 18)),
-                        IconButton(tooltip: 'Delete', onPressed: () => _deletePurchase(p), icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFEF4444))),
+                        IconButton(tooltip: 'Delete', onPressed: () => _deletePurchase(p), icon: const Icon(Icons.delete_outline, size: 18, color: Tone.fg(0xFFEF4444))),
                       ]),
                     ],
                 ],
@@ -571,7 +572,7 @@ class _WaterRawMaterialsScreenState extends State<WaterRawMaterialsScreen> {
         onTap: () => _selectTab(key),
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-          decoration: BoxDecoration(color: on ? Colors.white : Colors.transparent, borderRadius: BorderRadius.circular(6)),
+          decoration: BoxDecoration(color: on ? Tone.bg(0xFFFFFFFF) : Colors.transparent, borderRadius: BorderRadius.circular(6)),
           child: Text(label, textAlign: TextAlign.center, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: on ? TColors.slate900 : TColors.slate500)),
         ),
       ),
@@ -589,7 +590,7 @@ class _WaterRawMaterialsScreenState extends State<WaterRawMaterialsScreen> {
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
           children: [
             const Row(children: [
-              Icon(Icons.inbox_outlined, color: Color(0xFF0284C7)),
+              Icon(Icons.inbox_outlined, color: Tone.fg(0xFF0284C7)),
               SizedBox(width: 8),
               Flexible(child: Text('Inventory & supply purchases', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TColors.slate900))),
             ]),
@@ -690,7 +691,7 @@ class _ItemDialogState extends State<_ItemDialog> {
   Widget build(BuildContext context) => AlertDialog(
         scrollable: true,
         title: Row(children: [
-          Icon(it != null ? Icons.edit_outlined : Icons.inbox_outlined, size: 20, color: const Color(0xFF2563EB)),
+          Icon(it != null ? Icons.edit_outlined : Icons.inbox_outlined, size: 20, color: const Tone.fg(0xFF2563EB)),
           const SizedBox(width: 8),
           Flexible(child: Text(it != null ? 'Edit item' : 'New item')),
         ]),
@@ -702,7 +703,7 @@ class _ItemDialogState extends State<_ItemDialog> {
               style: TextStyle(fontSize: 13, color: TColors.slate500),
             ),
             const SizedBox(height: 12),
-            formSection('Basics', const Color(0xFF4F46E5), [
+            formSection('Basics', const Tone(0xFF4F46E5), [
               FilterLabel('Item name *', AppInput(controller: _name)),
               FilterLabel(
                 'Category',
@@ -752,12 +753,12 @@ class _ItemDialogState extends State<_ItemDialog> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
-                          color: _method == v ? const Color(0xFFF0F9FF) : null,
-                          border: Border.all(color: _method == v ? const Color(0xFF0284C7) : TColors.slate200),
+                          color: _method == v ? const Tone.bg(0xFFF0F9FF) : null,
+                          border: Border.all(color: _method == v ? const Tone.line(0xFF0284C7) : TColors.slate200),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Row(children: [
-                          Icon(_method == v ? Icons.radio_button_checked : Icons.radio_button_unchecked, size: 18, color: const Color(0xFF0284C7)),
+                          Icon(_method == v ? Icons.radio_button_checked : Icons.radio_button_unchecked, size: 18, color: const Tone.fg(0xFF0284C7)),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1015,7 +1016,7 @@ class _PurchaseDialogState extends State<_PurchaseDialog> {
       child: AlertDialog(
         scrollable: true,
         title: Row(children: [
-          Icon(_editing ? Icons.edit_outlined : Icons.shopping_cart_outlined, size: 20, color: const Color(0xFF2563EB)),
+          Icon(_editing ? Icons.edit_outlined : Icons.shopping_cart_outlined, size: 20, color: const Tone.fg(0xFF2563EB)),
           const SizedBox(width: 8),
           Flexible(child: Text(_editing ? 'Edit purchase' : 'Record raw material purchase')),
         ]),
@@ -1025,7 +1026,7 @@ class _PurchaseDialogState extends State<_PurchaseDialog> {
             const Text('Log an inventory & supply purchase to update stock and create the linked expense.',
                 style: TextStyle(fontSize: 13, color: TColors.slate500)),
             const SizedBox(height: 12),
-            formSection('Item, Supplier & Date', const Color(0xFF4F46E5), [
+            formSection('Item, Supplier & Date', const Tone(0xFF4F46E5), [
               FilterLabel(
                 'Item${_editing ? ' (fixed — delete and recreate to change item)' : ''}',
                 AppSelect<int>(
@@ -1090,7 +1091,7 @@ class _PurchaseDialogState extends State<_PurchaseDialog> {
               ),
             ]),
             const SizedBox(height: 12),
-            formSection('Purchase Quantity & Production Costing', const Color(0xFF2563EB), [
+            formSection('Purchase Quantity & Production Costing', const Tone(0xFF2563EB), [
               FilterLabel(
                 'Purchase unit *',
                 AppSelect<String>(
@@ -1110,7 +1111,7 @@ class _PurchaseDialogState extends State<_PurchaseDialog> {
                 FilterLabel('Purchase unit cost (auto)', _readOnly('${fmt(unitCost)}${_purchaseUnit.isNotEmpty ? ' per $_purchaseUnit' : ''}')),
             ]),
             const SizedBox(height: 12),
-            formSection('Production Conversion', const Color(0xFF4F46E5), [
+            formSection('Production Conversion', const Tone(0xFF4F46E5), [
               _switchRow('Enter production cost manually', 'Turn off the auto-calculation and type the production-level unit cost yourself.', _manualProd,
                   (v) => setState(() => _manualProd = v)),
               FilterLabel(

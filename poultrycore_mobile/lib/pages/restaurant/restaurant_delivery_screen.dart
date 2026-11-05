@@ -19,20 +19,21 @@ import 'restaurant_money_kit.dart' show rField, rNumberInput, rDialog, rConfirm,
 import 'restaurant_roles.dart' show restaurantRose;
 import 'restaurant_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 const driverStatusColors = <String, Color>{
-  'Available': Color(0xFF22C55E),
-  'OnDelivery': Color(0xFF3B82F6),
-  'OffDuty': Color(0xFF6B7280),
-  'Suspended': Color(0xFFEF4444),
+  'Available': Tone(0xFF22C55E),
+  'OnDelivery': Tone(0xFF3B82F6),
+  'OffDuty': Tone(0xFF6B7280),
+  'Suspended': Tone(0xFFEF4444),
 };
 const assignmentStatusColors = <String, Color>{
-  'Pending': Color(0xFFEAB308),
-  'Assigned': Color(0xFF3B82F6),
-  'PickedUp': Color(0xFF6366F1),
-  'EnRoute': Color(0xFFA855F7),
-  'Delivered': Color(0xFF22C55E),
-  'Failed': Color(0xFFEF4444),
-  'Cancelled': Color(0xFF6B7280),
+  'Pending': Tone(0xFFEAB308),
+  'Assigned': Tone(0xFF3B82F6),
+  'PickedUp': Tone(0xFF6366F1),
+  'EnRoute': Tone(0xFFA855F7),
+  'Delivered': Tone(0xFF22C55E),
+  'Failed': Tone(0xFFEF4444),
+  'Cancelled': Tone(0xFF6B7280),
 };
 const deliveryVehicles = ['Motorcycle', 'Car', 'Bicycle', 'Van'];
 
@@ -66,7 +67,7 @@ int _int(String v, int fallback) {
   return n == null || n == 0 ? fallback : n;
 }
 
-Widget _solidBadge(String text, Color color) => rBadge(text, bg: color, fg: Colors.white);
+Widget _solidBadge(String text, Color color) => rBadge(text, bg: Tone.button(color)!, fg: Colors.white);
 
 class RestaurantDeliveryScreen extends StatefulWidget {
   const RestaurantDeliveryScreen({super.key, required this.session, required this.company});
@@ -259,7 +260,7 @@ class _RestaurantDeliveryScreenState extends State<RestaurantDeliveryScreen> {
                   onChanged: (v) => setState(() => _tab = v),
                   tabs: [
                     ('deliveries', Icons.local_shipping_outlined, 'Deliveries',
-                        _pending.isEmpty ? null : rBadge('${_pending.length}', bg: const Color(0xFFF59E0B), fg: Colors.white)),
+                        _pending.isEmpty ? null : rBadge('${_pending.length}', bg: const Tone.bg(0xFFF59E0B), fg: Colors.white)),
                     ('drivers', Icons.people_outline, 'Drivers (${_drivers.length})', null),
                     ('zones', Icons.place_outlined, 'Zones (${_zones.length})', null),
                     ('platforms', Icons.inventory_2_outlined, 'Third-Party (${_platforms.length})', null),
@@ -280,11 +281,11 @@ class _RestaurantDeliveryScreenState extends State<RestaurantDeliveryScreen> {
   Widget _statsGrid(Map s) {
     final avg = tNum(s['avgDeliveryMins']);
     final cells = [
-      ('Available Drivers', '${tNum(s['availableDrivers']).toInt()}', const Color(0xFF16A34A)),
-      ('On Delivery', '${tNum(s['onDeliveryDrivers']).toInt()}', const Color(0xFF2563EB)),
-      ('Active', '${tNum(s['activeCount']).toInt()}', const Color(0xFF9333EA)),
-      ('Delivered Today', '${tNum(s['deliveredCount']).toInt()}', const Color(0xFF4B5563)),
-      ('Avg Time', avg == 0 ? '—' : '${avg.toStringAsFixed(0)}m', const Color(0xFFEA580C)),
+      ('Available Drivers', '${tNum(s['availableDrivers']).toInt()}', const Tone(0xFF16A34A)),
+      ('On Delivery', '${tNum(s['onDeliveryDrivers']).toInt()}', const Tone(0xFF2563EB)),
+      ('Active', '${tNum(s['activeCount']).toInt()}', const Tone(0xFF9333EA)),
+      ('Delivered Today', '${tNum(s['deliveredCount']).toInt()}', const Tone(0xFF4B5563)),
+      ('Avg Time', avg == 0 ? '—' : '${avg.toStringAsFixed(0)}m', const Tone(0xFFEA580C)),
     ];
     return twoColumns([
       for (final (label, value, color) in cells)
@@ -308,7 +309,7 @@ class _RestaurantDeliveryScreenState extends State<RestaurantDeliveryScreen> {
       );
 
   Widget _darkButton(String label, VoidCallback onTap, {IconData icon = Icons.add}) => FilledButton.icon(
-        style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0F172A)),
+        style: FilledButton.styleFrom(backgroundColor: Tone.button(const Tone.bg(0xFF0F172A))),
         onPressed: onTap,
         icon: Icon(icon, size: 16),
         label: Text(label),
@@ -331,10 +332,10 @@ class _RestaurantDeliveryScreenState extends State<RestaurantDeliveryScreen> {
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-                color: const Color(0xFFFFFBEB), border: Border.all(color: const Color(0xFFFDE68A)), borderRadius: BorderRadius.circular(12)),
+                color: const Tone.bg(0xFFFFFBEB), border: Border.all(color: const Tone.line(0xFFFDE68A)), borderRadius: BorderRadius.circular(12)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Row(children: [
-                const Icon(Icons.inventory_2_outlined, size: 20, color: Color(0xFFD97706)),
+                const Icon(Icons.inventory_2_outlined, size: 20, color: Tone.fg(0xFFD97706)),
                 const SizedBox(width: 8),
                 Expanded(
                     child: Text('Awaiting Driver Assignment (${_pending.length})',
@@ -346,11 +347,11 @@ class _RestaurantDeliveryScreenState extends State<RestaurantDeliveryScreen> {
                   margin: const EdgeInsets.only(bottom: 8),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                      color: Colors.white, border: Border.all(color: const Color(0xFFFDE68A)), borderRadius: BorderRadius.circular(8)),
+                      color: Tone.bg(0xFFFFFFFF), border: Border.all(color: const Tone.line(0xFFFDE68A)), borderRadius: BorderRadius.circular(8)),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                     Wrap(spacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
                       Text(tStr(o['orderNumber']), style: const TextStyle(fontWeight: FontWeight.w700)),
-                      _solidBadge('Needs Driver', const Color(0xFFF59E0B)),
+                      _solidBadge('Needs Driver', const Tone(0xFFF59E0B)),
                     ]),
                     Text(
                         '${tStr(o['customerName']).isEmpty ? 'Guest' : tStr(o['customerName'])} | ${tNum(o['totalAmount']).toStringAsFixed(2)} | ${_time(o['createdAt'])}',
@@ -428,14 +429,14 @@ class _RestaurantDeliveryScreenState extends State<RestaurantDeliveryScreen> {
     final btn = <Widget>[
       if (status == 'Assigned') _stepButton('Picked Up', () => _assignStatus(a, 'PickedUp')),
       if (status == 'PickedUp') _stepButton('En Route', () => _assignStatus(a, 'EnRoute')),
-      if (status == 'EnRoute') _stepButton('Delivered', () => _assignStatus(a, 'Delivered'), color: const Color(0xFF16A34A)),
+      if (status == 'EnRoute') _stepButton('Delivered', () => _assignStatus(a, 'Delivered'), color: const Tone(0xFF16A34A)),
       if (const ['Assigned', 'PickedUp', 'EnRoute'].contains(status))
-        _stepButton('Failed', () => _assignStatus(a, 'Failed'), color: const Color(0xFFDC2626)),
+        _stepButton('Failed', () => _assignStatus(a, 'Failed'), color: const Tone(0xFFDC2626)),
     ];
     return _rowBox(Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Wrap(spacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
         Text(tStr(a['orderNumber']), style: const TextStyle(fontWeight: FontWeight.w700)),
-        _solidBadge(status, assignmentStatusColors[status] ?? const Color(0xFF6B7280)),
+        _solidBadge(status, assignmentStatusColors[status] ?? const Tone(0xFF6B7280)),
       ]),
       Text(meta.toString(), style: const TextStyle(fontSize: 13, color: TColors.slate500)),
       if (tStr(a['deliveryAddress']).isNotEmpty)
@@ -448,8 +449,8 @@ class _RestaurantDeliveryScreenState extends State<RestaurantDeliveryScreen> {
     ]));
   }
 
-  Widget _stepButton(String label, VoidCallback onTap, {Color color = const Color(0xFF0F172A)}) =>
-      FilledButton(style: FilledButton.styleFrom(backgroundColor: color, visualDensity: VisualDensity.compact), onPressed: onTap, child: Text(label));
+  Widget _stepButton(String label, VoidCallback onTap, {Color color = const Tone(0xFF0F172A)}) =>
+      FilledButton(style: FilledButton.styleFrom(backgroundColor: Tone.button(color), visualDensity: VisualDensity.compact), onPressed: onTap, child: Text(label));
 
   Widget _driversTab() => TCard(
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -474,8 +475,8 @@ class _RestaurantDeliveryScreenState extends State<RestaurantDeliveryScreen> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
             Text('${tStr(d['firstName'])} ${tStr(d['lastName'])}', style: const TextStyle(fontWeight: FontWeight.w600)),
-            _solidBadge(status, driverStatusColors[status] ?? const Color(0xFF6B7280)),
-            rBadge(tStr(d['vehicleType']), bg: Colors.white, border: TColors.slate200),
+            _solidBadge(status, driverStatusColors[status] ?? const Tone(0xFF6B7280)),
+            rBadge(tStr(d['vehicleType']), bg: Tone.bg(0xFFFFFFFF), border: TColors.slate200),
           ]),
           Text(meta.toString(), style: const TextStyle(fontSize: 13, color: TColors.slate500)),
           if (status == 'OffDuty' || status == 'Available') ...[
@@ -489,7 +490,7 @@ class _RestaurantDeliveryScreenState extends State<RestaurantDeliveryScreen> {
         ]),
       ),
       IconButton(tooltip: 'Edit driver', onPressed: () => _openDriver(d), icon: const Icon(Icons.edit_outlined, size: 18)),
-      IconButton(tooltip: 'Delete driver', onPressed: () => _delDriver(d), icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFEF4444))),
+      IconButton(tooltip: 'Delete driver', onPressed: () => _delDriver(d), icon: const Icon(Icons.delete_outline, size: 18, color: Tone.fg(0xFFEF4444))),
     ]));
   }
 
@@ -509,9 +510,9 @@ class _RestaurantDeliveryScreenState extends State<RestaurantDeliveryScreen> {
                         style: const TextStyle(fontSize: 13, color: TColors.slate500)),
                   ]),
                 ),
-                z['isActive'] != false ? _solidBadge('Active', const Color(0xFF0F172A)) : rBadge('Inactive'),
+                z['isActive'] != false ? _solidBadge('Active', const Tone(0xFF0F172A)) : rBadge('Inactive'),
                 IconButton(tooltip: 'Edit zone', onPressed: () => _openZone(z), icon: const Icon(Icons.edit_outlined, size: 18)),
-                IconButton(tooltip: 'Delete zone', onPressed: () => _delZone(z), icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFEF4444))),
+                IconButton(tooltip: 'Delete zone', onPressed: () => _delZone(z), icon: const Icon(Icons.delete_outline, size: 18, color: Tone.fg(0xFFEF4444))),
               ])),
         ]),
       );
@@ -528,7 +529,7 @@ class _RestaurantDeliveryScreenState extends State<RestaurantDeliveryScreen> {
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Wrap(spacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
                       Text(tStr(p['name']), style: const TextStyle(fontWeight: FontWeight.w600)),
-                      p['isEnabled'] == true ? _solidBadge('Enabled', const Color(0xFF0F172A)) : rBadge('Disabled'),
+                      p['isEnabled'] == true ? _solidBadge('Enabled', const Tone(0xFF0F172A)) : rBadge('Disabled'),
                     ]),
                     Text(
                         'Commission: ${_num(p['commissionRate'])}% | Orders: ${tNum(p['orderCount']).toInt()} | Revenue: ${tNum(p['totalRevenue']).toStringAsFixed(2)}'
@@ -537,7 +538,7 @@ class _RestaurantDeliveryScreenState extends State<RestaurantDeliveryScreen> {
                   ]),
                 ),
                 IconButton(tooltip: 'Edit platform', onPressed: () => _openPlat(p), icon: const Icon(Icons.edit_outlined, size: 18)),
-                IconButton(tooltip: 'Delete platform', onPressed: () => _delPlat(p), icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFEF4444))),
+                IconButton(tooltip: 'Delete platform', onPressed: () => _delPlat(p), icon: const Icon(Icons.delete_outline, size: 18, color: Tone.fg(0xFFEF4444))),
               ])),
         ]),
       );
@@ -876,7 +877,7 @@ class _DispatchDialogState extends State<_DispatchDialog> {
       actions: [
         rCancel(context, 'Cancel'),
         FilledButton.icon(
-          style: FilledButton.styleFrom(backgroundColor: restaurantRose),
+          style: FilledButton.styleFrom(backgroundColor: Tone.button(restaurantRose)),
           onPressed: _order == null || _driver == null ? null : _assign,
           icon: const Icon(Icons.local_shipping_outlined, size: 16),
           label: const Text('Assign Driver'),

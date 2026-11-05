@@ -27,6 +27,7 @@ import '../../design/ui/inputs.dart';
 import '../../models/company.dart';
 import '../../state/session.dart';
 import '../../widgets/module_sidebar.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import '../shared/help/contact_support.dart' show openExternal;
 import 'trackers/tracker_widgets.dart' show TColors;
 
@@ -103,10 +104,10 @@ String viewsLabel(ChannelVideo v) => v.views == null ? '' : '${_compact.format(v
 
 enum _Filter { all, unwatched, watched }
 
-const _red50 = Color(0xFFFEF2F2);
-const _red100 = Color(0xFFFEE2E2);
-const _red600 = Color(0xFFDC2626);
-const _red700 = Color(0xFFB91C1C);
+const _red50 = Tone.bg(0xFFFEF2F2);
+const _red100 = Tone.bg(0xFFFEE2E2);
+const _red600 = Tone(0xFFDC2626);
+const _red700 = Tone.fg(0xFFB91C1C);
 
 class PoultryVideosScreen extends StatefulWidget {
   const PoultryVideosScreen({super.key, required this.session, required this.company});
@@ -231,14 +232,14 @@ class _PoultryVideosScreenState extends State<PoultryVideosScreen> {
               width: 44,
               height: 44,
               decoration: BoxDecoration(color: _red100, borderRadius: BorderRadius.circular(12)),
-              child: const Icon(Icons.play_circle_outline, color: _red600),
+              child: const Icon(Icons.play_circle_outline, color: Tone.fg(0xFFDC2626)),
             ),
             const SizedBox(width: 12),
             const Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Videos', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: TColors.slate900)),
+                Text('Videos', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Tone.fg(0xFF0F172A))),
                 Text('Step-by-step guide videos to help you get the most out of the system.',
-                    style: TextStyle(fontSize: 13.5, color: TColors.slate600)),
+                    style: TextStyle(fontSize: 13.5, color: Tone.fg(0xFF475569))),
               ]),
             ),
           ]),
@@ -248,9 +249,9 @@ class _PoultryVideosScreenState extends State<PoultryVideosScreen> {
               alignment: Alignment.centerLeft,
               child: OutlinedButton.icon(
                 key: const ValueKey('videos-open-youtube'),
-                style: OutlinedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: TColors.slate800),
+                style: OutlinedButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)), foregroundColor: Tone.fg(0xFF1E293B)),
                 onPressed: () => openExternal(context, link),
-                icon: const Icon(Icons.smart_display_outlined, size: 18, color: _red600),
+                icon: const Icon(Icons.smart_display_outlined, size: 18, color: Tone.fg(0xFFDC2626)),
                 label: Text(feed?.playlistUrl != null ? 'Open on YouTube' : 'Visit our channel'),
               ),
             ),
@@ -273,13 +274,13 @@ class _PoultryVideosScreenState extends State<PoultryVideosScreen> {
     if (_error) {
       return [
         _emptyCard([
-          const Text('The videos could not be loaded', style: TextStyle(fontWeight: FontWeight.w500, color: TColors.slate700)),
+          const Text('The videos could not be loaded', style: TextStyle(fontWeight: FontWeight.w500, color: Tone.fg(0xFF334155))),
           const SizedBox(height: 8),
           const Text('Check your internet connection and try again.', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: TColors.slate500)),
           const SizedBox(height: 12),
           OutlinedButton.icon(
             key: const ValueKey('videos-retry'),
-            style: OutlinedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: TColors.slate800),
+            style: OutlinedButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)), foregroundColor: Tone.fg(0xFF1E293B)),
             onPressed: _fetching ? null : _load,
             icon: const Icon(Icons.refresh, size: 16),
             label: const Text('Try again'),
@@ -290,9 +291,9 @@ class _PoultryVideosScreenState extends State<PoultryVideosScreen> {
     if (_videos.isEmpty) {
       return [
         _emptyCard(const [
-          Icon(Icons.play_circle_outline, size: 40, color: TColors.slate300),
+          Icon(Icons.play_circle_outline, size: 40, color: Tone.fg(0xFFCBD5E1)),
           SizedBox(height: 8),
-          Text('No videos yet', style: TextStyle(fontWeight: FontWeight.w500, color: TColors.slate700)),
+          Text('No videos yet', style: TextStyle(fontWeight: FontWeight.w500, color: Tone.fg(0xFF334155))),
           SizedBox(height: 6),
           Text('New videos will show here as soon as we post them.', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: TColors.slate500)),
         ]),
@@ -315,8 +316,8 @@ class _PoultryVideosScreenState extends State<PoultryVideosScreen> {
       _stat(Icons.movie_outlined, _red50, _red600, 'Videos', Text('${videos.length}', style: _big), 'In the playlist'),
       _stat(
         Icons.check_circle_outline,
-        const Color(0xFFECFDF5),
-        const Color(0xFF059669),
+        const Tone(0xFFECFDF5),
+        const Tone(0xFF059669),
         'Watched',
         Text.rich(TextSpan(children: [
           TextSpan(text: '$watchedCount ', style: _big),
@@ -325,14 +326,14 @@ class _PoultryVideosScreenState extends State<PoultryVideosScreen> {
         null,
         progress: pct,
       ),
-      _stat(Icons.visibility_outlined, const Color(0xFFEFF6FF), const Color(0xFF2563EB), 'Total views',
+      _stat(Icons.visibility_outlined, const Tone(0xFFEFF6FF), const Tone(0xFF2563EB), 'Total views',
           Text(hasViews ? _compact.format(totalViews) : '—', style: _big), 'Across all videos'),
-      _stat(Icons.calendar_today_outlined, const Color(0xFFFFFBEB), const Color(0xFFD97706), 'Latest video',
+      _stat(Icons.calendar_today_outlined, const Tone(0xFFFFFBEB), const Tone(0xFFD97706), 'Latest video',
           Text(timeAgo(videos.first.published).isEmpty ? '—' : timeAgo(videos.first.published), style: _big), '$recent new in the last 30 days'),
     ]);
   }
 
-  static const _big = TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: TColors.slate900);
+  static const _big = TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Tone.fg(0xFF0F172A));
 
   Widget _grid(List<Widget> tiles) => Column(children: [
         for (var i = 0; i < tiles.length; i += 2) ...[
@@ -350,7 +351,7 @@ class _PoultryVideosScreenState extends State<PoultryVideosScreen> {
   Widget _stat(IconData icon, Color bg, Color fg, String label, Widget value, String? sub, {double? progress}) => Container(
         key: ValueKey('videos-stat-$label'),
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(12)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Expanded(child: Text(label, style: const TextStyle(fontSize: 13.5, color: TColors.slate500))),
@@ -367,7 +368,7 @@ class _PoultryVideosScreenState extends State<PoultryVideosScreen> {
           if (progress != null)
             ClipRRect(
               borderRadius: BorderRadius.circular(99),
-              child: LinearProgressIndicator(value: progress, minHeight: 6, color: TColors.slate900, backgroundColor: TColors.slate200),
+              child: LinearProgressIndicator(value: progress, minHeight: 6, color: Tone.fg(0xFF0F172A), backgroundColor: Tone.bg(0xFFE2E8F0)),
             )
           else if (sub != null)
             Text(sub, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
@@ -376,12 +377,12 @@ class _PoultryVideosScreenState extends State<PoultryVideosScreen> {
 
   Widget _skeleton(double? height) => Container(
         height: height,
-        decoration: BoxDecoration(color: TColors.slate200, borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFE2E8F0), borderRadius: BorderRadius.circular(12)),
       );
 
   Widget _emptyCard(List<Widget> children) => Container(
         padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 16),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(12)),
         child: Column(children: children),
       );
 
@@ -415,12 +416,12 @@ class _PoultryVideosScreenState extends State<PoultryVideosScreen> {
                         child: Image.network('https://i.ytimg.com/vi/${current.id}/hqdefault.jpg', fit: BoxFit.cover,
                             errorBuilder: (_, _, _) => const SizedBox()),
                       ),
-                      const ColoredBox(color: Color(0x33000000)),
+                      const ColoredBox(color: Tone.bg(0x33000000)),
                       Center(
                         child: Container(
                           width: 72,
                           height: 50,
-                          decoration: BoxDecoration(color: _red600, borderRadius: BorderRadius.circular(16)),
+                          decoration: BoxDecoration(color: Tone.bg(0xFFDC2626), borderRadius: BorderRadius.circular(16)),
                           child: const Icon(Icons.play_arrow, size: 34, color: Colors.white),
                         ),
                       ),
@@ -430,7 +431,7 @@ class _PoultryVideosScreenState extends State<PoultryVideosScreen> {
         ),
       ),
       const SizedBox(height: 12),
-      Text(current.title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, height: 1.3, color: TColors.slate900)),
+      Text(current.title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, height: 1.3, color: Tone.fg(0xFF0F172A))),
       if (meta.isNotEmpty) ...[
         const SizedBox(height: 4),
         Text(meta, style: const TextStyle(fontSize: 13.5, color: TColors.slate500)),
@@ -447,19 +448,19 @@ class _PoultryVideosScreenState extends State<PoultryVideosScreen> {
         Container(
           key: const ValueKey('videos-description'),
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: TColors.slate100, borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(color: Tone.bg(0xFFF1F5F9), borderRadius: BorderRadius.circular(12)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(current.description,
                 maxLines: _showMore ? null : 3,
                 overflow: _showMore ? null : TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 14, color: TColors.slate700)),
+                style: const TextStyle(fontSize: 14, color: Tone.fg(0xFF334155))),
             if (longText) ...[
               const SizedBox(height: 6),
               InkWell(
                 key: const ValueKey('videos-more'),
                 onTap: () => setState(() => _showMore = !_showMore),
                 child: Text(_showMore ? 'Show less' : '...more',
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: TColors.slate900)),
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Tone.fg(0xFF0F172A))),
               ),
             ],
           ]),
@@ -471,8 +472,8 @@ class _PoultryVideosScreenState extends State<PoultryVideosScreen> {
   Widget _pill(String key, IconData icon, String label, VoidCallback? onTap, {bool iconAfter = false}) => OutlinedButton(
         key: ValueKey(key),
         style: OutlinedButton.styleFrom(
-          backgroundColor: Colors.white,
-          foregroundColor: TColors.slate800,
+          backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)),
+          foregroundColor: Tone.fg(0xFF1E293B),
           shape: const StadiumBorder(),
           padding: const EdgeInsets.symmetric(horizontal: 14),
         ),
@@ -499,7 +500,7 @@ class _PoultryVideosScreenState extends State<PoultryVideosScreen> {
     ];
     return Container(
       key: const ValueKey('videos-playlist'),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Padding(
           padding: const EdgeInsets.all(14),
@@ -508,22 +509,22 @@ class _PoultryVideosScreenState extends State<PoultryVideosScreen> {
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   const Row(children: [
-                    Icon(Icons.playlist_play, size: 18, color: _red600),
+                    Icon(Icons.playlist_play, size: 18, color: Tone.fg(0xFFDC2626)),
                     SizedBox(width: 6),
-                    Text('Playlist', style: TextStyle(fontWeight: FontWeight.w600, color: TColors.slate900)),
+                    Text('Playlist', style: TextStyle(fontWeight: FontWeight.w600, color: Tone.fg(0xFF0F172A))),
                   ]),
                   Text(i >= 0 ? '${i + 1} / ${videos.length}' : '${videos.length} videos',
                       style: const TextStyle(fontSize: 12, color: TColors.slate500)),
                 ]),
               ),
-              const Text('Autoplay', style: TextStyle(fontSize: 12, color: TColors.slate600)),
+              const Text('Autoplay', style: TextStyle(fontSize: 12, color: Tone.fg(0xFF475569))),
               Switch(key: const ValueKey('videos-autoplay'), value: _autoplayNext, onChanged: _toggleAutoplay),
             ]),
             const SizedBox(height: 10),
             AppInput(
               key: const ValueKey('videos-search'),
               hintText: 'Search videos',
-              prefixIcon: const Icon(Icons.search, color: TColors.slate400),
+              prefixIcon: const Icon(Icons.search, color: Tone.fg(0xFF7F8EA3)),
               onChanged: (v) => setState(() => _q = v),
             ),
             const SizedBox(height: 10),
@@ -535,15 +536,15 @@ class _PoultryVideosScreenState extends State<PoultryVideosScreen> {
                   onTap: () => setState(() => _filter = f),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                    decoration: BoxDecoration(color: _filter == f ? TColors.slate900 : TColors.slate100, borderRadius: BorderRadius.circular(8)),
+                    decoration: BoxDecoration(color: _filter == f ? Tone.button(Tone.bg(0xFF0F172A))! : Tone.bg(0xFFF1F5F9), borderRadius: BorderRadius.circular(8)),
                     child: Text(label,
-                        style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500, color: _filter == f ? Colors.white : TColors.slate700)),
+                        style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500, color: _filter == f ? Colors.white : Tone.fg(0xFF334155))),
                   ),
                 ),
             ]),
           ]),
         ),
-        const Divider(height: 1, color: TColors.slate200),
+        const Divider(height: 1, color: Tone.line(0xFFE2E8F0)),
         Padding(
           padding: const EdgeInsets.all(6),
           child: shown.isEmpty
@@ -579,13 +580,13 @@ class _PoultryVideosScreenState extends State<PoultryVideosScreen> {
                   aspectRatio: 16 / 9,
                   child: Stack(fit: StackFit.expand, children: [
                     ColoredBox(
-                      color: TColors.slate200,
+                      color: Tone.bg(0xFFE2E8F0),
                       child: Image.network('https://i.ytimg.com/vi/${v.id}/mqdefault.jpg', fit: BoxFit.cover,
                           errorBuilder: (_, _, _) => const SizedBox()),
                     ),
                     if (isCurrent)
                       ColoredBox(
-                        color: const Color(0x80000000),
+                        color: const Tone.bg(0x80000000),
                         child: Center(
                           child: Text(_started ? 'NOW PLAYING' : 'UP NEXT',
                               style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: .5, color: Colors.white)),
@@ -597,7 +598,7 @@ class _PoultryVideosScreenState extends State<PoultryVideosScreen> {
                         bottom: 4,
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(color: const Color(0xBF000000), borderRadius: BorderRadius.circular(4)),
+                          decoration: BoxDecoration(color: const Tone.bg(0xBF000000), borderRadius: BorderRadius.circular(4)),
                           child: const Row(mainAxisSize: MainAxisSize.min, children: [
                             Icon(Icons.check_circle_outline, size: 11, color: Colors.white),
                             SizedBox(width: 3),
@@ -615,7 +616,7 @@ class _PoultryVideosScreenState extends State<PoultryVideosScreen> {
                 Text(v.title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, height: 1.3, color: isCurrent ? _red700 : TColors.slate900)),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, height: 1.3, color: isCurrent ? _red700 : Tone.fg(0xFF0F172A))),
                 if (meta.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(meta, style: const TextStyle(fontSize: 12, color: TColors.slate500)),

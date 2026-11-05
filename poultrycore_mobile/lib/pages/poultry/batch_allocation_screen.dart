@@ -9,6 +9,7 @@ import '../../models/company.dart';
 import '../../state/session.dart';
 import 'bulk_house_screen.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Flock Groups → "Add Multiple Flocks", as the web's
 /// `components/poultry/batch-allocation-dialog.tsx` with the arithmetic of
 /// `lib/flocks/allocation.ts`: pick a batch, tick the houses/pens, set how
@@ -617,7 +618,7 @@ class _BatchAllocationScreenState extends State<BatchAllocationScreen> {
           child: _grid([
             _stat('Original birds', _n(_original)),
             _stat('Already allocated', _n(_allocated)),
-            _stat('Available', _n(_available), color: const Color(0xFF1D4ED8)),
+            _stat('Available', _n(_available), color: const Tone(0xFF1D4ED8)),
             _stat('Breed', _breed.isEmpty ? '—' : _breed),
             _stat('Start date', _startDate.isEmpty ? '—' : _startDate),
           ]),
@@ -872,24 +873,24 @@ class _BatchAllocationScreenState extends State<BatchAllocationScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       decoration: BoxDecoration(
-        color: const Color(0xFFECFDF5), // emerald-50
-        border: Border.all(color: const Color(0xFFA7F3D0)), // emerald-200
+        color: const Tone.bg(0xFFECFDF5), // emerald-50
+        border: Border.all(color: const Tone.line(0xFFA7F3D0)), // emerald-200
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         children: [
-          const Icon(Icons.check_circle_outline, size: 40, color: Color(0xFF059669)),
+          const Icon(Icons.check_circle_outline, size: 40, color: Tone.fg(0xFF059669)),
           const SizedBox(height: 8),
           Text(
             _createdCount == 1 ? '1 flock created successfully.' : '$_createdCount flocks created successfully.',
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: Color(0xFF064E3B)),
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: Tone.fg(0xFF064E3B)),
           ),
           const SizedBox(height: 4),
           Text('${_n(_birdsAllocated)} birds allocated from ${_batchCode.isEmpty ? 'the batch' : _batchCode}.',
-              textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFF065F46))),
+              textAlign: TextAlign.center, style: const TextStyle(color: Tone.fg(0xFF065F46))),
           Text('${_n(_remainingAfter)} birds remain unallocated.',
-              textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFF065F46))),
+              textAlign: TextAlign.center, style: const TextStyle(color: Tone.fg(0xFF065F46))),
         ],
       ),
     );
@@ -912,7 +913,7 @@ class _BatchAllocationScreenState extends State<BatchAllocationScreen> {
           _grid([
             _stat('Batch birds', _n(_original)),
             _stat('Previously allocated', _n(_allocated)),
-            _stat('This allocation', _n(_thisAllocation), color: over ? error : const Color(0xFF1D4ED8)),
+            _stat('This allocation', _n(_thisAllocation), color: over ? error : const Tone(0xFF1D4ED8)),
             _stat('Remaining unallocated', _n((_available - _thisAllocation).clamp(0, 1 << 31))),
           ]),
           if (batchError != null)

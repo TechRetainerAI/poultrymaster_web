@@ -23,10 +23,11 @@ import '../shared/company_clock.dart';
 import '../shared/reason_select.dart' show ReasonSelect, cashDifferenceReasons, reversalReasons;
 import 'generic_customer_payments_screen.dart' show genericPaymentBadge;
 import 'generic_kit.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import 'generic_products_screen.dart' show genericBandAmber, genericBandBlue, genericBandIndigo, genericBandSlate, genericEmptyCard;
 import 'reports/generic_report_kit.dart' show fmtMoney;
 
-const _sky600 = Color(0xFF0284C7);
+const _sky600 = Tone.fg(0xFF0284C7);
 
 String _today() => DateTime.now().toUtc().toIso8601String().substring(0, 10);
 
@@ -56,7 +57,7 @@ Widget _sub(String text) => Text(text, style: const TextStyle(fontSize: 13, colo
 
 Widget _redCancel(BuildContext context, bool saving, {Object? result}) => OutlinedButton(
       onPressed: saving ? null : () => Navigator.pop(context, result),
-      style: OutlinedButton.styleFrom(backgroundColor: TColors.red600, foregroundColor: Colors.white, side: BorderSide.none),
+      style: OutlinedButton.styleFrom(backgroundColor: Tone.button(TColors.red600), foregroundColor: Colors.white, side: BorderSide.none),
       child: const Text('Cancel'),
     );
 
@@ -134,7 +135,7 @@ class _GenericCashScreenState extends State<GenericCashScreen> {
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Text('TOTAL CASH AT HAND', style: TextStyle(fontSize: 11, color: TColors.slate500)),
                 const SizedBox(height: 4),
@@ -1188,7 +1189,7 @@ class _ReverseOwnerDialogState extends State<_ReverseOwnerDialog> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Keep it')),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: TColors.red600, foregroundColor: Colors.white),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600), foregroundColor: Colors.white),
             onPressed: () {
               if (_reason.trim().isEmpty) return trackerToast(context, 'A reason is required to reverse', error: true);
               Navigator.pop(context, _reason.trim());

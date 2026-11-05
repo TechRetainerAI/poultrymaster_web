@@ -22,6 +22,7 @@ import '../poultry/trackers/tracker_widgets.dart';
 import '../shared/business_dates.dart';
 import '../shared/company_clock.dart';
 import 'generic_kit.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import 'generic_products_screen.dart' show genericBandBlue, genericBandIndigo, genericBandSlate, genericEmptyCard;
 import 'reports/generic_report_kit.dart' show fmtMoney;
 
@@ -198,7 +199,7 @@ class _GenericCustomerPaymentsScreenState extends State<GenericCustomerPaymentsS
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
           children: [
             Row(children: [
-              Icon(Icons.credit_card, size: 24, color: _sup ? const Color(0xFFEA580C) : genericEmerald),
+              Icon(Icons.credit_card, size: 24, color: _sup ? const Tone.fg(0xFFEA580C) : genericEmerald),
               const SizedBox(width: 8),
               Expanded(child: Text(title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TColors.slate900))),
             ]),
@@ -439,7 +440,7 @@ class _GenericCustomerPaymentDialogState extends State<GenericCustomerPaymentDia
         actions: [
           OutlinedButton(
             onPressed: _saving ? null : () => Navigator.pop(context),
-            style: OutlinedButton.styleFrom(backgroundColor: TColors.red600, foregroundColor: Colors.white, side: BorderSide.none),
+            style: OutlinedButton.styleFrom(backgroundColor: Tone.button(TColors.red600), foregroundColor: Colors.white, side: BorderSide.none),
             child: const Text('Cancel'),
           ),
           FilledButton(onPressed: _saving ? null : _save, child: Text(_saving ? 'Saving…' : 'Create')),

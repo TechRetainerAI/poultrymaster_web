@@ -18,6 +18,7 @@ import 'money_widgets.dart';
 import '../reports/money_reports.dart' show MoneyRail, poultryMoneyRail;
 import '../../shared/reason_select.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Poultry → Money → Cash Transfers, as `app/poultry-cash-transfers/page.tsx`:
 /// money moved between the farm's own accounts. It is the same money in a
 /// different box — never money in or out on Cash Flow.
@@ -27,7 +28,7 @@ const transferStatusFilters = ['All', 'Approved', 'Draft', 'Reversed', 'Cancelle
 /// The Hotel posts both legs at once, so it has no Draft or Cancelled transfer.
 const hotelTransferStatusFilters = ['All', 'Approved', 'Reversed'];
 
-const _sky600 = Color(0xFF0284C7);
+const _sky600 = Tone.fg(0xFF0284C7);
 
 (Color, Color) transferStatusTone(String s) => switch (s) {
       'Approved' => (TColors.emerald100, TColors.emerald800),
@@ -199,7 +200,7 @@ class _CashTransfersScreenState extends State<CashTransfersScreen> {
               ),
               InkWell(
                 onTap: () => openAppHref(context, widget.session, widget.company, _r.cashFlowHref, label: 'Cash Flow'),
-                child: const Text('Cash Flow', style: TextStyle(fontSize: 13, color: Color(0xFF0369A1))),
+                child: const Text('Cash Flow', style: TextStyle(fontSize: 13, color: Tone.fg(0xFF0369A1))),
               ),
               const Text('.', style: TextStyle(fontSize: 13, color: TColors.slate500)),
             ]),
@@ -254,7 +255,7 @@ class _CashTransfersScreenState extends State<CashTransfersScreen> {
             else if (visible.isEmpty)
               Container(
                 padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
                 child: Text(
                   _rows.isEmpty ? 'No transfers yet. Record one when you move money between accounts.' : 'No transfers match these filters.',
                   textAlign: TextAlign.center,
@@ -536,7 +537,7 @@ class _RecordTransferDialogState extends State<RecordTransferDialog> {
         actions: [
           redCancelButton(_saving ? null : () => Navigator.pop(context, false)),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: _r.accent),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(_r.accent)),
             onPressed: _saving || _overdraw ? null : _save,
             child: Text(_saving ? 'Recording...' : 'Record Transfer'),
           ),
@@ -655,7 +656,7 @@ class _ReverseTransferDialogState extends State<ReverseTransferDialog> {
           redCancelButton(_saving ? null : () => Navigator.pop(context, false)),
           FilledButton(
             onPressed: _saving ? null : _go,
-            style: FilledButton.styleFrom(backgroundColor: TColors.red600, foregroundColor: Colors.white),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(TColors.red600), foregroundColor: Colors.white),
             child: Text(_saving ? 'Reversing...' : 'Reverse Transfer'),
           ),
         ],

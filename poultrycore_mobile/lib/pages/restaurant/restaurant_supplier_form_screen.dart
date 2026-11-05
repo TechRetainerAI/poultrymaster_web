@@ -9,6 +9,7 @@ import '../../models/company.dart';
 import '../../state/session.dart';
 import 'restaurant_roles.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Restaurant → Suppliers → Add / Edit, as `app/restaurant-suppliers/page.tsx`:
 /// Contact (with a Category list whose "Other" switches to typing) and
 /// Address. Saves to `/api/Restaurant/setup/suppliers`.
@@ -212,7 +213,7 @@ class _RestaurantSupplierFormScreenState extends State<RestaurantSupplierFormScr
               Expanded(
                 child: FilledButton(
                   style: FilledButton.styleFrom(
-                    backgroundColor: restaurantRose,
+                    backgroundColor: Tone.button(restaurantRose),
                     minimumSize: const Size.fromHeight(48),
                   ),
                   onPressed: _saving ? null : _save,

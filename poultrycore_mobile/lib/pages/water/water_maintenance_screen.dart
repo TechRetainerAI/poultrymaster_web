@@ -14,6 +14,7 @@ import '../poultry/trackers/tracker_widgets.dart';
 import '../shared/business_dates.dart';
 import '../shared/company_clock.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Water → Operations → Production → Maintenance, as
 /// `app/water-maintenance/page.tsx`: the due-maintenance alerts, the issue
 /// log, Log issue, Complete (optionally booking the cash out) and Delete.
@@ -24,8 +25,8 @@ Widget waterMaintenanceStatusBadge(Object? status) {
   final s = tStr(status);
   final (bg, fg) = switch (s) {
     'Open' => (TColors.amber100, TColors.amber700),
-    'InProgress' => (TColors.blue100, const Color(0xFF1D4ED8)),
-    'Completed' => (const Color(0xFFDCFCE7), const Color(0xFF15803D)),
+    'InProgress' => (TColors.blue100, const Tone(0xFF1D4ED8)),
+    'Completed' => (const Tone(0xFFDCFCE7), const Tone(0xFF15803D)),
     _ => (TColors.slate100, TColors.slate700),
   };
   return TBadge(s, bg: bg, fg: fg);
@@ -34,9 +35,9 @@ Widget waterMaintenanceStatusBadge(Object? status) {
 Widget waterSeverityBadge(Object? severity) {
   final s = tStr(severity);
   final (bg, fg) = switch (s) {
-    'Overdue' => (const Color(0xFFFFE4E6), const Color(0xFFBE123C)),
+    'Overdue' => (const Tone(0xFFFFE4E6), const Tone(0xFFBE123C)),
     'DueSoon' => (TColors.amber100, TColors.amber700),
-    'Upcoming' => (TColors.blue100, const Color(0xFF1D4ED8)),
+    'Upcoming' => (TColors.blue100, const Tone(0xFF1D4ED8)),
     _ => (TColors.slate100, TColors.slate700),
   };
   return TBadge(s, bg: bg, fg: fg);
@@ -154,20 +155,20 @@ class _WaterMaintenanceScreenState extends State<WaterMaintenanceScreen> {
         if (_open(l))
           OutlinedButton.icon(
             onPressed: () => _complete(l),
-            style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFF15803D), side: const BorderSide(color: Color(0xFFBBF7D0))),
+            style: OutlinedButton.styleFrom(foregroundColor: const Tone.fg(0xFF15803D), side: const BorderSide(color: Tone.line(0xFFBBF7D0))),
             icon: const Icon(Icons.check_circle_outline, size: 16),
             label: const Text('Complete'),
           ),
         OutlinedButton(
           onPressed: () => _delete(l),
-          style: OutlinedButton.styleFrom(foregroundColor: TColors.red600, side: const BorderSide(color: Color(0xFFFECACA))),
+          style: OutlinedButton.styleFrom(foregroundColor: TColors.red600, side: const BorderSide(color: Tone.line(0xFFFECACA))),
           child: const Text('Delete'),
         ),
       ];
 
   Widget _alertsCard() => Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: TColors.amber50, border: Border.all(color: const Color(0xFFFDE68A)), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: TColors.amber50, border: Border.all(color: const Tone.line(0xFFFDE68A)), borderRadius: BorderRadius.circular(12)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Text('Due maintenance (${_alerts.length})', style: const TextStyle(fontWeight: FontWeight.w500, color: TColors.amber900)),
           const SizedBox(height: 8),
@@ -175,7 +176,7 @@ class _WaterMaintenanceScreenState extends State<WaterMaintenanceScreen> {
             Container(
               margin: const EdgeInsets.only(bottom: 6),
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(4)),
+              decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(4)),
               child: Row(children: [
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -210,7 +211,7 @@ class _WaterMaintenanceScreenState extends State<WaterMaintenanceScreen> {
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
           children: [
             const Row(children: [
-              Icon(Icons.build_outlined, color: Color(0xFF0284C7)),
+              Icon(Icons.build_outlined, color: Tone.fg(0xFF0284C7)),
               SizedBox(width: 8),
               Flexible(child: Text('Maintenance', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TColors.slate900))),
             ]),
@@ -245,7 +246,7 @@ class _WaterMaintenanceScreenState extends State<WaterMaintenanceScreen> {
             else if (_logs.isEmpty)
               Container(
                 padding: const EdgeInsets.all(32),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
                 child: const Text('No maintenance logs yet.', textAlign: TextAlign.center, style: TextStyle(color: TColors.slate500)),
               )
             else
@@ -277,7 +278,7 @@ class _WaterMaintenanceScreenState extends State<WaterMaintenanceScreen> {
                       [
                         cellText(fmtDateTime(l['issueDate'], l, _offset)),
                         Wrap(spacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                          TBadge(tStr(l['assetType']), bg: Colors.white, fg: TColors.slate700, border: TColors.slate300),
+                          TBadge(tStr(l['assetType']), bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate700, border: TColors.slate300),
                           Text(tStr(l['assetLabel'])),
                         ]),
                         Text(tStr(l['issueDescription'])),
@@ -292,7 +293,7 @@ class _WaterMaintenanceScreenState extends State<WaterMaintenanceScreen> {
                             IconButton(
                               tooltip: 'Complete',
                               onPressed: () => _complete(l),
-                              icon: const Icon(Icons.check_circle_outline, size: 18, color: Color(0xFF16A34A)),
+                              icon: const Icon(Icons.check_circle_outline, size: 18, color: Tone.fg(0xFF16A34A)),
                             ),
                           IconButton(tooltip: 'Delete', onPressed: () => _delete(l), icon: const Text('×', style: TextStyle(fontSize: 18))),
                         ]),
@@ -381,7 +382,7 @@ class _WaterMaintenanceLogDialogState extends State<WaterMaintenanceLogDialog> {
         child: AlertDialog(
           scrollable: true,
           title: const Row(children: [
-            Icon(Icons.build_outlined, size: 20, color: Color(0xFF2563EB)),
+            Icon(Icons.build_outlined, size: 20, color: Tone.fg(0xFF2563EB)),
             SizedBox(width: 8),
             Flexible(child: Text('Log maintenance issue')),
           ]),
@@ -390,7 +391,7 @@ class _WaterMaintenanceLogDialogState extends State<WaterMaintenanceLogDialog> {
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               const Text('Record a maintenance issue or repair', style: TextStyle(fontSize: 13, color: TColors.slate500)),
               const SizedBox(height: 12),
-              formSection('Asset', const Color(0xFF4F46E5), [
+              formSection('Asset', const Tone(0xFF4F46E5), [
                 FilterLabel(
                   'Asset type',
                   AppSelect<String>(
@@ -403,7 +404,7 @@ class _WaterMaintenanceLogDialogState extends State<WaterMaintenanceLogDialog> {
                 FilterLabel('Issue description *', AppInput(controller: _issue, minLines: 3, maxLines: 6)),
               ]),
               const SizedBox(height: 12),
-              formSection('Repair details', const Color(0xFF2563EB), [
+              formSection('Repair details', const Tone(0xFF2563EB), [
                 FilterLabel('Technician', AppInput(controller: _tech)),
                 FilterLabel('Repair cost', _num(_cost)),
                 FilterLabel('Downtime hours', _num(_downtime)),
@@ -454,7 +455,7 @@ class _CompleteDialogState extends State<_CompleteDialog> {
   Widget build(BuildContext context) => AlertDialog(
         scrollable: true,
         title: const Row(children: [
-          Icon(Icons.check_circle_outline, size: 20, color: Color(0xFF16A34A)),
+          Icon(Icons.check_circle_outline, size: 20, color: Tone.fg(0xFF16A34A)),
           SizedBox(width: 8),
           Flexible(child: Text('Complete maintenance')),
         ]),

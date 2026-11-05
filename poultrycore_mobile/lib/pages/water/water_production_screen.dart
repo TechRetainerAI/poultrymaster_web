@@ -19,6 +19,7 @@ import '../poultry/trackers/tracker_widgets.dart';
 import '../shared/business_dates.dart';
 import '../shared/company_clock.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Water → Operations → Production → Water Production, as
 /// `app/water-production-batches/page.tsx`: production records (Draft →
 /// Approved, Cancel, Reopen), the Record / Edit form with its raw materials
@@ -150,7 +151,7 @@ WaterMaterialRow waterRecipeRow(Map it, num bags, List<Map> rawMaterials) {
 Widget waterBatchStatusBadge(Object? status) {
   final s = tStr(status);
   final (bg, fg) = switch (s) {
-    'Approved' => (const Color(0xFFDCFCE7), const Color(0xFF15803D)),
+    'Approved' => (const Tone(0xFFDCFCE7), const Tone(0xFF15803D)),
     'Cancelled' => (TColors.amber100, TColors.amber700),
     'Draft' => (TColors.slate100, TColors.slate700),
     _ => (TColors.slate100, TColors.slate700),
@@ -158,7 +159,7 @@ Widget waterBatchStatusBadge(Object? status) {
   return TBadge(s, bg: bg, fg: fg);
 }
 
-Widget _outlineBadge(String s) => TBadge(s, bg: Colors.white, fg: TColors.slate700, border: TColors.slate300);
+Widget _outlineBadge(String s) => TBadge(s, bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate700, border: TColors.slate300);
 
 // ------------------------------------------------------------ list
 
@@ -290,7 +291,7 @@ class _WaterProductionScreenState extends State<WaterProductionScreen> {
       if (isDailyProductionChild(b))
         OutlinedButton.icon(
           onPressed: () => _openDay(b),
-          style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFF0369A1), side: const BorderSide(color: Color(0xFFBAE6FD))),
+          style: OutlinedButton.styleFrom(foregroundColor: const Tone.fg(0xFF0369A1), side: const BorderSide(color: Tone.line(0xFFBAE6FD))),
           icon: const Icon(Icons.calendar_month_outlined, size: 16),
           label: const Text('Open batch production'),
         )
@@ -299,21 +300,21 @@ class _WaterProductionScreenState extends State<WaterProductionScreen> {
         if (st == 'Draft')
           OutlinedButton.icon(
             onPressed: () => _approve(b),
-            style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFF15803D), side: const BorderSide(color: Color(0xFFBBF7D0))),
+            style: OutlinedButton.styleFrom(foregroundColor: const Tone.fg(0xFF15803D), side: const BorderSide(color: Tone.line(0xFFBBF7D0))),
             icon: const Icon(Icons.check_circle_outline, size: 16),
             label: const Text('Approve'),
           ),
         if (st != 'Cancelled' && st != 'Approved')
           OutlinedButton.icon(
             onPressed: () => _cancel(b),
-            style: OutlinedButton.styleFrom(foregroundColor: TColors.red600, side: const BorderSide(color: Color(0xFFFECACA))),
+            style: OutlinedButton.styleFrom(foregroundColor: TColors.red600, side: const BorderSide(color: Tone.line(0xFFFECACA))),
             icon: const Icon(Icons.cancel_outlined, size: 16),
             label: const Text('Cancel'),
           ),
         if (st == 'Approved')
           OutlinedButton.icon(
             onPressed: () => _reopen(b),
-            style: OutlinedButton.styleFrom(foregroundColor: TColors.amber700, side: const BorderSide(color: Color(0xFFFDE68A))),
+            style: OutlinedButton.styleFrom(foregroundColor: TColors.amber700, side: const BorderSide(color: Tone.line(0xFFFDE68A))),
             icon: const Icon(Icons.undo, size: 16),
             label: const Text('Reopen'),
           ),
@@ -323,7 +324,7 @@ class _WaterProductionScreenState extends State<WaterProductionScreen> {
 
   Widget _score(String label, String value) => Container(
         padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: const TextStyle(fontSize: 11, color: TColors.slate500)),
           Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: TColors.slate900)),
@@ -356,14 +357,14 @@ class _WaterProductionScreenState extends State<WaterProductionScreen> {
                   IconButton(
                     tooltip: 'Open the batch production that created this record',
                     onPressed: () => _openDay(b),
-                    icon: const Icon(Icons.calendar_month_outlined, size: 18, color: Color(0xFF0284C7)),
+                    icon: const Icon(Icons.calendar_month_outlined, size: 18, color: Tone.fg(0xFF0284C7)),
                   )
                 else ...[
                   if (tStr(b['status']) == 'Draft') IconButton(tooltip: 'Edit', onPressed: () => _openForm(b), icon: const Icon(Icons.edit_outlined, size: 18)),
                   if (tStr(b['status']) == 'Draft')
-                    IconButton(tooltip: 'Approve', onPressed: () => _approve(b), icon: const Icon(Icons.check_circle_outline, size: 18, color: Color(0xFF16A34A))),
+                    IconButton(tooltip: 'Approve', onPressed: () => _approve(b), icon: const Icon(Icons.check_circle_outline, size: 18, color: Tone.fg(0xFF16A34A))),
                   if (tStr(b['status']) != 'Cancelled' && tStr(b['status']) != 'Approved')
-                    IconButton(tooltip: 'Cancel', onPressed: () => _cancel(b), icon: const Icon(Icons.cancel_outlined, size: 18, color: Color(0xFFF43F5E))),
+                    IconButton(tooltip: 'Cancel', onPressed: () => _cancel(b), icon: const Icon(Icons.cancel_outlined, size: 18, color: Tone.fg(0xFFF43F5E))),
                   if (tStr(b['status']) == 'Approved')
                     IconButton(tooltip: 'Reopen for edit', onPressed: () => _reopen(b), icon: const Icon(Icons.undo, size: 18, color: TColors.amber600)),
                 ],
@@ -394,8 +395,8 @@ class _WaterProductionScreenState extends State<WaterProductionScreen> {
               Container(
                 width: 40,
                 height: 40,
-                decoration: BoxDecoration(color: const Color(0xFFE0F2FE), borderRadius: BorderRadius.circular(8)),
-                child: const Icon(Icons.factory_outlined, color: Color(0xFF0284C7)),
+                decoration: BoxDecoration(color: const Tone.bg(0xFFE0F2FE), borderRadius: BorderRadius.circular(8)),
+                child: const Icon(Icons.factory_outlined, color: Tone.fg(0xFF0284C7)),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -442,7 +443,7 @@ class _WaterProductionScreenState extends State<WaterProductionScreen> {
             else if (_batches.isEmpty)
               Container(
                 padding: const EdgeInsets.all(32),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
                 child: const Text('No production records yet.', textAlign: TextAlign.center, style: TextStyle(color: TColors.slate500)),
               )
             else
@@ -750,7 +751,7 @@ class _WaterProductionFormScreenState extends State<WaterProductionFormScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Tone.bg(0xFFFFFFFF),
         border: Border.all(color: over ? TColors.amber300 : TColors.slate300, width: 2),
         borderRadius: BorderRadius.circular(8),
       ),
@@ -772,7 +773,7 @@ class _WaterProductionFormScreenState extends State<WaterProductionFormScreen> {
               ),
             ),
           ),
-          IconButton(tooltip: 'Remove material', onPressed: () => _removeMaterial(i), icon: const Icon(Icons.delete_outline, color: Color(0xFFEF4444))),
+          IconButton(tooltip: 'Remove material', onPressed: () => _removeMaterial(i), icon: const Icon(Icons.delete_outline, color: Tone.fg(0xFFEF4444))),
         ]),
         const SizedBox(height: 8),
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -803,7 +804,7 @@ class _WaterProductionFormScreenState extends State<WaterProductionFormScreen> {
                     ? (plan.takes.length == 1 ? 'from 1 purchase batch' : 'blended over ${plan.takes.length} purchase batches')
                     : 'latest purchase — repriced on approval',
                 textAlign: TextAlign.right,
-                style: TextStyle(fontSize: 10, color: plan.takes.isNotEmpty ? const Color(0xFF0369A1) : TColors.slate400),
+                style: TextStyle(fontSize: 10, color: plan.takes.isNotEmpty ? const Tone.fg(0xFF0369A1) : TColors.slate400),
               ),
             ]),
           ),
@@ -862,7 +863,7 @@ class _WaterProductionFormScreenState extends State<WaterProductionFormScreen> {
             const Text('Record what was produced, the raw materials consumed, and the costs incurred. Saved as Draft until approved.',
                 style: TextStyle(fontSize: 13, color: TColors.slate500)),
             const SizedBox(height: 12),
-            formSection('Batch information', const Color(0xFF4F46E5), [
+            formSection('Batch information', const Tone.fg(0xFF4F46E5), [
               FilterLabel('Batch number *', AppInput(controller: _batchNo, hintText: 'e.g. B-20260524-093015', inputFormatters: [LengthLimitingTextInputFormatter(60)])),
               FilterLabel(
                 'Production date',
@@ -920,7 +921,7 @@ class _WaterProductionFormScreenState extends State<WaterProductionFormScreen> {
               ),
             ]),
             const SizedBox(height: 12),
-            formSection('Production output', const Color(0xFF2563EB), [
+            formSection('Production output', const Tone.fg(0xFF2563EB), [
               _hinted('Produced bags *', _num(_bags), 'Total bags before subtracting damaged'),
               FilterLabel('Sachets per bag', _num(_perBag)),
               _hinted('Damaged bags', _num(_damaged), 'Counted as loss — not added to stock'),
@@ -983,7 +984,7 @@ class _WaterProductionFormScreenState extends State<WaterProductionFormScreen> {
               ]),
             ),
             const SizedBox(height: 12),
-            formSection('Production costs', const Color(0xFF16A34A), [
+            formSection('Production costs', const Tone.fg(0xFF16A34A), [
               FilterLabel('Electricity', _num(_electricity, decimal: true)),
               FilterLabel('Fuel', _num(_fuel, decimal: true)),
               FilterLabel('Labor', _num(_labor, decimal: true)),
@@ -1017,7 +1018,7 @@ class _WaterProductionFormScreenState extends State<WaterProductionFormScreen> {
               ),
               FilledButton.icon(
                 onPressed: _saving ? null : () => _save(approve: true),
-                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF16A34A), foregroundColor: Colors.white),
+                style: FilledButton.styleFrom(backgroundColor: Tone.button(const Tone.bg(0xFF16A34A)), foregroundColor: Colors.white),
                 icon: const Icon(Icons.check_circle_outline, size: 16),
                 label: const Text('Save & Approve'),
               ),
@@ -1110,7 +1111,7 @@ class _WaterProductionDetailScreenState extends State<WaterProductionDetailScree
 
   Widget _sum(String label, String value, {Color? color}) => Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label.toUpperCase(), style: const TextStyle(fontSize: 11, letterSpacing: .6, color: TColors.slate500)),
           const SizedBox(height: 4),
@@ -1128,7 +1129,7 @@ class _WaterProductionDetailScreenState extends State<WaterProductionDetailScree
 
   Widget _card(List<Widget> children) => Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
       );
 
@@ -1165,8 +1166,8 @@ class _WaterProductionDetailScreenState extends State<WaterProductionDetailScree
               Container(
                 width: 40,
                 height: 40,
-                decoration: BoxDecoration(color: const Color(0xFFE0F2FE), borderRadius: BorderRadius.circular(8)),
-                child: const Icon(Icons.factory_outlined, color: Color(0xFF0284C7)),
+                decoration: BoxDecoration(color: const Tone.bg(0xFFE0F2FE), borderRadius: BorderRadius.circular(8)),
+                child: const Icon(Icons.factory_outlined, color: Tone.fg(0xFF0284C7)),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -1202,7 +1203,7 @@ class _WaterProductionDetailScreenState extends State<WaterProductionDetailScree
       Wrap(spacing: 8, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
         waterBatchStatusBadge(b['status']),
         if (tStr(b['machineScope']) == 'AllMachines')
-          const TBadge('All Machines / Combined', bg: TColors.violet100, fg: Color(0xFF5B21B6)),
+          const TBadge('All Machines / Combined', bg: TColors.violet100, fg: Tone.fg(0xFF5B21B6)),
         if (tStr(b['approvedBy']).isNotEmpty)
           Text('Approved by ${tStr(b['approvedBy'])}${tStr(b['approvedAt']).isNotEmpty ? ' · ${_day(b['approvedAt'])}' : ''}',
               style: const TextStyle(fontSize: 12, color: TColors.slate500)),
@@ -1215,12 +1216,12 @@ class _WaterProductionDetailScreenState extends State<WaterProductionDetailScree
         _sum('Good bags', qtyFmt(waterGoodBags(b)), color: TColors.emerald700),
         _sum('Damaged bags', '${tNum(b['damagedBags'])}', color: tNum(b['damagedBags']) != 0 ? TColors.amber700 : null),
         _sum('Rejected sachets', '${tNum(b['rejectedSachets'])}', color: tNum(b['rejectedSachets']) != 0 ? TColors.amber700 : null),
-        _sum('Total cost', _gh(all), color: const Color(0xFF4338CA)),
+        _sum('Total cost', _gh(all), color: const Tone(0xFF4338CA)),
         _sum('Cost per (good) bag', _gh(tNum(b['costPerBag']))),
         _sum('Total sachets', qtyFmt(totalSachets)),
         _sum('Efficiency', '${tNum(b['productionEfficiencyPercent']).toStringAsFixed(1)}%'),
       ]),
-      formSection('Batch information', const Color(0xFF4F46E5), [
+      formSection('Batch information', const Tone(0xFF4F46E5), [
         _fields([
           ('Batch number', tStr(b['batchNumber']).isEmpty ? '—' : tStr(b['batchNumber']), null),
           ('Production date', tStr(b['productionDate']).isEmpty ? '—' : _day(b['productionDate']), null),
@@ -1232,7 +1233,7 @@ class _WaterProductionDetailScreenState extends State<WaterProductionDetailScree
           ('Status', tStr(b['status']), null),
         ]),
       ]),
-      formSection('Costs', const Color(0xFF16A34A), [
+      formSection('Costs', const Tone(0xFF16A34A), [
         _fields([
           ('Electricity', _gh(tNum(b['electricityCost'])), null),
           ('Fuel', _gh(tNum(b['fuelCost'])), null),
@@ -1261,7 +1262,7 @@ class _WaterProductionDetailScreenState extends State<WaterProductionDetailScree
               ]),
           ]),
       ]),
-      formSection('Related inventory transactions', const Color(0xFF0284C7), [
+      formSection('Related inventory transactions', const Tone(0xFF0284C7), [
         if (_txns.isEmpty)
           _empty('None yet — batch is not Approved or stock impact has been reversed.')
         else
@@ -1285,7 +1286,7 @@ class _WaterProductionDetailScreenState extends State<WaterProductionDetailScree
               ]),
           ]),
       ]),
-      formSection('Related expense records', const Color(0xFF9333EA), [
+      formSection('Related expense records', const Tone(0xFF9333EA), [
         if (_expenses.isEmpty)
           _empty('No production-linked expenses for this batch.')
         else
@@ -1310,7 +1311,7 @@ class _WaterProductionDetailScreenState extends State<WaterProductionDetailScree
               ]),
           ]),
       ]),
-      formSection('Related loss records', const Color(0xFFE11D48), [
+      formSection('Related loss records', const Tone(0xFFE11D48), [
         if (_losses.isEmpty)
           _empty('No damage / rejected loss records for this batch.')
         else

@@ -15,6 +15,7 @@ import 'trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, jsNum;
 import 'trackers/tracker_widgets.dart';
 import '../shared/reason_select.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// REST client for FlockCloseoutController. farmId rides in the query on every
 /// call, writes included: that is where the API's IAM filter reads it from.
 class FlockCloseoutApi {
@@ -43,13 +44,13 @@ String _day(Object? v) {
   return s.isEmpty ? '—' : (s.length >= 10 ? s.substring(0, 10) : s);
 }
 
-const _orange600 = Color(0xFFEA580C);
-const _orange50 = Color(0xFFFFF7ED);
-const _sky50 = Color(0xFFF0F9FF);
-const _sky600 = Color(0xFF0284C7);
-const _blue50 = Color(0xFFEFF6FF);
-const _blue900 = Color(0xFF1E3A8A);
-const _violet700 = Color(0xFF6D28D9);
+const _orange600 = Tone(0xFFEA580C);
+const _orange50 = Tone(0xFFFFF7ED);
+const _sky50 = Tone(0xFFF0F9FF);
+const _sky600 = Tone(0xFF0284C7);
+const _blue50 = Tone.bg(0xFFEFF6FF);
+const _blue900 = Tone(0xFF1E3A8A);
+const _violet700 = Tone(0xFF6D28D9);
 
 /// The web Alert: an icon and a message in a tinted box.
 Widget closeoutAlert(String text, {required String tone, Widget? child}) {
@@ -77,7 +78,7 @@ Widget _sectionLabel(String text) => Padding(
     );
 
 Widget _label(String text, Widget field) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Text(text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: TColors.slate700)),
+      Text(text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Tone.fg(0xFF334155))),
       const SizedBox(height: 4),
       field,
     ]);
@@ -267,7 +268,7 @@ class _FlockCloseoutWizardState extends State<FlockCloseoutWizard> {
         titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
         contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
         title: Row(children: [
-          const Icon(Icons.flag_outlined, size: 20, color: TColors.slate600),
+          const Icon(Icons.flag_outlined, size: 20, color: Tone.fg(0xFF475569)),
           const SizedBox(width: 8),
           Expanded(child: Text('Close ${name.isEmpty ? 'flock' : name}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600))),
         ]),
@@ -309,7 +310,7 @@ class _FlockCloseoutWizardState extends State<FlockCloseoutWizard> {
         const SizedBox(height: 12),
         Text(
           '${saleIds.length == 1 ? 'The sale is' : '${saleIds.length} sales are'} on the Sales page (${saleIds.map((id) => '#$id').join(', ')}), with any balance owed on the customer\'s account.',
-          style: const TextStyle(fontSize: 13, color: TColors.slate600),
+          style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF475569)),
         ),
       ],
       for (final w in warnings) ...[const SizedBox(height: 12), closeoutAlert(tStr(w), tone: 'warn')],
@@ -365,7 +366,7 @@ class _FlockCloseoutWizardState extends State<FlockCloseoutWizard> {
           ),
         if (_step == 2)
           FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: TColors.slate900, foregroundColor: Colors.white),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFF0F172A)), foregroundColor: Colors.white),
             onPressed: _submitting || errors.isNotEmpty ? null : _submit,
             icon: _submitting
                 ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
@@ -376,7 +377,7 @@ class _FlockCloseoutWizardState extends State<FlockCloseoutWizard> {
       if (_step == 1 && remaining != 0) ...[
         const SizedBox(height: 6),
         Wrap(alignment: WrapAlignment.end, crossAxisAlignment: WrapCrossAlignment.center, spacing: 4, children: [
-          TBadge(remaining > 0 ? _n(remaining) : '−${_n(-remaining)}', bg: Colors.white, fg: TColors.slate900, border: TColors.slate300),
+          TBadge(remaining > 0 ? _n(remaining) : '−${_n(-remaining)}', bg: Tone.bg(0xFFFFFFFF), fg: Tone.fg(0xFF0F172A), border: Tone.line(0xFFCBD5E1)),
           const Text('Every bird must be accounted for before you continue.', style: TextStyle(fontSize: 12, color: TColors.slate500)),
         ]),
       ],
@@ -392,24 +393,24 @@ class _FlockCloseoutWizardState extends State<FlockCloseoutWizard> {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: i == _step ? TColors.slate900 : (i < _step ? TColors.emerald50 : null),
-                border: Border.all(color: i == _step ? TColors.slate900 : (i < _step ? TColors.emerald500 : TColors.slate300)),
+                color: i == _step ? Tone.button(Tone.bg(0xFF0F172A))! : (i < _step ? Tone.bg(0xFFECFDF5) : null),
+                border: Border.all(color: i == _step ? Tone.line(0xFF0F172A) : (i < _step ? Tone.line(0xFF10B981) : Tone.line(0xFFCBD5E1))),
               ),
               child: Text('${i + 1}',
                   style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: i == _step ? Colors.white : (i < _step ? TColors.emerald700 : TColors.slate500))),
+                      color: i == _step ? Colors.white : (i < _step ? Tone.fg(0xFF047857) : TColors.slate500))),
             ),
             const SizedBox(width: 6),
             Text(closeoutSteps[i],
                 style: TextStyle(
                     fontSize: 12,
                     fontWeight: i == _step ? FontWeight.w600 : FontWeight.w400,
-                    color: i == _step ? TColors.slate900 : TColors.slate500)),
+                    color: i == _step ? Tone.fg(0xFF0F172A) : TColors.slate500)),
             if (i < closeoutSteps.length - 1) ...[
               const SizedBox(width: 6),
-              Container(width: 18, height: 1, color: TColors.slate300),
+              Container(width: 18, height: 1, color: Tone.bg(0xFFCBD5E1)),
             ],
           ]),
       ]);
@@ -424,7 +425,7 @@ class _FlockCloseoutWizardState extends State<FlockCloseoutWizard> {
       _sectionLabel('Where the birds went'),
       Container(
         clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+        decoration: BoxDecoration(border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(6)),
         child: Column(children: [
           for (var i = 0; i < lines.length; i++)
             Builder(builder: (_) {
@@ -440,8 +441,8 @@ class _FlockCloseoutWizardState extends State<FlockCloseoutWizard> {
               };
               return Container(
                 decoration: BoxDecoration(
-                  color: isLive ? _blue50 : (strong ? TColors.slate50 : null),
-                  border: i == 0 ? null : const Border(top: BorderSide(color: TColors.slate200)),
+                  color: isLive ? _blue50 : (strong ? Tone.bg(0xFFF8FAFC) : null),
+                  border: i == 0 ? null : const Border(top: BorderSide(color: Tone.line(0xFFE2E8F0))),
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -470,7 +471,7 @@ class _FlockCloseoutWizardState extends State<FlockCloseoutWizard> {
         Text(
           '${live == 0 ? 'No birds are left standing, so this flock can be closed without selling, culling or transferring any.' : '${_n(live)} birds are still standing. The next step accounts for every one of them.'}'
           ' If a physical count differs, record the missing birds as mortality on a production record first — closing a flock never invents deaths to make the numbers fit.',
-          style: const TextStyle(fontSize: 13, color: TColors.slate600),
+          style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF475569)),
         ),
     ]);
   }
@@ -490,7 +491,7 @@ class _FlockCloseoutWizardState extends State<FlockCloseoutWizard> {
         ? (TColors.emerald50, TColors.emerald200, TColors.emerald900)
         : remaining > 0
             ? (TColors.amber50, TColors.amber200, TColors.amber900)
-            : (TColors.rose50, TColors.rose200, const Color(0xFF881337));
+            : (TColors.rose50, TColors.rose200, const Tone(0xFF881337));
     int left() {
       final l = unresolvedBirds(_position, _draft);
       return l < 0 ? 0 : l;
@@ -519,7 +520,7 @@ class _FlockCloseoutWizardState extends State<FlockCloseoutWizard> {
           TextSpan(
               text:
                   'Spent-layer sales are recorded as ordinary ${tStr(ctx['birdProductName'])} sales. There is no separate save: each sale here is saved together with the closeout when you press '),
-          const TextSpan(text: 'Close flock & record sales', style: TextStyle(fontWeight: FontWeight.w500, color: TColors.slate700)),
+          const TextSpan(text: 'Close flock & record sales', style: TextStyle(fontWeight: FontWeight.w500, color: Tone.fg(0xFF334155))),
           const TextSpan(text: ' on the last step, so a sale can never be left behind on a flock that did not close.'),
         ]),
         style: const TextStyle(fontSize: 12, color: TColors.slate500),
@@ -586,7 +587,7 @@ class _FlockCloseoutWizardState extends State<FlockCloseoutWizard> {
 
   Widget _figure(String label, String value, Color tone) => Container(
         padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(6)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: const TextStyle(fontSize: 11, color: TColors.slate500)),
           Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: tone)),
@@ -648,13 +649,13 @@ class _FlockCloseoutWizardState extends State<FlockCloseoutWizard> {
         const SizedBox(height: 8),
         Text(
           '${_draft.sales.length == 1 ? 'This sale' : 'These ${_draft.sales.length} sales'} will be created on the Sales page when you close the flock:',
-          style: const TextStyle(fontSize: 13, color: TColors.slate600),
+          style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF475569)),
         ),
         for (final s in _draft.sales) ...[
           const SizedBox(height: 4),
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+            decoration: BoxDecoration(border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(6)),
             child: Wrap(alignment: WrapAlignment.spaceBetween, spacing: 8, runSpacing: 2, children: [
               Text(
                 '${_n(s.quantity)} birds${s.customerName.trim().isNotEmpty ? ' to ${s.customerName.trim()}' : ''}'
@@ -669,14 +670,14 @@ class _FlockCloseoutWizardState extends State<FlockCloseoutWizard> {
       ],
       const SizedBox(height: 8),
       Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Icon(Icons.home_outlined, size: 16, color: TColors.slate400),
+        const Icon(Icons.home_outlined, size: 16, color: Tone.fg(0xFF7F8EA3)),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
             house.isNotEmpty
                 ? '$house will be released for a new flock. The flock keeps its house in its history.'
                 : 'This flock has no house assigned.',
-            style: const TextStyle(fontSize: 13, color: TColors.slate600),
+            style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF475569)),
           ),
         ),
       ]),
@@ -740,14 +741,14 @@ class _SaleCardState extends State<_SaleCard> {
     ];
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+      decoration: BoxDecoration(border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(6)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
           Expanded(child: Text('Sale ${widget.index + 1}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
           IconButton(
             tooltip: 'Remove sale',
             visualDensity: VisualDensity.compact,
-            icon: const Icon(Icons.delete_outline, size: 18, color: TColors.red600),
+            icon: const Icon(Icons.delete_outline, size: 18, color: Tone.fg(0xFFDC2626)),
             onPressed: widget.onRemove,
           ),
         ]),
@@ -887,7 +888,7 @@ class _LineRowState extends State<_LineRow> {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(6)),
+        decoration: BoxDecoration(border: Border.all(color: Tone.line(0xFFE2E8F0)), borderRadius: BorderRadius.circular(6)),
         child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
           SizedBox(
             width: 84,
@@ -899,7 +900,7 @@ class _LineRowState extends State<_LineRow> {
           ),
           IconButton(
             tooltip: 'Remove',
-            icon: const Icon(Icons.delete_outline, size: 18, color: TColors.red600),
+            icon: const Icon(Icons.delete_outline, size: 18, color: Tone.fg(0xFFDC2626)),
             onPressed: widget.onRemove,
           ),
         ]),
@@ -1054,17 +1055,17 @@ class _FlockLifetimeViewState extends State<FlockLifetimeView> {
           width: double.infinity,
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: _reopenMessage!.ok ? TColors.emerald50 : TColors.rose50,
-            border: Border.all(color: _reopenMessage!.ok ? TColors.emerald200 : TColors.rose200),
+            color: _reopenMessage!.ok ? Tone.bg(0xFFECFDF5) : Tone.bg(0xFFFFF1F2),
+            border: Border.all(color: _reopenMessage!.ok ? Tone.line(0xFFA7F3D0) : Tone.line(0xFFFECDD3)),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(_reopenMessage!.text,
-                style: TextStyle(fontSize: 13, color: _reopenMessage!.ok ? TColors.emerald900 : const Color(0xFF881337))),
+                style: TextStyle(fontSize: 13, color: _reopenMessage!.ok ? Tone.fg(0xFF064E3B) : const Tone.fg(0xFF881337))),
             for (final w in _reopenMessage!.warnings)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
-                child: Text(w, style: const TextStyle(fontSize: 13, color: TColors.amber800)),
+                child: Text(w, style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF92400E))),
               ),
           ]),
         ),
@@ -1086,12 +1087,12 @@ class _FlockLifetimeViewState extends State<FlockLifetimeView> {
           width: double.infinity,
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: .6),
-            border: Border.all(color: TColors.slate300),
+            color: Tone.bg(0xFFFFFFFF).withValues(alpha: .6),
+            border: Border.all(color: Tone.line(0xFFCBD5E1)),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Icon(Icons.history, size: 20, color: TColors.slate400),
+            const Icon(Icons.history, size: 20, color: Tone.fg(0xFF7F8EA3)),
             const SizedBox(height: 8),
             Text(
               isClosed
@@ -1114,15 +1115,15 @@ class _FlockLifetimeViewState extends State<FlockLifetimeView> {
     final profit = tNum(s['profit']);
     final meta = <Widget>[
       TBadge(tStr(s['status']),
-          bg: isClosed ? TColors.slate100 : TColors.emerald50,
-          fg: isClosed ? TColors.slate800 : TColors.emerald800,
-          border: isClosed ? TColors.slate400 : TColors.emerald300),
+          bg: isClosed ? Tone.bg(0xFFF1F5F9) : Tone.bg(0xFFECFDF5),
+          fg: isClosed ? Tone.fg(0xFF1E293B) : Tone.fg(0xFF065F46),
+          border: isClosed ? Tone.line(0xFF7F8EA3) : Tone.line(0xFF6EE7B7)),
       _meta(Icons.calendar_today_outlined,
           '${_day(s['startDate'])} → ${tStr(s['closedDate']).isNotEmpty ? _day(s['closedDate']) : 'today'}',
           extra: ' (${_n(tNum(s['daysInProduction']))} days)'),
       if (tStr(s['breed']).isNotEmpty) _meta(Icons.flutter_dash, tStr(s['breed'])),
       if (tStr(s['batchCode']).isNotEmpty) _meta(Icons.sell_outlined, 'Batch ${tStr(s['batchCode'])}'),
-      if (tStr(s['houseName']).isNotEmpty) Text('House: ${tStr(s['houseName'])}', style: const TextStyle(fontSize: 13, color: TColors.slate600)),
+      if (tStr(s['houseName']).isNotEmpty) Text('House: ${tStr(s['houseName'])}', style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF475569))),
     ];
     final heads = <Widget>[
       _headline('Profit', _m(s['profit']), tone: profit >= 0 ? TColors.emerald700 : TColors.rose700, sub: '${_m(s['profitPerOriginalBird'])} per bird placed'),
@@ -1135,8 +1136,8 @@ class _FlockLifetimeViewState extends State<FlockLifetimeView> {
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: TColors.slate200),
+        color: Tone.bg(0xFFFFFFFF),
+        border: Border.all(color: Tone.line(0xFFE2E8F0)),
         borderRadius: BorderRadius.circular(12),
         boxShadow: const [BoxShadow(color: Color(0x0D000000), blurRadius: 2, offset: Offset(0, 1))],
       ),
@@ -1144,13 +1145,13 @@ class _FlockLifetimeViewState extends State<FlockLifetimeView> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: const BoxDecoration(
-            color: Color(0xB3F8FAFC),
-            border: Border(bottom: BorderSide(color: TColors.slate100)),
+            color: Tone.bg(0xB3F8FAFC),
+            border: Border(bottom: BorderSide(color: Tone.line(0xFFF1F5F9))),
           ),
           child: Wrap(spacing: 20, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: meta),
         ),
         Container(
-          color: TColors.slate100,
+          color: Tone.bg(0xFFF1F5F9),
           child: LayoutBuilder(builder: (context, c) {
             final w = (c.maxWidth - 1) / 2;
             return Wrap(spacing: 1, runSpacing: 1, children: [for (final h in heads) SizedBox(width: w, child: h)]);
@@ -1161,21 +1162,21 @@ class _FlockLifetimeViewState extends State<FlockLifetimeView> {
   }
 
   Widget _meta(IconData icon, String text, {String? extra}) => Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 16, color: TColors.slate400),
+        Icon(icon, size: 16, color: Tone.fg(0xFF7F8EA3)),
         const SizedBox(width: 6),
         Flexible(
           child: Text.rich(
             TextSpan(children: [
               TextSpan(text: text),
-              if (extra != null) TextSpan(text: extra, style: const TextStyle(color: TColors.slate400)),
+              if (extra != null) TextSpan(text: extra, style: const TextStyle(color: Tone.fg(0xFF7F8EA3))),
             ]),
-            style: const TextStyle(fontSize: 13, color: TColors.slate600),
+            style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF475569)),
           ),
         ),
       ]);
 
   Widget _headline(String label, String value, {Color? tone, String? sub}) => Container(
-        color: Colors.white,
+        color: Tone.bg(0xFFFFFFFF),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: TColors.slate500)),
@@ -1183,22 +1184,22 @@ class _FlockLifetimeViewState extends State<FlockLifetimeView> {
           Text(value,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: widget.page ? 22 : 19, fontWeight: FontWeight.w600, color: tone ?? TColors.slate900)),
+              style: TextStyle(fontSize: widget.page ? 22 : 19, fontWeight: FontWeight.w600, color: tone ?? Tone.fg(0xFF0F172A))),
           if (sub != null)
-            Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: TColors.slate400)),
+            Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Tone.fg(0xFF7F8EA3))),
         ]),
       );
 
   Widget _figure(String label, String value, {Color? tone, String? hint}) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(color: TColors.slate50, border: Border.all(color: TColors.slate100), borderRadius: BorderRadius.circular(6)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFF8FAFC), border: Border.all(color: Tone.line(0xFFF1F5F9)), borderRadius: BorderRadius.circular(6)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
           const SizedBox(height: 2),
-          Text(value, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: tone ?? TColors.slate900)),
+          Text(value, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: tone ?? Tone.fg(0xFF0F172A))),
           if (hint != null) ...[
             const SizedBox(height: 2),
-            Text(hint, style: const TextStyle(fontSize: 11, color: TColors.slate400)),
+            Text(hint, style: const TextStyle(fontSize: 11, color: Tone.fg(0xFF7F8EA3))),
           ],
         ]),
       );
@@ -1212,8 +1213,8 @@ class _FlockLifetimeViewState extends State<FlockLifetimeView> {
   Widget _panel(String title, IconData icon, Color tileBg, Color tileFg, Widget child, {String? note}) => Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: TColors.slate200),
+          color: Tone.bg(0xFFFFFFFF),
+          border: Border.all(color: Tone.line(0xFFE2E8F0)),
           borderRadius: BorderRadius.circular(12),
           boxShadow: const [BoxShadow(color: Color(0x0D000000), blurRadius: 2, offset: Offset(0, 1))],
         ),
@@ -1226,7 +1227,7 @@ class _FlockLifetimeViewState extends State<FlockLifetimeView> {
               child: Icon(icon, size: 16, color: tileFg),
             ),
             const SizedBox(width: 8),
-            Expanded(child: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: TColors.slate800))),
+            Expanded(child: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Tone.fg(0xFF1E293B)))),
           ]),
           const SizedBox(height: 12),
           child,
@@ -1343,18 +1344,18 @@ class _FlockLifetimeViewState extends State<FlockLifetimeView> {
     final reopened = tStr(h['reopenedAt']).isNotEmpty;
     final dispositions = h['dispositions'] is List ? [for (final d in h['dispositions'] as List) if (d is Map) d] : <Map>[];
     final correction = tNum(h['correction']);
-    const small = TextStyle(fontSize: 12, color: TColors.slate600);
+    const small = TextStyle(fontSize: 12, color: Tone.fg(0xFF475569));
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: reopened ? Colors.white : const Color(0x99EFF6FF),
-        border: Border.all(color: reopened ? TColors.slate200 : TColors.blue200),
+        color: reopened ? Tone.bg(0xFFFFFFFF) : const Tone.bg(0x99EFF6FF),
+        border: Border.all(color: reopened ? Tone.line(0xFFE2E8F0) : Tone.line(0xFFBFDBFE)),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Wrap(alignment: WrapAlignment.spaceBetween, crossAxisAlignment: WrapCrossAlignment.center, spacing: 8, runSpacing: 4, children: [
           Text('Closed ${_day(h['closedDate'])} — ${tStr(h['reason'])}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-          TBadge(reopened ? 'Reopened' : 'Current', bg: Colors.white, fg: TColors.slate900, border: TColors.slate300),
+          TBadge(reopened ? 'Reopened' : 'Current', bg: Tone.bg(0xFFFFFFFF), fg: Tone.fg(0xFF0F172A), border: Tone.line(0xFFCBD5E1)),
         ]),
         const SizedBox(height: 4),
         Text(
@@ -1413,10 +1414,10 @@ class _FlockLifetimeViewState extends State<FlockLifetimeView> {
         else
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: TColors.amber50, border: Border.all(color: TColors.amber200), borderRadius: BorderRadius.circular(6)),
+            decoration: BoxDecoration(color: Tone.bg(0xFFFFFBEB), border: Border.all(color: Tone.line(0xFFFDE68A)), borderRadius: BorderRadius.circular(6)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               const Text('Reopening makes the flock active again and undoes its culls and transfers. This is recorded.',
-                  style: TextStyle(fontSize: 13, color: TColors.amber900)),
+                  style: TextStyle(fontSize: 13, color: Tone.fg(0xFF78350F))),
               if (hasSales) ...[
                 const SizedBox(height: 8),
                 InkWell(
@@ -1438,7 +1439,7 @@ class _FlockLifetimeViewState extends State<FlockLifetimeView> {
                                     ? 'Their payments are reversed (kept on record as Reversed), the money is taken back out of the cash account, the sales are removed and the birds return to the flock.'
                                     : 'The sales stay — use this only if the birds really were sold. They can then be edited on the Sales page.'),
                           ]),
-                          style: const TextStyle(fontSize: 13, color: TColors.amber900),
+                          style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF78350F)),
                         ),
                       ),
                     ),
@@ -1446,7 +1447,7 @@ class _FlockLifetimeViewState extends State<FlockLifetimeView> {
                 ),
               ],
               const SizedBox(height: 8),
-              const Text('Reason for reopening', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: TColors.slate700)),
+              const Text('Reason for reopening', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Tone.fg(0xFF334155))),
               const SizedBox(height: 4),
               ReasonSelectField(controller: _reopenReason, options: flockReopenReasons, multiline: true, onChanged: (_) => setState(() {})),
               const SizedBox(height: 8),
@@ -1520,12 +1521,12 @@ class _LifetimeDialogState extends State<_LifetimeDialog> {
   @override
   Widget build(BuildContext context) => AlertDialog(
         scrollable: true,
-        backgroundColor: TColors.slate50,
+        backgroundColor: Tone.bg(0xFFF8FAFC),
         titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
         contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
         title: Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
           Row(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.bar_chart, size: 20, color: TColors.slate600),
+            const Icon(Icons.bar_chart, size: 20, color: Tone.fg(0xFF475569)),
             const SizedBox(width: 8),
             Flexible(
               child: Text('${_name ?? 'Flock'} — lifetime performance', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),

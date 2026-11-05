@@ -19,6 +19,7 @@ import 'plumbing_fields.dart';
 import 'page_verbs.dart';
 import 'record_api.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// One record, shown in the same coloured sections the web uses for detail and
 /// edit views.
 ///
@@ -86,7 +87,7 @@ class RecordScreen extends StatelessWidget {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(ctx).colorScheme.error),
+                backgroundColor: Tone.button(Theme.of(ctx).colorScheme.error)),
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text('Delete'),
           ),

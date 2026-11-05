@@ -16,6 +16,7 @@ import '../../poultry/trackers/tracker_logic.dart' show tNum, tStr;
 import '../../poultry/trackers/tracker_widgets.dart';
 import '../generic_kit.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 // ------------------------------------------------------------- formatting
 
 final _money = NumberFormat.currency(name: 'GHS', symbol: 'GHS ', decimalDigits: 2);
@@ -65,9 +66,9 @@ enum Accent { slate, emerald, rose, amber }
 
 Color accentColor(Accent a) => switch (a) {
       Accent.slate => TColors.slate900,
-      Accent.emerald => const Color(0xFF047857),
-      Accent.rose => const Color(0xFFE11D48),
-      Accent.amber => const Color(0xFFD97706),
+      Accent.emerald => const Tone(0xFF047857),
+      Accent.rose => const Tone(0xFFE11D48),
+      Accent.amber => const Tone(0xFFD97706),
     };
 
 /// ReportStat: a KPI tile.
@@ -82,7 +83,7 @@ class ReportStat extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Tone.bg(0xFFFFFFFF),
           border: Border.all(color: TColors.slate200),
           borderRadius: BorderRadius.circular(12),
         ),
@@ -168,7 +169,7 @@ class ReportTable extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 14),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Tone.bg(0xFFFFFFFF),
           border: Border.all(color: TColors.slate200),
           borderRadius: BorderRadius.circular(12),
         ),
@@ -223,7 +224,7 @@ Widget shareCell(num pct, Color bar) => Row(mainAxisSize: MainAxisSize.min, chil
 Widget reportBadge(String text, {Color bg = TColors.slate100, Color fg = TColors.slate700, bool outline = false}) => Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: outline ? Colors.white : bg,
+        color: outline ? Tone.bg(0xFFFFFFFF) : bg,
         border: outline ? Border.all(color: TColors.slate200) : null,
         borderRadius: BorderRadius.circular(999),
       ),
@@ -296,7 +297,7 @@ class GenericReportShell extends StatelessWidget {
             padding: const EdgeInsets.all(12),
             margin: const EdgeInsets.only(bottom: 14),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Tone.bg(0xFFFFFFFF),
               border: Border.all(color: TColors.slate200),
               borderRadius: BorderRadius.circular(12),
             ),

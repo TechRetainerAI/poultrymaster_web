@@ -29,13 +29,14 @@ import '../poultry/trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../poultry/trackers/tracker_widgets.dart';
 import 'hotel_kit.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 Object? _v(Map m, String k) => m[k] ?? m[k.toLowerCase()];
 String _money(Object? v) => tNum(v).toStringAsFixed(2);
 String _day(Object? v) => tStr(v).length >= 10 ? tStr(v).substring(0, 10) : tStr(v);
 int _bookingId(Map b) => tIntOrNull(_v(b, 'hotelBookingId')) ?? 0;
 String _guestName(Map b) => '${tStr(_v(b, 'guestFirstName'))} ${tStr(_v(b, 'guestLastName'))}'.trim();
 
-const _green = Color(0xFF047857), _red = Color(0xFFB91C1C);
+const _green = Tone(0xFF047857), _red = Tone(0xFFB91C1C);
 
 Widget _title(IconData icon, String title, {Widget? trailing}) => Row(children: [
       Icon(icon, size: 24, color: hotelViolet),
@@ -48,7 +49,7 @@ Widget _loadingBox() => const Padding(padding: EdgeInsets.symmetric(vertical: 60
 
 Widget _statCard(String label, String value, Color color, {String? hint}) => Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(label, style: const TextStyle(fontSize: 13, color: TColors.slate500)),
         FittedBox(fit: BoxFit.scaleDown, child: Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: color))),
@@ -164,9 +165,9 @@ class _HotelCheckOutScreenState extends State<HotelCheckOutScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Tone.bg(0xFFFFFFFF),
         border: Border(
-          left: BorderSide(color: paid ? const Color(0xFF10B981) : const Color(0xFFEF4444), width: 4),
+          left: BorderSide(color: paid ? const Tone.line(0xFF10B981) : const Tone.line(0xFFEF4444), width: 4),
           top: const BorderSide(color: TColors.slate200),
           right: const BorderSide(color: TColors.slate200),
           bottom: const BorderSide(color: TColors.slate200),
@@ -176,7 +177,7 @@ class _HotelCheckOutScreenState extends State<HotelCheckOutScreen> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Wrap(spacing: 8, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
           Text(_guestName(b), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
-          hotelBadge('Room ${tStr(_v(b, 'roomNumber'))}', const Color(0xFFECFDF5), _green),
+          hotelBadge('Room ${tStr(_v(b, 'roomNumber'))}', const Tone(0xFFECFDF5), _green),
           Text(tStr(_v(b, 'bookingRef')), style: const TextStyle(fontSize: 11, fontFamily: 'monospace', color: TColors.slate400)),
         ]),
         const SizedBox(height: 4),
@@ -194,13 +195,13 @@ class _HotelCheckOutScreenState extends State<HotelCheckOutScreen> {
         Wrap(spacing: 8, runSpacing: 8, children: [
           if (!paid)
             OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(foregroundColor: _red, side: const BorderSide(color: Color(0xFFFCA5A5))),
+              style: OutlinedButton.styleFrom(foregroundColor: _red, side: const BorderSide(color: Tone.line(0xFFFCA5A5))),
               onPressed: () => _pay(g),
               icon: const Icon(Icons.account_balance_wallet_outlined, size: 16),
               label: Text('Pay ${_money(g.balance)}'),
             ),
           FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: paid ? hotelViolet : TColors.slate400, foregroundColor: Colors.white),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(paid ? hotelViolet : TColors.slate400), foregroundColor: Colors.white),
             onPressed: () => _checkOut(g),
             icon: const Icon(Icons.receipt_long, size: 16),
             label: const Text('Check Out'),
@@ -214,7 +215,7 @@ class _HotelCheckOutScreenState extends State<HotelCheckOutScreen> {
             for (final p in g.payments)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(color: const Color(0xFFECFDF5), borderRadius: BorderRadius.circular(4)),
+                decoration: BoxDecoration(color: const Tone.bg(0xFFECFDF5), borderRadius: BorderRadius.circular(4)),
                 child: Text.rich(TextSpan(children: [
                   TextSpan(text: _money(p['amount']), style: const TextStyle(fontWeight: FontWeight.w600)),
                   TextSpan(text: ' via ${tStr(_v(p, 'paymentMethod'))} — '),
@@ -380,16 +381,16 @@ class _CheckOutDialogState extends State<_CheckOutDialog> {
         FilterLabel('Damage Charges', _moneyField(_damage, () => setState(() {}))),
         Container(
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: settled ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2), borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(color: settled ? const Tone.bg(0xFFECFDF5) : const Tone.bg(0xFFFEF2F2), borderRadius: BorderRadius.circular(8)),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Icon(settled ? Icons.check_circle_outline : Icons.warning_amber_rounded, color: settled ? const Color(0xFF059669) : TColors.red600),
+            Icon(settled ? Icons.check_circle_outline : Icons.warning_amber_rounded, color: settled ? const Tone.fg(0xFF059669) : TColors.red600),
             const SizedBox(width: 8),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('Final Balance: ${_money(_final)}', style: TextStyle(fontWeight: FontWeight.w700, color: settled ? _green : _red)),
                 Text(
                   settled ? 'Balance settled. Ready for checkout.' : 'Guest must settle this balance before checkout. Use the "Pay" button on the guest card.',
-                  style: TextStyle(fontSize: 12, color: settled ? const Color(0xFF059669) : TColors.red600),
+                  style: TextStyle(fontSize: 12, color: settled ? const Tone.fg(0xFF059669) : TColors.red600),
                 ),
               ]),
             ),
@@ -463,7 +464,7 @@ class _PaymentDialogState extends State<_PaymentDialog> {
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: const Color(0xFFFEF2F2), borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(color: const Tone.bg(0xFFFEF2F2), borderRadius: BorderRadius.circular(8)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text.rich(TextSpan(children: [
                 const TextSpan(text: 'Outstanding Balance: '),
@@ -491,7 +492,7 @@ class _PaymentDialogState extends State<_PaymentDialog> {
         Wrap(alignment: WrapAlignment.end, spacing: 8, runSpacing: 8, children: [
           OutlinedButton(onPressed: _saving ? null : () => Navigator.pop(context, false), child: const Text('Cancel')),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(const Tone.bg(0xFF059669))),
             onPressed: _saving ? null : _save,
             child: const Text('Record Payment'),
           ),
@@ -623,11 +624,11 @@ class _HotelAvailabilityScreenState extends State<HotelAvailabilityScreen> {
                 Container(
                   margin: const EdgeInsets.only(bottom: 10),
                   padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                  decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                     Row(children: [
                       Expanded(child: Text('Room ${tStr(r['roomnumber'])}', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700))),
-                      hotelBadge(tStr(r['status']), const Color(0xFFECFDF5), _green),
+                      hotelBadge(tStr(r['status']), const Tone(0xFFECFDF5), _green),
                     ]),
                     Text(tStr(r['roomtypename']), style: const TextStyle(fontSize: 13, color: TColors.slate600)),
                     const SizedBox(height: 4),
@@ -818,7 +819,7 @@ class _HotelGuestFolioScreenState extends State<HotelGuestFolioScreen> {
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.violet200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.violet200), borderRadius: BorderRadius.circular(12)),
         child: Column(children: [
           Text(tStr(h['name']), textAlign: TextAlign.center, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700, color: TColors.violet700)),
           Text(tStr(h['address']), textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: TColors.slate500)),
@@ -838,7 +839,7 @@ class _HotelGuestFolioScreenState extends State<HotelGuestFolioScreen> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: b['status'] == 'CheckedIn'
-                    ? hotelBadge(tStr(b['status']), const Color(0xFFD1FAE5), _green)
+                    ? hotelBadge(tStr(b['status']), const Tone(0xFFD1FAE5), _green)
                     : hotelBadge(tStr(b['status']), TColors.slate100, TColors.slate700),
               ),
             ),
@@ -905,7 +906,7 @@ class _HotelGuestFolioScreenState extends State<HotelGuestFolioScreen> {
       const SizedBox(height: 12),
       Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.violet200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.violet200), borderRadius: BorderRadius.circular(12)),
         child: Column(children: [
           sumRow('Room Total', tNum(s['roomTotal'])),
           sumRow('Additional Charges', tNum(s['chargesTotal'])),
@@ -1080,8 +1081,8 @@ class _HotelBillingScreenState extends State<HotelBillingScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Material(
-        color: on ? TColors.violet50 : Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: on ? const Color(0xFFA78BFA) : TColors.slate200)),
+        color: on ? TColors.violet50 : Tone.bg(0xFFFFFFFF),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: on ? const Tone.line(0xFFA78BFA) : TColors.slate200)),
         child: InkWell(
           borderRadius: BorderRadius.circular(10),
           onTap: () => _select(g),
@@ -1091,8 +1092,8 @@ class _HotelBillingScreenState extends State<HotelBillingScreen> {
               Row(children: [
                 Expanded(child: Text(_guestName(b), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600))),
                 g.balance <= 0
-                    ? hotelBadge('Paid', const Color(0xFFD1FAE5), _green)
-                    : hotelBadge('Owes ${_money(g.balance)}', const Color(0xFFFEE2E2), _red),
+                    ? hotelBadge('Paid', const Tone(0xFFD1FAE5), _green)
+                    : hotelBadge('Owes ${_money(g.balance)}', const Tone(0xFFFEE2E2), _red),
               ]),
               const SizedBox(height: 4),
               Text('Room ${tStr(_v(b, 'roomNumber')).isEmpty ? 'TBD' : tStr(_v(b, 'roomNumber'))} | ${tStr(_v(b, 'bookingRef'))} | ${tStr(b['status'])}',
@@ -1119,7 +1120,7 @@ class _HotelBillingScreenState extends State<HotelBillingScreen> {
     return Container(
       key: _detailKey,
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Expanded(
@@ -1133,14 +1134,14 @@ class _HotelBillingScreenState extends State<HotelBillingScreen> {
             ]),
           ),
           checkedIn
-              ? hotelBadge(tStr(b['status']), const Color(0xFFECFDF5), _green)
-              : hotelBadge(tStr(b['status']), const Color(0xFFEFF6FF), const Color(0xFF1D4ED8)),
+              ? hotelBadge(tStr(b['status']), const Tone(0xFFECFDF5), _green)
+              : hotelBadge(tStr(b['status']), const Tone(0xFFEFF6FF), const Tone(0xFF1D4ED8)),
         ]),
         const SizedBox(height: 12),
         Wrap(spacing: 8, runSpacing: 8, children: [
           FilledButton.icon(style: hotelPrimary, onPressed: () => _addCharge(g), icon: const Icon(Icons.add, size: 16), label: const Text('Add Charge')),
           OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(foregroundColor: _green, side: const BorderSide(color: Color(0xFF6EE7B7))),
+            style: OutlinedButton.styleFrom(foregroundColor: _green, side: const BorderSide(color: Tone.line(0xFF6EE7B7))),
             onPressed: () => _recordPayment(g),
             icon: const Icon(Icons.credit_card, size: 16),
             label: const Text('Record Payment'),
@@ -1176,7 +1177,7 @@ class _HotelBillingScreenState extends State<HotelBillingScreen> {
             rows: [
               for (final c in charges)
                 [
-                  Align(alignment: Alignment.centerLeft, child: hotelBadge(tStr(_v(c, 'chargeType')), Colors.white, TColors.slate700)),
+                  Align(alignment: Alignment.centerLeft, child: hotelBadge(tStr(_v(c, 'chargeType')), Tone(0xFFFFFFFF), TColors.slate700)),
                   cellText(tStr(c['description'])),
                   cellText(tStr(c['quantity'])),
                   cellText(_money(_v(c, 'unitPrice'))),
@@ -1193,11 +1194,11 @@ class _HotelBillingScreenState extends State<HotelBillingScreen> {
             Container(
               margin: const EdgeInsets.only(bottom: 4),
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: const Color(0xFFECFDF5), borderRadius: BorderRadius.circular(6)),
+              decoration: BoxDecoration(color: const Tone.bg(0xFFECFDF5), borderRadius: BorderRadius.circular(6)),
               child: Row(children: [
                 Expanded(
                   child: Wrap(spacing: 8, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                    hotelBadge(tStr(_v(p, 'paymentMethod')), const Color(0xFFD1FAE5), _green),
+                    hotelBadge(tStr(_v(p, 'paymentMethod')), const Tone(0xFFD1FAE5), _green),
                     Text(_dash(p['reference']), style: const TextStyle(fontSize: 11, fontFamily: 'monospace', color: TColors.slate400)),
                     Text(_day(_v(p, 'paymentDate')), style: const TextStyle(fontSize: 11, color: TColors.slate400)),
                   ]),
@@ -1251,7 +1252,7 @@ class _HotelBillingScreenState extends State<HotelBillingScreen> {
             if (sel == null)
               Container(
                 padding: const EdgeInsets.all(32),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
                 child: const Text('Select a guest to view their bill', textAlign: TextAlign.center, style: TextStyle(color: TColors.slate400)),
               )
             else
@@ -1433,7 +1434,7 @@ class _BillingPaymentDialogState extends State<_BillingPaymentDialog> {
         Wrap(alignment: WrapAlignment.end, spacing: 8, runSpacing: 8, children: [
           OutlinedButton(onPressed: _saving ? null : () => Navigator.pop(context, false), child: const Text('Cancel')),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(const Tone.bg(0xFF059669))),
             onPressed: _saving ? null : _save,
             child: const Text('Record Payment'),
           ),
@@ -1447,10 +1448,10 @@ class _BillingPaymentDialogState extends State<_BillingPaymentDialog> {
 
 const _invoiceStatusColors = {
   'Draft': (TColors.slate100, TColors.slate700),
-  'Issued': (Color(0xFFDBEAFE), Color(0xFF1D4ED8)),
-  'Paid': (Color(0xFFD1FAE5), _green),
-  'PartiallyPaid': (Color(0xFFFEF3C7), Color(0xFFB45309)),
-  'Void': (Color(0xFFFEE2E2), _red),
+  'Issued': (Tone(0xFFDBEAFE), Tone(0xFF1D4ED8)),
+  'Paid': (Tone(0xFFD1FAE5), _green),
+  'PartiallyPaid': (Tone(0xFFFEF3C7), Tone(0xFFB45309)),
+  'Void': (Tone(0xFFFEE2E2), _red),
 };
 
 /// Poultry's wording for a part-paid document; the stored value stays PartiallyPaid.
@@ -1493,7 +1494,7 @@ class _HotelInvoicesScreenState extends State<HotelInvoicesScreen> {
 
   Widget _status(Map i) {
     final s = tStr(i['status']);
-    final c = _invoiceStatusColors[s] ?? (Colors.white, TColors.slate700);
+    final c = _invoiceStatusColors[s] ?? (Tone(0xFFFFFFFF), TColors.slate700);
     return hotelBadge(hotelInvoiceStatusLabel(s), c.$1, c.$2);
   }
 
@@ -1528,7 +1529,7 @@ class _HotelInvoicesScreenState extends State<HotelInvoicesScreen> {
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: Material(
-                  color: Colors.white,
+                  color: Tone.bg(0xFFFFFFFF),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: TColors.slate200)),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(12),
@@ -1585,7 +1586,7 @@ class _InvoicePreview extends StatelessWidget {
       ('Discount', '-${_money(_v(i, 'discountAmount'))}', false, null),
       ('Total Due', _money(_v(i, 'totalAmount')), true, null),
       ('Amount Paid', '-${_money(_v(i, 'amountPaid'))}', false, _green),
-      ('Balance', _money(bal), true, bal > 0 ? const Color(0xFFDC2626) : const Color(0xFF16A34A)),
+      ('Balance', _money(bal), true, bal > 0 ? const Tone(0xFFDC2626) : const Tone(0xFF16A34A)),
     ];
   }
 
@@ -1777,7 +1778,7 @@ class _HotelStayHistoryScreenState extends State<HotelStayHistoryScreen> {
   Widget _row(Map r, {required bool out}) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: Material(
-          color: Colors.white,
+          color: Tone.bg(0xFFFFFFFF),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: const BorderSide(color: TColors.slate200)),
           child: InkWell(
             borderRadius: BorderRadius.circular(10),
@@ -1790,7 +1791,7 @@ class _HotelStayHistoryScreenState extends State<HotelStayHistoryScreen> {
                     child: Text('${tStr(r['firstname'])} ${tStr(r['lastname'])}',
                         style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: TColors.violet700)),
                   ),
-                  hotelBadge(_dash(r['roomnumber']), Colors.white, TColors.slate700),
+                  hotelBadge(_dash(r['roomnumber']), Tone(0xFFFFFFFF), TColors.slate700),
                 ]),
                 Text(tStr(r['bookingref']), style: const TextStyle(fontSize: 12, fontFamily: 'monospace', color: TColors.slate500)),
                 const SizedBox(height: 6),
@@ -1887,10 +1888,10 @@ class _StayGuestDialog extends StatelessWidget {
       );
 
   static Widget _status(Object? s) => switch (tStr(s)) {
-        'CheckedIn' => hotelBadge('CheckedIn', const Color(0xFFECFDF5), _green),
+        'CheckedIn' => hotelBadge('CheckedIn', const Tone(0xFFECFDF5), _green),
         'CheckedOut' => hotelBadge('CheckedOut', TColors.slate100, TColors.slate600),
-        'Confirmed' => hotelBadge('Confirmed', const Color(0xFFEFF6FF), const Color(0xFF1D4ED8)),
-        'Cancelled' => hotelBadge('Cancelled', const Color(0xFFFEF2F2), _red),
+        'Confirmed' => hotelBadge('Confirmed', const Tone(0xFFEFF6FF), const Tone(0xFF1D4ED8)),
+        'Cancelled' => hotelBadge('Cancelled', const Tone(0xFFFEF2F2), _red),
         final x => hotelBadge(x, TColors.slate50, TColors.slate700),
       };
 
@@ -1913,7 +1914,7 @@ class _StayGuestDialog extends StatelessWidget {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               Flexible(child: Text('${tStr(_v(g, 'firstName'))} ${tStr(_v(g, 'lastName'))}', style: const TextStyle(fontSize: 18))),
-              if (vip) const Padding(padding: EdgeInsets.only(left: 6), child: Icon(Icons.star, size: 16, color: Color(0xFFF59E0B))),
+              if (vip) const Padding(padding: EdgeInsets.only(left: 6), child: Icon(Icons.star, size: 16, color: Tone.fg(0xFFF59E0B))),
             ]),
             Text('${tNum(_v(g, 'totalStays'))} stay(s)', style: const TextStyle(fontSize: 12, color: TColors.slate500)),
           ]),

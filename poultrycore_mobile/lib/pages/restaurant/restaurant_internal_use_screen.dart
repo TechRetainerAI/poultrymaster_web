@@ -25,6 +25,7 @@ import '../poultry/trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull;
 import '../poultry/trackers/tracker_widgets.dart';
 import '../shared/business_dates.dart';
 import '../shared/company_clock.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 import 'restaurant_roles.dart' show restaurantRose;
 import 'restaurant_widgets.dart' show RPageHeader, roseButton;
 
@@ -83,8 +84,8 @@ const restaurantInternalUseFlavor = InternalUseFlavor(
   accent: restaurantRose,
   soft: TColors.rose50,
   border: TColors.rose200,
-  ink: Color(0xFF881337),
-  tile: Color(0xFFFFE4E6),
+  ink: Tone.fg(0xFF881337),
+  tile: Tone.bg(0xFFFFE4E6),
 );
 
 /// HOTEL_INTERNAL_USE_CATEGORIES and their labels (lib/api/hotel-supplies.ts).
@@ -107,8 +108,8 @@ const hotelInternalUseFlavor = InternalUseFlavor(
   recipientHint: 'e.g. Housekeeping team',
   accent: TColors.violet600,
   soft: TColors.violet50,
-  border: Color(0xFFDDD6FE),
-  ink: Color(0xFF4C1D95),
+  border: Tone.line(0xFFDDD6FE),
+  ink: Tone.fg(0xFF4C1D95),
   tile: TColors.violet100,
   itemIdKey: true,
 );
@@ -246,7 +247,7 @@ class _RestaurantInternalUseScreenState extends State<RestaurantInternalUseScree
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: destructive ? TColors.red600 : _f.accent),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(destructive ? TColors.red600 : _f.accent)),
             child: Text(action),
           ),
         ],
@@ -317,14 +318,14 @@ class _RestaurantInternalUseScreenState extends State<RestaurantInternalUseScree
       'Draft' => [
           view,
           b('Edit', Icons.edit_outlined, () => _openForm(r)),
-          b('Post', Icons.check_circle_outline, () => _post(r), color: const Color(0xFF16A34A)),
+          b('Post', Icons.check_circle_outline, () => _post(r), color: const Tone(0xFF16A34A)),
           b('Delete', Icons.delete_outline, () => _delete(r), color: TColors.red600),
         ],
       'Posted' => [view, b('Reverse', Icons.undo, () => _reverse(r), color: TColors.amber600)],
       _ => [
           view,
           b('Edit', Icons.edit_outlined, () => _openForm(r)),
-          b('Post again', Icons.check_circle_outline, () => _post(r, again: true), color: const Color(0xFF16A34A)),
+          b('Post again', Icons.check_circle_outline, () => _post(r, again: true), color: const Tone(0xFF16A34A)),
           b('Delete', Icons.delete_outline, () => _delete(r, reversed: true), color: TColors.red600),
         ],
     };
@@ -347,7 +348,7 @@ class _RestaurantInternalUseScreenState extends State<RestaurantInternalUseScree
     final postedCost = visible.where((r) => tStr(r['status']) == 'Posted').fold<num>(0, (s, r) => s + tNum(r['totalCostValue']));
     Widget stat(String label, String value) => Container(
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(label, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
             Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: TColors.slate900)),
@@ -387,7 +388,7 @@ class _RestaurantInternalUseScreenState extends State<RestaurantInternalUseScree
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(color: TColors.amber50, border: Border.all(color: const Color(0xFFFDE68A)), borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(color: TColors.amber50, border: Border.all(color: const Tone.line(0xFFFDE68A)), borderRadius: BorderRadius.circular(8)),
                 child: Wrap(children: [
                   const Text('No products in this company yet. ', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: TColors.amber900)),
                   const Text('Internal Use takes stock off a product, so add one before recording anything. ',
@@ -450,7 +451,7 @@ class _RestaurantInternalUseScreenState extends State<RestaurantInternalUseScree
             else if (visible.isEmpty)
               Container(
                 padding: const EdgeInsets.all(32),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
                 child: const Text('No internal use recorded yet.', textAlign: TextAlign.center, style: TextStyle(color: TColors.slate500)),
               )
             else
@@ -658,7 +659,7 @@ class _FormDialogState extends State<_FormDialog> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: active ? widget.flavor.soft : Colors.white,
+              color: active ? widget.flavor.soft : Tone.bg(0xFFFFFFFF),
               border: Border.all(color: active ? widget.flavor.accent : TColors.slate200, width: 2),
               borderRadius: BorderRadius.circular(8),
             ),
@@ -726,11 +727,11 @@ class _FormDialogState extends State<_FormDialog> {
               _optional('Detail', _reason, 'e.g. Friday staff lunch'),
             ]),
             const SizedBox(height: 12),
-            formSection('How much', const Color(0xFF2563EB), [
+            formSection('How much', const Tone(0xFF2563EB), [
               if (widget.products.isEmpty)
                 Container(
                   padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: TColors.amber50, border: Border.all(color: const Color(0xFFFDE68A)), borderRadius: BorderRadius.circular(8)),
+                  decoration: BoxDecoration(color: TColors.amber50, border: Border.all(color: const Tone.line(0xFFFDE68A)), borderRadius: BorderRadius.circular(8)),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     const Text('This company has no products yet.', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: TColors.amber900)),
                     const SizedBox(height: 4),
@@ -826,7 +827,7 @@ class _FormDialogState extends State<_FormDialog> {
           Wrap(alignment: WrapAlignment.end, spacing: 8, runSpacing: 8, children: [
             OutlinedButton(onPressed: _saving ? null : () => Navigator.pop(context, false), child: const Text('Cancel')),
             FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: widget.flavor.accent),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(widget.flavor.accent)),
               onPressed: _saving || _notEnough ? null : _save,
               child: Text(_saving ? 'Saving…' : 'Save draft'),
             ),
@@ -867,8 +868,8 @@ class _Detail extends StatelessWidget {
           width: double.infinity,
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: amber ? TColors.amber50 : Colors.white,
-            border: Border.all(color: amber ? const Color(0xFFFDE68A) : TColors.slate200),
+            color: amber ? TColors.amber50 : Tone.bg(0xFFFFFFFF),
+            border: Border.all(color: amber ? const Tone.line(0xFFFDE68A) : TColors.slate200),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -970,8 +971,8 @@ class _Detail extends StatelessWidget {
             Column(children: [
               ...[
                 step('Created', r['createdBy'], r['createdAt'], TColors.slate300),
-                step('Posted', r['postedBy'], r['postedAt'], const Color(0xFF10B981)),
-                step('Reversed', r['reversedBy'], r['reversedAt'], const Color(0xFFF59E0B)),
+                step('Posted', r['postedBy'], r['postedAt'], const Tone(0xFF10B981)),
+                step('Reversed', r['reversedBy'], r['reversedAt'], const Tone(0xFFF59E0B)),
               ].whereType<Widget>(),
             ]),
             title: 'History',

@@ -18,6 +18,7 @@ import '../shared/search_picker.dart';
 import 'company_setup_screen.dart';
 import 'poultry_profile_form.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Poultry → Setup → Company → Farm Setup ("Poultry farm setup"), as
 /// `app/poultry-setup/page.tsx`: one hub, tabbed by setup area. Company
 /// edits the profile and the farm's currency; every other area lists its
@@ -113,7 +114,6 @@ final _tabs = <_Tab>[
   ]),
 ];
 
-const _amber = Color(0xFFD97706); // amber-600
 
 class _FarmSetupScreenState extends State<FarmSetupScreen> {
   String _tab = 'company';
@@ -175,10 +175,10 @@ class _AreaGrid extends StatelessWidget {
             SizedBox(
               width: w,
               child: Material(
-                color: key == selected ? const Color(0xFFFFFBEB) : tokens.card, // amber-50
+                color: key == selected ? const Tone.bg(0xFFFFFBEB) : tokens.card, // amber-50
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
-                  side: BorderSide(color: key == selected ? _amber : tokens.border),
+                  side: BorderSide(color: key == selected ? Tone.line(0xFFD97706) : tokens.border),
                 ),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(8),
@@ -188,14 +188,14 @@ class _AreaGrid extends StatelessWidget {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(icon, size: 17, color: key == selected ? _amber : tokens.mutedForeground),
+                        Icon(icon, size: 17, color: key == selected ? Tone.fg(0xFFD97706) : tokens.mutedForeground),
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(label,
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: key == selected ? FontWeight.w600 : FontWeight.w400,
-                                color: key == selected ? const Color(0xFFB45309) : null, // amber-700
+                                color: key == selected ? const Tone.fg(0xFFB45309) : null, // amber-700
                               )),
                         ),
                       ],
@@ -284,7 +284,7 @@ class _SetupSectionState extends State<_SetupSection> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(Theme.of(ctx).colorScheme.error)),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Delete'),
           ),
@@ -319,7 +319,7 @@ class _SetupSectionState extends State<_SetupSection> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Row(children: [
-                  Icon(t.icon, size: 20, color: _amber),
+                  Icon(t.icon, size: 20, color: Tone.fg(0xFFD97706)),
                   const SizedBox(width: 8),
                   Expanded(child: Text(t.label, style: const TextStyle(fontWeight: FontWeight.w600))),
                   if (rows != null) AppBadge(label: '${rows.length}'),
@@ -526,7 +526,7 @@ class _CompanyCardState extends State<_CompanyCard> {
     final header = Padding(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
       child: Row(children: [
-        const Icon(Icons.business_outlined, size: 20, color: _amber),
+        const Icon(Icons.business_outlined, size: 20, color: Tone.fg(0xFFD97706)),
         const SizedBox(width: 8),
         const Text('Company', style: TextStyle(fontWeight: FontWeight.w600)),
         if (_form.isSetUp) ...[const SizedBox(width: 8), const AppBadge(label: 'Set up')],

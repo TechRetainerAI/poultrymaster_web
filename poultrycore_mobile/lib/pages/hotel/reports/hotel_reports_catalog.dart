@@ -12,13 +12,14 @@ import '../../poultry/trackers/tracker_widgets.dart' show TColors;
 import '../../restaurant/reports/restaurant_reports_catalog.dart' show RestaurantReportEntry, RestaurantReportGroup;
 import 'hotel_report_routes.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 typedef E = RestaurantReportEntry;
 
 /// HOTEL_REPORT_GROUPS. The 17 original reports own their pages and filters;
 /// the ones marked new go through the shared report shell with the dateMode
 /// given here.
 const hotelReportGroups = [
-  RestaurantReportGroup('financial', 'Financial', Color(0xFF059669), [
+  RestaurantReportGroup('financial', 'Financial', Tone(0xFF059669), [
     E('revenue-summary', 'Revenue Summary', 'Daily revenue, expenses, net profit and occupancy trends', Icons.bar_chart),
     E('expense-report', 'Expense Report', 'Expenses grouped by category, vendor and period', Icons.attach_money),
     E('billing-report', 'Billing & Payments', 'Guest charges, payments received, outstanding balances', Icons.credit_card),
@@ -58,7 +59,7 @@ const hotelReportGroups = [
       isNew: true,
     ),
   ]),
-  RestaurantReportGroup('operations', 'Operations', Color(0xFF7C3AED), [
+  RestaurantReportGroup('operations', 'Operations', Tone(0xFF7C3AED), [
     E('bookings-report', 'Bookings Report', 'All bookings with status, dates, rates and source', Icons.event_available_outlined),
     E('guest-report', 'Guest Report', 'Guest list, repeat guests, VIP guests, nationality breakdown', Icons.group_outlined, dateMode: 'none'),
     E('occupancy-report', 'Occupancy & ADR', 'Occupancy rate, ADR, RevPAR trends from daily closings', Icons.bed_outlined),
@@ -71,11 +72,11 @@ const hotelReportGroups = [
       isNew: true,
     ),
   ]),
-  RestaurantReportGroup('restaurant', 'Restaurant & Bar', Color(0xFFEA580C), [
+  RestaurantReportGroup('restaurant', 'Restaurant & Bar', Tone(0xFFEA580C), [
     E('restaurant-sales', 'Restaurant Sales', 'Restaurant orders, revenue by period, popular items', Icons.shopping_cart_outlined),
     E('menu-performance', 'Menu Performance', 'Best-selling items, category breakdown, pricing analysis', Icons.description_outlined, dateMode: 'none'),
   ]),
-  RestaurantReportGroup('periodic', 'Periodic Reports', Color(0xFF0284C7), [
+  RestaurantReportGroup('periodic', 'Periodic Reports', Tone(0xFF0284C7), [
     E('daily-report', 'Daily Report', 'Daily snapshot — arrivals, departures, revenue, expenses, occupancy', Icons.calendar_today_outlined, dateMode: 'single'),
     E('weekly-report', 'Weekly Report', 'Weekly summary — bookings, revenue, expenses, occupancy trends', Icons.calendar_today_outlined),
     E(
@@ -85,7 +86,7 @@ const hotelReportGroups = [
       Icons.calendar_today_outlined,
     ),
   ]),
-  RestaurantReportGroup('housekeeping', 'Housekeeping & Inventory', Color(0xFFE11D48), [
+  RestaurantReportGroup('housekeeping', 'Housekeeping & Inventory', Tone(0xFFE11D48), [
     E('housekeeping-report', 'Housekeeping Report', 'Task completion rates, turnaround times by status', Icons.fact_check_outlined),
     E('inventory-report', 'Inventory Report', 'Stock levels, low-stock alerts, reorder suggestions', Icons.description_outlined, dateMode: 'none'),
     E(
@@ -96,7 +97,7 @@ const hotelReportGroups = [
       isNew: true,
     ),
   ]),
-  RestaurantReportGroup('revenue', 'Revenue Management', Color(0xFF4F46E5), [
+  RestaurantReportGroup('revenue', 'Revenue Management', Tone(0xFF4F46E5), [
     E('performance-kpis', 'Performance & KPIs', 'Occupancy, ADR, RevPAR, TRevPAR and GOPPAR for the period', Icons.speed, isNew: true),
     E('source-of-business', 'Source of Business', 'Room nights and revenue by booking channel, with lead time', Icons.public, isNew: true),
     E('booking-pace', 'Booking Pace', 'How far ahead bookings arrive, bucketed by lead time', Icons.update, isNew: true),
@@ -212,7 +213,7 @@ class HotelReportsCatalogScreen extends StatelessWidget {
             ),
             for (final r in g.reports) ...[
               Material(
-                color: Colors.white,
+                color: Tone.bg(0xFFFFFFFF),
                 borderRadius: BorderRadius.circular(10),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(10),
@@ -263,7 +264,7 @@ class HotelReportsCatalogScreen extends StatelessWidget {
                           ),
                         ],
                         // Always visible: a hover-only chevron cannot be reached on touch.
-                        const Icon(Icons.chevron_right, size: 18, color: Color(0xFFCBD5E1)),
+                        const Icon(Icons.chevron_right, size: 18, color: Tone.fg(0xFFCBD5E1)),
                       ],
                     ),
                   ),

@@ -12,6 +12,7 @@ import '../../pages/web_page_screen.dart';
 import '../../state/session.dart';
 import 'access_management_panel.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Business Office → Administration (`app/business-office/setup/page.tsx`):
 /// Organization Profile, Employees & Users and Companies, each the web's panel
 /// (organization-profile-panel.tsx, users-permissions-panel.tsx,
@@ -30,19 +31,18 @@ class AdministrationScreen extends StatefulWidget {
   State<AdministrationScreen> createState() => _AdministrationScreenState();
 }
 
-const _slate50 = Color(0xFFF8FAFC);
-const _slate100 = Color(0xFFF1F5F9);
-const _slate200 = Color(0xFFE2E8F0);
-const _slate300 = Color(0xFFCBD5E1);
-const _slate400 = Color(0xFF94A3B8);
-const _slate500 = Color(0xFF64748B);
-const _slate600 = Color(0xFF475569);
-const _slate700 = Color(0xFF334155);
-const _slate900 = Color(0xFF0F172A);
-const _orange50 = Color(0xFFFFF7ED);
-const _orange200 = Color(0xFFFED7AA);
-const _orange700 = Color(0xFFC2410C);
-const _red600 = Color(0xFFDC2626);
+const _slate50 = Tone.bg(0xFFF8FAFC);
+const _slate100 = Tone.bg(0xFFF1F5F9);
+const _slate200 = Tone.line(0xFFE2E8F0);
+const _slate300 = Tone.fg(0xFFCBD5E1);
+const _slate400 = Tone.fg(0xFF94A3B8);
+const _slate500 = Tone.fg(0xFF64748B);
+const _slate600 = Tone.fg(0xFF475569);
+const _slate700 = Tone.fg(0xFF334155);
+const _orange50 = Tone.bg(0xFFFFF7ED);
+const _orange200 = Tone.line(0xFFFED7AA);
+const _orange700 = Tone.fg(0xFFC2410C);
+const _red600 = Tone.fg(0xFFDC2626);
 
 /// The tabs: (key, icon, phone label).
 const _tabs = [
@@ -80,7 +80,7 @@ class _AdministrationScreenState extends State<AdministrationScreen> {
                       for (final (key, icon, label) in _tabs.skip(row).take(2))
                         Expanded(
                           child: Material(
-                            color: _tab == key ? Colors.white : Colors.transparent,
+                            color: _tab == key ? Tone.bg(0xFFFFFFFF) : Colors.transparent,
                             elevation: _tab == key ? 1 : 0,
                             borderRadius: BorderRadius.circular(9),
                             child: InkWell(
@@ -91,7 +91,7 @@ class _AdministrationScreenState extends State<AdministrationScreen> {
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(icon, size: 16, color: _tab == key ? _slate900 : _slate500),
+                                    Icon(icon, size: 16, color: _tab == key ? Tone.fg(0xFF0F172A) : _slate500),
                                     const SizedBox(width: 6),
                                     Flexible(
                                       child: Text(
@@ -100,7 +100,7 @@ class _AdministrationScreenState extends State<AdministrationScreen> {
                                         style: TextStyle(
                                           fontSize: 13,
                                           fontWeight: FontWeight.w600,
-                                          color: _tab == key ? _slate900 : _slate500,
+                                          color: _tab == key ? Tone.fg(0xFF0F172A) : _slate500,
                                         ),
                                       ),
                                     ),
@@ -131,7 +131,7 @@ class _AdministrationScreenState extends State<AdministrationScreen> {
 void _toast(BuildContext context, String title, {String? description, bool error = false}) =>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        backgroundColor: error ? const Color(0xFFB91C1C) : null,
+        backgroundColor: error ? const Tone.bg(0xFFB91C1C) : null,
         content: Text(description == null || description.isEmpty ? title : '$title. $description'),
       ),
     );
@@ -139,7 +139,7 @@ void _toast(BuildContext context, String title, {String? description, bool error
 Widget _card({required Widget child, EdgeInsets padding = const EdgeInsets.all(16)}) => Container(
   padding: padding,
   decoration: BoxDecoration(
-    color: Colors.white,
+    color: Tone.bg(0xFFFFFFFF),
     border: Border.all(color: _slate200),
     borderRadius: BorderRadius.circular(14),
     boxShadow: const [BoxShadow(color: Color(0x08000000), blurRadius: 6, offset: Offset(0, 2))],
@@ -307,7 +307,7 @@ class _OrganizationPanelState extends State<_OrganizationPanel> {
                                 fontSize: 21,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: 4,
-                                color: _slate900,
+                                color: Tone.fg(0xFF0F172A),
                               ),
                             ),
                           ],
@@ -329,17 +329,17 @@ class _OrganizationPanelState extends State<_OrganizationPanel> {
                     children: [
                       if (_orgCode.isNotEmpty)
                         OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(backgroundColor: Colors.white),
+                          style: OutlinedButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF))),
                           onPressed: _copy,
                           icon: Icon(
                             _copied ? Icons.check : Icons.copy,
                             size: 16,
-                            color: _copied ? const Color(0xFF059669) : null,
+                            color: _copied ? const Tone.fg(0xFF059669) : null,
                           ),
                           label: Text(_copied ? 'Copied' : 'Copy'),
                         ),
                       FilledButton(
-                        style: FilledButton.styleFrom(backgroundColor: _slate900),
+                        style: FilledButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFF0F172A))),
                         onPressed: () => setState(() {
                           _code.clear();
                           _editingCode = true;
@@ -353,7 +353,7 @@ class _OrganizationPanelState extends State<_OrganizationPanel> {
                   if (_orgCode.isNotEmpty)
                     Text(
                       'Enter a new code. Staff will need the new code to join — the current one ($_orgCode) stops working.',
-                      style: const TextStyle(fontSize: 12, color: Color(0xFFB45309)),
+                      style: const TextStyle(fontSize: 12, color: Tone.fg(0xFFB45309)),
                     ),
                   const SizedBox(height: 8),
                   AppInput(
@@ -369,7 +369,7 @@ class _OrganizationPanelState extends State<_OrganizationPanel> {
                     children: [
                       Expanded(
                         child: FilledButton(
-                          style: FilledButton.styleFrom(backgroundColor: _slate900),
+                          style: FilledButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFF0F172A))),
                           onPressed: _savingCode ? null : _saveCode,
                           child: _savingCode
                               ? const SizedBox(
@@ -382,7 +382,7 @@ class _OrganizationPanelState extends State<_OrganizationPanel> {
                       ),
                       const SizedBox(width: 8),
                       OutlinedButton(
-                        style: OutlinedButton.styleFrom(backgroundColor: Colors.white),
+                        style: OutlinedButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF))),
                         onPressed: () => setState(() {
                           _editingCode = false;
                           _code.clear();
@@ -427,7 +427,7 @@ class _OrganizationPanelState extends State<_OrganizationPanel> {
           Align(
             alignment: Alignment.centerRight,
             child: FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: _slate900, minimumSize: const Size(150, 44)),
+              style: FilledButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFF0F172A)), minimumSize: const Size(150, 44)),
               onPressed: _saving ? null : _save,
               child: _saving
                   ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
@@ -444,8 +444,8 @@ class _OrganizationPanelState extends State<_OrganizationPanel> {
 
 /// TYPE_BADGE.
 (Color, Color) _typeBadge(String type) => switch (type) {
-  'Poultry' => (const Color(0xFFFEF3C7), const Color(0xFFB45309)),
-  'Water' => (const Color(0xFFDBEAFE), const Color(0xFF1D4ED8)),
+  'Poultry' => (const Tone(0xFFFEF3C7), const Tone(0xFFB45309)),
+  'Water' => (const Tone(0xFFDBEAFE), const Tone(0xFF1D4ED8)),
   _ => (_slate100, _slate700),
 };
 
@@ -582,7 +582,7 @@ class _EmployeesPanelState extends State<_EmployeesPanel> {
         ),
         const SizedBox(height: 12),
         FilledButton.icon(
-          style: FilledButton.styleFrom(backgroundColor: _slate900, minimumSize: const Size.fromHeight(46)),
+          style: FilledButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFF0F172A)), minimumSize: const Size.fromHeight(46)),
           onPressed: () => _open(EmployeeFormScreen(session: _s, company: _neutral, boCompanies: _companies)),
           icon: const Icon(Icons.person_add_alt, size: 18),
           label: const Text('Add employee'),
@@ -629,9 +629,9 @@ class _EmployeesPanelState extends State<_EmployeesPanel> {
     Widget action(String label, IconData icon, VoidCallback onTap, {bool danger = false}) => Expanded(
       child: OutlinedButton.icon(
         style: OutlinedButton.styleFrom(
-          backgroundColor: Colors.white,
+          backgroundColor: Tone.button(Tone.bg(0xFFFFFFFF)),
           foregroundColor: danger ? _red600 : _slate700,
-          side: BorderSide(color: danger ? const Color(0xFFFECACA) : _slate200),
+          side: BorderSide(color: danger ? const Tone.line(0xFFFECACA) : _slate200),
           minimumSize: const Size.fromHeight(40),
           padding: const EdgeInsets.symmetric(horizontal: 6),
         ),
@@ -650,10 +650,10 @@ class _EmployeesPanelState extends State<_EmployeesPanel> {
             children: [
               CircleAvatar(
                 radius: 19,
-                backgroundColor: const Color(0xFFEEF2FF),
+                backgroundColor: const Tone.bg(0xFFEEF2FF),
                 child: Text(
                   (_fullName(e).isEmpty ? '?' : _fullName(e).characters.first).toUpperCase(),
-                  style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF4F46E5)),
+                  style: const TextStyle(fontWeight: FontWeight.w700, color: Tone.fg(0xFF4F46E5)),
                 ),
               ),
               const SizedBox(width: 12),
@@ -663,7 +663,7 @@ class _EmployeesPanelState extends State<_EmployeesPanel> {
                   children: [
                     Text(
                       _fullName(e),
-                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _slate900),
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Tone.fg(0xFF0F172A)),
                     ),
                     Text(
                       email.isNotEmpty ? email : 'No email on file',
@@ -676,7 +676,7 @@ class _EmployeesPanelState extends State<_EmployeesPanel> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
                 decoration: BoxDecoration(
-                  color: isAdmin ? const Color(0xFFFFEDD5) : _slate100,
+                  color: isAdmin ? const Tone.bg(0xFFFFEDD5) : _slate100,
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
@@ -690,7 +690,7 @@ class _EmployeesPanelState extends State<_EmployeesPanel> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
             decoration: BoxDecoration(
-              color: n == 0 ? _slate50 : const Color(0xFFF5F3FF),
+              color: n == 0 ? _slate50 : const Tone.bg(0xFFF5F3FF),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Row(
@@ -699,7 +699,7 @@ class _EmployeesPanelState extends State<_EmployeesPanel> {
                   child: Text(
                     'Company access',
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 12.5, color: n == 0 ? _slate500 : const Color(0xFF6D28D9)),
+                    style: TextStyle(fontSize: 12.5, color: n == 0 ? _slate500 : const Tone.fg(0xFF6D28D9)),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -708,7 +708,7 @@ class _EmployeesPanelState extends State<_EmployeesPanel> {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: n == 0 ? _slate600 : const Color(0xFF6D28D9),
+                    color: n == 0 ? _slate600 : const Tone.fg(0xFF6D28D9),
                   ),
                 ),
               ],
@@ -927,7 +927,7 @@ class _CompaniesPanelState extends State<_CompaniesPanel> {
         if (_canCreate) ...[
           const SizedBox(height: 12),
           FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: _slate900, minimumSize: const Size.fromHeight(46)),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFF0F172A)), minimumSize: const Size.fromHeight(46)),
             onPressed: _create,
             icon: const Icon(Icons.add, size: 18),
             label: const Text('New company'),
@@ -988,9 +988,9 @@ class _CompaniesPanelState extends State<_CompaniesPanel> {
 
   Widget _companyCard(Company c) {
     final (strip, bg, fg) = switch (c.type) {
-      CompanyType.water => (const Color(0xFF38BDF8), const Color(0xFFE0F2FE), const Color(0xFF0369A1)),
-      CompanyType.poultry => (const Color(0xFFFB923C), const Color(0xFFFFEDD5), _orange700),
-      CompanyType.generic => (const Color(0xFFA78BFA), const Color(0xFFEDE9FE), const Color(0xFF6D28D9)),
+      CompanyType.water => (const Tone(0xFF38BDF8), const Tone(0xFFE0F2FE), const Tone(0xFF0369A1)),
+      CompanyType.poultry => (const Tone(0xFFFB923C), const Tone(0xFFFFEDD5), _orange700),
+      CompanyType.generic => (const Tone(0xFFA78BFA), const Tone(0xFFEDE9FE), const Tone(0xFF6D28D9)),
       _ => (_slate300, _slate100, _slate700),
     };
     final icon = switch (c.type) {
@@ -1003,7 +1003,7 @@ class _CompaniesPanelState extends State<_CompaniesPanel> {
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Tone.bg(0xFFFFFFFF),
         border: Border.all(color: _slate200),
         borderRadius: BorderRadius.circular(14),
         boxShadow: const [BoxShadow(color: Color(0x0D000000), blurRadius: 8, offset: Offset(0, 2))],
@@ -1054,7 +1054,7 @@ class _CompaniesPanelState extends State<_CompaniesPanel> {
                   children: [
                     Expanded(
                       child: FilledButton(
-                        style: FilledButton.styleFrom(backgroundColor: _slate900, minimumSize: const Size.fromHeight(40)),
+                        style: FilledButton.styleFrom(backgroundColor: Tone.button(Tone.bg(0xFF0F172A)), minimumSize: const Size.fromHeight(40)),
                         onPressed: opening || _openingId != null ? null : () => _open(c),
                         child: Text(opening ? 'Opening…' : 'Open →'),
                       ),
@@ -1071,7 +1071,7 @@ class _CompaniesPanelState extends State<_CompaniesPanel> {
                         tooltip: 'Delete company',
                         style: IconButton.styleFrom(
                           foregroundColor: _red600,
-                          side: const BorderSide(color: Color(0xFFFECACA)),
+                          side: const BorderSide(color: Tone.line(0xFFFECACA)),
                         ),
                         onPressed: () => _delete(c),
                         icon: const Icon(Icons.delete_outline, size: 18),

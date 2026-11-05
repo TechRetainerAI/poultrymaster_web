@@ -3,7 +3,7 @@
          APK cannot reach the API ("Network error"), while debug runs work. -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="poultrycore_mobile"
+        android:label="VisibilityCore"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:enableOnBackInvokedCallback="true">

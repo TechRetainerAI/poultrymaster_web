@@ -19,18 +19,19 @@ import '../shared/staff_employee_link.dart';
 import 'restaurant_roles.dart';
 import 'restaurant_staff_form_screen.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 /// Each role's tile and badge colours (RESTAURANT_ROLES `color`: bg-*-100 text-*-700).
 const restaurantRoleColors = <String, (Color, Color)>{
-  'Owner': (Color(0xFFF3E8FF), Color(0xFF7E22CE)),
-  'Manager': (Color(0xFFDBEAFE), Color(0xFF1D4ED8)),
-  'HeadChef': (Color(0xFFFEF3C7), Color(0xFFB45309)),
-  'Chef': (Color(0xFFFFEDD5), Color(0xFFC2410C)),
-  'Waiter': (Color(0xFFDCFCE7), Color(0xFF15803D)),
-  'Cashier': (Color(0xFFD1FAE5), Color(0xFF047857)),
-  'Host': (Color(0xFFFCE7F3), Color(0xFFBE185D)),
-  'Bartender': (Color(0xFFE0E7FF), Color(0xFF4338CA)),
-  'Driver': (Color(0xFFE0F2FE), Color(0xFF0369A1)),
-  'Other': (Color(0xFFF3F4F6), Color(0xFF374151)),
+  'Owner': (Tone(0xFFF3E8FF), Tone(0xFF7E22CE)),
+  'Manager': (Tone(0xFFDBEAFE), Tone(0xFF1D4ED8)),
+  'HeadChef': (Tone(0xFFFEF3C7), Tone(0xFFB45309)),
+  'Chef': (Tone(0xFFFFEDD5), Tone(0xFFC2410C)),
+  'Waiter': (Tone(0xFFDCFCE7), Tone(0xFF15803D)),
+  'Cashier': (Tone(0xFFD1FAE5), Tone(0xFF047857)),
+  'Host': (Tone(0xFFFCE7F3), Tone(0xFFBE185D)),
+  'Bartender': (Tone(0xFFE0E7FF), Tone(0xFF4338CA)),
+  'Driver': (Tone(0xFFE0F2FE), Tone(0xFF0369A1)),
+  'Other': (Tone(0xFFF3F4F6), Tone(0xFF374151)),
 };
 
 (Color, Color) _colorsOf(String role) => restaurantRoleColors[role] ?? restaurantRoleColors['Other']!;
@@ -147,13 +148,13 @@ class _RestaurantStaffScreenState extends State<RestaurantStaffScreen> {
                   return Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                        color: has ? const Color(0xFFF0FDF4) : const Color(0xFFF9FAFB), borderRadius: BorderRadius.circular(8)),
+                        color: has ? const Tone.bg(0xFFF0FDF4) : const Tone.bg(0xFFF9FAFB), borderRadius: BorderRadius.circular(8)),
                     child: Row(children: [
-                      Expanded(child: Text(p, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF374151)))),
-                      Icon(has ? Icons.check_circle_outline : Icons.cancel_outlined, size: 16, color: has ? const Color(0xFF16A34A) : const Color(0xFF9CA3AF)),
+                      Expanded(child: Text(p, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Tone.fg(0xFF374151)))),
+                      Icon(has ? Icons.check_circle_outline : Icons.cancel_outlined, size: 16, color: has ? const Tone.fg(0xFF16A34A) : const Tone.fg(0xFF9CA3AF)),
                       const SizedBox(width: 4),
                       Text(has ? 'Allowed' : 'No access',
-                          style: TextStyle(fontSize: 12, fontWeight: has ? FontWeight.w500 : null, color: has ? const Color(0xFF16A34A) : const Color(0xFF9CA3AF))),
+                          style: TextStyle(fontSize: 12, fontWeight: has ? FontWeight.w500 : null, color: has ? const Tone.fg(0xFF16A34A) : const Tone.fg(0xFF9CA3AF))),
                     ]),
                   );
                 }),
@@ -202,11 +203,11 @@ class _RestaurantStaffScreenState extends State<RestaurantStaffScreen> {
 
   Widget _header() => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
-          _iconTile(Icons.manage_accounts_outlined, const Color(0xFFFFE4E6), restaurantRose),
+          _iconTile(Icons.manage_accounts_outlined, const Tone(0xFFFFE4E6), restaurantRose),
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Staff', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+              const Text('Staff', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Tone.fg(0xFF111827))),
               Text('${_staff.length} team members across ${{for (final s in _staff) tStr(s['role'])}.length} roles',
                   style: const TextStyle(fontSize: 13, color: TColors.slate500)),
             ]),
@@ -214,7 +215,7 @@ class _RestaurantStaffScreenState extends State<RestaurantStaffScreen> {
         ]),
         const SizedBox(height: 10),
         FilledButton.icon(
-          style: FilledButton.styleFrom(backgroundColor: restaurantRose, minimumSize: const Size.fromHeight(44)),
+          style: FilledButton.styleFrom(backgroundColor: Tone.button(restaurantRose), minimumSize: const Size.fromHeight(44)),
           onPressed: () => _openForm(),
           icon: const Icon(Icons.add, size: 18),
           label: const Text('Add Staff'),
@@ -241,7 +242,7 @@ class _RestaurantStaffScreenState extends State<RestaurantStaffScreen> {
               onTap: () => setState(() => _role = _role == r.value ? 'all' : r.value),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
                 child: Row(children: [
                   Text(r.icon, style: const TextStyle(fontSize: 20)),
                   const SizedBox(width: 8),
@@ -278,7 +279,7 @@ class _RestaurantStaffScreenState extends State<RestaurantStaffScreen> {
 
   Widget _rolesCard() => TCard(
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          _cardHead(Icons.shield_outlined, const Color(0xFFF3E8FF), const Color(0xFF9333EA), 'Roles & Permissions',
+          _cardHead(Icons.shield_outlined, const Tone(0xFFF3E8FF), const Tone(0xFF9333EA), 'Roles & Permissions',
               'Each role has predefined access to restaurant modules'),
           const SizedBox(height: 12),
           for (final r in restaurantRoles) ...[
@@ -288,8 +289,8 @@ class _RestaurantStaffScreenState extends State<RestaurantStaffScreen> {
               child: Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: _role == r.value ? const Color(0x80FFF1F2) : null,
-                  border: Border.all(color: _role == r.value ? const Color(0xFFFDA4AF) : TColors.slate200),
+                  color: _role == r.value ? const Tone.bg(0x80FFF1F2) : null,
+                  border: Border.all(color: _role == r.value ? const Tone.line(0xFFFDA4AF) : TColors.slate200),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -298,7 +299,7 @@ class _RestaurantStaffScreenState extends State<RestaurantStaffScreen> {
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Row(children: [
-                        Flexible(child: Text(r.label, style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF111827)))),
+                        Flexible(child: Text(r.label, style: const TextStyle(fontWeight: FontWeight.w600, color: Tone.fg(0xFF111827)))),
                         const SizedBox(width: 6),
                         _smallBadge('${_count(r.value)}', bg: TColors.slate100),
                       ]),
@@ -325,7 +326,7 @@ class _RestaurantStaffScreenState extends State<RestaurantStaffScreen> {
     final rows = _filtered;
     return TCard(
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        _cardHead(Icons.groups_outlined, const Color(0xFFDCFCE7), const Color(0xFF16A34A), 'Team Members',
+        _cardHead(Icons.groups_outlined, const Tone(0xFFDCFCE7), const Tone(0xFF16A34A), 'Team Members',
             '${rows.length} staff ${_role != 'all' ? '($_role)' : ''}'),
         const SizedBox(height: 12),
         AppInput(hintText: 'Search staff...', prefixIcon: const Icon(Icons.search, size: 18), onChanged: (v) => setState(() => _search = v)),
@@ -344,17 +345,17 @@ class _RestaurantStaffScreenState extends State<RestaurantStaffScreen> {
             padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 16),
             decoration: BoxDecoration(border: Border.all(color: TColors.slate200, width: 2), borderRadius: BorderRadius.circular(12)),
             child: Column(children: [
-              const Icon(Icons.groups_outlined, size: 48, color: Color(0xFFD1D5DB)),
+              const Icon(Icons.groups_outlined, size: 48, color: Tone.fg(0xFFD1D5DB)),
               const SizedBox(height: 12),
               Text(_search.isNotEmpty || _role != 'all' ? 'No staff match' : 'No staff members yet',
-                  style: const TextStyle(fontWeight: FontWeight.w500, color: Color(0xFF111827))),
+                  style: const TextStyle(fontWeight: FontWeight.w500, color: Tone.fg(0xFF111827))),
               const SizedBox(height: 4),
               const Text('Add your team members and assign their roles',
                   textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: TColors.slate500)),
               if (_search.isEmpty && _role == 'all') ...[
                 const SizedBox(height: 16),
                 FilledButton.icon(
-                  style: FilledButton.styleFrom(backgroundColor: restaurantRose),
+                  style: FilledButton.styleFrom(backgroundColor: Tone.button(restaurantRose)),
                   onPressed: () => _openForm(),
                   icon: const Icon(Icons.add, size: 18),
                   label: const Text('Add First Member'),
@@ -391,7 +392,7 @@ class _RestaurantStaffScreenState extends State<RestaurantStaffScreen> {
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                Text('${tStr(s['firstName'])} ${tStr(s['lastName'])}', style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF111827))),
+                Text('${tStr(s['firstName'])} ${tStr(s['lastName'])}', style: const TextStyle(fontWeight: FontWeight.w600, color: Tone.fg(0xFF111827))),
                 _smallBadge(cfg?.label ?? role, bg: bg, fg: fg),
                 if (s['isActive'] == false) _smallBadge('Inactive', bg: TColors.slate100),
                 if (_links.containsKey(id)) employeeBadge(),
@@ -416,7 +417,7 @@ class _RestaurantStaffScreenState extends State<RestaurantStaffScreen> {
                     onTap: () => openAppHref(context, widget.session, widget.company, '/restaurant-staff-loans?staffId=$id',
                         label: 'Employee Loans & Advances'),
                     child: Text('owes ${_owed[id]!.toStringAsFixed(2)}',
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFFDC2626))),
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Tone.fg(0xFFDC2626))),
                   ),
               ]),
             ]),
@@ -427,7 +428,7 @@ class _RestaurantStaffScreenState extends State<RestaurantStaffScreen> {
           IconButton(tooltip: 'Edit', icon: const Icon(Icons.edit_outlined, size: 18), onPressed: () => _openForm(s)),
           if (!_links.containsKey(id))
             IconButton(tooltip: 'Make employee (give a login)', icon: const Icon(Icons.key_outlined, size: 18), onPressed: () => _makeEmployee(s)),
-          IconButton(tooltip: 'Delete', icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFEF4444)), onPressed: () => _remove(s)),
+          IconButton(tooltip: 'Delete', icon: const Icon(Icons.delete_outline, size: 18, color: Tone.fg(0xFFEF4444)), onPressed: () => _remove(s)),
         ]),
       ]),
     );

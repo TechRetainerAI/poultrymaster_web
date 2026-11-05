@@ -20,15 +20,16 @@ import '../poultry/trackers/tracker_widgets.dart';
 import 'restaurant_money_kit.dart' show rTodayIso;
 import 'restaurant_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 const restaurantQuickActions = [
-  ('/restaurant-pos', 'New Order', Icons.shopping_cart_outlined, Color(0xFFFFE4E6), Color(0xFFE11D48)),
-  ('/restaurant-orders', 'View Orders', Icons.assignment_outlined, Color(0xFFDBEAFE), Color(0xFF2563EB)),
-  ('/restaurant-kds', 'Kitchen', Icons.soup_kitchen_outlined, Color(0xFFFEF3C7), Color(0xFFD97706)),
-  ('/restaurant-reservations', 'Reservations', Icons.calendar_month_outlined, Color(0xFFF3E8FF), Color(0xFF9333EA)),
-  ('/restaurant-floor-plan', 'Floor Plan', Icons.place_outlined, Color(0xFFCCFBF1), Color(0xFF0D9488)),
-  ('/restaurant-menu', 'Menu Items', Icons.restaurant, Color(0xFFDCFCE7), Color(0xFF16A34A)),
-  ('/restaurant-online-orders', 'Online Orders', Icons.public, Color(0xFFE0E7FF), Color(0xFF4F46E5)),
-  ('/restaurant-delivery', 'Delivery', Icons.local_shipping_outlined, Color(0xFFFFEDD5), Color(0xFFEA580C)),
+  ('/restaurant-pos', 'New Order', Icons.shopping_cart_outlined, Tone(0xFFFFE4E6), Tone(0xFFE11D48)),
+  ('/restaurant-orders', 'View Orders', Icons.assignment_outlined, Tone(0xFFDBEAFE), Tone(0xFF2563EB)),
+  ('/restaurant-kds', 'Kitchen', Icons.soup_kitchen_outlined, Tone(0xFFFEF3C7), Tone(0xFFD97706)),
+  ('/restaurant-reservations', 'Reservations', Icons.calendar_month_outlined, Tone(0xFFF3E8FF), Tone(0xFF9333EA)),
+  ('/restaurant-floor-plan', 'Floor Plan', Icons.place_outlined, Tone(0xFFCCFBF1), Tone(0xFF0D9488)),
+  ('/restaurant-menu', 'Menu Items', Icons.restaurant, Tone(0xFFDCFCE7), Tone(0xFF16A34A)),
+  ('/restaurant-online-orders', 'Online Orders', Icons.public, Tone(0xFFE0E7FF), Tone(0xFF4F46E5)),
+  ('/restaurant-delivery', 'Delivery', Icons.local_shipping_outlined, Tone(0xFFFFEDD5), Tone(0xFFEA580C)),
 ];
 
 /// The page's figures, worked out from the loaded lists.
@@ -125,7 +126,7 @@ class _RestaurantDashboardViewState extends State<RestaurantDashboardView> {
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(padding: const EdgeInsets.fromLTRB(14, 14, 14, 28), children: [
-        const Text('Welcome back', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+        const Text('Welcome back', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Tone.fg(0xFF111827))),
         Text('${widget.company.name.isEmpty ? 'Restaurant' : widget.company.name} — ${DateFormat('EEEE, MMMM d, y').format(DateTime.now())}',
             style: const TextStyle(fontSize: 14, color: TColors.slate500)),
         const SizedBox(height: 14),
@@ -134,13 +135,13 @@ class _RestaurantDashboardViewState extends State<RestaurantDashboardView> {
         roseButton('Open POS', () => _go('/restaurant-pos', 'POS / New Order'), icon: Icons.shopping_cart_outlined),
         const SizedBox(height: 14),
         twoColumns([
-          _kpi("ACTIVE ORDERS", '${f.active.length}', null, Icons.assignment_outlined, const Color(0xFFF43F5E), const Color(0xFFFFE4E6), const Color(0xFFE11D48)),
-          _kpi("TODAY'S REVENUE", f.todayRevenue.toStringAsFixed(0), '${f.todayOrders} orders today', Icons.attach_money, const Color(0xFF22C55E),
-              const Color(0xFFDCFCE7), const Color(0xFF16A34A)),
-          _kpi('TABLES', '${f.occupied}/${f.tableCount}', '${f.available} available', Icons.place_outlined, const Color(0xFF3B82F6),
-              const Color(0xFFDBEAFE), const Color(0xFF2563EB)),
-          _kpi('RESERVATIONS', '$_reservations', 'Today', Icons.calendar_month_outlined, const Color(0xFFA855F7), const Color(0xFFF3E8FF),
-              const Color(0xFF9333EA)),
+          _kpi("ACTIVE ORDERS", '${f.active.length}', null, Icons.assignment_outlined, const Tone(0xFFF43F5E), const Tone(0xFFFFE4E6), const Tone(0xFFE11D48)),
+          _kpi("TODAY'S REVENUE", f.todayRevenue.toStringAsFixed(0), '${f.todayOrders} orders today', Icons.attach_money, const Tone(0xFF22C55E),
+              const Tone(0xFFDCFCE7), const Tone(0xFF16A34A)),
+          _kpi('TABLES', '${f.occupied}/${f.tableCount}', '${f.available} available', Icons.place_outlined, const Tone(0xFF3B82F6),
+              const Tone(0xFFDBEAFE), const Tone(0xFF2563EB)),
+          _kpi('RESERVATIONS', '$_reservations', 'Today', Icons.calendar_month_outlined, const Tone(0xFFA855F7), const Tone(0xFFF3E8FF),
+              const Tone(0xFF9333EA)),
         ], gap: 10),
         const SizedBox(height: 14),
         _kitchen(),
@@ -159,7 +160,7 @@ class _RestaurantDashboardViewState extends State<RestaurantDashboardView> {
 
   Widget _kpi(String label, String value, String? hint, IconData icon, Color stripe, Color tileBg, Color tileFg) => Container(
         clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
+        decoration: BoxDecoration(color: Tone.bg(0xFFFFFFFF), border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(10)),
         child: IntrinsicHeight(
           child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Container(width: 4, color: stripe),
@@ -175,7 +176,7 @@ class _RestaurantDashboardViewState extends State<RestaurantDashboardView> {
                         FittedBox(
                           fit: BoxFit.scaleDown,
                           alignment: Alignment.centerLeft,
-                          child: Text(value, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+                          child: Text(value, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: Tone.fg(0xFF111827))),
                         ),
                       ]),
                     ),
@@ -205,7 +206,7 @@ class _RestaurantDashboardViewState extends State<RestaurantDashboardView> {
         Expanded(child: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600))),
         if (link != null)
           TextButton(
-            style: TextButton.styleFrom(foregroundColor: const Color(0xFFE11D48), visualDensity: VisualDensity.compact),
+            style: TextButton.styleFrom(foregroundColor: const Tone.fg(0xFFE11D48), visualDensity: VisualDensity.compact),
             onPressed: () => _go(link, linkTitle ?? linkLabel!),
             child: Text('$linkLabel →', style: const TextStyle(fontSize: 12)),
           ),
@@ -235,28 +236,28 @@ class _RestaurantDashboardViewState extends State<RestaurantDashboardView> {
     final longest = tNum(k?['longestWaitMinutes']);
     return TCard(
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        _cardHead('Kitchen Status', Icons.soup_kitchen_outlined, const Color(0xFFFEF3C7), const Color(0xFFD97706),
+        _cardHead('Kitchen Status', Icons.soup_kitchen_outlined, const Tone(0xFFFEF3C7), const Tone(0xFFD97706),
             link: '/restaurant-kds', linkLabel: 'Open KDS', linkTitle: 'Kitchen Display'),
         const SizedBox(height: 12),
         if (k == null)
           _empty('No kitchen data')
         else
           Row(children: [
-            _figure('${tNum(k['pendingCount']).toInt()}', 'Pending', const Color(0xFFEFF6FF), const Color(0xFF1D4ED8), const Color(0xFF2563EB)),
+            _figure('${tNum(k['pendingCount']).toInt()}', 'Pending', const Tone(0xFFEFF6FF), const Tone(0xFF1D4ED8), const Tone(0xFF2563EB)),
             const SizedBox(width: 8),
-            _figure('${tNum(k['preparingCount']).toInt()}', 'Preparing', const Color(0xFFFFFBEB), const Color(0xFFB45309), const Color(0xFFD97706)),
+            _figure('${tNum(k['preparingCount']).toInt()}', 'Preparing', const Tone(0xFFFFFBEB), const Tone(0xFFB45309), const Tone(0xFFD97706)),
             const SizedBox(width: 8),
-            _figure('${tNum(k['readyCount']).toInt()}', 'Ready', const Color(0xFFF0FDF4), const Color(0xFF15803D), const Color(0xFF16A34A)),
+            _figure('${tNum(k['readyCount']).toInt()}', 'Ready', const Tone(0xFFF0FDF4), const Tone(0xFF15803D), const Tone(0xFF16A34A)),
           ]),
         if (k != null && k['longestWaitMinutes'] != null && longest > 10) ...[
           const SizedBox(height: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(color: const Color(0xFFFFFBEB), borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(color: const Tone.bg(0xFFFFFBEB), borderRadius: BorderRadius.circular(8)),
             child: Row(children: [
-              const Icon(Icons.warning_amber_rounded, size: 16, color: Color(0xFFB45309)),
+              const Icon(Icons.warning_amber_rounded, size: 16, color: Tone.fg(0xFFB45309)),
               const SizedBox(width: 8),
-              Expanded(child: Text('Longest wait: ${longest.floor()}min', style: const TextStyle(fontSize: 14, color: Color(0xFFB45309)))),
+              Expanded(child: Text('Longest wait: ${longest.floor()}min', style: const TextStyle(fontSize: 14, color: Tone.fg(0xFFB45309)))),
             ]),
           ),
         ],
@@ -268,18 +269,18 @@ class _RestaurantDashboardViewState extends State<RestaurantDashboardView> {
     final d = _delivery;
     return TCard(
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        _cardHead('Delivery Status', Icons.local_shipping_outlined, const Color(0xFFE0E7FF), const Color(0xFF4F46E5),
+        _cardHead('Delivery Status', Icons.local_shipping_outlined, const Tone(0xFFE0E7FF), const Tone(0xFF4F46E5),
             link: '/restaurant-delivery', linkLabel: 'Manage', linkTitle: 'Drivers & Dispatch'),
         const SizedBox(height: 12),
         if (d == null)
           _empty('No delivery data')
         else
           Row(children: [
-            _figure('${tNum(d['availableDrivers']).toInt()}', 'Drivers Free', const Color(0xFFF0FDF4), const Color(0xFF15803D), const Color(0xFF16A34A)),
+            _figure('${tNum(d['availableDrivers']).toInt()}', 'Drivers Free', const Tone(0xFFF0FDF4), const Tone(0xFF15803D), const Tone(0xFF16A34A)),
             const SizedBox(width: 8),
-            _figure('${tNum(d['activeCount']).toInt()}', 'Active', const Color(0xFFEFF6FF), const Color(0xFF1D4ED8), const Color(0xFF2563EB)),
+            _figure('${tNum(d['activeCount']).toInt()}', 'Active', const Tone(0xFFEFF6FF), const Tone(0xFF1D4ED8), const Tone(0xFF2563EB)),
             const SizedBox(width: 8),
-            _figure('${tNum(d['deliveredCount']).toInt()}', 'Delivered', const Color(0xFFF9FAFB), const Color(0xFF374151), const Color(0xFF4B5563)),
+            _figure('${tNum(d['deliveredCount']).toInt()}', 'Delivered', const Tone(0xFFF9FAFB), const Tone(0xFF374151), const Tone(0xFF4B5563)),
           ]),
       ]),
     );
@@ -296,7 +297,7 @@ class _RestaurantDashboardViewState extends State<RestaurantDashboardView> {
         );
     return TCard(
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        _cardHead('Waitlist', Icons.people_outline, const Color(0xFFFFEDD5), const Color(0xFFEA580C)),
+        _cardHead('Waitlist', Icons.people_outline, const Tone(0xFFFFEDD5), const Tone(0xFFEA580C)),
         const SizedBox(height: 10),
         if (w != null && tNum(w['waitingCount']) > 0) ...[
           line('Waiting', '${tNum(w['waitingCount']).toInt()}'),
@@ -316,7 +317,7 @@ class _RestaurantDashboardViewState extends State<RestaurantDashboardView> {
           twoColumns([
             for (final (href, label, icon, bg, fg) in restaurantQuickActions)
               Material(
-                color: Colors.white,
+                color: Tone.bg(0xFFFFFFFF),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: TColors.slate200)),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(12),
@@ -331,7 +332,7 @@ class _RestaurantDashboardViewState extends State<RestaurantDashboardView> {
                         child: Icon(icon, size: 16, color: fg),
                       ),
                       const SizedBox(width: 10),
-                      Expanded(child: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF374151)))),
+                      Expanded(child: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Tone.fg(0xFF374151)))),
                     ]),
                   ),
                 ),
@@ -342,9 +343,9 @@ class _RestaurantDashboardViewState extends State<RestaurantDashboardView> {
 
   Widget _eightySixed(int n) => Container(
         padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
-        decoration: BoxDecoration(color: const Color(0xFFFFFBEB), border: Border.all(color: const Color(0xFFFDE68A)), borderRadius: BorderRadius.circular(10)),
+        decoration: BoxDecoration(color: const Tone.bg(0xFFFFFBEB), border: Border.all(color: const Tone.line(0xFFFDE68A)), borderRadius: BorderRadius.circular(10)),
         child: Row(children: [
-          const Icon(Icons.warning_amber_rounded, size: 20, color: Color(0xFFD97706)),
+          const Icon(Icons.warning_amber_rounded, size: 20, color: Tone.fg(0xFFD97706)),
           const SizedBox(width: 10),
           Expanded(
             child: Text.rich(
@@ -352,12 +353,12 @@ class _RestaurantDashboardViewState extends State<RestaurantDashboardView> {
                 TextSpan(text: '$n', style: const TextStyle(fontWeight: FontWeight.w700)),
                 TextSpan(text: " menu item${n != 1 ? 's are' : ' is'} currently 86'd (unavailable)"),
               ]),
-              style: const TextStyle(fontSize: 14, color: Color(0xFF92400E)),
+              style: const TextStyle(fontSize: 14, color: Tone.fg(0xFF92400E)),
             ),
           ),
           OutlinedButton(
             style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFFB45309), side: const BorderSide(color: Color(0xFFFCD34D)), visualDensity: VisualDensity.compact),
+                foregroundColor: const Tone.fg(0xFFB45309), side: const BorderSide(color: Tone.line(0xFFFCD34D)), visualDensity: VisualDensity.compact),
             onPressed: () => _go('/restaurant-menu', 'Menu Items'),
             child: const Text('View Menu', style: TextStyle(fontSize: 12)),
           ),
@@ -369,7 +370,7 @@ class _RestaurantDashboardViewState extends State<RestaurantDashboardView> {
           Row(children: [
             const Expanded(child: Text('Recent Orders', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600))),
             TextButton(
-              style: TextButton.styleFrom(foregroundColor: const Color(0xFFE11D48), visualDensity: VisualDensity.compact),
+              style: TextButton.styleFrom(foregroundColor: const Tone.fg(0xFFE11D48), visualDensity: VisualDensity.compact),
               onPressed: () => _go('/restaurant-orders', 'All Orders'),
               child: const Text('View All →', style: TextStyle(fontSize: 12)),
             ),
@@ -385,10 +386,10 @@ class _RestaurantDashboardViewState extends State<RestaurantDashboardView> {
   Widget _orderRow(Map o) {
     final status = tStr(o['status']);
     final color = switch (status) {
-      'Placed' => const Color(0xFF3B82F6),
-      'Preparing' => const Color(0xFFF59E0B),
-      'Ready' => const Color(0xFF22C55E),
-      _ => const Color(0xFF6B7280),
+      'Placed' => const Tone(0xFF3B82F6),
+      'Preparing' => const Tone(0xFFF59E0B),
+      'Ready' => const Tone(0xFF22C55E),
+      _ => const Tone(0xFF6B7280),
     };
     final created = DateTime.tryParse(tStr(o['createdAt']));
     return InkWell(
@@ -400,7 +401,7 @@ class _RestaurantDashboardViewState extends State<RestaurantDashboardView> {
           Expanded(
             child: Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
               Text(tStr(o['orderNumber']), style: const TextStyle(fontFamily: 'monospace', fontSize: 13, fontWeight: FontWeight.w700)),
-              rBadge(tStr(o['orderType']), bg: Colors.white, border: TColors.slate200),
+              rBadge(tStr(o['orderType']), bg: Tone.bg(0xFFFFFFFF), border: TColors.slate200),
               rBadge(status, bg: color, fg: Colors.white),
               if (tStr(o['tableNumber']).isNotEmpty) Text('Table ${tStr(o['tableNumber'])}', style: const TextStyle(fontSize: 12, color: TColors.slate500)),
             ]),

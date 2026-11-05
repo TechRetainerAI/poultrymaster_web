@@ -24,6 +24,7 @@ import 'restaurant_other_select.dart';
 import 'restaurant_roles.dart' show restaurantRose;
 import 'restaurant_widgets.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 // "Other" is not listed: the Other select adds its own, which opens a text box.
 const ingredientCategories = ['Proteins', 'Dairy', 'Produce', 'Dry Goods', 'Spices', 'Beverages', 'Frozen', 'Oils & Fats', 'Bakery', 'Sauces'];
 const ingredientUnits = ['kg', 'g', 'L', 'mL', 'pcs', 'dozen', 'bag', 'box', 'bottle', 'can', 'bunch'];
@@ -61,7 +62,7 @@ List<String> ingredientFilterCategories(List<Map> rows) =>
 const _purchaseStatus = {
   'Paid': (TColors.emerald100, TColors.emerald700),
   'Partially Paid': (TColors.amber100, TColors.amber700),
-  'Unpaid': (Color(0xFFFEE2E2), Color(0xFFB91C1C)),
+  'Unpaid': (Tone(0xFFFEE2E2), Tone(0xFFB91C1C)),
   'Reversed': (TColors.slate100, TColors.slate500),
 };
 
@@ -313,7 +314,7 @@ class _RestaurantInventoryScreenState extends State<RestaurantInventoryScreen> {
           ),
           const SizedBox(height: 8),
           FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: restaurantRose, minimumSize: const Size.fromHeight(44)),
+            style: FilledButton.styleFrom(backgroundColor: Tone.button(restaurantRose), minimumSize: const Size.fromHeight(44)),
             onPressed: () => _ingredient(),
             icon: const Icon(Icons.add, size: 18),
             label: const Text('Add Ingredient'),
@@ -321,16 +322,16 @@ class _RestaurantInventoryScreenState extends State<RestaurantInventoryScreen> {
           const SizedBox(height: 14),
           twoColumns([
             stat('Total Ingredients', '${_ingredients.length}', Icons.inventory_2_outlined, TColors.slate900, TColors.slate100),
-            stat('Low Stock', '${_lowStock.length}', Icons.warning_amber_rounded, low ? const Color(0xFFB91C1C) : const Color(0xFF15803D),
-                low ? const Color(0xFFFEE2E2) : const Color(0xFFDCFCE7)),
-            stat('Inventory Value', totalValue.toStringAsFixed(0), Icons.attach_money, const Color(0xFF1D4ED8), TColors.blue100),
+            stat('Low Stock', '${_lowStock.length}', Icons.warning_amber_rounded, low ? const Tone(0xFFB91C1C) : const Tone(0xFF15803D),
+                low ? const Tone(0xFFFEE2E2) : const Tone(0xFFDCFCE7)),
+            stat('Inventory Value', totalValue.toStringAsFixed(0), Icons.attach_money, const Tone(0xFF1D4ED8), TColors.blue100),
             stat('Waste Cost', wasteCost.toStringAsFixed(0), Icons.trending_down, TColors.amber700, TColors.amber100),
           ]),
           if (low) ...[
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: const Color(0xFFFEF2F2), border: Border.all(color: const Color(0xFFFECACA)), borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: const Tone.bg(0xFFFEF2F2), border: Border.all(color: const Tone.line(0xFFFECACA)), borderRadius: BorderRadius.circular(10)),
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Icon(Icons.warning_amber_rounded, size: 20, color: TColors.red600),
                 const SizedBox(width: 10),
@@ -342,7 +343,7 @@ class _RestaurantInventoryScreenState extends State<RestaurantInventoryScreen> {
                           text:
                               ' ingredient${_lowStock.length != 1 ? 's' : ''} below reorder point: ${_lowStock.take(5).map((l) => tStr(l['name'])).join(', ')}${_lowStock.length > 5 ? '...' : ''}'),
                     ]),
-                    style: const TextStyle(fontSize: 13, color: Color(0xFF991B1B)),
+                    style: const TextStyle(fontSize: 13, color: Tone.fg(0xFF991B1B)),
                   ),
                 ),
               ]),
@@ -439,8 +440,8 @@ class _RestaurantInventoryScreenState extends State<RestaurantInventoryScreen> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: low ? const Color(0xFFFEF2F2) : Colors.white,
-        border: Border.all(color: low ? const Color(0xFFFECACA) : TColors.slate200),
+        color: low ? const Tone.bg(0xFFFEF2F2) : Tone.bg(0xFFFFFFFF),
+        border: Border.all(color: low ? const Tone.line(0xFFFECACA) : TColors.slate200),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -448,7 +449,7 @@ class _RestaurantInventoryScreenState extends State<RestaurantInventoryScreen> {
           Container(
             width: 40,
             height: 40,
-            decoration: BoxDecoration(color: low ? const Color(0xFFFEE2E2) : TColors.slate100, borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(color: low ? const Tone.bg(0xFFFEE2E2) : TColors.slate100, borderRadius: BorderRadius.circular(8)),
             child: Icon(Icons.inventory_2_outlined, size: 20, color: low ? TColors.red600 : TColors.slate500),
           ),
           const SizedBox(width: 10),
@@ -457,8 +458,8 @@ class _RestaurantInventoryScreenState extends State<RestaurantInventoryScreen> {
               Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
                 Text(tStr(i['name']), style: const TextStyle(fontWeight: FontWeight.w600, color: TColors.slate900)),
                 if (tStr(i['category']).isNotEmpty) rStatusBadge(tStr(i['category'])),
-                if (low) rStatusBadge('Low Stock', bg: const Color(0xFFFEE2E2), fg: const Color(0xFFB91C1C), border: const Color(0xFFFEE2E2)),
-                if (tStr(i['storageArea']).isNotEmpty) rStatusBadge(tStr(i['storageArea']), bg: const Color(0xFFEFF6FF)),
+                if (low) rStatusBadge('Low Stock', bg: const Tone.bg(0xFFFEE2E2), fg: const Tone.fg(0xFFB91C1C), border: const Tone.line(0xFFFEE2E2)),
+                if (tStr(i['storageArea']).isNotEmpty) rStatusBadge(tStr(i['storageArea']), bg: const Tone.bg(0xFFEFF6FF)),
               ]),
               const SizedBox(height: 4),
               Wrap(spacing: 12, runSpacing: 2, children: [
@@ -521,7 +522,7 @@ class _RestaurantInventoryScreenState extends State<RestaurantInventoryScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(color: TColors.amber50, border: Border.all(color: TColors.amber200), borderRadius: BorderRadius.circular(10)),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(tNum(w['totalCost']).toStringAsFixed(2), style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF92400E))),
+                  Text(tNum(w['totalCost']).toStringAsFixed(2), style: const TextStyle(fontWeight: FontWeight.w700, color: Tone.fg(0xFF92400E))),
                   Text('${tStr(w['reason'])} (${jsNum(w['count'])}x)', style: const TextStyle(fontSize: 12, color: TColors.amber600)),
                 ]),
               ),
@@ -558,7 +559,7 @@ class _RestaurantInventoryScreenState extends State<RestaurantInventoryScreen> {
 
   Widget _valueTab(num total) => TCard(
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          _tabHeader(Icons.attach_money, const Color(0xFF2563EB), TColors.blue100, 'Inventory Valuation', 'Total value: ${total.toStringAsFixed(2)}'),
+          _tabHeader(Icons.attach_money, const Tone(0xFF2563EB), TColors.blue100, 'Inventory Valuation', 'Total value: ${total.toStringAsFixed(2)}'),
           if (_value.isEmpty)
             const Padding(
                 padding: EdgeInsets.symmetric(vertical: 24),
@@ -569,8 +570,8 @@ class _RestaurantInventoryScreenState extends State<RestaurantInventoryScreen> {
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: v['isLow'] == true ? const Color(0xFFFEF2F2) : null,
-                  border: Border.all(color: v['isLow'] == true ? const Color(0xFFFECACA) : TColors.slate200),
+                  color: v['isLow'] == true ? const Tone.bg(0xFFFEF2F2) : null,
+                  border: Border.all(color: v['isLow'] == true ? const Tone.line(0xFFFECACA) : TColors.slate200),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(children: [
@@ -595,7 +596,7 @@ class _RestaurantInventoryScreenState extends State<RestaurantInventoryScreen> {
     final shown = [for (final p in _purchases) if (_purchaseFocus == null || tIntOrNull(p['purchaseId']) == _purchaseFocus) p];
     return TCard(
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        _tabHeader(Icons.shopping_cart_outlined, const Color(0xFFE11D48), const Color(0xFFFFE4E6), 'Purchases', 'Stock bought, what it cost and what is still owed',
+        _tabHeader(Icons.shopping_cart_outlined, const Tone(0xFFE11D48), const Tone(0xFFFFE4E6), 'Purchases', 'Stock bought, what it cost and what is still owed',
             action: roseButton('Record Purchase', () => _purchase(), icon: Icons.shopping_cart_outlined)),
         if (_purchaseFocus != null) ...[
           Container(
@@ -1167,7 +1168,7 @@ class _RestaurantPurchaseDialogState extends State<RestaurantPurchaseDialog> {
       child: rDialog(
         title: 'New purchase',
         children: [
-          _section('Item, Supplier & Date', const Color(0xFF4F46E5), [
+          _section('Item, Supplier & Date', const Tone(0xFF4F46E5), [
             rField(
               'Ingredient or supply *',
               AppSelect<int>(
@@ -1209,7 +1210,7 @@ class _RestaurantPurchaseDialogState extends State<RestaurantPurchaseDialog> {
               ),
             ),
           ]),
-          _section('Purchase Quantity & Costing', const Color(0xFF2563EB), [
+          _section('Purchase Quantity & Costing', const Tone(0xFF2563EB), [
             rField('Purchase quantity ($unit) *', rNumberInput(_qty, onChanged: () => setState(() {}))),
             rField('Total purchase cost *', rNumberInput(_total, onChanged: () => setState(() {}))),
             rField('Purchase unit cost (auto)', _readOnly('${gh(m.unitCost)} per $unit')),

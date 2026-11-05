@@ -13,10 +13,11 @@ import '../../poultry/trackers/tracker_logic.dart' show tNum, tStr;
 import '../../poultry/trackers/tracker_widgets.dart';
 import '../../restaurant/reports/restaurant_report_kit.dart';
 
-const _violet = Color(0xFF7C3AED);
-const _red = Color(0xFFEF4444);
-const _green = Color(0xFF059669);
-const _blue700 = Color(0xFF1D4ED8);
+import 'package:poultrycore_mobile/design/tone.dart';
+const _violet = Tone.bg(0xFF7C3AED);
+const _red = Tone(0xFFEF4444);
+const _green = Tone(0xFF059669);
+const _blue700 = Tone(0xFF1D4ED8);
 
 /// `r.camelKey ?? r.lowercasekey`, as every page reads its rows.
 Object? _v(Map r, String k) => r[k] ?? r[k.toLowerCase()];
@@ -35,12 +36,12 @@ Widget _pill(String text, Color bg, Color fg) => Container(
       child: Text(text, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: fg)),
     );
 
-const _bBlue = (Color(0xFFDBEAFE), Color(0xFF1D4ED8));
-const _bGreen = (Color(0xFFDCFCE7), Color(0xFF15803D));
-const _bSlate = (Color(0xFFF1F5F9), Color(0xFF334155));
-const _bRed = (Color(0xFFFEE2E2), Color(0xFFB91C1C));
-const _bAmber = (Color(0xFFFEF3C7), Color(0xFFB45309));
-const _bIndigo = (Color(0xFFE0E7FF), Color(0xFF4338CA));
+const _bBlue = (Tone(0xFFDBEAFE), Tone(0xFF1D4ED8));
+const _bGreen = (Tone(0xFFDCFCE7), Tone(0xFF15803D));
+const _bSlate = (Tone(0xFFF1F5F9), Tone(0xFF334155));
+const _bRed = (Tone(0xFFFEE2E2), Tone(0xFFB91C1C));
+const _bAmber = (Tone(0xFFFEF3C7), Tone(0xFFB45309));
+const _bIndigo = (Tone(0xFFE0E7FF), Tone(0xFF4338CA));
 
 Widget _badge(String text, (Color, Color) tone) => _pill(text, tone.$1, tone.$2);
 
@@ -325,13 +326,13 @@ final _cashFlowReport = RDef(
           null,
           BarChartRows(items: days, series: [
             ('Inflow', _green, [for (final d in days) byDay[d]!.$1], f.money),
-            ('Outflow', const Color(0xFFDC2626), [for (final d in days) byDay[d]!.$2], f.money),
+            ('Outflow', const Tone(0xFFDC2626), [for (final d in days) byDay[d]!.$2], f.money),
           ]),
         ),
       if (accounts.isNotEmpty)
         _table('By Account', [
           RCol('name', 'Account', (x, f) => tStr(x['name']), render: (x, f) => Wrap(spacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                Text(tStr(x['name']), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: TColors.slate900)),
+                Text(tStr(x['name']), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Tone.fg(0xFF0F172A))),
                 if (tStr(x['purpose']).isNotEmpty) toneBadge(tStr(x['purpose']), 'muted'),
               ])),
           _money('in', 'In', (x) => tNum(x['in']), color: emerald700),
@@ -355,7 +356,7 @@ final _cashFlowReport = RDef(
     RCol('date', 'Date', (t, f) => _day(t, 'txnDate')),
     RCol('account', 'Account', (t, f) => _or(_s(t, 'accountName'))),
     RCol('type', 'Type', (t, f) => _s(t, 'txnType'),
-        render: (t, f) => _isCredit(t) ? _badge('↙ In', (const Color(0xFFD1FAE5), emerald700)) : _badge('↗ Out', _bRed)),
+        render: (t, f) => _isCredit(t) ? _badge('↙ In', (const Tone(0xFFD1FAE5), emerald700)) : _badge('↗ Out', _bRed)),
     RCol('description', 'Description', (t, f) => _or(_s(t, 'description'))),
     RCol('source', 'Source', (t, f) => _s(t, 'sourceType'), render: (t, f) => toneBadge(_or(_s(t, 'sourceType')), 'muted')),
     RCol('reference', 'Reference', (t, f) => _or(_s(t, 'reference'))),
@@ -385,7 +386,7 @@ Widget _bookingStatus(String status) => switch (status.toLowerCase()) {
       'checkedout' => _badge('Checked Out', _bSlate),
       'cancelled' => _badge('Cancelled', _bRed),
       'pending' => _badge('Pending', _bAmber),
-      _ => _badge(status, (const Color(0xFFF1F5F9), const Color(0xFF475569))),
+      _ => _badge(status, (const Tone(0xFFF1F5F9), const Tone(0xFF475569))),
     };
 
 final _bookingsReport = RDef(
@@ -503,14 +504,14 @@ Widget _priority(String p) => switch (p.toLowerCase()) {
       'high' || 'urgent' => _badge(p, _bRed),
       'medium' || 'normal' => _badge(p, _bAmber),
       'low' => _badge(p, _bGreen),
-      _ => _badge(p, (const Color(0xFFF1F5F9), const Color(0xFF475569))),
+      _ => _badge(p, (const Tone(0xFFF1F5F9), const Tone(0xFF475569))),
     };
 
 Widget _maintenanceStatus(String s) => switch (s.toLowerCase()) {
       'open' => _badge('Open', _bRed),
       'inprogress' => _badge('In Progress', _bAmber),
       'completed' => _badge('Completed', _bGreen),
-      _ => _badge(s, (const Color(0xFFF1F5F9), const Color(0xFF475569))),
+      _ => _badge(s, (const Tone(0xFFF1F5F9), const Tone(0xFF475569))),
     };
 
 final _maintenanceReport = RDef(
@@ -551,7 +552,7 @@ Widget _orderStatus(String s) => switch (s.toLowerCase()) {
       'ready' => _badge('Ready', _bIndigo),
       'served' => _badge('Served', _bGreen),
       'cancelled' => _badge('Cancelled', _bRed),
-      _ => _badge(s, (const Color(0xFFF1F5F9), const Color(0xFF475569))),
+      _ => _badge(s, (const Tone(0xFFF1F5F9), const Tone(0xFF475569))),
     };
 
 final _restaurantSales = RDef(
@@ -588,7 +589,7 @@ final _restaurantSales = RDef(
   columns: [
     RCol('date', 'Date', (r, f) => _day(r, 'orderTime')),
     RCol('order', 'Order #', (r, f) => _s(r, 'hotelRestaurantOrderId'), render: (r, f) => Text('#${_s(r, 'hotelRestaurantOrderId')}',
-        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: TColors.slate900))),
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Tone.fg(0xFF0F172A)))),
     RCol('table', 'Table', (r, f) => _or(_s(r, 'tableNumber'))),
     RCol('server', 'Server', (r, f) => _or(_s(r, 'serverName'))),
     RCol('subtotal', 'Subtotal', (r, f) => f.num_(_n(r, 'subTotal')), numeric: true),
@@ -903,7 +904,7 @@ final _monthlyReport = RDef(
     return _gap([
       _table('Monthly Totals', _monthMetricColumns, r.rows, f),
       if (m['empty'] == true)
-        const Text('No data found for this month.', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: TColors.slate400)),
+        const Text('No data found for this month.', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: Tone.fg(0xFF7F8EA3))),
     ]);
   },
   columns: _monthWeekColumns,

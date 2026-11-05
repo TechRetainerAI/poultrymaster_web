@@ -8,6 +8,7 @@
 
 import 'package:flutter/material.dart';
 
+import 'package:poultrycore_mobile/design/tone.dart';
 enum ChartPeriod { days, weeks, months, years }
 
 const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -122,7 +123,7 @@ class ChartPeriodPicker extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(3),
-        decoration: BoxDecoration(color: const Color(0xFFF0EFEC), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: const Tone.bg(0xFFF0EFEC), borderRadius: BorderRadius.circular(12)),
         child: Row(children: [
           for (final p in ChartPeriod.values)
             Expanded(
@@ -136,7 +137,7 @@ class ChartPeriodPicker extends StatelessWidget {
                     duration: const Duration(milliseconds: 180),
                     padding: const EdgeInsets.symmetric(vertical: 9),
                     decoration: BoxDecoration(
-                      color: p == value ? Colors.white : Colors.transparent,
+                      color: p == value ? Tone.bg(0xFFFFFFFF) : Colors.transparent,
                       borderRadius: BorderRadius.circular(9),
                       boxShadow: p == value ? const [BoxShadow(color: Color(0x1A000000), blurRadius: 4, offset: Offset(0, 1))] : null,
                     ),
@@ -146,7 +147,7 @@ class ChartPeriodPicker extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: p == value ? FontWeight.w700 : FontWeight.w500,
-                        color: p == value ? const Color(0xFF0B0B0B) : const Color(0xFF52514E),
+                        color: p == value ? const Tone.fg(0xFF0B0B0B) : const Tone.fg(0xFF52514E),
                       ),
                     ),
                   ),
