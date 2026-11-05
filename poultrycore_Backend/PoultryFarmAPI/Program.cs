@@ -430,6 +430,12 @@ builder.Services.AddScoped<IGenericCompanyService>(sp => new GenericCompanyServi
 builder.Services.AddScoped<IGenericProductService>(sp => new GenericProductService(connectionString));
 builder.Services.AddScoped<IGenericServiceCatalogService>(sp => new GenericServiceCatalogService(connectionString));
 builder.Services.AddScoped<IGenericInventoryService>(sp => new GenericInventoryService(connectionString));
+builder.Services.AddScoped<IGenericDeliveryService>(sp => new GenericDeliveryService(connectionString));
+builder.Services.AddScoped<IGenericLoanService>(sp => new GenericLoanService(connectionString));
+builder.Services.AddScoped<IGenericAssetService>(sp => new GenericAssetService(connectionString));
+builder.Services.AddScoped<IGenericCustomerCreditService>(sp => new GenericCustomerCreditService(connectionString));
+builder.Services.AddScoped<IGenericSupplierCreditService>(sp => new GenericSupplierCreditService(connectionString));
+builder.Services.AddScoped<IGenericDeferredCostService>(sp => new GenericDeferredCostService(connectionString));
 
 // Phase 3: Customers + Sales + Customer Payments + Cash Transactions.
 // Sale_Approve is the meaty one: writes stock movement SaleOut per product,
@@ -479,6 +485,7 @@ builder.Services.AddScoped<IPoultryAdvancedReportService>(sp => new PoultryAdvan
 builder.Services.AddScoped<IGenericStaffService>(sp => new GenericStaffService(connectionString));
 builder.Services.AddScoped<IGenericStaffAttendanceService>(sp => new GenericStaffAttendanceService(connectionString));
 builder.Services.AddScoped<IGenericPayrollService>(sp => new GenericPayrollService(connectionString));
+builder.Services.AddScoped<IGenericEmployeeLoanService>(sp => new GenericEmployeeLoanService(connectionString));
 // =================================================================
 
 // =================================================================

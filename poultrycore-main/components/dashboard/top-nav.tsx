@@ -347,10 +347,7 @@ function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePerm
         <NavLink item={{ href: "/generic-dashboard", label: "Dashboard", icon: Home }} accent="emerald" />
         <div className="h-5 w-px bg-white/30 mx-1" />
 
-        {/* Quick Sale — only for retail/service businesses */}
-        {!isSub && (
-          <NavLink item={{ href: "/generic-pos", label: "Quick Sale", icon: Zap }} accent="emerald" />
-        )}
+        {/* Quick Sale hidden — only Sales is shown */}
 
         {/* Catalog & Stock — retail businesses */}
         {nav.catalog.length > 0 && (

@@ -96,18 +96,42 @@ function GenericSetupWizardContent() {
       router.replace("/dashboard")
       return
     }
-    // Pre-select whatever this company is already on
+
+    // When an industry param is present (from company creation), auto-apply
+    // the template and go straight to the dashboard — no wizard needed.
+    const industryParam = searchParams.get("industry")
+
     getBusinessTemplate().catch(() => null)
-      .then((template) => {
-        const existing = template?.genericIndustryTemplate ?? searchParams.get("industry")
-        if (existing) {
-          setChoice(CHOICES.find((c) => c.industryTemplate === existing) ?? null)
-          // If already templated, skip the welcome
-          if (template?.genericIndustryTemplate) setStep(1)
+      .then(async (template) => {
+        // Already templated → skip to dashboard
+        if (template?.genericIndustryTemplate) {
+          router.replace("/generic-dashboard")
+          return
         }
+
+        // Industry param from company creation → auto-apply and go to dashboard
+        if (industryParam) {
+          const match = CHOICES.find((c) => c.industryTemplate === industryParam)
+          if (match?.businessTemplate && match?.industryTemplate) {
+            try {
+              const profile = await getProfile().catch(() => null)
+              if (!profile) await setupProfile({})
+              await applyBusinessTemplate({
+                businessTemplate: match.businessTemplate,
+                industryTemplate: match.industryTemplate,
+              })
+              invalidateGenericModules(activeFarmId ?? undefined)
+            } catch {}
+            router.replace("/generic-dashboard")
+            return
+          }
+        }
+
+        // No param → show wizard normally
+        setLoading(false)
       })
-      .finally(() => setLoading(false))
-  }, [activeFarmType, router, searchParams])
+      .catch(() => setLoading(false))
+  }, [activeFarmType, activeFarmId, router, searchParams])
 
   // Apply template and auto-configure — no manual feature selection needed
   const onApply = async () => {

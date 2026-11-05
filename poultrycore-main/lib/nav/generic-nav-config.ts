@@ -10,9 +10,9 @@
  */
 
 import {
-  Activity, AlertTriangle, Banknote, BarChart3, Boxes, CalendarClock, CalendarDays,
-  ClipboardCheck, CreditCard, DollarSign, FileText, GraduationCap, HandCoins,
-  Package, PackageMinus, Receipt, Repeat, Scale, Settings, TrendingUp,
+  Activity, AlertTriangle, ArrowUpDown, Banknote, BarChart3, Boxes, Building2, CalendarClock, CalendarDays,
+  ClipboardCheck, CreditCard, DollarSign, FileText, Gift, GraduationCap, HandCoins, Landmark,
+  Package, PackageMinus, Receipt, Repeat, Scale, Settings, Timer, TrendingUp,
   ShoppingBag, ShoppingCart, Truck, User, Users, Users2, Wallet, Zap, Cog,
 } from "lucide-react"
 import type { MegaMenuGroup, MegaMenuItem } from "./nav-model"
@@ -67,8 +67,7 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
     key: "sales",
     label: isSub ? `${labels.customerPlural} & Payments` : "Sales",
     items: gated([
-      ...(!isSub ? [item("/generic-pos",             "Quick Sale",    Zap, canSee("/generic-pos"))]          : []),
-      ...(!isSub ? [item("/generic-pos?tab=sales", "Sales History", ShoppingCart, canSee("/generic-pos?tab=sales"))] : []),
+      ...(!isSub ? [item("/generic-sales", "Sales", ShoppingCart, canSee("/generic-sales"))] : []),
       ...(showNew("enableInvoices") && !isSub
         ? [item("/generic-invoices", labels.invoicePlural, FileText)]
         : []),
@@ -77,6 +76,7 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
       ...(showNew("enableCustomerBalances")
         ? [item("/generic-customer-balances", labels.customerBalance, Scale, canSee("/generic-customer-balances"))]
         : []),
+      item("/generic-customer-credits", "Customer Credits", Gift, canSee("/generic-customer-credits")),
     ]),
   }]
 
@@ -89,11 +89,14 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
       ? [item("/generic-inventory", "Inventory & Purchases", Boxes)] : []),
     ...(showExisting("enableStockAdjustments")
       ? [item("/generic-inventory?tab=adjustments", "Stock adjustments", Boxes)] : []),
+    ...(showExisting("enableInventory")
+      ? [item("/generic-stock-movements", "Stock Movements", ArrowUpDown)] : []),
     ...(showExisting("enablePurchases")
       ? [item("/generic-purchases/new", "Record Purchase", ShoppingCart)] : []),
     ...(showExisting("enableInternalUse")
       ? [item("/generic-internal-use", "Internal Use", PackageMinus)] : []),
     item("/generic-loss-records", "Loss & Damage", AlertTriangle),
+    item("/generic-deliveries", "Deliveries", Truck),
   ]
   if (catalogItems.length > 0) {
     catalog.push({ key: "catalog", label: "Catalog & Stock", items: catalogItems })
@@ -111,10 +114,13 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
       ...(showExisting("enableSupplierBalances")
         ? [item("/generic-supplier-balances", isSub ? "Vendor balances" : "Supplier balances", Scale, canSee("/generic-supplier-balances"))]
         : []),
+      item("/generic-supplier-credits",  isSub ? "Vendor credits" : "Supplier Credits & Advances", HandCoins, canSee("/generic-supplier-credits")),
       item("/generic-expenses",          "Expenses",          DollarSign, canSee("/generic-expenses")),
       ...(showExisting("enableRecurringExpenses")
         ? [item("/recurring-expenses", "Recurring expenses", Repeat, canSee("/recurring-expenses"))]
         : []),
+      item("/generic-deferred-costs",    "Deferred Inventory Cost", Timer, canSee("/generic-deferred-costs")),
+      item("/generic-assets",            "Capital Investments/Assets", Building2, canSee("/generic-assets")),
     ]),
   }]
 
@@ -133,6 +139,7 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
       ] : []),
       item("/generic-daily-closings", "Daily Closing",                       FileText, canSee("/generic-daily-closings")),
       item("/generic-owner-money",    isSub ? "Owner funds" : "Owner money", Wallet, canSee("/generic-owner-money")),
+      item("/generic-loans",          "Loans (Financing)",                   Landmark, canSee("/generic-loans")),
     ]),
   }]
 

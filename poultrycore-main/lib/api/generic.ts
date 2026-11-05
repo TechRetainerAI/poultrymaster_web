@@ -1163,6 +1163,230 @@ export async function cancelCashTransfer(id: number): Promise<void> {
 }
 
 // =============================================================================
+// Customer Credits
+// =============================================================================
+
+export interface GenericCustomerCredit {
+  genericCustomerCreditId: number; farmId: string; genericCustomerId: number
+  customerName: string | null; creditType: string; amount: number
+  remainingBalance: number; creditDate: string; notes: string | null
+  status: string; createdAt: string
+}
+
+export async function getCustomerCredits(): Promise<GenericCustomerCredit[]> {
+  return getJson<GenericCustomerCredit[]>(`${farmBase()}/customer-credits`)
+}
+
+export async function createCustomerCredit(input: {
+  genericCustomerId: number; creditType: string; amount: number
+  creditDate?: string; notes?: string
+}): Promise<number> {
+  return postJson<number>(`${farmBase()}/customer-credits`, withFarmId(input))
+}
+
+// =============================================================================
+// Supplier Credits
+// =============================================================================
+
+export interface GenericSupplierCredit {
+  genericSupplierCreditId: number; farmId: string; genericSupplierId: number
+  supplierName: string | null; creditType: string; amount: number
+  remainingBalance: number; creditDate: string; notes: string | null
+  status: string; createdAt: string
+}
+
+export async function getSupplierCredits(): Promise<GenericSupplierCredit[]> {
+  return getJson<GenericSupplierCredit[]>(`${farmBase()}/supplier-credits`)
+}
+
+export async function createSupplierCredit(input: {
+  genericSupplierId: number; creditType: string; amount: number
+  creditDate?: string; notes?: string
+}): Promise<number> {
+  return postJson<number>(`${farmBase()}/supplier-credits`, withFarmId(input))
+}
+
+// =============================================================================
+// Deferred Inventory Cost
+// =============================================================================
+
+export interface GenericDeferredCost {
+  genericProductId: number; productName: string
+  totalPurchased: number; totalSoldCost: number
+  deferredBalance: number; currentStock: number
+}
+
+export async function getDeferredCosts(): Promise<GenericDeferredCost[]> {
+  return getJson<GenericDeferredCost[]>(`${farmBase()}/deferred-costs`)
+}
+
+// =============================================================================
+// Loans (Financing)
+// =============================================================================
+
+export interface GenericLoan {
+  genericLoanId: number; farmId: string; lenderName: string
+  originalPrincipal: number; amountReceived: number; interestRate: number
+  totalInterestPaid: number; totalFeesPaid: number; totalPrincipalPaid: number
+  outstandingBalance: number; loanDate: string; startDate: string | null
+  dueDate: string | null; status: string; notes: string | null; createdAt: string
+}
+
+export interface GenericLoanPayment {
+  genericLoanPaymentId: number; genericLoanId: number; paymentDate: string
+  principalAmount: number; interestAmount: number; feeAmount: number
+  totalPayment: number; notes: string | null; isReversed: boolean; createdAt: string
+}
+
+export async function getLoans(): Promise<GenericLoan[]> {
+  return getJson<GenericLoan[]>(`${farmBase()}/loans`)
+}
+
+export async function createLoan(input: {
+  lenderName: string; originalPrincipal: number; amountReceived: number; interestRate: number
+  loanDate: string; startDate?: string; dueDate?: string
+  genericCashAccountId?: number | null; notes?: string
+}): Promise<number> {
+  return postJson<number>(`${farmBase()}/loans`, withFarmId(input))
+}
+
+export async function getLoanPayments(loanId: number): Promise<GenericLoanPayment[]> {
+  return getJson<GenericLoanPayment[]>(`${farmBase()}/loans/${loanId}/payments`)
+}
+
+export async function repayLoan(loanId: number, input: {
+  principalAmount: number; interestAmount: number; feeAmount: number
+  paymentDate?: string; genericCashAccountId?: number | null; notes?: string
+}): Promise<number> {
+  return postJson<number>(`${farmBase()}/loans/${loanId}/repay`, withFarmId(input))
+}
+
+// =============================================================================
+// Capital Assets
+// =============================================================================
+
+export interface GenericAsset {
+  genericAssetId: number; farmId: string; assetName: string; category: string | null
+  purchaseDate: string; purchaseCost: number; currentValue: number; totalDepreciation: number
+  usefulLifeMonths: number | null; depreciationMethod: string | null; status: string
+  disposalDate: string | null; disposalAmount: number | null
+  location: string | null; serialNumber: string | null; notes: string | null; createdAt: string
+}
+
+export async function getAssets(): Promise<GenericAsset[]> {
+  return getJson<GenericAsset[]>(`${farmBase()}/assets`)
+}
+
+export async function createAsset(input: {
+  assetName: string; category?: string; purchaseDate: string; purchaseCost: number
+  usefulLifeMonths?: number; depreciationMethod?: string
+  location?: string; serialNumber?: string; notes?: string
+}): Promise<number> {
+  return postJson<number>(`${farmBase()}/assets`, withFarmId(input))
+}
+
+export async function disposeAsset(assetId: number, input: {
+  disposalDate?: string; disposalAmount: number
+}): Promise<void> {
+  await postJson(`${farmBase()}/assets/${assetId}/dispose`, withFarmId(input))
+}
+
+export async function depreciateAsset(assetId: number, amount: number): Promise<void> {
+  await postJson(`${farmBase()}/assets/${assetId}/depreciate`, amount)
+}
+
+// =============================================================================
+// Deliveries
+// =============================================================================
+
+export interface GenericDelivery {
+  genericDeliveryId: number
+  farmId: string
+  deliveryDate: string
+  driverName: string | null
+  vehicleName: string | null
+  route: string | null
+  genericProductId: number
+  productName: string | null
+  quantityLoaded: number
+  unit: string | null
+  unitPrice: number
+  quantitySold: number
+  quantityReturned: number
+  quantityDamaged: number
+  quantityShort: number
+  cashCollected: number
+  creditSales: number
+  deliveryExpenses: number
+  totalSales: number
+  status: string
+  notes: string | null
+  createdAt: string
+  reconciledAt: string | null
+}
+
+export async function getDeliveries(status?: string | null): Promise<GenericDelivery[]> {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : ""
+  return getJson<GenericDelivery[]>(`${farmBase()}/deliveries${qs}`)
+}
+
+export async function loadDelivery(input: {
+  genericProductId: number; quantityLoaded: number; unit: string; unitPrice: number
+  driverName: string; vehicleName: string; route: string; deliveryDate: string; notes: string
+}): Promise<number> {
+  return postJson<number>(`${farmBase()}/deliveries/load`, withFarmId(input))
+}
+
+export async function reconcileDelivery(id: number, input: {
+  quantitySold: number; quantityReturned: number; quantityDamaged: number; quantityShort: number
+  cashCollected: number; creditSales: number; deliveryExpenses: number
+}): Promise<void> {
+  await postJson(`${farmBase()}/deliveries/${id}/reconcile`, withFarmId(input))
+}
+
+export async function reverseDelivery(id: number): Promise<void> {
+  await postJson(`${farmBase()}/deliveries/${id}/reverse`, {})
+}
+
+export async function cancelDelivery(id: number): Promise<void> {
+  await postJson(`${farmBase()}/deliveries/${id}/cancel`, {})
+}
+
+// =============================================================================
+// Part 2: stock movements
+// =============================================================================
+
+export interface GenericStockMovement {
+  genericStockMovementId: number
+  farmId: string
+  genericProductId: number
+  productName: string | null
+  inventoryLocationId: number | null
+  movementDate: string
+  movementType: string
+  quantity: number
+  unitCost: number | null
+  unitSellingPrice: number | null
+  totalCostValue: number | null
+  referenceType: string | null
+  referenceId: number | null
+  reason: string | null
+  createdBy: string | null
+  approvedBy: string | null
+  approvedAt: string | null
+  notes: string | null
+  createdAt: string
+}
+
+export async function getStockMovements(fromDate?: string, toDate?: string): Promise<GenericStockMovement[]> {
+  const qs = new URLSearchParams()
+  if (fromDate) qs.append("fromDate", fromDate)
+  if (toDate) qs.append("toDate", toDate)
+  const q = qs.toString()
+  return getJson<GenericStockMovement[]>(`${farmBase()}/inventory/movements${q ? `?${q}` : ""}`)
+}
+
+// =============================================================================
 // Part 2: stock adjustments
 // =============================================================================
 
