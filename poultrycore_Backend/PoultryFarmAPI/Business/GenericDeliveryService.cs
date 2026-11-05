@@ -13,6 +13,9 @@ namespace PoultryFarmAPIWeb.Business
         Task CancelAsync(int id, string farmId);
         Task DispatchAsync(int id, string farmId);
         Task MarkDeliveredAsync(int id, string farmId);
+        Task<List<GenericDriverReportRow>> DriverReportAsync(string farmId, DateTime? fromDate, DateTime? toDate, string? driverName);
+        Task<List<GenericProductDeliveryRow>> ProductReportAsync(string farmId, DateTime? fromDate, DateTime? toDate);
+        Task<List<GenericRouteReportRow>> RouteReportAsync(string farmId, DateTime? fromDate, DateTime? toDate);
     }
 
     public class GenericDeliveryService : IGenericDeliveryService
@@ -160,6 +163,75 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@By", DBNull.Value);
             await c.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task<List<GenericDriverReportRow>> DriverReportAsync(string farmId, DateTime? fromDate, DateTime? toDate, string? driverName)
+        {
+            var list = new List<GenericDriverReportRow>();
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM spgenericdelivery_driver_report(p_farmid=>@FarmId::text, p_fromdate=>@From::date, p_todate=>@To::date, p_drivername=>@Driver::text)", c);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@From", (object?)fromDate ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@To", (object?)toDate ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Driver", (object?)driverName ?? DBNull.Value);
+            await c.OpenAsync(); using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync()) list.Add(new GenericDriverReportRow
+            {
+                DriverName = r.Str("DriverName"), TotalDeliveries = r.GetInt64(r.GetOrdinal("TotalDeliveries")),
+                TotalLoaded = r.Dec("TotalLoaded"), TotalSold = r.Dec("TotalSold"),
+                TotalReturned = r.Dec("TotalReturned"), TotalDamaged = r.Dec("TotalDamaged"),
+                TotalShort = r.Dec("TotalShort"), TotalSales = r.Dec("TotalSales"),
+                TotalCashCollected = r.Dec("TotalCashCollected"), TotalCreditSales = r.Dec("TotalCreditSales"),
+                TotalExpenses = r.Dec("TotalExpenses"), DeliveryRate = r.Dec("DeliveryRate"),
+                LoadedDeliveries = r.GetInt64(r.GetOrdinal("LoadedDeliveries")),
+                InTransitDeliveries = r.GetInt64(r.GetOrdinal("InTransitDeliveries")),
+                DeliveredDeliveries = r.GetInt64(r.GetOrdinal("DeliveredDeliveries")),
+                ReconciledDeliveries = r.GetInt64(r.GetOrdinal("ReconciledDeliveries")),
+                CancelledDeliveries = r.GetInt64(r.GetOrdinal("CancelledDeliveries")),
+            });
+            return list;
+        }
+
+        public async Task<List<GenericProductDeliveryRow>> ProductReportAsync(string farmId, DateTime? fromDate, DateTime? toDate)
+        {
+            var list = new List<GenericProductDeliveryRow>();
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM spgenericdelivery_product_report(p_farmid=>@FarmId::text, p_fromdate=>@From::date, p_todate=>@To::date)", c);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@From", (object?)fromDate ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@To", (object?)toDate ?? DBNull.Value);
+            await c.OpenAsync(); using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync()) list.Add(new GenericProductDeliveryRow
+            {
+                ProductName = r.Str("ProductName"), TotalDeliveries = r.GetInt64(r.GetOrdinal("TotalDeliveries")),
+                TotalLoaded = r.Dec("TotalLoaded"), TotalSold = r.Dec("TotalSold"),
+                TotalReturned = r.Dec("TotalReturned"), TotalDamaged = r.Dec("TotalDamaged"),
+                TotalShort = r.Dec("TotalShort"), TotalSales = r.Dec("TotalSales"),
+                SellThroughRate = r.Dec("SellThroughRate"),
+            });
+            return list;
+        }
+
+        public async Task<List<GenericRouteReportRow>> RouteReportAsync(string farmId, DateTime? fromDate, DateTime? toDate)
+        {
+            var list = new List<GenericRouteReportRow>();
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM spgenericdelivery_route_report(p_farmid=>@FarmId::text, p_fromdate=>@From::date, p_todate=>@To::date)", c);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@From", (object?)fromDate ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@To", (object?)toDate ?? DBNull.Value);
+            await c.OpenAsync(); using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync()) list.Add(new GenericRouteReportRow
+            {
+                Route = r.Str("Route"), TotalDeliveries = r.GetInt64(r.GetOrdinal("TotalDeliveries")),
+                TotalLoaded = r.Dec("TotalLoaded"), TotalSold = r.Dec("TotalSold"),
+                TotalSales = r.Dec("TotalSales"), TotalExpenses = r.Dec("TotalExpenses"),
+                NetRevenue = r.Dec("NetRevenue"),
+            });
+            return list;
         }
     }
 }

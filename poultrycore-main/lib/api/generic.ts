@@ -1365,6 +1365,51 @@ export async function markDeliveryDelivered(id: number): Promise<void> {
   await postJson(`${farmBase()}/deliveries/${id}/mark-delivered`, {})
 }
 
+// Delivery reports
+export interface GenericDriverReport {
+  driverName: string; totalDeliveries: number; totalLoaded: number; totalSold: number
+  totalReturned: number; totalDamaged: number; totalShort: number; totalSales: number
+  totalCashCollected: number; totalCreditSales: number; totalExpenses: number; deliveryRate: number
+  loadedDeliveries: number; inTransitDeliveries: number; deliveredDeliveries: number
+  reconciledDeliveries: number; cancelledDeliveries: number
+}
+
+export interface GenericProductDeliveryReport {
+  productName: string; totalDeliveries: number; totalLoaded: number; totalSold: number
+  totalReturned: number; totalDamaged: number; totalShort: number; totalSales: number
+  sellThroughRate: number
+}
+
+export interface GenericRouteReport {
+  route: string; totalDeliveries: number; totalLoaded: number; totalSold: number
+  totalSales: number; totalExpenses: number; netRevenue: number
+}
+
+export async function getDriverReport(fromDate?: string, toDate?: string, driverName?: string): Promise<GenericDriverReport[]> {
+  const qs = new URLSearchParams()
+  if (fromDate) qs.append("fromDate", fromDate)
+  if (toDate) qs.append("toDate", toDate)
+  if (driverName) qs.append("driverName", driverName)
+  const q = qs.toString()
+  return getJson<GenericDriverReport[]>(`${farmBase()}/deliveries/reports/by-driver${q ? `?${q}` : ""}`)
+}
+
+export async function getProductDeliveryReport(fromDate?: string, toDate?: string): Promise<GenericProductDeliveryReport[]> {
+  const qs = new URLSearchParams()
+  if (fromDate) qs.append("fromDate", fromDate)
+  if (toDate) qs.append("toDate", toDate)
+  const q = qs.toString()
+  return getJson<GenericProductDeliveryReport[]>(`${farmBase()}/deliveries/reports/by-product${q ? `?${q}` : ""}`)
+}
+
+export async function getRouteReport(fromDate?: string, toDate?: string): Promise<GenericRouteReport[]> {
+  const qs = new URLSearchParams()
+  if (fromDate) qs.append("fromDate", fromDate)
+  if (toDate) qs.append("toDate", toDate)
+  const q = qs.toString()
+  return getJson<GenericRouteReport[]>(`${farmBase()}/deliveries/reports/by-route${q ? `?${q}` : ""}`)
+}
+
 // =============================================================================
 // Part 2: stock movements
 // =============================================================================

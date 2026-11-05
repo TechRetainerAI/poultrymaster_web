@@ -67,6 +67,7 @@ function retailReports(): ReportCard[] {
     { href: "/generic-reports/sales-by-product", title: "Sales by product", description: "Which products generated the most revenue this period.", icon: ShoppingCart, accent: "sky" },
     { href: "/generic-reports/sales-by-customer", title: "Sales by customer", description: "Top customers by revenue, including outstanding balances.", icon: Users, accent: "cyan" },
     { href: "/generic-reports/inventory-value", title: "Inventory value", description: "Stock value at cost and at retail, with a per-category breakdown.", icon: Boxes, accent: "orange" },
+    { href: "/generic-reports/delivery-report", title: "Delivery report", description: "Driver performance, product sell-through rates, and route profitability.", icon: Truck, accent: "emerald" },
   ]
 }
 
