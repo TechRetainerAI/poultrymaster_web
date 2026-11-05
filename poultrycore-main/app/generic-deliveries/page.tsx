@@ -33,7 +33,7 @@ import { cn } from "@/lib/utils"
 import {
   getDeliveries, loadDelivery, reconcileDelivery, reverseDelivery, cancelDelivery,
   dispatchDelivery, markDeliveryDelivered,
-  getProducts, getDrivers, getRoutes, getCustomers,
+  getProducts, getDrivers, getRoutes, getCustomers, createDriver, createRoute,
   type GenericDelivery, type GenericProduct, type GenericDriver, type GenericRoute, type GenericCustomer,
 } from "@/lib/api/generic"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
@@ -75,6 +75,11 @@ export default function GenericDeliveriesPage() {
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+
+  const [addDriverOpen, setAddDriverOpen] = useState(false)
+  const [addDriverForm, setAddDriverForm] = useState({ driverName: "", phoneNumber: "", vehicleName: "", transportMode: "Car" })
+  const [addRouteOpen, setAddRouteOpen] = useState(false)
+  const [addRouteForm, setAddRouteForm] = useState({ routeName: "", startPoint: "", endPoint: "" })
 
   const [recTarget, setRecTarget] = useState<GenericDelivery | null>(null)
   const [recForm, setRecForm] = useState({
@@ -179,6 +184,37 @@ export default function GenericDeliveriesPage() {
     setSaving(true)
     try { await reconcileDelivery(recTarget.genericDeliveryId, recForm); toast({ title: "Delivery reconciled" }); setRecTarget(null); await load() }
     catch (e: any) { toast({ title: "Reconcile failed", description: e?.message, variant: "destructive" }) }
+    finally { setSaving(false) }
+  }
+
+  async function doAddDriver() {
+    if (!addDriverForm.driverName.trim()) { toast({ title: "Driver name is required", variant: "destructive" }); return }
+    setSaving(true)
+    try {
+      await createDriver(addDriverForm)
+      toast({ title: `Driver "${addDriverForm.driverName}" added` })
+      setAddDriverOpen(false)
+      // Reload drivers and auto-select the new one
+      const newDrivers = await getDrivers()
+      setDriversList(newDrivers.filter((d) => d.isActive))
+      setLoadForm((f) => ({ ...f, driverName: addDriverForm.driverName, vehicleName: addDriverForm.vehicleName, transportMode: addDriverForm.transportMode }))
+      setAddDriverForm({ driverName: "", phoneNumber: "", vehicleName: "", transportMode: "Car" })
+    } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
+    finally { setSaving(false) }
+  }
+
+  async function doAddRoute() {
+    if (!addRouteForm.routeName.trim()) { toast({ title: "Route name is required", variant: "destructive" }); return }
+    setSaving(true)
+    try {
+      await createRoute(addRouteForm)
+      toast({ title: `Route "${addRouteForm.routeName}" added` })
+      setAddRouteOpen(false)
+      const newRoutes = await getRoutes()
+      setRoutesList(newRoutes.filter((r) => r.isActive))
+      setLoadForm((f) => ({ ...f, route: addRouteForm.routeName, startPoint: addRouteForm.startPoint, destination: addRouteForm.endPoint }))
+      setAddRouteForm({ routeName: "", startPoint: "", endPoint: "" })
+    } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
     finally { setSaving(false) }
   }
 
@@ -378,22 +414,24 @@ export default function GenericDeliveriesPage() {
           {/* Driver + Transport section */}
           <FormSection title="Driver & Transport" color="blue">
             <FormField label="Driver *">
-              {driversList.length > 0 ? (
-                <Select value={loadForm.driverName} onValueChange={(v) => {
-                  const dr = driversList.find((d) => d.driverName === v)
-                  setLoadForm({ ...loadForm, driverName: v, vehicleName: dr?.vehicleName ?? "", transportMode: dr?.transportMode ?? "Car" })
-                }}>
-                  <SelectTrigger><SelectValue placeholder="Select driver" /></SelectTrigger>
-                  <SelectContent>{driversList.map((d) => (
-                    <SelectItem key={d.genericDriverId} value={d.driverName}>{d.driverName}{d.transportMode ? ` (${d.transportMode})` : ""}</SelectItem>
-                  ))}</SelectContent>
-                </Select>
-              ) : (
-                <div className="space-y-1">
-                  <Input value={loadForm.driverName} onChange={(e) => setLoadForm({ ...loadForm, driverName: e.target.value })} placeholder="Type driver name" />
-                  <p className="text-xs text-slate-400">No drivers set up. <Link href="/generic-drivers" className="text-emerald-600 underline">Add drivers</Link></p>
-                </div>
-              )}
+              <div className="flex gap-2">
+                {driversList.length > 0 ? (
+                  <Select value={loadForm.driverName} onValueChange={(v) => {
+                    const dr = driversList.find((d) => d.driverName === v)
+                    setLoadForm({ ...loadForm, driverName: v, vehicleName: dr?.vehicleName ?? "", transportMode: dr?.transportMode ?? "Car" })
+                  }}>
+                    <SelectTrigger className="flex-1"><SelectValue placeholder="Select driver" /></SelectTrigger>
+                    <SelectContent>{driversList.map((d) => (
+                      <SelectItem key={d.genericDriverId} value={d.driverName}>{d.driverName}{d.transportMode ? ` (${d.transportMode})` : ""}</SelectItem>
+                    ))}</SelectContent>
+                  </Select>
+                ) : (
+                  <Input className="flex-1" value={loadForm.driverName} onChange={(e) => setLoadForm({ ...loadForm, driverName: e.target.value })} placeholder="Type driver name" />
+                )}
+                <Button type="button" variant="outline" size="sm" className="shrink-0 whitespace-nowrap" onClick={() => setAddDriverOpen(true)}>
+                  <Plus className="h-3 w-3 mr-1" /> Add Driver
+                </Button>
+              </div>
             </FormField>
             <FormField label="Vehicle">
               <Input value={loadForm.vehicleName} onChange={(e) => setLoadForm({ ...loadForm, vehicleName: e.target.value })} />
@@ -409,24 +447,26 @@ export default function GenericDeliveriesPage() {
           {/* Route + Destination section */}
           <FormSection title="Route & Destination" color="emerald">
             <FormField label="Route">
-              {routesList.length > 0 ? (
-                <Select value={loadForm.route} onValueChange={(v) => {
-                  const rt = routesList.find((r) => r.routeName === v)
-                  setLoadForm({ ...loadForm, route: v, startPoint: rt?.startPoint ?? loadForm.startPoint, destination: rt?.endPoint ?? loadForm.destination })
-                }}>
-                  <SelectTrigger><SelectValue placeholder="Select delivery route" /></SelectTrigger>
-                  <SelectContent>{routesList.map((r) => (
-                    <SelectItem key={r.genericRouteId} value={r.routeName}>
-                      {r.routeName}{r.startPoint && r.endPoint ? ` (${r.startPoint} → ${r.endPoint})` : ""}
-                    </SelectItem>
-                  ))}</SelectContent>
-                </Select>
-              ) : (
-                <div className="space-y-1">
-                  <Input value={loadForm.route} onChange={(e) => setLoadForm({ ...loadForm, route: e.target.value })} placeholder="Type route name" />
-                  <p className="text-xs text-slate-400">No routes set up. <Link href="/generic-routes" className="text-emerald-600 underline">Add routes</Link></p>
-                </div>
-              )}
+              <div className="flex gap-2">
+                {routesList.length > 0 ? (
+                  <Select value={loadForm.route} onValueChange={(v) => {
+                    const rt = routesList.find((r) => r.routeName === v)
+                    setLoadForm({ ...loadForm, route: v, startPoint: rt?.startPoint ?? loadForm.startPoint, destination: rt?.endPoint ?? loadForm.destination })
+                  }}>
+                    <SelectTrigger className="flex-1"><SelectValue placeholder="Select delivery route" /></SelectTrigger>
+                    <SelectContent>{routesList.map((r) => (
+                      <SelectItem key={r.genericRouteId} value={r.routeName}>
+                        {r.routeName}{r.startPoint && r.endPoint ? ` (${r.startPoint} → ${r.endPoint})` : ""}
+                      </SelectItem>
+                    ))}</SelectContent>
+                  </Select>
+                ) : (
+                  <Input className="flex-1" value={loadForm.route} onChange={(e) => setLoadForm({ ...loadForm, route: e.target.value })} placeholder="Type route name" />
+                )}
+                <Button type="button" variant="outline" size="sm" className="shrink-0 whitespace-nowrap" onClick={() => setAddRouteOpen(true)}>
+                  <Plus className="h-3 w-3 mr-1" /> Add Route
+                </Button>
+              </div>
               {selectedRoute?.estimatedTime && (
                 <p className="text-xs text-emerald-600 mt-1">Est. time: {selectedRoute.estimatedTime}</p>
               )}
@@ -517,6 +557,44 @@ export default function GenericDeliveriesPage() {
               <Button onClick={doReconcile} disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Reconcile"}</Button>
             </div>
           </>)}
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick Add Driver dialog */}
+      <Dialog open={addDriverOpen} onOpenChange={setAddDriverOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Add Driver</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <FormField label="Name *"><Input value={addDriverForm.driverName} onChange={(e) => setAddDriverForm({ ...addDriverForm, driverName: e.target.value })} /></FormField>
+            <FormField label="Phone"><Input value={addDriverForm.phoneNumber} onChange={(e) => setAddDriverForm({ ...addDriverForm, phoneNumber: e.target.value })} /></FormField>
+            <FormField label="Vehicle"><Input value={addDriverForm.vehicleName} onChange={(e) => setAddDriverForm({ ...addDriverForm, vehicleName: e.target.value })} /></FormField>
+            <FormField label="Transport">
+              <Select value={addDriverForm.transportMode} onValueChange={(v) => setAddDriverForm({ ...addDriverForm, transportMode: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{TRANSPORT_MODES.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+              </Select>
+            </FormField>
+          </div>
+          <div className="flex justify-end gap-2 mt-2">
+            <Button variant="outline" onClick={() => setAddDriverOpen(false)}>Cancel</Button>
+            <Button onClick={doAddDriver} disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add Driver"}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick Add Route dialog */}
+      <Dialog open={addRouteOpen} onOpenChange={setAddRouteOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Add Route</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <FormField label="Route name *"><Input value={addRouteForm.routeName} onChange={(e) => setAddRouteForm({ ...addRouteForm, routeName: e.target.value })} /></FormField>
+            <FormField label="Start point"><Input value={addRouteForm.startPoint} onChange={(e) => setAddRouteForm({ ...addRouteForm, startPoint: e.target.value })} /></FormField>
+            <FormField label="End point"><Input value={addRouteForm.endPoint} onChange={(e) => setAddRouteForm({ ...addRouteForm, endPoint: e.target.value })} /></FormField>
+          </div>
+          <div className="flex justify-end gap-2 mt-2">
+            <Button variant="outline" onClick={() => setAddRouteOpen(false)}>Cancel</Button>
+            <Button onClick={doAddRoute} disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add Route"}</Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
