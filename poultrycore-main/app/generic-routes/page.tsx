@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { usePagination } from "@/hooks/use-pagination"
-import { MapPin, Plus, Loader2, Pencil, Trash2 } from "lucide-react"
+import { MapPin, Plus, Loader2, Pencil, Trash2, LocateFixed } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -34,6 +34,7 @@ export default function GenericRoutesPage() {
   const [editing, setEditing] = useState<GenericRoute | null>(null)
   const [deleting, setDeleting] = useState<GenericRoute | null>(null)
   const [saving, setSaving] = useState(false)
+  const [locating, setLocating] = useState(false)
   const [form, setForm] = useState(empty())
 
   const pg = usePagination(rows)
@@ -55,6 +56,30 @@ export default function GenericRoutesPage() {
     setEditing(r)
     setForm({ routeName: r.routeName, description: r.description ?? "", startPoint: r.startPoint ?? "", endPoint: r.endPoint ?? "", estimatedTime: r.estimatedTime ?? "", notes: r.notes ?? "" })
     setDialogOpen(true)
+  }
+
+  async function pickLocation(field: "startPoint" | "endPoint") {
+    if (!navigator.geolocation) { toast({ title: "Geolocation not supported by your browser", variant: "destructive" }); return }
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&zoom=16`)
+          const data = await res.json()
+          const name = data.display_name ?? `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`
+          setForm((f) => ({ ...f, [field]: name }))
+        } catch {
+          setForm((f) => ({ ...f, [field]: `${latitude.toFixed(5)}, ${longitude.toFixed(5)}` }))
+        }
+        setLocating(false)
+      },
+      (err) => {
+        toast({ title: "Could not get location", description: err.message, variant: "destructive" })
+        setLocating(false)
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    )
   }
 
   async function doSave() {
@@ -159,8 +184,24 @@ export default function GenericRoutesPage() {
           <FormSection title="Route details" color="indigo">
             <FormField label="Route name *"><Input value={form.routeName} onChange={(e) => setForm({ ...form, routeName: e.target.value })} /></FormField>
             <FormField label="Description"><Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></FormField>
-            <FormField label="Start point"><Input value={form.startPoint} onChange={(e) => setForm({ ...form, startPoint: e.target.value })} placeholder="Where the route starts" /></FormField>
-            <FormField label="End point"><Input value={form.endPoint} onChange={(e) => setForm({ ...form, endPoint: e.target.value })} placeholder="Where the route ends" /></FormField>
+            <FormField label="Start point">
+              <div className="flex gap-2">
+                <Input className="flex-1" value={form.startPoint} onChange={(e) => setForm({ ...form, startPoint: e.target.value })} placeholder="Where the route starts" />
+                <Button type="button" variant="outline" size="icon" className="shrink-0" disabled={locating}
+                  onClick={() => pickLocation("startPoint")} title="Use my current location">
+                  {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
+                </Button>
+              </div>
+            </FormField>
+            <FormField label="End point">
+              <div className="flex gap-2">
+                <Input className="flex-1" value={form.endPoint} onChange={(e) => setForm({ ...form, endPoint: e.target.value })} placeholder="Where the route ends" />
+                <Button type="button" variant="outline" size="icon" className="shrink-0" disabled={locating}
+                  onClick={() => pickLocation("endPoint")} title="Use my current location">
+                  {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
+                </Button>
+              </div>
+            </FormField>
             <FormField label="Estimated time"><Input value={form.estimatedTime} onChange={(e) => setForm({ ...form, estimatedTime: e.target.value })} placeholder="e.g. 2 hours" /></FormField>
             <FormField label="Notes"><Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></FormField>
           </FormSection>
