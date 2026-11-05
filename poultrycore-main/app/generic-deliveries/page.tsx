@@ -449,16 +449,28 @@ export default function GenericDeliveriesPage() {
                 </SelectContent>
               </Select>
             </FormField>
-            <FormField label="Route">
+            <FormField label="Route (driver picks)">
               {routesList.length > 0 ? (
-                <Select value={loadForm.route} onValueChange={(v) => setLoadForm({ ...loadForm, route: v })}>
-                  <SelectTrigger><SelectValue placeholder="Select route" /></SelectTrigger>
+                <Select value={loadForm.route} onValueChange={(v) => {
+                  const rt = routesList.find((r) => r.routeName === v)
+                  setLoadForm({ ...loadForm, route: v, destination: rt?.endPoint ?? loadForm.destination })
+                }}>
+                  <SelectTrigger><SelectValue placeholder="Select delivery route" /></SelectTrigger>
                   <SelectContent>
-                    {routesList.map((r) => <SelectItem key={r.genericRouteId} value={r.routeName}>{r.routeName}</SelectItem>)}
+                    {routesList.map((r) => (
+                      <SelectItem key={r.genericRouteId} value={r.routeName}>
+                        {r.routeName}{r.startPoint && r.endPoint ? ` (${r.startPoint} → ${r.endPoint})` : ""}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               ) : (
-                <Input value={loadForm.route} onChange={(e) => setLoadForm({ ...loadForm, route: e.target.value })} placeholder="Type route" />
+                <Input value={loadForm.route} onChange={(e) => setLoadForm({ ...loadForm, route: e.target.value })} placeholder="No routes set up — type one or add routes first" />
+              )}
+              {loadForm.route && routesList.find((r) => r.routeName === loadForm.route)?.estimatedTime && (
+                <p className="text-xs text-slate-500 mt-1">
+                  Est. time: {routesList.find((r) => r.routeName === loadForm.route)?.estimatedTime}
+                </p>
               )}
             </FormField>
             <FormField label="Date">
