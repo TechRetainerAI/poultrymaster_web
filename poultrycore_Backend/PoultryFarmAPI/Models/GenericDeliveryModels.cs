@@ -23,6 +23,7 @@ namespace PoultryFarmAPIWeb.Models
         public decimal TotalSales { get; set; }
         public string? CustomerName { get; set; }
         public string? Destination { get; set; }
+        public string? TransportMode { get; set; }
         public string Status { get; set; } = "Loaded";
         public string? Notes { get; set; }
         public DateTime CreatedAt { get; set; }
@@ -44,6 +45,7 @@ namespace PoultryFarmAPIWeb.Models
         public decimal UnitPrice { get; set; }
         public string? CustomerName { get; set; }
         public string? Destination { get; set; }
+        public string? TransportMode { get; set; }
         public string? Notes { get; set; }
         public string? CreatedBy { get; set; }
     }
@@ -51,6 +53,7 @@ namespace PoultryFarmAPIWeb.Models
     public class GenericDriverReportRow
     {
         public string DriverName { get; set; } = string.Empty;
+        public string? TransportMode { get; set; }
         public long TotalDeliveries { get; set; }
         public decimal TotalLoaded { get; set; }
         public decimal TotalSold { get; set; }
@@ -105,6 +108,7 @@ namespace PoultryFarmAPIWeb.Models
         public string? LicenseNumber { get; set; }
         public string? VehicleName { get; set; }
         public string? VehicleRegistration { get; set; }
+        public string? TransportMode { get; set; }
         public bool IsActive { get; set; } = true;
         public string? Notes { get; set; }
         public DateTime CreatedAt { get; set; }
@@ -118,6 +122,7 @@ namespace PoultryFarmAPIWeb.Models
         public string? LicenseNumber { get; set; }
         public string? VehicleName { get; set; }
         public string? VehicleRegistration { get; set; }
+        public string? TransportMode { get; set; }
         public bool IsActive { get; set; } = true;
         public string? Notes { get; set; }
         public string? CreatedBy { get; set; }

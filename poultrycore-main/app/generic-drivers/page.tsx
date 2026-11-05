@@ -14,13 +14,15 @@ import { Badge } from "@/components/ui/badge"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { usePagination } from "@/hooks/use-pagination"
-import { Users2, Plus, Loader2, Pencil, Trash2, Phone, Car } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Users2, Plus, Loader2, Pencil, Trash2 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { getDrivers, createDriver, updateDriver, deleteDriver, type GenericDriver } from "@/lib/api/generic"
 
-const empty = () => ({ driverName: "", phoneNumber: "", licenseNumber: "", vehicleName: "", vehicleRegistration: "", notes: "" })
+const TRANSPORT_MODES = ["Car", "Motorcycle", "Bicycle", "Truck", "Van", "Tricycle", "On Foot", "Other"]
+const empty = () => ({ driverName: "", phoneNumber: "", licenseNumber: "", vehicleName: "", vehicleRegistration: "", transportMode: "Car", notes: "" })
 
 export default function GenericDriversPage() {
   const router = useRouter()
@@ -53,7 +55,7 @@ export default function GenericDriversPage() {
   function openCreate() { setEditing(null); setForm(empty()); setDialogOpen(true) }
   function openEdit(d: GenericDriver) {
     setEditing(d)
-    setForm({ driverName: d.driverName, phoneNumber: d.phoneNumber ?? "", licenseNumber: d.licenseNumber ?? "", vehicleName: d.vehicleName ?? "", vehicleRegistration: d.vehicleRegistration ?? "", notes: d.notes ?? "" })
+    setForm({ driverName: d.driverName, phoneNumber: d.phoneNumber ?? "", licenseNumber: d.licenseNumber ?? "", vehicleName: d.vehicleName ?? "", vehicleRegistration: d.vehicleRegistration ?? "", transportMode: d.transportMode ?? "Car", notes: d.notes ?? "" })
     setDialogOpen(true)
   }
 
@@ -127,11 +129,11 @@ export default function GenericDriversPage() {
                     <TableHeader><TableRow>
                       <TableHead>Name</TableHead><TableHead>Phone</TableHead>
                       <TableHead>License</TableHead><TableHead>Vehicle</TableHead>
-                      <TableHead>Registration</TableHead><TableHead>Status</TableHead>
+                      <TableHead>Registration</TableHead><TableHead>Transport</TableHead><TableHead>Status</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow></TableHeader>
                     <TableBody>
-                      {rows.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center text-slate-500 py-6">No drivers. Add one to get started.</TableCell></TableRow>
+                      {rows.length === 0 ? <TableRow><TableCell colSpan={8} className="text-center text-slate-500 py-6">No drivers. Add one to get started.</TableCell></TableRow>
                       : pg.pageItems.map((d: any) => (
                         <TableRow key={d.genericDriverId}>
                           <TableCell className="font-medium">{d.driverName}</TableCell>
@@ -139,6 +141,7 @@ export default function GenericDriversPage() {
                           <TableCell>{d.licenseNumber ?? "—"}</TableCell>
                           <TableCell>{d.vehicleName ?? "—"}</TableCell>
                           <TableCell>{d.vehicleRegistration ?? "—"}</TableCell>
+                          <TableCell><Badge className="bg-blue-100 text-blue-700">{d.transportMode ?? "Car"}</Badge></TableCell>
                           <TableCell><Badge className={d.isActive ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"}>{d.isActive ? "Active" : "Inactive"}</Badge></TableCell>
                           <TableCell className="text-right whitespace-nowrap">
                             <Button variant="ghost" size="sm" onClick={() => openEdit(d)}><Pencil className="h-4 w-4 text-slate-600" /></Button>
@@ -163,6 +166,12 @@ export default function GenericDriversPage() {
             <FormField label="License number"><Input value={form.licenseNumber} onChange={(e) => setForm({ ...form, licenseNumber: e.target.value })} /></FormField>
             <FormField label="Vehicle"><Input value={form.vehicleName} onChange={(e) => setForm({ ...form, vehicleName: e.target.value })} /></FormField>
             <FormField label="Vehicle registration"><Input value={form.vehicleRegistration} onChange={(e) => setForm({ ...form, vehicleRegistration: e.target.value })} /></FormField>
+            <FormField label="Transport mode">
+              <Select value={form.transportMode} onValueChange={(v) => setForm({ ...form, transportMode: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{TRANSPORT_MODES.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+              </Select>
+            </FormField>
             <FormField label="Notes"><Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></FormField>
           </FormSection>
           <div className="flex justify-end gap-2">

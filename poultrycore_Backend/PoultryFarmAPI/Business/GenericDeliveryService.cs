@@ -73,6 +73,7 @@ namespace PoultryFarmAPIWeb.Business
                 TotalSales = r.Dec("TotalSales"),
                 CustomerName = r.StrN("CustomerName"),
                 Destination = r.StrN("Destination"),
+                TransportMode = r.StrN("TransportMode"),
                 Status = r.Str("Status"),
                 Notes = r.StrN("Notes"),
                 CreatedAt = r.Date("CreatedAt"),
@@ -94,7 +95,7 @@ namespace PoultryFarmAPIWeb.Business
                 "p_quantityloaded => @QuantityLoaded::numeric, p_unit => @Unit::text, " +
                 "p_unitprice => @UnitPrice::numeric, p_notes => @Notes::text, " +
                 "p_createdby => @CreatedBy::text, p_customername => @CustomerName::text, " +
-                "p_destination => @Destination::text)", c);
+                "p_destination => @Destination::text, p_transportmode => @TransportMode::text)", c);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@DeliveryDate", (object?)m.DeliveryDate ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@DriverName", (object?)m.DriverName ?? DBNull.Value);
@@ -108,6 +109,7 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@CreatedBy", (object?)m.CreatedBy ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@CustomerName", (object?)m.CustomerName ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Destination", (object?)m.Destination ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@TransportMode", (object?)m.TransportMode ?? "Car");
             await c.OpenAsync();
             return Convert.ToInt32(await cmd.ExecuteScalarAsync());
         }
@@ -194,7 +196,8 @@ namespace PoultryFarmAPIWeb.Business
             await c.OpenAsync(); using var r = await cmd.ExecuteReaderAsync();
             while (await r.ReadAsync()) list.Add(new GenericDriverReportRow
             {
-                DriverName = r.Str("DriverName"), TotalDeliveries = r.GetInt64(r.GetOrdinal("TotalDeliveries")),
+                DriverName = r.Str("DriverName"), TransportMode = r.StrN("TransportMode"),
+                TotalDeliveries = r.GetInt64(r.GetOrdinal("TotalDeliveries")),
                 TotalLoaded = r.Dec("TotalLoaded"), TotalSold = r.Dec("TotalSold"),
                 TotalReturned = r.Dec("TotalReturned"), TotalDamaged = r.Dec("TotalDamaged"),
                 TotalShort = r.Dec("TotalShort"), TotalSales = r.Dec("TotalSales"),
@@ -268,6 +271,7 @@ namespace PoultryFarmAPIWeb.Business
                 DriverName = r.Str("DriverName"), PhoneNumber = r.StrN("PhoneNumber"),
                 LicenseNumber = r.StrN("LicenseNumber"), VehicleName = r.StrN("VehicleName"),
                 VehicleRegistration = r.StrN("VehicleRegistration"),
+                TransportMode = r.StrN("TransportMode"),
                 IsActive = r.GetBoolean(r.GetOrdinal("IsActive")),
                 Notes = r.StrN("Notes"), CreatedAt = r.Date("CreatedAt"),
             });
@@ -279,13 +283,14 @@ namespace PoultryFarmAPIWeb.Business
             using var c = new NpgsqlConnection(_cs);
             using var cmd = new NpgsqlCommand(
                 "SELECT * FROM spgenericdriver_create(p_farmid=>@F::text, p_drivername=>@N::text, p_phonenumber=>@P::text, " +
-                "p_licensenumber=>@L::text, p_vehiclename=>@V::text, p_vehicleregistration=>@VR::text, p_notes=>@No::text, p_createdby=>@C::text)", c);
+                "p_licensenumber=>@L::text, p_vehiclename=>@V::text, p_vehicleregistration=>@VR::text, p_transportmode=>@TM::text, p_notes=>@No::text, p_createdby=>@C::text)", c);
             cmd.Parameters.AddWithValue("@F", m.FarmId);
             cmd.Parameters.AddWithValue("@N", m.DriverName);
             cmd.Parameters.AddWithValue("@P", (object?)m.PhoneNumber ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@L", (object?)m.LicenseNumber ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@V", (object?)m.VehicleName ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@VR", (object?)m.VehicleRegistration ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@TM", (object?)m.TransportMode ?? "Car");
             cmd.Parameters.AddWithValue("@No", (object?)m.Notes ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@C", (object?)m.CreatedBy ?? DBNull.Value);
             await c.OpenAsync(); return Convert.ToInt32(await cmd.ExecuteScalarAsync());
@@ -296,13 +301,14 @@ namespace PoultryFarmAPIWeb.Business
             using var c = new NpgsqlConnection(_cs);
             using var cmd = new NpgsqlCommand(
                 "SELECT * FROM spgenericdriver_update(p_id=>@I::int, p_farmid=>@F::text, p_drivername=>@N::text, p_phonenumber=>@P::text, " +
-                "p_licensenumber=>@L::text, p_vehiclename=>@V::text, p_vehicleregistration=>@VR::text, p_isactive=>@A::boolean, p_notes=>@No::text)", c);
+                "p_licensenumber=>@L::text, p_vehiclename=>@V::text, p_vehicleregistration=>@VR::text, p_transportmode=>@TM::text, p_isactive=>@A::boolean, p_notes=>@No::text)", c);
             cmd.Parameters.AddWithValue("@I", id); cmd.Parameters.AddWithValue("@F", m.FarmId);
             cmd.Parameters.AddWithValue("@N", m.DriverName);
             cmd.Parameters.AddWithValue("@P", (object?)m.PhoneNumber ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@L", (object?)m.LicenseNumber ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@V", (object?)m.VehicleName ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@VR", (object?)m.VehicleRegistration ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@TM", (object?)m.TransportMode ?? "Car");
             cmd.Parameters.AddWithValue("@A", m.IsActive);
             cmd.Parameters.AddWithValue("@No", (object?)m.Notes ?? DBNull.Value);
             await c.OpenAsync(); await cmd.ExecuteNonQueryAsync();
