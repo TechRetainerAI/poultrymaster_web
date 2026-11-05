@@ -99,6 +99,11 @@ export function buildBlankRows(
   batch: ProductionBatchRecord,
   flocksById: Map<number, Flock>,
   records: Array<ProductionRecord | Record<string, unknown>>,
+  /**
+   * 406: each flock's opening count from the server (last birds left minus
+   * birds sold since). A flock missing here falls back to the last birds left.
+   */
+  openingBirds?: Map<number, number>,
 ): AllocRow[] {
   const feedIds = (batch.feeds || []).map((f) => f.itemId)
   const medIds = (batch.medications || []).map((m) => m.itemId)
@@ -110,7 +115,7 @@ export function buildBlankRows(
       flockName: incl.flockName || flock?.name || `Flock ${incl.flockId}`,
       ageInWeeks: batch.batchSelectionType === 'SpecificBatch' && age ? age.weeks : age?.weeks ?? null,
       ageInDays: age?.days ?? null,
-      birdsBefore: flock ? birdsForFlock(flock, records) : 0,
+      birdsBefore: openingBirds?.get(incl.flockId) ?? (flock ? birdsForFlock(flock, records) : 0),
       deaths: 0,
       p1: 0,
       p2: 0,

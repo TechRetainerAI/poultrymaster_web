@@ -24,7 +24,6 @@ export function DashboardHeader() {
   const { isCollapsed, isMobileOpen, toggleMobile } = useSidebarStore()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const alertCount = useFarmAlertCount()
-  const clearActiveCompany = useAuthStore((s) => s.clearActiveCompany)
   const [username, setUsername] = useState("")
   const [roleLabel, setRoleLabel] = useState("")
 
@@ -117,7 +116,8 @@ export function DashboardHeader() {
                 variant="ghost"
                 size="icon"
                 onClick={() => {
-                  try { clearActiveCompany() } catch {}
+                  // BusinessOfficeShell clears the company on mount; clearing
+                  // here made the current page reload with no company.
                   router.push("/business-office")
                 }}
                 title="Business Office"

@@ -1,7 +1,7 @@
 "use client"
 
 // =============================================================================
-// Egg Configuration (/business-office/egg-pick-settings; was "Egg Pick Time Settings")
+// Egg Settings (/business-office/egg-pick-settings; was "Egg Pick Time Settings")
 //
 // One place for the farm's egg settings, as tabs:
 //   - Pick times: the time each pick represents (display/reporting only) and
@@ -168,7 +168,7 @@ function EggPickSettingsInner() {
                     <Egg className="w-6 h-6" />
                   </div>
                   <div className="min-w-0">
-                    <h1 className="text-2xl font-bold text-slate-900">Egg Configuration</h1>
+                    <h1 className="text-2xl font-bold text-slate-900">Egg Settings</h1>
                     <p className="text-sm text-slate-600 max-w-2xl">
                       Everything about how this farm collects, counts, sorts and prices its eggs — pick times, egg sorting,
                       packaging units and egg sizes.

@@ -2,7 +2,8 @@
 
 import { LOSS_REASONS } from "@/lib/reversal-reasons"
 import { ReasonSelect } from "@/components/ui/reason-select"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -21,17 +22,27 @@ import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
-import { Plus, Pencil, Loader2, Trash2, CheckCircle2, Undo2, ChevronDown, ChevronUp } from "lucide-react"
+import { Plus, Pencil, Loader2, Trash2, CheckCircle2, Undo2, ChevronDown, ChevronUp, ExternalLink } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
 import {
   listPoultryLossRecords, createPoultryLossRecord, updatePoultryLossRecord, approvePoultryLossRecord, unapprovePoultryLossRecord, deletePoultryLossRecord,
-  listPoultryProducts, type PoultryLossRecord, type PoultryProduct,
+  listPoultryProducts, listPoultryProductionLosses, listPoultryStockTransactions, listPoultryAutoDamage,
+  type PoultryLossRecord, type PoultryProduct,
 } from "@/lib/api/poultry-inventory"
+import { getProductionRecords } from "@/lib/api/production-record"
+import { getUserContext } from "@/lib/utils/user-context"
+import { buildAutoLossEntries, fromAutoDamageApi, type AutoLossEntry } from "@/lib/poultry/auto-loss-entries"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const LOSS_TYPES = ["Damage", "Mortality", "Theft", "Spoilage", "MissingStock", "Other"]
+// One list: manual records (editable, approvable) and the automatic damage rows
+// read from production records, driver returns and egg sorting (read-only).
+type Row =
+  | { kind: "manual"; key: string; date: string; l: PoultryLossRecord }
+  | { kind: "auto"; key: string; date: string; a: AutoLossEntry }
+
 const EMPTY = { lossDate: new Date().toISOString().split("T")[0], lossType: "Damage", poultryProductId: 0, quantity: 0, estimatedValue: 0, reason: "", notes: "" }
 
 export default function PoultryLossRecordsPage() {
@@ -39,7 +50,12 @@ export default function PoultryLossRecordsPage() {
   const { toast } = useToast()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const gh = useFmt()
-  const [rows, setRows] = useState<PoultryLossRecord[]>([])
+  const [manual, setManual] = useState<PoultryLossRecord[]>([])
+  const [auto, setAuto] = useState<AutoLossEntry[]>([])
+  const rows = useMemo<Row[]>(() => [
+    ...manual.map((l) => ({ kind: "manual" as const, key: `m-${l.poultryLossRecordId}`, date: (l.lossDate || "").split("T")[0], l })),
+    ...auto.map((a) => ({ kind: "auto" as const, key: a.key, date: (a.lossDate || "").split("T")[0], a })),
+  ].sort((x, y) => (x.date < y.date ? 1 : x.date > y.date ? -1 : 0)), [manual, auto])
   const pg = usePagination(rows)
   const [products, setProducts] = useState<PoultryProduct[]>([])
   const [loading, setLoading] = useState(true)
@@ -60,9 +76,28 @@ export default function PoultryLossRecordsPage() {
 
   async function load() {
     setLoading(true)
-    try { const [ls, ps] = await Promise.all([listPoultryLossRecords(), listPoultryProducts()]); setRows(ls); setProducts(ps) }
+    try {
+      const [ls, ps] = await Promise.all([listPoultryLossRecords(), listPoultryProducts()])
+      setManual(ls); setProducts(ps)
+      setAuto(await loadAutoDamage())
+    }
     catch (e: any) { toast({ title: "Could not load loss records", description: e?.message, variant: "destructive" }) }
     finally { setLoading(false) }
+  }
+
+  // Automatic damage rows. Fast path: the server query (migration 405), which
+  // returns only damage rows. If that endpoint is missing (API or DB not yet
+  // updated) fall back to building them here from the full production records
+  // and stock ledger. Never throws: the manual records must still show.
+  async function loadAutoDamage(): Promise<AutoLossEntry[]> {
+    try { return fromAutoDamageApi(await listPoultryAutoDamage()) } catch { /* fall back */ }
+    const { userId, farmId } = getUserContext()
+    const [prs, losses, txns] = await Promise.all([
+      userId && farmId ? getProductionRecords(userId, farmId).then((r) => (r.success ? r.data : [])).catch(() => []) : Promise.resolve([]),
+      listPoultryProductionLosses().catch(() => []),
+      listPoultryStockTransactions().catch(() => []),
+    ])
+    return buildAutoLossEntries({ records: prs as any, losses, txns })
   }
 
   function openNew() { setEditId(null); setForm({ ...EMPTY }); setOpen(true) }
@@ -91,7 +126,7 @@ export default function PoultryLossRecordsPage() {
         <DashboardHeader />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
           <div className="flex items-center justify-between">
-            <div><h1 className="text-2xl font-bold">Loss & Damage Records</h1><p className="text-sm text-slate-500">Manual losses — damages, mortality, spoilage, missing stock.</p></div>
+            <div><h1 className="text-2xl font-bold">Loss & Damage Records</h1><p className="text-sm text-slate-500">Damages, mortality, spoilage, missing stock. Damaged eggs from production records, driver returns and egg sorting are added automatically — change those at their source.</p></div>
             <Button onClick={openNew}><Plus className="w-4 h-4 mr-1" /> New record</Button>
           </div>
           <Card><CardContent className="p-4">
@@ -99,9 +134,33 @@ export default function PoultryLossRecordsPage() {
               : isMobile && !showTableMobile ? (
               rows.length === 0 ? <div className="py-8 text-center text-slate-500">No loss records yet.</div> : (
               <div className="space-y-3">
-                {pg.pageItems.map((l, idx) => (
+                {pg.pageItems.map((row, idx) => row.kind === "auto" ? (
+                  <div key={row.key} className={cn("rounded-xl border shadow-sm px-2.5 py-3", idx % 2 === 0 ? "bg-amber-100 border-amber-300" : "bg-white border-slate-200")}>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold text-slate-900">{fmtDateTime(row.a.lossDate)}</span>
+                      <Badge className="bg-slate-200 text-slate-700">Automatic</Badge>
+                    </div>
+                    <div className="mt-0.5 truncate text-xs text-slate-500">{row.a.productName} · from {row.a.sourceLabel}</div>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <div className="rounded-lg bg-rose-100 border border-rose-300 px-3 py-2 shadow-sm">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-900">{row.a.lossType}</p>
+                        <p className="text-xl font-extrabold leading-tight text-rose-800">{row.a.quantity.toLocaleString()}</p>
+                      </div>
+                      <div className="rounded-lg bg-violet-100 border border-violet-300 px-3 py-2 shadow-sm">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-violet-900">Value</p>
+                        <p className="text-xl font-extrabold leading-tight text-violet-900">{row.a.estimatedValue != null ? gh(row.a.estimatedValue) : "—"}</p>
+                      </div>
+                    </div>
+                    {row.a.reason && <div className="mt-2 text-sm"><span className="text-slate-500">Details</span> <span className="font-medium">{row.a.reason}</span></div>}
+                    {row.a.href && (
+                      <Button asChild variant="outline" size="sm" className="mt-3 h-10 w-full bg-white">
+                        <Link href={row.a.href}><ExternalLink className="h-4 w-4 mr-2" /> Open {row.a.sourceLabel}</Link>
+                      </Button>
+                    )}
+                  </div>
+                ) : (() => { const l = row.l; return (
                   <Collapsible
-                    key={l.poultryLossRecordId}
+                    key={row.key}
                     defaultOpen
                     className={cn("group w-full rounded-xl border shadow-sm overflow-hidden",
                       idx % 2 === 0 ? "bg-amber-100 border-amber-300" : "bg-white border-slate-200")}
@@ -158,7 +217,7 @@ export default function PoultryLossRecordsPage() {
                       </CollapsibleContent>
                     </div>
                   </Collapsible>
-                ))}
+                )})())}
                 <div className="rounded-lg border bg-slate-50/60 px-4 py-2">
                   <Button variant="ghost" size="sm" className="w-full text-slate-600" onClick={() => setShowTableMobile(true)}>
                     View table format <ChevronDown className="h-4 w-4 ml-1" />
@@ -180,8 +239,20 @@ export default function PoultryLossRecordsPage() {
                 <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Type</TableHead><TableHead>Product</TableHead><TableHead className="text-right">Qty</TableHead><TableHead className="text-right">Value</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                 <TableBody>
                   {rows.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center text-slate-500 py-6">No loss records yet.</TableCell></TableRow>
-                    : pg.pageItems.map((l) => (
-                      <TableRow key={l.poultryLossRecordId}>
+                    : pg.pageItems.map((row) => row.kind === "auto" ? (
+                      <TableRow key={row.key} className="bg-slate-50/60">
+                        <TableCell>{fmtDateTime(row.a.lossDate)}</TableCell>
+                        <TableCell>{row.a.lossType}<div className="text-xs text-slate-500">from {row.a.sourceLabel}</div></TableCell>
+                        <TableCell>{row.a.productName}{row.a.reason && <div className="text-xs text-slate-500">{row.a.reason}</div>}</TableCell>
+                        <TableCell className="text-right">{row.a.quantity.toLocaleString()}</TableCell>
+                        <TableCell className="text-right">{row.a.estimatedValue != null ? gh(row.a.estimatedValue) : "—"}</TableCell>
+                        <TableCell><Badge className="bg-slate-200 text-slate-700">Automatic</Badge></TableCell>
+                        <TableCell className="text-right">
+                          {row.a.href && <Button asChild variant="ghost" size="sm" title={`Open ${row.a.sourceLabel}`}><Link href={row.a.href}><ExternalLink className="w-4 h-4" /></Link></Button>}
+                        </TableCell>
+                      </TableRow>
+                    ) : (() => { const l = row.l; return (
+                      <TableRow key={row.key}>
                         <TableCell>{fmtDateTime(l.lossDate, l)}</TableCell>
                         <TableCell>{l.lossType}</TableCell>
                         <TableCell>{l.productName ?? "—"}</TableCell>
@@ -196,7 +267,7 @@ export default function PoultryLossRecordsPage() {
                           </> : <Button variant="ghost" size="sm" onClick={() => doUnapprove(l.poultryLossRecordId)} title="Unapprove"><Undo2 className="w-4 h-4 text-amber-600" /></Button>}
                         </TableCell>
                       </TableRow>
-                    ))}
+                    )})())}
                 </TableBody>
               </Table></div>
               </>

@@ -26,6 +26,7 @@ import '../trackers/tracker_logic.dart'
 import '../trackers/tracker_widgets.dart';
 import 'production_logic.dart';
 import 'production_record_form.dart';
+import 'production_day_view.dart';
 
 class ProductionFilters {
   String search = '', from = '', to = '', batch = 'ALL', flock = 'ALL', month = 'ALL', year = 'ALL';
@@ -648,6 +649,21 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
               onPressed: () => _openForm(),
               icon: const Icon(Icons.add, size: 18),
               label: const Text('Log Production'),
+            ),
+            const SizedBox(height: 8),
+            // Every record on one day, across all flocks (web: View by Day).
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(44)),
+              onPressed: () => showProductionDayView(
+                context,
+                records: _records,
+                extraPicks: _picks.extraColumns,
+                flockLabel: _flockLabel,
+                batchLabel: _batchOf,
+                onEdit: _openForm,
+              ),
+              icon: const Icon(Icons.calendar_month_outlined, size: 18),
+              label: const Text('View by Day'),
             ),
             const SizedBox(height: 14),
             if (_error.isNotEmpty) ...[TrackerBanner.error(_error), const SizedBox(height: 12)],

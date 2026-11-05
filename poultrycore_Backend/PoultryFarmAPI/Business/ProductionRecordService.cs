@@ -405,6 +405,18 @@ namespace PoultryFarmAPIWeb.Business
                 // total — it is written this way to read in pick order.
                 await SetExtraPicksAsync(conn, model.FarmId, newId, model.Production5thPick, model.Production6thPick, tx);
                 await SetDispositionAsync(conn, model.FarmId, newId, model, tx);
+                // 406: the form took sold birds off this count -- say how many,
+                // so the bird position does not take them off a second time.
+                if (model.BirdsSoldReflected.HasValue
+                    && await ProcedureExistsAsync(conn, "spProductionRecord_SetBirdsSoldReflected", tx))
+                {
+                    await using var refl = new NpgsqlCommand(
+                        "SELECT spproductionrecord_setbirdssoldreflected(p_recordid => @Id::int, p_farmid => @FarmId::text, p_birdssoldreflected => @N::int)", conn, tx);
+                    refl.Parameters.AddWithValue("@Id", newId);
+                    refl.Parameters.AddWithValue("@FarmId", (object?)model.FarmId ?? DBNull.Value);
+                    refl.Parameters.AddWithValue("@N", model.BirdsSoldReflected.Value);
+                    await refl.ExecuteNonQueryAsync();
+                }
                 await tx.CommitAsync();
                 return newId;
             }
@@ -417,6 +429,39 @@ namespace PoultryFarmAPIWeb.Business
                 // Log the exception as needed
                 throw new ApplicationException("An error occurred while inserting the production record.", ex);
             }
+        }
+
+        /// <summary>
+        /// 406: what a new record for this flock-day should open with -- the
+        /// previous record's birds left minus birds sold since. Null when the
+        /// database does not have the reader yet (the form then carries the last
+        /// count forward as before).
+        /// </summary>
+        public async Task<BirdsOnDateModel?> GetBirdsOnDate(string farmId, int flockId, DateTime date, int? excludeRecordId)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            if (!await ProcedureExistsAsync(conn, "fnFlock_BirdsOnDate")) return null;
+            await using var cmd = new NpgsqlCommand(
+                "SELECT * FROM fnflock_birdsondate(p_farmid => @FarmId::text, p_flockid => @FlockId::int, p_date => @Date::date, p_excluderecordid => @Exclude::int)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@FlockId", flockId);
+            cmd.Parameters.AddWithValue("@Date", date.Date);
+            cmd.Parameters.AddWithValue("@Exclude", (object?)excludeRecordId ?? DBNull.Value);
+            await using var r = await cmd.ExecuteReaderAsync();
+            if (!await r.ReadAsync()) return null;
+            int? IntN(string c) { var o = r.GetOrdinal(c); return r.IsDBNull(o) ? null : r.GetInt32(o); }
+            var dOrd = r.GetOrdinal("previousrecorddate");
+            return new BirdsOnDateModel
+            {
+                PreviousRecordId = IntN("previousrecordid"),
+                PreviousRecordDate = r.IsDBNull(dOrd) ? null : r.GetDateTime(dOrd),
+                PreviousBirdsLeft = IntN("previousbirdsleft") ?? 0,
+                PreviousReflected = IntN("previousreflected") ?? 0,
+                BirdsSoldToDate = IntN("birdssoldtodate") ?? 0,
+                BirdsSoldSince = IntN("birdssoldsince") ?? 0,
+                Birds = IntN("birds") ?? 0,
+            };
         }
 
         public async Task Update(ProductionRecordModel model)

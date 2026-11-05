@@ -1,4 +1,4 @@
-﻿using PoultryFarmAPIWeb.Models;
+using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
 {
@@ -7,6 +7,10 @@ namespace PoultryFarmAPIWeb.Business
     {
         // Inserts a new batch record and returns the new BatchId.
         Task<int> Insert(MainFlockBatchModel model);
+
+        // Inserts several batches in ONE transaction -- all or none -- through
+        // the same insert the single create uses. Returns the new BatchIds.
+        Task<List<int>> InsertBulk(IReadOnlyList<MainFlockBatchModel> models);
 
         // Updates an existing batch record.
         Task Update(MainFlockBatchModel model);

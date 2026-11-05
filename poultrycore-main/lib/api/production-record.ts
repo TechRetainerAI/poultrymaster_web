@@ -136,6 +136,9 @@ export interface ProductionRecord {
 }
 
 export interface ProductionRecordInput {
+  /** 406 (create only): sold birds this count already took off -- birdsSoldToDate
+   *  from getBirdsOnDate. Omit when the count was not seeded from it. */
+  birdsSoldReflected?: number | null
   farmId: string
   userId: string
   createdBy: string
@@ -319,6 +322,47 @@ const mockProductionRecords: ProductionRecord[] = [
 
 let nextRecordId = 3
 
+/** 406: what a new record for a flock-day opens with (fnflock_birdsondate). */
+export interface BirdsOnDate {
+  previousRecordId: number | null
+  previousRecordDate: string | null
+  previousBirdsLeft: number
+  previousReflected: number
+  /** Posted bird sales out of the flock dated on or before the day. */
+  birdsSoldToDate: number
+  /** Of those, the ones the previous record did not already allow for. */
+  birdsSoldSince: number
+  /** previousBirdsLeft - birdsSoldSince, never below 0. */
+  birds: number
+}
+
+/**
+ * Null when the API or database does not have the reader yet (404) or the call
+ * fails -- the caller then carries the last count forward as it always did.
+ */
+export async function getBirdsOnDate(farmId: string, flockId: number, date: string, excludeRecordId?: number | null): Promise<BirdsOnDate | null> {
+  try {
+    const qs = new URLSearchParams({ farmId, flockId: String(flockId), date })
+    if (excludeRecordId != null) qs.append("excludeRecordId", String(excludeRecordId))
+    const res = await fetch(`/api/proxy/ProductionRecord/birds-on-date?${qs.toString()}`, { headers: { Accept: "application/json" } })
+    if (!res.ok) return null
+    const d: any = await res.json()
+    const n = (k: string) => Number(d?.[k] ?? d?.[k[0].toUpperCase() + k.slice(1)] ?? 0)
+    const v = (k: string) => d?.[k] ?? d?.[k[0].toUpperCase() + k.slice(1)] ?? null
+    return {
+      previousRecordId: v("previousRecordId"),
+      previousRecordDate: v("previousRecordDate"),
+      previousBirdsLeft: n("previousBirdsLeft"),
+      previousReflected: n("previousReflected"),
+      birdsSoldToDate: n("birdsSoldToDate"),
+      birdsSoldSince: n("birdsSoldSince"),
+      birds: n("birds"),
+    }
+  } catch {
+    return null
+  }
+}
+
 export async function getProductionRecords(userId: string, farmId: string) {
   try {
     // Use proxy to avoid CORS issues
@@ -461,6 +505,7 @@ export async function createProductionRecord(record: ProductionRecordInput) {
     if (record.brokenEggDisposition) payload.brokenEggDisposition = record.brokenEggDisposition
     if (record.brokenEggsDisposed != null) payload.brokenEggsDisposed = record.brokenEggsDisposed
     if (record.mortalityDisposed != null) payload.mortalityDisposed = record.mortalityDisposed
+    if (record.birdsSoldReflected != null) payload.birdsSoldReflected = record.birdsSoldReflected
     attachCosting(payload, record)
 
     const response = await fetch(url, {

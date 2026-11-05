@@ -44,7 +44,7 @@ import { getFlockSelectEmptyHint } from "@/lib/utils/flock-utils"
 import { useBatchFlockSelect, BATCH_ALL } from "@/hooks/use-batch-flock-select"
 import { usePickSettings } from "@/hooks/use-pick-settings"
 import {
-  createProductionRecord, updateProductionRecord, getProductionRecord, getProductionRecords,
+  createProductionRecord, updateProductionRecord, getProductionRecord, getProductionRecords, getBirdsOnDate,
   type ProductionRecordInput, type ProductionRecord,
 } from "@/lib/api/production-record"
 import { getFeedUsages } from "@/lib/api/feed-usage"
@@ -363,6 +363,11 @@ export function ProductionRecordForm({
   const [manualDays, setManualDays] = useState("")
   const [manualYears, setManualYears] = useState("")
   const [previousBirdsLeft, setPreviousBirdsLeft] = useState<number | null>(null)
+  // 406: birds sold out of the flock since its last record, taken off the
+  // opening count. birdsSoldToDate goes back with a new record so the bird
+  // position does not take the same birds off twice. Null = not seeded from
+  // the server (older API): the last count is carried forward as before.
+  const [soldSeed, setSoldSeed] = useState<{ since: number; toDate: number } | null>(null)
 
   const selectedFlock = useMemo(
     () => allFlocks.find((f) => String(f.flockId) === form.flockId),
@@ -385,6 +390,22 @@ export function ProductionRecordForm({
     if (batchFlockError) { setFlocksError(batchFlockError); return }
     setFlocksError(flocksForSelect.length === 0 ? getFlockSelectEmptyHint("production") : "")
   }, [batchFlockLoading, batchFlockError, flocksForSelect.length])
+
+  // Picking a flock picks its batch. Also covers a flock that arrives already
+  // chosen (?flockId=, an edited record). Only moves the Batch box when the
+  // flock's batch is one of the listed batches, so the flock never disappears
+  // from its own list; a flock with no batch leaves the Batch box as it is.
+  useEffect(() => {
+    if (!form.flockId) return
+    const flock = allFlocks.find((f) => String(f.flockId) === form.flockId)
+    const batchId = flock?.batchId
+    if (batchId == null) return
+    const value = String(batchId)
+    if (value === selectedBatchId) return
+    if (!batchOptions.some((b) => b.value === value)) return
+    setSelectedBatchId(value)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.flockId, allFlocks, batchOptions])
 
   // If the user picks a batch and their selected flock isn't in it, clear the
   // flockId so they don't accidentally save against a hidden flock. Applies in
@@ -426,6 +447,16 @@ export function ProductionRecordForm({
       try {
         const { userId, farmId } = getUserContext()
         if (!userId || !farmId) return
+        // Fast, sale-aware path: last birds left minus birds sold since.
+        const editingIdForSeed = recordId ?? loadedRecord?.id ?? null
+        const server = await getBirdsOnDate(farmId, parseInt(form.flockId), form.date, editingIdForSeed)
+        if (server) {
+          setPreviousBirdsLeft(server.previousBirdsLeft)
+          setSoldSeed({ since: server.birdsSoldSince, toDate: server.birdsSoldToDate })
+          applySeed(server.birds)
+          return
+        }
+        setSoldSeed(null)
         const res = await getProductionRecords(userId, farmId)
         if (!res.success || !res.data) return
         const flockIdNum = parseInt(form.flockId)
@@ -712,6 +743,8 @@ export function ProductionRecordForm({
         lostEggs: form.lostEggs === "" ? null : parseInt(form.lostEggs) || 0,
         totalProduction: total,
         flockId: form.flockId ? parseInt(form.flockId) : null,
+        // 406: only on a new record whose count was opened by the server.
+        birdsSoldReflected: !isEdit && soldSeed ? soldSeed.toDate : null,
         eggGrade: eggGradeToApi(form.eggGrade),
         // Migrations 147/148: the line arrays drive the aggregate columns
         // server-side, so the single-feed / single-medication fields stay null.
@@ -984,7 +1017,11 @@ export function ProductionRecordForm({
       {/* --------------------------------------------- Birds & Age */}
       <FormSectionCard
         title="Birds & Age"
-        description={previousBirdsLeft != null ? `Last recorded birds left for this flock: ${previousBirdsLeft.toLocaleString()}` : undefined}
+        description={previousBirdsLeft != null
+          ? (soldSeed && soldSeed.since > 0
+              ? `Last recorded birds left: ${previousBirdsLeft.toLocaleString()} · ${soldSeed.since.toLocaleString()} sold since, so this record opens with ${Math.max(previousBirdsLeft - soldSeed.since, 0).toLocaleString()}`
+              : `Last recorded birds left for this flock: ${previousBirdsLeft.toLocaleString()}`)
+          : undefined}
         accent="emerald"
         icon={Bird}
       >

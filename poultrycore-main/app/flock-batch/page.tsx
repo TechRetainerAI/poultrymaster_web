@@ -16,7 +16,8 @@ import { NumberInput } from "@/components/ui/number-input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { Plus, Pencil, Trash2, Calendar as CalendarIcon, Bird, Users, Search, RefreshCw, Loader2, Save, Filter, ChevronDown, ChevronUp, DollarSign, CheckCircle2, Wallet, Split } from "lucide-react"
+import { Plus, Pencil, Trash2, Calendar as CalendarIcon, Bird, Users, Search, RefreshCw, Loader2, Save, Filter, ChevronDown, ChevronUp, DollarSign, CheckCircle2, Wallet, Split, Boxes } from "lucide-react"
+import { BulkFlockBatchDialog } from "@/components/poultry/bulk-flock-batch-dialog"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { getFlockBatches, getFlockBatch, createFlockBatch, updateFlockBatch, deleteFlockBatch, payFlockBatchBalance, type FlockBatch, type FlockBatchInput } from "@/lib/api/flock-batch"
 import { getFlocks, type Flock } from "@/lib/api/flock"
@@ -155,6 +156,7 @@ export default function FlockBatchesPage() {
 
   // Create dialog state
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [isBulkOpen, setIsBulkOpen] = useState(false)
   const [createLoading, setCreateLoading] = useState(false)
   const [createError, setCreateError] = useState("")
   const [createForm, setCreateForm] = useState({
@@ -762,13 +764,23 @@ export default function FlockBatchesPage() {
                 </div>
                 <div className="min-w-0">
                   <h1 className={cn("font-bold text-slate-900", isMobile ? "text-xl" : "text-2xl")}>Flock Purchases (Batches)</h1>
-                  <p className="text-sm text-slate-600">Manage your bird flock batches</p>
+                  <p className="text-sm text-slate-600">
+                    Each row is one purchase of birds — how many arrived, the breed, the supplier, what they cost and how much has been paid.
+                    The cards add up every batch. &ldquo;Allocated&rdquo; is how many of a batch&apos;s birds have been divided into flocks;
+                    the balance is what is still owed to the supplier.
+                  </p>
                 </div>
               </div>
-              <Button className="gap-2 w-full sm:w-auto h-11 sm:h-10 bg-blue-600 hover:bg-blue-700 shrink-0" onClick={openCreateDialog}>
-                <Plus className="w-4 h-4" />
-                Add Flock Batch
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto shrink-0">
+                <Button variant="outline" className="gap-2 w-full sm:w-auto h-11 sm:h-10 border-blue-600 text-blue-700 hover:bg-blue-50" onClick={() => setIsBulkOpen(true)}>
+                  <Boxes className="w-4 h-4" />
+                  Add Multiple Batches
+                </Button>
+                <Button className="gap-2 w-full sm:w-auto h-11 sm:h-10 bg-blue-600 hover:bg-blue-700" onClick={openCreateDialog}>
+                  <Plus className="w-4 h-4" />
+                  Add Flock Batch
+                </Button>
+              </div>
             </div>
 
             {/* Score Cards */}
@@ -1673,6 +1685,17 @@ export default function FlockBatchesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <BulkFlockBatchDialog
+        open={isBulkOpen}
+        onOpenChange={setIsBulkOpen}
+        existingCodes={flockBatches.map((b) => b.batchCode)}
+        suppliers={suppliers}
+        cashAccounts={cashAccounts}
+        knownBreeds={distinctBreeds}
+        currencySymbol={currencySymbol}
+        onCreated={() => loadFlockBatches()}
+      />
     </div>
   )
 }
