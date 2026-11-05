@@ -20,7 +20,7 @@ import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { getRoutes, createRoute, updateRoute, deleteRoute, type GenericRoute } from "@/lib/api/generic"
 
-const empty = () => ({ routeName: "", description: "", startPoint: "", endPoint: "", estimatedTime: "", notes: "" })
+const empty = () => ({ routeName: "", description: "", startPoint: "", endPoint: "", estimatedTime: "", notes: "", startCoords: null as [number, number] | null, endCoords: null as [number, number] | null, distance: "" })
 
 export default function GenericRoutesPage() {
   const router = useRouter()
@@ -58,20 +58,43 @@ export default function GenericRoutesPage() {
     setDialogOpen(true)
   }
 
+  async function calcRoute(start: [number, number], end: [number, number]) {
+    try {
+      const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${start[1]},${start[0]};${end[1]},${end[0]}?overview=false`)
+      const data = await res.json()
+      if (data.routes?.[0]) {
+        const secs = data.routes[0].duration
+        const km = (data.routes[0].distance / 1000).toFixed(1)
+        const hrs = Math.floor(secs / 3600)
+        const mins = Math.round((secs % 3600) / 60)
+        const time = hrs > 0 ? `${hrs}h ${mins}m` : `${mins} min`
+        setForm((f) => ({ ...f, estimatedTime: `${time} (${km} km)`, distance: `${km} km` }))
+      }
+    } catch {}
+  }
+
   async function pickLocation(field: "startPoint" | "endPoint") {
     if (!navigator.geolocation) { toast({ title: "Geolocation not supported by your browser", variant: "destructive" }); return }
     setLocating(true)
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const { latitude, longitude } = pos.coords
+        const coords: [number, number] = [latitude, longitude]
+        let name = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`
         try {
           const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&zoom=16`)
           const data = await res.json()
-          const name = data.display_name ?? `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`
-          setForm((f) => ({ ...f, [field]: name }))
-        } catch {
-          setForm((f) => ({ ...f, [field]: `${latitude.toFixed(5)}, ${longitude.toFixed(5)}` }))
-        }
+          if (data.display_name) name = data.display_name
+        } catch {}
+
+        setForm((f) => {
+          const updated = { ...f, [field]: name, [`${field === "startPoint" ? "start" : "end"}Coords`]: coords }
+          // Auto-calculate route time if both coordinates are available
+          const sc = field === "startPoint" ? coords : f.startCoords
+          const ec = field === "endPoint" ? coords : f.endCoords
+          if (sc && ec) setTimeout(() => calcRoute(sc, ec), 100)
+          return updated
+        })
         setLocating(false)
       },
       (err) => {
@@ -202,7 +225,17 @@ export default function GenericRoutesPage() {
                 </Button>
               </div>
             </FormField>
-            <FormField label="Estimated time"><Input value={form.estimatedTime} onChange={(e) => setForm({ ...form, estimatedTime: e.target.value })} placeholder="e.g. 2 hours" /></FormField>
+            <FormField label="Estimated time">
+              <Input value={form.estimatedTime} onChange={(e) => setForm({ ...form, estimatedTime: e.target.value })} placeholder="e.g. 2 hours" />
+              {form.startCoords && form.endCoords && form.estimatedTime && (
+                <p className="text-xs text-emerald-600 mt-1">Auto-calculated from GPS coordinates</p>
+              )}
+            </FormField>
+            {form.distance && (
+              <FormField label="Distance">
+                <Input readOnly tabIndex={-1} className="bg-slate-100 pointer-events-none" value={form.distance} />
+              </FormField>
+            )}
             <FormField label="Notes"><Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></FormField>
           </FormSection>
           <div className="flex justify-end gap-2">
