@@ -163,11 +163,11 @@ export default function PoultryProductsPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex h-screen bg-gray-50">
       <DashboardSidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
-        <main className="flex-1 p-4 sm:p-6 space-y-4">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
           <div className="flex items-center justify-between">
             <div><h1 className="text-2xl font-bold">Products</h1><p className="text-sm text-slate-500">Finished goods you produce and stock.</p></div>
             <Button onClick={openNew}><Plus className="w-4 h-4 mr-1" /> New product</Button>

@@ -912,12 +912,12 @@ export default function PoultryFarmSetupPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-50">
       <DashboardSidebar onLogout={handleLogout} />
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
-        <main className="overflow-y-visible overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
-          <div className="space-y-6 max-w-[1500px] pb-24 lg:pb-6">
+        <main className={`flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 min-w-0 ${screen === "wizard" && !loading ? "pb-4" : "pb-16 lg:pb-4"}`}>
+          <div className="space-y-6 max-w-[1500px] pb-6">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center shrink-0">
                 <Sparkles className="w-5 h-5 text-emerald-600" />
@@ -2240,51 +2240,60 @@ export default function PoultryFarmSetupPage() {
                         </div>
                       </Section>
                     )}
-
-                    {/* Pinned: the running numbers and the way forward stay in
-                        view instead of living at the bottom of a long grid. */}
-                    <div className="sticky bottom-20 lg:bottom-3 z-30 rounded-xl border border-slate-200 bg-white/95 px-3 sm:px-4 py-3 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-white/85">
-                      {step >= 2 && draft.flocks.length > 0 && (
-                        <div className="mb-3 grid grid-cols-3 gap-2 border-b border-slate-100 pb-3 sm:flex sm:flex-wrap sm:items-center sm:gap-x-6 sm:gap-y-1">
-                          <Running label="Placed" longLabel="Originally placed" value={totals.originallyPlaced} tone="slate" />
-                          <Running label="Live" longLabel="Current live birds" value={totals.openingLiveBirds} tone="emerald" />
-                          <Running label="Reduction" longLabel="Historical reduction" value={totals.historicalReduction} tone="amber" />
-                          {totals.flocksWithUnknownHistory > 0 && (
-                            <span className="col-span-3 text-xs text-slate-500">
-                              {totals.flocksWithUnknownHistory} flock{totals.flocksWithUnknownHistory === 1 ? "" : "s"} with unknown history
-                            </span>
-                          )}
-                        </div>
-                      )}
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <Button variant="ghost" onClick={() => { if (step === 0) { clearSavedDraft(); navigate("choose") } else navigate("wizard", Math.max(0, step - 1) as Step) }} disabled={saving} className="gap-1">
-                          <ArrowLeft className="w-4 h-4" /> {step === 0 ? "Cancel" : "Back & Edit"}
-                        </Button>
-                        <div className="flex items-center gap-3">
-                          <span className="hidden text-xs text-slate-500 sm:inline">
-                            {draftState === "saving" ? "Saving…"
-                              : draftState === "saved" ? "Saved"
-                              : draftState === "error" ? "Not saved — check your connection"
-                              : `Step ${step + 1} of ${STEPS.length}`}
-                          </span>
-                          {step < 4 ? (
-                            <Button onClick={goNext} className="gap-1 bg-blue-600 hover:bg-blue-700">
-                              Continue <ArrowRight className="w-4 h-4" />
-                            </Button>
-                          ) : (
-                            <Button onClick={submit} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
-                              {saving ? <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Setting up…</span> : "Complete Farm Setup"}
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
                   </>
                 )}
               </>
             )}
           </div>
         </main>
+
+        {/* Pinned footer: the running numbers and the way forward stay in
+            view. It sits OUTSIDE the scrolling <main>, as the last row of the
+            column, so it can never float over the form. (It used to be
+            sticky inside <main>; Chrome keeps a sticky element inside the
+            scroller's padding, so its offset stacked on main's bottom padding
+            and it hovered mid-page over the fields.) On phones it clears the
+            fixed bottom nav with a bottom margin. */}
+        {!loading && screen === "wizard" && (
+          <div className="shrink-0 z-30 border-t border-slate-200 bg-white px-3 sm:px-6 py-3 shadow-[0_-2px_8px_rgba(15,23,42,0.06)] mb-[calc(4rem+env(safe-area-inset-bottom))] lg:mb-0">
+            <div className="max-w-[1500px]">
+              {step >= 2 && draft.flocks.length > 0 && (
+                <div className="mb-3 grid grid-cols-3 gap-2 border-b border-slate-100 pb-3 sm:flex sm:flex-wrap sm:items-center sm:gap-x-6 sm:gap-y-1">
+                  <Running label="Placed" longLabel="Originally placed" value={totals.originallyPlaced} tone="slate" />
+                  <Running label="Live" longLabel="Current live birds" value={totals.openingLiveBirds} tone="emerald" />
+                  <Running label="Reduction" longLabel="Historical reduction" value={totals.historicalReduction} tone="amber" />
+                  {totals.flocksWithUnknownHistory > 0 && (
+                    <span className="col-span-3 text-xs text-slate-500">
+                      {totals.flocksWithUnknownHistory} flock{totals.flocksWithUnknownHistory === 1 ? "" : "s"} with unknown history
+                    </span>
+                  )}
+                </div>
+              )}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Button variant="ghost" onClick={() => { if (step === 0) { clearSavedDraft(); navigate("choose") } else navigate("wizard", Math.max(0, step - 1) as Step) }} disabled={saving} className="gap-1">
+                  <ArrowLeft className="w-4 h-4" /> {step === 0 ? "Cancel" : "Back & Edit"}
+                </Button>
+                <div className="flex items-center gap-3">
+                  <span className="hidden text-xs text-slate-500 sm:inline">
+                    {draftState === "saving" ? "Saving…"
+                      : draftState === "saved" ? "Saved"
+                      : draftState === "error" ? "Not saved — check your connection"
+                      : `Step ${step + 1} of ${STEPS.length}`}
+                  </span>
+                  {step < 4 ? (
+                    <Button onClick={goNext} className="gap-1 bg-blue-600 hover:bg-blue-700">
+                      Continue <ArrowRight className="w-4 h-4" />
+                    </Button>
+                  ) : (
+                    <Button onClick={submit} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
+                      {saving ? <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Setting up…</span> : "Complete Farm Setup"}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Opened from the capacity note on an allocation row, so a stale capacity

@@ -350,6 +350,26 @@ namespace PoultryFarmAPIWeb.Models
         public DateTime? UpdatedAt { get; set; }
     }
 
+    /// <summary>
+    /// 405: a damage row derived from a production record's broken eggs, a
+    /// driver-return / delivery / batch loss, or an egg-class 'Egg Loss'. Read
+    /// only -- never stored -- so it cannot drift from its source.
+    /// </summary>
+    public class PoultryAutoDamageModel
+    {
+        public string SourceType { get; set; } = string.Empty;
+        public int? SourceId { get; set; }
+        public DateTime LossDate { get; set; }
+        public string LossType { get; set; } = "Damage";
+        public string? ProductName { get; set; }
+        public decimal Quantity { get; set; }
+        public decimal? EstimatedValue { get; set; }
+        public string? Details { get; set; }
+        public string? FlockName { get; set; }
+        public int? BrokenEggs { get; set; }
+        public int? Disposed { get; set; }
+    }
+
     public class PoultryDailyClosingModel
     {
         [Key] public int PoultryDailyClosingId { get; set; }

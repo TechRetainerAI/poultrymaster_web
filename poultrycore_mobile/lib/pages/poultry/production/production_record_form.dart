@@ -91,6 +91,9 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
   String _feedKg = '';
   bool _manualAge = false;
   num? _previousBirdsLeft;
+  // 406: birds sold since the last record, taken off the opening count. Null =
+  // not opened by the server (older API) -- the last count is carried forward.
+  BirdsOnDate? _soldSeed;
   String? _seededFor;
 
   /// Crates and loose per pick: first … sixth.
@@ -235,9 +238,22 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
     }
 
     try {
+      final editing = widget.recordId ?? tIntOrNull(_loaded?['id']);
+      // Sale-aware path first: last birds left minus birds sold since.
+      final server = await fetchBirdsOnDate(_api, widget.company.farmId, int.parse(flock), date, excludeRecordId: editing);
+      if (!mounted || flock != _flockId || date != _date) return;
+      if (server != null) {
+        setState(() {
+          _soldSeed = server;
+          _previousBirdsLeft = server.previousBirdsLeft;
+          apply(server.birds);
+        });
+        _report();
+        return;
+      }
+      _soldSeed = null;
       final rows = rowsOf(await _api.get('/api/ProductionRecord', query: _ctx));
       if (!mounted || flock != _flockId || date != _date) return;
-      final editing = widget.recordId ?? tIntOrNull(_loaded?['id']);
       final pool = [
         for (final r in rows)
           if ((editing == null || tIntOrNull(r['id']) != editing) && tStr(r['date']).padRight(10).substring(0, 10).compareTo(date) < 0) r,
@@ -468,6 +484,8 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
       if (_mortalityDisposition.isNotEmpty) 'mortalityDisposition': _mortalityDisposition,
       'totalProduction': _total,
       'FlockId': int.tryParse(_flockId),
+      // 406: only on a new record whose count the server opened.
+      if (!_edit && _soldSeed != null) 'birdsSoldReflected': _soldSeed!.birdsSoldToDate.toInt(),
       'eggGrade': eggGradeToApi(_eggGrade),
       'meatyEggs': orNull(_meaty),
       'softEggs': orNull(_soft),
@@ -712,7 +730,11 @@ class ProductionRecordFormState extends State<ProductionRecordForm> {
       const SizedBox(height: 14),
       ProdSection(
         title: 'Birds & Age',
-        description: _previousBirdsLeft != null ? 'Last recorded birds left for this flock: ${loc(_previousBirdsLeft!)}' : null,
+        description: _previousBirdsLeft == null
+            ? null
+            : (_soldSeed != null && _soldSeed!.birdsSoldSince > 0
+                ? 'Last recorded birds left: ${loc(_previousBirdsLeft!)} · ${loc(_soldSeed!.birdsSoldSince)} sold since, so this record opens with ${loc(_soldSeed!.birds)}'
+                : 'Last recorded birds left for this flock: ${loc(_previousBirdsLeft!)}'),
         accent: ProdAccent.emerald,
         icon: Icons.flutter_dash,
         child: _gap([

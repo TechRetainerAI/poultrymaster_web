@@ -140,6 +140,26 @@ body {
   overflow-y: auto;
 }
 
+@layer base {
+  /* ---- Sticky table headings ------------------------------------------
+   * A table that scrolls sideways sits in an overflow-x container, which is
+   * also its vertical scroll box, so its <thead> can only stick inside that
+   * box. Every page table (the shared <Table>, and plain tables in an
+   * `overflow-x-auto` wrapper) is capped at the screen height left under the
+   * header; a longer table scrolls inside it with its headings pinned.
+   * Shorter tables are unchanged. In @layer base so a page's own max-h-* or
+   * thead bg-* class still wins. Dialogs are outside <main>, untouched. */
+  main :is([data-slot="table-container"], .overflow-x-auto:has(> table)) {
+    max-height: calc(100dvh - var(--app-header-h, 0px) - 1rem);
+  }
+  main :is([data-slot="table-container"], .overflow-x-auto:has(> table)) > table > thead {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: var(--background);
+  }
+}
+
 /* Desktop top nav rail: horizontal scroll with a visible thin bar when items
  * overflow. The rail's inner container also applies `pb-2.5` in JSX so the 8px
  * scrollbar sits below the active pills instead of clipping their bottom edge
@@ -271,6 +291,10 @@ input[type="datetime-local"] {
   html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   table { width: 100% !important; font-size: 11px !important; }
   .overflow-x-auto, .table-scroll-wrapper { overflow: visible !important; }
+  /* Company pages are screen-high with only <main> scrolling (header stays
+     put). On paper that would print one screenful: let everything run. */
+  .h-screen { height: auto !important; }
+  main, main [data-slot="table-container"] { overflow: visible !important; max-height: none !important; }
 }
 
 /* Clear the fixed mobile bottom nav (lg:hidden) so page content — the last table

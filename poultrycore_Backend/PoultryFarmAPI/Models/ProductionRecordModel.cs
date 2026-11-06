@@ -74,6 +74,14 @@ namespace PoultryFarmAPIWeb.Models
         public int? BrokenEggsDisposed { get; set; }
         /// <summary>391: the same for the dead birds (Dead Birds stock). Wins over MortalityDisposition.</summary>
         public int? MortalityDisposed { get; set; }
+        /// <summary>
+        /// 406: how many of the flock's sold birds this record's count already
+        /// allows for. Sent by the web form, which opens a new record at last
+        /// birds left minus birds sold since. Null = carried forward from the
+        /// previous record by the database (right for a count copied forward).
+        /// Insert only.
+        /// </summary>
+        public int? BirdsSoldReflected { get; set; }
         public string? Notes { get; set; }
         /// <summary>
         /// 389: where the record came from -- ManualSingleFlock, BatchAllocation, or

@@ -370,6 +370,53 @@ export function buildPoultryNavConfig(
 
     setup: [
       {
+        key: "farm",
+        label: "Farm",
+        items: [
+          { id: "houses", title: "Houses",       icon: Building2, href: "/houses" },
+          { id: "flocks", title: "Flock Groups", icon: Bird,      href: "/flocks" },
+          // Also in Operations > Purchase. Listed here too so the batches sit
+          // beside the houses and flock groups they are divided into. Same page;
+          // the Quick Links picker keeps the first occurrence of an href.
+          { id: "flock-batch-setup", title: "Flock Purchases (Batches)", icon: Boxes, href: "/flock-batch" },
+        ],
+      },
+      // Group ORDER is load-bearing: the panel is a 3-column grid filled row by
+      // row, so these six groups read as two rows --
+      //   Farm    | Finance  | Production   (what a new farm sets up first)
+      //   Company | Delivery | People
+      // Reordering here silently reshuffles the panel; keep the pairs of three
+      // together, and keep `columns={3}` on the Setup NavMegaMenu in
+      // components/dashboard/top-nav.tsx in step with it.
+      {
+        // Customers and Suppliers are master data maintained here, not part of
+        // the day's selling flow — but they're the two trading parties every
+        // receivable and payable hangs off, so they get their own Finance group
+        // rather than sitting under Company. Both rows are money()-gated, so
+        // this group drops out for a user without financial access; that's safe
+        // because Company is ungated.
+        key: "finance",
+        label: "Finance",
+        items: [
+          { id: "customers", title: "Customers", icon: Users, href: "/customers", visible: money("/customers") },
+          { id: "suppliers", title: "Suppliers", icon: Truck, href: "/suppliers", visible: money("/suppliers") },
+        ],
+      },
+      {
+        key: "production-setup",
+        label: "Production",
+        items: [
+          // Products is ungated, which keeps this column — and the Setup
+          // trigger — from ever disappearing.
+          { id: "products",      title: "Products",      icon: Package, href: "/poultry-products" },
+          { id: "feed-formulas", title: "Feed Formulas", icon: Wheat,   href: "/poultry-feed-formulas", visible: featureAccess.canViewFeedProduction },
+          // Pick times, egg sorting, packaging and sizes: farm-level settings
+          // that production and sales key off, so they sit with the other
+          // production master data rather than under Company.
+          { id: "egg-picks",     title: "Egg Settings", icon: Egg,    href: "/business-office/egg-pick-settings", visible: isAdmin },
+        ],
+      },
+      {
         key: "company",
         label: "Company",
         items: [
@@ -386,13 +433,6 @@ export function buildPoultryNavConfig(
           { id: "companies",  title: "Companies", icon: Building2, href: "/companies" },
         ],
       },
-      // Group ORDER is load-bearing: the panel is a 3-column grid filled row by
-      // row, so these six groups read as two rows --
-      //   Company | Delivery | Production   (the operating chain)
-      //   Finance | Farm     | People
-      // Reordering here silently reshuffles the panel; keep the pairs of three
-      // together, and keep `columns={3}` on the Setup NavMegaMenu in
-      // components/dashboard/top-nav.tsx in step with it.
       {
         key: "delivery-setup",
         label: "Delivery",
@@ -400,46 +440,6 @@ export function buildPoultryNavConfig(
           { id: "drivers",  title: "Drivers",  icon: Users2, href: "/poultry-drivers" },
           { id: "vehicles", title: "Vehicles", icon: Truck,  href: "/poultry-vehicles" },
           { id: "routes",   title: "Routes",   icon: Truck,  href: "/poultry-routes" },
-        ],
-      },
-      {
-        key: "production-setup",
-        label: "Production",
-        items: [
-          // Products is ungated, which keeps this column — and the Setup
-          // trigger — from ever disappearing.
-          { id: "products",      title: "Products",      icon: Package, href: "/poultry-products" },
-          { id: "feed-formulas", title: "Feed Formulas", icon: Wheat,   href: "/poultry-feed-formulas", visible: featureAccess.canViewFeedProduction },
-          // Pick times, egg sorting, packaging and sizes: farm-level settings
-          // that production and sales key off, so they sit with the other
-          // production master data rather than under Company.
-          { id: "egg-picks",     title: "Egg Configuration", icon: Egg,    href: "/business-office/egg-pick-settings", visible: isAdmin },
-        ],
-      },
-      {
-        // Customers and Suppliers are master data maintained here, not part of
-        // the day's selling flow — but they're the two trading parties every
-        // receivable and payable hangs off, so they get their own Finance group
-        // rather than sitting under Company. Both rows are money()-gated, so
-        // this group drops out for a user without financial access; that's safe
-        // because Company is ungated.
-        key: "finance",
-        label: "Finance",
-        items: [
-          { id: "customers", title: "Customers", icon: Users, href: "/customers", visible: money("/customers") },
-          { id: "suppliers", title: "Suppliers", icon: Truck, href: "/suppliers", visible: money("/suppliers") },
-        ],
-      },
-      {
-        key: "farm",
-        label: "Farm",
-        items: [
-          { id: "houses", title: "Houses",       icon: Building2, href: "/houses" },
-          { id: "flocks", title: "Flock Groups", icon: Bird,      href: "/flocks" },
-          // Also in Operations > Purchase. Listed here too so the batches sit
-          // beside the houses and flock groups they are divided into. Same page;
-          // the Quick Links picker keeps the first occurrence of an href.
-          { id: "flock-batch-setup", title: "Flock Purchases (Batches)", icon: Boxes, href: "/flock-batch" },
         ],
       },
       {
@@ -528,7 +528,7 @@ export function buildPoultryNavConfig(
           { id: "audit-logs",  title: "Activity Log",        icon: Activity,   href: "/audit-logs", visible: featureAccess.canViewActivityLog },
           { id: "resources",   title: "Resources",           icon: BookOpen,   href: "/resources" },
           { id: "help",        title: "Help Center",         icon: HelpCircle, href: "/help" },
-          { id: "videos",      title: "Videos",              icon: PlayCircle, href: "/poultry-videos" },
+          { id: "videos",      title: "Support Videos",      icon: PlayCircle, href: "/poultry-videos" },
           { id: "terms",       title: "Terms & Conditions",  icon: ListTodo,   href: "/terms" },
         ],
       },

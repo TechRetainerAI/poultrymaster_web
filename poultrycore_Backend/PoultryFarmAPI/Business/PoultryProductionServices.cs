@@ -542,6 +542,7 @@ namespace PoultryFarmAPIWeb.Business
     public interface IPoultryLossRecordService
     {
         Task<List<PoultryLossRecordModel>> GetAllAsync(string farmId, string? lossType, DateTime? fromDate, DateTime? toDate);
+        Task<List<PoultryAutoDamageModel>> GetAutoDamageAsync(string farmId, DateTime? fromDate, DateTime? toDate);
         Task<int> InsertAsync(PoultryLossRecordModel m);
         Task UpdateAsync(PoultryLossRecordModel m);
         Task ApproveAsync(int id, string farmId, string? approvedBy);
@@ -551,6 +552,21 @@ namespace PoultryFarmAPIWeb.Business
     public class PoultryLossRecordService : IPoultryLossRecordService
     {
         private readonly string _cs; public PoultryLossRecordService(string cs) => _cs = cs;
+        public async Task<List<PoultryAutoDamageModel>> GetAutoDamageAsync(string farmId, DateTime? fromDate, DateTime? toDate)
+        {
+            var list = new List<PoultryAutoDamageModel>();
+            using var c = new NpgsqlConnection(_cs); using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryloss_autodamage(p_farmid => @FarmId::text, p_fromdate => @FromDate::date, p_todate => @ToDate::date)", c);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@FromDate", (object?)fromDate ?? DBNull.Value); cmd.Parameters.AddWithValue("@ToDate", (object?)toDate ?? DBNull.Value);
+            await c.OpenAsync(); using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync()) list.Add(new PoultryAutoDamageModel
+            {
+                SourceType = r.Str("SourceType"), SourceId = r.IntN("SourceId"), LossDate = r.Date("LossDate"), LossType = r.Str("LossType"),
+                ProductName = r.StrN("ProductName"), Quantity = r.DecN("Quantity") ?? 0, EstimatedValue = r.DecN("EstimatedValue"),
+                Details = r.StrN("Details"), FlockName = r.StrN("FlockName"), BrokenEggs = r.IntN("BrokenEggs"), Disposed = r.IntN("Disposed"),
+            });
+            return list;
+        }
         public async Task<List<PoultryLossRecordModel>> GetAllAsync(string farmId, string? lossType, DateTime? fromDate, DateTime? toDate)
         {
             var list = new List<PoultryLossRecordModel>();

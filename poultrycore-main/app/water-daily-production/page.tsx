@@ -199,11 +199,11 @@ export default function WaterDailyProductionPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen bg-slate-50">
+      <div className="flex h-screen bg-slate-50">
         <DashboardSidebar onLogout={logout} />
         <div className="flex-1 flex flex-col min-w-0">
           <DashboardHeader />
-          <main className="p-6 flex items-center gap-2 text-slate-500">
+          <main className="flex-1 overflow-y-auto p-6 flex items-center gap-2 text-slate-500">
             <Loader2 className="w-4 h-4 animate-spin" /> Loading batch production…
           </main>
         </div>
@@ -212,11 +212,11 @@ export default function WaterDailyProductionPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-50">
       <DashboardSidebar onLogout={logout} />
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
-        <main className="overflow-y-visible overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div className="flex items-start gap-3 min-w-0">
               <div className="w-10 h-10 shrink-0 bg-sky-100 rounded-lg flex items-center justify-center">

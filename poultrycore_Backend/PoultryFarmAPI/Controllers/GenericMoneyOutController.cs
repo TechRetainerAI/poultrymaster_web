@@ -22,6 +22,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [ApiController]
     [Route("api/generic-company/{farmId}/recurring-expenses")]
     [RequireCompanyType("Generic")]
+    [RequireGenericModule("EnableRecurringExpenses")]
     public class GenericRecurringExpensesController : ControllerBase
     {
         private readonly IGenericMoneyOutService _svc;
@@ -107,6 +108,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [ApiController]
     [Route("api/generic-company/{farmId}/staff-payments")]
     [RequireCompanyType("Generic")]
+    [RequireGenericModule("EnableStaffPayments")]
     public class GenericStaffPaymentsController : ControllerBase
     {
         private readonly IGenericMoneyOutService _svc;

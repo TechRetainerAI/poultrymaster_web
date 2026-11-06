@@ -1,7 +1,7 @@
 "use client"
 
 // =============================================================================
-// Egg Configuration (/business-office/egg-pick-settings; was "Egg Pick Time Settings")
+// Egg Settings (/business-office/egg-pick-settings; was "Egg Pick Time Settings")
 //
 // One place for the farm's egg settings, as tabs:
 //   - Pick times: the time each pick represents (display/reporting only) and
@@ -151,11 +151,11 @@ function EggPickSettingsInner() {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-50">
       <DashboardSidebar onLogout={logout} />
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
-        <main className="overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-6">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-6">
           <div className="mx-auto max-w-5xl space-y-6">
             {/* Header */}
             <div className="relative overflow-hidden rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 via-white to-emerald-50 p-4 sm:p-6 shadow-sm">
@@ -168,7 +168,7 @@ function EggPickSettingsInner() {
                     <Egg className="w-6 h-6" />
                   </div>
                   <div className="min-w-0">
-                    <h1 className="text-2xl font-bold text-slate-900">Egg Configuration</h1>
+                    <h1 className="text-2xl font-bold text-slate-900">Egg Settings</h1>
                     <p className="text-sm text-slate-600 max-w-2xl">
                       Everything about how this farm collects, counts, sorts and prices its eggs — pick times, egg sorting,
                       packaging units and egg sizes.

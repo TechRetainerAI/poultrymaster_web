@@ -220,6 +220,20 @@ export default function PoultryStockPage() {
   const sortedMoves = useMemo(() => sortData(filteredMoves, sort.key, sort.direction), [filteredMoves, sort])
   const pg = usePagination(sortedMoves)
 
+  // Totals of every row the filters leave (all pages, not just this one).
+  // In and out are kept apart: across different items a net would add
+  // kilograms to eggs, so the net is only shown when one item is in view.
+  const totals = useMemo(() => {
+    let totalIn = 0, totalOut = 0
+    const items = new Set<string>()
+    for (const m of sortedMoves) {
+      if (m.qty > 0) totalIn += m.qty
+      else if (m.qty < 0) totalOut += -m.qty
+      items.add(m.item)
+    }
+    return { totalIn, totalOut, net: totalIn - totalOut, oneItem: items.size === 1 ? [...items][0] : null, itemCount: items.size }
+  }, [sortedMoves])
+
   // ------------------------------------------------------------- PDF export
   //
   // Exports `sortedMoves`: every row the filters leave, in the order the table
@@ -237,8 +251,7 @@ export default function PoultryStockPage() {
 
     // In and out are reported separately: a net figure across raw materials,
     // supplies and finished products would be adding kilograms to eggs.
-    const totalIn = sortedMoves.reduce((sum, m) => sum + (m.qty > 0 ? m.qty : 0), 0)
-    const totalOut = sortedMoves.reduce((sum, m) => sum + (m.qty < 0 ? -m.qty : 0), 0)
+    const { totalIn, totalOut } = totals
 
     return {
       title: "Stock Movements",
@@ -287,6 +300,7 @@ export default function PoultryStockPage() {
         `Movements: ${sortedMoves.length.toLocaleString()}`,
         `Total in: +${totalIn.toLocaleString()}`,
         `Total out: -${totalOut.toLocaleString()}`,
+        ...(totals.oneItem ? [`Net (${totals.oneItem}): ${totals.net > 0 ? "+" : ""}${totals.net.toLocaleString()}`] : []),
       ],
       // Orange, matching /poultry-inventory — the two pages report on the same
       // stock and should not print in different colours.
@@ -370,11 +384,11 @@ export default function PoultryStockPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex h-screen bg-gray-50">
       <DashboardSidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
-        <main className="flex-1 p-4 sm:p-6 space-y-4">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div><h1 className="text-2xl font-bold">Stock Movements</h1><p className="text-sm text-slate-500">All stock increases and decreases — finished products and raw materials. Production, sales, purchases and manual entries.</p></div>
             <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
@@ -434,6 +448,23 @@ export default function PoultryStockPage() {
                   </Select>
                 )}
               </>} /></div>
+              {sortedMoves.length > 0 && (
+                <div className="mb-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                  <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-baseline sm:gap-x-8">
+                    <div><div className="text-xs text-slate-500">Movements</div><div className="font-semibold tabular-nums">{sortedMoves.length.toLocaleString()}</div></div>
+                    <div><div className="text-xs text-slate-500">Total in</div><div className="font-semibold tabular-nums text-green-700">+{totals.totalIn.toLocaleString()}</div></div>
+                    <div><div className="text-xs text-slate-500">Total out</div><div className="font-semibold tabular-nums text-red-600">-{totals.totalOut.toLocaleString()}</div></div>
+                    {totals.oneItem && (
+                      <div><div className="text-xs text-slate-500">Net</div><div className={`font-semibold tabular-nums ${totals.net < 0 ? "text-red-600" : "text-green-700"}`}>{totals.net > 0 ? "+" : ""}{totals.net.toLocaleString()}</div></div>
+                    )}
+                  </div>
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    {totals.oneItem
+                      ? <>Totals for <b>{totals.oneItem}</b> across all {sortedMoves.length.toLocaleString()} filtered rows, not just this page.</>
+                      : <>Totals of all {sortedMoves.length.toLocaleString()} filtered rows across {totals.itemCount} items, which may be in different units. Filter to one item for a meaningful total.</>}
+                  </p>
+                </div>
+              )}
               <div className="hidden md:block overflow-x-auto"><Table className="min-w-[900px]">
                 <TableHeader><TableRow>
                   {(() => { const onSort = (k: string) => setSort((s) => toggleSort(k, s.key, s.direction)); const cs = sort.key, cd = sort.direction; return (<>

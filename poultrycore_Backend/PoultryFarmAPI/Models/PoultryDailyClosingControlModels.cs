@@ -100,6 +100,8 @@ namespace PoultryFarmAPIWeb.Models
         public decimal? ClosingCash { get; set; }
         public decimal? CashDifference { get; set; }
         public decimal? EggsDamaged { get; set; }
+        /// <summary>404: Broken Eggs disposed that day (net).</summary>
+        public decimal? EggsDisposed { get; set; }
         public decimal? Mortality { get; set; }
         public decimal? FeedKg { get; set; }
         public int? BlockingCount { get; set; }

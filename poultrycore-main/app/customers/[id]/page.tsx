@@ -94,7 +94,7 @@ export default function EditCustomerPage() {
 
   if (fetchLoading) {
     return (
-      <div className="flex min-h-screen bg-slate-50">
+      <div className="flex h-screen bg-slate-50">
         {/* Sidebar */}
         <DashboardSidebar onLogout={handleLogout} />
         
@@ -104,7 +104,7 @@ export default function EditCustomerPage() {
           <DashboardHeader />
           
           {/* Main Content Area */}
-          <main className="overflow-y-visible p-6">
+          <main className="flex-1 overflow-y-auto p-6">
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
                 <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
@@ -118,7 +118,7 @@ export default function EditCustomerPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-50">
       {/* Sidebar */}
       <DashboardSidebar onLogout={handleLogout} />
       
@@ -128,7 +128,7 @@ export default function EditCustomerPage() {
         <DashboardHeader />
         
         {/* Main Content Area */}
-        <main className="overflow-y-visible p-6">
+        <main className="flex-1 overflow-y-auto p-6">
           <div className="space-y-6 space-y-6">
             {/* Page Header */}
             <div className="flex items-center gap-3 mb-6">

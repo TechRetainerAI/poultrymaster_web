@@ -46,6 +46,17 @@ namespace PoultryFarmAPIWeb.Controllers
         private async Task<bool> IsFutureDateAsync(string farmId, DateTime d)
             => d.Date > (await _time.GetBusinessDateAsync(farmId)).Date;
 
+        // GET api/ProductionRecord/birds-on-date?farmId=&flockId=&date=&excludeRecordId=
+        // 406: what a new record should open with -- last birds left minus birds
+        // sold since. 404 when the database does not have the reader yet.
+        [HttpGet("birds-on-date")]
+        public async Task<ActionResult<BirdsOnDateModel>> GetBirdsOnDate([FromQuery] string farmId, [FromQuery] int flockId, [FromQuery] DateTime date, [FromQuery] int? excludeRecordId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            var result = await _service.GetBirdsOnDate(farmId, flockId, date, excludeRecordId);
+            return result is null ? NotFound() : Ok(result);
+        }
+
         [HttpPost]
         public async Task<ActionResult<ProductionRecordModel>> Create([FromBody] ProductionRecordModel model)
         {

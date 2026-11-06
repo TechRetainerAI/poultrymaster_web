@@ -27,6 +27,7 @@ namespace PoultryFarmAPIWeb.Controllers
     [ApiController]
     [Route("api/generic-company/{farmId}/balances")]
     [RequireCompanyType("Generic")]
+    [RequireGenericModule("EnableCustomerBalances", "EnableSupplierBalances")]
     public class GenericBalancesController : ControllerBase
     {
         private readonly IGenericBalanceService _svc;

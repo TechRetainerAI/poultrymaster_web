@@ -41,12 +41,22 @@ export interface EmployeePrefill { firstName: string; lastName: string; phoneNum
 const suggestUserName = (p: EmployeePrefill) =>
   [p.firstName, p.lastName].map((x) => x.trim().toLowerCase().replace(/[^a-z0-9]/g, "")).filter(Boolean).join("_")
 
-const blankForm = (p?: EmployeePrefill | null) => ({
-  userName: p ? suggestUserName(p) : "", email: p?.email ?? "", password: "", confirmPassword: "",
+/** Generate a random password: 8 chars, mix of upper/lower/digits. */
+function generatePassword(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789"
+  let pw = ""
+  for (let i = 0; i < 8; i++) pw += chars[Math.floor(Math.random() * chars.length)]
+  return pw
+}
+
+const blankForm = (p?: EmployeePrefill | null) => {
+  const pw = generatePassword()
+  return {
+  userName: p ? suggestUserName(p) : "", email: p?.email ?? "", password: pw, confirmPassword: pw,
   firstName: p?.firstName ?? "", lastName: p?.lastName ?? "", phoneNumber: p?.phoneNumber ?? "",
   isAdmin: false, adminTitle: "", adminPermissions: { ...DEFAULT_ADMIN_PERMISSIONS },
   featurePermissions: { ...DEFAULT_STAFF_FEATURE_PERMISSIONS },
-})
+}}
 
 export function AddEmployeeDialog({
   open,
@@ -204,13 +214,18 @@ export function AddEmployeeDialog({
                 <Input name="email" type="email" value={createForm.email} onChange={(e) => setCreateForm({...createForm, email: e.target.value})} required disabled={createLoading} placeholder="employee@example.com" />
               </div>
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-slate-700">Password *</Label>
-                <Input name="password" type="password" value={createForm.password} onChange={(e) => setCreateForm({...createForm, password: e.target.value})} required disabled={createLoading} placeholder="At least 4 characters" />
-                <p className="text-xs text-slate-500">Min 4 characters</p>
+                <Label className="text-sm font-medium text-slate-700">Password * <span className="text-xs text-slate-500 font-normal">(auto-generated)</span></Label>
+                <div className="flex gap-1.5">
+                  <Input name="password" type="text" value={createForm.password} onChange={(e) => setCreateForm({...createForm, password: e.target.value, confirmPassword: e.target.value})} required disabled={createLoading} placeholder="At least 4 characters" className="font-mono" />
+                  <button type="button" disabled={createLoading} className="shrink-0 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100" onClick={() => { const pw = generatePassword(); setCreateForm({...createForm, password: pw, confirmPassword: pw}) }}>
+                    Regenerate
+                  </button>
+                </div>
+                <p className="text-xs text-slate-500">Auto-generated. Will be emailed to the employee if email is provided.</p>
               </div>
               <div className="space-y-2">
                 <Label className="text-sm font-medium text-slate-700">Confirm Password *</Label>
-                <Input name="confirmPassword" type="password" value={createForm.confirmPassword} onChange={(e) => setCreateForm({...createForm, confirmPassword: e.target.value})} required disabled={createLoading} placeholder="Re-enter password" />
+                <Input name="confirmPassword" type="text" value={createForm.confirmPassword} onChange={(e) => setCreateForm({...createForm, confirmPassword: e.target.value})} required disabled={createLoading} placeholder="Re-enter password" className="font-mono" />
               </div>
             </div>
           </div>

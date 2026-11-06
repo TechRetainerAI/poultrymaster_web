@@ -317,7 +317,11 @@ namespace PoultryFarmAPIWeb.Business
         {
             using var conn = new NpgsqlConnection(ConnectionString);
             using var cmd = new NpgsqlCommand(
-                "SELECT spgenericbusinesstemplate_apply(p_farmid => @FarmId::text, p_businesstemplate => @Business::text, p_industrytemplate => @Industry::text, p_createdby => @CreatedBy::text)", conn);
+                // 362: Use the extended SP that maps new industry templates (ProduceSeller,
+                // Grocery, Barbershop, etc.) to their base templates and adds
+                // industry-specific seeding. Falls through to the original SP for
+                // all previously known templates, so this is backward-compatible.
+                "SELECT spgenericbusinesstemplate_apply_extended(@FarmId, @Business, @Industry, @CreatedBy)", conn);
             cmd.Parameters.AddWithValue("@FarmId", r.FarmId);
             cmd.Parameters.AddWithValue("@Business", r.BusinessTemplate);
             cmd.Parameters.AddWithValue("@Industry", r.IndustryTemplate);

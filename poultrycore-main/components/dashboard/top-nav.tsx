@@ -21,6 +21,7 @@ import { QuickLinksDialog } from "@/components/dashboard/quick-links-dialog"
 import { buildPoultryNavConfig } from "@/lib/nav/poultry-nav-config"
 import { buildHotelNavConfig } from "@/lib/nav/hotel-nav-config"
 import { buildRestaurantNavConfig } from "@/lib/nav/restaurant-nav-config"
+import { buildGenericNavConfig } from "@/lib/nav/generic-nav-config"
 import { useOnlineOrderCounts } from "@/lib/utils/online-order-alerts"
 import { NavMegaMenu } from "./nav/nav-mega-menu"
 import { useNavPopover, NAV_TRIGGER_CLASS, NAV_TRIGGER_ACTIVE } from "./nav/use-nav-popover"
@@ -49,6 +50,12 @@ import {
   Receipt,
   Scale,
   Wrench,
+  Zap,
+  GraduationCap,
+  CalendarDays,
+  ClipboardCheck,
+  Banknote,
+  Users2,
 } from "lucide-react"
 
 /**
@@ -326,77 +333,104 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
   )
 }
 
-// Generic Company top-nav: same compact pattern as WaterTopNav, but with the
-// emerald color to make the company-type switch visually obvious. Mirrors the
-// Generic sidebar groups (Catalog / Sales / Purchasing / Money / Admin); less
-// important items live in a More dropdown so the rail stays one line wide.
+// Generic Company top-nav: same mega-menu pattern as Water/Hotel/Restaurant.
+// Groups adapt based on business type — a school sees "Fees & Billing" and
+// "School"; a shop sees "Quick Sale" and "Catalog & Stock".
 function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePermissions> }) {
-  // Only the NEW items are gated. Everything already on this rail stays put.
-  const { showNew, showExisting, labels } = useGenericModules()
-
-  const subscriptionGroup: NavGroup = {
-    label: "Subscriptions",
-    items: [
-      { href: "/generic-service-plans", label: labels.planPlural,         icon: Repeat },
-      { href: "/generic-subscriptions", label: labels.subscriptionPlural, icon: CalendarClock },
-      { href: "/generic-billing-runs",  label: "Billing runs",            icon: Receipt },
-      ...(showNew("enableInvoices")
-        ? [{ href: "/generic-invoices", label: labels.invoicePlural, icon: FileText }]
-        : []),
-    ],
-  }
-
-  const moreGroup: NavGroup = {
-    label: "More",
-    items: [
-      ...(showNew("enableCustomerBalances")
-        ? [{ href: "/generic-customer-balances", label: labels.customerBalance, icon: Scale }]
-        : []),
-      // Generic has no Operations mega-menu, so Internal Use rides here beside
-      // the other stock pages rather than getting a menu of its own -- and it
-      // goes when the stock modules go.
-      ...(showExisting("enableInternalUse")
-        ? [{ href: "/generic-internal-use", label: "Internal Use", icon: PackageMinus }]
-        : []),
-      { href: "/generic-customer-payments",  label: labels.paymentPlural, icon: CreditCard },
-      { href: "/generic-supplier-payments",  label: "Supplier payments",  icon: CreditCard },
-      { href: "/generic-cash",               label: "Cash & Accounts",    icon: Wallet },
-      { href: "/generic-cash-transfers",     label: "Cash transfers",     icon: Activity },
-      { href: "/generic-daily-closings",     label: "Daily Closing",      icon: FileText },
-      { href: "/generic-reports",            label: "Reports",            icon: BarChart3 },
-      ...(permissions.isAdmin ? [{ href: "/generic-setup", label: "Setup", icon: Settings }] : []),   // admin-only
-      { href: "/profile",                    label: "Account",            icon: User },
-      // James 2026-06-02 — Employees and Activity Log removed from the top
-      // nav (still in the sidebar). /resources and /settings are poultry-only;
-      // Generic has /generic-setup.
-    ],
-  }
+  const modules = useGenericModules()
+  const nav = useMemo(() => buildGenericNavConfig(modules, permissions), [modules, permissions])
+  const isSub = modules.isSubscriptionBusiness
 
   return (
     <div className="hidden lg:block bg-emerald-600 border-b border-emerald-700">
       <div className="flex items-center gap-1 px-4 pt-1.5 pb-2.5 nav-rail-scroll">
-        <NavLink item={{ href: "/generic-dashboard",          label: "Dashboard",         icon: Home }} accent="emerald" />
+        <NavLink item={{ href: "/generic-dashboard", label: "Dashboard", icon: Home }} accent="emerald" />
         <div className="h-5 w-px bg-white/30 mx-1" />
-        {/* The stock rail is optional (spec section 5): a SaaS company, a gym
-            and a school have no products to sell and no stock to buy. */}
-        {showExisting("enableProducts") && (
-          <NavLink item={{ href: "/generic-products", label: "Products", icon: ShoppingBag }} accent="emerald" />
+
+        {/* Quick Sale hidden — only Sales is shown */}
+
+        {/* Catalog & Stock — retail businesses */}
+        {nav.catalog.length > 0 && (
+          <NavMegaMenu
+            label="Catalog" icon={ShoppingBag}
+            title="Catalog & Stock"
+            blurb="Products, inventory, stock adjustments and internal use."
+            groups={nav.catalog}
+            columns={1} widthRem={18} layout="grid" accent="emerald"
+          />
         )}
-        {showExisting("enableStockAdjustments") && (
-          <NavLink item={{ href: "/generic-stock-adjustments", label: "Stock adjustments", icon: Boxes }} accent="emerald" />
+
+        {/* Sales / Students & Payments */}
+        <NavMegaMenu
+          label={nav.salesOrStudents[0]?.label ?? "Sales"} icon={isSub ? Users : ShoppingCart}
+          title={nav.salesOrStudents[0]?.label ?? "Sales"}
+          blurb={isSub ? `${modules.labels.customerPlural}, payments and balances.` : "Sales, customers and payments."}
+          groups={nav.salesOrStudents}
+          columns={1} widthRem={18} layout="grid" accent="emerald"
+        />
+
+        {/* Billing — subscription businesses */}
+        {nav.billing.length > 0 && (
+          <NavMegaMenu
+            label={nav.billing[0]?.label ?? "Billing"} icon={Receipt}
+            title={nav.billing[0]?.label ?? "Billing"}
+            blurb={`${modules.labels.planPlural}, ${modules.labels.subscriptionPlural.toLowerCase()} and billing runs.`}
+            groups={nav.billing}
+            columns={1} widthRem={18} layout="grid" accent="emerald"
+          />
         )}
-        <NavLink item={{ href: "/generic-sales",              label: "Sales",             icon: ShoppingCart }} accent="emerald" />
-        <NavLink item={{ href: "/generic-customers",          label: labels.customerPlural, icon: Users }} accent="emerald" />
-        <NavLink item={{ href: "/generic-suppliers",          label: "Suppliers",         icon: Truck }} accent="emerald" />
-        {showExisting("enablePurchases") && (
-          <NavLink item={{ href: "/generic-purchases", label: "Purchases", icon: Package }} accent="emerald" />
+
+        {/* Expenses & Vendors / Purchasing */}
+        <NavMegaMenu
+          label={nav.expenses[0]?.label ?? "Expenses"} icon={DollarSign}
+          title={nav.expenses[0]?.label ?? "Expenses"}
+          blurb={isSub ? "Vendors, expenses and recurring costs." : "Suppliers, purchases and expenses."}
+          groups={nav.expenses}
+          columns={1} widthRem={18} layout="grid" accent="emerald"
+        />
+
+        {/* School — only for schools */}
+        {nav.school.length > 0 && (
+          <NavMegaMenu
+            label="School" icon={GraduationCap}
+            title="School"
+            blurb="Classes, academic terms and student attendance."
+            groups={nav.school}
+            columns={1} widthRem={18} layout="grid" accent="emerald"
+          />
         )}
-        <NavLink item={{ href: "/generic-expenses",           label: "Expenses",          icon: DollarSign }} accent="emerald" />
-        {showNew("enableSubscriptions") && <NavDropdown group={subscriptionGroup} accent="emerald" />}
-        <NavDropdown group={moreGroup} accent="emerald" />
+
+        {/* Money */}
+        <NavMegaMenu
+          label="Money" icon={Wallet}
+          title="Money"
+          blurb="Cash accounts, transfers, reconciliation and daily closing."
+          groups={nav.money}
+          columns={1} widthRem={20} layout="grid" accent="emerald"
+        />
+
+        {/* People / Employees — only when staff features enabled */}
+        {nav.people.length > 0 && (
+          <NavMegaMenu
+            label="Employees" icon={Users2}
+            title={modules.industry === "School" ? "Staff & Teachers" : "Employees"}
+            blurb="Staff, attendance, payroll and employee loans."
+            groups={nav.people}
+            columns={1} widthRem={20} layout="grid" accent="emerald"
+          />
+        )}
+
+        {/* Admin */}
+        <NavMegaMenu
+          label="Admin" icon={Settings}
+          title="Admin"
+          blurb="Reports, setup and settings."
+          groups={nav.admin}
+          columns={1} widthRem={18} layout="grid" accent="emerald"
+        />
+
         <div className="ml-auto flex items-center gap-1">
           <NavLink item={{ href: "/companies", label: "Companies", icon: Building2 }} accent="emerald" />
-          {/* /help is poultry-specific */}
         </div>
       </div>
     </div>

@@ -230,11 +230,11 @@ function PoultryDailyClosingInner() {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-50">
       <DashboardSidebar onLogout={logout} />
       <div className="flex min-w-0 flex-1 flex-col">
         <DashboardHeader />
-        <main className="min-w-0 overflow-x-hidden p-4 pb-16 sm:p-6 lg:pb-4">
+        <main className="flex-1 overflow-y-auto min-w-0 overflow-x-hidden p-4 pb-16 sm:p-6 lg:pb-4">
           <div className="space-y-4">
             {/* ---------------------------------------------------- header */}
             <div className="flex flex-wrap items-end justify-between gap-4">
@@ -437,7 +437,8 @@ function PoultryDailyClosingInner() {
                           { label: "Opening → closing cash", value: `${money(h.openingCash)} → ${money(h.closingCash)}` },
                           { label: "Cash difference", value: money(h.cashDifference) },
                           { label: "Eggs produced", value: `${num(h.eggsProduced)}${eggBoxes(h.eggsProduced)}` },
-                          { label: "Damaged eggs", value: num(h.eggsDamaged) },
+                          { label: "Total damaged (broken) eggs", value: num(h.eggsDamaged) },
+                          { label: "Total disposed eggs", value: num(h.eggsDisposed) },
                           { label: "Mortality", value: num(h.mortality) },
                           { label: "Feed used", value: h.feedKg != null ? `${num(h.feedKg, 2)} kg` : "—" },
                           { label: "Checks", value: checks(h) },
@@ -475,7 +476,8 @@ function PoultryDailyClosingInner() {
                                   <th className="px-3 py-2 text-right font-medium">Closing cash</th>
                                   <th className="px-3 py-2 text-right font-medium">Cash diff.</th>
                                   <th className="px-3 py-2 text-right font-medium">Eggs</th>
-                                  <th className="px-3 py-2 text-right font-medium">Damaged</th>
+                                  <th className="px-3 py-2 text-right font-medium">Damaged (broken)</th>
+                                  <th className="px-3 py-2 text-right font-medium">Disposed</th>
                                   <th className="px-3 py-2 text-right font-medium">Mortality</th>
                                   <th className="px-3 py-2 text-right font-medium">Feed kg</th>
                                   <th className="px-3 py-2 font-medium">Checks</th>
@@ -509,6 +511,7 @@ function PoultryDailyClosingInner() {
                                     <td className={cn("px-3 py-2 text-right tabular-nums", (h.cashDifference ?? 0) !== 0 && "text-amber-700")}>{money(h.cashDifference)}</td>
                                     <td className="px-3 py-2 text-right tabular-nums">{num(h.eggsProduced)}</td>
                                     <td className="px-3 py-2 text-right tabular-nums">{num(h.eggsDamaged)}</td>
+                                    <td className="px-3 py-2 text-right tabular-nums">{num(h.eggsDisposed)}</td>
                                     <td className="px-3 py-2 text-right tabular-nums">{num(h.mortality)}</td>
                                     <td className="px-3 py-2 text-right tabular-nums">{num(h.feedKg, 2)}</td>
                                     <td className="px-3 py-2">{checks(h)}</td>

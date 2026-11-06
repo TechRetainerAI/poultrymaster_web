@@ -1,5 +1,6 @@
 "use client"
 
+import { isBroilerBatch, isBroilerFlock, shouldSwitchToChicken, BROILER_SALE_PRODUCT } from "@/lib/poultry/flock-type"
 import { useState, useEffect, useRef, useMemo } from "react"
 import { parseDateParam } from "@/lib/utils/date-param"
 import { useRouter } from "next/navigation"
@@ -1652,6 +1653,15 @@ export default function SalesPage() {
   /** The batch a flock came from (flock.batchid), or 0. */
   const batchOfFlock = (flockId: number | null | undefined) =>
     Number(flocks.find((f) => f.flockId === flockId)?.batchId) || 0
+
+  // Broiler birds are sold as Chicken. Picking a broiler flock or batch on a NEW
+  // sale switches the product -- only away from eggs or a blank product (see
+  // shouldSwitchToChicken); an edited sale keeps what it was saved as.
+  const chickenForBroiler = (broiler: boolean) => {
+    if (!broiler || editingSale) return
+    if (!shouldSwitchToChicken(formData.product)) return
+    setFirstLineProduct(BROILER_SALE_PRODUCT)
+  }
   // A chosen batch narrows the flocks to its own; the flock already on the
   // form stays listed so an edit can still show it.
   const shownFlocks = saleBatchId
@@ -1663,7 +1673,7 @@ export default function SalesPage() {
   }, [searchCustomer, dateFrom, dateTo])
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-50">
       {/* Sidebar */}
       <DashboardSidebar onLogout={handleLogout} />
       
@@ -1673,7 +1683,7 @@ export default function SalesPage() {
         <DashboardHeader />
         
         {/* Main Content Area */}
-        <main className="overflow-y-visible overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
           <div className="space-y-6">
             {/* Page Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -1804,6 +1814,7 @@ export default function SalesPage() {
                       if (b && formData.flockId && batchOfFlock(formData.flockId) !== b) {
                         setFormData(prev => ({ ...prev, flockId: 0 }))
                       }
+                      chickenForBroiler(isBroilerBatch(b, flocks, batches.find((x) => x.batchId === b)?.breed))
                     }}
                   >
                     <SelectTrigger id="batchId">
@@ -1829,6 +1840,7 @@ export default function SalesPage() {
                       // Picking a flock picks its batch too.
                       const b = batchOfFlock(f)
                       if (f && b) setSaleBatchId(b)
+                      chickenForBroiler(!!f && isBroilerFlock(flocks.find((x) => x.flockId === f)))
                     }}
                   >
                     <SelectTrigger id="flockId">

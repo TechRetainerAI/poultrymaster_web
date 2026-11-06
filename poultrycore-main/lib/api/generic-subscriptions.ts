@@ -259,6 +259,14 @@ export async function getBusinessTemplate(): Promise<GenericBusinessTemplateInfo
   return getJson<GenericBusinessTemplateInfo>(`${farmBase()}/business-template`)
 }
 
+/**
+ * Same as getBusinessTemplate, for a named company rather than the active one —
+ * the Business Office lists every company with none of them active.
+ */
+export async function getBusinessTemplateFor(farmId: string): Promise<GenericBusinessTemplateInfo> {
+  return getJson<GenericBusinessTemplateInfo>(`/generic-company/${encodeURIComponent(farmId)}/business-template`)
+}
+
 export async function getModuleSettings(): Promise<GenericModuleSettings> {
   return getJson<GenericModuleSettings>(`${farmBase()}/module-settings`)
 }

@@ -386,3 +386,39 @@ String productionRefusal(Object e, String fallback) {
   if (e.statusCode == 400 && body == null && e.message.trim().isNotEmpty && !e.message.trim().startsWith('<')) return e.message.trim();
   return fallback;
 }
+
+/// 406: what a new production record for a flock-day opens with -- the last
+/// birds left minus the birds sold since (GET /api/ProductionRecord/birds-on-date,
+/// the web form's source too). Null when the API or database does not have it
+/// yet (404) or the call fails: callers then carry the last count forward as
+/// they always did.
+class BirdsOnDate {
+  const BirdsOnDate({required this.previousBirdsLeft, required this.birdsSoldSince, required this.birdsSoldToDate, required this.birds});
+  final num previousBirdsLeft;
+  final num birdsSoldSince;
+  /// Sent back as birdsSoldReflected on a new record.
+  final num birdsSoldToDate;
+  final num birds;
+}
+
+Future<BirdsOnDate?> fetchBirdsOnDate(ApiClient api, String farmId, int flockId, String date, {int? excludeRecordId}) async {
+  try {
+    final r = await api.get('/api/ProductionRecord/birds-on-date', query: {
+      'farmId': farmId,
+      'flockId': '$flockId',
+      'date': date,
+      if (excludeRecordId != null) 'excludeRecordId': '$excludeRecordId',
+    });
+    if (r is! Map) return null;
+    return BirdsOnDate(
+      previousBirdsLeft: tNum(r['previousBirdsLeft']),
+      birdsSoldSince: tNum(r['birdsSoldSince']),
+      birdsSoldToDate: tNum(r['birdsSoldToDate']),
+      birds: tNum(r['birds']),
+    );
+  } on ApiException {
+    return null;
+  } catch (_) {
+    return null;
+  }
+}

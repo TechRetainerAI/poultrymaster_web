@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils"
 import { getUserContext } from "@/lib/utils/user-context"
 import { safeReturnPath } from "@/lib/activity/completeness"
 import { getFlocks, type Flock } from "@/lib/api/flock"
-import { getProductionRecords, type ProductionRecord } from "@/lib/api/production-record"
+import { getProductionRecords, getBirdsOnDate, type ProductionRecord } from "@/lib/api/production-record"
 import {
   getBatchProductionRecord,
   saveBatchAllocation,
@@ -84,6 +84,9 @@ export default function AllocateBatchPage() {
   const [batch, setBatch] = useState<ProductionBatchRecord | null>(null)
   const [flocksById, setFlocksById] = useState<Map<number, Flock>>(new Map())
   const [records, setRecords] = useState<ProductionRecord[]>([])
+  // 406: each included flock's opening count on the batch's day -- last birds
+  // left minus birds sold since. Empty when the server does not have it yet.
+  const [openingBirds, setOpeningBirds] = useState<Map<number, number>>(new Map())
   const [rows, setRows] = useState<AllocRow[]>([])
   const [method, setMethod] = useState<AllocMethod | null>(null)
   const [methodOpen, setMethodOpen] = useState(false)
@@ -110,6 +113,14 @@ export default function AllocateBatchPage() {
       const fmap = new Map<number, Flock>()
       ;(flockRes.data || []).forEach((f) => fmap.set(f.flockId, f))
       const recs = (recRes.data || []) as ProductionRecord[]
+      const day = String(b.productionDate || "").slice(0, 10)
+      const opening = new Map<number, number>()
+      if (day) {
+        const seeds = await Promise.all((b.includedFlocks || []).map(async (incl) =>
+          [incl.flockId, await getBirdsOnDate(farmId, incl.flockId, day)] as const))
+        for (const [fid, seed] of seeds) if (seed) opening.set(fid, seed.birds)
+      }
+      setOpeningBirds(opening)
       setBatch(b)
       setFlocksById(fmap)
       setRecords(recs)
@@ -118,10 +129,10 @@ export default function AllocateBatchPage() {
         setRows(allocationsToRows(b))
         setMethod("Manual")
       } else if (["PendingAllocation", "Allocated"].includes(b.status)) {
-        setRows(buildBlankRows(b, fmap, recs))
+        setRows(buildBlankRows(b, fmap, recs, opening))
         setMethodOpen(true)
       } else {
-        setRows(buildBlankRows(b, fmap, recs))
+        setRows(buildBlankRows(b, fmap, recs, opening))
       }
       setLoading(false)
     })()
@@ -144,7 +155,7 @@ export default function AllocateBatchPage() {
   function chooseMethod(m: AllocMethod) {
     if (!batch) return
     setMethod(m)
-    setRows((prev) => applyMethod(m, prev.length ? prev : buildBlankRows(batch, flocksById, records), batch, records))
+    setRows((prev) => applyMethod(m, prev.length ? prev : buildBlankRows(batch, flocksById, records, openingBirds), batch, records))
     setMethodOpen(false)
   }
 
@@ -319,11 +330,11 @@ export default function AllocateBatchPage() {
     })
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-50">
       <DashboardSidebar onLogout={handleLogout} />
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
-        <main className="overflow-y-visible overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
           <div className="max-w-[1400px] mx-auto">
             <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
               <div className="flex items-center gap-3">

@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react"
 import { parseDateParam } from "@/lib/utils/date-param"
 import { useRouter } from "next/navigation"
 import { BatchProductionRecordModal } from "@/components/production/batch-production-record-modal"
+import { DayRecordsDialog, type DayFields } from "@/components/production/day-records-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -17,7 +18,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { Plus, Download, Search, RefreshCw, Loader2, ChevronDown, ChevronUp, Filter, Mail, Layers } from "lucide-react"
+import { Plus, Download, Search, RefreshCw, Loader2, ChevronDown, ChevronUp, Filter, Mail, Layers, CalendarDays } from "lucide-react"
 import { sendReportEmail } from "@/lib/api/email"
 import {
   getBatchProductionRecords,
@@ -76,6 +77,12 @@ const batchFilterKey = (r: ProductionBatchRecord): string =>
 
 type ConfirmType = "delete" | "post" | "reverse" | "cancel" | "deleteAllocation"
 
+// Batch records keep their numbers under their own names.
+const BATCH_DAY_FIELDS: DayFields = {
+  date: "productionDate", p1: "firstPickTotal", p2: "secondPickTotal", p3: "thirdPickTotal", broken: "brokenEggs",
+  eggs: "totalEggs", feed: "feedKg", birds: "birdsLeft", deaths: "deaths", left: "birdsLeft",
+}
+
 interface ConfirmState {
   type: ConfirmType
   id: number
@@ -89,6 +96,8 @@ export default function BatchProductionRecordsPage() {
   // reachable from inside it via "Open Full Page".
   const [formOpen, setFormOpen] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
+  // "View by day": every batch record on one day.
+  const [dayOpen, setDayOpen] = useState(false)
   const router = useRouter()
   const permissions = usePermissions()
   // When the farm has the 4th pick switched off in Egg Pick Settings, the
@@ -602,11 +611,11 @@ export default function BatchProductionRecordsPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-50">
       <DashboardSidebar onLogout={handleLogout} />
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
-        <main className="overflow-x-hidden px-2 py-4 sm:p-6 pb-20 lg:pb-4">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-4 sm:p-6 pb-20 lg:pb-4">
           <div className="space-y-4 sm:space-y-6 min-w-0 w-full">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div className="flex items-start gap-3 min-w-0">
@@ -618,9 +627,14 @@ export default function BatchProductionRecordsPage() {
                   <p className="text-sm text-slate-600">Log batch-level production and allocate totals across flocks</p>
                 </div>
               </div>
-              <Button className="gap-2 shrink-0 w-full sm:w-auto h-11 sm:h-10 bg-emerald-600 hover:bg-emerald-700" onClick={() => { setEditingId(null); setFormOpen(true) }}>
-                <Plus className="w-4 h-4" /> Log Batch Production
-              </Button>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 shrink-0 w-full sm:w-auto">
+                <Button className="gap-2 shrink-0 w-full sm:w-auto h-11 sm:h-10 bg-emerald-600 hover:bg-emerald-700" onClick={() => { setEditingId(null); setFormOpen(true) }}>
+                  <Plus className="w-4 h-4" /> Log Batch Production
+                </Button>
+                <Button variant="outline" className="gap-2 w-full sm:w-auto h-11 sm:h-10" onClick={() => setDayOpen(true)}>
+                  <CalendarDays className="w-4 h-4" /> View by Day
+                </Button>
+              </div>
             </div>
 
             {error && (
@@ -1071,6 +1085,27 @@ export default function BatchProductionRecordsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <DayRecordsDialog
+        open={dayOpen}
+        onOpenChange={setDayOpen}
+        records={records}
+        fields={BATCH_DAY_FIELDS}
+        pickColumns={enableFourthPick ? [{ header: "4th Pick", key: "fourthPickTotal" }] : []}
+        firstHeader="Batch Name"
+        secondHeader="Flocks"
+        flockLabel={batchNameLabel}
+        batchLabel={batchScopeLabel}
+        description="Every batch production record logged on the chosen day."
+        statusCell={(r) => <StatusBadge status={r.status} />}
+        canEdit
+        editLabel="Open"
+        onEdit={(r) => { setDayOpen(false); router.push(`/batch-production-records/${r.id}`) }}
+        onShowInTable={(d) => {
+          setDateFrom(d); setDateTo(d); setDraftDateFrom(d); setDraftDateTo(d)
+          setDayOpen(false)
+        }}
+      />
 
       <BatchProductionRecordModal
         open={formOpen}

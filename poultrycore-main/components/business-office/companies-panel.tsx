@@ -26,7 +26,8 @@ import {
 // three options and set no template, so a company created from the Business
 // Office could never be a Gym, a School or a SaaS business — and a Generic one
 // arrived with none of its menus or starter categories.
-import { BUSINESS_TYPES, findBusinessType, needsTemplate } from "@/lib/companies/business-types"
+import { BUSINESS_TYPES, findBusinessType, needsTemplate, businessTypeForIndustry } from "@/lib/companies/business-types"
+import { getBusinessTemplateFor } from "@/lib/api/generic-subscriptions"
 
 // Derived from the business-type list rather than hardcoded, so a company type
 // added there shows up in the filter without a second edit here.
@@ -71,9 +72,27 @@ export function CompaniesPanel({ showHeading = true }: { showHeading?: boolean }
   const [deleteTarget, setDeleteTarget] = useState<Company | null>(null)
   const [deleting, setDeleting] = useState(false)
 
+  // Generic is a family (Gym, School, Salon...). The specific business is the
+  // industry template stamped on the company, keyed here by farmId -> label.
+  // Read per company after the list arrives; a failed or untemplated read just
+  // leaves the card showing "Generic", as before.
+  const [genericKind, setGenericKind] = useState<Record<string, string>>({})
+  async function loadGenericKinds(list: Company[]) {
+    const generic = list.filter((c) => c.type === "Generic")
+    const pairs = await Promise.all(generic.map(async (c) => {
+      try {
+        const t = await getBusinessTemplateFor(c.farmId)
+        const industry = t?.genericIndustryTemplate
+        if (!industry) return null
+        return [c.farmId, businessTypeForIndustry(industry)?.label ?? industry] as const
+      } catch { return null }
+    }))
+    setGenericKind(Object.fromEntries(pairs.filter((p): p is readonly [string, string] => !!p)))
+  }
+
   async function load() {
     setLoading(true)
-    try { const list = await getMyCompanies(); setLocal(list); setCompanies(list) }
+    try { const list = await getMyCompanies(); setLocal(list); setCompanies(list); void loadGenericKinds(list) }
     catch (e: any) { toast({ title: "Could not load companies", description: e?.message, variant: "destructive" }) }
     finally { setLoading(false) }
   }
@@ -154,9 +173,9 @@ export function CompaniesPanel({ showHeading = true }: { showHeading?: boolean }
 
   const visible = useMemo(() => companies.filter((c) => {
     if (typeFilter !== "all" && c.type !== typeFilter) return false
-    if (q && !(`${c.name} ${c.type} ${c.role}`.toLowerCase().includes(q.toLowerCase()))) return false
+    if (q && !(`${c.name} ${c.type} ${genericKind[c.farmId] ?? ""} ${c.role}`.toLowerCase().includes(q.toLowerCase()))) return false
     return true
-  }), [companies, q, typeFilter])
+  }), [companies, q, typeFilter, genericKind])
 
   return (
     <div className="space-y-5">
@@ -206,7 +225,11 @@ export function CompaniesPanel({ showHeading = true }: { showHeading?: boolean }
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className={`rounded-lg p-2 ${typeTone(c.type)}`}><Icon className="h-5 w-5" /></div>
-                      <div className="min-w-0"><div className="font-semibold text-slate-900 truncate">{c.name}</div><div className="text-xs text-slate-500">Role: {c.role}</div></div>
+                      <div className="min-w-0">
+                        <div className="font-semibold text-slate-900 truncate">{c.name}</div>
+                        {genericKind[c.farmId] && <div className="text-xs font-medium text-violet-700 truncate">{genericKind[c.farmId]}</div>}
+                        <div className="text-xs text-slate-500">Role: {c.role}</div>
+                      </div>
                     </div>
                     <Badge className={typeTone(c.type)}>{c.type}</Badge>
                   </div>
@@ -252,7 +275,7 @@ export function CompaniesPanel({ showHeading = true }: { showHeading?: boolean }
               </Select>
               {needsTemplate(chosen) && (
                 <p className="text-xs text-slate-500 mt-1">
-                  We&apos;ll set up the right menus and starter categories for this, and you can change any of it later.
+                  We&apos;ll automatically set up the recommended features, menus and starter categories for this business. You can customise them anytime in Setup → Business Features.
                 </p>
               )}
             </div>
@@ -269,7 +292,7 @@ export function CompaniesPanel({ showHeading = true }: { showHeading?: boolean }
         <DialogContent>
           <DialogHeader><DialogTitle>Edit company{editing ? ` — ${editing.name}` : ""}</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <div><Label>Company type</Label><Input value={editing?.type || ""} disabled /><p className="text-xs text-slate-400 mt-1">Company type can&apos;t be changed after creation.</p></div>
+            <div><Label>Company type</Label><Input value={editing ? (genericKind[editing.farmId] ? `${editing.type} — ${genericKind[editing.farmId]}` : editing.type) : ""} disabled /><p className="text-xs text-slate-400 mt-1">Company type can&apos;t be changed after creation.</p></div>
             <div><Label>Company name *</Label><Input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} /></div>
             <div><Label>Contact email</Label><Input type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} /></div>
             <div><Label>Phone</Label><Input value={editForm.phoneNumber} onChange={(e) => setEditForm({ ...editForm, phoneNumber: e.target.value })} /></div>
