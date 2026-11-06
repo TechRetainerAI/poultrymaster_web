@@ -487,7 +487,6 @@ builder.Services.AddScoped<IPoultryAdvancedReportService>(sp => new PoultryAdvan
 builder.Services.AddScoped<IGenericStaffService>(sp => new GenericStaffService(connectionString));
 builder.Services.AddScoped<IGenericStaffAttendanceService>(sp => new GenericStaffAttendanceService(connectionString));
 builder.Services.AddScoped<IGenericPayrollService>(sp => new GenericPayrollService(connectionString));
-builder.Services.AddScoped<IGenericEmployeeLoanService>(sp => new GenericEmployeeLoanService(connectionString));
 // =================================================================
 
 // =================================================================
