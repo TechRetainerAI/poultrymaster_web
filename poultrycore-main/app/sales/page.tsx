@@ -2357,7 +2357,7 @@ export default function SalesPage() {
                               page could disagree with the reports. */}
                           <div className="flex h-12 items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 text-base text-slate-700">
                             <span>{currencyCode}</span>
-                            <Link href="/poultry-setup" className="text-sm font-medium text-amber-700 underline">Change</Link>
+                            <Link href="/poultry-setup?section=business&tab=company-profile" className="text-sm font-medium text-amber-700 underline">Change</Link>
                           </div>
                         </div>
                       </MobileFilterSheetBody>
@@ -2419,7 +2419,7 @@ export default function SalesPage() {
                 <Label className="text-xs text-slate-500">Currency</Label>
                 <div className="flex h-9 w-[140px] items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700">
                   <span>{currencyCode}</span>
-                  <Link href="/poultry-setup" className="text-xs font-medium text-amber-700 underline">Change</Link>
+                  <Link href="/poultry-setup?section=business&tab=company-profile" className="text-xs font-medium text-amber-700 underline">Change</Link>
                 </div>
               </div>
               <div className="ml-auto flex items-center gap-2">

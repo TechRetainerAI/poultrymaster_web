@@ -1,0 +1,566 @@
+"use client"
+
+import { useSetupEmbedded, shellClass, SetupTabActions } from "@/components/setup/setup-embed"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
+import { DashboardSidebar } from "@/components/dashboard/sidebar"
+import { DashboardHeader } from "@/components/dashboard/header"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { NumberInput } from "@/components/ui/number-input"
+import { Switch } from "@/components/ui/switch"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
+import { FormSection, FormField } from "@/components/ui/form-section"
+import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
+import { Badge } from "@/components/ui/badge"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { Plus, Pencil, Loader2, Trash2, FlaskConical, AlertTriangle, CheckCircle2, ArrowLeft, ChevronDown, ChevronUp, Copy, Sparkles } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { useToast } from "@/hooks/use-toast"
+import { usePermissions } from "@/hooks/use-permissions"
+import { listPoultryRawMaterialItems, type PoultryRawMaterialItem } from "@/lib/api/poultry-inventory"
+import { unitOptions } from "@/lib/units"
+import {
+  listFeedFormulas, getFeedFormula, upsertFeedFormula, deleteFeedFormula, ensureDefaultFeedFormulas,
+  type FeedFormula, type FeedFormulaQuantityMode,
+} from "@/lib/api/poultry-feed-production"
+
+// Feed ingredient vs finished feed classification (mirrors the /feed/i
+// convention used by the production-records feed picker).
+const isFinishedFeed = (c?: string | null) => !!c && /finish/i.test(c)
+const isIngredient = (c?: string | null) => !!c && /feed/i.test(c) && !isFinishedFeed(c)
+
+type LineForm = {
+  key: string
+  ingredientItemId: number | null
+  quantityMode: FeedFormulaQuantityMode
+  value: string
+  unitOfMeasure: string
+  notes: string
+}
+const newLine = (): LineForm => ({ key: Math.random().toString(36).slice(2), ingredientItemId: null, quantityMode: "Percentage", value: "", unitOfMeasure: "", notes: "" })
+
+type FormState = {
+  poultryFeedFormulaId: number | null
+  formulaName: string
+  finishedFeedItemId: number | null
+  defaultOutputUnit: string
+  notes: string
+  isActive: boolean
+  /** Editing a default makes it the farm's own (385), so the dialog says so. */
+  isDefault: boolean
+  lines: LineForm[]
+}
+const EMPTY_FORM: FormState = { poultryFeedFormulaId: null, formulaName: "", finishedFeedItemId: null, defaultOutputUnit: "", notes: "", isActive: true, isDefault: false, lines: [newLine()] }
+
+function DefaultBadge() {
+  return <Badge variant="outline" className="border-sky-300 bg-sky-50 text-sky-700">Default</Badge>
+}
+
+export function PoultryFeedFormulasPage() {
+  const embedded = useSetupEmbedded()
+  const { toast } = useToast()
+  const router = useRouter()
+  const canManage = usePermissions().featureAccess.canManageFeedProduction
+  const [loading, setLoading] = useState(true)
+  const [formulas, setFormulas] = useState<FeedFormula[]>([])
+  const [items, setItems] = useState<PoultryRawMaterialItem[]>([])
+  const [search, setSearch] = useState("")
+
+  const [open, setOpen] = useState(false)
+  const [form, setForm] = useState<FormState>(EMPTY_FORM)
+  const [saving, setSaving] = useState(false)
+  const savingRef = useRef(false)
+  const [deleteTarget, setDeleteTarget] = useState<FeedFormula | null>(null)
+  const isMobile = useIsMobile()
+  // Mobile opens on scorecards; "View table format" flips to the wide table.
+  const [showTableMobile, setShowTableMobile] = useState(false)
+  const [restoring, setRestoring] = useState(false)
+  // The defaults are seeded on the first load only; after that it is the farm's list.
+  const seededRef = useRef(false)
+
+  const finishedFeedItems = useMemo(() => items.filter((i) => i.isActive && isFinishedFeed(i.category)), [items])
+  const ingredientItems = useMemo(() => items.filter((i) => i.isActive && isIngredient(i.category)), [items])
+
+  async function loadAll() {
+    setLoading(true)
+    try {
+      if (!seededRef.current) {
+        seededRef.current = true
+        // Once per farm on the server; silent if it fails (staff, or 385 not applied).
+        if (canManage) await ensureDefaultFeedFormulas().catch(() => {})
+      }
+      const [f, it] = await Promise.all([listFeedFormulas(), listPoultryRawMaterialItems()])
+      setFormulas(f)
+      setItems(it)
+    } catch (e: any) {
+      toast({ title: "Failed to load feed formulas", description: e?.message ?? String(e), variant: "destructive" })
+    } finally {
+      setLoading(false)
+    }
+  }
+  useEffect(() => { void loadAll() }, [])
+
+  const filtered = useMemo(
+    () => filterByDateAndSearch(formulas, { search, searchKeys: ["formulaName", "finishedFeedItemName"] }),
+    [formulas, search],
+  )
+  const pg = usePagination(filtered)
+
+  function openNew() {
+    setForm(EMPTY_FORM)
+    setOpen(true)
+  }
+
+  async function restoreDefaults() {
+    setRestoring(true)
+    try {
+      const r = await ensureDefaultFeedFormulas(true)
+      toast(r.formulasCreated + r.itemsCreated === 0
+        ? { title: "Nothing to add", description: "All the default formulas and feeds are already here." }
+        : { title: "Default formulas added", description: `${r.formulasCreated} formula${r.formulasCreated === 1 ? "" : "s"} and ${r.itemsCreated} feed item${r.itemsCreated === 1 ? "" : "s"} added.` })
+      await loadAll()
+    } catch (e: any) {
+      toast({ title: "Could not add the default formulas", description: e?.message ?? String(e), variant: "destructive" })
+    } finally {
+      setRestoring(false)
+    }
+  }
+
+  /** Opens the formula in the dialog. `asCopy` starts a new formula from it instead. */
+  async function openEdit(f: FeedFormula, asCopy = false) {
+    try {
+      const full = await getFeedFormula(f.poultryFeedFormulaId)
+      setForm({
+        poultryFeedFormulaId: asCopy ? null : full.poultryFeedFormulaId,
+        formulaName: asCopy ? `My ${full.formulaName}` : full.formulaName,
+        finishedFeedItemId: full.finishedFeedItemId ?? null,
+        defaultOutputUnit: full.defaultOutputUnit ?? "",
+        notes: full.notes ?? "",
+        isActive: full.isActive,
+        isDefault: !asCopy && !!full.isDefault,
+        lines: (full.lines ?? []).length
+          ? full.lines!.map((l) => ({
+              key: Math.random().toString(36).slice(2),
+              ingredientItemId: l.ingredientItemId,
+              quantityMode: l.quantityMode,
+              value: String(l.quantityMode === "Percentage" ? l.percentage ?? "" : l.fixedQuantity ?? ""),
+              unitOfMeasure: l.unitOfMeasure ?? "",
+              notes: l.notes ?? "",
+            }))
+          : [newLine()],
+      })
+      setOpen(true)
+    } catch (e: any) {
+      toast({ title: "Failed to open formula", description: e?.message ?? String(e), variant: "destructive" })
+    }
+  }
+
+  function setLine(key: string, patch: Partial<LineForm>) {
+    setForm((f) => ({ ...f, lines: f.lines.map((l) => (l.key === key ? { ...l, ...patch } : l)) }))
+  }
+  function pickIngredient(key: string, itemId: number) {
+    const item = items.find((i) => i.poultryRawMaterialItemId === itemId)
+    setLine(key, { ingredientItemId: itemId, unitOfMeasure: item?.unitOfMeasure ?? "" })
+  }
+  function addLine() { setForm((f) => ({ ...f, lines: [...f.lines, newLine()] })) }
+  function removeLine(key: string) { setForm((f) => ({ ...f, lines: f.lines.length > 1 ? f.lines.filter((l) => l.key !== key) : f.lines })) }
+
+  // Percentage total across percentage lines (fixed-quantity lines don't count).
+  const pctTotal = useMemo(
+    () => form.lines.filter((l) => l.quantityMode === "Percentage").reduce((s, l) => s + (Number(l.value) || 0), 0),
+    [form.lines],
+  )
+  const hasPercentageLines = form.lines.some((l) => l.quantityMode === "Percentage")
+  const pctOk = !hasPercentageLines || Math.abs(pctTotal - 100) < 0.01
+
+  // Fixed-quantity total. For an all-fixed formula this IS the base recipe size
+  // that production scales from (50/30/20 => base 100), so it's worth showing.
+  const fixedLines = useMemo(() => form.lines.filter((l) => l.quantityMode === "FixedQuantity"), [form.lines])
+  const fixedTotal = useMemo(() => fixedLines.reduce((s, l) => s + (Number(l.value) || 0), 0), [fixedLines])
+  // Only label a unit when every fixed line agrees on one.
+  const fixedUnit = useMemo(() => {
+    const units = new Set(fixedLines.map((l) => (l.unitOfMeasure || "").trim()).filter(Boolean))
+    return units.size === 1 ? [...units][0] : ""
+  }, [fixedLines])
+
+  async function save() {
+    if (savingRef.current) return
+    if (!form.formulaName.trim()) { toast({ title: "Formula name is required", variant: "destructive" }); return }
+    // Finished feed is optional — a formula is a reusable ingredient pattern usable with any feed.
+    const lines = form.lines.filter((l) => l.ingredientItemId && Number(l.value) > 0)
+    if (!lines.length) { toast({ title: "Add at least one ingredient line", variant: "destructive" }); return }
+
+    savingRef.current = true
+    setSaving(true)
+    try {
+      await upsertFeedFormula({
+        poultryFeedFormulaId: form.poultryFeedFormulaId ?? undefined,
+        formulaName: form.formulaName.trim(),
+        finishedFeedItemId: form.finishedFeedItemId ?? null,
+        defaultOutputUnit: form.defaultOutputUnit || null,
+        notes: form.notes || null,
+        isActive: form.isActive,
+        lines: lines.map((l, idx) => ({
+          ingredientItemId: l.ingredientItemId!,
+          quantityMode: l.quantityMode,
+          percentage: l.quantityMode === "Percentage" ? Number(l.value) : null,
+          fixedQuantity: l.quantityMode === "FixedQuantity" ? Number(l.value) : null,
+          unitOfMeasure: l.unitOfMeasure || null,
+          sortOrder: idx,
+          notes: l.notes || null,
+        })),
+      })
+      toast({ title: form.poultryFeedFormulaId ? "Formula updated" : "Formula created" })
+      setOpen(false)
+      await loadAll()
+    } catch (e: any) {
+      toast({ title: "Failed to save formula", description: e?.message ?? String(e), variant: "destructive" })
+    } finally {
+      savingRef.current = false
+      setSaving(false)
+    }
+  }
+
+  async function doDelete() {
+    if (!deleteTarget) return
+    try {
+      await deleteFeedFormula(deleteTarget.poultryFeedFormulaId)
+      toast({ title: "Formula deleted" })
+      setDeleteTarget(null)
+      await loadAll()
+    } catch (e: any) {
+      toast({ title: "Failed to delete formula", description: e?.message ?? String(e), variant: "destructive" })
+    }
+  }
+
+  return (
+    <div className={shellClass(embedded, "flex h-screen bg-gray-50")}>
+      {!embedded && <DashboardSidebar />}
+      <div className={shellClass(embedded, "flex-1 flex flex-col min-w-0")}>
+        {!embedded && <DashboardHeader />}
+        <main className={embedded ? "space-y-4 min-w-0" : "flex-1 overflow-y-auto p-4 sm:p-6 space-y-4"}>
+          {!embedded && <Button variant="ghost" size="sm" onClick={() => router.push("/poultry-feed-production")}><ArrowLeft className="w-4 h-4 mr-1" /> Back</Button>}
+
+          <div className={embedded ? "hidden" : "flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"}>
+            <div>
+              <h1 className="text-2xl font-bold">Feed Formulas</h1>
+              <p className="text-sm text-slate-500">Reusable recipes for producing finished feed from ingredients. Used to auto-calculate quantities when producing feed.</p>
+            </div>
+            <SetupTabActions>{canManage && (
+              <div className="self-start sm:ml-auto">
+                <Button onClick={openNew} disabled={loading}><Plus className="w-4 h-4 mr-1" /> New Formula</Button>
+              </div>
+            )}</SetupTabActions>
+          </div>
+
+          {/* The defaults (385) are an example, not a rule -- say so where they appear. */}
+          <div className="flex flex-col gap-3 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex gap-3">
+              <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-sky-600" />
+              <div className="space-y-1">
+                <p className="font-semibold">Default formulas to start with</p>
+                <p>
+                  Pre-Starter (0–10 days), Starter, Grower, Developer and Layer formulas — each for <b>1,000 kg (1 tonne)</b> of feed — are ready to use.
+                  This is one great example many farmers use. To make 2 tonnes, every amount is simply doubled.
+                </p>
+                <p>
+                  Most farms have their own variation. <b>Copy</b> a default to make your own version, edit it, or create a
+                  new formula from scratch.
+                </p>
+              </div>
+            </div>
+            {canManage && (
+              <Button variant="outline" size="sm" className="shrink-0 self-start border-sky-300 bg-white text-sky-800 hover:bg-sky-100"
+                onClick={() => void restoreDefaults()} disabled={restoring || loading}>
+                {restoring ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Plus className="mr-1 h-4 w-4" />}
+                Add missing defaults
+              </Button>
+            )}
+          </div>
+
+          {loading ? (
+            <div className="flex items-center gap-2 text-slate-500 p-8"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>
+          ) : (
+            <Card><CardContent className="p-4">
+              <div className="mb-3"><ListFilters search={search} setSearch={setSearch} searchOnly searchPlaceholder="Search formula or feed" /></div>
+              {isMobile && !showTableMobile ? (
+                filtered.length === 0 ? (
+                  <div className="py-12 text-center text-slate-400">No feed formulas yet. Create one to speed up feed production.</div>
+                ) : (
+                <div className="space-y-3">
+                  {pg.pageItems.map((f, idx) => {
+                    const usesPct = (f.percentageTotal ?? 0) > 0
+                    const pctGood = !usesPct || Math.abs((f.percentageTotal ?? 0) - 100) < 0.01
+                    return (
+                      <Collapsible
+                        key={f.poultryFeedFormulaId}
+                        defaultOpen
+                        className={cn("group w-full rounded-xl border shadow-sm overflow-hidden",
+                          idx % 2 === 0 ? "bg-amber-100 border-amber-300" : "bg-white border-slate-200")}
+                      >
+                        <div className={cn("px-2.5 py-3 transition-colors", idx % 2 === 0 ? "active:bg-black/10" : "active:bg-black/5")}>
+                          <CollapsibleTrigger asChild>
+                            <div className="relative cursor-pointer">
+                              <ChevronDown className="absolute right-0 top-0 h-4 w-4 text-slate-400 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
+                              <div className="min-w-0">
+                                <div className="pr-6">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="font-semibold text-slate-900">{f.formulaName}</span>
+                                    {f.isDefault && <DefaultBadge />}
+                                    {f.isActive ? <Badge variant="secondary">Active</Badge> : <Badge variant="outline">Inactive</Badge>}
+                                  </div>
+                                  <div className="mt-0.5 truncate text-xs text-slate-500">{f.finishedFeedItemName ?? "No finished feed"}</div>
+                                </div>
+                                <div className="mt-3 grid grid-cols-2 gap-2">
+                                  <div className="rounded-lg bg-blue-100 border border-blue-300 px-3 py-2 shadow-sm">
+                                    <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-900">Ingredients</p>
+                                    <p className="text-xl font-extrabold leading-tight text-blue-800">{f.lineCount ?? 0}</p>
+                                  </div>
+                                  {/* Amber when the percentages do not add to 100 -- the
+                                      same warning the table shows, kept visible here. */}
+                                  <div className={cn("rounded-lg border px-3 py-2 shadow-sm",
+                                    !usesPct ? "bg-slate-100 border-slate-300"
+                                    : pctGood ? "bg-emerald-100 border-emerald-300" : "bg-amber-100 border-amber-400")}>
+                                    <p className={cn("text-[11px] font-semibold uppercase tracking-wide",
+                                      !usesPct ? "text-slate-700" : pctGood ? "text-emerald-900" : "text-amber-900")}>% Total</p>
+                                    {usesPct ? (
+                                      <p className={cn("flex items-center gap-1 text-xl font-extrabold leading-tight",
+                                        pctGood ? "text-emerald-800" : "text-amber-800")}>
+                                        {pctGood ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <AlertTriangle className="h-4 w-4 shrink-0" />}
+                                        {(f.percentageTotal ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}%
+                                      </p>
+                                    ) : <p className="text-xl font-extrabold leading-tight text-slate-500">fixed</p>}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent>
+                            <div className="mt-4 space-y-2 border-t border-slate-200/70 pt-4 text-sm">
+                              {/* Two per row: labelled buttons overflow a 375px card on one flex line. */}
+                              <div className="grid grid-cols-2 gap-2 pt-2">
+                                <Button variant="outline" size="sm" className={cn("h-10 w-full bg-white", !canManage && "col-span-2")}
+                                  onClick={(e) => { e.stopPropagation(); void openEdit(f) }}>
+                                  <Pencil className="h-4 w-4 mr-2" /> Edit
+                                </Button>
+                                {canManage && (
+                                  <Button variant="outline" size="sm" className="h-10 w-full bg-white text-red-600 border-red-200 hover:bg-red-50"
+                                    onClick={(e) => { e.stopPropagation(); setDeleteTarget(f) }}>
+                                    <Trash2 className="h-4 w-4 mr-2" /> Delete
+                                  </Button>
+                                )}
+                                {canManage && (
+                                  <Button variant="outline" size="sm" className="col-span-2 h-10 w-full bg-white"
+                                    onClick={(e) => { e.stopPropagation(); void openEdit(f, true) }}>
+                                    <Copy className="h-4 w-4 mr-2" /> Copy as my own formula
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          </CollapsibleContent>
+                        </div>
+                      </Collapsible>
+                    )
+                  })}
+                  <div className="rounded-lg border bg-slate-50/60 px-4 py-2">
+                    <Button variant="ghost" size="sm" className="w-full text-slate-600" onClick={() => setShowTableMobile(true)}>
+                      View table format <ChevronDown className="h-4 w-4 ml-1" />
+                    </Button>
+                  </div>
+                </div>
+                )
+              ) : (
+              <>
+              {isMobile && (
+                <div className="-mx-4 mb-3 flex items-center justify-between gap-2 border-b bg-slate-50 px-4 py-2">
+                  <span className="text-xs text-slate-600">Table view • Scroll → for more</span>
+                  <Button variant="ghost" size="sm" onClick={() => setShowTableMobile(false)}>
+                    <ChevronUp className="h-4 w-4 mr-1" /> Cards
+                  </Button>
+                </div>
+              )}
+              <div className="overflow-x-auto">
+                <Table className="min-w-[720px]">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Formula</TableHead>
+                      <TableHead>Finished Feed</TableHead>
+                      <TableHead className="text-center">Ingredients</TableHead>
+                      <TableHead className="text-center">% Total</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filtered.length === 0 ? (
+                      <TableRow><TableCell colSpan={6} className="text-center text-slate-400 py-8">No feed formulas yet. Create one to speed up feed production.</TableCell></TableRow>
+                    ) : pg.pageItems.map((f) => {
+                      const usesPct = (f.percentageTotal ?? 0) > 0
+                      const pctGood = !usesPct || Math.abs((f.percentageTotal ?? 0) - 100) < 0.01
+                      return (
+                        <TableRow key={f.poultryFeedFormulaId}>
+                          <TableCell className="font-medium">
+                            <span className="inline-flex flex-wrap items-center gap-2">{f.formulaName}{f.isDefault && <DefaultBadge />}</span>
+                          </TableCell>
+                          <TableCell>{f.finishedFeedItemName ?? "—"}</TableCell>
+                          <TableCell className="text-center tabular-nums">{f.lineCount ?? 0}</TableCell>
+                          <TableCell className="text-center tabular-nums">
+                            {usesPct ? (
+                              <span className={cn("inline-flex items-center gap-1", pctGood ? "text-emerald-700" : "text-amber-700")}>
+                                {pctGood ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}
+                                {(f.percentageTotal ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}%
+                              </span>
+                            ) : <span className="text-slate-400">fixed</span>}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {f.isActive ? <Badge variant="secondary">Active</Badge> : <Badge variant="outline">Inactive</Badge>}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-1">
+                              <Button variant="ghost" size="sm" onClick={() => void openEdit(f)} aria-label="Edit"><Pencil className="w-4 h-4" /></Button>
+                              {canManage && <Button variant="ghost" size="sm" onClick={() => void openEdit(f, true)} aria-label="Copy as my own formula" title="Copy as my own formula"><Copy className="w-4 h-4" /></Button>}
+                              {canManage && <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(f)}><Trash2 className="w-4 h-4 text-red-600" /></Button>}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+              </>
+              )}
+              <DataPagination {...pg.paginationProps} />
+            </CardContent></Card>
+          )}
+        </main>
+      </div>
+
+      {/* Create / edit formula */}
+      <Dialog open={open} onOpenChange={setOpen}>
+        {/* sm:max-w, not max-w. An unprefixed max-w-[820px] out-merges the base
+            `max-w-[calc(100%-2rem)]`, so the dialog lost its side gutter on a
+            phone — and the base `sm:max-w-2xl` then survived and capped the
+            desktop width at 672px rather than the 820px asked for. Prefixing
+            fixes both ends. */}
+        <DialogContent className="sm:max-w-[820px] max-h-[92vh] overflow-y-auto p-4 sm:p-6">
+          <DialogHeader><DialogTitle>{form.poultryFeedFormulaId ? "Edit Feed Formula" : "New Feed Formula"}</DialogTitle></DialogHeader>
+
+          {form.isDefault && (
+            <p className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">
+              This is a default formula for 1,000 kg. Saving changes makes it your farm&apos;s own formula. To keep the
+              default as it is, close this and use <b>Copy</b> instead.
+            </p>
+          )}
+
+          <FormSection title="Formula details" color="blue" stackOnMobile>
+            <FormField label="Formula name *"><Input value={form.formulaName} onChange={(e) => setForm({ ...form, formulaName: e.target.value })} placeholder="e.g. Layer Mash Formula" /></FormField>
+            <FormField label="Finished feed (optional)" hint="Formulas are reusable — leave blank to use with any finished feed">
+              <Select value={form.finishedFeedItemId ? String(form.finishedFeedItemId) : "none"} onValueChange={(v) => setForm({ ...form, finishedFeedItemId: v === "none" ? null : Number(v) })}>
+                <SelectTrigger><SelectValue placeholder="Any finished feed" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Any finished feed (reusable)</SelectItem>
+                  {finishedFeedItems.map((i) => <SelectItem key={i.poultryRawMaterialItemId} value={String(i.poultryRawMaterialItemId)}>{i.itemName}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </FormField>
+            <FormField label="Default output unit" hint="Used as the batch's output unit when this formula is applied">
+              <Select value={form.defaultOutputUnit || "none"} onValueChange={(v) => setForm({ ...form, defaultOutputUnit: v === "none" ? "" : v })}>
+                <SelectTrigger><SelectValue placeholder="Pick a unit" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No default</SelectItem>
+                  {unitOptions(form.defaultOutputUnit).map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </FormField>
+            <FormField label="Active"><div className="pt-1"><Switch checked={form.isActive} onCheckedChange={(v) => setForm({ ...form, isActive: v })} /></div></FormField>
+            <FormField label="Notes" full><Textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></FormField>
+          </FormSection>
+
+          <FormSection title="Ingredients" color="emerald" stackOnMobile>
+            <div className="col-span-full space-y-2">
+              {form.lines.map((l) => (
+                <div key={l.key} className="grid grid-cols-2 sm:grid-cols-12 gap-2 items-end rounded-lg border border-slate-200 p-2.5 bg-white">
+                  <div className="col-span-2 sm:col-span-4">
+                    <label className="text-xs text-slate-500">Ingredient</label>
+                    <Select value={l.ingredientItemId ? String(l.ingredientItemId) : ""} onValueChange={(v) => pickIngredient(l.key, Number(v))}>
+                      <SelectTrigger><SelectValue placeholder={ingredientItems.length ? "Pick ingredient" : "No ingredient items"} /></SelectTrigger>
+                      <SelectContent>{ingredientItems.map((i) => <SelectItem key={i.poultryRawMaterialItemId} value={String(i.poultryRawMaterialItemId)}>{i.itemName}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div className="col-span-1 sm:col-span-3">
+                    <label className="text-xs text-slate-500">Mode</label>
+                    <Select value={l.quantityMode} onValueChange={(v) => setLine(l.key, { quantityMode: v as FeedFormulaQuantityMode })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Percentage">Percentage (%)</SelectItem>
+                        <SelectItem value="FixedQuantity">Fixed quantity</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="col-span-1 sm:col-span-2">
+                    <label className="text-xs text-slate-500">{l.quantityMode === "Percentage" ? "Percent" : `Qty${l.unitOfMeasure ? ` (${l.unitOfMeasure})` : ""}`}</label>
+                    <NumberInput min={0} step={l.quantityMode === "Percentage" ? "0.01" : "0.001"} value={l.value} onChange={(e) => setLine(l.key, { value: e.target.value })} />
+                  </div>
+                  <div className="col-span-2 sm:col-span-2">
+                    <label className="text-xs text-slate-500">Notes</label>
+                    <Input value={l.notes} onChange={(e) => setLine(l.key, { notes: e.target.value })} />
+                  </div>
+                  <div className="col-span-2 flex justify-end sm:col-span-1">
+                    <Button variant="ghost" size="sm" onClick={() => removeLine(l.key)} disabled={form.lines.length <= 1}><Trash2 className="w-4 h-4 text-red-600" /></Button>
+                  </div>
+                </div>
+              ))}
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                <Button variant="outline" size="sm" onClick={addLine}><Plus className="w-4 h-4 mr-1" /> Add ingredient</Button>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 justify-end">
+                  {hasPercentageLines && (
+                    <div className={cn("text-sm font-medium inline-flex items-center gap-1.5", pctOk ? "text-emerald-700" : "text-amber-700")}>
+                      {pctOk ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+                      Percentage total: {pctTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}%
+                      {!pctOk && <span className="text-slate-500 font-normal">(should be 100%)</span>}
+                    </div>
+                  )}
+                  {fixedLines.length > 0 && (
+                    <div className="text-sm font-medium text-slate-700">
+                      Fixed total: {fixedTotal.toLocaleString(undefined, { maximumFractionDigits: 3 })}{fixedUnit ? ` ${fixedUnit}` : ""}
+                      <span className="text-slate-500 font-normal">
+                        {hasPercentageLines
+                          ? " (shares the leftover of the batch)"
+                          : " (base recipe — scales to any batch size)"}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </FormSection>
+
+          <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:justify-end">
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => setOpen(false)} disabled={saving}>Cancel</Button>
+            <Button className="w-full sm:w-auto" onClick={() => void save()} disabled={saving}>
+              {saving ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Saving…</> : <><FlaskConical className="w-4 h-4 mr-1" /> Save Formula</>}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDeleteDialog
+        open={!!deleteTarget}
+        onOpenChange={(v) => { if (!v) setDeleteTarget(null) }}
+        onConfirm={() => void doDelete()}
+        title="Delete feed formula?"
+        description={deleteTarget ? `"${deleteTarget.formulaName}" will be permanently removed. This does not affect past production batches.` : ""}
+      />
+    </div>
+  )
+}

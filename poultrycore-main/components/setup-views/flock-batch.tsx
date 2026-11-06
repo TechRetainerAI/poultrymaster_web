@@ -1,0 +1,1733 @@
+"use client"
+
+import { useSetupEmbedded, shellClass, SetupTabActions } from "@/components/setup/setup-embed"
+import { useEffect, useState, useMemo } from "react"
+import { useRouter } from "next/navigation"
+import { DashboardSidebar } from "@/components/dashboard/sidebar"
+import { DashboardHeader } from "@/components/dashboard/header"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Label } from "@/components/ui/label"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from "@/components/ui/pagination"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
+import { Plus, Pencil, Trash2, Calendar as CalendarIcon, Bird, Users, Search, RefreshCw, Loader2, Save, Filter, ChevronDown, ChevronUp, DollarSign, CheckCircle2, Wallet, Split, Boxes } from "lucide-react"
+import { BulkFlockBatchDialog } from "@/components/poultry/bulk-flock-batch-dialog"
+import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
+import { getFlockBatches, getFlockBatch, createFlockBatch, updateFlockBatch, deleteFlockBatch, payFlockBatchBalance, type FlockBatch, type FlockBatchInput } from "@/lib/api/flock-batch"
+import { getFlocks, type Flock } from "@/lib/api/flock"
+import { getOpeningPositions, type OpeningFlockPosition } from "@/lib/api/poultry-farm-setup"
+import { consumedByBatch, unallocatedForBatch } from "@/lib/flocks/allocation"
+import { BatchAllocationDialog } from "@/components/poultry/batch-allocation-dialog"
+import { getSuppliers, type Supplier } from "@/lib/api/supplier"
+import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poultry-finance"
+import { getUserContext } from "@/lib/utils/user-context"
+import { usePermissions } from "@/hooks/use-permissions"
+import { useToast } from "@/hooks/use-toast"
+import { format } from "date-fns"
+import { formatDateShort, cn } from "@/lib/utils"
+import { useFmt, useCurrency } from "@/lib/currency"
+import { toastFormGuide } from "@/lib/utils/validation-toast"
+import { Calendar } from "@/components/ui/calendar"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { flockCountsTowardBirdTotals, getFlockLifecycleStatus } from "@/lib/utils/flock-eligibility"
+import { batchStatusFromToggles, batchTogglesFromStatus } from "@/lib/utils/batch-status"
+// The SAME fields Initial Farm Setup renders, so the two cannot drift apart.
+import {
+  BatchIdentityFields, BatchOrderFields, BatchPurchaseDetailFields,
+} from "@/components/poultry/batch-purchase-fields"
+import { BreedSelect } from "@/components/poultry/breed-select"
+import { paymentStatus as batchPaymentStatus, type BatchPurchaseDraft, type BatchPurchasePatch } from "@/lib/poultry/batch-purchase"
+import { Switch } from "@/components/ui/switch"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
+
+function ScoreCard({
+  label,
+  value,
+  description,
+  note,
+  icon: Icon,
+  accent,
+}: {
+  label: string
+  value: string
+  description: string
+  note?: string
+  icon: any
+  accent: "emerald" | "sky" | "blue" | "amber"
+}) {
+  const tint = {
+    emerald: { chip: "bg-emerald-100 text-emerald-700", value: "text-emerald-600" },
+    sky: { chip: "bg-sky-100 text-sky-700", value: "text-sky-700" },
+    blue: { chip: "bg-blue-100 text-blue-700", value: "text-blue-700" },
+    amber: { chip: "bg-amber-100 text-amber-700", value: "text-amber-600" },
+  }[accent]
+  return (
+    <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+      <div className="flex items-center gap-2">
+        <div className={cn("rounded-lg p-1.5 shrink-0", tint.chip)}>
+          <Icon className="w-4 h-4" />
+        </div>
+        <div className="text-sm font-semibold text-slate-900 leading-snug min-w-0">{label}</div>
+      </div>
+      <div className={cn("mt-2 text-2xl sm:text-3xl font-bold tabular-nums leading-tight", tint.value)}>{value}</div>
+      <p className="text-xs text-slate-500 mt-1">{description}</p>
+      {note && <p className="text-xs text-slate-400 mt-0.5">{note}</p>}
+    </div>
+  )
+}
+
+export function FlockBatchesPage() {
+  const embedded = useSetupEmbedded()
+  const router = useRouter()
+  const permissions = usePermissions()
+  const { toast } = useToast()
+  const [flockBatches, setFlockBatches] = useState<FlockBatch[]>([])
+  const [allFlocks, setAllFlocks] = useState<Flock[]>([])
+  // Empty for any farm that has not been onboarded through Initial Farm Setup.
+  const [openingPositions, setOpeningPositions] = useState<OpeningFlockPosition[]>([])
+  // Batch -> flocks allocation. `allocationBatchId` drives the tool; the prompt
+  // is what a farmer sees the moment a batch is created, so dividing it is one
+  // click away without ever being forced.
+  const [allocationBatchId, setAllocationBatchId] = useState<number | null>(null)
+  const [allocationOpen, setAllocationOpen] = useState(false)
+  const [justCreated, setJustCreated] = useState<FlockBatch | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [sortKey, setSortKey] = useState<string | null>(null)
+  const [sortDir, setSortDir] = useState<SortDirection>(null)
+  const handleSort = (key: string) => { const r = toggleSort(key, sortKey, sortDir); setSortKey(r.key); setSortDir(r.direction) }
+
+  // Filter states
+  const [search, setSearch] = useState("")
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
+  const [selectedBreed, setSelectedBreed] = useState<string>("ALL")
+  const [selectedStatus, setSelectedStatus] = useState<string>("ALL")
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [showAllColumnsMobile, setShowAllColumnsMobile] = useState(false)
+  const isMobile = useIsMobile()
+
+  // This table hides most of its columns behind `sm:`/`md:`/`lg:`/`xl:`
+  // breakpoints. A phone never reaches any of them, so on mobile — where the
+  // table renders only because the reader chose it over the cards — the hiding
+  // is switched off entirely and the table scrolls sideways instead.
+  // The class strings are written out in full: Tailwind scans source text, so a
+  // composed `hidden ${bp}:table-cell` would never be generated.
+  const HIDE_BELOW = {
+    sm: "hidden sm:table-cell",
+    md: "hidden md:table-cell",
+    lg: "hidden lg:table-cell",
+    xl: "hidden xl:table-cell",
+  } as const
+  const hideBelow = (bp: keyof typeof HIDE_BELOW) => (isMobile ? "" : HIDE_BELOW[bp])
+
+  // Suppliers for dropdown
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  // "Pay from cash account" — the active accounts, as Expenses offers them.
+  const [cashAccounts, setCashAccounts] = useState<PoultryCashAccount[]>([])
+  useEffect(() => {
+    listPoultryCashAccounts()
+      .then((a) => setCashAccounts(a.filter((x) => x.isActive)))
+      .catch(() => setCashAccounts([]))
+  }, [])
+
+  useEffect(() => {
+    if (isMobile) setShowAllColumnsMobile(false)
+  }, [isMobile])
+  
+  // Dialog state for showing flocks
+  const [flocksDialogOpen, setFlocksDialogOpen] = useState(false)
+  const [selectedBatch, setSelectedBatch] = useState<FlockBatch | null>(null)
+  const [batchFlocks, setBatchFlocks] = useState<Flock[]>([])
+  const [loadingFlocks, setLoadingFlocks] = useState(false)
+
+  // Create dialog state
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [isBulkOpen, setIsBulkOpen] = useState(false)
+  const [createLoading, setCreateLoading] = useState(false)
+  const [createError, setCreateError] = useState("")
+  const [createForm, setCreateForm] = useState({
+    batchName: "",
+    batchCode: "",
+    startDate: "",
+    breed: "",
+    numberOfBirds: 0,
+    costPerChick: 0,
+    totalCost: 0,
+    amountPaid: 0,
+    supplierType: "local",
+    supplierId: "" as string,
+    hasArrived: false,
+    active: true,
+    notes: "",
+    dollarConversionRate: 0,
+    orderPlacementDate: "",
+    estimatedArrivalDate: "",
+    poultryCashAccountId: "" as string,
+  })
+
+  // Edit dialog state
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [editLoading, setEditLoading] = useState(false)
+  const [editError, setEditError] = useState("")
+  const [editingBatchId, setEditingBatchId] = useState<number | null>(null)
+  const [editForm, setEditForm] = useState({
+    batchName: "",
+    batchCode: "",
+    startDate: "",
+    breed: "",
+    numberOfBirds: 0,
+    costPerChick: 0,
+    totalCost: 0,
+    amountPaid: 0,
+    supplierType: "local",
+    supplierId: "" as string,
+    hasArrived: false,
+    active: true,
+    notes: "",
+    dollarConversionRate: 0,
+    orderPlacementDate: "",
+    estimatedArrivalDate: "",
+    poultryCashAccountId: "" as string,
+  })
+  const [editFetching, setEditFetching] = useState(false)
+
+  // Pay-balance dialog state (part payment — settle the outstanding balance later)
+  const [payTarget, setPayTarget] = useState<FlockBatch | null>(null)
+  const [paySaving, setPaySaving] = useState(false)
+  const [payForm, setPayForm] = useState({ amount: 0, paymentMethod: "Cash", paymentDate: "" })
+
+  // Initial load
+  useEffect(() => {
+    loadFlockBatches()
+    loadSuppliers()
+    loadAllFlocks()
+  }, [])
+
+  const loadSuppliers = async () => {
+    const { userId, farmId } = getUserContext()
+    if (!userId || !farmId) return
+    const result = await getSuppliers(userId, farmId)
+    if (result.success && result.data) {
+      setSuppliers(result.data)
+    }
+  }
+
+  const loadAllFlocks = async () => {
+    const { userId, farmId } = getUserContext()
+    if (!userId || !farmId) return
+    const result = await getFlocks(userId, farmId)
+    if (result.success && result.data) {
+      setAllFlocks(result.data)
+    }
+    // Opening positions are what turn flock quantities into PLACED birds below.
+    // A farm that has never run Initial Farm Setup simply has none, and every
+    // figure on this page is then exactly what it was.
+    const opening = await getOpeningPositions(userId, farmId)
+    if (opening.success && opening.data) {
+      setOpeningPositions(opening.data.positions)
+    }
+  }
+
+  // Allocated birds per batch, DERIVED from the records this page already loads
+  // -- there is no stored counter, so this cannot drift out of step with what the
+  // server enforces. consumedByBatch is the one definition of the rule and the
+  // server's spflock_getconsumedforbatch (migration 325) computes the same thing.
+  const allocatedByBatch = useMemo(
+    () => consumedByBatch(allFlocks, openingPositions),
+    [allFlocks, openingPositions],
+  )
+
+  const unallocatedFor = (batch: FlockBatch) =>
+    unallocatedForBatch(batch.numberOfBirds, allocatedByBatch.get(batch.batchId))
+
+  const openAllocation = (batchId: number) => {
+    setAllocationBatchId(batchId)
+    setAllocationOpen(true)
+  }
+
+  const loadFlockBatches = async () => {
+    const { farmId, userId } = getUserContext()
+    
+    if (!farmId || !userId) {
+      setError("Farm ID or User ID not found")
+      setLoading(false)
+      return
+    }
+
+    const result = await getFlockBatches(userId, farmId)
+    
+    if (result.success && result.data) {
+      setFlockBatches(result.data)
+      setCurrentPage(1)
+    } else {
+      setError(result.message || "Failed to load flock batches")
+    }
+    
+    setLoading(false)
+  }
+
+  // Create handlers
+  const openCreateDialog = () => {
+    setCreateForm({
+      batchName: "",
+      batchCode: "",
+      startDate: "",
+      breed: "",
+      numberOfBirds: 0,
+      costPerChick: 0,
+      totalCost: 0,
+      amountPaid: 0,
+      supplierType: "local",
+      supplierId: "",
+      hasArrived: false,
+      active: true,
+      notes: "",
+      dollarConversionRate: 0,
+      orderPlacementDate: "",
+      estimatedArrivalDate: "",
+      poultryCashAccountId: "",
+    })
+    setCreateError("")
+    setIsCreateDialogOpen(true)
+  }
+
+  const handleCreateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const { farmId, userId } = getUserContext()
+    if (!farmId || !userId) {
+      setCreateError("Farm ID or User ID not found")
+      toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" })
+      return
+    }
+
+    if (!createForm.batchName.trim() || !createForm.batchCode.trim() || !createForm.startDate) {
+      setCreateError("Please fill in all required fields")
+      toastFormGuide(toast, "Fill in batch name, batch code, and start date — they help track birds from arrival.")
+      return
+    }
+    if (createForm.numberOfBirds <= 0) {
+      setCreateError("Number of birds must be greater than 0")
+      toastFormGuide(toast, "Enter how many birds arrived in this batch — use a number greater than zero.")
+      return
+    }
+
+    setCreateLoading(true)
+    setCreateError("")
+
+    const flockBatchData: FlockBatchInput = {
+      farmId,
+      userId,
+      batchName: createForm.batchName,
+      batchCode: createForm.batchCode,
+      startDate: createForm.startDate,
+      breed: createForm.breed,
+      numberOfBirds: createForm.numberOfBirds,
+      costPerChick: createForm.costPerChick || 0,
+      totalCost: createForm.totalCost || (createForm.costPerChick * createForm.numberOfBirds) || 0,
+      amountPaid: createForm.amountPaid || 0,
+      supplierType: createForm.supplierType,
+      dollarConversionRate: createForm.dollarConversionRate || null,
+      supplierId: createForm.supplierId ? Number(createForm.supplierId) : null,
+      status: batchStatusFromToggles(createForm.hasArrived, createForm.active),
+      notes: createForm.notes || undefined,
+      orderPlacementDate: createForm.orderPlacementDate || null,
+      estimatedArrivalDate: createForm.estimatedArrivalDate || null,
+      poultryCashAccountId: createForm.poultryCashAccountId ? Number(createForm.poultryCashAccountId) : null,
+    }
+
+    const result = await createFlockBatch(flockBatchData)
+    if (result.success) {
+      toast({ title: "Success!", description: "Flock batch created successfully." })
+      setIsCreateDialogOpen(false)
+      loadFlockBatches()
+      // Offer to divide it now. Deliberately an offer: a farmer who has not
+      // decided which pens the birds go into can walk away and come back.
+      if (result.data?.batchId) setJustCreated(result.data)
+    } else {
+      setCreateError(result.message || "Failed to create flock batch")
+    }
+    setCreateLoading(false)
+  }
+
+  // Edit handlers
+  const openEditDialog = async (batchId: number) => {
+    setEditingBatchId(batchId)
+    setEditError("")
+    setEditFetching(true)
+    setIsEditDialogOpen(true)
+
+    const { userId, farmId } = getUserContext()
+    if (!userId || !farmId) {
+      setEditError("User context not found.")
+      setEditFetching(false)
+      return
+    }
+
+    const result = await getFlockBatch(batchId, userId, farmId)
+    if (result.success && result.data) {
+      const b = result.data
+      const toggles = batchTogglesFromStatus(b.status)
+      setEditForm({
+        batchName: b.batchName || "",
+        batchCode: b.batchCode || "",
+        startDate: b.startDate ? b.startDate.split('T')[0] : "",
+        breed: b.breed || "",
+        numberOfBirds: b.numberOfBirds || 0,
+        costPerChick: b.costPerChick || 0,
+        totalCost: b.totalCost || 0,
+        amountPaid: b.amountPaid || 0,
+        supplierType: b.supplierType || "local",
+        dollarConversionRate: b.dollarConversionRate || 0,
+        supplierId: b.supplierId != null ? String(b.supplierId) : "",
+        hasArrived: toggles.hasArrived,
+        active: toggles.active,
+        notes: b.notes || "",
+        orderPlacementDate: b.orderPlacementDate ? b.orderPlacementDate.split('T')[0] : "",
+        estimatedArrivalDate: b.estimatedArrivalDate ? b.estimatedArrivalDate.split('T')[0] : "",
+        poultryCashAccountId: b.poultryCashAccountId != null ? String(b.poultryCashAccountId) : "",
+      })
+    } else {
+      setEditError(result.message || "Failed to load flock batch")
+    }
+    setEditFetching(false)
+  }
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingBatchId) return
+    const { farmId, userId } = getUserContext()
+    if (!farmId || !userId) {
+      setEditError("User context not found.")
+      toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" })
+      return
+    }
+
+    if (!editForm.batchName.trim() || !editForm.batchCode.trim() || !editForm.startDate) {
+      setEditError("Please fill in all required fields")
+      toastFormGuide(toast, "Fill in batch name, batch code, and start date — they help track birds from arrival.")
+      return
+    }
+    if (editForm.numberOfBirds <= 0) {
+      setEditError("Number of birds must be greater than 0")
+      toastFormGuide(toast, "Enter how many birds arrived in this batch — use a number greater than zero.")
+      return
+    }
+
+    setEditLoading(true)
+    setEditError("")
+
+    const flockBatchData: Partial<FlockBatchInput> = {
+      batchName: editForm.batchName,
+      batchCode: editForm.batchCode,
+      startDate: editForm.startDate + 'T00:00:00Z',
+      breed: editForm.breed,
+      numberOfBirds: editForm.numberOfBirds,
+      costPerChick: editForm.costPerChick || 0,
+      totalCost: editForm.totalCost || (editForm.costPerChick * editForm.numberOfBirds) || 0,
+      amountPaid: editForm.amountPaid || 0,
+      supplierType: editForm.supplierType,
+      dollarConversionRate: editForm.dollarConversionRate || null,
+      supplierId: editForm.supplierId ? Number(editForm.supplierId) : null,
+      status: batchStatusFromToggles(editForm.hasArrived, editForm.active),
+      notes: editForm.notes || undefined,
+      orderPlacementDate: editForm.orderPlacementDate || null,
+      estimatedArrivalDate: editForm.estimatedArrivalDate || null,
+      // 0 clears the account; the update moves the batch's cash with it.
+      poultryCashAccountId: editForm.poultryCashAccountId ? Number(editForm.poultryCashAccountId) : 0,
+      farmId,
+      userId,
+    }
+
+    const result = await updateFlockBatch(editingBatchId, flockBatchData)
+    if (result.success) {
+      toast({ title: "Success!", description: "Flock batch updated successfully." })
+      setIsEditDialogOpen(false)
+      loadFlockBatches()
+    } else {
+      setEditError(result.message || "Failed to update flock batch")
+    }
+    setEditLoading(false)
+  }
+
+  // Delete handlers
+  const openDeleteDialog = (id: number) => {
+    setDeletingId(id)
+    setDeleteDialogOpen(true)
+  }
+
+  const handleDelete = async () => {
+    if (!deletingId) return
+    const { farmId, userId } = getUserContext()
+    if (!farmId || !userId) {
+      toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" })
+      return
+    }
+    setIsDeleting(true)
+    const result = await deleteFlockBatch(deletingId, userId, farmId)
+    if (result.success) {
+      toast({ title: "Batch deleted", description: "The flock batch has been successfully deleted." })
+      loadFlockBatches()
+      setCurrentPage(1)
+    } else {
+      toast({ title: "Delete failed", description: result.message || "Something went wrong. Please try again.", variant: "destructive" })
+    }
+    setIsDeleting(false)
+    setDeleteDialogOpen(false)
+    setDeletingId(null)
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem("auth_token")
+    localStorage.removeItem("refresh_token")
+    localStorage.removeItem("username")
+    localStorage.removeItem("userId")
+    localStorage.removeItem("farmId")
+    localStorage.removeItem("farmName")
+    localStorage.removeItem("isStaff")
+    localStorage.removeItem("isSubscriber")
+    router.push("/login")
+  }
+
+  const clearFilters = () => {
+    setSearch("")
+    setDateFrom("")
+    setDateTo("")
+    setSelectedBreed("ALL")
+    setSelectedStatus("ALL")
+  }
+
+  const distinctBreeds = useMemo(() => {
+    const breeds = new Set(flockBatches.map(batch => batch.breed).filter(Boolean))
+    return Array.from(breeds)
+  }, [flockBatches])
+
+  const filteredFlockBatches = useMemo(() => {
+    let currentList = flockBatches
+
+    if (search) {
+      const query = search.toLowerCase()
+      currentList = currentList.filter(batch => 
+        (batch.batchName ?? '').toLowerCase().includes(query) ||
+        (batch.batchCode ?? '').toLowerCase().includes(query)
+      )
+    }
+
+    if (dateFrom) {
+      currentList = currentList.filter(batch => batch.startDate?.split('T')[0] >= dateFrom)
+    }
+    if (dateTo) {
+      currentList = currentList.filter(batch => batch.startDate?.split('T')[0] <= dateTo)
+    }
+    if (selectedBreed !== "ALL") {
+      currentList = currentList.filter(batch => batch.breed === selectedBreed)
+    }
+    if (selectedStatus !== "ALL") {
+      currentList = currentList.filter(batch => (batch.status || "active").toLowerCase() === selectedStatus)
+    }
+
+    return currentList
+  }, [flockBatches, search, dateFrom, dateTo, selectedBreed, selectedStatus])
+
+  // Score card totals
+  const totalPurchasePrice = useMemo(() =>
+    flockBatches.reduce((sum, b) => sum + (Number(b.totalCost) || (Number(b.costPerChick) * Number(b.numberOfBirds)) || 0), 0),
+    [flockBatches]
+  )
+  const totalAmountPaid = useMemo(() =>
+    flockBatches.reduce((sum, b) => sum + (Number(b.amountPaid) || 0), 0),
+    [flockBatches]
+  )
+  const totalBirdsPurchased = useMemo(() =>
+    flockBatches.reduce((sum, b) => sum + (Number(b.numberOfBirds) || 0), 0),
+    [flockBatches]
+  )
+  const totalBirdsArrived = useMemo(() =>
+    allFlocks.filter((f) => f.hasArrived).reduce((sum, f) => sum + (Number(f.quantity) || 0), 0),
+    [allFlocks]
+  )
+  const numberOfActiveBatches = useMemo(() =>
+    flockBatches.filter(b => (b.status || "active").toLowerCase() === "active").length,
+    [flockBatches]
+  )
+
+  // Bottom totals derived from actual flocks (Number of Birds card uses the same source)
+  const totalBirds = useMemo(() =>
+    allFlocks.filter(f => f.hasArrived).reduce((sum, f) => sum + (Number(f.quantity) || 0), 0),
+    [allFlocks]
+  )
+  const totalActiveBirds = useMemo(() =>
+    allFlocks.filter(f => f.hasArrived && f.active).reduce((sum, f) => sum + (Number(f.quantity) || 0), 0),
+    [allFlocks]
+  )
+  const totalInactiveBirds = useMemo(() =>
+    allFlocks.filter(f => f.hasArrived && !f.active).reduce((sum, f) => sum + (Number(f.quantity) || 0), 0),
+    [allFlocks]
+  )
+  const totalBirdsSold = 0
+
+  // Pagination logic
+  const sortedBatches = useMemo(() => sortData(filteredFlockBatches, sortKey, sortDir), [filteredFlockBatches, sortKey, sortDir])
+  const totalPages = Math.ceil(sortedBatches.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const currentFlockBatches = sortedBatches.slice(startIndex, endIndex)
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [search, dateFrom, dateTo, selectedBreed, selectedStatus])
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
+  }
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1)
+    }
+  }
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1)
+    }
+  }
+
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = []
+
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i)
+      }
+    } else {
+      if (currentPage <= 3) {
+        for (let i = 1; i <= 4; i++) {
+          pages.push(i)
+        }
+        pages.push('ellipsis')
+        pages.push(totalPages)
+      } else if (currentPage >= totalPages - 2) {
+        pages.push(1)
+        pages.push('ellipsis')
+        for (let i = totalPages - 3; i <= totalPages; i++) {
+          pages.push(i)
+        }
+      } else {
+        pages.push(1)
+        pages.push('ellipsis')
+        for (let i = currentPage - 1; i <= currentPage + 1; i++) {
+          pages.push(i)
+        }
+        pages.push('ellipsis')
+        pages.push(totalPages)
+      }
+    }
+    
+    return pages
+  }
+
+  const handleViewFlocks = async (batch: FlockBatch) => {
+    setSelectedBatch(batch)
+    setFlocksDialogOpen(true)
+    setLoadingFlocks(true)
+    
+    const { userId, farmId } = getUserContext()
+    if (!userId || !farmId) {
+      setLoadingFlocks(false)
+      return
+    }
+
+    const result = await getFlocks(userId, farmId)
+    if (result.success && result.data) {
+      // Filter flocks by batchId
+      const flocksForBatch = result.data.filter(flock => flock.batchId === batch.batchId)
+      setBatchFlocks(flocksForBatch)
+    }
+    
+    setLoadingFlocks(false)
+  }
+
+  // Part payment: birds can be paid for over time. Balance = Total − Amount paid.
+  // Was a local formatter hardcoding ₵, so this page ignored the company's
+  // currency entirely. useFmt() binds to the settings store, so the numbers
+  // here re-render when the currency changes in Setup > Company.
+  const fmtMoney = useFmt()
+  const { symbol: currencySymbol } = useCurrency()
+  // Shared with Initial Farm Setup, so the same batch never reads "Unpaid" on one
+  // screen and "Part payment" on another. See lib/poultry/batch-purchase.ts.
+  const paymentStatus = batchPaymentStatus
+  // The shared fieldsets work in TEXT, because that is what an input holds; this
+  // page's form state is numeric and its submit path depends on that. These two
+  // adapters are the seam, so the fields can be shared without reworking either.
+  const toDraft = (f: typeof createForm): BatchPurchaseDraft => ({
+    batchName: f.batchName, batchCode: f.batchCode, breed: f.breed,
+    numberOfBirds: f.numberOfBirds ? String(f.numberOfBirds) : "",
+    startDate: f.startDate,
+    costPerChick: f.costPerChick ? String(f.costPerChick) : "",
+    totalCost: f.totalCost ? String(f.totalCost) : "",
+    amountPaid: f.amountPaid ? String(f.amountPaid) : "",
+    supplierType: f.supplierType, supplierId: f.supplierId,
+    dollarConversionRate: f.dollarConversionRate ? String(f.dollarConversionRate) : "",
+    orderPlacementDate: f.orderPlacementDate, estimatedArrivalDate: f.estimatedArrivalDate,
+    notes: f.notes,
+  })
+
+  const fromDraft = (patch: BatchPurchasePatch) => {
+    const out: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(patch)) {
+      if (v === undefined) continue
+      // Only these are numbers on this page; everything else is already text.
+      out[k] = ["numberOfBirds", "costPerChick", "totalCost", "amountPaid", "dollarConversionRate"].includes(k)
+        ? Number(v) || 0
+        : v
+    }
+    return out
+  }
+
+  const createBalance = Math.max(0, (Number(createForm.totalCost) || 0) - (Number(createForm.amountPaid) || 0))
+  const createStatus = paymentStatus(createForm.totalCost, createForm.amountPaid)
+  const editBalance = Math.max(0, (Number(editForm.totalCost) || 0) - (Number(editForm.amountPaid) || 0))
+  const editStatus = paymentStatus(editForm.totalCost, editForm.amountPaid)
+
+  // Outstanding balance for a batch (Total − Paid), using the same total fallback
+  // the table shows.
+  const outstandingOf = (b: FlockBatch) => {
+    const total = Number(b.totalCost) || (Number(b.costPerChick) * Number(b.numberOfBirds)) || 0
+    return Math.max(0, total - (Number(b.amountPaid) || 0))
+  }
+
+  const openPayBalance = (b: FlockBatch) => {
+    setPayTarget(b)
+    setPayForm({ amount: outstandingOf(b), paymentMethod: "Cash", paymentDate: new Date().toISOString().split("T")[0] })
+  }
+
+  const submitPayBalance = async () => {
+    if (!payTarget) return
+    const { userId, farmId } = getUserContext()
+    if (!userId || !farmId) {
+      toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" })
+      return
+    }
+    const outstanding = outstandingOf(payTarget)
+    if (payForm.amount <= 0) {
+      toast({ title: "Enter a payment amount greater than 0.", variant: "destructive" })
+      return
+    }
+    if (payForm.amount > outstanding) {
+      toast({ title: `Amount exceeds the outstanding balance (${fmtMoney(outstanding)}).`, variant: "destructive" })
+      return
+    }
+    setPaySaving(true)
+    const res = await payFlockBatchBalance(
+      payTarget.batchId,
+      { amount: payForm.amount, paymentMethod: payForm.paymentMethod, paymentDate: payForm.paymentDate || null },
+      userId,
+      farmId,
+    )
+    if (res.success) {
+      toast({ title: "Balance payment recorded", description: `New balance: ${fmtMoney(res.data?.balance ?? 0)}.` })
+      setPayTarget(null)
+      loadFlockBatches()
+    } else {
+      toast({ title: "Payment failed", description: res.message || "Something went wrong. Please try again.", variant: "destructive" })
+    }
+    setPaySaving(false)
+  }
+
+  return (
+    <div className={shellClass(embedded, "flex h-screen bg-slate-50")}>
+      {!embedded && <DashboardSidebar onLogout={handleLogout} />}
+      <div className={shellClass(embedded, "flex-1 flex flex-col min-w-0")}>
+        {!embedded && <DashboardHeader />}
+        <main className={embedded ? "min-w-0" : "flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0"}>
+          <div className="space-y-6">
+            {/* Page Header */}
+            <div className={cn("flex gap-4", isMobile ? "flex-col" : "items-center justify-between", embedded && "hidden")}>
+              <div className="flex items-start gap-3 min-w-0">
+                <div className="w-10 h-10 shrink-0 bg-green-100 rounded-lg flex items-center justify-center">
+                  <Bird className="w-5 h-5 text-green-600" />
+                </div>
+                <div className="min-w-0">
+                  <h1 className={cn("font-bold text-slate-900", isMobile ? "text-xl" : "text-2xl")}>Flock Purchases (Batches)</h1>
+                  <p className="text-sm text-slate-600">
+                    Each row is one purchase of birds — how many arrived, the breed, the supplier, what they cost and how much has been paid.
+                    The cards add up every batch. &ldquo;Allocated&rdquo; is how many of a batch&apos;s birds have been divided into flocks;
+                    the balance is what is still owed to the supplier.
+                  </p>
+                </div>
+              </div>
+              <SetupTabActions><div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto shrink-0">
+                <Button variant="outline" className="gap-2 w-full sm:w-auto h-11 sm:h-10 border-blue-600 text-blue-700 hover:bg-blue-50" onClick={() => setIsBulkOpen(true)}>
+                  <Boxes className="w-4 h-4" />
+                  Add Multiple Batches
+                </Button>
+                <Button className="gap-2 w-full sm:w-auto h-11 sm:h-10 bg-blue-600 hover:bg-blue-700" onClick={openCreateDialog}>
+                  <Plus className="w-4 h-4" />
+                  Add Flock Batch
+                </Button>
+              </div></SetupTabActions>
+            </div>
+
+            {/* Score Cards */}
+            {!loading && flockBatches.length > 0 && (
+              <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+                <ScoreCard
+                  label={`Total Purchase Price (${currencySymbol})`}
+                  value={totalPurchasePrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  description="Sum of total cost across all batches."
+                  icon={DollarSign}
+                  accent="emerald"
+                />
+                <ScoreCard
+                  label={`Total Amount Paid (${currencySymbol})`}
+                  value={totalAmountPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  description="Sum of amount paid across all batches."
+                  icon={Wallet}
+                  accent="sky"
+                />
+                <ScoreCard
+                  label="Number of Birds"
+                  value={totalBirdsArrived.toLocaleString()}
+                  description="Birds that have arrived across all batches."
+                  note={
+                    totalBirdsPurchased > 0 && totalBirdsPurchased !== totalBirdsArrived
+                      ? `of ${totalBirdsPurchased.toLocaleString()} purchased`
+                      : undefined
+                  }
+                  icon={Bird}
+                  accent="blue"
+                />
+                <ScoreCard
+                  label="Active Batches"
+                  value={numberOfActiveBatches.toLocaleString()}
+                  description="Batches currently marked as active."
+                  icon={CheckCircle2}
+                  accent="amber"
+                />
+              </div>
+            )}
+
+            {/* Filters */}
+            <div className="flex flex-wrap items-center gap-2 p-2 bg-white rounded border">
+              <div className={cn("relative flex-1 min-w-0", !isMobile && "sm:w-[240px]")}>
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Input placeholder="Search by name or code..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+              </div>
+              {isMobile ? (
+                <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
+                  <SheetTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-2 shrink-0"><Filter className="h-4 w-4" /> Filters</Button>
+                  </SheetTrigger>
+                  <SheetContent side="bottom" className="rounded-t-2xl max-h-[85vh]">
+                    <SheetHeader><SheetTitle>Filters</SheetTitle></SheetHeader>
+                    <div className="space-y-4 pt-4">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-2"><Label>Date From</Label><Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} /></div>
+                        <div className="space-y-2"><Label>Date To</Label><Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} /></div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Breed</Label>
+                        <Select value={selectedBreed} onValueChange={setSelectedBreed}>
+                          <SelectTrigger><SelectValue placeholder="Breed" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="ALL">All Breeds</SelectItem>
+                            {distinctBreeds.map(breed => <SelectItem key={breed} value={breed}>{breed}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Status</Label>
+                        <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                          <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="ALL">All Statuses</SelectItem>
+                            <SelectItem value="active">Active</SelectItem>
+                            <SelectItem value="inactive">Inactive</SelectItem>
+                            <SelectItem value="pending">Pending</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex gap-2 pt-2">
+                        <Button variant="outline" className="flex-1" onClick={clearFilters}>Clear</Button>
+                        <Button className="flex-1" onClick={() => setFiltersOpen(false)}>Apply</Button>
+                      </div>
+                    </div>
+                  </SheetContent>
+                </Sheet>
+              ) : (
+                <>
+                  <Input type="date" placeholder="From" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-[140px]" />
+                  <Input type="date" placeholder="To" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-[140px]" />
+                  <Select value={selectedBreed} onValueChange={setSelectedBreed}>
+                    <SelectTrigger className="w-[180px]"><SelectValue placeholder="Breed" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All Breeds</SelectItem>
+                      {distinctBreeds.map(breed => <SelectItem key={breed} value={breed}>{breed}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                    <SelectTrigger className="w-[160px]"><SelectValue placeholder="Status" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All Statuses</SelectItem>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <div className="ml-auto">
+                    <Button variant="outline" size="sm" onClick={clearFilters}><RefreshCw className="h-4 w-4 mr-2" /> Reset</Button>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Error Alert */}
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            {/* Content */}
+            {loading ? (
+              <Card className="bg-white">
+                <CardContent className="py-12 text-center">
+                  <p className="text-slate-600">Loading flock batches...</p>
+                </CardContent>
+              </Card>
+            ) : filteredFlockBatches.length === 0 ? (
+              <Card className="bg-white">
+                <CardContent className="p-12 text-center">
+                  <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Bird className="w-8 h-8 text-slate-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-slate-900 mb-2">No flock batches found</h3>
+                  <p className="text-slate-600 mb-6">Get started by creating your first flock batch.</p>
+                  <Button className="gap-2 bg-blue-600 hover:bg-blue-700" onClick={openCreateDialog}>
+                    <Plus className="w-4 h-4" />
+                    Add Flock Batch
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="bg-white overflow-hidden">
+                <CardContent className="p-0">
+                  {isMobile && !showAllColumnsMobile ? (
+                    <div className="space-y-3">
+                      {currentFlockBatches.map((batch, idx) => {
+                        const statusLower = (batch.status || "active").toLowerCase()
+                        const supplier = suppliers.find(s => s.supplierId === batch.supplierId)
+                        const supplierLabel = batch.supplierName || supplier?.name || "—"
+                        const computedTotal = Number(batch.totalCost) || (Number(batch.costPerChick) * Number(batch.numberOfBirds)) || 0
+                        return (
+                        <Collapsible key={batch.batchId} defaultOpen className={cn("group rounded-xl border shadow-sm overflow-hidden", idx % 2 === 0 ? "bg-amber-100 border-amber-300" : "bg-white border-slate-200")}>
+                          <div className={cn("p-4 active:bg-slate-50/80 transition-colors", idx % 2 === 1 && "bg-slate-50/20")} onClick={() => handleViewFlocks(batch)}>
+                            <CollapsibleTrigger asChild>
+                              <div className="flex items-start justify-between gap-3 cursor-pointer">
+                                <div className="min-w-0 flex-1">
+                                  <div className="font-semibold text-slate-900">{batch.batchName}</div>
+                                  <div className="mt-1 flex flex-wrap items-baseline gap-2">
+                                    <Badge variant="outline">{batch.batchCode}</Badge>
+                                    <span className="text-slate-600">{batch.numberOfBirds.toLocaleString()} birds</span>
+                                    <span className="text-slate-500">{batch.breed}</span>
+                                    {statusLower === "pending" ? (
+                                      <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-200">Pending</Badge>
+                                    ) : statusLower === "active" ? (
+                                      <Badge className="bg-green-100 text-green-800 border border-green-200">Active</Badge>
+                                    ) : (
+                                      <Badge variant="secondary" className="bg-gray-100 text-gray-800">Inactive</Badge>
+                                    )}
+                                  </div>
+                                </div>
+                                <ChevronDown className="h-5 w-5 text-slate-400 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
+                              </div>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent>
+                              <div className="mt-4 pt-4 border-t border-slate-100 space-y-2 text-sm" onClick={(e) => e.stopPropagation()}>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div><span className="text-slate-500">Start</span> <span className="font-medium">{batch.startDate ? formatDateShort(batch.startDate) : "—"}</span></div>
+                                  <div><span className="text-slate-500">Cost/Chick</span> <span className="font-medium tabular-nums">{Number(batch.costPerChick || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                                  <div><span className="text-slate-500">Total Cost</span> <span className="font-medium tabular-nums">{computedTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                                  <div><span className="text-slate-500">Amount Paid ({currencySymbol})</span> <span className="font-medium tabular-nums">{Number(batch.amountPaid || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                                  <div><span className="text-slate-500">Balance ({currencySymbol})</span> <span className={cn("font-medium tabular-nums", (computedTotal - Number(batch.amountPaid || 0)) > 0 ? "text-red-600" : "text-emerald-700")}>{Math.max(0, computedTotal - Number(batch.amountPaid || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                                  <div><span className="text-slate-500">Supplier</span> <span className="font-medium">{supplierLabel}</span></div>
+                                  <div><span className="text-slate-500">Type</span> <span className="font-medium">{batch.supplierType ? batch.supplierType.charAt(0).toUpperCase() + batch.supplierType.slice(1).toLowerCase() : "—"}</span></div>
+                                </div>
+                                <div className="flex gap-2 pt-2">
+                                  {(computedTotal - Number(batch.amountPaid || 0)) > 0 && (
+                                    <Button variant="outline" size="sm" className="flex-1 h-10 text-emerald-600 border-emerald-200 hover:bg-emerald-50" onClick={(e) => { e.stopPropagation(); openPayBalance(batch) }}>
+                                      <Wallet className="h-4 w-4 mr-2" /> Pay
+                                    </Button>
+                                  )}
+                                  {unallocatedFor(batch) > 0 && (
+                                    <Button variant="outline" size="sm" className="flex-1 h-10 text-indigo-600 border-indigo-200 hover:bg-indigo-50" onClick={(e) => { e.stopPropagation(); openAllocation(batch.batchId) }}>
+                                      <Split className="h-4 w-4 mr-1" /> Divide
+                                    </Button>
+                                  )}
+                                  <Button variant="outline" size="sm" className="flex-1 h-10" onClick={(e) => { e.stopPropagation(); openEditDialog(batch.batchId) }}>
+                                    <Pencil className="h-4 w-4 mr-2" /> Edit
+                                  </Button>
+                                  {permissions.canDelete && (
+                                    <Button variant="outline" size="sm" className="flex-1 h-10 text-red-600 border-red-200 hover:bg-red-50" onClick={(e) => { e.stopPropagation(); openDeleteDialog(batch.batchId) }}>
+                                      <Trash2 className="h-4 w-4 mr-2" /> Delete
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            </CollapsibleContent>
+                          </div>
+                        </Collapsible>
+                        )
+                      })}
+                      {currentFlockBatches.length > 0 && (
+                        <div className="px-4 py-3 bg-slate-50/50 border-t">
+                          <Button variant="ghost" size="sm" className="w-full text-slate-600" onClick={() => setShowAllColumnsMobile(true)}>
+                            View table format <ChevronDown className="h-4 w-4 ml-1" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                  <div className={cn("overflow-x-auto table-scroll-wrapper", isMobile && "pb-2")} style={{ WebkitOverflowScrolling: "touch" }}>
+                    {isMobile && (
+                      <div className="px-4 py-2 border-b bg-slate-50 flex items-center justify-between gap-2 sticky top-0 z-10">
+                        <span className="text-xs text-slate-600">Table view</span>
+                        <Button variant="ghost" size="sm" onClick={() => setShowAllColumnsMobile(false)}>
+                          <ChevronUp className="h-4 w-4 mr-1" /> Cards
+                        </Button>
+                      </div>
+                    )}
+                  <div className="overflow-x-auto">
+                    {/* Every column is shown on mobile (see hideBelow above), so
+                        the table needs its full width to scroll through. */}
+                    <Table className="w-full min-w-[1100px]">
+                      <TableHeader>
+                        <TableRow className="border-b">
+                          <SortableHeader label="Name" sortKey="name" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[150px]", isMobile && "sticky-col-date bg-slate-50")} />
+                          <SortableHeader label="Code" sortKey="code" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[100px]", hideBelow("sm"))} />
+                          <SortableHeader label="Number of Birds" sortKey="numberOfBirds" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[120px]", hideBelow("md"))} />
+                          <SortableHeader label="Breed" sortKey="breed" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[150px]", hideBelow("lg"))} />
+                          <SortableHeader label="Cost/Chick" sortKey="costPerChick" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[110px]", hideBelow("md"))} />
+                          <SortableHeader label="Total Cost" sortKey="totalCost" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[120px]", hideBelow("md"))} />
+                          <SortableHeader label={`Amount Paid (${currencySymbol})`} sortKey="amountPaid" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[140px]", hideBelow("md"))} />
+                          <TableHead className={cn("font-semibold text-slate-900 min-w-[120px]", hideBelow("lg"))}>Balance ({currencySymbol})</TableHead>
+                          <SortableHeader label="Supplier" sortKey="supplierName" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[150px]", hideBelow("lg"))} />
+                          <SortableHeader label="Type" sortKey="supplierType" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[100px]", hideBelow("lg"))} />
+                          <SortableHeader label="Status" sortKey="status" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[100px]", hideBelow("md"))} />
+                          <SortableHeader label="Start Date" sortKey="startDate" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[140px]", hideBelow("xl"))} />
+                          <TableHead className="font-semibold text-slate-900 text-center min-w-[100px]">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {currentFlockBatches.map((batch) => {
+                          const statusLower = (batch.status || "active").toLowerCase()
+                          const supplier = suppliers.find(s => s.supplierId === batch.supplierId)
+                          const supplierLabel = batch.supplierName || supplier?.name || "—"
+                          const computedTotal = Number(batch.totalCost) || (Number(batch.costPerChick) * Number(batch.numberOfBirds)) || 0
+                          return (
+                          <TableRow
+                            key={batch.batchId}
+                            className="hover:bg-slate-50 transition-colors cursor-pointer"
+                            onClick={() => handleViewFlocks(batch)}
+                          >
+                            <TableCell className={cn("font-medium text-slate-900 bg-white", isMobile && "sticky-col-date")}>
+                              {batch.batchName}
+                            </TableCell>
+                            <TableCell className={hideBelow("sm")}>{batch.batchCode}</TableCell>
+                            <TableCell className={cn("text-slate-600", hideBelow("md"))}>
+                              <div className="flex items-center gap-2">
+                                <Users className="w-4 h-4 text-slate-400" />
+                                <span>{batch.numberOfBirds.toLocaleString()} birds</span>
+                              </div>
+                              {/* Allocated vs unallocated, derived from flocks --
+                                  see allocatedByBatch. */}
+                              <div className="text-xs text-slate-500 mt-0.5">
+                                {(allocatedByBatch.get(batch.batchId) ?? 0).toLocaleString()} allocated
+                                {unallocatedFor(batch) > 0 && (
+                                  <span className="text-amber-600"> · {unallocatedFor(batch).toLocaleString()} unallocated</span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className={cn("text-slate-600", hideBelow("lg"))}>
+                              <div className="flex items-center gap-2">
+                                <Bird className="w-4 h-4 text-slate-400" />
+                                <span>{batch.breed}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className={cn("text-slate-600 tabular-nums", hideBelow("md"))}>
+                              {Number(batch.costPerChick || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                            <TableCell className={cn("text-slate-700 font-medium tabular-nums", hideBelow("md"))}>
+                              {computedTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                            <TableCell className={cn("text-slate-700 font-medium tabular-nums", hideBelow("md"))}>
+                              {Number(batch.amountPaid || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                            <TableCell className={cn("font-medium tabular-nums", hideBelow("lg"), (computedTotal - Number(batch.amountPaid || 0)) > 0 ? "text-red-600" : "text-emerald-700")}>
+                              {Math.max(0, computedTotal - Number(batch.amountPaid || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                            <TableCell className={cn("text-slate-600", hideBelow("lg"))}>{supplierLabel}</TableCell>
+                            <TableCell className={hideBelow("lg")}>
+                              {batch.supplierType ? (
+                                <Badge variant="outline" className={cn(
+                                  batch.supplierType.toLowerCase() === "foreign"
+                                    ? "border-purple-200 bg-purple-50 text-purple-800"
+                                    : "border-blue-200 bg-blue-50 text-blue-800"
+                                )}>
+                                  {batch.supplierType.charAt(0).toUpperCase() + batch.supplierType.slice(1).toLowerCase()}
+                                </Badge>
+                              ) : (
+                                <span className="text-slate-400">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell className={hideBelow("md")}>
+                              {statusLower === "pending" ? (
+                                <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-200">Pending</Badge>
+                              ) : statusLower === "active" ? (
+                                <Badge variant="default" className="bg-green-100 text-green-800 border border-green-200">Active</Badge>
+                              ) : (
+                                <Badge variant="secondary" className="bg-gray-100 text-gray-800">Inactive</Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className={cn("text-slate-600", hideBelow("xl"))}>
+                              <div className="flex items-center gap-2">
+                                <span>{batch.startDate ? fmtDateTime(batch.startDate, batch) : "—"}</span>
+                              </div>
+                            </TableCell>
+                            {/* Actions is deliberately NOT pinned: with Name
+                                already pinned, a second pinned column would
+                                leave ~140px of a 390px screen for the eleven
+                                columns the reader opened this view to read. */}
+                            <TableCell className="text-center bg-white">
+                              <div className="flex items-center justify-center gap-1">
+                                {(computedTotal - Number(batch.amountPaid || 0)) > 0 && (
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600 hover:bg-emerald-50" title="Pay balance" onClick={(e) => { e.stopPropagation(); openPayBalance(batch) }}>
+                                    <Wallet className="w-4 h-4" />
+                                  </Button>
+                                )}
+                                {unallocatedFor(batch) > 0 && (
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-indigo-600 hover:bg-indigo-50" title="Divide into flocks" onClick={(e) => { e.stopPropagation(); openAllocation(batch.batchId) }}>
+                                    <Split className="w-4 h-4" />
+                                  </Button>
+                                )}
+                                <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-blue-50 hover:text-blue-600" onClick={(e) => { e.stopPropagation(); openEditDialog(batch.batchId) }}>
+                                  <Pencil className="w-4 h-4" />
+                                </Button>
+                                {permissions.canDelete && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                    onClick={(e) => { e.stopPropagation(); openDeleteDialog(batch.batchId) }}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            
+            {/* Pagination */}
+            {!loading && sortedBatches.length > 0 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6">
+                <div className="flex items-center gap-4">
+                  <span className="text-sm text-slate-600">
+                    Showing {startIndex + 1} to {Math.min(endIndex, sortedBatches.length)} of {sortedBatches.length} records
+                  </span>
+                  <Select value={String(itemsPerPage)} onValueChange={(v) => { setItemsPerPage(Number(v)); setCurrentPage(1) }}>
+                    <SelectTrigger className="w-[100px] h-8"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5">5 / page</SelectItem>
+                      <SelectItem value="10">10 / page</SelectItem>
+                      <SelectItem value="15">15 / page</SelectItem>
+                      <SelectItem value="25">25 / page</SelectItem>
+                      <SelectItem value="50">50 / page</SelectItem>
+                      <SelectItem value="100">100 / page</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Pagination>
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious 
+                        onClick={handlePreviousPage}
+                        className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                      />
+                    </PaginationItem>
+                    
+                    {getPageNumbers().map((page, index) => (
+                      <PaginationItem key={index}>
+                        {page === 'ellipsis' ? (
+                          <PaginationEllipsis />
+                        ) : (
+                          <PaginationLink
+                            onClick={() => handlePageChange(page as number)}
+                            isActive={currentPage === page}
+                            className="cursor-pointer"
+                          >
+                            {page}
+                          </PaginationLink>
+                        )}
+                      </PaginationItem>
+                    ))}
+                    
+                    <PaginationItem>
+                      <PaginationNext
+                        onClick={handleNextPage}
+                        className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              </div>
+            )}
+
+            {/* Bird totals (page bottom) */}
+            {!loading && flockBatches.length > 0 && (
+              <div className={cn("grid gap-3", isMobile ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-4")}>
+                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Birds</div>
+                  <div className="mt-1 text-2xl font-bold tabular-nums text-slate-900">{totalBirds.toLocaleString()}</div>
+                </div>
+                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Active Birds</div>
+                  <div className="mt-1 text-2xl font-bold tabular-nums text-emerald-600">{totalActiveBirds.toLocaleString()}</div>
+                </div>
+                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Inactive Birds</div>
+                  <div className="mt-1 text-2xl font-bold tabular-nums text-slate-600">{totalInactiveBirds.toLocaleString()}</div>
+                </div>
+                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Birds Sold</div>
+                  <div className="mt-1 text-2xl font-bold tabular-nums text-amber-600">{totalBirdsSold.toLocaleString()}</div>
+                </div>
+              </div>
+            )}
+          </div>
+        </main>
+      </div>
+
+      {/* Flocks Dialog */}
+      <Dialog open={flocksDialogOpen} onOpenChange={setFlocksDialogOpen}>
+        <DialogContent className="w-[95vw] max-w-[1600px] max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Flocks in Batch: {selectedBatch?.batchName}</DialogTitle>
+            <DialogDescription>
+              View all flocks created under this batch
+            </DialogDescription>
+          </DialogHeader>
+          
+          {loadingFlocks ? (
+            <div className="py-8 text-center">
+              <p className="text-slate-600">Loading flocks...</p>
+            </div>
+          ) : batchFlocks.length === 0 ? (
+            <div className="py-8 text-center">
+              <Bird className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+              <p className="text-slate-600">No flocks found for this batch</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="border rounded-lg">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Breed</TableHead>
+                      <TableHead>Quantity</TableHead>
+                      <TableHead>Start Date</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {batchFlocks.map((flock) => {
+                      const life = getFlockLifecycleStatus(flock)
+                      return (
+                      <TableRow key={flock.flockId}>
+                        <TableCell className="font-medium">{flock.name}</TableCell>
+                        <TableCell>{flock.breed}</TableCell>
+                        <TableCell>{flock.quantity.toLocaleString()} birds</TableCell>
+                        <TableCell>{fmtDateTime(flock.startDate, flock)}</TableCell>
+                        <TableCell>
+                          {life === "pending" ? (
+                            <Badge variant="secondary" className="bg-amber-100 text-amber-900 border border-amber-200">
+                              Pending
+                            </Badge>
+                          ) : life === "active" ? (
+                            <Badge variant="default" className="bg-green-100 text-green-800">
+                              Active
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="bg-gray-100 text-gray-800">
+                              Inactive
+                            </Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="flex items-center justify-between pt-4 border-t">
+                <div className="text-sm text-slate-600">
+                  Total Flocks: <span className="font-semibold">{batchFlocks.length}</span>
+                </div>
+                <div className="text-sm text-slate-600 text-right">
+                  <div>
+                    Total Birds:{" "}
+                    <span className="font-semibold">
+                      {batchFlocks
+                        .filter((f) => flockCountsTowardBirdTotals(f))
+                        .reduce((sum, f) => sum + (f.quantity || 0), 0)
+                        .toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-500 font-normal mt-0.5">
+                    Active flocks past start date only
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Flock Batch Dialog */}
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bird className="w-5 h-5 text-green-600" /> Add New Flock Batch
+            </DialogTitle>
+            <DialogDescription>Enter the flock batch information below</DialogDescription>
+          </DialogHeader>
+          {createError && (
+            <Alert variant="destructive"><AlertDescription>{createError}</AlertDescription></Alert>
+          )}
+          <form onSubmit={handleCreateSubmit} className="space-y-4">
+            <div className="rounded-xl border border-slate-200 overflow-hidden">
+              <div className="bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Batch Details</div>
+              <BatchIdentityFields
+                className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white"
+                value={toDraft(createForm)} disabled={createLoading}
+                knownBreeds={distinctBreeds}
+                onPatch={(patch) => setCreateForm((prev) => ({ ...prev, ...fromDraft(patch) }))}
+              />
+            </div>
+
+            <div className="rounded-xl border border-slate-200 overflow-hidden">
+              <div className="bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">Purchase Details</div>
+              <BatchPurchaseDetailFields
+                className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white"
+                value={toDraft(createForm)} disabled={createLoading}
+                suppliers={suppliers} currencySymbol={currencySymbol}
+                /* The Total / Paid / Balance strip below says it better. */
+                showBalance={false}
+                onPatch={(patch) => setCreateForm((prev) => ({ ...prev, ...fromDraft(patch) }))}
+                afterSupplier={
+                  <CashAccountField accounts={cashAccounts} disabled={createLoading}
+                    value={createForm.poultryCashAccountId}
+                    onChange={(v) => setCreateForm((prev) => ({ ...prev, poultryCashAccountId: v }))} />
+                }
+              />
+            </div>
+
+            <div className="rounded-xl border border-slate-200 overflow-hidden">
+              <div className="bg-sky-600 px-4 py-2 text-sm font-semibold text-white">Order &amp; Delivery</div>
+              <div className="p-4 bg-white space-y-4">
+                <BatchOrderFields
+                  className="grid grid-cols-1 md:grid-cols-2 gap-4"
+                  value={toDraft(createForm)} disabled={createLoading}
+                  onPatch={(patch) => setCreateForm((prev) => ({ ...prev, ...fromDraft(patch) }))}
+                />
+                <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-sm text-slate-600">
+                    Total <span className="font-semibold text-slate-900 tabular-nums">{fmtMoney(createForm.totalCost)}</span>
+                    <span className="mx-2 text-slate-300">•</span>
+                    Paid <span className="font-semibold text-emerald-700 tabular-nums">{fmtMoney(createForm.amountPaid)}</span>
+                    <span className="mx-2 text-slate-300">•</span>
+                    Balance <span className={cn("font-semibold tabular-nums", createBalance > 0 ? "text-red-600" : "text-emerald-700")}>{fmtMoney(createBalance)}</span>
+                  </div>
+                  <Badge variant="outline" className={createStatus.className}>{createStatus.label}</Badge>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 overflow-hidden">
+              <div className="bg-green-600 px-4 py-2 text-sm font-semibold text-white">Status &amp; Notes</div>
+              <div className="p-4 bg-white space-y-4">
+                <div className="flex items-center space-x-2">
+                  <Switch checked={createForm.hasArrived} onCheckedChange={(checked) => setCreateForm({ ...createForm, hasArrived: checked })} disabled={createLoading} />
+                  <Label className="text-sm font-medium text-slate-700">Batch Has Arrived</Label>
+                  <p className="text-xs text-slate-500 ml-2">(Leave off until birds physically arrive — status stays Pending)</p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Switch checked={createForm.active} onCheckedChange={(checked) => setCreateForm({ ...createForm, active: checked })} disabled={createLoading || !createForm.hasArrived} />
+                  <Label className="text-sm font-medium text-slate-700">Active Batch</Label>
+                  <p className="text-xs text-slate-500 ml-2">(Only applies once the batch has arrived)</p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-700">Notes (Optional)</Label>
+                  <textarea placeholder="Add any additional notes about the batch" value={createForm.notes}
+                    onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })}
+                    className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[80px]" disabled={createLoading} />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 justify-end pt-2">
+              <Button type="button" onClick={() => setIsCreateDialogOpen(false)} className="bg-red-600 hover:bg-red-700 text-white">Cancel</Button>
+              <Button type="submit" disabled={createLoading}>
+                {createLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Creating...</> : <><Bird className="w-4 h-4 mr-2" />Create Batch</>}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Flock Batch Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="w-5 h-5 text-blue-600" /> Edit Flock Batch
+            </DialogTitle>
+            <DialogDescription>Update the flock batch information below</DialogDescription>
+          </DialogHeader>
+          {editError && (
+            <Alert variant="destructive"><AlertDescription>{editError}</AlertDescription></Alert>
+          )}
+          {editFetching ? (
+            <div className="py-8 text-center">
+              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-blue-600" />
+              <p className="text-slate-600">Loading flock batch...</p>
+            </div>
+          ) : (
+            <form onSubmit={handleEditSubmit} className="space-y-4">
+              <div className="rounded-xl border border-slate-200 overflow-hidden">
+                <div className="bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Batch Details</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">Batch Name *</Label>
+                    <Input placeholder="e.g., Batch A - Rhode Island Reds" value={editForm.batchName} onChange={(e) => setEditForm({ ...editForm, batchName: e.target.value })} required disabled={editLoading} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">Batch Code *</Label>
+                    <Input placeholder="e.g., B-001" value={editForm.batchCode} onChange={(e) => setEditForm({ ...editForm, batchCode: e.target.value })} required disabled={editLoading} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">Breed</Label>
+                    <BreedSelect value={editForm.breed} known={distinctBreeds} disabled={editLoading}
+                      onChange={(breed) => setEditForm({ ...editForm, breed })} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">Start Date *</Label>
+                    <Input type="date" value={editForm.startDate} onChange={(e) => setEditForm({ ...editForm, startDate: e.target.value })} required disabled={editLoading} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">Number of Birds *</Label>
+                    <NumberInput min="1" placeholder="e.g., 100" value={editForm.numberOfBirds} onChange={(e) => {
+                      const n = parseInt(e.target.value) || 0
+                      setEditForm(prev => ({ ...prev, numberOfBirds: n, totalCost: prev.costPerChick > 0 ? +(prev.costPerChick * n).toFixed(2) : prev.totalCost }))
+                    }} required disabled={editLoading} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 overflow-hidden">
+                <div className="bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">Purchase Details</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">Cost Per Chick</Label>
+                    <NumberInput min="0" step="0.01" placeholder="e.g., 2.50" value={editForm.costPerChick} onChange={(e) => {
+                      const c = parseFloat(e.target.value) || 0
+                      setEditForm(prev => ({ ...prev, costPerChick: c, totalCost: prev.numberOfBirds > 0 ? +(c * prev.numberOfBirds).toFixed(2) : prev.totalCost }))
+                    }} disabled={editLoading} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">Total Cost</Label>
+                    <NumberInput min="0" step="0.01" placeholder="Auto-calculated" value={editForm.totalCost} onChange={(e) => setEditForm({ ...editForm, totalCost: parseFloat(e.target.value) || 0 })} disabled={editLoading} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">Amount Paid ({currencySymbol})</Label>
+                    <NumberInput min="0" step="0.01" placeholder="e.g., 250.00" value={editForm.amountPaid} onChange={(e) => setEditForm({ ...editForm, amountPaid: parseFloat(e.target.value) || 0 })} disabled={editLoading} />
+                    <p className="text-xs text-slate-500">Raise this to record a further payment toward the balance.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">Type</Label>
+                    <Select value={editForm.supplierType} onValueChange={(v) => setEditForm({ ...editForm, supplierType: v })} disabled={editLoading}>
+                      <SelectTrigger><SelectValue placeholder="Supplier Type" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="local">Local</SelectItem>
+                        <SelectItem value="foreign">Foreign</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">Supplier</Label>
+                    <Select value={editForm.supplierId} onValueChange={(v) => setEditForm({ ...editForm, supplierId: v })} disabled={editLoading}>
+                      <SelectTrigger><SelectValue placeholder={suppliers.length === 0 ? "No suppliers found" : "Select supplier"} /></SelectTrigger>
+                      <SelectContent>
+                        {suppliers.map(s => (
+                          <SelectItem key={s.supplierId} value={String(s.supplierId)}>{s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <CashAccountField accounts={cashAccounts} disabled={editLoading}
+                    value={editForm.poultryCashAccountId}
+                    onChange={(v) => setEditForm({ ...editForm, poultryCashAccountId: v })} />
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">Dollar Conversion Rate</Label>
+                    <NumberInput min="0" step="0.0001" placeholder="e.g., 15.5" value={editForm.dollarConversionRate} onChange={(e) => setEditForm({ ...editForm, dollarConversionRate: parseFloat(e.target.value) || 0 })} disabled={editLoading} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 overflow-hidden">
+                <div className="bg-sky-600 px-4 py-2 text-sm font-semibold text-white">Order &amp; Delivery</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">Order Placement Date</Label>
+                    <Input type="date" value={editForm.orderPlacementDate} onChange={(e) => setEditForm({ ...editForm, orderPlacementDate: e.target.value })} disabled={editLoading} />
+                    <p className="text-xs text-slate-500">When you placed the order with the supplier.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">Estimated Arrival Date</Label>
+                    <Input type="date" value={editForm.estimatedArrivalDate} onChange={(e) => setEditForm({ ...editForm, estimatedArrivalDate: e.target.value })} disabled={editLoading} />
+                    <p className="text-xs text-slate-500">When the birds are expected to arrive.</p>
+                  </div>
+                  <div className="md:col-span-2 rounded-lg bg-slate-50 border border-slate-200 p-3 flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-sm text-slate-600">
+                      Total <span className="font-semibold text-slate-900 tabular-nums">{fmtMoney(editForm.totalCost)}</span>
+                      <span className="mx-2 text-slate-300">•</span>
+                      Paid <span className="font-semibold text-emerald-700 tabular-nums">{fmtMoney(editForm.amountPaid)}</span>
+                      <span className="mx-2 text-slate-300">•</span>
+                      Balance <span className={cn("font-semibold tabular-nums", editBalance > 0 ? "text-red-600" : "text-emerald-700")}>{fmtMoney(editBalance)}</span>
+                    </div>
+                    <Badge variant="outline" className={editStatus.className}>{editStatus.label}</Badge>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 overflow-hidden">
+                <div className="bg-green-600 px-4 py-2 text-sm font-semibold text-white">Status &amp; Notes</div>
+                <div className="p-4 bg-white space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <Switch checked={editForm.hasArrived} onCheckedChange={(checked) => setEditForm({ ...editForm, hasArrived: checked })} disabled={editLoading} />
+                    <Label className="text-sm font-medium text-slate-700">Batch Has Arrived</Label>
+                    <p className="text-xs text-slate-500 ml-2">(Turn on once birds physically arrive)</p>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Switch checked={editForm.active} onCheckedChange={(checked) => setEditForm({ ...editForm, active: checked })} disabled={editLoading || !editForm.hasArrived} />
+                    <Label className="text-sm font-medium text-slate-700">Active Batch</Label>
+                    <p className="text-xs text-slate-500 ml-2">(Only applies once the batch has arrived)</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">Notes (Optional)</Label>
+                    <textarea placeholder="Add any additional notes about the batch" value={editForm.notes || ''}
+                      onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                      className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[80px]" disabled={editLoading} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3 justify-end pt-2">
+                <Button type="button" onClick={() => setIsEditDialogOpen(false)} className="bg-red-600 hover:bg-red-700 text-white">Cancel</Button>
+                <Button type="submit" disabled={editLoading}>
+                  {editLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</> : <><Save className="w-4 h-4 mr-2" />Update Batch</>}
+                </Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Pay Balance Dialog */}
+      <Dialog open={!!payTarget} onOpenChange={(open) => { if (!open) setPayTarget(null) }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wallet className="w-5 h-5 text-emerald-600" /> Pay Balance
+            </DialogTitle>
+            <DialogDescription>
+              {payTarget ? `${payTarget.batchName} — outstanding ${fmtMoney(outstandingOf(payTarget))}` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {payTarget && (
+            <div className="space-y-4">
+              <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-sm text-slate-600">
+                Total <span className="font-semibold text-slate-900 tabular-nums">{fmtMoney(Number(payTarget.totalCost) || (Number(payTarget.costPerChick) * Number(payTarget.numberOfBirds)) || 0)}</span>
+                <span className="mx-2 text-slate-300">•</span>
+                Paid <span className="font-semibold text-emerald-700 tabular-nums">{fmtMoney(payTarget.amountPaid)}</span>
+                <span className="mx-2 text-slate-300">•</span>
+                Balance <span className="font-semibold text-red-600 tabular-nums">{fmtMoney(outstandingOf(payTarget))}</span>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-slate-700">Payment amount ({currencySymbol})</Label>
+                <NumberInput
+                  min="0"
+                  step="0.01"
+                  value={payForm.amount}
+                  onChange={(e) => setPayForm({ ...payForm, amount: parseFloat(e.target.value) || 0 })}
+                  disabled={paySaving}
+                />
+                <p className="text-xs text-slate-500">Capped at the outstanding balance. This posts an expense for the amount paid.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-700">Method</Label>
+                  <Select value={payForm.paymentMethod} onValueChange={(v) => setPayForm({ ...payForm, paymentMethod: v })} disabled={paySaving}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Cash">Cash</SelectItem>
+                      <SelectItem value="MoMo">MoMo</SelectItem>
+                      <SelectItem value="Bank">Bank</SelectItem>
+                      <SelectItem value="Card">Card</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-700">Payment date</Label>
+                  <Input type="date" value={payForm.paymentDate} onChange={(e) => setPayForm({ ...payForm, paymentDate: e.target.value })} disabled={paySaving} />
+                </div>
+              </div>
+              <div className="flex gap-3 justify-end pt-2">
+                <Button type="button" variant="outline" onClick={() => setPayTarget(null)} disabled={paySaving}>Cancel</Button>
+                <Button type="button" onClick={submitPayBalance} disabled={paySaving}>
+                  {paySaving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Recording...</> : "Record payment"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Offered, never forced: the batch exists either way. */}
+      <AlertDialog open={justCreated !== null} onOpenChange={(open) => { if (!open) setJustCreated(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Batch {justCreated?.batchCode} created successfully</AlertDialogTitle>
+            <AlertDialogDescription>
+              {(justCreated?.numberOfBirds ?? 0).toLocaleString()} birds available. Divide them across your
+              houses/pens now, or come back to it whenever you are ready.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>I&apos;ll Do This Later</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-blue-600 hover:bg-blue-700"
+              onClick={() => {
+                const id = justCreated?.batchId
+                setJustCreated(null)
+                if (id) openAllocation(id)
+              }}
+            >
+              Divide Into Flocks
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* The allocation tool. Same component the Flock Groups page mounts --
+          one workflow, two entry points. */}
+      <BatchAllocationDialog
+        open={allocationOpen}
+        onOpenChange={setAllocationOpen}
+        batchId={allocationBatchId}
+        source="Flock Purchases page"
+        onCreated={async () => {
+          await loadAllFlocks()
+          await loadFlockBatches()
+        }}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Flock Batch</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this flock batch? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-red-600 hover:bg-red-700 focus:ring-red-600">
+              {isDeleting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Deleting...</> : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <BulkFlockBatchDialog
+        open={isBulkOpen}
+        onOpenChange={setIsBulkOpen}
+        existingCodes={flockBatches.map((b) => b.batchCode)}
+        suppliers={suppliers}
+        cashAccounts={cashAccounts}
+        knownBreeds={distinctBreeds}
+        currencySymbol={currencySymbol}
+        onCreated={() => loadFlockBatches()}
+      />
+    </div>
+  )
+}
+
+/**
+ * "Pay from cash account" for a batch purchase: the amount paid comes out of
+ * the chosen account (migration 330). Blank = no cash movement. The value is
+ * the account id as a string, "" for none.
+ */
+function CashAccountField({ accounts, value, onChange, disabled }: {
+  accounts: PoultryCashAccount[]
+  value: string
+  onChange: (value: string) => void
+  disabled?: boolean
+}) {
+  return (
+    <div className="space-y-2">
+      <Label className="text-sm font-medium text-slate-700">Pay from cash account</Label>
+      <Select value={value || "none"} onValueChange={(v) => onChange(v === "none" ? "" : v)} disabled={disabled}>
+        <SelectTrigger><SelectValue placeholder="None (no cash movement)" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="none">None (no cash movement)</SelectItem>
+          {accounts.map((a) => (
+            <SelectItem key={a.poultryCashAccountId} value={String(a.poultryCashAccountId)}>
+              {a.accountName} ({a.currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-slate-500">The amount paid comes out of this account&apos;s balance.</p>
+    </div>
+  )
+}
