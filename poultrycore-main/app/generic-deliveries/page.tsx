@@ -413,7 +413,7 @@ export default function GenericDeliveriesPage() {
 
           {/* Driver + Transport section */}
           <FormSection title="Driver & Transport" color="blue">
-            <FormField label="Driver *">
+            <FormField label="Driver *" full>
               <div className="flex gap-2">
                 <Select value={loadForm.driverName} onValueChange={(v) => {
                   const dr = driversList.find((d) => d.driverName === v)
@@ -446,7 +446,7 @@ export default function GenericDeliveriesPage() {
 
           {/* Route + Destination section */}
           <FormSection title="Route & Destination" color="emerald">
-            <FormField label="Route">
+            <FormField label="Route" full>
               <div className="flex gap-2">
                 <Select value={loadForm.route} onValueChange={(v) => {
                   const rt = routesList.find((r) => r.routeName === v)
@@ -471,7 +471,7 @@ export default function GenericDeliveriesPage() {
                 <p className="text-xs text-emerald-600 mt-1">Est. time: {selectedRoute.estimatedTime}</p>
               )}
             </FormField>
-            <FormField label="Starting point">
+            <FormField label="Starting point" full>
               <div className="flex gap-1">
                 <Input className="flex-1" value={loadForm.startPoint} onChange={(e) => setLoadForm({ ...loadForm, startPoint: e.target.value })} placeholder="Where you're leaving from" />
                 <Button type="button" variant="outline" size="icon" className="shrink-0" disabled={locating} onClick={() => pickGps("startPoint")} title="My location">
@@ -482,7 +482,7 @@ export default function GenericDeliveriesPage() {
                 </Button>
               </div>
             </FormField>
-            <FormField label="Destination">
+            <FormField label="Destination" full>
               <div className="flex gap-1">
                 <Input className="flex-1" value={loadForm.destination} onChange={(e) => setLoadForm({ ...loadForm, destination: e.target.value })} placeholder="Where you're delivering to" />
                 <Button type="button" variant="outline" size="icon" className="shrink-0" disabled={locating} onClick={() => searchPlace("destination")} title="Search">
