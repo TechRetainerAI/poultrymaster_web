@@ -326,10 +326,9 @@ export function SidebarFlyoutMenu({
         aria-label={collapsed ? label : undefined}
         title={collapsed ? label : undefined}
         className={cn(
-          // 12px with tighter padding, not text-sm: in Geist Medium "Sales,
-          // Expenses & Money" is 168px at 14px but 144px at 12px, and the 240px
-          // rail -- less Windows' ~11px scrollbar -- leaves it about 150px.
-          "relative w-full flex items-center gap-2 rounded-md border-l-[3px] py-2.5 text-xs leading-5 font-medium transition-colors",
+          // 14px (raised from 12px on request). "Sales, Expenses & Money" is
+          // now three short menus, so the 240px rail has room for it.
+          "relative w-full flex items-center gap-2 rounded-md border-l-[3px] py-2.5 text-sm leading-5 font-medium transition-colors",
           "outline-none focus-visible:ring-2 focus-visible:ring-orange-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900",
           collapsed ? "justify-center px-2" : "pl-[10px] pr-1",
           // Open: the orange edge says "this is the section on screen beside you".
@@ -422,9 +421,9 @@ export function SidebarFlyoutMenu({
             }}
           >
             {visibleGroups.map((g) => (
-              <div key={g.key} className={cn("min-w-0", cols > 1 && "max-w-[12.5rem]")}>
+              <div key={g.key} className={cn("min-w-0", cols > 1 && "max-w-[14.5rem]")}>
                 {showGroupLabels && (
-                  <div className={cn("px-2 pb-1 pt-0.5 text-[11px] font-semibold uppercase tracking-wider", a.groupLabel)}>
+                  <div className={cn("px-2 pb-1 pt-0.5 text-xs font-semibold uppercase tracking-wider", a.groupLabel)}>
                     {g.label}
                   </div>
                 )}
@@ -433,7 +432,7 @@ export function SidebarFlyoutMenu({
                     const active = isRowActive(it) && highlightActiveRow
                     const RowIcon = it.icon
                     const rowClass = cn(
-                      "flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-[13px] leading-5 transition-colors",
+                      "flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm leading-5 transition-colors",
                       "outline-none focus-visible:ring-2 focus-visible:ring-orange-400",
                       active ? cn(a.rowActive, "font-medium") : a.rowIdle,
                     )

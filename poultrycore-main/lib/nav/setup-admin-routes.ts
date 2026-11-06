@@ -39,5 +39,7 @@ export const SETUP_ADMIN_ROUTES: readonly string[] = [
 /** True for a Setup page or anything under it (/water-products/12, /generic-setup/wizard). */
 export function isSetupAdminRoute(pathname: string | null | undefined): boolean {
   if (!pathname) return false
-  return SETUP_ADMIN_ROUTES.some((r) => pathname === r || pathname.startsWith(r + "/"))
+  // Nav hrefs can carry a query (/poultry-setup?section=business).
+  const path = pathname.split("?")[0]
+  return SETUP_ADMIN_ROUTES.some((r) => path === r || path.startsWith(r + "/"))
 }

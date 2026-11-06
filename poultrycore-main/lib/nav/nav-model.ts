@@ -16,7 +16,9 @@ import type { LucideIcon } from "lucide-react"
  * top-nav's can eventually converge on one implementation.
  */
 export function navPathActive(pathname: string, href: string): boolean {
-  return pathname === href || (href !== "/dashboard" && pathname.startsWith(`${href}/`))
+  // A query string (/poultry-setup?section=business) never matches a pathname.
+  const path = href.split("?")[0]
+  return pathname === path || (path !== "/dashboard" && pathname.startsWith(`${path}/`))
 }
 
 /** A row in the narrow single-column NavDropdown (and the nav rail's NavLink). */

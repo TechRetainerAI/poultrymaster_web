@@ -422,8 +422,11 @@ export function buildPoultryNavConfig(
         items: [
           // Points at the real setup page rather than /settings, which is now
           // only a redirect. Matches Water's "Company Setup" row.
-          { id: "farm-setup", title: "Farm Setup",    icon: Settings, href: "/poultry-setup",         visible: featureAccess.canViewSettings },
-          { id: "settings",   title: "Company Setup", icon: Settings, href: "/poultry-company-setup", visible: featureAccess.canViewSettings },
+          // The two doors into the consolidated Farm Setup page. They replace
+          // the old "Farm Setup" + "Company Setup" rows: the company profile is
+          // now Business Setup's first tab. /poultry-company-setup still works.
+          { id: "production-setup", title: "Production Setup", icon: Settings, href: "/poultry-setup?section=production", visible: featureAccess.canViewSettings },
+          { id: "business-setup",   title: "Business Setup",   icon: Settings, href: "/poultry-setup?section=business",   visible: featureAccess.canViewSettings },
           // Migrations 261-263. Sits with the other setup rows because it is
           // configuration, but it is a FINANCE decision -- it changes what the
           // owner reads as profit -- so it rides canViewFinancial rather than
