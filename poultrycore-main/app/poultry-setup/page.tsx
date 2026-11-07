@@ -37,7 +37,7 @@ import {
   type SetupSection, type SetupTabKey,
 } from "@/lib/nav/poultry-setup-tabs"
 
-import { FarmProfileForm, CompanyProfileForm } from "@/components/setup-views/poultry-profile-forms"
+import { CompanySettingsForm } from "@/components/setup-views/poultry-company-settings"
 import { HousesPage } from "@/components/setup-views/houses"
 import { FlocksPage } from "@/components/setup-views/flocks"
 import { FlockBatchesPage } from "@/components/setup-views/flock-batch"
@@ -56,7 +56,7 @@ import { PoultryStaffPage } from "@/components/setup-views/poultry-staff"
 
 /** What each tab renders. Keys, labels and descriptions live in lib/nav/poultry-setup-tabs. */
 const VIEWS: Record<SetupTabKey, () => ReactNode> = {
-  "farm-profile": () => <FarmProfileForm />,
+  "company-settings": () => <CompanySettingsForm />,
   "houses": () => <HousesPage />,
   "flock-purchases": () => <FlockBatchesPage />,
   "flock-groups": () => <FlocksPage />,
@@ -64,7 +64,6 @@ const VIEWS: Record<SetupTabKey, () => ReactNode> = {
   "feed-formulas": () => <PoultryFeedFormulasPage />,
   "egg-settings": () => <EggPickSettingsPage />,
   "inventory": () => <PoultryRawMaterialsPage />,
-  "company-profile": () => <CompanyProfileForm />,
   "customers": () => <CustomersPage />,
   "suppliers": () => <SuppliersPage />,
   "financial-settings": () => <PoultryFinancialSettingsPage />,
@@ -95,8 +94,7 @@ function FarmSetupInner() {
   const allowed = useCallback((key: SetupTabKey): boolean => {
     const money = (href: string) => isFinancialNavItemVisible(href, featureAccess, isAdmin, { tempShowPayments: true })
     switch (key) {
-      case "farm-profile":
-      case "company-profile": return featureAccess.canViewSettings
+      case "company-settings": return featureAccess.canViewSettings
       case "feed-formulas": return featureAccess.canViewFeedProduction
       case "egg-settings": return isAdmin
       case "customers": return money("/customers")

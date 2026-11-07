@@ -424,7 +424,7 @@ export function buildPoultryNavConfig(
           // only a redirect. Matches Water's "Company Setup" row.
           // The two doors into the consolidated Farm Setup page. They replace
           // the old "Farm Setup" + "Company Setup" rows: the company profile is
-          // now Business Setup's first tab. /poultry-company-setup still works.
+          // now Production Setup's first tab, "Company settings". /poultry-company-setup still works.
           { id: "production-setup", title: "Production Setup", icon: Settings, href: "/poultry-setup?section=production", visible: featureAccess.canViewSettings },
           { id: "business-setup",   title: "Business Setup",   icon: Settings, href: "/poultry-setup?section=business",   visible: featureAccess.canViewSettings },
           // Migrations 261-263. Sits with the other setup rows because it is
