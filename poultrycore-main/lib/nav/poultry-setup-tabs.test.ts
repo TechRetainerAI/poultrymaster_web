@@ -9,11 +9,11 @@ const except = (...blocked: SetupTabKey[]) => (k: SetupTabKey) => !blocked.inclu
 
 describe("resolveSetupLocation", () => {
   it("defaults the bare route to Production's first tab", () => {
-    expect(resolveSetupLocation({}, all)).toEqual({ kind: "ok", section: "production", tab: "farm-profile" })
+    expect(resolveSetupLocation({}, all)).toEqual({ kind: "ok", section: "production", tab: "company-settings" })
   })
 
   it("opens a section's first tab from ?section= alone", () => {
-    expect(resolveSetupLocation({ section: "business" }, all)).toEqual({ kind: "ok", section: "business", tab: "company-profile" })
+    expect(resolveSetupLocation({ section: "business" }, all)).toEqual({ kind: "ok", section: "business", tab: "customers" })
   })
 
   it("honours an explicit deep link", () => {
@@ -28,18 +28,18 @@ describe("resolveSetupLocation", () => {
 
   it("falls back safely from an unknown tab", () => {
     expect(resolveSetupLocation({ section: "business", tab: "nonsense" }, all))
-      .toEqual({ kind: "ok", section: "business", tab: "company-profile" })
+      .toEqual({ kind: "ok", section: "business", tab: "customers" })
   })
 
   it("never opens a tab the user may not see", () => {
-    expect(resolveSetupLocation({ tab: "financial-settings" }, except("financial-settings", "farm-profile")))
+    expect(resolveSetupLocation({ tab: "financial-settings" }, except("financial-settings", "company-settings")))
       .toEqual({ kind: "ok", section: "production", tab: "houses" })
   })
 
   it("skips to Business when no Production tab is allowed", () => {
     const businessOnly = (k: SetupTabKey) => sectionOfTab(k) === "business"
     expect(resolveSetupLocation({ section: "production" }, businessOnly))
-      .toEqual({ kind: "ok", section: "business", tab: "company-profile" })
+      .toEqual({ kind: "ok", section: "business", tab: "customers" })
   })
 
   it("reports no access when nothing is allowed", () => {
@@ -47,7 +47,7 @@ describe("resolveSetupLocation", () => {
   })
 
   it("maps the old ?step= links", () => {
-    expect(resolveSetupLocation({ step: "company" }, all)).toEqual({ kind: "ok", section: "business", tab: "company-profile" })
+    expect(resolveSetupLocation({ step: "company" }, all)).toEqual({ kind: "ok", section: "production", tab: "company-settings" })
     expect(resolveSetupLocation({ step: "flocks" }, all)).toEqual({ kind: "ok", section: "production", tab: "flock-groups" })
     expect(resolveSetupLocation({ step: "raw-materials" }, all)).toEqual({ kind: "ok", section: "production", tab: "inventory" })
     expect(resolveSetupLocation({ step: "vehicles" }, all)).toEqual({ kind: "ok", section: "business", tab: "vehicles" })
@@ -57,6 +57,11 @@ describe("resolveSetupLocation", () => {
   it("prefers ?tab= over a legacy ?step=", () => {
     expect(resolveSetupLocation({ tab: "products", step: "customers" }, all))
       .toEqual({ kind: "ok", section: "production", tab: "products" })
+  })
+
+  it("sends the old profile tabs to Company settings", () => {
+    for (const tab of ["farm-profile", "company-profile"])
+      expect(resolveSetupLocation({ section: "business", tab }, all)).toEqual({ kind: "ok", section: "production", tab: "company-settings" })
   })
 
   it("opens Delivery on Drivers", () => {

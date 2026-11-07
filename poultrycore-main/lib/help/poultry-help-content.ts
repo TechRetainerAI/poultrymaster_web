@@ -76,8 +76,8 @@ export const HELP_ENTRIES: HelpEntry[] = [
     body: `Setup is done by the owner or an admin; staff cannot open these pages.
 
 Everything is on one page, Farm Setup, opened from Setup > Production Setup or Setup > Business Setup.
-1. Production Setup: farm profile, houses & pens, flock purchases, flock groups, products, feed formulas, egg settings (pick times, eggs per crate, packaging, egg sizes and their prices) and inventory items.
-2. Business Setup: company profile and currency, customers, suppliers, financial settings, cash accounts, delivery (drivers, vehicles, routes) and staff.
+1. Production Setup: company settings (business details, farm type, currency and business time zone), houses & pens, flock purchases, flock groups, products, feed formulas, egg settings (pick times, eggs per crate, packaging, egg sizes and their prices) and inventory items.
+2. Business Setup: customers, suppliers, financial settings, cash accounts, delivery (drivers, vehicles, routes) and staff.
 3. Users & Permissions stay under Administration.
 4. Financial Settings: whether feed and medication are expensed when bought or when used.
 
@@ -161,7 +161,7 @@ A 4th pick appears only if it is turned on under Egg Settings > Pick times.`,
     keywords: ["crate size", "30 eggs", "tray", "pieces", "conversion"],
     body: `Total eggs = crates × eggs per crate + loose eggs. Eggs per crate is set by an admin on Egg Settings > Egg sorting (default 30).
 
-Farm Setup > Farm profile has its own "eggs per crate" field, but it is used only for vehicle loading and driver returns.`,
+Production Setup > Company settings has its own "eggs per crate" field, but it is used only for vehicle loading and driver returns.`,
     links: [{ label: "Egg Settings", href: "/business-office/egg-pick-settings?tab=sorting" }],
   }),
   faq({
@@ -383,7 +383,7 @@ This is set before buying, in Financial Settings or on the item, never per purch
     id: "eggs-dont-add-up", category: "Production & Eggs",
     title: "Egg totals don't add up",
     keywords: ["egg count", "crates wrong", "egg tracker", "stock eggs"],
-    body: `1. Check eggs per crate on Egg Settings > Egg sorting. It drives every crate figure, and the field in Farm Setup > Farm profile does not.
+    body: `1. Check eggs per crate on Egg Settings > Egg sorting. It drives every crate figure, and the field in Production Setup > Company settings does not.
 2. Broken, meaty, soft and lost eggs are taken off before net sellable.
 3. Egg tracker shows every egg movement (production, sorting, sales, internal use) to find where the difference came in.`,
     links: [

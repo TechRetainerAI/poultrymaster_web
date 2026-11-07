@@ -8,9 +8,9 @@
 export type SetupSection = "production" | "business"
 
 export type SetupTabKey =
-  | "farm-profile" | "houses" | "flock-purchases" | "flock-groups" | "products"
+  | "company-settings" | "houses" | "flock-purchases" | "flock-groups" | "products"
   | "feed-formulas" | "egg-settings" | "inventory"
-  | "company-profile" | "customers" | "suppliers" | "financial-settings" | "cash-accounts"
+  | "customers" | "suppliers" | "financial-settings" | "cash-accounts"
   | "drivers" | "vehicles" | "routes" | "staff"
 
 export type SetupTab = {
@@ -29,7 +29,7 @@ export const SETUP_SECTIONS: Record<SetupSection, { label: string; tabs: SetupTa
   production: {
     label: "Production Setup",
     tabs: [
-      { key: "farm-profile", label: "Farm profile", description: "Set the bird type, housing, capacity and egg crate size your farm works with." },
+      { key: "company-settings", label: "Company settings", description: "Your business name and contacts, farm type and capacity, currency and business time zone." },
       { key: "houses", label: "Houses & pens", description: "Manage the houses and pens where your birds are kept." },
       { key: "flock-purchases", label: "Flock purchases", description: "Record the birds you bought; each batch is later divided into flock groups." },
       { key: "flock-groups", label: "Flock groups", description: "Manage the groups of birds you record production against." },
@@ -42,7 +42,6 @@ export const SETUP_SECTIONS: Record<SetupSection, { label: string; tabs: SetupTa
   business: {
     label: "Business Setup",
     tabs: [
-      { key: "company-profile", label: "Company profile", description: "Manage your business name, contact details and currency." },
       { key: "customers", label: "Customers", description: "Manage customer details used in sales and payments." },
       { key: "suppliers", label: "Suppliers", description: "Manage supplier details used in purchases and payments." },
       { key: "financial-settings", label: "Financial settings", description: "Choose when inventory costs count towards profit and loss." },
@@ -75,7 +74,10 @@ export function sectionOfTab(tab: string): SetupSection | null {
  */
 const ALIASES: Record<string, SetupTabKey | { href: string }> = {
   // old /poultry-setup?step= keys
-  company: "company-profile",
+  company: "company-settings",
+  // the two profile tabs merged into Company settings (2026-11-07)
+  "farm-profile": "company-settings",
+  "company-profile": "company-settings",
   flocks: "flock-groups",
   "raw-materials": "inventory",
   employees: { href: "/employees" }, // Users & Permissions stays in Administration
