@@ -114,6 +114,9 @@ function StatTile({
   )
 }
 
+/** Desktop table scale: 0.92 = zoomed out to 92% (0.85 was too small). Raise toward 1 if it reads too small. */
+const TABLE_ZOOM = 0.92
+
 export default function ProductionRecordsPage() {
   const router = useRouter()
   const permissions = usePermissions()
@@ -1245,7 +1248,13 @@ export default function ProductionRecordsPage() {
                         </div>
                       </>
                     )}
-                    <Table className={cn("min-w-[1250px] text-xs", isMobile && "min-w-[1150px]")}>
+                    {/* Zoomed out slightly on desktop (asked for 2026-11-07) so more
+                        rows and columns fit: text, padding and the column
+                        min-widths all shrink together. The zoom is on the table,
+                        not its scroll box, so the box keeps its full height; the
+                        width is divided by the zoom so the table still fills it. */}
+                    <Table className={cn("min-w-[1250px] text-xs", isMobile && "min-w-[1150px]")}
+                      style={isMobile ? undefined : { zoom: TABLE_ZOOM, width: `calc(100% / ${TABLE_ZOOM})` }}>
                       <TableHeader className="sticky top-0 bg-blue-50 z-10">
                         <TableRow className="border-b border-blue-200">
                           {/* Only Date is pinned on mobile. Pinning Flock and
