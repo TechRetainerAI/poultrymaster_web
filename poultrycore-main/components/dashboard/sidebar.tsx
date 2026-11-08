@@ -395,8 +395,8 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     // in their groups above; this is the equivalent row for Poultry, pointing at the
     // database-backed pages rather than /settings (now only a redirect).
     ...((!isWater && !isGeneric && !isHotel && !isRestaurant && permissions.featureAccess.canViewSettings)
-      ? [{ href: "/poultry-setup", label: "Farm Setup", icon: Settings },
-         { href: "/poultry-company-setup", label: "Company Setup", icon: Settings }] : []),
+      ? [{ href: "/poultry-setup?section=production", label: "Production Setup", icon: Settings },
+         { href: "/poultry-setup?section=business", label: "Business Setup", icon: Settings }] : []),
     // Configuration, but a finance decision: it changes what the owner reads as
     // profit, so it follows the financial flag rather than the settings one.
     ...((!isWater && !isGeneric && !isHotel && !isRestaurant && permissions.featureAccess.canViewFinancial)
@@ -425,8 +425,8 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     const content = (
       <div
         className={cn(
-          // 12px, matching the menu rows (see sidebar-flyout-menu.tsx).
-          "flex items-center gap-2 px-4 pr-1 py-2.5 text-xs leading-5 font-medium rounded-md transition-colors relative",
+          // 14px, matching the menu rows (see nav/sidebar-flyout-menu.tsx).
+          "flex items-center gap-2 px-4 pr-1 py-2.5 text-sm leading-5 font-medium rounded-md transition-colors relative",
           isActive
             ? "bg-slate-700 text-white border-l-[3px] border-blue-400 pl-[10px]"
             : alerting
@@ -521,7 +521,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
       <div>
         <button
           onClick={() => toggleGroup(groupKey)}
-          className="w-full flex items-center justify-between px-4 py-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider hover:text-slate-300 transition-colors"
+          className="w-full flex items-center justify-between px-4 py-1.5 text-[13px] font-semibold text-slate-500 uppercase tracking-wider hover:text-slate-300 transition-colors"
         >
           <span>{title}</span>
           <ChevronDown
@@ -608,7 +608,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
           onClick={() => setOpenGroups((prev) => ({ ...prev, [menuKey]: !isOpen }))}
           aria-expanded={isOpen}
           className={cn(
-            "w-full flex items-center gap-2 rounded-md border-l-[3px] border-transparent py-2.5 pl-[10px] pr-3 text-xs leading-5 font-semibold transition-colors",
+            "w-full flex items-center gap-2 rounded-md border-l-[3px] border-transparent py-2.5 pl-[10px] pr-3 text-sm leading-5 font-semibold transition-colors",
             containsActive ? "text-white" : "text-slate-200 hover:bg-slate-800 hover:text-white",
           )}
         >

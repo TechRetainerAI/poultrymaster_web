@@ -37,7 +37,7 @@ export const FEATURE_GUIDES: FeatureGuide[] = [
   { icon: BarChart3, title: "Profit & Loss", description: "Revenue, costs and net profit", path: "/poultry-profit-loss", tint: "bg-indigo-100 text-indigo-700" },
   { icon: Activity, title: "Health Records", description: "Vaccinations and treatments", path: "/health", tint: "bg-amber-100 text-amber-700" },
   { icon: FileText, title: "Inventory", description: "Stock of feed, medication and supplies", path: "/poultry-inventory", tint: "bg-rose-100 text-rose-700" },
-  { icon: Settings, title: "Company Setup", description: "Farm details, currency, time zone", path: "/poultry-company-setup", tint: "bg-slate-200 text-slate-700" },
+  { icon: Settings, title: "Business Setup", description: "Company details, customers, suppliers, currency", path: "/poultry-setup?section=business", tint: "bg-slate-200 text-slate-700" },
 ]
 
 // --------------------------------------------------------------- colours
@@ -75,15 +75,16 @@ export const HELP_ENTRIES: HelpEntry[] = [
     keywords: ["start", "onboarding", "first time", "configure", "settings"],
     body: `Setup is done by the owner or an admin; staff cannot open these pages.
 
-1. Company Setup: farm name, address, currency and time zone.
-2. Farm Setup: one page with tabs for Products, Customers, Suppliers, Houses, Drivers, Vehicles, Routes and Employees.
-3. Egg Settings: pick times, eggs per crate, packaging, egg sizes and their prices.
+Everything is on one page, Farm Setup, opened from Setup > Production Setup or Setup > Business Setup.
+1. Production Setup: company settings (business details, farm type, currency and business time zone), houses & pens, flock purchases, flock groups, products, feed formulas, egg settings (pick times, eggs per crate, packaging, egg sizes and their prices) and inventory items.
+2. Business Setup: customers, suppliers, financial settings, cash accounts, delivery (drivers, vehicles, routes) and staff.
+3. Users & Permissions stay under Administration.
 4. Financial Settings: whether feed and medication are expensed when bought or when used.
 
 If the farm already has birds, run Initial Farm Setup (under Tools) once, so the birds you have today go in as opening positions.`,
     links: [
-      { label: "Company Setup", href: "/poultry-company-setup" },
-      { label: "Farm Setup", href: "/poultry-setup" },
+      { label: "Production Setup", href: "/poultry-setup?section=production" },
+      { label: "Business Setup", href: "/poultry-setup?section=business" },
       { label: "Initial Farm Setup", href: "/poultry-farm-setup" },
     ],
   }),
@@ -160,7 +161,7 @@ A 4th pick appears only if it is turned on under Egg Settings > Pick times.`,
     keywords: ["crate size", "30 eggs", "tray", "pieces", "conversion"],
     body: `Total eggs = crates × eggs per crate + loose eggs. Eggs per crate is set by an admin on Egg Settings > Egg sorting (default 30).
 
-Company Setup has its own "eggs per crate" field, but it is used only for vehicle loading and driver returns.`,
+Production Setup > Company settings has its own "eggs per crate" field, but it is used only for vehicle loading and driver returns.`,
     links: [{ label: "Egg Settings", href: "/business-office/egg-pick-settings?tab=sorting" }],
   }),
   faq({
@@ -382,7 +383,7 @@ This is set before buying, in Financial Settings or on the item, never per purch
     id: "eggs-dont-add-up", category: "Production & Eggs",
     title: "Egg totals don't add up",
     keywords: ["egg count", "crates wrong", "egg tracker", "stock eggs"],
-    body: `1. Check eggs per crate on Egg Settings > Egg sorting. It drives every crate figure, and the field in Company Setup does not.
+    body: `1. Check eggs per crate on Egg Settings > Egg sorting. It drives every crate figure, and the field in Production Setup > Company settings does not.
 2. Broken, meaty, soft and lost eggs are taken off before net sellable.
 3. Egg tracker shows every egg movement (production, sorting, sales, internal use) to find where the difference came in.`,
     links: [
