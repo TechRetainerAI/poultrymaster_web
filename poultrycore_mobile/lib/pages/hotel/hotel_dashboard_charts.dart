@@ -12,6 +12,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../poultry/trackers/tracker_logic.dart' show tNum, tStr;
 import '../shared/chart_period.dart';
@@ -118,43 +119,156 @@ List<ChartSlice> paymentMix(List<Map> payments, String today, {int days = 30, St
 
 // ------------------------------------------------------------ the card shell
 
-class HotelChartCard extends StatelessWidget {
+/// Which dashboard the chart cards below belong to ("poultry", "water", ...), so
+/// folding "Where the money goes" in Poultry leaves Water's open.
+class ChartCardScope extends InheritedWidget {
+  const ChartCardScope({super.key, required this.name, required super.child});
+  final String name;
+
+  static String of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<ChartCardScope>()?.name ?? 'charts';
+
+  @override
+  bool updateShouldNotify(ChartCardScope old) => old.name != name;
+}
+
+/// The folded chart cards, kept on the phone (user, 2026-11-09: "click on it
+/// somewhere and then it collapses ... to give room"), so they stay folded the
+/// next time the dashboard opens.
+class ChartFolds {
+  ChartFolds._();
+  static const _pref = 'chart_cards_folded';
+  static Set<String>? _folded;
+
+  static Future<Set<String>> load() async {
+    if (_folded != null) return _folded!;
+    try {
+      final p = await SharedPreferences.getInstance();
+      _folded = (p.getStringList(_pref) ?? const <String>[]).toSet();
+    } catch (_) {
+      _folded = <String>{};
+    }
+    return _folded!;
+  }
+
+  static bool? isFolded(String key) => _folded?.contains(key);
+
+  static Future<void> set(String key, bool folded) async {
+    final f = await load();
+    folded ? f.add(key) : f.remove(key);
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.setStringList(_pref, f.toList());
+    } catch (_) {}
+  }
+
+  /// For tests: forget what was loaded.
+  @visibleForTesting
+  static void reset() => _folded = null;
+}
+
+/// A chart card. Tapping its header folds it down to that one line, and
+/// tapping again opens it.
+class HotelChartCard extends StatefulWidget {
   const HotelChartCard({super.key, required this.title, required this.subtitle, required this.child, this.icon});
   final String title, subtitle;
   final IconData? icon;
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => Container(
-        margin: const EdgeInsets.only(bottom: 14),
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-        decoration: BoxDecoration(
-          color: Tone.bg(0xFFFFFFFF),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Tone.line(0x1A0B0B0B)),
-          boxShadow: const [BoxShadow(color: Color(0x0F1E1B4B), blurRadius: 18, offset: Offset(0, 6))],
-        ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Row(children: [
-            if (icon != null) ...[
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(color: const Tone.bg(0xFFF5F3FF), borderRadius: BorderRadius.circular(8)),
-                child: Icon(icon, size: 16, color: const Tone.fg(0xFF7C3AED)),
-              ),
-              const SizedBox(width: 10),
-            ],
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink)),
-                Text(subtitle, style: const TextStyle(fontSize: 12, color: _ink2)),
+  State<HotelChartCard> createState() => _HotelChartCardState();
+}
+
+class _HotelChartCardState extends State<HotelChartCard> {
+  bool _folded = false;
+  String? _key;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final key = '${ChartCardScope.of(context)}|${widget.title}';
+    if (key == _key) return;
+    _key = key;
+    final known = ChartFolds.isFolded(key);
+    if (known != null) {
+      _folded = known;
+    } else {
+      ChartFolds.load().then((_) {
+        if (mounted && _key == key) setState(() => _folded = ChartFolds.isFolded(key) ?? false);
+      });
+    }
+  }
+
+  void _toggle() {
+    setState(() => _folded = !_folded);
+    ChartFolds.set(_key!, _folded);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final folded = _folded;
+    return Container(
+      margin: EdgeInsets.only(bottom: folded ? 10 : 14),
+      decoration: BoxDecoration(
+        color: Tone.bg(0xFFFFFFFF),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Tone.line(0x1A0B0B0B)),
+        boxShadow: const [BoxShadow(color: Color(0x0F1E1B4B), blurRadius: 18, offset: Offset(0, 6))],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Semantics(
+          button: true,
+          expanded: !folded,
+          hint: folded ? 'Show this chart' : 'Fold this chart',
+          child: InkWell(
+            onTap: _toggle,
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(16, folded ? 12 : 14, 10, folded ? 12 : 0),
+              child: Row(children: [
+                if (widget.icon != null) ...[
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(color: const Tone.bg(0xFFF5F3FF), borderRadius: BorderRadius.circular(8)),
+                    child: Icon(widget.icon, size: 16, color: const Tone.fg(0xFF7C3AED)),
+                  ),
+                  const SizedBox(width: 10),
+                ],
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(widget.title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink)),
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      alignment: Alignment.topLeft,
+                      child: folded
+                          ? const SizedBox(width: double.infinity)
+                          : Text(widget.subtitle, style: const TextStyle(fontSize: 12, color: _ink2)),
+                    ),
+                  ]),
+                ),
+                const SizedBox(width: 6),
+                AnimatedRotation(
+                  turns: folded ? -.25 : 0,
+                  duration: const Duration(milliseconds: 220),
+                  child: const Icon(Icons.expand_more, size: 22, color: _ink2),
+                ),
               ]),
             ),
-          ]),
-          const SizedBox(height: 14),
-          child,
-        ]),
-      );
+          ),
+        ),
+        ClipRect(
+          child: AnimatedSize(
+            duration: const Duration(milliseconds: 260),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: folded
+                ? const SizedBox(width: double.infinity)
+                : Padding(padding: const EdgeInsets.fromLTRB(16, 14, 16, 16), child: widget.child),
+          ),
+        ),
+      ]),
+    );
+  }
 }
 
 /// A colour key: a rounded swatch and its label in text ink, never series ink.
@@ -562,7 +676,11 @@ class _ColumnsPainter extends CustomPainter {
     }
 
     final slot = (size.width - left) / n;
-    final barW = math.min(14.0, (slot - 6) / 2);
+    // Narrow slots (a long date range) keep a smaller gap, so the bars stay visible.
+    final barW = math.min(14.0, (slot - math.min(6.0, slot * .2)) / 2);
+    // Labels: every one when there is room, else one in [step] (2 for 14 columns, 4 for 31).
+    final step = n <= 7 ? 1 : (n / 7).ceil();
+    final h = highlight == null ? -1 : days.indexOf(highlight!);
     for (var i = 0; i < n; i++) {
       final cx = left + slot * i + slot / 2;
       if (picked == i || days[i] == highlight) {
@@ -584,10 +702,10 @@ class _ColumnsPainter extends CustomPainter {
           Paint()..color = (j == 0 ? chartBlue : chartOrange).withValues(alpha: dim ? .3 : 1),
         );
       }
-      // Day labels: every one when there is room, else every other, and
+      // Day labels: every one when there is room, else one in [step], and
       // never one that would crowd "Today" beside it.
-      final crowdsToday = n > 7 && i + 1 < n && days[i + 1] == highlight;
-      if ((n <= 7 || i.isEven || days[i] == highlight) && !crowdsToday) {
+      final crowdsToday = h >= 0 && i != h && (i - h).abs() < math.max(step, 2) && i < h;
+      if ((i % step == 0 || i == h) && !crowdsToday) {
         _text(canvas, xLabel(days[i]), Offset(cx, size.height - bottom / 2 + 2),
             centre: true, color: days[i] == highlight ? _ink : _muted, bold: days[i] == highlight);
       }
@@ -695,7 +813,7 @@ class HotelDashboardCharts extends StatefulWidget {
 
 class _HotelDashboardChartsState extends State<HotelDashboardCharts> {
   // Opens on the last 12 months, so a business with no entries this fortnight still sees its figures.
-  ChartPeriod _period = ChartPeriod.months;
+  ChartWindow _period = const ChartWindow.preset(ChartPeriod.months);
 
   @override
   Widget build(BuildContext context) {
@@ -707,8 +825,8 @@ class _HotelDashboardChartsState extends State<HotelDashboardCharts> {
     final spent = bucketSums(b, widget.expenses, (r) => _day(_v(r, 'expenseDate')), (r) => tNum(r['amount']));
     final moves = movementsAhead(widget.bookings, today);
     String fixed(num v) => v.toStringAsFixed(2);
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      ChartPeriodPicker(value: p, onChanged: (v) => setState(() => _period = v)),
+    return ChartCardScope(name: 'hotel', child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      ChartPeriodPicker(value: p, now: _parse(today).toLocal(), onChanged: (v) => setState(() => _period = v)),
       HotelChartCard(
         icon: Icons.donut_large,
         title: 'Room mix',
@@ -727,7 +845,7 @@ class _HotelDashboardChartsState extends State<HotelDashboardCharts> {
           bLabel: 'Expenses',
           dayLabel: (k) => b[keys.indexOf(k)].short,
           valueText: fixed,
-          highlight: keys.last,
+          highlight: bucketHolding(b, today),
           money: true,
           footer: (i) {
             final net = revenue[i] - spent[i];
@@ -756,12 +874,12 @@ class _HotelDashboardChartsState extends State<HotelDashboardCharts> {
         title: 'How guests pay',
         subtitle: 'Payments by method, ${p.window}.',
         child: PaymentMixBar(
-          slices: paymentMix(widget.payments, today, from: b.first.from),
+          slices: paymentMix(widget.payments, windowEnd(b, today), from: b.first.from),
           money: fixed,
-          caption: 'received in the ${p.window}',
-          emptyText: 'No payments in the ${p.window}',
+          caption: 'received ${p.inWindow}',
+          emptyText: 'No payments ${p.inWindow}',
         ),
       ),
-    ]);
+    ]));
   }
 }

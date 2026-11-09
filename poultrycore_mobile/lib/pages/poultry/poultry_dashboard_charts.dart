@@ -15,6 +15,7 @@ import '../../state/session.dart';
 import '../hotel/hotel_dashboard_charts.dart';
 import '../shared/chart_period.dart';
 import 'package:poultrycore_mobile/design/tone.dart';
+import 'poultry_money_charts.dart';
 import 'trackers/tracker_logic.dart' show tNum, tStr;
 import 'trackers/tracker_widgets.dart' show rowsOf;
 
@@ -76,7 +77,7 @@ class PoultryDashboardChartsState extends State<PoultryDashboardCharts> {
   List<Map> _production = const [], _sales = const [], _expenses = const [];
   bool _loading = true;
   // Opens on the last 12 months, so a business with no entries this fortnight still sees its figures.
-  ChartPeriod _period = ChartPeriod.months;
+  ChartWindow _period = const ChartWindow.preset(ChartPeriod.months);
 
   @override
   void initState() {
@@ -121,8 +122,10 @@ class PoultryDashboardChartsState extends State<PoultryDashboardCharts> {
     final spent = sums(_expenses, 'expenseDate', 'amount');
     Widget footer(String text) => Text(text, textAlign: TextAlign.right, style: const TextStyle(fontSize: 12, color: _ink2));
 
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      ChartPeriodPicker(value: p, onChanged: (v) => setState(() => _period = v)),
+    return ChartCardScope(name: 'poultry', child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      ChartPeriodPicker(value: p, now: widget.now(), onChanged: (v) => setState(() => _period = v)),
+      // Money first: profit or loss, costs, cash (poultry_money_charts.dart).
+      PoultryMoneyCharts(session: widget.session, company: widget.company, window: p, now: widget.now),
       HotelChartCard(
         icon: Icons.egg_outlined,
         title: 'Egg collection',
@@ -135,7 +138,7 @@ class PoultryDashboardChartsState extends State<PoultryDashboardCharts> {
           bLabel: 'Broken',
           dayLabel: short,
           valueText: whole,
-          highlight: keys.last,
+          highlight: bucketHolding(b, today),
           footer: (i) => footer('${b[i].long} · deaths ${whole(deaths[i])} · feed ${feed[i].toStringAsFixed(1)} kg'),
         ),
       ),
@@ -151,7 +154,7 @@ class PoultryDashboardChartsState extends State<PoultryDashboardCharts> {
           bLabel: 'Expenses',
           dayLabel: short,
           valueText: fixed,
-          highlight: keys.last,
+          highlight: bucketHolding(b, today),
           money: true,
           footer: (i) {
             final net = sold[i] - spent[i];
@@ -164,11 +167,11 @@ class PoultryDashboardChartsState extends State<PoultryDashboardCharts> {
         title: 'Where the money goes',
         subtitle: 'Expenses by category, ${p.window}. Tap a slice.',
         child: moneyDonut(
-          slices: topGroups(_expenses, today, dateKey: 'expenseDate', key: 'category', amountKey: 'amount', from: b.first.from),
+          slices: topGroups(_expenses, windowEnd(b, today), dateKey: 'expenseDate', key: 'category', amountKey: 'amount', from: b.first.from),
           money: fixed,
           caption: 'spent',
           period: p.window,
-          emptyText: 'No expenses in the ${p.window}',
+          emptyText: 'No expenses ${p.inWindow}',
         ),
       ),
       HotelChartCard(
@@ -176,13 +179,13 @@ class PoultryDashboardChartsState extends State<PoultryDashboardCharts> {
         title: 'What sells',
         subtitle: 'Sales by product, ${p.window}. Tap a slice.',
         child: moneyDonut(
-          slices: topGroups(_sales, today, dateKey: 'saleDate', key: 'product', amountKey: 'totalAmount', from: b.first.from),
+          slices: topGroups(_sales, windowEnd(b, today), dateKey: 'saleDate', key: 'product', amountKey: 'totalAmount', from: b.first.from),
           money: fixed,
           caption: 'sold',
           period: p.window,
-          emptyText: 'No sales in the ${p.window}',
+          emptyText: 'No sales ${p.inWindow}',
         ),
       ),
-    ]);
+    ]));
   }
 }

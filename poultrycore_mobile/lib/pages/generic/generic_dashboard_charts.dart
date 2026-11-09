@@ -54,10 +54,10 @@ class _GenericDashboardChartsState extends State<GenericDashboardCharts> {
   List<Map> _sales = const [], _expenses = const [];
   bool _loading = true;
   // Opens on the last 12 months, so a business with no entries this fortnight still sees its figures.
-  ChartPeriod _period = ChartPeriod.months;
+  ChartWindow _period = const ChartWindow.preset(ChartPeriod.months);
 
   /// The Sales by product report for each period already asked for (it is a dated report, so one per window).
-  final _products = <ChartPeriod, List<Map>>{};
+  final _products = <ChartWindow, List<Map>>{};
 
   @override
   void initState() {
@@ -86,13 +86,17 @@ class _GenericDashboardChartsState extends State<GenericDashboardCharts> {
     });
   }
 
-  Future<List<Map>> _productsFor(ChartPeriod p) => widget.session.farmClient
-      .get('${genericBase(widget.company)}/reports/sales-by-product',
-          query: {'fromDate': p.buckets(widget.now()).first.from, 'toDate': isoDay(widget.now())})
-      .then(rowsOf)
-      .catchError((Object _) => <Map>[]);
+  Future<List<Map>> _productsFor(ChartWindow p) {
+    final b = p.buckets(widget.now()), today = isoDay(widget.now());
+    // A preset runs to today; a range to its own last day (never past today).
+    final to = windowEnd(b, today);
+    return widget.session.farmClient
+        .get('${genericBase(widget.company)}/reports/sales-by-product', query: {'fromDate': b.first.from, 'toDate': to})
+        .then(rowsOf)
+        .catchError((Object _) => <Map>[]);
+  }
 
-  Future<void> _pick(ChartPeriod p) async {
+  Future<void> _pick(ChartWindow p) async {
     setState(() => _period = p);
     if (_products.containsKey(p)) return;
     final rows = await _productsFor(p);
@@ -119,8 +123,8 @@ class _GenericDashboardChartsState extends State<GenericDashboardCharts> {
     final products = _products[p];
     Widget footer(String text) => Text(text, textAlign: TextAlign.right, style: const TextStyle(fontSize: 12, color: _ink2));
 
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      ChartPeriodPicker(value: p, onChanged: _pick),
+    return ChartCardScope(name: 'generic', child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      ChartPeriodPicker(value: p, now: widget.now(), onChanged: _pick),
       HotelChartCard(
         icon: Icons.bar_chart,
         title: 'Money in & out',
@@ -133,7 +137,7 @@ class _GenericDashboardChartsState extends State<GenericDashboardCharts> {
           bLabel: 'Expenses',
           dayLabel: short,
           valueText: fixed,
-          highlight: keys.last,
+          highlight: bucketHolding(b, today),
           money: true,
           footer: (i) {
             final net = sold[i] - spent[i];
@@ -153,7 +157,7 @@ class _GenericDashboardChartsState extends State<GenericDashboardCharts> {
           bLabel: 'Owed',
           dayLabel: short,
           valueText: fixed,
-          highlight: keys.last,
+          highlight: bucketHolding(b, today),
           money: true,
           footer: (i) => footer('${b[i].long} · ${count[i].toStringAsFixed(0)} sale(s)'),
         ),
@@ -169,7 +173,7 @@ class _GenericDashboardChartsState extends State<GenericDashboardCharts> {
                 money: fixed,
                 caption: 'sold',
                 period: p.window,
-                emptyText: 'No product sales in the ${p.window}',
+                emptyText: 'No product sales ${p.inWindow}',
               ),
       ),
       HotelChartCard(
@@ -177,13 +181,13 @@ class _GenericDashboardChartsState extends State<GenericDashboardCharts> {
         title: 'Where the money goes',
         subtitle: 'Approved expenses by category, ${p.window}. Tap a slice.',
         child: moneyDonut(
-          slices: topGroups(_expenses, today, dateKey: 'expenseDate', key: 'categoryName', amountKey: 'amount', from: b.first.from),
+          slices: topGroups(_expenses, windowEnd(b, today), dateKey: 'expenseDate', key: 'categoryName', amountKey: 'amount', from: b.first.from),
           money: fixed,
           caption: 'spent',
           period: p.window,
-          emptyText: 'No approved expenses in the ${p.window}',
+          emptyText: 'No approved expenses ${p.inWindow}',
         ),
       ),
-    ]);
+    ]));
   }
 }

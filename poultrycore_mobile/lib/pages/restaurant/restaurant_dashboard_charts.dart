@@ -67,7 +67,7 @@ class _RestaurantDashboardChartsState extends State<RestaurantDashboardCharts> {
   List<Map> _expenses = const [];
   bool _loading = true;
   // Opens on the last 12 months, so a business with no entries this fortnight still sees its figures.
-  ChartPeriod _period = ChartPeriod.months;
+  ChartWindow _period = const ChartWindow.preset(ChartPeriod.months);
 
   @override
   void initState() {
@@ -75,10 +75,14 @@ class _RestaurantDashboardChartsState extends State<RestaurantDashboardCharts> {
     _load();
   }
 
+  /// The first day of the expenses loaded so far.
+  late String _loadedFrom = ChartPeriod.years.buckets(widget.now()).first.from;
+
   Future<void> _load() async {
     final today = isoDay(widget.now());
-    // The widest window the picker offers (5 years), loaded once, so switching period needs no new request.
-    final q = {'farmId': widget.company.farmId, '_': '1', 'from': ChartPeriod.years.buckets(widget.now()).first.from, 'to': today};
+    // The widest preset (5 years), loaded once, so switching period needs no new request; a range
+    // reaching further back loads again from its first day (see [_pick]).
+    final q = {'farmId': widget.company.farmId, '_': '1', 'from': _loadedFrom, 'to': today};
     // A failing expense list leaves those charts empty; the orders charts still draw.
     final r = await widget.session.farmClient.get('/api/Restaurant/expenses', query: q).then(rowsOf).catchError((Object _) => <Map>[]);
     if (!mounted) return;
@@ -86,6 +90,15 @@ class _RestaurantDashboardChartsState extends State<RestaurantDashboardCharts> {
       _expenses = r.where((e) => !const ['Cancelled', 'Voided', 'Reversed'].contains(tStr(fieldOf(e, 'status')))).toList();
       _loading = false;
     });
+  }
+
+  void _pick(ChartWindow w) {
+    setState(() => _period = w);
+    final first = w.buckets(widget.now()).first.from;
+    if (first.compareTo(_loadedFrom) < 0) {
+      _loadedFrom = first;
+      _load();
+    }
   }
 
   @override
@@ -108,8 +121,8 @@ class _RestaurantDashboardChartsState extends State<RestaurantDashboardCharts> {
     final dropped = bucketSums(b, orders.where((o) => _dropped.contains(tStr(fieldOf(o, 'status')))), orderDay, (_) => 1);
     Widget footer(String text) => Text(text, textAlign: TextAlign.right, style: const TextStyle(fontSize: 12, color: _ink2));
 
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      ChartPeriodPicker(value: p, onChanged: (v) => setState(() => _period = v)),
+    return ChartCardScope(name: 'restaurant', child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      ChartPeriodPicker(value: p, now: widget.now(), onChanged: _pick),
       HotelChartCard(
         icon: Icons.bar_chart,
         title: 'Money in & out',
@@ -122,7 +135,7 @@ class _RestaurantDashboardChartsState extends State<RestaurantDashboardCharts> {
           bLabel: 'Expenses',
           dayLabel: short,
           valueText: fixed,
-          highlight: keys.last,
+          highlight: bucketHolding(b, today),
           money: true,
           footer: (i) {
             final net = takings[i] - spent[i];
@@ -142,7 +155,7 @@ class _RestaurantDashboardChartsState extends State<RestaurantDashboardCharts> {
           bLabel: 'Cancelled',
           dayLabel: short,
           valueText: (v) => v.toStringAsFixed(0),
-          highlight: keys.last,
+          highlight: bucketHolding(b, today),
           footer: (i) => footer('${b[i].long} · average bill ${paidCount[i] == 0 ? '—' : fixed(takings[i] / paidCount[i])}'),
         ),
       ),
@@ -151,11 +164,11 @@ class _RestaurantDashboardChartsState extends State<RestaurantDashboardCharts> {
         title: 'How orders come in',
         subtitle: 'Paid takings by order type, ${p.window}. Tap a slice.',
         child: moneyDonut(
-          slices: orderTypeMix(orders, today, from: b.first.from),
+          slices: orderTypeMix(orders, windowEnd(b, today), from: b.first.from),
           money: fixed,
           caption: 'taken',
           period: p.window,
-          emptyText: 'No paid orders in the ${p.window}',
+          emptyText: 'No paid orders ${p.inWindow}',
         ),
       ),
       HotelChartCard(
@@ -163,13 +176,13 @@ class _RestaurantDashboardChartsState extends State<RestaurantDashboardCharts> {
         title: 'Where the money goes',
         subtitle: 'Expenses by category, ${p.window}. Tap a slice.',
         child: moneyDonut(
-          slices: topGroups(_expenses, today, dateKey: 'expenseDate', key: 'categoryName', amountKey: 'amount', from: b.first.from),
+          slices: topGroups(_expenses, windowEnd(b, today), dateKey: 'expenseDate', key: 'categoryName', amountKey: 'amount', from: b.first.from),
           money: fixed,
           caption: 'spent',
           period: p.window,
-          emptyText: 'No expenses in the ${p.window}',
+          emptyText: 'No expenses ${p.inWindow}',
         ),
       ),
-    ]);
+    ]));
   }
 }

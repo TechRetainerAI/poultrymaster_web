@@ -50,7 +50,7 @@ class _WaterDashboardChartsState extends State<WaterDashboardCharts> {
   List<Map> _production = const [], _sales = const [], _expenses = const [];
   bool _loading = true;
   // Opens on the last 12 months, so a business with no entries this fortnight still sees its figures.
-  ChartPeriod _period = ChartPeriod.months;
+  ChartWindow _period = const ChartWindow.preset(ChartPeriod.months);
 
   @override
   void initState() {
@@ -94,8 +94,8 @@ class _WaterDashboardChartsState extends State<WaterDashboardCharts> {
     final spent = sums(_expenses, 'expenseDate', (r) => tNum(fieldOf(r, 'amount')));
     Widget footer(String text) => Text(text, textAlign: TextAlign.right, style: const TextStyle(fontSize: 12, color: _ink2));
 
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      ChartPeriodPicker(value: p, onChanged: (v) => setState(() => _period = v)),
+    return ChartCardScope(name: 'water', child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      ChartPeriodPicker(value: p, now: widget.now(), onChanged: (v) => setState(() => _period = v)),
       HotelChartCard(
         icon: Icons.water_drop_outlined,
         title: 'Bags produced',
@@ -108,7 +108,7 @@ class _WaterDashboardChartsState extends State<WaterDashboardCharts> {
           bLabel: 'Damaged',
           dayLabel: short,
           valueText: whole,
-          highlight: keys.last,
+          highlight: bucketHolding(b, today),
           footer: (i) => footer('${b[i].long} · rejected sachets ${whole(rejected[i])}'),
         ),
       ),
@@ -124,7 +124,7 @@ class _WaterDashboardChartsState extends State<WaterDashboardCharts> {
           bLabel: 'Expenses',
           dayLabel: short,
           valueText: fixed,
-          highlight: keys.last,
+          highlight: bucketHolding(b, today),
           money: true,
           footer: (i) {
             final net = sold[i] - spent[i];
@@ -137,11 +137,11 @@ class _WaterDashboardChartsState extends State<WaterDashboardCharts> {
         title: 'Where the money goes',
         subtitle: 'Approved expenses by category, ${p.window}. Tap a slice.',
         child: moneyDonut(
-          slices: topGroups(_expenses, today, dateKey: 'expenseDate', key: 'categoryName', amountKey: 'amount', from: b.first.from),
+          slices: topGroups(_expenses, windowEnd(b, today), dateKey: 'expenseDate', key: 'categoryName', amountKey: 'amount', from: b.first.from),
           money: fixed,
           caption: 'spent',
           period: p.window,
-          emptyText: 'No approved expenses in the ${p.window}',
+          emptyText: 'No approved expenses ${p.inWindow}',
         ),
       ),
       HotelChartCard(
@@ -149,13 +149,13 @@ class _WaterDashboardChartsState extends State<WaterDashboardCharts> {
         title: 'What sells',
         subtitle: 'Sales by product, ${p.window}. Tap a slice.',
         child: moneyDonut(
-          slices: topGroups(saleLines(_sales), today, dateKey: 'saleDate', key: 'productName', amountKey: 'amount', from: b.first.from),
+          slices: topGroups(saleLines(_sales), windowEnd(b, today), dateKey: 'saleDate', key: 'productName', amountKey: 'amount', from: b.first.from),
           money: fixed,
           caption: 'sold',
           period: p.window,
-          emptyText: 'No sales in the ${p.window}',
+          emptyText: 'No sales ${p.inWindow}',
         ),
       ),
-    ]);
+    ]));
   }
 }
