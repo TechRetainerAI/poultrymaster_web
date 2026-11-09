@@ -36,6 +36,8 @@ namespace PoultryFarmAPIWeb.Business
         Task DeleteAsync(int id, string farmId);
         Task<int> EnsureDefaultEggAsync(string farmId);
         Task<int> EnsureDefaultBirdsAsync(string farmId);
+        // 372: Broken Eggs / Dead Birds system products. Idempotent.
+        Task EnsureByproductsAsync(string farmId);
         Task<List<ProductReconcileRow>> ReconcileStockAsync(string farmId, int? productId);
         Task<decimal> SetStockAsync(int productId, ProductSetStockRequest req);
     }
@@ -133,6 +135,15 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await c.OpenAsync(); var r = await cmd.ExecuteScalarAsync();
             return r is null || r == DBNull.Value ? 0 : Convert.ToInt32(r);
+        }
+        // The byproduct products are otherwise only created by 372's one-time seed
+        // or the first production record that posts byproduct stock, so a newer
+        // company has none and pages that list products (Internal Use) miss them.
+        public async Task EnsureByproductsAsync(string farmId)
+        {
+            using var c = new NpgsqlConnection(_cs); using var cmd = new NpgsqlCommand("SELECT public.sppoultryproduct_ensurebyproducts(p_farmid => @FarmId::text)", c);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await c.OpenAsync(); await cmd.ExecuteNonQueryAsync();
         }
     }
 

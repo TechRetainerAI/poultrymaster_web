@@ -491,6 +491,10 @@ export interface PoultryStockTransaction {
 
 export const listPoultryProducts = () =>
   jget<PoultryProduct[]>(`/Poultry/products?farmId=${encodeURIComponent(activeFarmId())}`)
+// Broken Eggs / Dead Birds system products (372). Idempotent; a company made
+// after the 372 seed has none until its first production record posts them.
+export const ensurePoultryByproducts = () =>
+  jsend<void>(`/Poultry/products/ensure-byproducts?farmId=${encodeURIComponent(activeFarmId())}`, "POST")
 export const createPoultryProduct = (input: PoultryProductInput) =>
   jsend<PoultryProduct>(`/Poultry/products`, "POST", { ...input, farmId: activeFarmId() })
 export const updatePoultryProduct = (id: number, input: PoultryProductInput) =>
