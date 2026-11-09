@@ -48,6 +48,11 @@ namespace PoultryFarmAPIWeb.Controllers
             return Ok(new { eggProductId = egg, birdsProductId = birds });
         }
 
+        // Ensure the Broken Eggs / Dead Birds system products exist (372). Idempotent.
+        [PoultryFarmAPIWeb.Filters.AllowStaffSetupWrite]
+        [HttpPost("ensure-byproducts")] public async Task<IActionResult> EnsureByproducts([FromQuery] string farmId)
+        { if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required."); await _svc.EnsureByproductsAsync(farmId); return NoContent(); }
+
         // Reconcile finished-product stock from the transaction ledger (in/out
         // breakdown). Read-only: finished stock is derived, not stored.
         [HttpGet("reconcile-stock")] public async Task<ActionResult<IEnumerable<ProductReconcileRow>>> ReconcileStock(
