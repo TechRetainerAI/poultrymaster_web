@@ -110,15 +110,15 @@ const bookingStatuses = [
 
 /// STATUS_COLORS: (bg, fg).
 const _bookingTone = {
-  'Confirmed': (Tone(0xFFDBEAFE), Tone(0xFF1D4ED8)),
-  'CheckedIn': (Tone(0xFFD1FAE5), Tone(0xFF047857)),
-  'CheckedOut': (TColors.slate100, TColors.slate700),
-  'Cancelled': (Tone(0xFFFEE2E2), Tone(0xFFB91C1C)),
-  'NoShow': (Tone(0xFFFEF3C7), Tone(0xFFB45309)),
+  'Confirmed': (Tone.bg(0xFFDBEAFE), Tone.fg(0xFF1D4ED8)),
+  'CheckedIn': (Tone.bg(0xFFD1FAE5), Tone.fg(0xFF047857)),
+  'CheckedOut': (Tone.bg(0xFFF1F5F9), Tone.fg(0xFF334155)),
+  'Cancelled': (Tone.bg(0xFFFEE2E2), Tone.fg(0xFFB91C1C)),
+  'NoShow': (Tone.bg(0xFFFEF3C7), Tone.fg(0xFFB45309)),
 };
 
 Widget bookingStatusBadge(Object? s) {
-  final (bg, fg) = _bookingTone[tStr(s)] ?? (TColors.slate100, TColors.slate700);
+  final (bg, fg) = _bookingTone[tStr(s)] ?? (Tone.bg(0xFFF1F5F9), Tone.fg(0xFF334155));
   return hotelBadge(tStr(s), bg, fg);
 }
 
@@ -760,7 +760,7 @@ class _ReceiptDialog extends StatelessWidget {
 const _barTone = {
   'Confirmed': (Tone.bg(0xFFBFDBFE), Tone.bg(0xFF60A5FA), Tone.bg(0xFF1E3A8A)),
   'CheckedIn': (Tone.bg(0xFFA7F3D0), Tone.bg(0xFF34D399), Tone.bg(0xFF064E3B)),
-  'CheckedOut': (TColors.slate200, TColors.slate400, TColors.slate700),
+  'CheckedOut': (Tone.bg(0xFFE2E8F0), Tone.line(0xFF7F8EA3), Tone.fg(0xFF334155)),
   'Cancelled': (Tone.bg(0xFFFEE2E2), Tone.bg(0xFFFCA5A5), Tone.bg(0xFFB91C1C)),
   'NoShow': (Tone.bg(0xFFFDE68A), Tone.bg(0xFFFBBF24), Tone.bg(0xFF78350F)),
 };

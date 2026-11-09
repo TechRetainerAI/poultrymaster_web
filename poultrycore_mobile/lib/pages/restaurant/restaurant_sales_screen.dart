@@ -94,12 +94,12 @@ String _localDay(String instant) {
 String _shortDate(String instant) => fmtShortDate(_localDay(instant));
 
 const _statusCls = {
-  'Paid': (TColors.emerald100, TColors.emerald700),
-  'Partial': (TColors.amber100, TColors.amber700),
-  'Pending': (TColors.slate100, TColors.slate700),
+  'Paid': (TColors.emerald100, Tone.fg(0xFF047857)),
+  'Partial': (Tone.bg(0xFFFEF3C7), Tone.fg(0xFFB45309)),
+  'Pending': (Tone.bg(0xFFF1F5F9), Tone.fg(0xFF334155)),
 };
 Widget saleStatusBadge(String s) {
-  final (bg, fg) = _statusCls[s] ?? (TColors.slate100, TColors.slate700);
+  final (bg, fg) = _statusCls[s] ?? (Tone.bg(0xFFF1F5F9), Tone.fg(0xFF334155));
   return rStatusBadge(s, bg: bg, fg: fg, border: bg);
 }
 

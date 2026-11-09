@@ -75,7 +75,7 @@ Widget _grid(List<Widget> cells, {int perRow = 2}) => Column(children: [
 Widget _statusChip(String status, {bool sold = false}) {
   if (sold) return const TBadge('Sold unsorted', bg: TColors.slate200, fg: TColors.slate700);
   final (bg, fg) = switch (status) {
-    'Partial' => (TColors.amber100, TColors.amber800),
+    'Partial' => (Tone.bg(0xFFFEF3C7), Tone.fg(0xFF92400E)),
     'Complete' => (TColors.emerald100, TColors.emerald800),
     _ => (TColors.slate100, TColors.slate700),
   };

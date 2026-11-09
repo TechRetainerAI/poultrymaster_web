@@ -73,7 +73,6 @@ const _amber700 = Tone(0xFFB45309);
 const _amber800 = Tone.fg(0xFF92400E);
 const _amber900 = Tone.fg(0xFF78350F);
 const _red50 = Tone(0xFFFEF2F2);
-const _red200 = Tone(0xFFFECACA);
 const _red300 = Tone(0xFFFCA5A5);
 const _red500 = Tone(0xFFEF4444);
 const _red600 = Tone.fg(0xFFDC2626);
@@ -2446,7 +2445,7 @@ class _InitialFarmSetupScreenState extends State<InitialFarmSetupScreen> {
         for (final bv in views)
           if (bv.thisAllocation > 0 || _draft.flocks.any((f) => f.batchKey == bv.batch.key)) _reviewBatch(bv, money),
         if (v.warnings.isNotEmpty) problems(v.warnings, _amber50, _amber200, _amber800, Icons.warning_amber_rounded),
-        if (v.errors.isNotEmpty) problems(v.errors, _red50, _red200, _red700, Icons.error_outline),
+        if (v.errors.isNotEmpty) problems(v.errors, Tone.bg(0xFFFEF2F2), Tone.line(0xFFFECACA), _red700, Icons.error_outline),
       ],
     );
   }

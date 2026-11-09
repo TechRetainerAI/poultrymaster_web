@@ -259,7 +259,7 @@ class _HotelSuppliesScreenState extends State<HotelSuppliesScreen> {
                 tStr(i['name']),
                 style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: TColors.slate900),
               ),
-              hotelBadge(tStr(i['category']), Colors.white, TColors.slate600),
+              hotelBadge(tStr(i['category']), Tone.bg(0xFFFFFFFF), TColors.slate600),
             ],
           ),
           const SizedBox(height: 5),

@@ -554,12 +554,12 @@ class _NewWaterRunDialogState extends State<_NewWaterRunDialog> {
           children: [
             const Text('Open a payroll run for a pay period', style: TextStyle(fontSize: 13, color: TColors.slate500)),
             const SizedBox(height: 12),
-            formSection('Period', const Tone.fg(0xFF4F46E5), [
+            formSection('Period', const Tone.bg(0xFF4F46E5), [
               FilterLabel('Period start *', FilterDate(value: _start, hint: 'Pick a date', onChanged: (v) => setState(() => _start = v))),
               FilterLabel('Period end *', FilterDate(value: _end, hint: 'Pick a date', onChanged: (v) => setState(() => _end = v))),
             ]),
             const SizedBox(height: 10),
-            formSection('Payment', TColors.amber600, [
+            formSection('Payment', Tone.bg(0xFFD97706), [
               FilterLabel(
                 'Cash account (used at Mark-Paid)',
                 AppSelect<int>(

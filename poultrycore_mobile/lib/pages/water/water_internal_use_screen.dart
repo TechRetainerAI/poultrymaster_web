@@ -752,7 +752,7 @@ class _InternalUseFormDialogState extends State<WaterInternalUseFormDialog> {
               ]),
             ]),
             const SizedBox(height: 12),
-            formSection(_g ? 'How much' : 'How much water', const Tone(0xFF2563EB), [
+            formSection(_g ? 'How much' : 'How much water', const Tone.bg(0xFF2563EB), [
               if (widget.products.isEmpty)
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -829,7 +829,7 @@ class _InternalUseFormDialogState extends State<WaterInternalUseFormDialog> {
               _numField('Cost per ${_singular(_entryUnit).toLowerCase()}', _cost, hint: costHint),
             ]),
             const SizedBox(height: 12),
-            formSection('Check before you save', TColors.slate600, [
+            formSection('Check before you save', Tone.bg(0xFF475569), [
               Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 _summary('Coming out of stock', _effective > 0 ? '${qtyFmt(_effective)} ${_entryLabel.toLowerCase()}' : '—',
                     note: _factor > 1 && _effective > 0 ? '${qtyFmt(_base)} sachets' : null),

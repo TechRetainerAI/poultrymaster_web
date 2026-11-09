@@ -1432,7 +1432,7 @@ class _ProductionCatchUpFlowState extends State<ProductionCatchUpFlow> {
               Builder(builder: (_) {
                 final st = _saved.contains(d) ? 'saved' : _skipped.contains(d) ? 'skipped' : d == current ? 'current' : 'todo';
                 final (bg, border, fg) = switch (st) {
-                  'saved' => (TColors.emerald50, TColors.emerald200, TColors.emerald800),
+                  'saved' => (Tone.bg(0xFFECFDF5), Tone.line(0xFFA7F3D0), Tone.fg(0xFF065F46)),
                   'skipped' => (TColors.slate100, TColors.slate200, TColors.slate500),
                   'current' => (TColors.amber100, TColors.amber300, TColors.amber900),
                   _ => (Tone(0xFFFFFFFF), TColors.slate200, TColors.slate600),

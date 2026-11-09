@@ -24,7 +24,6 @@ class AccessManagementPanel extends StatefulWidget {
 }
 
 const _slate50 = Tone.bg(0xFFF8FAFC);
-const _slate100 = Tone(0xFFF1F5F9);
 const _slate200 = Tone.line(0xFFE2E8F0);
 const _slate300 = Tone.fg(0xFFCBD5E1);
 const _slate400 = Tone.fg(0xFF94A3B8);
@@ -37,7 +36,6 @@ const _indigo100 = Tone.bg(0xFFE0E7FF);
 const _indigo300 = Tone.line(0xFFA5B4FC);
 const _indigo600 = Tone.fg(0xFF4F46E5);
 const _indigo700 = Tone.fg(0xFF4338CA);
-const _amber50 = Tone(0xFFFFFBEB);
 const _amber100 = Tone.bg(0xFFFEF3C7);
 const _amber200 = Tone.line(0xFFFDE68A);
 const _amber400 = Tone.fg(0xFFFBBF24);
@@ -45,10 +43,6 @@ const _amber500 = Tone.fg(0xFFF59E0B);
 const _amber600 = Tone(0xFFD97706);
 const _amber700 = Tone.fg(0xFFB45309);
 const _amber800 = Tone.fg(0xFF92400E);
-const _amber900 = Tone(0xFF78350F);
-const _sky50 = Tone(0xFFF0F9FF);
-const _sky200 = Tone(0xFFBAE6FD);
-const _sky900 = Tone(0xFF0C4A6E);
 const _red50 = Tone(0xFFFEF2F2);
 const _red100 = Tone.bg(0xFFFEE2E2);
 const _red200 = Tone.line(0xFFFECACA);
@@ -383,17 +377,17 @@ class _AccessManagementPanelState extends State<AccessManagementPanel> {
       const SizedBox(height: 12),
       if (_rolesUnavailable) ...[
         _banner(
-            _amber50,
+            Tone.bg(0xFFFFFBEB),
             _amber200,
-            _amber900,
+            Tone.fg(0xFF78350F),
             const Text('Roles could not be loaded. If the database has 199_IamFoundation.sql but not '
                 '200_IamPhase1Reads.sql, nobody holds the Access Management permission yet — apply it and restart the API.')),
         const SizedBox(height: 12),
       ],
       _banner(
-        _sky50,
-        _sky200,
-        _sky900,
+        Tone.bg(0xFFF0F9FF),
+        Tone.line(0xFFBAE6FD),
+        Tone.fg(0xFF0C4A6E),
         const Text.rich(TextSpan(children: [
           TextSpan(text: 'Roles set here '),
           TextSpan(text: 'add', style: TextStyle(fontWeight: FontWeight.w700)),
@@ -860,12 +854,12 @@ class _MatrixViewState extends State<_MatrixView> {
       ),
       if (role?['isSuperuser'] == true) ...[
         const SizedBox(height: 10),
-        _banner(_amber50, _amber200, _amber700,
+        _banner(Tone.bg(0xFFFFFBEB), _amber200, _amber700,
             const Text('Superuser — holds everything, including permissions added in future', style: TextStyle(fontSize: 12.5))),
       ] else if (role?['isSystem'] == true) ...[
         const SizedBox(height: 10),
         _banner(
-          _slate100,
+          Tone.bg(0xFFF1F5F9),
           _slate200,
           _slate600,
           const Row(children: [
@@ -1942,9 +1936,9 @@ class _SecurityViewState extends State<_SecurityView> {
 
   List<Widget> _policyTab() => [
         _banner(
-            _sky50,
-            _sky200,
-            _sky900,
+            Tone.bg(0xFFF0F9FF),
+            Tone.line(0xFFBAE6FD),
+            Tone.fg(0xFF0C4A6E),
             const Text('These rules are recorded here, but passwords are checked when someone registers or changes their '
                 'password — which happens in the sign-in service. Until that is wired up, treat the password settings as '
                 'the policy you intend rather than one already being applied.')),

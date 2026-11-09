@@ -173,7 +173,7 @@ class _OwnerMoneyScreenState extends State<OwnerMoneyScreen> {
   }
 
   (Color, Color) _typeTone(String t) => t == 'Contribution'
-      ? (TColors.emerald100, TColors.emerald800)
+      ? (TColors.emerald100, Tone.fg(0xFF065F46))
       : widget.rail.isHotel
           ? (TColors.violet100, TColors.violet800)
           : (_orange100, _orange800);
@@ -515,7 +515,7 @@ class _OwnerMoneyDialogState extends State<OwnerMoneyDialog> {
               style: const TextStyle(fontSize: 13, color: TColors.slate500),
             ),
             const SizedBox(height: 12),
-            formSection(_isDraw ? 'Draw' : 'Contribution', _isDraw ? (widget.rail.isHotel ? TColors.violet600 : TColors.amber600) : TColors.emerald600, [
+            formSection(_isDraw ? 'Draw' : 'Contribution', _isDraw ? (widget.rail.isHotel ? TColors.violet600 : TColors.amber600) : Tone.bg(0xFF059669), [
               FilterLabel(
                 'Date *',
                 AppDateField(
@@ -550,7 +550,7 @@ class _OwnerMoneyDialogState extends State<OwnerMoneyDialog> {
             ]),
             if (_account.isNotEmpty && _amountNum > 0) ...[
               const SizedBox(height: 12),
-              formSection('After this', TColors.slate600, [
+              formSection('After this', Tone.bg(0xFF475569), [
                 Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   Row(children: [
                     const Expanded(child: Text('Account balance', style: TextStyle(fontSize: 13, color: TColors.slate500))),
@@ -581,7 +581,7 @@ class _OwnerMoneyDialogState extends State<OwnerMoneyDialog> {
               ]),
             ],
             const SizedBox(height: 12),
-            formSection('Details', TColors.slate600, [
+            formSection('Details', Tone.bg(0xFF475569), [
               FilterLabel('Owner', AppInput(controller: _owner, hintText: 'Whose money is this?')),
               FilterLabel(
                 'Method',
@@ -686,7 +686,7 @@ class _ReverseOwnerMoneyDialogState extends State<ReverseOwnerMoneyDialog> {
               style: TextStyle(fontSize: 13, color: TColors.slate500),
             ),
             const SizedBox(height: 12),
-            formSection('Record being reversed', TColors.slate600, [
+            formSection('Record being reversed', Tone.bg(0xFF475569), [
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('$num · ${tStr(r['transactionType'])}', style: const TextStyle(fontWeight: FontWeight.w500)),
                 const SizedBox(height: 4),
@@ -701,7 +701,7 @@ class _ReverseOwnerMoneyDialogState extends State<ReverseOwnerMoneyDialog> {
               ]),
             ]),
             const SizedBox(height: 12),
-            formSection('Why', TColors.amber600, [
+            formSection('Why', Tone.bg(0xFFD97706), [
               FilterLabel('Reason *', ReasonSelectField(controller: _reason, options: reversalReasons)),
               const Text('Written to the audit trail.', style: TextStyle(fontSize: 11, color: TColors.slate500)),
             ]),

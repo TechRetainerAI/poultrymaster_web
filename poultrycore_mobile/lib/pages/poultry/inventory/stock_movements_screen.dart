@@ -809,7 +809,7 @@ class _NewStockMovementDialogState extends State<NewStockMovementDialog> {
       content: SizedBox(
         width: 440,
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          formSection('Movement', const Tone(0xFF2563EB), [
+          formSection('Movement', const Tone.bg(0xFF2563EB), [
             cell(
               'Item *',
               AppSelect<String>(

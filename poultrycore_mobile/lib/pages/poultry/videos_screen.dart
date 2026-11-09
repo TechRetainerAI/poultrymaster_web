@@ -106,7 +106,6 @@ enum _Filter { all, unwatched, watched }
 
 const _red50 = Tone.bg(0xFFFEF2F2);
 const _red100 = Tone.bg(0xFFFEE2E2);
-const _red600 = Tone(0xFFDC2626);
 const _red700 = Tone.fg(0xFFB91C1C);
 
 class PoultryVideosScreen extends StatefulWidget {
@@ -313,11 +312,11 @@ class _PoultryVideosScreenState extends State<PoultryVideosScreen> {
     final recent = videos.where((v) => (DateTime.tryParse(v.published) ?? DateTime(0)).isAfter(monthAgo)).length;
     final pct = videos.isEmpty ? 0.0 : watchedCount / videos.length;
     return _grid([
-      _stat(Icons.movie_outlined, _red50, _red600, 'Videos', Text('${videos.length}', style: _big), 'In the playlist'),
+      _stat(Icons.movie_outlined, _red50, Tone.fg(0xFFDC2626), 'Videos', Text('${videos.length}', style: _big), 'In the playlist'),
       _stat(
         Icons.check_circle_outline,
-        const Tone(0xFFECFDF5),
-        const Tone(0xFF059669),
+        const Tone.bg(0xFFECFDF5),
+        const Tone.fg(0xFF059669),
         'Watched',
         Text.rich(TextSpan(children: [
           TextSpan(text: '$watchedCount ', style: _big),
@@ -326,9 +325,9 @@ class _PoultryVideosScreenState extends State<PoultryVideosScreen> {
         null,
         progress: pct,
       ),
-      _stat(Icons.visibility_outlined, const Tone(0xFFEFF6FF), const Tone(0xFF2563EB), 'Total views',
+      _stat(Icons.visibility_outlined, const Tone.bg(0xFFEFF6FF), const Tone.fg(0xFF2563EB), 'Total views',
           Text(hasViews ? _compact.format(totalViews) : '—', style: _big), 'Across all videos'),
-      _stat(Icons.calendar_today_outlined, const Tone(0xFFFFFBEB), const Tone(0xFFD97706), 'Latest video',
+      _stat(Icons.calendar_today_outlined, const Tone.bg(0xFFFFFBEB), const Tone.fg(0xFFD97706), 'Latest video',
           Text(timeAgo(videos.first.published).isEmpty ? '—' : timeAgo(videos.first.published), style: _big), '$recent new in the last 30 days'),
     ]);
   }

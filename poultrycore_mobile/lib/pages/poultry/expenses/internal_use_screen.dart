@@ -695,7 +695,7 @@ class _InternalUseFormDialogState extends State<InternalUseFormDialog> {
               ]),
             ]),
             const SizedBox(height: 12),
-            formSection('How much', const Tone(0xFF2563EB), [
+            formSection('How much', const Tone.bg(0xFF2563EB), [
               if (widget.products.isEmpty)
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -772,7 +772,7 @@ class _InternalUseFormDialogState extends State<InternalUseFormDialog> {
               _numField('Cost per ${_singular(_entryUnit).toLowerCase()}', _cost, hint: costHint),
             ]),
             const SizedBox(height: 12),
-            formSection('Check before you save', TColors.slate600, [
+            formSection('Check before you save', Tone.bg(0xFF475569), [
               Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 _summary('Coming out of stock', _effective > 0 ? '${qtyFmt(_effective)} ${_entryLabel.toLowerCase()}' : '—',
                     note: _factor > 1 && _effective > 0 ? '${qtyFmt(_base)} eggs' : null),

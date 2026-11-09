@@ -161,10 +161,10 @@ class _SetProductStockDialogState extends State<SetProductStockDialog> {
             ),
             const SizedBox(height: 8),
             Wrap(spacing: 8, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
-              pill('${changed.length} change${changed.length == 1 ? '' : 's'}', changed.isNotEmpty ? TColors.amber100 : TColors.slate100,
-                  changed.isNotEmpty ? TColors.amber800 : TColors.slate600),
+              pill('${changed.length} change${changed.length == 1 ? '' : 's'}', changed.isNotEmpty ? TColors.amber100 : Tone.bg(0xFFF1F5F9),
+                  changed.isNotEmpty ? TColors.amber800 : Tone.fg(0xFF475569)),
               if (changed.isNotEmpty) ...[
-                pill('Net ${net > 0 ? '+' : ''}${loc(net)}', net < 0 ? TColors.rose100 : TColors.emerald100, net < 0 ? TColors.rose700 : TColors.emerald700),
+                pill('Net ${net > 0 ? '+' : ''}${loc(net)}', net < 0 ? TColors.rose100 : TColors.emerald100, net < 0 ? TColors.rose700 : Tone.fg(0xFF047857)),
                 TextButton.icon(onPressed: _busy ? null : _resetAll, icon: const Icon(Icons.undo, size: 14), label: const Text('Reset')),
               ],
             ]),

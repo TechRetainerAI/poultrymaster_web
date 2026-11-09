@@ -164,7 +164,10 @@ class Tone extends Color {
 
   /// Near-black text -> near-white, slate-500 -> slate-400, ...
   static Color _greyInk(HSLColor hsl) {
-    final dl = (0.93 - hsl.lightness * 0.58).clamp(0.5, 0.93);
+    // Dark greys flip to light. Light greys (slate-300/400, written for dark
+    // chrome: headers, the All pages sheet) never get darker than 0.68.
+    final l = hsl.lightness;
+    final dl = math.max(0.93 - l * 0.58, math.min(l, 0.68)).clamp(0.5, 0.93);
     return HSLColor.fromAHSL(1, 216, math.min(hsl.saturation, 0.28), dl).toColor();
   }
 

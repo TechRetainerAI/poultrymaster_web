@@ -450,7 +450,7 @@ class _NewRunDialogState extends State<_NewRunDialog> {
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             const Text('Create a Draft run, then add staff lines', style: TextStyle(fontSize: 13, color: TColors.slate500)),
             const SizedBox(height: 12),
-            formSection('Period', const Tone(0xFF4F46E5), [
+            formSection('Period', const Tone.bg(0xFF4F46E5), [
               FilterLabel('Period start *', AppDateField(value: businessDateAsDateTime(_start), onChanged: (d) => setState(() => _start = d == null ? _start : isoDay(d)))),
               FilterLabel('Period end *', AppDateField(value: businessDateAsDateTime(_end), onChanged: (d) => setState(() => _end = d == null ? _end : isoDay(d)))),
               FilterLabel(
@@ -476,7 +476,7 @@ class _NewRunDialogState extends State<_NewRunDialog> {
               ),
             ]),
             const SizedBox(height: 12),
-            formSection('Notes', TColors.slate600, [FilterLabel('Notes', AppInput(controller: _notes))]),
+            formSection('Notes', Tone.bg(0xFF475569), [FilterLabel('Notes', AppInput(controller: _notes))]),
           ]),
         ),
         actions: [
@@ -776,7 +776,7 @@ class _PayrollLinesScreenState extends State<PayrollLinesScreen> {
           if (!editable)
             const Text('Lines can only be edited while the run is a Draft.', style: TextStyle(fontSize: 13, color: TColors.slate500))
           else
-            formSection('Add / update a line', TColors.amber600, [
+            formSection('Add / update a line', Tone.bg(0xFFD97706), [
               FilterLabel(
                 'Staff',
                 AppSelect<String>(

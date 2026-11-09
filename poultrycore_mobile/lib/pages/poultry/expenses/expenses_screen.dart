@@ -1272,7 +1272,7 @@ class _ExpenseFormDialogState extends State<ExpenseFormDialog> {
               ]),
             )
           else ...[
-            formSection('Flock & Date', const Tone(0xFF4F46E5), [
+            formSection('Flock & Date', const Tone.bg(0xFF4F46E5), [
               _field(
                 'Batch',
                 AppSelect<String>(
@@ -1327,7 +1327,7 @@ class _ExpenseFormDialogState extends State<ExpenseFormDialog> {
               ),
             ]),
             const SizedBox(height: 12),
-            formSection('Category & Payment', const Tone(0xFF16A34A), [
+            formSection('Category & Payment', const Tone.bg(0xFF16A34A), [
               _field(
                 'Category *',
                 AppSelect<String>(
@@ -1373,7 +1373,7 @@ class _ExpenseFormDialogState extends State<ExpenseFormDialog> {
               ),
             ]),
             const SizedBox(height: 12),
-            formSection('Supplier & Payment Status', const Tone(0xFF0284C7), [
+            formSection('Supplier & Payment Status', const Tone.bg(0xFF0284C7), [
               _field(
                 'Supplier / Paid To',
                 AppSelect<String>(
@@ -1428,7 +1428,7 @@ class _ExpenseFormDialogState extends State<ExpenseFormDialog> {
                 ),
             ]),
             const SizedBox(height: 12),
-            formSection('Description', const Tone(0xFFD97706), [
+            formSection('Description', const Tone.bg(0xFFD97706), [
               if (widget.descriptionOptions != null) ...[
                 AppSelect<String>(
                   value: _descChoice.isEmpty ? null : _descChoice,

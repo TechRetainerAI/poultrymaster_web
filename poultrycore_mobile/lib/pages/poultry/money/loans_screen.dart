@@ -805,7 +805,7 @@ class _NewLoanDialogState extends State<NewLoanDialog> {
               FilterLabel('Account number', AppInput(controller: _accNo)),
             ]),
             const SizedBox(height: 12),
-            formSection('The money', TColors.emerald600, [
+            formSection('The money', Tone.bg(0xFF059669), [
               _num('Amount borrowed *', _principal, info: 'What the ${widget.rail.entity} OWES. This is what the debt starts at.'),
               _num('Amount received', _received, info: 'What actually ARRIVED. Less than the principal when the lender withheld a fee.'),
               FilterLabel(
@@ -830,7 +830,7 @@ class _NewLoanDialogState extends State<NewLoanDialog> {
                 ),
             ]),
             const SizedBox(height: 12),
-            formSection('Terms', const Tone(0xFF2563EB), [
+            formSection('Terms', const Tone.bg(0xFF2563EB), [
               FilterLabel(
                 'Start date *',
                 AppDateField(
@@ -852,7 +852,7 @@ class _NewLoanDialogState extends State<NewLoanDialog> {
               _select('Repayment frequency', _frequency, loanFrequencies, (v) => _frequency = v),
             ]),
             const SizedBox(height: 12),
-            formSection('Notes', TColors.slate600, [
+            formSection('Notes', Tone.bg(0xFF475569), [
               FilterLabel('Notes', AppInput(controller: _notes, minLines: 2, maxLines: 4)),
             ]),
           ]),
@@ -944,7 +944,7 @@ class _ReverseRepaymentDialogState extends State<ReverseRepaymentDialog> {
               style: TextStyle(fontSize: 13, color: TColors.slate500),
             ),
             const SizedBox(height: 12),
-            formSection('Repayment being reversed', TColors.slate600, [
+            formSection('Repayment being reversed', Tone.bg(0xFF475569), [
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(tStr(p['paymentNumber']).isNotEmpty ? tStr(p['paymentNumber']) : '#${tStr(p[widget.rail.id('LoanPaymentId')])}',
                     style: const TextStyle(fontWeight: FontWeight.w500)),
@@ -958,7 +958,7 @@ class _ReverseRepaymentDialogState extends State<ReverseRepaymentDialog> {
               ]),
             ]),
             const SizedBox(height: 12),
-            formSection('Why', TColors.amber600, [
+            formSection('Why', Tone.bg(0xFFD97706), [
               FilterLabel('Reason *', ReasonSelectField(controller: _reason, options: loanReversalReasons)),
               const Text('Written to the audit trail.', style: TextStyle(fontSize: 11, color: TColors.slate500)),
             ]),

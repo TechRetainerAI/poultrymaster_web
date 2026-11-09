@@ -44,10 +44,6 @@ String _day(Object? v) {
   return s.isEmpty ? '—' : (s.length >= 10 ? s.substring(0, 10) : s);
 }
 
-const _orange600 = Tone(0xFFEA580C);
-const _orange50 = Tone(0xFFFFF7ED);
-const _sky50 = Tone(0xFFF0F9FF);
-const _sky600 = Tone(0xFF0284C7);
 const _blue50 = Tone.bg(0xFFEFF6FF);
 const _blue900 = Tone(0xFF1E3A8A);
 const _violet700 = Tone(0xFF6D28D9);
@@ -55,7 +51,7 @@ const _violet700 = Tone(0xFF6D28D9);
 /// The web Alert: an icon and a message in a tinted box.
 Widget closeoutAlert(String text, {required String tone, Widget? child}) {
   final (bg, border, fg, icon, iconColor) = switch (tone) {
-    'ok' => (TColors.emerald50, TColors.emerald200, TColors.emerald900, Icons.check_circle_outline, TColors.emerald600),
+    'ok' => (Tone.bg(0xFFECFDF5), Tone.line(0xFFA7F3D0), Tone.fg(0xFF064E3B), Icons.check_circle_outline, Tone.fg(0xFF059669)),
     'warn' => (TColors.amber50, TColors.amber200, TColors.amber900, Icons.error_outline, TColors.amber600),
     _ => (TColors.red50, TColors.red200, TColors.red700, Icons.error_outline, TColors.red600),
   };
@@ -1247,8 +1243,8 @@ class _FlockLifetimeViewState extends State<FlockLifetimeView> {
       _panel(
           'Birds',
           Icons.flutter_dash,
-          _sky50,
-          _sky600,
+          Tone.bg(0xFFF0F9FF),
+          Tone.fg(0xFF0284C7),
           _grid([
             _figure('Originally placed', _n(tNum(s['originallyPlaced']))),
             _figure(isClosed ? 'Final birds' : 'Current birds', _n(tNum(s['finalBirds']))),
@@ -1258,8 +1254,8 @@ class _FlockLifetimeViewState extends State<FlockLifetimeView> {
       _panel(
           'Mortality',
           Icons.monitor_heart_outlined,
-          TColors.rose50,
-          TColors.rose600,
+          Tone.bg(0xFFFFF1F2),
+          Tone.fg(0xFFE11D48),
           _grid([
             _figure('Recorded here', _n(tNum(s['recordedMortality'])), tone: TColors.rose700),
             _figure('Tracked rate', _pct(s['trackedMortalityRate']), hint: hasOpening ? 'Of the opening position' : 'Of birds placed'),
@@ -1270,8 +1266,8 @@ class _FlockLifetimeViewState extends State<FlockLifetimeView> {
       _panel(
           'Production',
           Icons.egg_outlined,
-          TColors.amber50,
-          TColors.amber600,
+          Tone.bg(0xFFFFFBEB),
+          Tone.fg(0xFFD97706),
           _grid([
             _figure('Total eggs', _n(tNum(s['totalEggs']))),
             _figure('Production days', _n(tNum(s['productionDays']))),
@@ -1282,8 +1278,8 @@ class _FlockLifetimeViewState extends State<FlockLifetimeView> {
       _panel(
           'Revenue',
           Icons.trending_up,
-          TColors.emerald50,
-          TColors.emerald600,
+          Tone.bg(0xFFECFDF5),
+          Tone.fg(0xFF059669),
           _grid([
             _figure('Eggs', _m(s['eggRevenue'])),
             _figure('Bird sales', _m(s['birdSaleRevenue'])),
@@ -1294,8 +1290,8 @@ class _FlockLifetimeViewState extends State<FlockLifetimeView> {
       _panel(
           'Attributable cost',
           Icons.receipt_long_outlined,
-          _orange50,
-          _orange600,
+          Tone.bg(0xFFFFF7ED),
+          Tone.fg(0xFFEA580C),
           _grid([
             _figure('Feed issued', _m(s['feedCost'])),
             _figure('Medication', _m(s['medicationCost'])),
@@ -1308,7 +1304,7 @@ class _FlockLifetimeViewState extends State<FlockLifetimeView> {
       _panel(
           'Result',
           Icons.account_balance_wallet_outlined,
-          TColors.violet50,
+          Tone.bg(0xFFF5F3FF),
           TColors.violet600,
           widget.page
               ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -1330,8 +1326,8 @@ class _FlockLifetimeViewState extends State<FlockLifetimeView> {
   Widget _historyBlock() => _panel(
         'Closeout history',
         Icons.history,
-        TColors.slate100,
-        TColors.slate600,
+        Tone.bg(0xFFF1F5F9),
+        Tone.fg(0xFF475569),
         Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           for (var i = 0; i < _history.length; i++) ...[
             if (i > 0) const SizedBox(height: 8),
@@ -1397,8 +1393,8 @@ class _FlockLifetimeViewState extends State<FlockLifetimeView> {
     return _panel(
       'Reopen this flock',
       Icons.restart_alt,
-      TColors.amber50,
-      TColors.amber600,
+      Tone.bg(0xFFFFFBEB),
+      Tone.fg(0xFFD97706),
       Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         const Text('Closed in error? Reopening makes the flock active again.', style: TextStyle(fontSize: 12, color: TColors.slate500)),
         const SizedBox(height: 12),

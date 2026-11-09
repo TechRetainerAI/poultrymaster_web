@@ -766,7 +766,7 @@ class _WaterDriverReturnScreenState extends State<WaterDriverReturnScreen> {
             _band('Step 1 · Reconcile bags per product', TColors.amber600, [for (var i = 0; i < _items.length; i++) _itemCard(_items[i], i)],
                 sub: 'Sold + Returned + Damaged must equal Loaded'),
             const SizedBox(height: 12),
-            formSection('Step 2 · Money collected', const Tone.fg(0xFF16A34A), [
+            formSection('Step 2 · Money collected', const Tone.bg(0xFF16A34A), [
               _labelRow('Cash', _numF('cash', _cash, (v) => _cash = v, width: 120), hint: 'Physical cash the driver collected on the run.'),
               _labelRow('MoMo', _numF('momo', _momo, (v) => _momo = v, width: 120), hint: 'Mobile Money (MTN, Vodafone, AirtelTigo).'),
               _labelRow('Bank', _numF('bank', _bank, (v) => _bank = v, width: 120), hint: 'Bank transfers / cheque deposits received today.'),
@@ -798,7 +798,7 @@ class _WaterDriverReturnScreenState extends State<WaterDriverReturnScreen> {
                   hint: "The driver's float coming back (opening cash, minus any approved cash expenses). Not a sale."),
             ]),
             const SizedBox(height: 12),
-            formSection('How should this delivery sale be posted?', const Tone.fg(0xFF9333EA), [
+            formSection('How should this delivery sale be posted?', const Tone.bg(0xFF9333EA), [
               _radio('OneCustomer', 'Post all sales to one customer', 'Posts the entire delivery sale to the customer below.',
                   extra: _postingMode == 'OneCustomer'
                       ? Padding(
@@ -887,7 +887,7 @@ class _WaterDriverReturnScreenState extends State<WaterDriverReturnScreen> {
                 for (final x in _expenses) ...[_expenseCard(x), const SizedBox(height: 8)],
             ]),
             const SizedBox(height: 12),
-            formSection('Notes', TColors.slate600, [FilterLabel('Notes', _textF('notes', _notes, (t) => _notes = t, lines: 3))]),
+            formSection('Notes', Tone.bg(0xFF475569), [FilterLabel('Notes', _textF('notes', _notes, (t) => _notes = t, lines: 3))]),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -912,12 +912,12 @@ class _WaterDriverReturnScreenState extends State<WaterDriverReturnScreen> {
             if (m.creditWithoutCustomer) ...[
               const SizedBox(height: 8),
               _note('Credit sales are not assigned to customers. Customer balances will not be accurate unless credit is linked to customers via the breakdown.',
-                  TColors.amber50, const Tone.fg(0xFFFDE68A), TColors.amber800),
+                  Tone.bg(0xFFFFFBEB), const Tone.line(0xFFFDE68A), Tone.fg(0xFF92400E)),
             ],
             if (m.detailedCreditUnassigned) ...[
               const SizedBox(height: 8),
               _note('One or more customer rows have credit but no customer selected. Pick a customer or tick the admin override below.',
-                  const Tone.fg(0xFFFFF1F2), const Tone.fg(0xFFFECDD3), const Tone.fg(0xFF9F1239)),
+                  const Tone.bg(0xFFFFF1F2), const Tone.line(0xFFFECDD3), const Tone.fg(0xFF9F1239)),
             ],
             if ((m.isDetailed && m.breakdownProvided && !m.breakdownBalanced) || m.detailedCreditUnassigned)
               CheckboxListTile(
@@ -947,9 +947,9 @@ class _WaterDriverReturnScreenState extends State<WaterDriverReturnScreen> {
               const SizedBox(height: 8),
               _note(
                 'Approve & Reconcile is disabled because ${!m.bagsOk ? "the bag counts don't reconcile yet (each product's Sold + Returned + Damaged must equal Loaded)." : "you chose “Post all sales to one customer” but haven't selected the customer yet — pick one above, or switch the posting option."}',
-                TColors.amber50,
-                const Tone.fg(0xFFFDE68A),
-                TColors.amber800,
+                Tone.bg(0xFFFFFBEB),
+                const Tone.line(0xFFFDE68A),
+                Tone.fg(0xFF92400E),
               ),
             ],
             const SizedBox(height: 14),

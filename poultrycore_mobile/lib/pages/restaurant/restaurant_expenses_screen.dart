@@ -60,8 +60,8 @@ List<Map> filterRestaurantExpenses(List<Map> expenses, Map<int, Map> payments,
 String _day(Object? d) => tStr(d).length >= 10 ? tStr(d).substring(0, 10) : tStr(d);
 
 const _statusBadge = {
-  'Paid': (TColors.emerald50, TColors.emerald700, TColors.emerald200),
-  'PartiallyPaid': (TColors.amber50, TColors.amber700, TColors.amber200),
+  'Paid': (Tone.bg(0xFFECFDF5), Tone.fg(0xFF047857), Tone.line(0xFFA7F3D0)),
+  'PartiallyPaid': (Tone.bg(0xFFFFFBEB), Tone.fg(0xFFB45309), Tone.line(0xFFFDE68A)),
   'Unpaid': (Tone.bg(0xFFFEF2F2), Tone.bg(0xFFB91C1C), Tone.bg(0xFFFECACA)),
 };
 
@@ -296,7 +296,7 @@ class _RestaurantExpensesScreenState extends State<RestaurantExpensesScreen> {
 
   Widget _statusChip(Map p) {
     final st = tStr(p['paymentStatus']);
-    final (bg, fg, border) = _statusBadge[st] ?? (Tone(0xFFFFFFFF), TColors.slate700, TColors.slate200);
+    final (bg, fg, border) = _statusBadge[st] ?? (Tone.bg(0xFFFFFFFF), Tone.fg(0xFF334155), Tone.line(0xFFE2E8F0));
     return rStatusBadge(paymentStatusLabels[st] ?? st, bg: bg, fg: fg, border: border);
   }
 

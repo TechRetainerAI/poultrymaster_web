@@ -312,7 +312,7 @@ class _ReportShellScreenState extends State<ReportShellScreen> {
                     amber800,
                   ),
                 if (widget.error != null)
-                  _banner(widget.error!, const Tone(0xFFFFF1F2), const Tone(0xFFFECDD3), const Tone(0xFF9F1239),
+                  _banner(widget.error!, const Tone.bg(0xFFFFF1F2), const Tone.line(0xFFFECDD3), const Tone.fg(0xFF9F1239),
                       onDismiss: widget.onClearError),
                 if (widget.busy)
                   const Padding(

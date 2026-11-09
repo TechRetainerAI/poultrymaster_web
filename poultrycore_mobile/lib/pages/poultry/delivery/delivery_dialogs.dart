@@ -581,7 +581,7 @@ class _DriverReturnDialogState extends State<DriverReturnDialog> {
             ),
           ]),
           const SizedBox(height: 12),
-          _box(TColors.slate200, TColors.slate50, Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          _box(Tone.line(0xFFE2E8F0), Tone.bg(0xFFF8FAFC), Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             _grid([
               _fig('Loaded', '${jsNum(c.loaded)} crates'),
               _fig('Accounted', '${jsNum(c.accounted)} / ${jsNum(c.loaded)}', color: ok ? TColors.emerald700 : TColors.amber700),
@@ -610,8 +610,8 @@ class _DriverReturnDialogState extends State<DriverReturnDialog> {
           formSection('Notes', _slate, [_field('Notes', AppInput(controller: _notes, minLines: 3, maxLines: 5))]),
           const SizedBox(height: 12),
           _box(
-            ok ? TColors.emerald200 : TColors.rose200,
-            ok ? TColors.emerald50 : TColors.rose50,
+            ok ? TColors.emerald200 : Tone.line(0xFFFECDD3),
+            ok ? TColors.emerald50 : Tone.bg(0xFFFFF1F2),
             Wrap(spacing: 8, runSpacing: 4, alignment: WrapAlignment.spaceBetween, children: [
               Text.rich(TextSpan(children: [
                 TextSpan(text: 'Sold ${jsNum(c.sold)} + Returned ${jsNum(c.returned)} + Damaged ${jsNum(c.damaged)} = '),
@@ -625,14 +625,14 @@ class _DriverReturnDialogState extends State<DriverReturnDialog> {
           ),
           if (c.creditWithoutCustomer) ...[
             const SizedBox(height: 8),
-            _box(TColors.amber200, TColors.amber50, const Text(
+            _box(Tone.line(0xFFFDE68A), Tone.bg(0xFFFFFBEB), const Text(
               'Credit sales are not assigned to customers. Customer balances will not be accurate unless credit is linked via the breakdown.',
               style: TextStyle(fontSize: 12, color: TColors.amber800),
             )),
           ],
           if (c.detailedCreditUnassigned) ...[
             const SizedBox(height: 8),
-            _box(TColors.rose200, TColors.rose50, const Text(
+            _box(Tone.line(0xFFFECDD3), Tone.bg(0xFFFFF1F2), const Text(
               'One or more customer rows have credit but no customer label. Add a label or tick the admin override below.',
               style: TextStyle(fontSize: 12, color: TColors.rose800),
             )),
@@ -648,8 +648,8 @@ class _DriverReturnDialogState extends State<DriverReturnDialog> {
             ),
           const SizedBox(height: 8),
           _box(
-            c.shortage > 0 ? TColors.rose200 : c.overage > 0 ? TColors.amber200 : TColors.slate200,
-            c.shortage > 0 ? TColors.rose50 : c.overage > 0 ? TColors.amber50 : TColors.slate50,
+            c.shortage > 0 ? TColors.rose200 : c.overage > 0 ? TColors.amber200 : Tone.line(0xFFE2E8F0),
+            c.shortage > 0 ? TColors.rose50 : c.overage > 0 ? TColors.amber50 : Tone.bg(0xFFF8FAFC),
             _grid([
               _fig('Expected cash', fmt(c.expectedCash)),
               _fig('Collected', fmt(c.collected)),
@@ -660,7 +660,7 @@ class _DriverReturnDialogState extends State<DriverReturnDialog> {
           ),
           if (!ok) ...[
             const SizedBox(height: 8),
-            _box(TColors.amber200, TColors.amber50, const Text(
+            _box(Tone.line(0xFFFDE68A), Tone.bg(0xFFFFFBEB), const Text(
               "Approve & Reconcile is disabled because the crate counts don't reconcile yet (each product's Sold + Returned + Damaged must equal Loaded).",
               style: TextStyle(fontSize: 12, color: TColors.amber800),
             )),
@@ -758,7 +758,7 @@ class _DriverReturnDialogState extends State<DriverReturnDialog> {
             hint: 'Bank transfers / cheque deposits received today.'),
         _numRow('Credit sales', NumBox(value: _pay.credit, decimal: true, onChanged: (v) => _set(() => _pay.credit = v)),
             hint: 'Goods given on credit — to be paid later.'),
-        _box(TColors.slate50, TColors.slate50, Row(children: [
+        _box(Tone.line(0xFFF8FAFC), Tone.bg(0xFFF8FAFC), Row(children: [
           const Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Unaccounted cash', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: TColors.slate700)),
@@ -774,7 +774,7 @@ class _DriverReturnDialogState extends State<DriverReturnDialog> {
         ])),
         if (!c.floatBalanced) ...[
           const SizedBox(height: 8),
-          _box(TColors.rose200, TColors.rose50, Text(
+          _box(Tone.line(0xFFFECDD3), Tone.bg(0xFFFFF1F2), Text(
             "Cash returned (${fmt(_pay.floatBack)}) doesn't match the expected float of ${fmt(c.expectedFloatBack)}"
             '${c.expensesTotal > 0 ? ' (opening ${fmt(c.openingFloat)} − approved expenses ${fmt(c.expensesTotal)})' : ' (opening cash ${fmt(c.openingFloat)})'}. '
             'You can still save as Draft, but Approve & Reconcile is blocked until it balances.',
@@ -884,8 +884,8 @@ class _DriverReturnDialogState extends State<DriverReturnDialog> {
           for (var i = 0; i < _breakdown.length; i++) _customerRow(i, fmt),
           if (_breakdown.isNotEmpty)
             _box(
-              c.breakdownBalanced ? TColors.emerald200 : TColors.amber200,
-              c.breakdownBalanced ? TColors.emerald50 : TColors.amber50,
+              c.breakdownBalanced ? TColors.emerald200 : Tone.line(0xFFFDE68A),
+              c.breakdownBalanced ? TColors.emerald50 : Tone.bg(0xFFFFFBEB),
               c.breakdownBalanced
                   ? const Text('✓ Customer breakdown matches the return summary.', style: TextStyle(fontSize: 12, color: TColors.emerald800))
                   : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

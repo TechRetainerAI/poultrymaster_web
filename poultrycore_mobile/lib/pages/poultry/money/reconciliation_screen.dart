@@ -291,15 +291,15 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
 
   List<Widget> _countActions(Map c) => [
         if (tStr(c['status']) == 'Draft') ...[
-          _action('Post', Icons.check, TColors.emerald700, const Tone(0xFFA7F3D0), _busy ? null : () => _postDraft(c)),
-          _action('Edit', Icons.edit_outlined, _r.isHotel ? TColors.violet700 : TColors.sky700, _r.isHotel ? TColors.violet200 : const Tone(0xFFBAE6FD),
+          _action('Post', Icons.check, TColors.emerald700, const Tone.line(0xFFA7F3D0), _busy ? null : () => _postDraft(c)),
+          _action('Edit', Icons.edit_outlined, _r.isHotel ? TColors.violet700 : TColors.sky700, _r.isHotel ? TColors.violet200 : const Tone.line(0xFFBAE6FD),
               () => _openForm(count: c, mode: 'draft')),
-          _action('Discard', Icons.delete_outline, TColors.rose600, const Tone(0xFFFECDD3), () => _discard(c)),
+          _action('Discard', Icons.delete_outline, TColors.rose600, const Tone.line(0xFFFECDD3), () => _discard(c)),
         ],
         if (tStr(c['status']) == 'Posted')
-          _action('Reverse', Icons.undo, TColors.amber700, const Tone(0xFFFDE68A), () => _reverse(c)),
+          _action('Reverse', Icons.undo, TColors.amber700, const Tone.line(0xFFFDE68A), () => _reverse(c)),
         if (tStr(c['status']) == 'Reversed')
-          _action('Count again', Icons.replay, _r.isHotel ? TColors.violet700 : TColors.sky700, _r.isHotel ? TColors.violet200 : const Tone(0xFFBAE6FD),
+          _action('Count again', Icons.replay, _r.isHotel ? TColors.violet700 : TColors.sky700, _r.isHotel ? TColors.violet200 : const Tone.line(0xFFBAE6FD),
               () => _openForm(count: c, mode: 'copy')),
       ];
 
@@ -451,9 +451,9 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
               if (hasDrift) ...[
                 const SizedBox(height: 8),
                 _banner(
-                  TColors.amber50,
-                  const Tone(0xFFFDE68A),
-                  TColors.amber700,
+                  Tone.bg(0xFFFFFBEB),
+                  const Tone.line(0xFFFDE68A),
+                  Tone.fg(0xFFB45309),
                   Text(
                     'The stored balance for this account is ${_gh(drift.abs())} away from what its transactions add up to. The reconciliation uses the transactions, so it is safe to post — but other screens will show the stale figure until you recalculate.',
                     style: const TextStyle(fontSize: 12, color: TColors.amber900),
@@ -463,9 +463,9 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
               if (draft != null) ...[
                 const SizedBox(height: 8),
                 _banner(
-                  _r.isHotel ? TColors.violet50 : const Tone(0xFFF0F9FF),
-                  _r.isHotel ? TColors.violet200 : const Tone(0xFFBAE6FD),
-                  _r.isHotel ? TColors.violet700 : TColors.sky700,
+                  _r.isHotel ? TColors.violet50 : const Tone.bg(0xFFF0F9FF),
+                  _r.isHotel ? TColors.violet200 : const Tone.line(0xFFBAE6FD),
+                  _r.isHotel ? TColors.violet700 : Tone.fg(0xFF0369A1),
                   Wrap(spacing: 8, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
                     Text(
                       '${countRef(draft, _r.idPrefix)} is saved but not posted — nothing has reached the ledger yet.'
@@ -802,7 +802,7 @@ class _CashCountDialogState extends State<CashCountDialog> {
               ]),
             ]),
             const SizedBox(height: 12),
-            formSection('Notes', TColors.slate600, [
+            formSection('Notes', Tone.bg(0xFF475569), [
               FilterLabel('Notes (optional)',
                   AppInput(controller: _notes, enabled: !off, minLines: 2, maxLines: 4, hintText: 'Anything that explains the ${v.recordNoun}')),
             ]),

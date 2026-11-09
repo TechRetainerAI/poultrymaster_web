@@ -341,7 +341,7 @@ class _FeedProductionScreenState extends State<FeedProductionScreen> {
       style: const TextStyle(fontSize: 14),
     );
     final editable = _editable(b);
-    final produced = tile('Produced', _qtyUnit(b), TColors.emerald100, TColors.emerald300, TColors.emerald800);
+    final produced = tile('Produced', _qtyUnit(b), TColors.emerald100, Tone.line(0xFF6EE7B7), Tone.fg(0xFF065F46));
     return ProdCard(
       key: ValueKey('fpb-${b['poultryFeedProductionBatchId']}'),
       striped: i.isEven,
@@ -380,7 +380,7 @@ class _FeedProductionScreenState extends State<FeedProductionScreen> {
               children: [
                 Expanded(child: produced),
                 const SizedBox(width: 8),
-                Expanded(child: tile('Total cost', _gh(tNum(b['totalProductionCost'])), TColors.violet100, const Tone(0xFFC4B5FD), const Tone(0xFF4C1D95))),
+                Expanded(child: tile('Total cost', _gh(tNum(b['totalProductionCost'])), TColors.violet100, const Tone.line(0xFFC4B5FD), const Tone.fg(0xFF4C1D95))),
               ],
             )
           else

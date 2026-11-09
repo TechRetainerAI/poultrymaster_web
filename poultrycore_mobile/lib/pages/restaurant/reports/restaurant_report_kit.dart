@@ -257,7 +257,7 @@ class StatGrid extends StatelessWidget {
 /// ToneBadge: good / warn / bad / muted.
 Widget toneBadge(String text, String tone) {
   final (bg, fg, border) = switch (tone) {
-    'good' => (const Tone(0xFFECFDF5), const Tone(0xFF047857), const Tone(0xFFA7F3D0)),
+    'good' => (const Tone.bg(0xFFECFDF5), const Tone.fg(0xFF047857), const Tone.line(0xFFA7F3D0)),
     'warn' => (const Tone(0xFFFFFBEB), const Tone(0xFFB45309), const Tone(0xFFFDE68A)),
     'bad' => (const Tone(0xFFFEF2F2), const Tone(0xFFB91C1C), const Tone(0xFFFECACA)),
     _ => (const Tone(0xFFF8FAFC), const Tone(0xFF475569), TColors.slate200),

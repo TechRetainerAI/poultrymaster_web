@@ -203,7 +203,7 @@ class _RestaurantStaffScreenState extends State<RestaurantStaffScreen> {
 
   Widget _header() => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
-          _iconTile(Icons.manage_accounts_outlined, const Tone(0xFFFFE4E6), restaurantRose),
+          _iconTile(Icons.manage_accounts_outlined, const Tone.bg(0xFFFFE4E6), restaurantRose),
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -279,7 +279,7 @@ class _RestaurantStaffScreenState extends State<RestaurantStaffScreen> {
 
   Widget _rolesCard() => TCard(
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          _cardHead(Icons.shield_outlined, const Tone(0xFFF3E8FF), const Tone(0xFF9333EA), 'Roles & Permissions',
+          _cardHead(Icons.shield_outlined, const Tone.bg(0xFFF3E8FF), const Tone.fg(0xFF9333EA), 'Roles & Permissions',
               'Each role has predefined access to restaurant modules'),
           const SizedBox(height: 12),
           for (final r in restaurantRoles) ...[
@@ -326,7 +326,7 @@ class _RestaurantStaffScreenState extends State<RestaurantStaffScreen> {
     final rows = _filtered;
     return TCard(
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        _cardHead(Icons.groups_outlined, const Tone(0xFFDCFCE7), const Tone(0xFF16A34A), 'Team Members',
+        _cardHead(Icons.groups_outlined, const Tone.bg(0xFFDCFCE7), const Tone.fg(0xFF16A34A), 'Team Members',
             '${rows.length} staff ${_role != 'all' ? '($_role)' : ''}'),
         const SizedBox(height: 12),
         AppInput(hintText: 'Search staff...', prefixIcon: const Icon(Icons.search, size: 18), onChanged: (v) => setState(() => _search = v)),

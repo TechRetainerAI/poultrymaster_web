@@ -39,7 +39,7 @@ const closingStatusColors = <String, (Color, Color)>{
 };
 
 Widget closingBadge(String status) {
-  final (bg, fg) = closingStatusColors[status] ?? (const Tone(0xFFF3F4F6), const Tone(0xFF374151));
+  final (bg, fg) = closingStatusColors[status] ?? (const Tone.bg(0xFFF3F4F6), const Tone.fg(0xFF374151));
   return rBadge(status, bg: bg, fg: fg);
 }
 

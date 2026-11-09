@@ -699,7 +699,7 @@ class _RecurringExpensesScreenState extends State<RecurringExpensesScreen> {
     final interrupted = o['isInterrupted'] == true;
     final id = tIntOrNull(o['occurrenceId']);
     final (bg, fg, bd) = switch (status) {
-      'Draft' => (TColors.amber100, TColors.amber800, TColors.amber300),
+      'Draft' => (Tone.bg(0xFFFEF3C7), Tone.fg(0xFF92400E), TColors.amber300),
       'Posting' => (TColors.blue100, const Tone(0xFF1E40AF), TColors.blue300),
       'Posted' => (TColors.emerald100, TColors.emerald800, TColors.emerald300),
       _ => (TColors.slate100, TColors.slate500, TColors.slate300),

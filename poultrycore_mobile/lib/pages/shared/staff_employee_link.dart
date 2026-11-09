@@ -71,11 +71,11 @@ Widget _badge(String text, String tip, Color bg, Color fg, Color border) => Tool
 
 /// EmployeeBadge: on a staff row that has a login.
 Widget employeeBadge() =>
-    _badge('Employee', 'Also an employee: has a login', const Tone(0xFFEFF6FF), const Tone(0xFF1D4ED8), const Tone(0xFFBFDBFE));
+    _badge('Employee', 'Also an employee: has a login', const Tone.bg(0xFFEFF6FF), const Tone.fg(0xFF1D4ED8), const Tone.line(0xFFBFDBFE));
 
 /// StaffBadge: on an employee who is also on the Staff page.
 Widget staffBadge() =>
-    _badge('Staff', 'Also on the Staff page (payroll)', const Tone(0xFFEEF2FF), const Tone(0xFF4338CA), const Tone(0xFFC7D2FE));
+    _badge('Staff', 'Also on the Staff page (payroll)', const Tone.bg(0xFFEEF2FF), const Tone.fg(0xFF4338CA), const Tone.line(0xFFC7D2FE));
 
 const _linkedUser = '_employeeUserId';
 const _isStaff = '_isStaff';

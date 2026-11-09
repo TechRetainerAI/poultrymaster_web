@@ -415,12 +415,12 @@ class _FlockLifecycleScreenState extends State<FlockLifecycleScreen> {
                     final half = (c.maxWidth - 12) / 2;
                     final s = _summary;
                     return Wrap(spacing: 12, runSpacing: 12, children: [
-                      SizedBox(width: half, child: _tile('Overdue', s?['overdue'], TColors.rose100, const Tone(0xFFFDA4AF), TColors.rose800, () => _showView('Overdue'))),
-                      SizedBox(width: half, child: _tile('Due now', s?['due'], TColors.amber100, TColors.amber300, TColors.amber800, () => _showView('Due'))),
-                      SizedBox(width: half, child: _tile('Coming up', s?['upcoming'], TColors.blue100, TColors.blue300, const Tone(0xFF1E40AF), () => _showView('Upcoming'))),
+                      SizedBox(width: half, child: _tile('Overdue', s?['overdue'], TColors.rose100, const Tone.line(0xFFFDA4AF), Tone.fg(0xFF9F1239), () => _showView('Overdue'))),
+                      SizedBox(width: half, child: _tile('Due now', s?['due'], Tone.bg(0xFFFEF3C7), Tone.line(0xFFFCD34D), Tone.fg(0xFF92400E), () => _showView('Due'))),
+                      SizedBox(width: half, child: _tile('Coming up', s?['upcoming'], Tone.bg(0xFFDBEAFE), Tone.line(0xFF93C5FD), const Tone.fg(0xFF1E40AF), () => _showView('Upcoming'))),
                       SizedBox(
                           width: half,
-                          child: _tile('Completed (30 days)', s?['completedLast30'], TColors.emerald100, TColors.emerald300, TColors.emerald800,
+                          child: _tile('Completed (30 days)', s?['completedLast30'], TColors.emerald100, Tone.line(0xFF6EE7B7), Tone.fg(0xFF065F46),
                               () => _showView('Completed'))),
                     ]);
                   }),

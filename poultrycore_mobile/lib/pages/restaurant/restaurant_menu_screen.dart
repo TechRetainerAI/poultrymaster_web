@@ -347,7 +347,7 @@ class _RestaurantMenuScreenState extends State<RestaurantMenuScreen> {
 
   Widget _header() => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
-          _tile(Icons.restaurant, const Tone(0xFFFFE4E6), restaurantRose),
+          _tile(Icons.restaurant, const Tone.bg(0xFFFFE4E6), restaurantRose),
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -363,10 +363,10 @@ class _RestaurantMenuScreenState extends State<RestaurantMenuScreen> {
   Widget _stats() {
     final available = _items.where((i) => i['isAvailable'] == true).length;
     final cards = [
-      ('Total Items', _items.length, const Tone(0xFF111827), Tone(0xFFFFFFFF)),
-      ('Available', available, const Tone(0xFF15803D), const Tone(0xFFF0FDF4)),
-      ("86'd Items", _items.length - available, const Tone(0xFFB91C1C), const Tone(0xFFFEF2F2)),
-      ('Combos', _combos.length, const Tone(0xFF1D4ED8), const Tone(0xFFEFF6FF)),
+      ('Total Items', _items.length, const Tone.fg(0xFF111827), Tone.bg(0xFFFFFFFF)),
+      ('Available', available, const Tone.fg(0xFF15803D), const Tone.bg(0xFFF0FDF4)),
+      ("86'd Items", _items.length - available, const Tone.fg(0xFFB91C1C), const Tone.bg(0xFFFEF2F2)),
+      ('Combos', _combos.length, const Tone.fg(0xFF1D4ED8), const Tone.bg(0xFFEFF6FF)),
     ];
     // A set tile height: a width ratio left the tiles too short on a 360 px phone.
     return GridView(
@@ -575,7 +575,7 @@ class _RestaurantMenuScreenState extends State<RestaurantMenuScreen> {
 
   Widget _categoriesTab() => TCard(
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          _cardHead(Icons.grid_view, const Tone(0xFFFEF3C7), const Tone(0xFFD97706), 'Menu Categories',
+          _cardHead(Icons.grid_view, const Tone.bg(0xFFFEF3C7), const Tone.fg(0xFFD97706), 'Menu Categories',
               'Organize your menu items into logical groups', 'Add Category', () => _openCategory()),
           if (_categories.isEmpty)
             _empty(Icons.grid_view, 'No categories yet', 'Create categories like Appetizers, Main Course, Desserts, Beverages',
@@ -589,7 +589,7 @@ class _RestaurantMenuScreenState extends State<RestaurantMenuScreen> {
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
                   child: Row(children: [
-                    _tile(Icons.grid_view, active ? const Tone(0xFFFFE4E6) : const Tone(0xFFF3F4F6), active ? restaurantRose : const Tone(0xFF9CA3AF),
+                    _tile(Icons.grid_view, active ? const Tone(0xFFFFE4E6) : const Tone.bg(0xFFF3F4F6), active ? restaurantRose : const Tone.fg(0xFF9CA3AF),
                         size: 48, radius: 12),
                     const SizedBox(width: 12),
                     Expanded(
@@ -616,7 +616,7 @@ class _RestaurantMenuScreenState extends State<RestaurantMenuScreen> {
 
   Widget _combosTab() => TCard(
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          _cardHead(Icons.inventory_2_outlined, const Tone(0xFFDBEAFE), const Tone(0xFF2563EB), 'Combos & Meal Deals',
+          _cardHead(Icons.inventory_2_outlined, const Tone.bg(0xFFDBEAFE), const Tone.fg(0xFF2563EB), 'Combos & Meal Deals',
               'Bundle menu items together at a special price', 'Add Combo', () => _openCombo()),
           if (_combos.isEmpty)
             _empty(Icons.inventory_2_outlined, 'No combos yet', 'Create meal deals by bundling items together at a discounted price',
@@ -640,8 +640,8 @@ class _RestaurantMenuScreenState extends State<RestaurantMenuScreen> {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(14, 12, 4, 12),
             child: Row(children: [
-              _tile(Icons.inventory_2_outlined, active ? const Tone(0xFFDBEAFE) : const Tone(0xFFF3F4F6),
-                  active ? const Tone(0xFF2563EB) : const Tone(0xFF9CA3AF)),
+              _tile(Icons.inventory_2_outlined, active ? const Tone(0xFFDBEAFE) : const Tone.bg(0xFFF3F4F6),
+                  active ? const Tone(0xFF2563EB) : const Tone.fg(0xFF9CA3AF)),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

@@ -637,7 +637,7 @@ class _StockSupplyCardState extends State<StockSupplyCard> {
       Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         _cardHead(
           Icons.inventory_2_outlined,
-          urgent.isNotEmpty ? const Tone(0xFFF59E0B) : TColors.emerald500,
+          urgent.isNotEmpty ? const Tone(0xFFF59E0B) : Tone.bg(0xFF10B981),
           'Inventory Restock Forecast',
           urgent.isEmpty
               ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [

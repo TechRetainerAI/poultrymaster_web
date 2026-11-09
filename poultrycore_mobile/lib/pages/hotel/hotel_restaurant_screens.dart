@@ -886,7 +886,7 @@ const _kitchenBg = {
   'Placed': (Tone.bg(0xFFFEF2F2), Tone.bg(0xFFFCA5A5)),
   'Preparing': (Tone.bg(0xFFFFFBEB), Tone.bg(0xFFFCD34D)),
   'Ready': (Tone.bg(0xFFECFDF5), Tone.bg(0xFF6EE7B7)),
-  'Served': (TColors.slate50, TColors.slate200),
+  'Served': (Tone.bg(0xFFF8FAFC), Tone.line(0xFFE2E8F0)),
 };
 
 class HotelKitchenScreen extends StatefulWidget {

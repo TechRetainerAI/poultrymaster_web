@@ -511,7 +511,7 @@ class _RecordTransferDialogState extends State<RecordTransferDialog> {
             ]),
             if (_from.isNotEmpty && _to.isNotEmpty && _amountNum > 0) ...[
               const SizedBox(height: 12),
-              formSection('After this transfer', TColors.slate600, [
+              formSection('After this transfer', Tone.bg(0xFF475569), [
                 Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   _preview('Source', _bal(_from), _fromAfter),
                   const SizedBox(height: 4),
@@ -528,7 +528,7 @@ class _RecordTransferDialogState extends State<RecordTransferDialog> {
               ]),
             ],
             const SizedBox(height: 12),
-            formSection('Reference', TColors.slate600, [
+            formSection('Reference', Tone.bg(0xFF475569), [
               FilterLabel('Reference', AppInput(controller: _ref, hintText: 'Bank or MoMo reference')),
               FilterLabel('Notes', AppInput(controller: _notes, minLines: 2, maxLines: 4)),
             ]),
@@ -627,7 +627,7 @@ class _ReverseTransferDialogState extends State<ReverseTransferDialog> {
               style: TextStyle(fontSize: 13, color: TColors.slate500),
             ),
             const SizedBox(height: 12),
-            formSection('Transfer being reversed', TColors.slate600, [
+            formSection('Transfer being reversed', Tone.bg(0xFF475569), [
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(transferNumber(t, _r.idPrefix), style: const TextStyle(fontWeight: FontWeight.w500)),
                 const SizedBox(height: 4),
@@ -646,7 +646,7 @@ class _ReverseTransferDialogState extends State<ReverseTransferDialog> {
               ]),
             ]),
             const SizedBox(height: 12),
-            formSection('Why', TColors.amber600, [
+            formSection('Why', Tone.bg(0xFFD97706), [
               FilterLabel('Reason *', ReasonSelectField(controller: _reason, options: reversalReasons)),
               const Text('Written to the audit trail.', style: TextStyle(fontSize: 11, color: TColors.slate500)),
             ]),

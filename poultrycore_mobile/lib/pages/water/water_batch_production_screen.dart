@@ -49,7 +49,7 @@ String waterMachineScopeLabel(Map d) {
 Widget waterDailyStatusBadge(Object? status) {
   final s = tStr(status);
   final (bg, fg) = switch (s) {
-    'PendingAllocation' => (TColors.amber100, TColors.amber800),
+    'PendingAllocation' => (Tone.bg(0xFFFEF3C7), Tone.fg(0xFF92400E)),
     'Allocated' => (TColors.blue100, const Tone(0xFF1D4ED8)),
     'Posted' => (TColors.emerald100, TColors.emerald700),
     'Reversed' => (const Tone(0xFFF3E8FF), const Tone(0xFF7E22CE)),
@@ -1026,7 +1026,7 @@ class _WaterBatchProductionFormScreenState extends State<WaterBatchProductionFor
               ),
             ),
             const SizedBox(height: 12),
-            formSection('Batch & scope', const Tone.fg(0xFF2563EB), [
+            formSection('Batch & scope', const Tone.bg(0xFF2563EB), [
               FilterLabel(
                 'Production date *',
                 AppDateField(
@@ -1107,7 +1107,7 @@ class _WaterBatchProductionFormScreenState extends State<WaterBatchProductionFor
               ),
             ]),
             const SizedBox(height: 12),
-            formSection('Batch output', const Tone.fg(0xFF059669), [
+            formSection('Batch output', const Tone.bg(0xFF059669), [
               FilterLabel('Bags produced *', _num(_bags)),
               FilterLabel('Sachets per bag', _num(_perBag)),
               FilterLabel('Loose sachets', _num(_loose)),
@@ -1118,7 +1118,7 @@ class _WaterBatchProductionFormScreenState extends State<WaterBatchProductionFor
               _hinted('Good bags', Text(qtyFmt(good), style: const TextStyle(fontWeight: FontWeight.w600, color: TColors.slate800)), 'Bags produced less damaged'),
             ]),
             const SizedBox(height: 12),
-            formSection('Production costs', TColors.amber600, [
+            formSection('Production costs', Tone.bg(0xFFD97706), [
               FilterLabel('Electricity', _num(_elec, decimal: true)),
               FilterLabel('Fuel', _num(_fuel, decimal: true)),
               FilterLabel('Labor', _num(_labor, decimal: true)),
@@ -1129,7 +1129,7 @@ class _WaterBatchProductionFormScreenState extends State<WaterBatchProductionFor
               ),
             ]),
             const SizedBox(height: 12),
-            formSection('Raw materials used', const Tone.fg(0xFF059669), [
+            formSection('Raw materials used', const Tone.bg(0xFF059669), [
               if (_materials.isEmpty)
                 const Text('No materials yet. Seed them from the product recipe, or add lines by hand.',
                     style: TextStyle(fontSize: 13, color: TColors.slate400)),
@@ -1151,7 +1151,7 @@ class _WaterBatchProductionFormScreenState extends State<WaterBatchProductionFor
               ),
             ]),
             const SizedBox(height: 12),
-            formSection('Notes', const Tone.fg(0xFF2563EB), [AppInput(controller: _notes, minLines: 2, maxLines: 4)]),
+            formSection('Notes', const Tone.bg(0xFF2563EB), [AppInput(controller: _notes, minLines: 2, maxLines: 4)]),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(14),

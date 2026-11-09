@@ -828,7 +828,7 @@ class _FeedProductionBatchFormState extends State<FeedProductionBatchForm> {
         if (widget.existing != null) const TBadge('Draft', bg: Tone.bg(0xFFFFFFFF), fg: TColors.slate700, border: TColors.slate200),
       ]),
       const SizedBox(height: 12),
-      formSection('Finished feed output', TColors.blue600, [
+      formSection('Finished feed output', Tone.bg(0xFF2563EB), [
         _field(
           'Finished feed *',
           AppSelect<String>(
@@ -866,7 +866,7 @@ class _FeedProductionBatchFormState extends State<FeedProductionBatchForm> {
         _field('Notes', AppInput(controller: _notes, minLines: 2, maxLines: 4)),
       ]),
       const SizedBox(height: 14),
-      formSection('Ingredient breakdown', TColors.emerald600, [
+      formSection('Ingredient breakdown', Tone.bg(0xFF059669), [
         if (_scaling)
           Container(
             margin: const EdgeInsets.only(bottom: 12),
@@ -949,7 +949,7 @@ class _FeedProductionBatchFormState extends State<FeedProductionBatchForm> {
           ),
       ]),
       const SizedBox(height: 14),
-      formSection('Additional production costs', TColors.amber600, [
+      formSection('Additional production costs', Tone.bg(0xFFD97706), [
         if (_costs.isEmpty) const Padding(padding: EdgeInsets.only(bottom: 8), child: Text('No additional costs. Add grinding, labor, transport, etc. if any.', style: TextStyle(fontSize: 14, color: TColors.slate400))),
         for (final c in _costs) _costCard(c),
         Align(

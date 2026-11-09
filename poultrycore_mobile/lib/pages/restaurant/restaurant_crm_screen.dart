@@ -349,7 +349,7 @@ class _RestaurantCrmScreenState extends State<RestaurantCrmScreen> {
       ],
       TCard(
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          _cardHead(Icons.star_border, const Tone(0xFFFEF3C7), const Tone(0xFFD97706), 'Customer Feedback', 'Reviews and ratings'),
+          _cardHead(Icons.star_border, const Tone.bg(0xFFFEF3C7), const Tone.fg(0xFFD97706), 'Customer Feedback', 'Reviews and ratings'),
           const SizedBox(height: 10),
           roseButton('Add Feedback', _addFeedback),
           const SizedBox(height: 12),
@@ -431,7 +431,7 @@ class _RestaurantCrmScreenState extends State<RestaurantCrmScreen> {
 
   Widget _campaignsTab() => TCard(
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          _cardHead(Icons.campaign_outlined, const Tone(0xFFE0E7FF), const Tone(0xFF4F46E5), 'Marketing Campaigns',
+          _cardHead(Icons.campaign_outlined, const Tone.bg(0xFFE0E7FF), const Tone.fg(0xFF4F46E5), 'Marketing Campaigns',
               'Reach your customers with targeted messages'),
           const SizedBox(height: 10),
           roseButton('Create Campaign', _createCampaign),

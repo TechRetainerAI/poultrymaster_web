@@ -278,7 +278,7 @@ class _RestaurantReservationsScreenState extends State<RestaurantReservationsScr
 
   Widget _resRow(Map r) {
     final status = tStr(r['status']);
-    final (bg, fg) = reservationStatusColors[status] ?? (const Tone(0xFFF3F4F6), const Tone(0xFF374151));
+    final (bg, fg) = reservationStatusColors[status] ?? (const Tone.bg(0xFFF3F4F6), const Tone.fg(0xFF374151));
     const meta = _meta;
     Widget step(String label, Color color, String to, {bool outlined = false}) => outlined
         ? OutlinedButton(style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact), onPressed: () => _resStatus(r, to), child: Text(label))

@@ -43,7 +43,6 @@ const _amber600 = Tone.fg(0xFFD97706);
 const _amber700 = Tone.fg(0xFFB45309);
 const _amber900 = Tone.fg(0xFF78350F);
 const _emerald50 = Tone.bg(0xFFECFDF5);
-const _emerald600 = Tone(0xFF059669);
 const _emerald900 = Tone.fg(0xFF064E3B);
 
 const _done = ['Completed', 'Cancelled', 'Refunded', 'Served'];
@@ -1107,7 +1106,7 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
                 if (_isVenueCode)
                   _heroBadge('SKIP THE QUEUE', Colors.white.withValues(alpha: .2), Colors.white)
                 else if (_tableNumber.isNotEmpty)
-                  _heroBadge('TABLE $_tableNumber', Tone(0xFFFFFFFF), _rose700),
+                  _heroBadge('TABLE $_tableNumber', Tone.bg(0xFFFFFFFF), Tone.fg(0xFFBE123C)),
                 if (hours != null)
                   _heroBadge('${hours.open ? 'Open' : 'Closed'} · ${hours.label}',
                       hours.open ? const Tone(0x3334D399) : const Color(0x33000000), hours.open ? const Tone(0xFFECFDF5) : Colors.white70),
@@ -1256,9 +1255,9 @@ class _RestaurantOrderOnlineScreenState extends State<RestaurantOrderOnlineScree
                   top: 8,
                   child: Wrap(spacing: 4, children: [
                     if (item['isVegan'] == true)
-                      _heroBadge('VEGAN', _emerald600, Colors.white)
+                      _heroBadge('VEGAN', Tone.bg(0xFF059669), Colors.white)
                     else if (item['isVegetarian'] == true)
-                      _heroBadge('VEG', _emerald600, Colors.white),
+                      _heroBadge('VEG', Tone.bg(0xFF059669), Colors.white),
                     if (spicy > 0) _heroBadge('🌶️' * (spicy > 3 ? 3 : spicy), const Color(0x8C000000), Colors.white),
                   ]),
                 ),

@@ -93,7 +93,7 @@ void trackerToast(BuildContext context, String title, {String? description, bool
   m
     ..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(
-      backgroundColor: error ? TColors.rose700 : null,
+      backgroundColor: error ? Tone.button(TColors.rose700) : null,
       content: Text(description == null ? title : '$title — $description'),
     ));
 }

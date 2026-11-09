@@ -1081,10 +1081,10 @@ class _HotelShiftHandoverScreenState extends State<HotelShiftHandoverScreen> {
           TextSpan(text: tStr(h['handoverby']), style: const TextStyle(fontWeight: FontWeight.w700)),
           if (to.isNotEmpty) ...[const TextSpan(text: ' → '), TextSpan(text: to, style: const TextStyle(fontWeight: FontWeight.w700))],
         ]), style: const TextStyle(fontSize: 13, color: TColors.slate500)),
-        if (tStr(h['keymessages']).isNotEmpty) _note('Key Messages', tStr(h['keymessages']), TColors.slate50),
+        if (tStr(h['keymessages']).isNotEmpty) _note('Key Messages', tStr(h['keymessages']), Tone.bg(0xFFF8FAFC)),
         if (tStr(h['pendingitems']).isNotEmpty) _note('Pending Items', tStr(h['pendingitems']), _amber50),
-        if (tStr(h['vipguests']).isNotEmpty) _note('VIP Guests', tStr(h['vipguests']), TColors.violet50),
-        if (tStr(h['incidents']).isNotEmpty) _note('Incidents', tStr(h['incidents']), const Tone(0xFFFEF2F2)),
+        if (tStr(h['vipguests']).isNotEmpty) _note('VIP Guests', tStr(h['vipguests']), Tone.bg(0xFFF5F3FF)),
+        if (tStr(h['incidents']).isNotEmpty) _note('Incidents', tStr(h['incidents']), const Tone.bg(0xFFFEF2F2)),
         if (h['cashbalance'] != null)
           Padding(
             padding: const EdgeInsets.only(top: 10),

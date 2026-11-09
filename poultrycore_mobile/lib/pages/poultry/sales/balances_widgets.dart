@@ -1215,7 +1215,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
           () => setState(() => _addToPL = false),
           Icons.account_balance_wallet_outlined,
           TColors.emerald100,
-          TColors.emerald700,
+          Tone.fg(0xFF047857),
           'Keep as Customer Credit (Advance Payment)',
           Text.rich(TextSpan(children: [
             const TextSpan(text: 'The customer is paying in advance for future purchases. We will save '),
@@ -1228,8 +1228,8 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
           _addToPL,
           () => setState(() => _addToPL = true),
           Icons.description_outlined,
-          TColors.blue100,
-          _blue700,
+          Tone.bg(0xFFDBEAFE),
+          Tone.fg(0xFF1D4ED8),
           'Payment for an Earlier Sale',
           const Text('The customer is paying for goods you sold before recording the sale in VisibilityCore.'),
           extra: !_addToPL
@@ -1645,7 +1645,6 @@ const _orange200 = Tone.line(0xFFFED7AA);
 const _orange500 = Tone.bg(0xFFF97316);
 const _orange600 = Tone.fg(0xFFEA580C);
 const _amber600 = Tone.bg(0xFFD97706);
-const _blue700 = Tone(0xFF1D4ED8);
 // The web's tinted FormSection bodies (`-50/40`, orange `-50/30`).
 const _orangeTint = Tone.bg(0x4DFFF7ED);
 const _amberTint = Tone.bg(0x66FFFBEB);

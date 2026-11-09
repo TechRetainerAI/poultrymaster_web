@@ -493,8 +493,8 @@ class _HealthRecordsScreenState extends State<HealthRecordsScreen> {
         ]),
       );
 
-  Widget _vaccination(Map r) => _pill(tStr(r['vaccination']), Icons.medication_outlined, const Tone(0xFFEFF6FF), const Tone(0xFF1D4ED8));
-  Widget _medication(Map r) => _pill(tStr(r['medication']), Icons.favorite_border, const Tone(0xFFF0FDF4), TColors.green700);
+  Widget _vaccination(Map r) => _pill(tStr(r['vaccination']), Icons.medication_outlined, const Tone.bg(0xFFEFF6FF), const Tone.fg(0xFF1D4ED8));
+  Widget _medication(Map r) => _pill(tStr(r['medication']), Icons.favorite_border, const Tone.bg(0xFFF0FDF4), TColors.green700);
 
   Widget _card(Map r, int i) {
     final notes = tStr(r['notes']);
@@ -754,7 +754,7 @@ class _HealthRecordDialogState extends State<HealthRecordDialog> {
             style: const TextStyle(fontSize: 13, color: TColors.slate500),
           ),
           const SizedBox(height: 12),
-          formSection('Record Details', TColors.blue600, [
+          formSection('Record Details', Tone.bg(0xFF2563EB), [
             if (tab == 'flock')
               _cell(
                 'Flock *',
@@ -809,7 +809,7 @@ class _HealthRecordDialogState extends State<HealthRecordDialog> {
             ),
           ]),
           const SizedBox(height: 12),
-          formSection('Treatment Details', const Tone(0xFF16A34A), [
+          formSection('Treatment Details', const Tone.bg(0xFF16A34A), [
             _cell('Name', AppInput(controller: _name, hintText: 'Medication/vaccine name')),
             _cell('Treatment', AppInput(controller: _treatment, hintText: 'Disease or condition treated')),
             _cell(

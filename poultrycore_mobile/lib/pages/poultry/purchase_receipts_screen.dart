@@ -388,7 +388,7 @@ class _PurchaseReceiptsScreenState extends State<PurchaseReceiptsScreen> {
   }
 
   Widget _tile(String label, String value, {Accent? tone}) {
-    final (bg, border, lc, vc) = tone == null ? (Tone(0xFFFFFFFF), TColors.slate200, TColors.slate500, TColors.slate900) : accentTone(tone);
+    final (bg, border, lc, vc) = tone == null ? (Tone.bg(0xFFFFFFFF), Tone.line(0xFFE2E8F0), TColors.slate500, TColors.slate900) : accentTone(tone);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(color: bg, border: Border.all(color: border), borderRadius: BorderRadius.circular(8)),

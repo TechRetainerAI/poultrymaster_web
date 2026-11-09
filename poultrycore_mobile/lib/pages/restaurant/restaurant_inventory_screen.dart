@@ -60,10 +60,10 @@ List<String> ingredientFilterCategories(List<Map> rows) =>
 }
 
 const _purchaseStatus = {
-  'Paid': (TColors.emerald100, TColors.emerald700),
-  'Partially Paid': (TColors.amber100, TColors.amber700),
-  'Unpaid': (Tone(0xFFFEE2E2), Tone(0xFFB91C1C)),
-  'Reversed': (TColors.slate100, TColors.slate500),
+  'Paid': (TColors.emerald100, Tone.fg(0xFF047857)),
+  'Partially Paid': (Tone.bg(0xFFFEF3C7), Tone.fg(0xFFB45309)),
+  'Unpaid': (Tone.bg(0xFFFEE2E2), Tone.fg(0xFFB91C1C)),
+  'Reversed': (Tone.bg(0xFFF1F5F9), TColors.slate500),
 };
 
 class RestaurantInventoryScreen extends StatefulWidget {
@@ -321,11 +321,11 @@ class _RestaurantInventoryScreenState extends State<RestaurantInventoryScreen> {
           ),
           const SizedBox(height: 14),
           twoColumns([
-            stat('Total Ingredients', '${_ingredients.length}', Icons.inventory_2_outlined, TColors.slate900, TColors.slate100),
+            stat('Total Ingredients', '${_ingredients.length}', Icons.inventory_2_outlined, TColors.slate900, Tone.bg(0xFFF1F5F9)),
             stat('Low Stock', '${_lowStock.length}', Icons.warning_amber_rounded, low ? const Tone(0xFFB91C1C) : const Tone(0xFF15803D),
-                low ? const Tone(0xFFFEE2E2) : const Tone(0xFFDCFCE7)),
-            stat('Inventory Value', totalValue.toStringAsFixed(0), Icons.attach_money, const Tone(0xFF1D4ED8), TColors.blue100),
-            stat('Waste Cost', wasteCost.toStringAsFixed(0), Icons.trending_down, TColors.amber700, TColors.amber100),
+                low ? const Tone(0xFFFEE2E2) : const Tone.bg(0xFFDCFCE7)),
+            stat('Inventory Value', totalValue.toStringAsFixed(0), Icons.attach_money, const Tone(0xFF1D4ED8), Tone.bg(0xFFDBEAFE)),
+            stat('Waste Cost', wasteCost.toStringAsFixed(0), Icons.trending_down, TColors.amber700, Tone.bg(0xFFFEF3C7)),
           ]),
           if (low) ...[
             const SizedBox(height: 12),
@@ -513,7 +513,7 @@ class _RestaurantInventoryScreenState extends State<RestaurantInventoryScreen> {
 
   Widget _wasteTab() => TCard(
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          _tabHeader(Icons.trending_down, TColors.amber600, TColors.amber100, 'Waste Log', 'Track and analyze kitchen waste',
+          _tabHeader(Icons.trending_down, Tone.fg(0xFFD97706), Tone.bg(0xFFFEF3C7), 'Waste Log', 'Track and analyze kitchen waste',
               action: roseButton('Log Waste', _logWaste)),
           if (_wasteSummary.isNotEmpty) ...[
             for (final w in _wasteSummary)
@@ -559,7 +559,7 @@ class _RestaurantInventoryScreenState extends State<RestaurantInventoryScreen> {
 
   Widget _valueTab(num total) => TCard(
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          _tabHeader(Icons.attach_money, const Tone(0xFF2563EB), TColors.blue100, 'Inventory Valuation', 'Total value: ${total.toStringAsFixed(2)}'),
+          _tabHeader(Icons.attach_money, const Tone.fg(0xFF2563EB), Tone.bg(0xFFDBEAFE), 'Inventory Valuation', 'Total value: ${total.toStringAsFixed(2)}'),
           if (_value.isEmpty)
             const Padding(
                 padding: EdgeInsets.symmetric(vertical: 24),
@@ -596,7 +596,7 @@ class _RestaurantInventoryScreenState extends State<RestaurantInventoryScreen> {
     final shown = [for (final p in _purchases) if (_purchaseFocus == null || tIntOrNull(p['purchaseId']) == _purchaseFocus) p];
     return TCard(
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        _tabHeader(Icons.shopping_cart_outlined, const Tone(0xFFE11D48), const Tone(0xFFFFE4E6), 'Purchases', 'Stock bought, what it cost and what is still owed',
+        _tabHeader(Icons.shopping_cart_outlined, const Tone.fg(0xFFE11D48), const Tone.bg(0xFFFFE4E6), 'Purchases', 'Stock bought, what it cost and what is still owed',
             action: roseButton('Record Purchase', () => _purchase(), icon: Icons.shopping_cart_outlined)),
         if (_purchaseFocus != null) ...[
           Container(
@@ -622,7 +622,7 @@ class _RestaurantInventoryScreenState extends State<RestaurantInventoryScreen> {
   Widget _purchaseRow(Map p) {
     final reversed = p['status'] == 'Reversed';
     final status = reversed ? 'Reversed' : tStr(p['paymentStatus']);
-    final (bg, fg) = _purchaseStatus[status] ?? (TColors.slate100, TColors.slate700);
+    final (bg, fg) = _purchaseStatus[status] ?? (Tone.bg(0xFFF1F5F9), Tone.fg(0xFF334155));
     final balance = tNum(p['balance']);
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -676,8 +676,8 @@ class _RestaurantInventoryScreenState extends State<RestaurantInventoryScreen> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           _tabHeader(
             Icons.hourglass_empty,
-            TColors.amber600,
-            TColors.amber100,
+            Tone.fg(0xFFD97706),
+            Tone.bg(0xFFFEF3C7),
             'Cost recognition',
             "When each category's purchases reach Profit & Loss. Expense when purchased charges the whole purchase on the day it is bought; expense when consumed holds it as stock value until it is sold, wasted or adjusted out (see Deferred inventory cost). A change applies to purchases recorded from now on.",
           ),
@@ -1210,7 +1210,7 @@ class _RestaurantPurchaseDialogState extends State<RestaurantPurchaseDialog> {
               ),
             ),
           ]),
-          _section('Purchase Quantity & Costing', const Tone(0xFF2563EB), [
+          _section('Purchase Quantity & Costing', const Tone.bg(0xFF2563EB), [
             rField('Purchase quantity ($unit) *', rNumberInput(_qty, onChanged: () => setState(() {}))),
             rField('Total purchase cost *', rNumberInput(_total, onChanged: () => setState(() {}))),
             rField('Purchase unit cost (auto)', _readOnly('${gh(m.unitCost)} per $unit')),
@@ -1222,7 +1222,7 @@ class _RestaurantPurchaseDialogState extends State<RestaurantPurchaseDialog> {
               style: const TextStyle(fontSize: 12, color: TColors.slate500),
             ),
           ]),
-          _section('Payment', TColors.amber600, [
+          _section('Payment', Tone.bg(0xFFD97706), [
             rField(
               'Amount paid',
               AppInput(
@@ -1258,7 +1258,7 @@ class _RestaurantPurchaseDialogState extends State<RestaurantPurchaseDialog> {
               style: TextStyle(fontSize: 12, color: TColors.slate500),
             ),
           ]),
-          _section('Notes', TColors.slate600, [
+          _section('Notes', Tone.bg(0xFF475569), [
             rField('Notes', AppInput(controller: _notes, hintText: 'Optional notes about this purchase', minLines: 3, maxLines: 5)),
           ]),
         ],

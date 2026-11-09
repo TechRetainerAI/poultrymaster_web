@@ -61,14 +61,14 @@ List<Map> filterStaffLoans(List<Map> loans, {String tab = 'OPEN', String staff =
 }
 
 const _statusStyle = {
-  'Draft': (TColors.slate100, TColors.slate700, TColors.slate200),
-  'Active': (Tone(0xFFEFF6FF), Tone(0xFF1D4ED8), Tone(0xFFBFDBFE)),
-  'Paid': (Tone(0xFFF0FDF4), Tone(0xFF15803D), Tone(0xFFBBF7D0)),
-  'Cancelled': (TColors.amber50, TColors.amber700, TColors.amber200),
-  'Reversed': (Tone(0xFFFEF2F2), Tone(0xFFB91C1C), Tone(0xFFFECACA)),
+  'Draft': (Tone.bg(0xFFF1F5F9), Tone.fg(0xFF334155), TColors.slate200),
+  'Active': (Tone.bg(0xFFEFF6FF), Tone.fg(0xFF1D4ED8), Tone(0xFFBFDBFE)),
+  'Paid': (Tone.bg(0xFFF0FDF4), Tone.fg(0xFF15803D), Tone(0xFFBBF7D0)),
+  'Cancelled': (Tone.bg(0xFFFFFBEB), Tone.fg(0xFFB45309), TColors.amber200),
+  'Reversed': (Tone.bg(0xFFFEF2F2), Tone.fg(0xFFB91C1C), Tone(0xFFFECACA)),
 };
 Widget _status(Object? s) {
-  final (bg, fg, b) = _statusStyle[tStr(s)] ?? (Tone(0xFFFFFFFF), TColors.slate700, TColors.slate200);
+  final (bg, fg, b) = _statusStyle[tStr(s)] ?? (Tone.bg(0xFFFFFFFF), Tone.fg(0xFF334155), TColors.slate200);
   return rStatusBadge(tStr(s), bg: bg, fg: fg, border: b);
 }
 

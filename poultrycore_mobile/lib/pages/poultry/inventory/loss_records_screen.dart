@@ -228,9 +228,9 @@ class _LossRecordsScreenState extends State<LossRecordsScreen> {
             maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
         const SizedBox(height: 10),
         Row(children: [
-          Expanded(child: tile(tStr(l['lossType']), _qty(l), TColors.rose100, const Tone(0xFFFDA4AF), const Tone(0xFF881337), TColors.rose800)),
+          Expanded(child: tile(tStr(l['lossType']), _qty(l), TColors.rose100, const Tone.line(0xFFFDA4AF), const Tone(0xFF881337), TColors.rose800)),
           const SizedBox(width: 8),
-          Expanded(child: tile('Value', _value(l), TColors.violet100, const Tone(0xFFC4B5FD), const Tone(0xFF4C1D95), const Tone(0xFF4C1D95))),
+          Expanded(child: tile('Value', _value(l), TColors.violet100, const Tone.line(0xFFC4B5FD), const Tone(0xFF4C1D95), const Tone(0xFF4C1D95))),
         ]),
       ]),
       body: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -391,7 +391,7 @@ class _LossRecordDialogState extends State<LossRecordDialog> {
         title: Text(_e != null ? 'Edit loss record' : 'New loss record'),
         content: SizedBox(
           width: 480,
-          child: formSection('Loss details', const Tone(0xFFD97706), [
+          child: formSection('Loss details', const Tone.bg(0xFFD97706), [
             _cell('Date', AppDateField(value: businessDateAsDateTime(_date), onChanged: (v) => setState(() => _date = v == null ? '' : isoDay(v)))),
             _cell(
               'Type',

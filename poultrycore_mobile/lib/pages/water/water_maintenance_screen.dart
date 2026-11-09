@@ -24,7 +24,7 @@ const waterMaintenanceAssetTypes = ['Machine', 'Vehicle', 'Borehole', 'Generator
 Widget waterMaintenanceStatusBadge(Object? status) {
   final s = tStr(status);
   final (bg, fg) = switch (s) {
-    'Open' => (TColors.amber100, TColors.amber700),
+    'Open' => (Tone.bg(0xFFFEF3C7), Tone.fg(0xFFB45309)),
     'InProgress' => (TColors.blue100, const Tone(0xFF1D4ED8)),
     'Completed' => (const Tone(0xFFDCFCE7), const Tone(0xFF15803D)),
     _ => (TColors.slate100, TColors.slate700),
@@ -391,7 +391,7 @@ class _WaterMaintenanceLogDialogState extends State<WaterMaintenanceLogDialog> {
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               const Text('Record a maintenance issue or repair', style: TextStyle(fontSize: 13, color: TColors.slate500)),
               const SizedBox(height: 12),
-              formSection('Asset', const Tone(0xFF4F46E5), [
+              formSection('Asset', const Tone.bg(0xFF4F46E5), [
                 FilterLabel(
                   'Asset type',
                   AppSelect<String>(
@@ -404,14 +404,14 @@ class _WaterMaintenanceLogDialogState extends State<WaterMaintenanceLogDialog> {
                 FilterLabel('Issue description *', AppInput(controller: _issue, minLines: 3, maxLines: 6)),
               ]),
               const SizedBox(height: 12),
-              formSection('Repair details', const Tone(0xFF2563EB), [
+              formSection('Repair details', const Tone.bg(0xFF2563EB), [
                 FilterLabel('Technician', AppInput(controller: _tech)),
                 FilterLabel('Repair cost', _num(_cost)),
                 FilterLabel('Downtime hours', _num(_downtime)),
                 FilterLabel('Parts replaced', AppInput(controller: _parts)),
               ]),
               const SizedBox(height: 12),
-              formSection('Notes', TColors.slate600, [FilterLabel('Notes', AppInput(controller: _notes, minLines: 3, maxLines: 6))]),
+              formSection('Notes', Tone.bg(0xFF475569), [FilterLabel('Notes', AppInput(controller: _notes, minLines: 3, maxLines: 6))]),
             ]),
           ),
           actions: [
@@ -473,7 +473,7 @@ class _CompleteDialogState extends State<_CompleteDialog> {
               style: const TextStyle(fontSize: 13, color: TColors.slate600),
             ),
             const SizedBox(height: 12),
-            formSection('Cash impact', TColors.amber600, [
+            formSection('Cash impact', Tone.bg(0xFFD97706), [
               FilterLabel(
                 'Cash account (optional)',
                 AppSelect<int>(

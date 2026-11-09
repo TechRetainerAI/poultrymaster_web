@@ -6,6 +6,7 @@ import '../../../design/ui/inputs.dart';
 import '../../shared/business_dates.dart';
 import '../sales/balances_logic.dart' show entryTimestamp;
 import '../trackers/tracker_widgets.dart';
+import 'package:poultrycore_mobile/design/tone.dart';
 
 /// ADJUSTMENT_TYPES, stored as text — keep stable.
 const adjustmentTypes = [
@@ -246,7 +247,7 @@ class _CashAdjustmentDialogState extends State<CashAdjustmentDialog> {
             const Text('Opening balance, owner injection, loan received, withdrawal or correction.',
                 style: TextStyle(fontSize: 13, color: TColors.slate500)),
             const SizedBox(height: 12),
-            _section('Adjustment', TColors.emerald600, [
+            _section('Adjustment', Tone.bg(0xFF059669), [
               FilterLabel(
                 'Type *',
                 AppSelect<String>(
@@ -315,7 +316,7 @@ class _CashAdjustmentDialogState extends State<CashAdjustmentDialog> {
                 ),
             ]),
             const SizedBox(height: 12),
-            _section('Description', TColors.slate600, [
+            _section('Description', Tone.bg(0xFF475569), [
               FilterLabel('Description (optional)', AppInput(controller: _desc, hintText: 'e.g. Start of cycle')),
             ]),
             if (landing != null) ...[

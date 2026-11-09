@@ -33,7 +33,7 @@ String _today() => DateTime.now().toUtc().toIso8601String().substring(0, 10);
 Widget waterLoadStatusBadge(Object? status) {
   final s = tStr(status);
   final (bg, fg) = switch (s) {
-    'Loaded' => (TColors.blue100, const Tone(0xFF1D4ED8)),
+    'Loaded' => (Tone.bg(0xFFDBEAFE), const Tone.fg(0xFF1D4ED8)),
     'Returned' => (TColors.amber100, TColors.amber700),
     'Reconciled' || 'Approved' => (const Tone(0xFFDCFCE7), const Tone(0xFF15803D)),
     _ => (TColors.slate100, TColors.slate700),
@@ -1016,7 +1016,7 @@ class _WaterLoadVehicleScreenState extends State<WaterLoadVehicleScreen> {
               style: const TextStyle(fontSize: 13, color: TColors.slate500),
             ),
             const SizedBox(height: 12),
-            formSection('Driver & route', const Tone.fg(0xFF4F46E5), [
+            formSection('Driver & route', const Tone.bg(0xFF4F46E5), [
               FilterLabel(
                 'Driver *',
                 AppSelect<int>(
@@ -1161,7 +1161,7 @@ class _WaterLoadVehicleScreenState extends State<WaterLoadVehicleScreen> {
               ]),
             ),
             const SizedBox(height: 12),
-            formSection('Notes', TColors.slate600, [
+            formSection('Notes', Tone.bg(0xFF475569), [
               FilterLabel(
                 'Notes',
                 AppInput(key: ValueKey('$_ver-notes'), initialValue: _notes, minLines: 3, maxLines: 6, onChanged: (t) => _notes = t),

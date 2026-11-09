@@ -963,7 +963,7 @@ class _ActionBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (bg, fg) = switch (kind) {
-      'Created' => (const Tone(0xFFD1FAE5), emerald700),
+      'Created' => (const Tone.bg(0xFFD1FAE5), emerald700),
       'Updated' => (amber100, amber700),
       'Deleted' => (const Tone(0xFFFFE4E6), rose700),
       _ => (slate100, slate600),

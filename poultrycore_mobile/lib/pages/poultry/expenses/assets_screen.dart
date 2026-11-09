@@ -797,7 +797,6 @@ AppSelect<String> _accountSelect(AssetRail r, List<Map> accounts, String value, 
       onChanged: (v) => on(v ?? ''),
     );
 
-const _blue = Tone(0xFF2563EB);
 
 /// Water's SupplierField: the picker shared by the two forms that open a payable.
 Widget _supplierField(List<Map> suppliers, String value, ValueChanged<String> on) => _hinted(
@@ -915,7 +914,7 @@ class _NewAssetDialogState extends State<NewAssetDialog> {
               style: TextStyle(fontSize: 13, color: TColors.slate500),
             ),
             const SizedBox(height: 12),
-            formSection('What it is', _blue, [
+            formSection('What it is', Tone.bg(0xFF2563EB), [
               FilterLabel(_r.t('Investment name'), AppInput(controller: _name, hintText: _r.namePlaceholder)),
               FilterLabel(
                 'Category',
@@ -935,7 +934,7 @@ class _NewAssetDialogState extends State<NewAssetDialog> {
               FilterLabel('Description', AppInput(controller: _desc, minLines: 2, maxLines: 4)),
             ]),
             const SizedBox(height: 12),
-            formSection('What it cost', _blue, [
+            formSection('What it cost', Tone.bg(0xFF2563EB), [
               FilterLabel('Acquisition date', _dateField(_acquired, (v) => setState(() => _acquired = v), clearable: true)),
               _hinted('Cost', _num(_amount, () => setState(() {})), _r.t('Leave blank for an investment you will build up cost by cost.')),
               if (_r.isWater) ...[
@@ -956,7 +955,7 @@ class _NewAssetDialogState extends State<NewAssetDialog> {
               FilterLabel('Balance due date', _dateField(_due, (v) => setState(() => _due = v), clearable: true)),
             ]),
             const SizedBox(height: 12),
-            formSection('How it depreciates', _blue, [
+            formSection('How it depreciates', Tone.bg(0xFF2563EB), [
               _hinted('In-service date', _dateField(_inService, (v) => setState(() => _inService = v), clearable: true),
                   'Depreciation starts in this month. Leave blank if it is not in use yet.'),
               _hinted('Useful life (months)', _num(_life, () => setState(() {})),
@@ -1116,7 +1115,7 @@ class _AssetEditDialogState extends State<AssetEditDialog> {
         content: SizedBox(
           width: 580,
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            formSection('Details', _blue, [
+            formSection('Details', Tone.bg(0xFF2563EB), [
               FilterLabel(_r.t('Investment name'), AppInput(controller: _name)),
               FilterLabel(
                 'Category',
@@ -1135,14 +1134,14 @@ class _AssetEditDialogState extends State<AssetEditDialog> {
               FilterLabel('Notes', AppInput(controller: _notes, minLines: 2, maxLines: 4)),
             ]),
             const SizedBox(height: 12),
-            formSection('Depreciation', _blue, [
+            formSection('Depreciation', Tone.bg(0xFF2563EB), [
               FilterLabel('In-service date', _dateField(_inService, (v) => setState(() => _inService = v), enabled: !_locked, clearable: true)),
               FilterLabel('Useful life (months)', _num(_life, () => setState(() {}), enabled: !_locked)),
               FilterLabel('Residual value', _num(_residual, () => setState(() {}), enabled: !_locked)),
               FilterLabel('Method', _readOnly('Straight line')),
             ]),
             const SizedBox(height: 12),
-            formSection('Cost summary', _blue, [
+            formSection('Cost summary', Tone.bg(0xFF2563EB), [
               _hinted(acquisitionCostLabel, _readOnly(fmt(tNum(a['acquisitionCost']))), _r.t(acquisitionCostTooltip)),
               _hinted(additionalCostLabel, _readOnly(fmt(tNum(a['additionalCost']))), _r.t(additionalCostTooltip)),
               _hinted(totalCapitalizedCostLabel, _readOnly(fmt(tNum(a['totalCapitalizedCost'])), bold: true), _r.t(totalCapitalizedCostTooltip)),
@@ -1282,7 +1281,7 @@ class _AddAssetCostDialogState extends State<AddAssetCostDialog> {
               style: const TextStyle(fontSize: 13, color: TColors.slate500),
             ),
             const SizedBox(height: 12),
-            formSection('How to treat it', _blue, [
+            formSection('How to treat it', Tone.bg(0xFF2563EB), [
               _hinted(
                 'Cost treatment',
                 AppSelect<String>(
@@ -1323,7 +1322,7 @@ class _AddAssetCostDialogState extends State<AddAssetCostDialog> {
                 ]),
               )
             else ...[
-              formSection('Cost', _blue, [
+              formSection('Cost', Tone.bg(0xFF2563EB), [
                 FilterLabel('Date', _dateField(_date, (v) => setState(() => _date = v), clearable: true)),
                 FilterLabel('Amount', _num(_amount, () => setState(() {}))),
                 FilterLabel('What it was for', AppInput(controller: _desc, hintText: _r.costPlaceholder)),
@@ -1433,7 +1432,7 @@ class _DisposeAssetDialogState extends State<DisposeAssetDialog> {
                 style: const TextStyle(fontSize: 13, color: TColors.slate500),
               ),
               const SizedBox(height: 12),
-              formSection('Disposal', _blue, [
+              formSection('Disposal', Tone.bg(0xFF2563EB), [
                 FilterLabel('Date', _dateField(_date, (v) => setState(() => _date = v), clearable: true)),
                 _hinted('Proceeds', _num(_proceeds, () => setState(() {})), 'Leave blank if nothing was received.'),
                 FilterLabel('Received into', _accountSelect(_r, widget.cashAccounts, _account, (v) => setState(() => _account = v))),

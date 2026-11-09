@@ -31,21 +31,21 @@ const roomStatuses = ['Available', 'Occupied', 'Reserved', 'Cleaning', 'Maintena
 /// RoomStatusBadge (bg, fg) and RoomGrid's tile (bg, border).
 const _roomBadge = {
   'Available': (Tone.bg(0xFFD1FAE5), Tone.bg(0xFF047857)),
-  'Occupied': (TColors.violet100, TColors.violet700),
+  'Occupied': (TColors.violet100, Tone.fg(0xFF6D28D9)),
   'Maintenance': (Tone.bg(0xFFFEF3C7), Tone.bg(0xFFB45309)),
   'Reserved': (Tone.bg(0xFFDBEAFE), Tone.bg(0xFF1D4ED8)),
   'Cleaning': (Tone.bg(0xFFFFEDD5), Tone.bg(0xFFC2410C)),
 };
 const _roomTile = {
   'Available': (Tone.bg(0xFFECFDF5), Tone.bg(0xFFA7F3D0)),
-  'Occupied': (TColors.violet50, TColors.violet200),
+  'Occupied': (Tone.bg(0xFFF5F3FF), Tone.line(0xFFDDD6FE)),
   'Maintenance': (Tone.bg(0xFFFFFBEB), Tone.bg(0xFFFDE68A)),
   'Reserved': (Tone.bg(0xFFEFF6FF), Tone.bg(0xFFBFDBFE)),
   'Cleaning': (Tone.bg(0xFFFFF7ED), Tone.bg(0xFFFED7AA)),
 };
 
 Widget roomStatusBadge(Object? status) {
-  final (bg, fg) = _roomBadge[tStr(status)] ?? (TColors.slate100, TColors.slate700);
+  final (bg, fg) = _roomBadge[tStr(status)] ?? (Tone.bg(0xFFF1F5F9), Tone.fg(0xFF334155));
   return hotelBadge(tStr(status), bg, fg);
 }
 
@@ -276,7 +276,7 @@ class _HotelRoomsScreenState extends State<HotelRoomsScreen> {
             twoUp([
               for (final r in list)
                 () {
-                  final (bg, border) = _roomTile[tStr(r['status'])] ?? (TColors.slate50, TColors.slate200);
+                  final (bg, border) = _roomTile[tStr(r['status'])] ?? (Tone.bg(0xFFF8FAFC), Tone.line(0xFFE2E8F0));
                   return InkWell(
                     onTap: () => _detail(r),
                     borderRadius: BorderRadius.circular(8),
@@ -658,10 +658,10 @@ class _HotelHousekeepingScreenState extends State<HotelHousekeepingScreen> {
 // ================================================================= HK Schedule
 
 const _schedTone = {
-  'Scheduled': (Tone(0xFFDBEAFE), Tone(0xFF1D4ED8)),
-  'InProgress': (Tone(0xFFFEF3C7), Tone(0xFFB45309)),
-  'Completed': (Tone(0xFFD1FAE5), Tone(0xFF047857)),
-  'Skipped': (TColors.slate100, TColors.slate700),
+  'Scheduled': (Tone.bg(0xFFDBEAFE), Tone.fg(0xFF1D4ED8)),
+  'InProgress': (Tone.bg(0xFFFEF3C7), Tone.fg(0xFFB45309)),
+  'Completed': (Tone.bg(0xFFD1FAE5), Tone.fg(0xFF047857)),
+  'Skipped': (Tone.bg(0xFFF1F5F9), Tone.fg(0xFF334155)),
 };
 
 /// The Time column: minutes between start and end, "In progress..." when only started.
@@ -853,7 +853,7 @@ class _HotelHKScheduleScreenState extends State<HotelHKScheduleScreen> {
               primary: (s) => 'Room ${tStr(s['roomnumber'])}',
               secondary: (s) => '${_dash(s['floorname'])} · ${_dash(s['roomtypename'])}',
               trailing: (s) {
-                final (bg, fg) = _schedTone[tStr(s['status'])] ?? (TColors.slate100, TColors.slate700);
+                final (bg, fg) = _schedTone[tStr(s['status'])] ?? (Tone.bg(0xFFF1F5F9), Tone.fg(0xFF334155));
                 return hotelBadge(tStr(s['status']), bg, fg);
               },
               details: (s) => [
@@ -878,7 +878,7 @@ class _HotelHKScheduleScreenState extends State<HotelHKScheduleScreen> {
                 rows: [
                   for (final s in items)
                     () {
-                      final (bg, fg) = _schedTone[tStr(s['status'])] ?? (TColors.slate100, TColors.slate700);
+                      final (bg, fg) = _schedTone[tStr(s['status'])] ?? (Tone.bg(0xFFF1F5F9), Tone.fg(0xFF334155));
                       return <Widget>[
                         Text(tStr(s['roomnumber']), style: const TextStyle(fontWeight: FontWeight.w600, color: TColors.violet700)),
                         cellText(_dash(s['floorname'])),
@@ -1029,12 +1029,12 @@ class _ScheduleDialogState extends State<_ScheduleDialog> {
 // ================================================================ Room Service
 
 const _serviceTone = {
-  'Placed': (Tone(0xFFDBEAFE), Tone(0xFF1D4ED8)),
-  'Preparing': (Tone(0xFFFEF3C7), Tone(0xFFB45309)),
-  'Ready': (Tone(0xFFD1FAE5), Tone(0xFF047857)),
-  'Delivered': (TColors.slate100, TColors.slate700),
-  'Served': (TColors.slate100, TColors.slate700),
-  'Cancelled': (Tone(0xFFFEE2E2), Tone(0xFFB91C1C)),
+  'Placed': (Tone.bg(0xFFDBEAFE), Tone.fg(0xFF1D4ED8)),
+  'Preparing': (Tone.bg(0xFFFEF3C7), Tone.fg(0xFFB45309)),
+  'Ready': (Tone.bg(0xFFD1FAE5), Tone.fg(0xFF047857)),
+  'Delivered': (Tone.bg(0xFFF1F5F9), Tone.fg(0xFF334155)),
+  'Served': (Tone.bg(0xFFF1F5F9), Tone.fg(0xFF334155)),
+  'Cancelled': (Tone.bg(0xFFFEE2E2), Tone.fg(0xFFB91C1C)),
 };
 
 class HotelRoomServiceScreen extends StatefulWidget {
@@ -1075,7 +1075,7 @@ class _HotelRoomServiceScreenState extends State<HotelRoomServiceScreen> {
   }
 
   Widget _status(Map o) {
-    final (bg, fg) = _serviceTone[tStr(o['status'])] ?? (TColors.slate100, TColors.slate700);
+    final (bg, fg) = _serviceTone[tStr(o['status'])] ?? (Tone.bg(0xFFF1F5F9), Tone.fg(0xFF334155));
     return hotelBadge(tStr(o['status']), bg, fg);
   }
 

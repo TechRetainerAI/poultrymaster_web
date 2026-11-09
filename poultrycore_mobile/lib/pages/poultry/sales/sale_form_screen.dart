@@ -979,7 +979,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
             ),
           ],
           const SizedBox(height: 14),
-          _section('Customer & Date', TColors.blue600, const Tone.fg(0x66EFF6FF), TColors.blue200, [
+          _section('Customer & Date', Tone.bg(0xFF2563EB), const Tone.bg(0x66EFF6FF), Tone.line(0xFFBFDBFE), [
             _label(
               'Customer *',
               trailing: const Tooltip(
@@ -1083,9 +1083,9 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
           const SizedBox(height: 16),
           _section(
             'Items',
-            const Tone.fg(0xFFF59E0B),
-            const Tone.fg(0x66FFFBEB),
-            TColors.amber200,
+            const Tone.bg(0xFFF59E0B),
+            const Tone.bg(0x66FFFBEB),
+            Tone.line(0xFFFDE68A),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1184,7 +1184,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          _section('Payment', const Tone.fg(0xFF16A34A), const Tone.fg(0x66F0FDF4), const Tone.fg(0xFFBBF7D0), [
+          _section('Payment', const Tone.bg(0xFF16A34A), const Tone.bg(0x66F0FDF4), const Tone.line(0xFFBBF7D0), [
             // Only when this customer holds credit: money they already paid,
             // kept for them (e.g. from a reversed sale).
             if (f.creditAvailable > 0) _creditBox(),

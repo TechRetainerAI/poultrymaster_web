@@ -33,7 +33,7 @@ const waterLossTypes = [
 Widget waterLossStatusBadge(Object? status) {
   final s = tStr(status).isEmpty ? 'Pending' : tStr(status);
   final (bg, fg) = switch (s) {
-    'Approved' => (const Tone(0xFFDCFCE7), const Tone(0xFF15803D)),
+    'Approved' => (const Tone.bg(0xFFDCFCE7), const Tone.fg(0xFF15803D)),
     'Pending' || 'Reopened' => (TColors.amber100, TColors.amber700),
     _ => (TColors.slate100, TColors.slate700),
   };
@@ -398,7 +398,7 @@ class _LossDialogState extends State<_LossDialog> {
             Text(e != null ? 'Update the loss details. Approved records must be Unapproved first.' : 'Log a loss for review and approval',
                 style: const TextStyle(fontSize: 13, color: TColors.slate500)),
             const SizedBox(height: 12),
-            formSection('Basics', const Tone(0xFF4F46E5), [
+            formSection('Basics', const Tone.bg(0xFF4F46E5), [
               FilterLabel(
                 'Date',
                 AppDateField(
@@ -426,13 +426,13 @@ class _LossDialogState extends State<_LossDialog> {
               ),
             ]),
             const SizedBox(height: 12),
-            formSection('Quantity & Value', const Tone(0xFF2563EB), [
+            formSection('Quantity & Value', const Tone.bg(0xFF2563EB), [
               FilterLabel('Bags', _num(_bags)),
               FilterLabel('Sachets', _num(_sachets)),
               FilterLabel('Estimated value', _num(_value, decimal: true)),
             ]),
             const SizedBox(height: 12),
-            formSection('Details', TColors.slate600, [
+            formSection('Details', Tone.bg(0xFF475569), [
               FilterLabel('Reason *', ReasonSelectField(controller: _reason, options: lossReasons)),
               FilterLabel('Notes', AppInput(controller: _notes, minLines: 3, maxLines: 6)),
             ]),

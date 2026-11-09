@@ -149,10 +149,10 @@ class _GenericInventoryScreenState extends State<GenericInventoryScreen> {
             OutlinedButton(onPressed: () => _open('/generic-stock-adjustments', 'Stock adjustments'), child: const Text('Stock adjustments')),
             const SizedBox(height: 14),
             twoUp([
-              stat('Total products', '${_rows.length}', Icons.inventory_2_outlined, const Tone(0xFFE0E7FF), const Tone(0xFF4338CA)),
-              stat('Low stock', '$low', Icons.warning_amber_rounded, TColors.amber100, TColors.amber700),
-              stat('Out of stock', '$out', Icons.error_outline, TColors.rose100, TColors.rose700),
-              stat('Stock value (cost)', _fmt(value), Icons.inventory_2_outlined, TColors.emerald100, TColors.emerald700),
+              stat('Total products', '${_rows.length}', Icons.inventory_2_outlined, const Tone.bg(0xFFE0E7FF), const Tone.fg(0xFF4338CA)),
+              stat('Low stock', '$low', Icons.warning_amber_rounded, Tone.bg(0xFFFEF3C7), Tone.fg(0xFFB45309)),
+              stat('Out of stock', '$out', Icons.error_outline, TColors.rose100, Tone.fg(0xFFBE123C)),
+              stat('Stock value (cost)', _fmt(value), Icons.inventory_2_outlined, TColors.emerald100, Tone.fg(0xFF047857)),
             ]),
             const SizedBox(height: 14),
             ListFiltersCard(

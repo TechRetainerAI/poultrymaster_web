@@ -219,10 +219,10 @@ class _RestaurantCashAccountsScreenState extends State<RestaurantCashAccountsScr
 
   static const _tileTones = {
     'violet': (Tone.bg(0xFFEDE9FE), Tone.line(0xFFC4B5FD), Tone.fg(0xFF4C1D95), Tone.fg(0xFF4C1D95)),
-    'emerald': (TColors.emerald100, TColors.emerald300, TColors.emerald900, TColors.emerald800),
-    'amber': (Tone.bg(0xFFFEF3C7), TColors.amber300, TColors.amber900, Tone.fg(0xFF92400E)),
-    'blue': (TColors.blue100, TColors.blue300, TColors.blue900, Tone.fg(0xFF1E40AF)),
-    'rose': (Tone.bg(0xFFFFE4E6), Tone.line(0xFFFDA4AF), Tone.fg(0xFF881337), TColors.rose800),
+    'emerald': (TColors.emerald100, Tone.line(0xFF6EE7B7), Tone.fg(0xFF064E3B), Tone.fg(0xFF065F46)),
+    'amber': (Tone.bg(0xFFFEF3C7), Tone.line(0xFFFCD34D), Tone.fg(0xFF78350F), Tone.fg(0xFF92400E)),
+    'blue': (Tone.bg(0xFFDBEAFE), Tone.line(0xFF93C5FD), Tone.fg(0xFF1E3A8A), Tone.fg(0xFF1E40AF)),
+    'rose': (Tone.bg(0xFFFFE4E6), Tone.line(0xFFFDA4AF), Tone.fg(0xFF881337), Tone.fg(0xFF9F1239)),
   };
 
   /// Poultry's coloured cash-account tile.

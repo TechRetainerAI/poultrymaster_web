@@ -117,7 +117,6 @@ Widget _switchRow(String title, String hint, bool value, ValueChanged<bool> on) 
     );
 
 const _indigo = Tone.fg(0xFF4F46E5), _blue = Tone(0xFF2563EB), _amber = Tone(0xFFD97706), _slate = Tone(0xFF475569);
-const _emerald = Tone(0xFF059669);
 
 // ------------------------------------------------------------ purchase
 
@@ -649,7 +648,7 @@ class _RawItemDialogState extends State<RawItemDialog> {
                 onChanged: (v) => _notes = v.isEmpty ? null : v)),
           ]),
           const SizedBox(height: 12),
-          formSection('Financial treatment', _emerald, [
+          formSection('Financial treatment', Tone.bg(0xFF059669), [
             _cell(
               'Cost recognition',
               Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -737,7 +736,7 @@ class _RawPayBalanceDialogState extends State<RawPayBalanceDialog> {
         title: const Text('Pay balance'),
         content: SizedBox(
           width: 420,
-          child: formSection('Outstanding: ${widget.money(tNum(widget.purchase['balance']))}', _emerald, [
+          child: formSection('Outstanding: ${widget.money(tNum(widget.purchase['balance']))}', Tone.bg(0xFF059669), [
             _cell('Amount', NumBox(value: _amount, decimal: true, onChanged: (v) => _amount = v)),
             _cell(
               'Method',

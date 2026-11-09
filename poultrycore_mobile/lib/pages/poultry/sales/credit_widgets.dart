@@ -115,7 +115,7 @@ Widget creditKpi(String label, String value, {Color color = TColors.slate900}) =
 Widget creditStatusBadge(Object? status) {
   final s = tStr(status);
   final (fg, border) = switch (s) {
-    'Available' => (creditBlue700, TColors.blue300),
+    'Available' => (creditBlue700, Tone.line(0xFF93C5FD)),
     'Partly used' => (TColors.amber700, TColors.amber300),
     _ => (TColors.slate500, TColors.slate300),
   };

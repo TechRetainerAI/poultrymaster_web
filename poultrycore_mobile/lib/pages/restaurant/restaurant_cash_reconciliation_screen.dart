@@ -82,13 +82,13 @@ List<ReconHistoryRow> reconciliationHistory(List<Map> counts, List<Map> shifts, 
 }
 
 const _countBadge = {
-  'Draft': (TColors.slate100, TColors.slate700),
+  'Draft': (Tone.bg(0xFFF1F5F9), Tone.fg(0xFF334155)),
   'Posted': (Tone.bg(0xFFDCFCE7), Tone.bg(0xFF15803D)),
-  'Reversed': (Tone.bg(0xFFFEF3C7), TColors.amber700),
+  'Reversed': (Tone.bg(0xFFFEF3C7), Tone.fg(0xFFB45309)),
 };
 
 Widget _statusBadge(String s) {
-  final (bg, fg) = _countBadge[s] ?? (Tone(0xFFFFFFFF), TColors.slate500);
+  final (bg, fg) = _countBadge[s] ?? (Tone.bg(0xFFFFFFFF), TColors.slate500);
   return rStatusBadge(s, bg: bg, fg: fg, border: bg);
 }
 

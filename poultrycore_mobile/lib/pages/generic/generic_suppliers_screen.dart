@@ -318,7 +318,7 @@ class _GenericSupplierFormDialogState extends State<GenericSupplierFormDialog> {
               _text('Email', _email, 150, type: TextInputType.emailAddress),
             ]),
             const SizedBox(height: 12),
-            formSection('Address', const Tone(0xFF16A34A), [
+            formSection('Address', const Tone.bg(0xFF16A34A), [
               _text('Location', _location, 255),
               _text('Address', _address, 500),
             ]),

@@ -86,7 +86,6 @@ const cashTransferReasons = [
 
 const _sky600 = Tone.fg(0xFF0284C7);
 const _blue600 = Tone.fg(0xFF2563EB);
-const _indigo600 = Tone(0xFF4F46E5);
 
 Widget _numberField(TextEditingController c, VoidCallback changed) => AppInput(
       controller: c,
@@ -220,7 +219,7 @@ class _CashAccountFormDialogState extends State<CashAccountFormDialog> {
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             const Text('Configure where cash flows into or out of', style: TextStyle(fontSize: 13, color: TColors.slate500)),
             const SizedBox(height: 12),
-            formSection('Identity', _r.accent ?? _indigo600, [
+            formSection('Identity', _r.accent ?? Tone.bg(0xFF4F46E5), [
               FilterLabel('Name *', AppInput(controller: _name, hintText: _r.isHotel ? 'e.g. Front Desk Cash' : null)),
               FilterLabel(
                 'Type',
@@ -256,13 +255,13 @@ class _CashAccountFormDialogState extends State<CashAccountFormDialog> {
                 ]),
             ]),
             const SizedBox(height: 12),
-            formSection('Behavior', TColors.amber600, [
+            formSection('Behavior', Tone.bg(0xFFD97706), [
               FilterLabel('Allow negative balance',
                   _switchRow('Allow this account to go below zero', _allowNeg, (v) => setState(() => _allowNeg = v))),
               if (editing) FilterLabel('Active', _switchRow('Active', _active, (v) => setState(() => _active = v))),
             ]),
             const SizedBox(height: 12),
-            formSection('Notes', TColors.slate600, [FilterLabel('Notes', AppInput(controller: _notes))]),
+            formSection('Notes', Tone.bg(0xFF475569), [FilterLabel('Notes', AppInput(controller: _notes))]),
           ]),
         ),
         actions: [
@@ -366,12 +365,12 @@ class _CashTransferQuickDialogState extends State<CashTransferQuickDialog> {
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           const Text('Move funds between two cash accounts', style: TextStyle(fontSize: 13, color: TColors.slate500)),
           const SizedBox(height: 12),
-          formSection('Accounts', _r.accent ?? _indigo600, [
+          formSection('Accounts', _r.accent ?? Tone.bg(0xFF4F46E5), [
             FilterLabel('From', pick(_from, 'From account', (v) => _from = v)),
             FilterLabel('To', pick(_to, 'To account', (v) => _to = v)),
           ]),
           const SizedBox(height: 12),
-          formSection('Amount', TColors.amber600, [
+          formSection('Amount', Tone.bg(0xFFD97706), [
             FilterLabel('Amount', _numberField(_amount, () => setState(() {}))),
             FilterLabel(
               'Reason',
@@ -668,7 +667,7 @@ class _AdjustBalanceDialogState extends State<AdjustBalanceDialog> {
             const Text('Posts an adjustment transaction and moves the balance — it is never edited directly.',
                 style: TextStyle(fontSize: 13, color: TColors.slate500)),
             const SizedBox(height: 12),
-            formSection('Adjustment', _indigo600, [
+            formSection('Adjustment', Tone.bg(0xFF4F46E5), [
               FilterLabel(
                 'Direction',
                 AppSelect<String>(

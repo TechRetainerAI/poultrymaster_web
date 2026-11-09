@@ -333,7 +333,7 @@ class _RestaurantSetupScreenState extends State<RestaurantSetupScreen> {
 
   Widget _header() => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
-          _tile(Icons.settings_outlined, const Tone(0xFFFFE4E6), restaurantRose),
+          _tile(Icons.settings_outlined, const Tone.bg(0xFFFFE4E6), restaurantRose),
           const SizedBox(width: 12),
           const Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -572,7 +572,7 @@ class _RestaurantSetupScreenState extends State<RestaurantSetupScreen> {
 
   Widget _schedulesTab() => TCard(
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          _cardHead(Icons.schedule, const Tone(0xFFDBEAFE), const Tone(0xFF2563EB), 'Menu Schedules',
+          _cardHead(Icons.schedule, const Tone.bg(0xFFDBEAFE), const Tone.fg(0xFF2563EB), 'Menu Schedules',
               'Define when different menus are available (breakfast, lunch, dinner, happy hour)', 'Add Schedule', () => _openSchedule()),
           if (_schedules.isEmpty)
             _empty(Icons.schedule, 'No menu schedules yet', 'Create schedules like Breakfast (6am-11am), Lunch (11am-3pm), Dinner (5pm-10pm)',
@@ -586,7 +586,7 @@ class _RestaurantSetupScreenState extends State<RestaurantSetupScreen> {
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(border: Border.all(color: TColors.slate200), borderRadius: BorderRadius.circular(12)),
                   child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    _tile(Icons.schedule, active ? const Tone(0xFFDCFCE7) : const Tone(0xFFF3F4F6), active ? const Tone(0xFF16A34A) : const Tone(0xFF9CA3AF)),
+                    _tile(Icons.schedule, active ? const Tone(0xFFDCFCE7) : const Tone.bg(0xFFF3F4F6), active ? const Tone(0xFF16A34A) : const Tone.fg(0xFF9CA3AF)),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -628,7 +628,7 @@ class _RestaurantSetupScreenState extends State<RestaurantSetupScreen> {
 
   Widget _modifiersTab() => TCard(
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          _cardHead(Icons.restaurant, const Tone(0xFFF3E8FF), const Tone(0xFF9333EA), 'Modifier Groups',
+          _cardHead(Icons.restaurant, const Tone.bg(0xFFF3E8FF), const Tone.fg(0xFF9333EA), 'Modifier Groups',
               'Create groups of options customers can choose when ordering (sizes, toppings, sauces)', 'Add Group', () => _openGroup()),
           if (_groups.isEmpty)
             _empty(Icons.restaurant, 'No modifier groups yet',
@@ -653,7 +653,7 @@ class _RestaurantSetupScreenState extends State<RestaurantSetupScreen> {
           color: const Tone.bg(0xCCF9FAFB),
           padding: const EdgeInsets.fromLTRB(14, 10, 4, 10),
           child: Row(children: [
-            _tile(Icons.restaurant, active ? const Tone(0xFFF3E8FF) : const Tone(0xFFE5E7EB), active ? const Tone(0xFF9333EA) : const Tone(0xFF9CA3AF),
+            _tile(Icons.restaurant, active ? const Tone(0xFFF3E8FF) : const Tone.bg(0xFFE5E7EB), active ? const Tone(0xFF9333EA) : const Tone.fg(0xFF9CA3AF),
                 size: 32),
             const SizedBox(width: 12),
             Expanded(

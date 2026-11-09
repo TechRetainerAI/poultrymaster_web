@@ -151,7 +151,7 @@ WaterMaterialRow waterRecipeRow(Map it, num bags, List<Map> rawMaterials) {
 Widget waterBatchStatusBadge(Object? status) {
   final s = tStr(status);
   final (bg, fg) = switch (s) {
-    'Approved' => (const Tone(0xFFDCFCE7), const Tone(0xFF15803D)),
+    'Approved' => (const Tone.bg(0xFFDCFCE7), const Tone.fg(0xFF15803D)),
     'Cancelled' => (TColors.amber100, TColors.amber700),
     'Draft' => (TColors.slate100, TColors.slate700),
     _ => (TColors.slate100, TColors.slate700),
@@ -863,7 +863,7 @@ class _WaterProductionFormScreenState extends State<WaterProductionFormScreen> {
             const Text('Record what was produced, the raw materials consumed, and the costs incurred. Saved as Draft until approved.',
                 style: TextStyle(fontSize: 13, color: TColors.slate500)),
             const SizedBox(height: 12),
-            formSection('Batch information', const Tone.fg(0xFF4F46E5), [
+            formSection('Batch information', const Tone.bg(0xFF4F46E5), [
               FilterLabel('Batch number *', AppInput(controller: _batchNo, hintText: 'e.g. B-20260524-093015', inputFormatters: [LengthLimitingTextInputFormatter(60)])),
               FilterLabel(
                 'Production date',
@@ -921,7 +921,7 @@ class _WaterProductionFormScreenState extends State<WaterProductionFormScreen> {
               ),
             ]),
             const SizedBox(height: 12),
-            formSection('Production output', const Tone.fg(0xFF2563EB), [
+            formSection('Production output', const Tone.bg(0xFF2563EB), [
               _hinted('Produced bags *', _num(_bags), 'Total bags before subtracting damaged'),
               FilterLabel('Sachets per bag', _num(_perBag)),
               _hinted('Damaged bags', _num(_damaged), 'Counted as loss — not added to stock'),
@@ -984,14 +984,14 @@ class _WaterProductionFormScreenState extends State<WaterProductionFormScreen> {
               ]),
             ),
             const SizedBox(height: 12),
-            formSection('Production costs', const Tone.fg(0xFF16A34A), [
+            formSection('Production costs', const Tone.bg(0xFF16A34A), [
               FilterLabel('Electricity', _num(_electricity, decimal: true)),
               FilterLabel('Fuel', _num(_fuel, decimal: true)),
               FilterLabel('Labor', _num(_labor, decimal: true)),
               FilterLabel('Other', _num(_other, decimal: true)),
             ]),
             const SizedBox(height: 12),
-            formSection('Notes', TColors.slate600, [FilterLabel('Notes', AppInput(controller: _notes, minLines: 3, maxLines: 6))]),
+            formSection('Notes', Tone.bg(0xFF475569), [FilterLabel('Notes', AppInput(controller: _notes, minLines: 3, maxLines: 6))]),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),
@@ -1221,7 +1221,7 @@ class _WaterProductionDetailScreenState extends State<WaterProductionDetailScree
         _sum('Total sachets', qtyFmt(totalSachets)),
         _sum('Efficiency', '${tNum(b['productionEfficiencyPercent']).toStringAsFixed(1)}%'),
       ]),
-      formSection('Batch information', const Tone(0xFF4F46E5), [
+      formSection('Batch information', const Tone.bg(0xFF4F46E5), [
         _fields([
           ('Batch number', tStr(b['batchNumber']).isEmpty ? '—' : tStr(b['batchNumber']), null),
           ('Production date', tStr(b['productionDate']).isEmpty ? '—' : _day(b['productionDate']), null),
@@ -1233,7 +1233,7 @@ class _WaterProductionDetailScreenState extends State<WaterProductionDetailScree
           ('Status', tStr(b['status']), null),
         ]),
       ]),
-      formSection('Costs', const Tone(0xFF16A34A), [
+      formSection('Costs', const Tone.bg(0xFF16A34A), [
         _fields([
           ('Electricity', _gh(tNum(b['electricityCost'])), null),
           ('Fuel', _gh(tNum(b['fuelCost'])), null),
@@ -1243,7 +1243,7 @@ class _WaterProductionDetailScreenState extends State<WaterProductionDetailScree
           ('Total cost', _gh(all), TColors.emerald700),
         ]),
       ]),
-      formSection('Raw materials & supplies used', TColors.amber600, [
+      formSection('Raw materials & supplies used', Tone.bg(0xFFD97706), [
         if (_materials.isEmpty)
           _empty('No raw materials & supplies recorded for this batch.')
         else
@@ -1262,7 +1262,7 @@ class _WaterProductionDetailScreenState extends State<WaterProductionDetailScree
               ]),
           ]),
       ]),
-      formSection('Related inventory transactions', const Tone(0xFF0284C7), [
+      formSection('Related inventory transactions', const Tone.bg(0xFF0284C7), [
         if (_txns.isEmpty)
           _empty('None yet — batch is not Approved or stock impact has been reversed.')
         else
@@ -1286,7 +1286,7 @@ class _WaterProductionDetailScreenState extends State<WaterProductionDetailScree
               ]),
           ]),
       ]),
-      formSection('Related expense records', const Tone(0xFF9333EA), [
+      formSection('Related expense records', const Tone.bg(0xFF9333EA), [
         if (_expenses.isEmpty)
           _empty('No production-linked expenses for this batch.')
         else
@@ -1311,7 +1311,7 @@ class _WaterProductionDetailScreenState extends State<WaterProductionDetailScree
               ]),
           ]),
       ]),
-      formSection('Related loss records', const Tone(0xFFE11D48), [
+      formSection('Related loss records', const Tone.bg(0xFFE11D48), [
         if (_losses.isEmpty)
           _empty('No damage / rejected loss records for this batch.')
         else
@@ -1333,7 +1333,7 @@ class _WaterProductionDetailScreenState extends State<WaterProductionDetailScree
           ]),
       ]),
       if (tStr(b['notes']).isNotEmpty)
-        formSection('Notes', TColors.slate600, [Text(tStr(b['notes']), style: const TextStyle(fontSize: 13, color: TColors.slate700))]),
+        formSection('Notes', Tone.bg(0xFF475569), [Text(tStr(b['notes']), style: const TextStyle(fontSize: 13, color: TColors.slate700))]),
     ];
   }
 }

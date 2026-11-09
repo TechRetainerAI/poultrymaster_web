@@ -181,7 +181,7 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
     final st = _sorting[tIntOrNull(r['id'])];
     if (st == null) return const SizedBox.shrink();
     final (bg, fg) = switch (st.status) {
-      'Complete' => (TColors.emerald100, TColors.emerald800),
+      'Complete' => (TColors.emerald100, Tone.fg(0xFF065F46)),
       'Partial' => (TColors.amber100, TColors.amber800),
       _ => (TColors.slate100, TColors.slate700),
     };
@@ -821,14 +821,14 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
           Text('Batch: ${_batchOf(r)}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
         const SizedBox(height: 10),
         Row(children: [
-          Expanded(child: tile('Eggs', loc(tNum(r['totalProduction'])), TColors.emerald100, TColors.emerald300, TColors.emerald800)),
+          Expanded(child: tile('Eggs', loc(tNum(r['totalProduction'])), TColors.emerald100, Tone.line(0xFF6EE7B7), Tone.fg(0xFF065F46))),
           const SizedBox(width: 8),
           Expanded(
-              child: tile('Birds Left', loc(tNum(r['noOfBirds']) - mortality), TColors.blue100, TColors.blue300, const Tone(0xFF1E40AF))),
+              child: tile('Birds Left', loc(tNum(r['noOfBirds']) - mortality), Tone.bg(0xFFDBEAFE), Tone.line(0xFF93C5FD), const Tone.fg(0xFF1E40AF))),
         ]),
         if (med.isNotEmpty && med != '-') ...[
           const SizedBox(height: 8),
-          tile('Medication', med, TColors.violet100, const Tone.bg(0xFFC4B5FD), const Tone.bg(0xFF4C1D95), wide: true),
+          tile('Medication', med, TColors.violet100, const Tone.line(0xFFC4B5FD), const Tone.fg(0xFF4C1D95), wide: true),
         ],
       ]),
       body: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [

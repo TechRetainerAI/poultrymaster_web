@@ -382,7 +382,7 @@ class _WaterStockEntryDialogState extends State<WaterStockEntryDialog> {
             const Text('Manually record a restock, adjustment, or return. Shows as a “Manual” entry on the list.',
                 style: TextStyle(fontSize: 13, color: TColors.slate500)),
             const SizedBox(height: 12),
-            formSection('Stock entry', const Tone(0xFF0284C7), [
+            formSection('Stock entry', const Tone.bg(0xFF0284C7), [
               FilterLabel(
                 'Item *',
                 AppSelect<String>(
@@ -633,9 +633,9 @@ class _WaterInventoryScreenState extends State<WaterInventoryScreen> {
             Wrap(spacing: 8, runSpacing: 8, children: waterStockTools(context, widget.session, widget.company, rawItems: _raw, products: _products, onDone: _load)),
             const SizedBox(height: 12),
             twoUp([
-              _stat('Total items', count(_products.length + _raw.length), Icons.inventory_2_outlined, const Tone(0xFFE0F2FE), const Tone(0xFF0369A1)),
-              _stat('Low stock', count(low), Icons.warning_amber_rounded, TColors.amber100, TColors.amber700),
-              _stat('Out of stock', count(out), Icons.error_outline, const Tone(0xFFFFE4E6), const Tone(0xFFBE123C)),
+              _stat('Total items', count(_products.length + _raw.length), Icons.inventory_2_outlined, const Tone.bg(0xFFE0F2FE), const Tone.fg(0xFF0369A1)),
+              _stat('Low stock', count(low), Icons.warning_amber_rounded, Tone.bg(0xFFFEF3C7), Tone.fg(0xFFB45309)),
+              _stat('Out of stock', count(out), Icons.error_outline, const Tone.bg(0xFFFFE4E6), const Tone.fg(0xFFBE123C)),
             ]),
             const SizedBox(height: 12),
             Container(

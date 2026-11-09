@@ -767,9 +767,9 @@ class _CashAccountsScreenState extends State<CashAccountsScreen> {
 }
 
 const _clearingTones = {
-  'Uncleared': (TColors.slate100, TColors.slate600),
-  'Cleared': (TColors.emerald100, TColors.emerald700),
-  'Disputed': (Tone(0xFFFFE4E6), Tone(0xFFBE123C)),
+  'Uncleared': (Tone.bg(0xFFF1F5F9), Tone.fg(0xFF475569)),
+  'Cleared': (TColors.emerald100, Tone.fg(0xFF047857)),
+  'Disputed': (Tone.bg(0xFFFFE4E6), Tone.fg(0xFFBE123C)),
 };
 
 class CashAccountDetailScreen extends StatefulWidget {

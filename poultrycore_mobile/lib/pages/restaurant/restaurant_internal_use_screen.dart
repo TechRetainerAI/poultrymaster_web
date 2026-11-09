@@ -727,7 +727,7 @@ class _FormDialogState extends State<_FormDialog> {
               _optional('Detail', _reason, 'e.g. Friday staff lunch'),
             ]),
             const SizedBox(height: 12),
-            formSection('How much', const Tone(0xFF2563EB), [
+            formSection('How much', const Tone.bg(0xFF2563EB), [
               if (widget.products.isEmpty)
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -794,7 +794,7 @@ class _FormDialogState extends State<_FormDialog> {
                       : 'No purchase history yet — enter what it costs you'),
             ]),
             const SizedBox(height: 12),
-            formSection('Check before you save', TColors.slate600, [
+            formSection('Check before you save', Tone.bg(0xFF475569), [
               Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 _summary('Coming out of stock', _effective > 0 ? '${qtyFmt(_effective)} ${_entryLabel.toLowerCase()}' : '—',
                     note: _isMenu && _effective > 0 ? 'Its recipe ingredients come out of stock' : null),

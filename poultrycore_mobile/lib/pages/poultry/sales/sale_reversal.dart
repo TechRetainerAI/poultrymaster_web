@@ -667,7 +667,7 @@ class _ReverseSaleScreenState extends State<ReverseSaleScreen> {
                     'Keep it as customer credit',
                     'The money stays received. ${_money(allocated)} becomes credit the customer can use on another sale. The cash account does not change.',
                     const Tone(0xFF60A5FA),
-                    const Tone(0x99EFF6FF),
+                    const Tone.bg(0x99EFF6FF),
                   ),
                 ],
               ),

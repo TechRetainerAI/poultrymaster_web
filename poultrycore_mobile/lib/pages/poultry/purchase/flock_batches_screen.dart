@@ -1419,11 +1419,11 @@ class _FlockBatchDialogState extends State<FlockBatchDialog> {
           if (_fetching)
             const Padding(padding: EdgeInsets.all(24), child: Text('Loading flock batch...', textAlign: TextAlign.center))
           else ...[
-            formSection('Batch Details', const Tone(0xFF4F46E5), identity),
+            formSection('Batch Details', const Tone.bg(0xFF4F46E5), identity),
             const SizedBox(height: 12),
-            formSection('Purchase Details', const Tone(0xFF059669), purchase),
+            formSection('Purchase Details', const Tone.bg(0xFF059669), purchase),
             const SizedBox(height: 12),
-            formSection('Order & Delivery', const Tone(0xFF0284C7), [
+            formSection('Order & Delivery', const Tone.bg(0xFF0284C7), [
               _cell('Order Placement Date', _date(_order, (v) => _order = v), hint: 'When you placed the order with the supplier.'),
               _cell('Estimated Arrival Date', _date(_arrival, (v) => _arrival = v), hint: 'When the birds are expected to arrive.'),
               Container(
@@ -1436,7 +1436,7 @@ class _FlockBatchDialogState extends State<FlockBatchDialog> {
               ),
             ]),
             const SizedBox(height: 12),
-            formSection('Status & Notes', const Tone(0xFF16A34A), [
+            formSection('Status & Notes', const Tone.bg(0xFF16A34A), [
               _switch(_hasArrived, _saving ? null : (v) => setState(() => _hasArrived = v), 'Batch Has Arrived',
                   _edit ? '(Turn on once birds physically arrive)' : '(Leave off until birds physically arrive — status stays Pending)'),
               _switch(_active, _saving || !_hasArrived ? null : (v) => setState(() => _active = v), 'Active Batch',
@@ -1582,9 +1582,9 @@ class _FlockBatchEditScreenState extends State<FlockBatchEditScreen> {
           const SizedBox(height: 14),
           if (_error.isNotEmpty) ...[TrackerBanner.error(_error), const SizedBox(height: 12)],
           if (_loading)
-            formSection('Batch Details', const Tone.fg(0xFF4F46E5), [const LinearProgressIndicator()])
+            formSection('Batch Details', const Tone.bg(0xFF4F46E5), [const LinearProgressIndicator()])
           else ...[
-            formSection('Batch Details', const Tone.fg(0xFF4F46E5), [
+            formSection('Batch Details', const Tone.bg(0xFF4F46E5), [
               _cell('Batch Name *', AppInput(controller: _name, enabled: !_saving, hintText: 'e.g., Batch A - Rhode Island Reds')),
               _cell('Batch Code *', AppInput(controller: _code, enabled: !_saving, hintText: 'e.g., B-001')),
               _cell('Breed', BreedPicker(value: _breed, enabled: !_saving, onChanged: (v) => setState(() => _breed = v))),

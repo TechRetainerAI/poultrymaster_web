@@ -780,10 +780,10 @@ class _BatchProductionRecordsScreenState extends State<BatchProductionRecordsScr
         Text(batchScopeLabel(r), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: TColors.slate500)),
         const SizedBox(height: 10),
         Row(children: [
-          Expanded(child: tile('Eggs', loc(tNum(r['totalEggs'])), TColors.emerald100, TColors.emerald300, TColors.emerald800)),
+          Expanded(child: tile('Eggs', loc(tNum(r['totalEggs'])), TColors.emerald100, Tone.line(0xFF6EE7B7), Tone.fg(0xFF065F46))),
           const SizedBox(width: 8),
           Expanded(
-            child: tile('Birds Left', r['birdsLeft'] != null ? loc(tNum(r['birdsLeft'])) : '—', TColors.blue100, TColors.blue300, const Tone(0xFF1E40AF)),
+            child: tile('Birds Left', r['birdsLeft'] != null ? loc(tNum(r['birdsLeft'])) : '—', Tone.bg(0xFFDBEAFE), Tone.line(0xFF93C5FD), const Tone.fg(0xFF1E40AF)),
           ),
         ]),
       ]),

@@ -308,36 +308,36 @@ class _HotelDashboardViewState extends State<HotelDashboardView> {
           ]),
           const SizedBox(height: 18),
           _panel(Icons.people_outline, hotelViolet, 'In-House Guests (${f.checkedIn})', 'No guests currently checked in', [
-            for (final g in f.balances) _row(g.guest, 'Room ${g.room} | ${g.ref}', _owes(g.balance), TColors.slate50, TColors.slate200),
+            for (final g in f.balances) _row(g.guest, 'Room ${g.room} | ${g.ref}', _owes(g.balance), Tone.bg(0xFFF8FAFC), Tone.line(0xFFE2E8F0)),
           ]),
-          _panel(Icons.login, const Tone(0xFF2563EB), 'Expected Arrivals (${f.todayArrivals.length})', 'No arrivals today', [
+          _panel(Icons.login, const Tone.fg(0xFF2563EB), 'Expected Arrivals (${f.todayArrivals.length})', 'No arrivals today', [
             for (final a in f.todayArrivals)
               _row(
                 '${tStr(_v(a, 'guestFirstName'))} ${tStr(_v(a, 'guestLastName'))}',
                 '${tStr(_v(a, 'roomTypeName'))} | ${tStr(_v(a, 'roomNumber')).isEmpty ? 'Unassigned' : tStr(_v(a, 'roomNumber'))}',
                 hotelBadge(tStr(_v(a, 'bookingRef')), const Tone(0xFFDBEAFE), const Tone(0xFF1D4ED8)),
-                const Tone(0xFFEFF6FF),
-                const Tone(0xFFDBEAFE),
+                const Tone.bg(0xFFEFF6FF),
+                const Tone.line(0xFFDBEAFE),
               ),
           ]),
-          _panel(Icons.logout, const Tone(0xFFD97706), 'Expected Departures (${f.todayDepartures.length})', 'No departures today', [
+          _panel(Icons.logout, const Tone.fg(0xFFD97706), 'Expected Departures (${f.todayDepartures.length})', 'No departures today', [
             for (final d in f.todayDepartures)
               _row(
                 '${tStr(_v(d, 'guestFirstName'))} ${tStr(_v(d, 'guestLastName'))}',
                 'Room ${tStr(_v(d, 'roomNumber'))} | ${tNum(_v(d, 'totalAmount')).toStringAsFixed(2)}',
                 _owes(f.balances.where((b) => b.ref == tStr(_v(d, 'bookingRef'))).firstOrNull?.balance ?? 0),
-                const Tone(0xFFFFFBEB),
-                const Tone(0xFFFEF3C7),
+                const Tone.bg(0xFFFFFBEB),
+                const Tone.line(0xFFFEF3C7),
               ),
           ]),
-          _panel(Icons.credit_card, const Tone(0xFF059669), 'Recent Payments', 'No payments yet', [
+          _panel(Icons.credit_card, const Tone.fg(0xFF059669), 'Recent Payments', 'No payments yet', [
             for (final p in f.payments.take(6))
               _row(
                 tNum(p['amount']).toStringAsFixed(2),
                 '${tStr(_v(p, 'paymentMethod'))} | ${_day(_v(p, 'paymentDate'))}',
                 Text(tStr(p['reference']).isEmpty ? '—' : tStr(p['reference']), style: const TextStyle(fontSize: 12, fontFamily: 'monospace', color: TColors.slate400)),
-                const Tone(0xFFECFDF5),
-                const Tone(0xFFD1FAE5),
+                const Tone.bg(0xFFECFDF5),
+                const Tone.line(0xFFD1FAE5),
                 titleColor: const Tone.fg(0xFF047857),
               ),
           ]),

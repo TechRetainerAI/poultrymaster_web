@@ -992,10 +992,10 @@ class _AnalyticalReportScreenState extends State<AnalyticalReportScreen> {
         LayoutBuilder(builder: (context, c) {
           final w = (c.maxWidth - 10) / 2;
           return Wrap(spacing: 10, runSpacing: 10, children: [
-            SizedBox(width: w, child: stat('Broken', l.broken, TColors.rose700, TColors.rose50, TColors.rose200)),
-            SizedBox(width: w, child: stat('Meaty', l.meaty, TColors.amber700, TColors.amber50, TColors.amber200)),
-            SizedBox(width: w, child: stat('Soft', l.soft, TColors.violet700, TColors.violet50, TColors.violet200)),
-            SizedBox(width: w, child: stat('Lost', l.lost, TColors.slate700, TColors.slate50, TColors.slate200)),
+            SizedBox(width: w, child: stat('Broken', l.broken, Tone.fg(0xFFBE123C), Tone.bg(0xFFFFF1F2), Tone.line(0xFFFECDD3))),
+            SizedBox(width: w, child: stat('Meaty', l.meaty, Tone.fg(0xFFB45309), Tone.bg(0xFFFFFBEB), Tone.line(0xFFFDE68A))),
+            SizedBox(width: w, child: stat('Soft', l.soft, Tone.fg(0xFF6D28D9), Tone.bg(0xFFF5F3FF), Tone.line(0xFFDDD6FE))),
+            SizedBox(width: w, child: stat('Lost', l.lost, Tone.fg(0xFF334155), Tone.bg(0xFFF8FAFC), Tone.line(0xFFE2E8F0))),
           ]);
         }),
         const SizedBox(height: 12),

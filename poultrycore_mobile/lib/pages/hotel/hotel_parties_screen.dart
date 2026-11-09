@@ -649,7 +649,7 @@ class _HotelPartyLedgerScreenState extends State<HotelPartyLedgerScreen> {
 
   Widget _line(Map<String, dynamic> e) {
     final type = tStr(e['transactionType']);
-    final (bg, fg) = _k.ledgerColors[type] ?? (TColors.slate100, TColors.slate700);
+    final (bg, fg) = _k.ledgerColors[type] ?? (Tone.bg(0xFFF1F5F9), Tone.fg(0xFF334155));
     final debit = tNum(e['debitAmount']), credit = tNum(e['creditAmount']);
     // The customer statement's Ref column.
     final ref = !_k.isCustomer

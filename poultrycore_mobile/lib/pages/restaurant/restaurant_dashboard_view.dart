@@ -22,14 +22,14 @@ import 'restaurant_widgets.dart';
 
 import 'package:poultrycore_mobile/design/tone.dart';
 const restaurantQuickActions = [
-  ('/restaurant-pos', 'New Order', Icons.shopping_cart_outlined, Tone(0xFFFFE4E6), Tone(0xFFE11D48)),
-  ('/restaurant-orders', 'View Orders', Icons.assignment_outlined, Tone(0xFFDBEAFE), Tone(0xFF2563EB)),
-  ('/restaurant-kds', 'Kitchen', Icons.soup_kitchen_outlined, Tone(0xFFFEF3C7), Tone(0xFFD97706)),
-  ('/restaurant-reservations', 'Reservations', Icons.calendar_month_outlined, Tone(0xFFF3E8FF), Tone(0xFF9333EA)),
-  ('/restaurant-floor-plan', 'Floor Plan', Icons.place_outlined, Tone(0xFFCCFBF1), Tone(0xFF0D9488)),
-  ('/restaurant-menu', 'Menu Items', Icons.restaurant, Tone(0xFFDCFCE7), Tone(0xFF16A34A)),
-  ('/restaurant-online-orders', 'Online Orders', Icons.public, Tone(0xFFE0E7FF), Tone(0xFF4F46E5)),
-  ('/restaurant-delivery', 'Delivery', Icons.local_shipping_outlined, Tone(0xFFFFEDD5), Tone(0xFFEA580C)),
+  ('/restaurant-pos', 'New Order', Icons.shopping_cart_outlined, Tone.bg(0xFFFFE4E6), Tone.fg(0xFFE11D48)),
+  ('/restaurant-orders', 'View Orders', Icons.assignment_outlined, Tone.bg(0xFFDBEAFE), Tone.fg(0xFF2563EB)),
+  ('/restaurant-kds', 'Kitchen', Icons.soup_kitchen_outlined, Tone.bg(0xFFFEF3C7), Tone.fg(0xFFD97706)),
+  ('/restaurant-reservations', 'Reservations', Icons.calendar_month_outlined, Tone.bg(0xFFF3E8FF), Tone.fg(0xFF9333EA)),
+  ('/restaurant-floor-plan', 'Floor Plan', Icons.place_outlined, Tone.bg(0xFFCCFBF1), Tone.fg(0xFF0D9488)),
+  ('/restaurant-menu', 'Menu Items', Icons.restaurant, Tone.bg(0xFFDCFCE7), Tone.fg(0xFF16A34A)),
+  ('/restaurant-online-orders', 'Online Orders', Icons.public, Tone.bg(0xFFE0E7FF), Tone.fg(0xFF4F46E5)),
+  ('/restaurant-delivery', 'Delivery', Icons.local_shipping_outlined, Tone.bg(0xFFFFEDD5), Tone.fg(0xFFEA580C)),
 ];
 
 /// The page's figures, worked out from the loaded lists.
@@ -135,13 +135,13 @@ class _RestaurantDashboardViewState extends State<RestaurantDashboardView> {
         roseButton('Open POS', () => _go('/restaurant-pos', 'POS / New Order'), icon: Icons.shopping_cart_outlined),
         const SizedBox(height: 14),
         twoColumns([
-          _kpi("ACTIVE ORDERS", '${f.active.length}', null, Icons.assignment_outlined, const Tone(0xFFF43F5E), const Tone(0xFFFFE4E6), const Tone(0xFFE11D48)),
+          _kpi("ACTIVE ORDERS", '${f.active.length}', null, Icons.assignment_outlined, const Tone(0xFFF43F5E), const Tone.bg(0xFFFFE4E6), const Tone.fg(0xFFE11D48)),
           _kpi("TODAY'S REVENUE", f.todayRevenue.toStringAsFixed(0), '${f.todayOrders} orders today', Icons.attach_money, const Tone(0xFF22C55E),
-              const Tone(0xFFDCFCE7), const Tone(0xFF16A34A)),
+              const Tone.bg(0xFFDCFCE7), const Tone.fg(0xFF16A34A)),
           _kpi('TABLES', '${f.occupied}/${f.tableCount}', '${f.available} available', Icons.place_outlined, const Tone(0xFF3B82F6),
-              const Tone(0xFFDBEAFE), const Tone(0xFF2563EB)),
-          _kpi('RESERVATIONS', '$_reservations', 'Today', Icons.calendar_month_outlined, const Tone(0xFFA855F7), const Tone(0xFFF3E8FF),
-              const Tone(0xFF9333EA)),
+              const Tone.bg(0xFFDBEAFE), const Tone.fg(0xFF2563EB)),
+          _kpi('RESERVATIONS', '$_reservations', 'Today', Icons.calendar_month_outlined, const Tone(0xFFA855F7), const Tone.bg(0xFFF3E8FF),
+              const Tone.fg(0xFF9333EA)),
         ], gap: 10),
         const SizedBox(height: 14),
         _kitchen(),
@@ -236,18 +236,18 @@ class _RestaurantDashboardViewState extends State<RestaurantDashboardView> {
     final longest = tNum(k?['longestWaitMinutes']);
     return TCard(
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        _cardHead('Kitchen Status', Icons.soup_kitchen_outlined, const Tone(0xFFFEF3C7), const Tone(0xFFD97706),
+        _cardHead('Kitchen Status', Icons.soup_kitchen_outlined, const Tone.bg(0xFFFEF3C7), const Tone.fg(0xFFD97706),
             link: '/restaurant-kds', linkLabel: 'Open KDS', linkTitle: 'Kitchen Display'),
         const SizedBox(height: 12),
         if (k == null)
           _empty('No kitchen data')
         else
           Row(children: [
-            _figure('${tNum(k['pendingCount']).toInt()}', 'Pending', const Tone(0xFFEFF6FF), const Tone(0xFF1D4ED8), const Tone(0xFF2563EB)),
+            _figure('${tNum(k['pendingCount']).toInt()}', 'Pending', const Tone.bg(0xFFEFF6FF), const Tone(0xFF1D4ED8), const Tone(0xFF2563EB)),
             const SizedBox(width: 8),
-            _figure('${tNum(k['preparingCount']).toInt()}', 'Preparing', const Tone(0xFFFFFBEB), const Tone(0xFFB45309), const Tone(0xFFD97706)),
+            _figure('${tNum(k['preparingCount']).toInt()}', 'Preparing', const Tone.bg(0xFFFFFBEB), const Tone(0xFFB45309), const Tone(0xFFD97706)),
             const SizedBox(width: 8),
-            _figure('${tNum(k['readyCount']).toInt()}', 'Ready', const Tone(0xFFF0FDF4), const Tone(0xFF15803D), const Tone(0xFF16A34A)),
+            _figure('${tNum(k['readyCount']).toInt()}', 'Ready', const Tone.bg(0xFFF0FDF4), const Tone(0xFF15803D), const Tone(0xFF16A34A)),
           ]),
         if (k != null && k['longestWaitMinutes'] != null && longest > 10) ...[
           const SizedBox(height: 10),
@@ -269,18 +269,18 @@ class _RestaurantDashboardViewState extends State<RestaurantDashboardView> {
     final d = _delivery;
     return TCard(
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        _cardHead('Delivery Status', Icons.local_shipping_outlined, const Tone(0xFFE0E7FF), const Tone(0xFF4F46E5),
+        _cardHead('Delivery Status', Icons.local_shipping_outlined, const Tone.bg(0xFFE0E7FF), const Tone.fg(0xFF4F46E5),
             link: '/restaurant-delivery', linkLabel: 'Manage', linkTitle: 'Drivers & Dispatch'),
         const SizedBox(height: 12),
         if (d == null)
           _empty('No delivery data')
         else
           Row(children: [
-            _figure('${tNum(d['availableDrivers']).toInt()}', 'Drivers Free', const Tone(0xFFF0FDF4), const Tone(0xFF15803D), const Tone(0xFF16A34A)),
+            _figure('${tNum(d['availableDrivers']).toInt()}', 'Drivers Free', const Tone.bg(0xFFF0FDF4), const Tone(0xFF15803D), const Tone(0xFF16A34A)),
             const SizedBox(width: 8),
-            _figure('${tNum(d['activeCount']).toInt()}', 'Active', const Tone(0xFFEFF6FF), const Tone(0xFF1D4ED8), const Tone(0xFF2563EB)),
+            _figure('${tNum(d['activeCount']).toInt()}', 'Active', const Tone.bg(0xFFEFF6FF), const Tone(0xFF1D4ED8), const Tone(0xFF2563EB)),
             const SizedBox(width: 8),
-            _figure('${tNum(d['deliveredCount']).toInt()}', 'Delivered', const Tone(0xFFF9FAFB), const Tone(0xFF374151), const Tone(0xFF4B5563)),
+            _figure('${tNum(d['deliveredCount']).toInt()}', 'Delivered', const Tone.bg(0xFFF9FAFB), const Tone(0xFF374151), const Tone(0xFF4B5563)),
           ]),
       ]),
     );
@@ -297,7 +297,7 @@ class _RestaurantDashboardViewState extends State<RestaurantDashboardView> {
         );
     return TCard(
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        _cardHead('Waitlist', Icons.people_outline, const Tone(0xFFFFEDD5), const Tone(0xFFEA580C)),
+        _cardHead('Waitlist', Icons.people_outline, const Tone.bg(0xFFFFEDD5), const Tone.fg(0xFFEA580C)),
         const SizedBox(height: 10),
         if (w != null && tNum(w['waitingCount']) > 0) ...[
           line('Waiting', '${tNum(w['waitingCount']).toInt()}'),

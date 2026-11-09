@@ -64,7 +64,7 @@ String _f2(Object? v) => tNum(v).toStringAsFixed(2);
 Widget waterSaleStatusBadge(Object? status) {
   final s = tStr(status);
   final (bg, fg) = switch (s) {
-    'Paid' => (TColors.emerald100, TColors.emerald700),
+    'Paid' => (TColors.emerald100, Tone.fg(0xFF047857)),
     'PartiallyPaid' => (TColors.amber100, TColors.amber700),
     'Cancelled' => (TColors.rose100, TColors.rose700),
     _ => (TColors.slate100, TColors.slate700),
