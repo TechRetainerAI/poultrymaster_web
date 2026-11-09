@@ -42,7 +42,7 @@ import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { fmtMoney } from "@/lib/currency"
-import { listPoultryProducts, type PoultryProduct } from "@/lib/api/poultry-inventory"
+import { listPoultryProducts, ensurePoultryByproducts, type PoultryProduct } from "@/lib/api/poultry-inventory"
 import { getEggClasses } from "@/lib/api/egg-sorting"
 import { useEggsPerCrate } from "@/hooks/use-eggs-per-crate"
 import {
@@ -139,6 +139,9 @@ export default function PoultryInternalUsePage() {
   // looked broken ("can't pick a product") rather than reporting the real cause.
   async function load() {
     setLoading(true)
+    // Broken Eggs / Dead Birds only exist once something creates them; make sure
+    // they do so they can be picked. Best effort -- never blocks the list.
+    await ensurePoultryByproducts().catch(() => {})
     const [rowsRes, prodsRes] = await Promise.allSettled([
       listPoultryInternalUsage(),
       listPoultryProducts(),

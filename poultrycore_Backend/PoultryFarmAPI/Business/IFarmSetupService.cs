@@ -55,6 +55,22 @@ namespace PoultryFarmAPIWeb.Business
         Task<bool> DeleteDraftAsync(string farmId);
 
         /// <summary>
+        /// 416: every completed setup of the company, newest first, with what it
+        /// created and why it cannot be undone. Raw JSON rows from
+        /// sppoultryfarmsetuprun_list; empty when 416 is not applied.
+        /// </summary>
+        Task<string> ListRunsAsync(string farmId);
+
+        /// <summary>416: undo one whole setup. Throws PostgresException P0001 when refused.</summary>
+        Task<string> ReverseRunAsync(string farmId, int setupRunId, string reason, string? by);
+
+        /// <summary>417: what setups completed before 416 appear to have created (JSON rows); "[]" before 417.</summary>
+        Task<string> ListLegacyCandidatesAsync(string farmId);
+
+        /// <summary>417: undo exactly the ticked items of an earlier setup. Throws P0001 when refused.</summary>
+        Task<string> ReverseLegacyAsync(string farmId, string itemsJson, string reason, string? by);
+
+        /// <summary>
         /// Restate one flock's opening position. Refused once the flock has
         /// operational history — that is what corrections records are for, and
         /// rewriting a posted day is never the answer.

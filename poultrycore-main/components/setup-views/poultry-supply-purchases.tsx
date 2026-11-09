@@ -1,6 +1,6 @@
 "use client"
 
-import { useSetupEmbedded, shellClass, SetupTabActions } from "@/components/setup/setup-embed"
+import { useSetupEmbedded, shellClass, SetupTaskBar, SetupTabTools } from "@/components/setup/setup-embed"
 import { Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -38,7 +38,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
 import Link from "next/link"
-import { Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet, AlertTriangle, Factory, History, MoreHorizontal, RefreshCw, PackageCheck, Wheat, Package } from "lucide-react"
+import { Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet, AlertTriangle, Factory, History, MoreHorizontal, RefreshCw, PackageCheck, Wheat, Package, Search } from "lucide-react"
 import { feedItemKind } from "@/lib/utils/feed-item-ledger"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { cn } from "@/lib/utils"
@@ -739,35 +739,19 @@ function PoultryRawMaterialsPageInner() {
             {/* One clear primary action. Produce Feed and Recalculate stock are
                 occasional jobs, so they live under More instead of competing
                 with Record Purchase for attention. */}
-            <SetupTabActions><div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0">
-              {/* Inside Farm Setup this tab only sets up items; buying, invoices,
-                  feed production and recounts stay on the full Inventory page. */}
-              {embedded ? (
-                <Button className="flex-1 sm:flex-none" onClick={openNewItem}><Plus className="w-4 h-4 mr-1" /> New Item</Button>
-              ) : (<>
-              <Button variant="outline" className="flex-1 sm:flex-none" onClick={openNewItem}><Plus className="w-4 h-4 mr-1" /> New Item</Button>
-              {/* 345. A whole supplier invoice (several items, part payment, due date) in one step. */}
-              <Button variant="outline" className="hidden sm:inline-flex" onClick={() => router.push("/poultry-purchase-receipts?receive=1")}><PackageCheck className="w-4 h-4 mr-1" /> Receive Invoice</Button>
-              <Button className="flex-1 sm:flex-none" onClick={openNewPurchase}><ShoppingCart className="w-4 h-4 mr-1" /> Record Purchase</Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="icon" aria-label="More actions"><MoreHorizontal className="w-4 h-4" /></Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem className="sm:hidden" onSelect={() => router.push("/poultry-purchase-receipts?receive=1")}>
-                    <PackageCheck className="w-4 h-4 mr-2" /> Receive invoice
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => router.push("/poultry-feed-production")}>
-                    <Factory className="w-4 h-4 mr-2" /> Produce feed
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => setRecalcOpen(true)}>
-                    <RefreshCw className="w-4 h-4 mr-2" /> Recalculate stock
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <RecalculateStockButton items={items} onDone={load} hideTrigger open={recalcOpen} onOpenChange={setRecalcOpen} />
-              </>)}
-            </div></SetupTabActions>
+            {/* Inside Farm Setup this tab only sets up items; buying, invoices
+                (345: a whole supplier invoice in one step), feed production and
+                recounts stay on the full Inventory page. */}
+            <SetupTaskBar tasks={embedded ? [
+              { id: "item", label: "New Item", icon: Plus, primary: true, onClick: openNewItem },
+            ] : [
+              { id: "purchase", label: "Record Purchase", icon: ShoppingCart, primary: true, onClick: openNewPurchase },
+              { id: "item", label: "New Item", icon: Plus, onClick: openNewItem },
+              { id: "invoice", label: "Receive Invoice", icon: PackageCheck, href: "/poultry-purchase-receipts?receive=1" },
+              { id: "feed", label: "Produce feed", icon: Factory, href: "/poultry-feed-production", more: true },
+              { id: "recalc", label: "Recalculate stock", icon: RefreshCw, onClick: () => setRecalcOpen(true), more: true },
+            ]} />
+            {!embedded && <RecalculateStockButton items={items} onDone={load} hideTrigger open={recalcOpen} onOpenChange={setRecalcOpen} />}
           </div>
           {loading ? (
             <div className="flex items-center gap-2 text-slate-500 p-8"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>
@@ -846,7 +830,34 @@ function PoultryRawMaterialsPageInner() {
 
               {/* ITEMS */}
               <TabsContent value="items">
-                <Card><CardContent className="space-y-3 p-3 sm:p-4">
+                <Card className={embedded ? "gap-0 py-0" : undefined}><CardContent className={embedded ? "space-y-3 p-0" : "space-y-3 p-3 sm:p-4"}>
+                  {/* In Farm Setup the chips, search and filters sit beside the
+                      tab's description line. */}
+                  {embedded ? (
+                    <SetupTabTools>
+                      <Chip active={stockFilter === "all"} onClick={() => setStockFilter("all")} count={items.length}>All</Chip>
+                      <Chip active={stockFilter === "low"} onClick={() => setStockFilter("low")} count={stats.lowStock} tone="warn">Low stock</Chip>
+                      <Chip active={stockFilter === "inactive"} onClick={() => setStockFilter("inactive")} count={stats.itemsCount - stats.activeCount}>Inactive</Chip>
+                      <div className="relative w-48">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <Input className="h-9 bg-white pl-9" placeholder="Search item or category" value={search} onChange={(e) => setSearch(e.target.value)} />
+                      </div>
+                      <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                        <SelectTrigger className="h-9 w-auto gap-2 bg-white"><SelectValue placeholder="All categories" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All categories</SelectItem>
+                          {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{categoryLabel(c)}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      <Select value={unitFilter} onValueChange={setUnitFilter}>
+                        <SelectTrigger className="h-9 w-auto gap-2 bg-white"><SelectValue placeholder="All units" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All units</SelectItem>
+                          {unitOptionsInUse.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </SetupTabTools>
+                  ) : (<>
                   <div className="flex flex-wrap gap-1.5">
                     <Chip active={stockFilter === "all"} onClick={() => setStockFilter("all")} count={items.length}>All</Chip>
                     <Chip active={stockFilter === "low"} onClick={() => setStockFilter("low")} count={stats.lowStock} tone="warn">Low stock</Chip>
@@ -868,6 +879,7 @@ function PoultryRawMaterialsPageInner() {
                       </SelectContent>
                     </Select>
                   </>} />
+                  </>)}
                   {/* Six columns, not ten: category and cost treatment ride under
                       the name, the two units share one cell, and the minimum sits
                       under the stock it applies to. */}
@@ -888,10 +900,12 @@ function PoultryRawMaterialsPageInner() {
                       ) : pgItems.pageItems.map((i) => (
                         <TableRow key={i.poultryRawMaterialItemId} className={cn(!i.isActive && "text-slate-500")}>
                           <TableCell>
-                            <div className="font-medium text-slate-900">{i.itemName}{i.isDefault && <DefaultTag />}</div>
-                            <div className="mt-0.5 text-xs text-slate-500">
-                              <CategoryTag category={i.category} /> · {methodShortLabel(i.effectiveCostRecognitionMethod)}
-                              {i.costRecognitionSource === "ItemOverride" && <span className="text-emerald-700"> (override)</span>}
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                              <span className="font-medium text-slate-900">{i.itemName}{i.isDefault && <DefaultTag />}</span>
+                              <span className="text-xs text-slate-500">
+                                <CategoryTag category={i.category} /> · {methodShortLabel(i.effectiveCostRecognitionMethod)}
+                                {i.costRecognitionSource === "ItemOverride" && <span className="text-emerald-700"> (override)</span>}
+                              </span>
                             </div>
                           </TableCell>
                           <TableCell className="text-sm text-slate-600 whitespace-nowrap">{unitsText(i)}</TableCell>

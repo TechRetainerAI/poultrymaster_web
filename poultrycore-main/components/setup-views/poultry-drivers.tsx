@@ -1,6 +1,6 @@
 "use client"
 
-import { useSetupEmbedded, shellClass, SetupTabActions } from "@/components/setup/setup-embed"
+import { useSetupEmbedded, shellClass, SetupTaskBar } from "@/components/setup/setup-embed"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -237,10 +237,10 @@ export function PoultryDriversPage() {
             <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
               <Users2 className="h-6 w-6 text-sky-600" /> Drivers
             </h1>
-            <SetupTabActions><div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-              <Button variant="outline" className="w-full sm:w-auto" onClick={() => openAddEmployee("existing")}><UserPlus className="h-4 w-4 mr-1" /> Existing employee</Button>
-              <Button className="w-full sm:w-auto" onClick={() => openAddEmployee("new")}><Plus className="h-4 w-4 mr-1" /> New employee &amp; driver</Button>
-            </div></SetupTabActions>
+            <SetupTaskBar tasks={[
+              { id: "new", label: "New employee & driver", icon: Plus, primary: true, onClick: () => openAddEmployee("new") },
+              { id: "existing", label: "Existing employee", icon: UserPlus, onClick: () => openAddEmployee("existing") },
+            ]} />
           </div>
 
           {error && (
@@ -249,7 +249,7 @@ export function PoultryDriversPage() {
             </Card>
           )}
 
-          <Card>
+          <Card className="gap-0 py-0">
             <CardContent className="p-0">
               {loading ? (
                 <div className="p-6 text-slate-500 flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>

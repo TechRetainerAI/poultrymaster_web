@@ -70,6 +70,9 @@ import {
   type BatchAllocationStatus, type SetupRowError,
   type BatchRow, type FlockRow, type HouseRow, type SetupContext, type SetupDraft,
 } from "@/lib/farm-setup/wizard"
+import { BatchReconciliationStep } from "@/components/farm-setup/batch-reconciliation-step"
+import { SetupRunsPanel } from "@/components/farm-setup/setup-runs-panel"
+import { batchReconciliationViews } from "@/lib/farm-setup/wizard"
 // Prompt 1's bulk house generator, reused rather than rebuilt.
 import { generateRows as generateHouseRows, nextStartNumber } from "@/lib/houses/bulk"
 
@@ -341,6 +344,9 @@ export default function PoultryFarmSetupPage() {
     existingBatches: (context?.batches ?? []).map((b: any) => ({
       batchId: b.batchId, batchCode: b.batchCode, batchName: b.batchName,
       breed: b.breed, numberOfBirds: b.numberOfBirds, startDate: b.startDate,
+      // The server enforces the STORED flag (FarmSetupValidator.IsHistoricalBatch);
+      // dropping it here made the wizard treat every reused batch as a new purchase.
+      isHistorical: b.isHistorical ?? undefined,
     })),
     existingHouses: (context?.houses ?? []).map((h: any) => ({
       houseId: h.houseId, houseName: h.houseName, capacity: h.capacity,
@@ -352,6 +358,7 @@ export default function PoultryFarmSetupPage() {
     })),
     existingFlockNames: context?.existingFlockNames ?? [],
     allocatedByBatchId: context?.allocatedByBatchId ?? {},
+    batchPositions: Object.fromEntries((context?.batchPositions ?? []).map((p) => [p.batchId, p])),
     businessDate: context?.businessDate ? String(context.businessDate).split("T")[0] : new Date().toISOString().slice(0, 10),
   }), [context])
 
@@ -363,6 +370,10 @@ export default function PoultryFarmSetupPage() {
   const setupError = errors.find((e) => e.index < 0)
   const totals = useMemo(() => summarize(draft), [draft])
   const needsReconciliation = useMemo(() => flocksNeedingReconciliation(draft.flocks), [draft.flocks])
+  // 413: batches with birds that will be in no pen once this setup is done.
+  const batchReconViews = useMemo(
+    () => (setupContext ? batchReconciliationViews(draft, setupContext) : []),
+    [draft, setupContext])
 
   // The "Empty" filter hides pens that already hold birds — see visibleHouseRows.
   // The rows stay in the draft either way; only the view changes.
@@ -976,7 +987,11 @@ export default function PoultryFarmSetupPage() {
                 )}
 
                 {screen === "completed" && status && (
-                  <CompletedPanel status={status} opening={opening} onSetUpMore={startExistingFarm} />
+                  <div className="space-y-6">
+                    <CompletedPanel status={status} opening={opening} onSetUpMore={startExistingFarm} />
+                    {/* 416: what each setup created; edit, delete or undo it. */}
+                    <SetupRunsPanel />
+                  </div>
                 )}
 
                 {/* ---- Entry choice ---------------------------------------- */}
@@ -1452,7 +1467,7 @@ export default function PoultryFarmSetupPage() {
                                         {v.batch.batchName && v.batch.batchCode ? ` · ${v.batch.batchName}` : ""}
                                         {" · "}
                                         {v.status === "over"
-                                          ? `${(v.previouslyAllocated + v.thisAllocation - v.batchBirds).toLocaleString()} birds too many`
+                                          ? `${(v.previouslyAllocated + v.previouslyAccountedFor + v.thisAllocation - v.batchBirds).toLocaleString()} birds too many`
                                           : `${v.remaining.toLocaleString()} of ${v.batchBirds.toLocaleString()} birds left`}
                                       </SelectItem>
                                     ))}
@@ -1508,18 +1523,21 @@ export default function PoultryFarmSetupPage() {
                               </span>
                               {activeBatch.mustBeFullyAllocated && (
                                 <span className="text-xs text-slate-600">
-                                  Birds you already had — every one of them needs a pen
+                                  Birds you already had — every one must be in a pen or explained
                                 </span>
                               )}
                             </div>
-                            <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                            <div className={`mt-2 grid grid-cols-2 gap-3 ${activeBatch.previouslyAccountedFor !== 0 ? "sm:grid-cols-5" : "sm:grid-cols-4"}`}>
                               <Figure label="Original birds" value={activeBatch.batchBirds} />
+                              {activeBatch.previouslyAccountedFor !== 0 && (
+                                <Figure label="Already recorded (sold, died…)" value={activeBatch.previouslyAccountedFor} />
+                              )}
                               <Figure label="Already allocated" value={activeBatch.previouslyAllocated} />
                               <Figure label="This allocation" value={activeBatch.thisAllocation} tone="blue" />
                               <Figure
                                 label={activeBatch.status === "over" ? "Over by" : "Remaining"}
                                 value={activeBatch.status === "over"
-                                  ? activeBatch.previouslyAllocated + activeBatch.thisAllocation - activeBatch.batchBirds
+                                  ? activeBatch.previouslyAllocated + activeBatch.previouslyAccountedFor + activeBatch.thisAllocation - activeBatch.batchBirds
                                   : activeBatch.remaining}
                                 tone={activeBatch.status === "over" ? "red" : activeBatch.remaining > 0 ? "amber" : "emerald"}
                               />
@@ -1635,7 +1653,7 @@ export default function PoultryFarmSetupPage() {
                               <p className="mt-2 flex items-start gap-2 text-sm text-red-700">
                                 <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
                                 <span>
-                                  This allocation is {(activeBatch.previouslyAllocated + activeBatch.thisAllocation - activeBatch.batchBirds).toLocaleString()} birds
+                                  This allocation is {(activeBatch.previouslyAllocated + activeBatch.previouslyAccountedFor + activeBatch.thisAllocation - activeBatch.batchBirds).toLocaleString()} birds
                                   more than {activeBatch.batch.batchCode || "the batch"} has. Lower a pen, or raise the batch.{" "}
                                 <button type="button"
                                   onClick={() => setSizeBatchKey(activeBatch.batch.key)}
@@ -1649,8 +1667,9 @@ export default function PoultryFarmSetupPage() {
                               <p className="mt-2 text-sm text-amber-700">
                                 {activeBatch.mustBeFullyAllocated ? (
                                   <>
-                                    {activeBatch.remaining.toLocaleString()} birds still need a pen — these are birds you
-                                    already had, so all of them must be somewhere. Put them in a pen, or correct the batch.{" "}
+                                    {activeBatch.remaining.toLocaleString()} birds are not in a pen — these are birds you
+                                    already had, so each must be accounted for. Put them in a pen, or explain them on the
+                                    reconciliation step (sold, died, culled, transferred or still waiting), or correct the batch.{" "}
                                 <button type="button"
                                   onClick={() => setSizeBatchKey(activeBatch.batch.key)}
                                   className="font-medium underline underline-offset-2 hover:no-underline">
@@ -2011,6 +2030,13 @@ export default function PoultryFarmSetupPage() {
                             </div>
                             </div>
                           )}
+
+                          <BatchReconciliationStep
+                            views={batchReconViews}
+                            value={draft.batchReconciliations}
+                            onChange={(next) => setDraft((d) => ({ ...d, batchReconciliations: next }))}
+                            businessDate={setupContext?.businessDate ?? new Date().toISOString().split("T")[0]}
+                          />
                         </div>
                       </Section>
                     )}
@@ -2020,6 +2046,44 @@ export default function PoultryFarmSetupPage() {
                       <Section icon={CheckCircle2} title="Farm setup summary"
                         description="Nothing has been saved yet. Check the numbers, then create your farm.">
                         <div className="p-4 space-y-4">
+                          {batchReconViews.length > 0 && (
+                            <div className="rounded-lg border border-indigo-200 bg-indigo-50/50 p-3 text-sm">
+                              <p className="mb-2 font-semibold text-indigo-900">Birds never placed in a flock (batch level)</p>
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-left text-xs sm:text-sm">
+                                  <thead><tr className="text-slate-500">
+                                    <th className="py-1 pr-3">Batch</th><th className="pr-3 text-right">Bought</th>
+                                    <th className="pr-3 text-right">Already recorded</th><th className="pr-3 text-right">Originally placed</th>
+                                    <th className="pr-3 text-right">Not in a pen</th><th className="pr-3 text-right">Explained now</th>
+                                    <th className="pr-3 text-right">Unexplained</th><th className="text-right">Historical sales value</th>
+                                  </tr></thead>
+                                  <tbody>
+                                    {batchReconViews.map((v) => (
+                                      <tr key={v.batchKey} className="border-t border-indigo-100">
+                                        <td className="py-1 pr-3 font-medium">{v.label}</td>
+                                        <td className="pr-3 text-right tabular-nums">{v.originalBirds.toLocaleString()}</td>
+                                        <td className="pr-3 text-right tabular-nums text-slate-500">{v.previouslyAccountedFor ? `−${v.previouslyAccountedFor.toLocaleString()}` : "—"}</td>
+                                        <td className="pr-3 text-right tabular-nums">{v.placed.toLocaleString()}</td>
+                                        <td className="pr-3 text-right tabular-nums">{v.neverPlaced.toLocaleString()}</td>
+                                        <td className="pr-3 text-right tabular-nums">{v.explained.toLocaleString()}</td>
+                                        <td className={`pr-3 text-right tabular-nums ${v.unexplained === 0 ? "text-emerald-700" : "text-amber-700"}`}>{v.unexplained.toLocaleString()}</td>
+                                        <td className="text-right tabular-nums">{v.saleValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                              {batchReconViews.some((v) => v.previouslyAccountedFor !== 0) && (
+                                <p className="mt-2 text-xs text-slate-600">
+                                  &quot;Already recorded&quot; birds were posted before this setup and are not posted again — only what you explain now is.
+                                </p>
+                              )}
+                              <p className="mt-2 text-xs text-slate-600">
+                                Financial effect of setup: new cash movement none · current-period revenue none · current-period expense none
+                                (batches you already had post no expense today; any unpaid balance stays owed to the supplier).
+                              </p>
+                            </div>
+                          )}
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                             <Stat label="Batches" value={totals.batchCount} tone="blue" />
                             <Stat label="Original batch birds" value={totals.batchBirds} tone="blue" />
@@ -2099,7 +2163,9 @@ export default function PoultryFarmSetupPage() {
                                   <span className="text-xs font-normal text-blue-600">{open ? "Hide details" : "View details"}</span>
                                 </span>
                                 <span className="text-xs text-slate-600 tabular-nums">
-                                  original {v.batchBirds.toLocaleString()} · already {v.previouslyAllocated.toLocaleString()} ·
+                                  original {v.batchBirds.toLocaleString()} ·
+                                  {v.previouslyAccountedFor !== 0 && <> recorded {v.previouslyAccountedFor.toLocaleString()} ·</>}
+                                  {" "}already {v.previouslyAllocated.toLocaleString()} ·
                                   {" "}this {v.thisAllocation.toLocaleString()} · remaining {v.remaining.toLocaleString()}
                                 </span>
                               </button>
@@ -2326,7 +2392,7 @@ export default function PoultryFarmSetupPage() {
         onOpenChange={(next) => { if (!next) setSizeBatchKey(null) }}
         batchLabel={sizeBatch?.batch.batchCode || sizeBatch?.batch.batchName || ""}
         batchBirds={sizeBatch?.batchBirds ?? 0}
-        previouslyAllocated={sizeBatch?.previouslyAllocated ?? 0}
+        previouslyAllocated={(sizeBatch?.previouslyAllocated ?? 0) + (sizeBatch?.previouslyAccountedFor ?? 0)}
         thisAllocation={sizeBatch?.thisAllocation ?? 0}
         savesImmediately={sizeBatch?.batch.existingBatchId != null}
         onSave={saveBatchSize}

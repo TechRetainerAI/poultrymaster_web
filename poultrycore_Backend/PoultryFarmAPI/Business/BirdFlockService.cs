@@ -26,6 +26,45 @@ namespace PoultryFarmAPIWeb.Business
             _mainFlockBatchService = mainFlockBatchService;
         }
 
+        public async Task<int> CreateExistingFlock(FlockModel flock, ExistingFlockHistory history, DateTime asOfDate,
+                                                   int batchBirds, string source)
+        {
+            flock.FlockType = NormalizeFlockType(flock.FlockType);
+            using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            using var tx = await conn.BeginTransactionAsync();
+            try
+            {
+                // Same key as AllocateBatchToFlocks and every bird adjustment.
+                using (var lockCmd = new NpgsqlCommand("SELECT pg_advisory_xact_lock(hashtext(@Key))", conn, tx))
+                {
+                    lockCmd.Parameters.AddWithValue("@Key", $"flock-alloc:{flock.FarmId}:{flock.BatchId}");
+                    await lockCmd.ExecuteNonQueryAsync();
+                }
+                int consumed;
+                using (var cmd = new NpgsqlCommand(
+                    "SELECT spflock_getconsumedforbatch(p_batchid => @BatchId::int, p_farmid => @FarmId::text, p_flockidtoexclude => NULL)", conn, tx))
+                {
+                    cmd.Parameters.AddWithValue("@BatchId", flock.BatchId);
+                    cmd.Parameters.AddWithValue("@FarmId", flock.FarmId);
+                    consumed = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+                }
+                var available = Math.Max(0, batchBirds - consumed);
+                if (history.OriginallyPlaced > available)
+                    throw new FlockAllocationConflictException(batchBirds, consumed, history.OriginallyPlaced);
+
+                var posted = await OpeningFlockPoster.PostAsync(conn, tx, flock, history, asOfDate,
+                    startDateEstimated: false, source: source, userId: flock.UserId);
+                await tx.CommitAsync();
+                return posted.FlockId;
+            }
+            catch
+            {
+                try { await tx.RollbackAsync(); } catch { /* connection already gone */ }
+                throw;
+            }
+        }
+
         public async Task<int> CreateFlock(FlockModel model)
         {
             if (model == null) throw new ArgumentNullException(nameof(model));
@@ -223,6 +262,25 @@ namespace PoultryFarmAPIWeb.Business
             return GetAllFlocks(userId, farmId).Where(f => ids.Contains(f.FlockId)).ToList();
         }
 
+        public async Task<string?> GetFlockEditContext(int flockId, string farmId)
+        {
+            try
+            {
+                using var conn = new NpgsqlConnection(_connectionString);
+                await conn.OpenAsync();
+                using var cmd = new NpgsqlCommand(
+                    "SELECT sppoultryflock_editcontext(p_farmid => @FarmId::text, p_flockid => @FlockId::int)::text", conn);
+                cmd.Parameters.AddWithValue("@FarmId", farmId);
+                cmd.Parameters.AddWithValue("@FlockId", flockId);
+                var v = await cmd.ExecuteScalarAsync();
+                return v is string s ? s : null;
+            }
+            catch (PostgresException pg) when (pg.SqlState == "42883")
+            {
+                return null;   // 414 not applied
+            }
+        }
+
         public async Task UpdateFlock(FlockModel model)
         {
             if (model == null) throw new ArgumentNullException(nameof(model));
@@ -253,6 +311,21 @@ namespace PoultryFarmAPIWeb.Business
                 using var tx = await conn.BeginTransactionAsync();
                 cmd.Transaction = tx;
                 await cmd.ExecuteNonQueryAsync();
+                // A flock moved to another batch takes its own bird movements with
+                // it (metadata only -- no quantity changes), so the ledger never
+                // names the old batch for birds that now belong to the new one.
+                using (var retag = new NpgsqlCommand(
+                    "UPDATE poultrystocktransactions SET batchid = @BatchId " +
+                    "WHERE farmid = @FarmId AND flockid = @FlockId AND COALESCE(birdscope, 'Flock') = 'Flock' AND batchid IS DISTINCT FROM @BatchId; " +
+                    "UPDATE poultrybirdadjustments SET batchid = @BatchId " +
+                    "WHERE farmid = @FarmId AND flockid = @FlockId AND scope = 'Flock' AND batchid IS DISTINCT FROM @BatchId;", conn, tx))
+                {
+                    retag.Parameters.AddWithValue("@BatchId", model.BatchId);
+                    retag.Parameters.AddWithValue("@FarmId", model.FarmId);
+                    retag.Parameters.AddWithValue("@FlockId", model.FlockId);
+                    try { await retag.ExecuteNonQueryAsync(); }
+                    catch (PostgresException pg) when (pg.SqlState == "42703") { /* pre-413 schema: no scope columns */ }
+                }
                 // 399: null = the form did not send a type -- leave it alone, so
                 // the auto-activate and other partial updates never retype a flock.
                 await ApplyFlockTypeAsync(conn, tx, model.FlockId, model);
@@ -384,8 +457,36 @@ namespace PoultryFarmAPIWeb.Business
             return totalQuantity;
         }
 
-        public async Task DeleteFlock(int flockId, string userId, string farmId)
+        public async Task<string?> DeleteFlock(int flockId, string userId, string farmId)
         {
+            // 414: the safe delete. spflock_delete only ever soft-deleted (the
+            // tr_flock_softdelete trigger) while the lists kept showing the flock,
+            // and it never gave the flock's birds back to its batch.
+            try
+            {
+                using var conn = new NpgsqlConnection(_connectionString);
+                await conn.OpenAsync();
+                using var tx = await conn.BeginTransactionAsync();
+                using var cmd = new NpgsqlCommand(
+                    "SELECT sppoultryflock_delete(p_farmid => @FarmId::text, p_flockid => @FlockId::int, p_by => @UserId::text)::text",
+                    conn, tx);
+                cmd.Parameters.AddWithValue("@FlockId", flockId);
+                cmd.Parameters.AddWithValue("@UserId", userId);
+                cmd.Parameters.AddWithValue("@FarmId", farmId);
+                var json = (string?)await cmd.ExecuteScalarAsync();
+                await tx.CommitAsync();
+                return json;
+            }
+            catch (PostgresException pg) when (pg.SqlState == "P0001")
+            {
+                throw new FlockDeleteBlockedException(pg.MessageText);
+            }
+            catch (PostgresException pg) when (pg.SqlState == "42883")
+            {
+                // 414 not applied yet: the old path, unchanged.
+                Console.WriteLine("sppoultryflock_delete is missing (migration 414); using spflock_delete.");
+            }
+
             try
             {
                 using (NpgsqlConnection conn = new NpgsqlConnection(_connectionString))
@@ -404,6 +505,7 @@ namespace PoultryFarmAPIWeb.Business
                         Console.WriteLine($"spFlock_Delete executed. Rows affected: {rowsAffected}");
                     }
                 }
+                return null;
             }
             catch (Exception ex)
             {

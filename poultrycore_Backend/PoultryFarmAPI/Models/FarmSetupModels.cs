@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace PoultryFarmAPIWeb.Models
 {
@@ -134,6 +135,20 @@ namespace PoultryFarmAPIWeb.Models
         public string? Notes { get; set; }
     }
 
+    /// <summary>413: one batch's never-placed birds, by batch KEY (the batch may not exist yet).</summary>
+    public class FarmSetupBatchReconciliationInput
+    {
+        public string BatchKey { get; set; } = string.Empty;
+        public List<BatchReconciliationLine> Lines { get; set; } = new();
+        public int StillUnallocatedLive { get; set; }
+        public string? Notes { get; set; }
+
+        /// <summary>Net birds the lines take out of the batch's unplaced pool.</summary>
+        public int Removed() => (Lines ?? new List<BatchReconciliationLine>())
+            .Where(l => l.FlockId is null)
+            .Sum(l => l.Kind == "StockCorrection" && l.Direction == "Increase" ? -l.Quantity : l.Quantity);
+    }
+
     /// <summary>POST api/PoultryFarmSetup/complete body.</summary>
     public class FarmSetupRequest
     {
@@ -147,6 +162,14 @@ namespace PoultryFarmAPIWeb.Models
         public List<FarmSetupBatchInput> Batches { get; set; } = new();
         public List<FarmSetupHouseInput> Houses { get; set; } = new();
         public List<FarmSetupFlockInput> Flocks { get; set; } = new();
+
+        /// <summary>
+        /// 413: what happened to each batch's birds that never went into a pen
+        /// (sold / died / culled / transferred before placing, or still alive and
+        /// waiting). Posted through sppoultrybatchreconcile_post inside the setup
+        /// transaction — the same function the Batch page uses.
+        /// </summary>
+        public List<FarmSetupBatchReconciliationInput> BatchReconciliations { get; set; } = new();
 
         /// <summary>Recorded on every audit row. Defaults to "Initial Farm Setup".</summary>
         public string? Source { get; set; }
@@ -272,6 +295,30 @@ namespace PoultryFarmAPIWeb.Models
     }
 
     /// <summary>Result of completing the wizard.</summary>
+    /// <summary>417: one ticked item of an earlier setup.</summary>
+    public class FarmSetupLegacyItem
+    {
+        public string Type { get; set; } = string.Empty;
+        public int Id { get; set; }
+    }
+
+    /// <summary>417: body of POST api/PoultryFarmSetup/legacy/reverse.</summary>
+    public class FarmSetupLegacyReverseRequest
+    {
+        public string UserId { get; set; } = string.Empty;
+        public string FarmId { get; set; } = string.Empty;
+        public string? Reason { get; set; }
+        public List<FarmSetupLegacyItem> Items { get; set; } = new();
+    }
+
+    /// <summary>416: body of POST api/PoultryFarmSetup/runs/{id}/reverse.</summary>
+    public class FarmSetupRunReverseRequest
+    {
+        public string UserId { get; set; } = string.Empty;
+        public string FarmId { get; set; } = string.Empty;
+        public string? Reason { get; set; }
+    }
+
     public class FarmSetupResult
     {
         public bool Success { get; set; }
@@ -290,11 +337,18 @@ namespace PoultryFarmAPIWeb.Models
         /// </summary>
         public int OpeningLedgerMovements { get; set; }
 
+        /// <summary>413: batch reconciliations posted, and the birds they took out of never-placed pools.</summary>
+        public int BatchReconciliationsPosted { get; set; }
+        public int BatchBirdsReconciled { get; set; }
+
         public int OriginallyPlaced { get; set; }
         public int OpeningLiveBirds { get; set; }
         public int HistoricalReduction { get; set; }
 
         public DateTime? EffectiveBusinessDate { get; set; }
+
+        /// <summary>416: the run this setup was recorded as (null before 416 is applied).</summary>
+        public int? SetupRunId { get; set; }
 
         public List<FarmSetupRowError> Errors { get; set; } = new();
         /// <summary>Things worth saying but not worth refusing over — see the capacity note in FarmSetupValidator.</summary>

@@ -131,7 +131,41 @@ export interface SetupDraft {
   batches: BatchRow[]
   houses: HouseRow[]
   flocks: FlockRow[]
+  /**
+   * 413: per batch KEY, what happened to the birds that never went into a pen.
+   * Optional so drafts saved before 413 still open.
+   */
+  batchReconciliations?: Record<string, BatchReconciliationDraft>
 }
+
+/** One historical sale of never-placed birds, at its own price. */
+export interface BatchSaleDraft {
+  key: string
+  quantity: string
+  pricePerBird: string
+  amountReceived: string
+  valueUnknown: boolean
+  date: string
+}
+
+/**
+ * 413: the batch-level reconciliation the wizard collects. Kept apart from the
+ * flock-level breakdown on purpose: a bird placed in a pen is explained on its
+ * flock; a bird that never reached one is explained here. Never both.
+ */
+export interface BatchReconciliationDraft {
+  sales: BatchSaleDraft[]
+  mortality: string
+  culled: string
+  transferred: string
+  other: string
+  otherNote: string
+  stillAlive: string
+}
+
+export const emptyBatchReconciliation = (): BatchReconciliationDraft => ({
+  sales: [], mortality: "", culled: "", transferred: "", other: "", otherNote: "", stillAlive: "",
+})
 
 /** A house the farm already has, with what is standing in it. */
 export interface ExistingHouse {
@@ -165,13 +199,43 @@ export interface ExistingFlock {
   active: boolean
 }
 
+/**
+ * What the database's bird ledger already says about an existing batch
+ * (sppoultrybatchreconcile_summary). Every figure is a POSTED, un-reversed
+ * record -- the wizard shows them as existing records and never posts them
+ * again.
+ */
+export interface BatchLedgerPosition {
+  batchId: number
+  originalBirds: number
+  originallyAllocated: number
+  previouslySold: number
+  previousMortality: number
+  previouslyCulled: number
+  previouslyTransferred: number
+  previousOther: number
+  previousAdditions: number
+  /** sold + mortality + culled + transferred + other - additions. */
+  previouslyAccountedFor: number
+  /** fnpoultrybatch_unallocated: birds in no flock right now. */
+  unallocatedPool: number
+  confirmedStillAlive: number
+  lastReconciliationNo?: string | null
+  lastReconciledAt?: string | null
+}
+
 export interface SetupContext {
   existingBatches: ExistingBatch[]
   existingHouses: ExistingHouse[]
   existingFlocks: ExistingFlock[]
   existingFlockNames: string[]
-  /** Birds already allocated out of each existing batch. */
+  /** Birds already allocated out of each existing batch (originally placed). */
   allocatedByBatchId: Record<number, number>
+  /**
+   * Batch-level history already posted, by batch id. Absent on an older
+   * server, which means nothing was recorded before placing.
+   */
+  batchPositions?: Record<number, BatchLedgerPosition>
   /** The company's business date, from the server. */
   businessDate: string
 }
@@ -564,6 +628,8 @@ export interface BatchAllocationView {
   batchBirds: number
   /** Birds earlier sessions already placed out of it. */
   previouslyAllocated: number
+  /** Birds already recorded as gone before reaching a pen (posted batch-level movements). */
+  previouslyAccountedFor: number
   /** Birds THIS session is placing, measured as originally placed. */
   thisAllocation: number
   /** batchBirds − previouslyAllocated. Never negative. */
@@ -588,6 +654,69 @@ const STATUS_RANK: Record<BatchAllocationStatus, number> = {
  * historical reduction, which is the same mistake migration 325 fixed on the
  * server (spflock_getconsumedforbatch).
  */
+/** Birds a batch reconciliation explains (removed + still alive). */
+export function explainedByReconciliation(r: BatchReconciliationDraft | undefined): number {
+  if (!r) return 0
+  const sold = (r.sales ?? []).reduce((a, s) => a + count(s.quantity), 0)
+  return sold + count(r.mortality) + count(r.culled) + count(r.transferred) + count(r.other) + count(r.stillAlive)
+}
+
+/** Birds of an existing batch that already left its pool before this setup. */
+export function accountedBeforePlacing(context: SetupContext, batchId: number | null | undefined): number {
+  if (batchId == null) return 0
+  return context.batchPositions?.[batchId]?.previouslyAccountedFor ?? 0
+}
+
+export interface BatchReconciliationView {
+  batchKey: string
+  label: string
+  isHistorical: boolean
+  originalBirds: number
+  /** Placed (this session + before), measured as originally placed. */
+  placed: number
+  /** Already posted against the never-placed birds -- shown, never re-posted. */
+  previouslyAccountedFor: number
+  /** The posted history behind previouslyAccountedFor; null for a new batch. */
+  previous: BatchLedgerPosition | null
+  existingBatchId: number | null
+  /** Birds of the batch in no pen once this setup's flocks are placed. */
+  neverPlaced: number
+  explained: number
+  /** Positive = still to explain; negative = over-explained. */
+  unexplained: number
+  saleValue: number
+}
+
+/**
+ * Batches with birds that will not be in any pen once this setup is done.
+ * Calculated on ORIGINALLY placed birds, so a flock's own historical deaths are
+ * never counted a second time here.
+ */
+export function batchReconciliationViews(draft: SetupDraft, context: SetupContext): BatchReconciliationView[] {
+  return batchAllocationViews(draft, context)
+    .filter((v) => v.batchBirds > 0 && v.status !== "over" && v.remaining > 0)
+    .map((v) => {
+      const r = draft.batchReconciliations?.[v.batch.key]
+      const explained = explainedByReconciliation(r)
+      const saleValue = (r?.sales ?? []).reduce((a, s) =>
+        a + (s.valueUnknown ? 0 : Math.round(count(s.quantity) * Math.round((Number(s.pricePerBird) || 0) * 100)) / 100), 0)
+      return {
+        batchKey: v.batch.key,
+        label: normalize(v.batch.batchCode) || normalize(v.batch.batchName) || "Batch",
+        isHistorical: v.mustBeFullyAllocated,
+        originalBirds: v.batchBirds,
+        placed: v.previouslyAllocated + v.thisAllocation,
+        previouslyAccountedFor: v.previouslyAccountedFor,
+        previous: v.batch.existingBatchId != null ? context.batchPositions?.[v.batch.existingBatchId] ?? null : null,
+        existingBatchId: v.batch.existingBatchId ?? null,
+        neverPlaced: v.remaining,
+        explained,
+        unexplained: v.remaining - explained,
+        saleValue,
+      }
+    })
+}
+
 export function batchAllocationViews(draft: SetupDraft, context: SetupContext): BatchAllocationView[] {
   return draft.batches.map((batch, index) => {
     const isExisting = batch.existingBatchId != null
@@ -600,8 +729,11 @@ export function batchAllocationViews(draft: SetupDraft, context: SetupContext): 
     const thisAllocation = draft.flocks.reduce(
       (sum, f) => (f.batchKey === batch.key ? sum + count(f.originallyPlaced) : sum), 0)
 
-    const available = Math.max(0, batchBirds - previouslyAllocated)
+    const previouslyAccountedFor = existing ? accountedBeforePlacing(context, existing.batchId) : 0
+    // = fnpoultrybatch_unallocated before this setup places anything.
+    const available = Math.max(0, batchBirds - previouslyAllocated - previouslyAccountedFor)
     const placed = previouslyAllocated + thisAllocation
+    const accounted = placed + previouslyAccountedFor
 
     // Describes the batch's TOTAL state, not just this session's contribution.
     // A batch the farm part-placed months ago is "partial" even when this session
@@ -609,13 +741,13 @@ export function batchAllocationViews(draft: SetupDraft, context: SetupContext): 
     // while "unallocated" means nothing has ever come out of it. Ranking them
     // apart is what puts a brand-new batch above a part-finished one in the strip.
     let status: BatchAllocationStatus
-    if (batchBirds > 0 && placed > batchBirds) status = "over"
-    else if (batchBirds > 0 && placed === batchBirds) status = "complete"
+    if (batchBirds > 0 && accounted > batchBirds) status = "over"
+    else if (batchBirds > 0 && accounted === batchBirds) status = "complete"
     else if (placed === 0) status = "unallocated"
     else status = "partial"
 
     return {
-      batch, index, isExisting, batchBirds, previouslyAllocated, thisAllocation,
+      batch, index, isExisting, batchBirds, previouslyAllocated, previouslyAccountedFor, thisAllocation,
       available, remaining: Math.max(0, available - thisAllocation), status,
       mustBeFullyAllocated: isHistoricalBatch(batch, context),
     }
@@ -1221,21 +1353,35 @@ export function validateSetup(draft: SetupDraft, context: SetupContext): { error
 
     let capacity = count(batch.numberOfBirds)
     let alreadyAllocated = 0
+    let accounted = 0
     let label = normalize(batch.batchCode)
     if (batch.existingBatchId != null) {
       const existing = context.existingBatches.find((b) => b.batchId === batch.existingBatchId)
       if (!existing) return
       capacity = existing.numberOfBirds
       alreadyAllocated = context.allocatedByBatchId[existing.batchId] ?? 0
+      accounted = accountedBeforePlacing(context, existing.batchId)
       label = existing.batchCode
     }
     if (capacity <= 0) return
+    // Mirrors FarmSetupValidator.cs: the pool before this setup places anything.
+    const pool = capacity - alreadyAllocated - accounted
 
-    if (placed + alreadyAllocated > capacity) {
+    const recon = draft.batchReconciliations?.[key]
+    const explained = explainedByReconciliation(recon)
+    if (recon && count(recon.other) > 0 && !normalize(recon.otherNote)) {
+      err("batches", index, "reconciliation", `${label}: say what the "other" birds were.`)
+    }
+    if (placed + alreadyAllocated + accounted > capacity) {
       const allocatedNote = alreadyAllocated > 0 ? ` (${alreadyAllocated.toLocaleString()} already allocated)` : ""
+      err("batches", index, "numberOfBirds", accounted > 0
+        ? `Flocks from ${label} were placed with ${placed.toLocaleString()} birds, but the batch had ${capacity.toLocaleString()}${allocatedNote} and ${accounted.toLocaleString()} were already recorded as sold, dead or otherwise gone before reaching a pen, so only ${Math.max(pool, 0).toLocaleString()} can still be placed.`
+        : `Flocks from ${label} were placed with ${placed.toLocaleString()} birds${allocatedNote}, but the batch only had ${capacity.toLocaleString()}.`)
+    } else if (explained > pool - placed) {
       err("batches", index, "numberOfBirds",
-        `Flocks from ${label} were placed with ${placed.toLocaleString()} birds${allocatedNote}, but the batch only had ${capacity.toLocaleString()}.`)
-    } else if (isHistoricalBatch(batch, context) && placed + alreadyAllocated < capacity) {
+        `${label}: the reconciliation explains ${explained.toLocaleString()} birds but only ${(pool - placed).toLocaleString()} never went into a pen` +
+        (accounted > 0 ? ` (${accounted.toLocaleString()} more were already recorded earlier and are not asked about again).` : "."))
+    } else if (isHistoricalBatch(batch, context) && placed + alreadyAllocated + accounted + explained < capacity) {
       // A HISTORICAL batch must be fully accounted for. Its birds are not a plan
       // -- they are standing in pens right now, so every one of them has a pen.
       // Birds left over would mean the farm cannot say where they are, and they
@@ -1243,10 +1389,12 @@ export function validateSetup(draft: SetupDraft, context: SetupContext): { error
       //
       // A NEW purchase is the opposite case and stays partial-legal: 12,000
       // chicks bought today may have only 8,000 placed so far.
-      const missing = capacity - (placed + alreadyAllocated)
+      // 413: "in a pen" became "accounted for" -- the birds that never went
+      // into a pen can be explained on the reconciliation step.
+      const missing = pool - placed - explained
       err("batches", index, "numberOfBirds",
-        `${label} is a batch you already had, so all ${capacity.toLocaleString()} of its birds must be in a pen — ` +
-        `${missing.toLocaleString()} are unaccounted for. Put them in a pen, or lower the batch to ${(placed + alreadyAllocated).toLocaleString()}.`)
+        `${label} is a batch you already had, so all ${capacity.toLocaleString()} of its birds must be accounted for — ` +
+        `${missing.toLocaleString()} are not. Put them in a pen, or explain them on the reconciliation step (sold, died, culled, transferred, or still alive and waiting).`)
     }
   })
 
@@ -1383,5 +1531,29 @@ export function toRequest(draft: SetupDraft, context: SetupContext, userId: stri
         Notes: f.notes ?? null,
       }
     }),
+    // 413: posted by the server through the same function as the Batch page.
+    BatchReconciliations: Object.entries(draft.batchReconciliations ?? {})
+      .filter(([key, r]) => draft.batches.some((b) => b.key === key) && explainedByReconciliation(r) > 0)
+      .map(([key, r]) => ({
+        BatchKey: key,
+        StillUnallocatedLive: count(r.stillAlive),
+        Notes: null,
+        Lines: [
+          ...(r.sales ?? []).filter((s) => count(s.quantity) > 0).map((s) => ({
+            Kind: "Sale",
+            Quantity: count(s.quantity),
+            Date: normalize(s.date) ? `${normalize(s.date)}T00:00:00` : null,
+            ValueUnknown: s.valueUnknown,
+            PricePerBird: s.valueUnknown ? null : Number(s.pricePerBird) || 0,
+            AmountReceived: s.valueUnknown ? null
+              : normalize(s.amountReceived) ? Number(s.amountReceived)
+              : Math.round(count(s.quantity) * (Number(s.pricePerBird) || 0) * 100) / 100,
+            Classification: "PreCutover",
+          })),
+          ...([["Mortality", r.mortality], ["Cull", r.culled], ["TransferOut", r.transferred]] as const)
+            .filter(([, q]) => count(q) > 0).map(([kind, q]) => ({ Kind: kind, Quantity: count(q) })),
+          ...(count(r.other) > 0 ? [{ Kind: "Other", Quantity: count(r.other), Note: normalize(r.otherNote) || null }] : []),
+        ],
+      })),
   }
 }

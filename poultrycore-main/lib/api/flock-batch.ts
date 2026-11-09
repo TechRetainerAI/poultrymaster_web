@@ -232,6 +232,12 @@ export interface FlockBatchInput {
    * Update: omit to leave the stored account alone, 0 to clear it, an id to set it.
    */
   poultryCashAccountId?: number | null;
+  /**
+   * 326/413: an EXISTING batch, bought before the farm used the application. No
+   * expense and no cash are posted today; the unpaid balance stays owed. Create
+   * only (omitted on update, which keeps the stored flag).
+   */
+  isHistorical?: boolean;
 }
 
 /** One row of POST /MainFlockBatch/bulk -- see lib/flock-batches/bulk.ts toPayloadItems. */
@@ -317,6 +323,7 @@ export async function createFlockBatch(flockBatch: FlockBatchInput): Promise<Api
       OrderPlacementDate: flockBatch.orderPlacementDate ?? null,
       EstimatedArrivalDate: flockBatch.estimatedArrivalDate ?? null,
       PoultryCashAccountId: flockBatch.poultryCashAccountId ?? null,
+      IsHistorical: flockBatch.isHistorical ?? false,
     };
 
     console.log("[v0] Creating flock batch:", url, payload);
@@ -445,10 +452,20 @@ export async function createFlockBatch(flockBatch: FlockBatchInput): Promise<Api
           };
         }
     
+        // 200 carries { message, warnings }; 204 (older API) carries nothing.
+        let warnings: string[] = [];
+        try {
+          const text = await response.text();
+          const body = text ? JSON.parse(text) : null;
+          const raw = body?.warnings ?? body?.Warnings;
+          if (Array.isArray(raw)) warnings = raw.filter((w: unknown) => typeof w === "string" && w);
+        } catch { /* not JSON: no warnings */ }
+
         return {
           success: true,
           message: "Flock batch updated successfully",
-        };
+          warnings,
+        } as any;
       } catch (error) {
         console.error("[v0] Flock batch update error:", error);
         return {

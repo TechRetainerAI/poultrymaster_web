@@ -1,6 +1,6 @@
 "use client"
 
-import { useSetupEmbedded, shellClass, SetupTabActions } from "@/components/setup/setup-embed"
+import { useSetupEmbedded, shellClass, SetupTaskBar, SetupTabTools } from "@/components/setup/setup-embed"
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -17,7 +17,7 @@ import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
-import { Plus, Pencil, Trash2, Loader2, Route as RouteIcon } from "lucide-react"
+import { Plus, Pencil, Trash2, Loader2, Route as RouteIcon, Search } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -120,16 +120,26 @@ export function PoultryRoutesPage() {
             <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
               <RouteIcon className="h-6 w-6 text-sky-600" /> Routes
             </h1>
-            <SetupTabActions><Button onClick={openNew} className="w-full sm:w-auto h-11 sm:h-10"><Plus className="h-4 w-4 mr-1" /> New route</Button></SetupTabActions>
+            <SetupTaskBar tasks={[{ id: "new", label: "New route", icon: Plus, primary: true, onClick: openNew }]} />
           </div>
 
+          {/* In Farm Setup the search sits beside the tab's description line. */}
+          {embedded ? (
+            <SetupTabTools>
+              <div className="relative w-full sm:w-64">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Input className="h-9 bg-white pl-9" placeholder="Search route or area" value={search} onChange={(e) => setSearch(e.target.value)} />
+              </div>
+            </SetupTabTools>
+          ) : (
           <ListFilters
             search={search} setSearch={setSearch}
             searchOnly
             searchPlaceholder="Search route or area"
           />
+          )}
 
-          <Card>
+          <Card className="gap-0 py-0">
             <CardContent className="p-0">
               {loading ? (
                 <div className="p-6 text-slate-500 flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>

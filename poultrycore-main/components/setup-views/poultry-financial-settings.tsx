@@ -25,7 +25,7 @@
 // The save button stays disabled until something actually differs, so the
 // warning only ever appears in front of a real change.
 
-import { useSetupEmbedded, shellClass, useSetupDirty } from "@/components/setup/setup-embed"
+import { useSetupEmbedded, shellClass, useSetupDirty, SetupTaskBar } from "@/components/setup/setup-embed"
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -35,7 +35,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { AlertTriangle, Coins, Info, Loader2, Save, Wheat, Pill } from "lucide-react"
+import { AlertTriangle, Coins, Info, Loader2, Save, Wheat, Pill, Undo2 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -165,7 +165,7 @@ export function PoultryFinancialSettingsPage() {
               <Loader2 className="h-4 w-4 animate-spin" /> Loading…
             </div>
           ) : (
-            <div className="max-w-3xl space-y-4">
+            <div className={embedded ? "space-y-4" : "max-w-3xl space-y-4"}>
               {/* Never present a default as though somebody chose it. */}
               {!saved?.isConfigured && (
                 <Card className="border-sky-200 bg-sky-50">
@@ -180,6 +180,8 @@ export function PoultryFinancialSettingsPage() {
                 </Card>
               )}
 
+              {/* Feed and Medication side by side in Farm Setup. */}
+              <div className={embedded ? "grid grid-cols-1 gap-4 lg:grid-cols-2" : "space-y-4"}>
               <MethodSection
                 icon={<Wheat className="h-5 w-5 text-amber-600" />}
                 title="Feed & Feed Raw Materials"
@@ -199,8 +201,9 @@ export function PoultryFinancialSettingsPage() {
                 hints={MEDICATION_OPTION_HINT}
                 disabled={!canEdit}
               />
+              </div>
 
-              <Card>
+              <Card className="gap-0 py-0">
                 <CardContent className="p-4 space-y-3">
                   <div className="space-y-1.5 max-w-xs">
                     <Label htmlFor="cr-from">Start from (optional)</Label>
@@ -245,7 +248,15 @@ export function PoultryFinancialSettingsPage() {
                 </Card>
               )}
 
-              <div className="flex items-center gap-3">
+              {/* In Farm Setup, Save and Discard are on the task bar. */}
+              {embedded && (
+                <SetupTaskBar tasks={[
+                  { id: "save", label: saving ? "Saving…" : "Save changes", icon: Save, primary: true, onClick: save,
+                    disabled: !dirty || saving, hidden: !canEdit },
+                  { id: "discard", label: "Discard", icon: Undo2, onClick: load, disabled: saving, hidden: !canEdit || !dirty },
+                ]} />
+              )}
+              <div className={embedded ? "hidden" : "flex items-center gap-3"}>
                 <Button onClick={save} disabled={!canEdit || !dirty || saving}>
                   {saving
                     ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</>
@@ -282,7 +293,7 @@ function MethodSection({
   disabled: boolean
 }) {
   return (
-    <Card>
+    <Card className="h-full gap-0 py-0">
       <CardContent className="p-4">
         <div className="flex items-center gap-2 mb-1">
           {icon}
