@@ -27,7 +27,7 @@ import { useEggPackaging } from "@/hooks/use-egg-packaging"
 import { boxSize, formatEggQuantity, formatPackaged, packagedQuantityError, toEggPieces } from "@/lib/poultry/egg-packaging"
 import {
   listPoultryBirdAdjustmentOptions, previewPoultryManualMovement, postPoultryManualMovement,
-  MANUAL_MOVEMENT_REASONS,
+  MANUAL_MOVEMENT_REASONS, BIRD_DECREASE_REASONS,
   type PoultryProduct, type PoultryRawMaterialItem, type PoultryBirdAdjustmentOption, type PoultryManualMovementPreview,
 } from "@/lib/api/poultry-inventory"
 
@@ -47,6 +47,9 @@ type Kind = "birds" | "product" | "raw"
 /** The reasons that fit the item and direction (the server applies the same rules). */
 function reasonsFor(kind: Kind, sign: 1 | -1, role: string | null, isEgg: boolean): string[] {
   return MANUAL_MOVEMENT_REASONS.filter((r) => {
+    // 413: a sale / loss of birds is always a decrease.
+    if (kind === "birds" && sign > 0 && BIRD_DECREASE_REASONS.includes(r)) return false
+    if (kind !== "birds" && (r === "Historical Sale" || r === "Transfer Out")) return false
     switch (r) {
       case "Historical Mortality": return (kind === "birds" && sign < 0) || (role === "DeadBirds" && sign > 0)
       case "Cull": return kind === "birds" && sign < 0
@@ -205,6 +208,8 @@ export function ManualStockMovementDialog({
         unitCost: kind === "birds" ? null : form.unitCost || null,
         batchId: kind === "raw" ? null : batchIdNum,
         flockId: kind === "raw" ? null : flockIdNum,
+        // 413: the pool is explicit -- "Not placed in a flock" is not just a missing flock.
+        scope: kind === "birds" ? (form.flockId === UNPLACED ? "BatchUnallocated" : "Flock") : null,
         effectiveDate: form.effectiveDate,
         reason: form.reason,
         disposition: histMortality ? form.disposition : null,
@@ -315,15 +320,20 @@ export function ManualStockMovementDialog({
                   <SelectContent>
                     {kind !== "birds" && <SelectItem value={NONE}>No flock</SelectItem>}
                     {flocks.map((f) => {
-                      const why = kind === "birds" ? (f.isClosed ? "closed" : !f.hasProductionRecord ? "no production record yet" : null) : null
+                      // 413: a flock exists without production records; only a
+                      // closed flock is out of reach (reopen it first).
+                      const closed = kind === "birds" && f.isClosed
                       return (
-                        <SelectItem key={f.flockId!} value={String(f.flockId)} disabled={!!why}>
-                          {f.flockName}{kind === "birds" ? ` · ${why ?? `${(f.liveBirds ?? 0).toLocaleString()} birds`}` : ""}
+                        <SelectItem key={f.flockId!} value={String(f.flockId)} disabled={closed}>
+                          {f.flockName}
+                          {kind === "birds" && (closed
+                            ? " — closed"
+                            : ` — ${(f.liveBirds ?? 0).toLocaleString()} birds available${f.hasProductionRecord ? "" : " (no production record yet)"}`)}
                         </SelectItem>
                       )
                     })}
                     {kind === "birds" && pickedBatch && (
-                      <SelectItem value={UNPLACED}>Not placed in a flock · {pickedBatch.unplacedBirds.toLocaleString()} birds</SelectItem>
+                      <SelectItem value={UNPLACED}>Not placed in a flock — {pickedBatch.unplacedBirds.toLocaleString()} live birds</SelectItem>
                     )}
                   </SelectContent>
                 </Select>
@@ -363,7 +373,15 @@ export function ManualStockMovementDialog({
             ))}
             {kind === "birds" && form.flockId && form.flockId !== UNPLACED && (
               <p className="mt-1 text-xs text-slate-500">
-                The flock&apos;s latest production record takes the corrected count. No production record is created and no day&apos;s deaths change.
+                {pickedFlock?.hasProductionRecord
+                  ? "The flock’s latest production record takes the corrected count."
+                  : "The flock has no production record yet, so its bird count itself is corrected."}{" "}
+                No production record is created and no day&apos;s deaths change.
+              </p>
+            )}
+            {kind === "birds" && form.flockId === UNPLACED && (
+              <p className="mt-1 text-xs text-slate-500">
+                Only the batch&apos;s birds that are in no flock change. No flock, no production record, no sale and no cash are touched.
               </p>
             )}
             {form.reason === "Unrecorded Breakage" && isEgg && sign < 0 && (

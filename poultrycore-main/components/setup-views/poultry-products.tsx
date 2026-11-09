@@ -1,6 +1,6 @@
 "use client"
 
-import { useSetupEmbedded, shellClass, SetupTabActions } from "@/components/setup/setup-embed"
+import { useSetupEmbedded, shellClass, SetupTaskBar } from "@/components/setup/setup-embed"
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -172,9 +172,9 @@ export function PoultryProductsPage() {
         <main className={embedded ? "space-y-4 min-w-0" : "flex-1 overflow-y-auto p-4 sm:p-6 space-y-4"}>
           <div className={embedded ? "hidden" : "flex items-center justify-between"}>
             <div><h1 className="text-2xl font-bold">Products</h1><p className="text-sm text-slate-500">Finished goods you produce and stock.</p></div>
-            <SetupTabActions><Button onClick={openNew}><Plus className="w-4 h-4 mr-1" /> New product</Button></SetupTabActions>
+            <SetupTaskBar tasks={[{ id: "new", label: "New product", icon: Plus, primary: true, onClick: openNew }]} />
           </div>
-          <Card><CardContent className="p-4">
+          <Card className="gap-0 py-0"><CardContent className={embedded ? "p-0" : "p-4"}>
             {loading ? <div className="flex items-center gap-2 text-slate-500 p-8"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div> : (
               <><div className="hidden md:block overflow-x-auto"><Table className="min-w-[640px]">
                 <TableHeader><TableRow>

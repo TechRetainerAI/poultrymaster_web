@@ -10,9 +10,11 @@
 //   - Egg sorting, Packaging & units, Egg sizes: the same cards as the Egg
 //     Sorting Workspace's "Sizes & settings" tab (341–344, 393, 394).
 // ?tab=picks|sorting|packaging|sizes opens a tab directly.
+// Inside Farm Setup the four tabs are one page instead: a 2 x 2 grid of titled
+// panels, each with the compact version of its settings.
 // =============================================================================
 
-import { useSetupEmbedded, shellClass, SetupTabActions, useSetupDirty } from "@/components/setup/setup-embed"
+import { useSetupEmbedded, shellClass, SetupTaskBar, useSetupDirty } from "@/components/setup/setup-embed"
 import { Suspense, useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -159,7 +161,7 @@ function EggPickSettingsInner() {
       <div className={shellClass(embedded, "flex-1 flex flex-col min-w-0")}>
         {!embedded && <DashboardHeader />}
         <main className={embedded ? "min-w-0" : "flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-6"}>
-          <div className="mx-auto max-w-5xl space-y-6">
+          <div className={cn(!embedded && "mx-auto max-w-5xl", "space-y-6")}>
             {/* Header */}
             <div className={embedded ? "hidden" : "relative overflow-hidden rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 via-white to-emerald-50 p-4 sm:p-6 shadow-sm"}>
               <div className="flex flex-wrap items-start justify-between gap-4">
@@ -178,12 +180,84 @@ function EggPickSettingsInner() {
                     </p>
                   </div>
                 </div>
-                <SetupTabActions><Button variant="outline" size="sm" asChild className="bg-white/70">
-                  <Link href="/poultry-egg-sorting"><ExternalLink className="w-4 h-4 mr-1.5" />Open Egg Sorting</Link>
-                </Button></SetupTabActions>
+                <SetupTaskBar className="w-auto" tasks={[{ id: "sorting", label: "Open Egg Sorting", icon: ExternalLink, href: "/poultry-egg-sorting" }]} />
               </div>
             </div>
 
+            {embedded ? (
+              <div className="space-y-3">
+                {eggError && (
+                  <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm text-rose-800">{eggError}</div>
+                )}
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                  {/* ---- Pick times ---- */}
+                  <Quadrant icon={Clock} tone="emerald" title="Pick times" subtitle="When each egg pick happens in the day" status={tabStatus.picks}>
+                    {loading ? (
+                      <div className="flex items-center gap-2 py-6 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                          {PICKS.map((p) => {
+                            const enabled = !p.toggle || form[p.toggle]
+                            return (
+                              <div key={p.key} title={p.hint}
+                                className={cn("space-y-1.5 rounded-lg border p-2",
+                                  enabled ? "border-slate-200 bg-white" : "border-dashed border-slate-200 bg-slate-50")}>
+                                <div className="flex items-center gap-1.5">
+                                  <span className={cn("flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold",
+                                    enabled ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-500")}>{p.n}</span>
+                                  <Label htmlFor={`qpick-${p.key}`} className="min-w-0 flex-1 truncate text-sm font-medium text-slate-800">{p.label}</Label>
+                                  {p.toggle ? (
+                                    <Switch checked={form[p.toggle]} disabled={saving} aria-label={`Enable ${p.label}`}
+                                      onCheckedChange={(checked) => setForm({ ...form, [p.toggle as ToggleKey]: checked })} />
+                                  ) : (
+                                    <span className="text-[10px] font-medium uppercase text-slate-400">On</span>
+                                  )}
+                                </div>
+                                <Input id={`qpick-${p.key}`} type="time" value={form[p.key] || ""} disabled={saving}
+                                  onChange={(e) => setForm({ ...form, [p.key]: e.target.value })}
+                                  className={cn("h-8 w-full", !enabled && "opacity-60")} />
+                              </div>
+                            )
+                          })}
+                        </div>
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+                          <span className={cn("text-xs", picksDirty ? "font-medium text-amber-700" : "text-slate-500")}>
+                            {picksDirty ? "Unsaved changes" : "Pick times are saved."}
+                          </span>
+                          <div className="flex gap-2">
+                            {picksDirty && <Button size="sm" variant="ghost" onClick={() => setForm(savedForm)} disabled={saving}>Discard</Button>}
+                            <Button size="sm" onClick={save} disabled={saving || !picksDirty}>
+                              {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />} Save
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </Quadrant>
+
+                  {/* ---- Egg sorting ---- */}
+                  <Quadrant icon={Settings} tone="sky" title="Egg sorting" subtitle="Sort eggs into sizes and price them" status={tabStatus.sorting}>
+                    <EggSortingSettingsCard compact settings={settings} classes={classes} canEdit={canEditEggs} onChanged={eggsChanged} />
+                    {unsortedClass && (
+                      <p className="mt-2 text-xs text-slate-500">
+                        Unsorted on hand: <b className="text-slate-700">{fmtCount(unsortedClass.onHand)}</b> ({cratesText(unsortedClass.onHand)})
+                      </p>
+                    )}
+                  </Quadrant>
+
+                  {/* ---- Packaging & units ---- */}
+                  <Quadrant icon={Package} tone="amber" title="Packaging & units" subtitle="Count eggs in boxes, crates and pieces" status={tabStatus.packaging}>
+                    <EggPackagingCard compact canEdit={canEditEggs} />
+                  </Quadrant>
+
+                  {/* ---- Egg sizes ---- */}
+                  <Quadrant icon={Layers} tone="violet" title="Egg sizes" subtitle="Each size's name, price and stock" status={tabStatus.sizes}>
+                    <EggSizesCard compact classes={classes} canEdit={canEditEggs} onChanged={eggsChanged} />
+                  </Quadrant>
+                </div>
+              </div>
+            ) : (
             <Tabs value={tab} onValueChange={(v) => setTab(v as TabValue)} className="gap-4">
               <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-xl bg-white p-1 shadow-sm border border-slate-200 sm:grid-cols-4">
                 {TABS.map(({ value, label, icon: Icon }) => (
@@ -333,10 +407,45 @@ function EggPickSettingsInner() {
               </TabsContent>
 
             </Tabs>
+            )}
           </div>
         </main>
       </div>
     </div>
+  )
+}
+
+const QUADRANT_TONES = {
+  emerald: { head: "from-emerald-50 border-emerald-100", icon: "bg-emerald-500", chip: "bg-emerald-100 text-emerald-800" },
+  sky: { head: "from-sky-50 border-sky-100", icon: "bg-sky-500", chip: "bg-sky-100 text-sky-800" },
+  amber: { head: "from-amber-50 border-amber-100", icon: "bg-amber-500", chip: "bg-amber-100 text-amber-800" },
+  violet: { head: "from-violet-50 border-violet-100", icon: "bg-violet-500", chip: "bg-violet-100 text-violet-800" },
+} as const
+
+/** One quarter of the Farm Setup egg settings page: a titled, coloured panel. */
+function Quadrant({ icon: Icon, tone, title, subtitle, status, children }: {
+  icon: React.ComponentType<{ className?: string }>
+  tone: keyof typeof QUADRANT_TONES
+  title: string
+  subtitle: string
+  status: string
+  children: React.ReactNode
+}) {
+  const t = QUADRANT_TONES[tone]
+  return (
+    <section className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <header className={cn("flex items-center gap-3 border-b bg-gradient-to-r to-white px-4 py-3", t.head)}>
+        <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white shadow-sm", t.icon)}>
+          <Icon className="h-5 w-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="font-semibold leading-tight text-slate-900">{title}</h3>
+          <p className="truncate text-xs text-slate-500">{subtitle}</p>
+        </div>
+        <span className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium", t.chip)}>{status}</span>
+      </header>
+      <div className="min-w-0 flex-1 p-4">{children}</div>
+    </section>
   )
 }
 

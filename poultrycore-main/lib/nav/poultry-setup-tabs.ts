@@ -23,8 +23,6 @@ export type SetupTab = {
   groupLabel?: string
 }
 
-const DELIVERY = { group: "delivery", groupLabel: "Delivery" } as const
-
 export const SETUP_SECTIONS: Record<SetupSection, { label: string; tabs: SetupTab[] }> = {
   production: {
     label: "Production Setup",
@@ -32,11 +30,11 @@ export const SETUP_SECTIONS: Record<SetupSection, { label: string; tabs: SetupTa
       { key: "company-settings", label: "Company settings", description: "Your business name and contacts, farm type and capacity, currency and business time zone." },
       { key: "houses", label: "Houses & pens", description: "Manage the houses and pens where your birds are kept." },
       { key: "flock-purchases", label: "Flock purchases", description: "Record the birds you bought; each batch is later divided into flock groups." },
-      { key: "flock-groups", label: "Flock groups", description: "Manage the groups of birds you record production against." },
+      { key: "flock-groups", label: "Flock groups", description: "Manage the groups of birds." },
       { key: "products", label: "Products", description: "Manage products used in production, purchasing and sales." },
       { key: "feed-formulas", label: "Feed formulas", description: "Configure ingredient formulas used to produce feed." },
       { key: "egg-settings", label: "Egg settings", description: "Configure the egg settings used when recording production." },
-      { key: "inventory", label: "Supply items", description: "Set up the feed, medication and other supply items your farm uses. Record purchases on the Inventory page." },
+      { key: "inventory", label: "Supply items", description: "Set up your supply items." },
     ],
   },
   business: {
@@ -46,9 +44,9 @@ export const SETUP_SECTIONS: Record<SetupSection, { label: string; tabs: SetupTa
       { key: "suppliers", label: "Suppliers", description: "Manage supplier details used in purchases and payments." },
       { key: "financial-settings", label: "Financial settings", description: "Choose when inventory costs count towards profit and loss." },
       { key: "cash-accounts", label: "Cash accounts", description: "Manage the cash and bank accounts money is paid into and out of." },
-      { key: "drivers", label: "Drivers", description: "Manage the drivers who deliver your eggs, linked to your employees.", ...DELIVERY },
-      { key: "vehicles", label: "Vehicles", description: "Manage the vehicles your eggs are loaded onto for delivery.", ...DELIVERY },
-      { key: "routes", label: "Routes", description: "Manage the delivery routes and the areas each one covers.", ...DELIVERY },
+      { key: "drivers", label: "Delivery Drivers", description: "Manage the drivers who deliver your eggs, linked to your employees." },
+      { key: "vehicles", label: "Delivery Vehicles", description: "Manage the vehicles your eggs are loaded onto for delivery." },
+      { key: "routes", label: "Delivery Routes", description: "Manage the delivery routes and the areas each one covers." },
       { key: "staff", label: "Staff", description: "Manage the farm's staff records used for payroll and assignments." },
     ],
   },

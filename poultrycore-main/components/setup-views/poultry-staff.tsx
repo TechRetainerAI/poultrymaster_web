@@ -1,6 +1,6 @@
 "use client"
 
-import { useSetupEmbedded, shellClass, SetupTabActions } from "@/components/setup/setup-embed"
+import { useSetupEmbedded, shellClass, SetupTaskBar, SetupTabTools } from "@/components/setup/setup-embed"
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -19,7 +19,7 @@ import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
-import { Plus, Pencil, Loader2, UserCog, CalendarCheck, Trash2, KeyRound } from "lucide-react"
+import { Plus, Pencil, Loader2, UserCog, CalendarCheck, Trash2, KeyRound, Search } from "lucide-react"
 import { useStaffEmployeeLink } from "@/hooks/use-staff-employee-link"
 import { EmployeeBadge } from "@/components/employees/link-badges"
 import { useAuthStore } from "@/lib/store/auth-store"
@@ -153,12 +153,22 @@ export function PoultryStaffPage() {
             <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
               <UserCog className="h-6 w-6 text-indigo-600" /> Staff
             </h1>
-            <SetupTabActions><Button onClick={openNew}><Plus className="h-4 w-4 mr-1" /> New staff</Button></SetupTabActions>
+            <SetupTaskBar tasks={[{ id: "new", label: "New staff", icon: Plus, primary: true, onClick: openNew }]} />
           </div>
 
-          <ListFilters search={search} setSearch={setSearch} searchOnly searchPlaceholder="Search name, role or phone" />
+          {/* In Farm Setup the search sits beside the tab's description line. */}
+          {embedded ? (
+            <SetupTabTools>
+              <div className="relative w-full sm:w-64">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Input className="h-9 bg-white pl-9" placeholder="Search name, role or phone" value={search} onChange={(e) => setSearch(e.target.value)} />
+              </div>
+            </SetupTabTools>
+          ) : (
+            <ListFilters search={search} setSearch={setSearch} searchOnly searchPlaceholder="Search name, role or phone" />
+          )}
 
-          <Card>
+          <Card className="gap-0 py-0">
             <CardContent className="p-0">
               {loading ? (
                 <div className="p-6 text-slate-500 flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>

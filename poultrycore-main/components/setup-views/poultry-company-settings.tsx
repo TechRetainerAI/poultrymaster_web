@@ -11,7 +11,7 @@
 // lives on Farms but saves itself (see CompanyTimeZoneField for why).
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
-import { Loader2, Save } from "lucide-react"
+import { Loader2, Save, Undo2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { NumberInput } from "@/components/ui/number-input"
@@ -24,7 +24,7 @@ import { currencySymbolFor } from "@/lib/constants/currencies"
 import { fetchFarmSettings, updateFarmCurrency, useFarmSettingsStore } from "@/lib/currency"
 import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/use-permissions"
-import { useSetupDirty } from "@/components/setup/setup-embed"
+import { useSetupDirty, useSetupEmbedded, SetupTaskBar } from "@/components/setup/setup-embed"
 import { CompanyTimeZoneField } from "@/components/settings/company-timezone-field"
 import {
   getPoultryCompanyProfile, setupPoultryCompany, updatePoultryCompanyProfile,
@@ -182,6 +182,7 @@ export function CompanySettingsForm() {
   const dirty = !loading && !curLoading && (!same(form, base) || !same(cur, savedCur))
   useSetupDirty(dirty)
   const ro = !canEdit
+  const embedded = useSetupEmbedded()
 
   async function submit() {
     if (saving) return
@@ -206,9 +207,9 @@ export function CompanySettingsForm() {
   return (
     <div className="space-y-5">
       <div>
-        <SectionTitle>Company</SectionTitle>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="md:col-span-2"><Label>Farm / brand name</Label>
+        <SectionTitle>Company and farm</SectionTitle>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div><Label>Farm / brand name</Label>
             <Input value={form.brandName} disabled={ro} placeholder="e.g. Gyimah Farm" onChange={(e) => setForm({ ...form, brandName: e.target.value })} /></div>
           <div><Label>Owner name</Label>
             <Input value={form.ownerName} disabled={ro} onChange={(e) => setForm({ ...form, ownerName: e.target.value })} /></div>
@@ -218,12 +219,6 @@ export function CompanySettingsForm() {
             <Input value={form.phoneNumber} disabled={ro} placeholder="+233..." onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })} /></div>
           <div><Label>Email</Label>
             <Input type="email" value={form.email} disabled={ro} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
-        </div>
-      </div>
-
-      <div className="border-t border-slate-100 pt-4">
-        <SectionTitle>Farm</SectionTitle>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div><Label>Business type</Label>
             <Select value={form.businessType} onValueChange={(v) => setForm({ ...form, businessType: v })} disabled={ro}>
               <SelectTrigger><SelectValue /></SelectTrigger>
@@ -234,24 +229,17 @@ export function CompanySettingsForm() {
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>{POULTRY_HOUSING_SYSTEMS.map((o) => <SelectItem key={o} value={o}>{POULTRY_HOUSING_LABELS[o]}</SelectItem>)}</SelectContent>
             </Select></div>
-          <div className="md:col-span-2"><Label>Farm site address</Label>
+          <div><Label>Farm site address</Label>
             <Input value={form.farmSiteAddress} disabled={ro} onChange={(e) => setForm({ ...form, farmSiteAddress: e.target.value })} /></div>
           <div><Label>Total capacity (birds)</Label>
             <NumberInput min={0} value={form.totalCapacity ?? ""} disabled={ro}
               onChange={(e) => setForm({ ...form, totalCapacity: e.target.value === "" ? null : Number(e.target.value) })} /></div>
           <div><Label>Eggs per crate</Label>
             <NumberInput min={1} value={form.defaultCrateEggCount} disabled={ro}
-              onChange={(e) => setForm({ ...form, defaultCrateEggCount: Number(e.target.value) || 30 })} />
-            <p className="mt-1 text-xs text-slate-500">Converts crates to eggs when a vehicle is loaded and a driver return is reconciled.</p></div>
+              onChange={(e) => setForm({ ...form, defaultCrateEggCount: Number(e.target.value) || 30 })} /></div>
           <div><Label>Operating hours</Label>
             <Input value={form.operatingHours} disabled={ro} placeholder="e.g. 6:00 AM – 6:00 PM"
               onChange={(e) => setForm({ ...form, operatingHours: e.target.value })} /></div>
-        </div>
-      </div>
-
-      <div className="border-t border-slate-100 pt-4">
-        <SectionTitle>Currency and time zone</SectionTitle>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div><Label htmlFor="farm-currency">Currency</Label>
             {/* Picking a currency fills in its standard symbol; the symbol stays
                 editable because many Ghanaian businesses write "GHC", not "₵". */}
@@ -262,7 +250,7 @@ export function CompanySettingsForm() {
               onChange={(e) => setCur({ ...cur, symbol: e.target.value })}
               onBlur={() => { if (!cur.symbol.trim()) setCur({ ...cur, symbol: currencySymbolFor(cur.code) || cur.code }) }} />
             <p className="mt-1 text-xs text-slate-500">To hide it, turn off &quot;Show symbol on amounts&quot;.</p></div>
-          <div className="flex items-end gap-3 pb-2">
+          <div className="flex h-9 items-center gap-3 self-start md:mt-6">
             <Switch checked={cur.show} disabled={ro} onCheckedChange={(v) => setCur({ ...cur, show: v })} id="show-symbol" />
             <Label htmlFor="show-symbol" className="mb-0">Show symbol on amounts</Label>
           </div>
@@ -277,7 +265,14 @@ export function CompanySettingsForm() {
         <Textarea value={form.notes} disabled={ro} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
       </div>
 
-      {!ro && (
+      {/* In Farm Setup, Save and Discard are on the task bar. */}
+      {!ro && embedded && (
+        <SetupTaskBar tasks={[
+          { id: "save", label: saving ? "Saving…" : "Save company settings", icon: Save, primary: true, onClick: submit, disabled: !dirty || saving },
+          { id: "discard", label: "Discard", icon: Undo2, onClick: () => { setForm(base); setCur(savedCur) }, disabled: saving, hidden: !dirty },
+        ]} />
+      )}
+      {!ro && !embedded && (
         <SaveBar dirty={dirty} saving={saving} onSave={submit}
           onDiscard={() => { setForm(base); setCur(savedCur) }} label="Save company settings" />
       )}
