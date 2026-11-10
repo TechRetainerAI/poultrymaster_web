@@ -276,10 +276,10 @@ function FarmSetupInner() {
           )}
 
           {/* One line on what this tab is for; the tab's own search and view
-              switches sit on the right of it. */}
-          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-3">
-            <p className="min-w-0 text-sm text-slate-600 sm:flex-none sm:whitespace-nowrap sm:[&:has(+div:not(:empty))]:pt-2">{current.description}</p>
-            <div ref={setToolsEl} className="flex min-w-0 flex-1 flex-wrap items-center gap-2 empty:hidden" />
+              switches get their own row underneath it. */}
+          <div className="mt-3 flex flex-col gap-3">
+            <p className="min-w-0 text-sm text-slate-600">{current.description}</p>
+            <div ref={setToolsEl} className="flex min-w-0 flex-wrap items-center gap-2 empty:hidden" />
           </div>
 
 
