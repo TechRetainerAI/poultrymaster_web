@@ -40,7 +40,10 @@ import { RecalculateStockButton } from "@/components/poultry/recalculate-stock-b
 import { SetProductStockButton } from "@/components/inventory/set-product-stock-button"
 import { ReconcileProductStockButton } from "@/components/inventory/reconcile-product-stock-button"
 import { exportTableToPdf, type PdfExportOptions } from "@/lib/utils/pdf-export"
-import { fmtDateTime } from "@/lib/utils/company-datetime"
+import { businessDatePart, fmtDateTime, fmtInstant } from "@/lib/utils/company-datetime"
+
+/** A stored timestamp that carries a real clock time (not a bare business date). */
+const hasClockTime = (v?: string | null) => !!v && !/(T| )00:00:00(\.0+)?$/.test(v.trim()) && /\d{2}:\d{2}/.test(v)
 
 // Doc 5: movement types with sign. Positive = increase, negative = decrease.
 // Manual movements only. 'Production' and 'Sale' are RESERVED for the posting
@@ -77,14 +80,31 @@ const MOVE_COLORS: Record<string, string> = {
 const MOVE_COLOR_FALLBACK = "bg-slate-200 text-slate-800"
 
 type Move = {
-  key: string; date: string; item: string; parentType: string; movementType: string; qty: number; unitCost: number | null; total: number | null; source: string; note: string | null
+  /** The BUSINESS date the movement is effective on (what filters and the ledger use). */
+  key: string; date: string;
+  /** 414: when it was posted (UTC), or null when no time was ever recorded. */
+  postedAt?: string | null
+  /** Business date, then posting time -- what "sort by date" orders on. */
+  dateSort?: string
+  item: string; parentType: string; movementType: string; qty: number; unitCost: number | null; total: number | null; source: string; note: string | null
   // 373: provenance; set on manual movements (and the byproducts they made)
   batchFlock: string; reason: string | null; manualMovementId: number | null; isReversal: boolean
 }
+/** The company-local calendar day of an instant, as "YYYY-MM-DD". */
+function fmtInstantDay(v: string): string {
+  const s = fmtInstant(v)                    // "8 Nov 2026, 15:49"
+  const m = s.match(/^(\d{1,2}) (\w{3}) (\d{4})/)
+  if (!m) return ""
+  const mon = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"].indexOf(m[2]) + 1
+  return `${m[3]}-${String(mon).padStart(2, "0")}-${m[1].padStart(2, "0")}`
+}
+
 const batchFlockLabel = (batch?: string | null, flock?: string | null) => [batch, flock].filter(Boolean).join(" / ")
 
 function sourceFor(txnType: string, relatedId?: number | null): string {
   if (txnType === "Production") return "Production Record"
+  // 319/413: the flock's opening position (Initial Farm Setup or an existing flock)
+  if (txnType === "Opening Adjustment") return "Opening position"
   // 372: byproducts generated (and disposed immediately) by a production record / egg sorting
   if (txnType === "Broken Egg Prod" || txnType === "Mortality In") return "Production Record"
   if (txnType === "Broken Egg Disposal" || txnType === "Mortality Disposal") return "Production Record (disposed immediately)"
@@ -186,18 +206,29 @@ export default function PoultryStockPage() {
     return text === formatEggs(n) ? null : `≈ ${text}`
   }
   const moves: Move[] = useMemo(() => {
-    const prod: Move[] = txns.map((t) => ({
-      key: `pt${t.poultryStockTransactionId}`, date: t.createdDate, item: t.productName ?? "", parentType: "Finished Product",
+    const prod: Move[] = txns.map((t) => {
+      // 414: the effective business date and the posting time are two facts.
+      // A historical adjustment entered today but effective in 2024 shows 2024,
+      // with "Entered <today, time>" under it. A row with no recorded time shows
+      // its date alone -- midnight is never printed as a time.
+      const day = businessDatePart(t.effectiveDate || t.createdDate)
+      const postedAt = t.postedAt ?? (hasClockTime(t.createdDate) ? t.createdDate : null)
+      return {
+      key: `pt${t.poultryStockTransactionId}`, date: day ? `${day}T00:00:00` : t.createdDate,
+      postedAt, dateSort: `${day} ${postedAt ?? ""} ${String(t.poultryStockTransactionId).padStart(10, "0")}`,
+      item: t.productName ?? "", parentType: "Finished Product",
       movementType: t.txnType, qty: t.quantity, unitCost: t.unitCost ?? null,
       total: t.unitCost != null ? Number((t.unitCost * Math.abs(t.quantity)).toFixed(2)) : null,
       source: t.manualMovementId != null
         ? `${t.manualReversal ? "Reversal of " : "Manual movement "}${manualById.get(t.manualMovementId)?.movementNo ?? ""}`.trim()
         : sourceFor(t.txnType, t.relatedId),
       note: t.note ?? null,
-      batchFlock: batchFlockLabel(t.batchCode, t.flockName), reason: t.reason ?? null,
+      // 413: a batch-pool bird row says so; a legacy row with no flock stays blank.
+      batchFlock: batchFlockLabel(t.batchCode, t.birdScope === "BatchUnallocated" ? "Not placed in a flock" : t.flockName), reason: t.reason ?? null,
       manualMovementId: t.manualMovementId ?? null, isReversal: !!t.manualReversal,
-    }))
-    return [...prod, ...rawMoves].sort((a, b) => (b.date || "").localeCompare(a.date || ""))
+    }})
+    const raw = rawMoves.map((m) => ({ ...m, dateSort: m.dateSort ?? `${businessDatePart(m.date)} ${m.date}` }))
+    return [...prod, ...raw].sort((a, b) => (b.date || "").localeCompare(a.date || ""))
   }, [txns, rawMoves, manualById])
 
   const parentTypeOptions = useMemo(() => Array.from(new Set(moves.map((m) => m.parentType).filter(Boolean))).sort(), [moves])
@@ -217,7 +248,7 @@ export default function PoultryStockPage() {
   }, [moves, search, dateFrom, dateTo, itemFilter, parentTypeFilter, movementFilter, flockFilter, reasonFilter])
 
   // Default order stays date-desc (moves is pre-sorted); a header click overrides.
-  const sortedMoves = useMemo(() => sortData(filteredMoves, sort.key, sort.direction), [filteredMoves, sort])
+  const sortedMoves = useMemo(() => sortData(filteredMoves, sort.key === "date" ? "dateSort" : sort.key, sort.direction), [filteredMoves, sort])
   const pg = usePagination(sortedMoves)
 
   // Totals of every row the filters leave (all pages, not just this one).
@@ -267,6 +298,7 @@ export default function PoultryStockPage() {
       currencyLabel: currencyCode,
       columns: [
         { header: "Date" },
+        { header: "Entered" },
         { header: "Item" },
         { header: "Parent Type" },
         { header: "Movement" },
@@ -282,6 +314,7 @@ export default function PoultryStockPage() {
       ],
       rows: sortedMoves.map((m) => [
         (m.date || "").split("T")[0],
+        m.postedAt ? fmtInstant(m.postedAt) : "—",
         m.item,
         m.parentType,
         m.movementType,
@@ -486,7 +519,12 @@ export default function PoultryStockPage() {
                   {sortedMoves.length === 0 ? <TableRow><TableCell colSpan={12} className="text-center text-slate-500 py-6">No stock movements yet.</TableCell></TableRow>
                     : pg.pageItems.map((m) => (
                       <TableRow key={m.key}>
-                        <TableCell>{fmtDateTime(m.date, m)}</TableCell>
+                        <TableCell>
+                          {m.postedAt ? fmtDateTime(m.date, m.postedAt) : fmtDateTime(m.date, m)}
+                          {m.postedAt && businessDatePart(m.date) !== fmtInstantDay(m.postedAt) && (
+                            <div className="text-[11px] text-slate-500">Entered {fmtInstant(m.postedAt)}</div>
+                          )}
+                        </TableCell>
                         <TableCell className="font-medium">{m.item}</TableCell>
                         <TableCell><Badge className={m.parentType === "Finished Product" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-700"}>{m.parentType}</Badge></TableCell>
                         <TableCell><Badge className={MOVE_COLORS[m.movementType] ?? MOVE_COLOR_FALLBACK}>{m.movementType}</Badge></TableCell>
@@ -511,7 +549,7 @@ export default function PoultryStockPage() {
                   : pg.pageItems.map((m) => (
                     <FieldCard key={m.key} title={m.item}
                       badge={<Badge className={MOVE_COLORS[m.movementType] ?? MOVE_COLOR_FALLBACK}>{m.movementType}</Badge>}
-                      fields={[["Date", fmtDateTime(m.date, m)], ["Type", m.parentType], ["Qty", <span className={m.qty < 0 ? "text-red-600" : "text-green-700"}>{m.qty > 0 ? "+" : ""}{m.qty.toLocaleString()}{enteredAs(m) ? ` (${enteredAs(m)})` : ""}</span>], ["Unit price", m.unitCost != null ? gh(m.unitCost) : "—"], ["Total", m.total != null ? gh(m.total) : "—"], ["Source", m.source],
+                      fields={[["Date", m.postedAt ? fmtDateTime(m.date, m.postedAt) : fmtDateTime(m.date, m)], ...(m.postedAt && businessDatePart(m.date) !== fmtInstantDay(m.postedAt) ? [["Entered", fmtInstant(m.postedAt)] as [string, string]] : []), ["Type", m.parentType], ["Qty", <span className={m.qty < 0 ? "text-red-600" : "text-green-700"}>{m.qty > 0 ? "+" : ""}{m.qty.toLocaleString()}{enteredAs(m) ? ` (${enteredAs(m)})` : ""}</span>], ["Unit price", m.unitCost != null ? gh(m.unitCost) : "—"], ["Total", m.total != null ? gh(m.total) : "—"], ["Source", m.source],
                         ...(m.batchFlock ? [["Batch / Flock", m.batchFlock] as [string, string]] : []), ...(m.reason ? [["Reason", m.reason] as [string, string]] : [])]}
                       actions={reverseButton(m)} />
                   ))}

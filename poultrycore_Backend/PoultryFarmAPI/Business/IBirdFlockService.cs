@@ -8,10 +8,35 @@ namespace PoultryFarmAPIWeb.Business
     public interface IBirdFlockService
     {
         Task<int> CreateFlock(FlockModel model);
+
+        /// <summary>
+        /// 413 / Issue 5: an already-operating flock — originally placed, still
+        /// standing, and what happened in between — in one transaction, through
+        /// the same <see cref="OpeningFlockPoster"/> as Initial Farm Setup. The
+        /// batch is charged the ORIGINALLY PLACED birds, checked under the batch
+        /// allocation lock. Throws <see cref="FlockAllocationConflictException"/>
+        /// when the batch does not have them.
+        /// </summary>
+        Task<int> CreateExistingFlock(FlockModel flock, ExistingFlockHistory history, DateTime asOfDate,
+                                      int batchBirds, string source);
         Task UpdateFlock(FlockModel model);
         FlockModel GetFlockById(int flockId, string userId, string farmId);
         List<FlockModel> GetAllFlocks(string userId, string farmId);
-        Task DeleteFlock(int flockId, string userId, string farmId);
+        /// <summary>
+        /// 414: deletes a flock that has no posted activity -- its own creation
+        /// ledger rows are reversed and its birds go back to the batch pool --
+        /// and returns what happened as JSON. Throws
+        /// <see cref="FlockDeleteBlockedException"/> with a truthful reason when
+        /// the flock has posted activity (nothing is changed then).
+        /// </summary>
+        Task<string?> DeleteFlock(int flockId, string userId, string farmId);
+
+        /// <summary>
+        /// 414: what Edit Flock needs to restore the flock as it was registered
+        /// (mode, opening position, bird position, posted movements, locks).
+        /// Null when the flock is not on this farm or 414 is not applied.
+        /// </summary>
+        Task<string?> GetFlockEditContext(int flockId, string farmId);
         Task<int> GetBirdsConsumedFromBatch(int batchId, string userId, string farmId, int? flockIdToExclude = null);
 
         /// <summary>
@@ -38,6 +63,12 @@ namespace PoultryFarmAPIWeb.Business
     /// Carries the numbers so the message can say what actually happened rather
     /// than "conflict".
     /// </summary>
+    /// <summary>The flock has posted activity; the message says what.</summary>
+    public class FlockDeleteBlockedException : Exception
+    {
+        public FlockDeleteBlockedException(string message) : base(message) { }
+    }
+
     public class FlockAllocationConflictException : Exception
     {
         public int BatchBirds { get; }

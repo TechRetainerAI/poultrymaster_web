@@ -37,6 +37,7 @@ namespace PoultryFarmAPIWeb.Controllers
         private readonly IAuditLogService _auditLog;
         private readonly IConfiguration _config;
         private readonly ILogger<PoultryFarmSetupController> _logger;
+        private readonly IBirdReconciliationService _birdRecon;
 
         public PoultryFarmSetupController(
             IFarmSetupService setupService,
@@ -48,8 +49,10 @@ namespace PoultryFarmAPIWeb.Controllers
             IIamService iam,
             IAuditLogService auditLog,
             IConfiguration config,
-            ILogger<PoultryFarmSetupController> logger)
+            ILogger<PoultryFarmSetupController> logger,
+            IBirdReconciliationService birdRecon)
         {
+            _birdRecon = birdRecon;
             _setupService = setupService;
             _batchService = batchService;
             _houseService = houseService;
@@ -88,6 +91,34 @@ namespace PoultryFarmAPIWeb.Controllers
             return Ok(await _setupService.GetOpeningPositionsAsync(farmId));
         }
 
+        /// <summary>
+        /// The authoritative position of every batch, read from the database's own
+        /// bird ledger (sppoultrybatchreconcile_summary, migration 413) -- the
+        /// numbers fnpoultrybatch_unallocated enforces.
+        ///
+        /// Allocated = birds ORIGINALLY placed (soft-deleted flocks included, as
+        /// spflock_getconsumedforbatch counts them). Accounted = birds that left
+        /// the never-placed pool through posted, un-reversed batch-level
+        /// movements. Summing today's flock.Quantity instead is what made the
+        /// wizard ask a farmer to explain 7,000 birds of which 2,500 were already
+        /// recorded as sold -- and the database then refused the 7,000.
+        ///
+        /// Null when the ledger cannot be read (413 not applied): callers fall
+        /// back to the old live-quantity sum.
+        /// </summary>
+        private async Task<List<BatchBirdReconciliationRow>?> ReadBatchPositionsAsync(string farmId)
+        {
+            try { return await _birdRecon.GetSummaryAsync(farmId); }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Batch bird positions could not be read for farm {FarmId}; using flock quantities.", farmId);
+                return null;
+            }
+        }
+
+        private static int AccountedBeforePlacing(BatchBirdReconciliationRow r) =>
+            r.BatchSold + r.BatchMortality + r.BatchCulled + r.BatchTransferred + r.BatchOtherRemovals - r.BatchAdditions;
+
         // GET: api/PoultryFarmSetup/context?userId=...&farmId=...
         //
         // What the wizard needs to open: the batches, houses (with occupancy) and
@@ -104,7 +135,9 @@ namespace PoultryFarmAPIWeb.Controllers
             var houses = BuildOccupancy(_houseService.GetAll(userId, farmId), flocks);
 
             // Birds already allocated per batch, so reusing a batch cannot overspend it.
-            var allocated = flocks
+            var positions = await ReadBatchPositionsAsync(farmId);
+            var allocated = positions?.ToDictionary(r => r.BatchId, r => r.OriginallyAllocated)
+                ?? flocks
                 .Where(f => f.BatchId > 0)
                 .GroupBy(f => f.BatchId)
                 .ToDictionary(g => g.Key, g => g.Sum(f => f.Quantity));
@@ -133,6 +166,26 @@ namespace PoultryFarmAPIWeb.Controllers
                 Flocks = existingFlockRows,
                 ExistingFlockNames = flocks.Select(f => f.Name).Where(n => !string.IsNullOrWhiteSpace(n)).ToList(),
                 AllocatedByBatchId = allocated,
+                // What each batch has ALREADY had recorded against the birds that
+                // never reached a pen. The wizard shows these as existing records
+                // and only asks about what is left.
+                BatchPositions = (positions ?? new List<BatchBirdReconciliationRow>()).Select(r => new
+                {
+                    r.BatchId,
+                    r.OriginalBirds,
+                    r.OriginallyAllocated,
+                    PreviouslySold = r.BatchSold,
+                    PreviousMortality = r.BatchMortality,
+                    PreviouslyCulled = r.BatchCulled,
+                    PreviouslyTransferred = r.BatchTransferred,
+                    PreviousOther = r.BatchOtherRemovals,
+                    PreviousAdditions = r.BatchAdditions,
+                    PreviouslyAccountedFor = AccountedBeforePlacing(r),
+                    r.UnallocatedPool,
+                    ConfirmedStillAlive = r.UnallocatedLive,
+                    r.LastReconciliationNo,
+                    r.LastReconciledAt,
+                }).ToList(),
             });
         }
 
@@ -236,14 +289,17 @@ namespace PoultryFarmAPIWeb.Controllers
                 var existingBatches = await _batchService.GetAll(request.UserId, request.FarmId);
                 var existingFlocks = _flockService.GetAllFlocks(request.UserId, request.FarmId);
                 var existingHouses = BuildOccupancy(_houseService.GetAll(request.UserId, request.FarmId), existingFlocks);
-                var allocatedByBatch = existingFlocks
+                var positions = await ReadBatchPositionsAsync(request.FarmId);
+                var allocatedByBatch = positions?.ToDictionary(r => r.BatchId, r => r.OriginallyAllocated)
+                    ?? existingFlocks
                     .Where(f => f.BatchId > 0)
                     .GroupBy(f => f.BatchId)
                     .ToDictionary(g => g.Key, g => g.Sum(f => f.Quantity));
+                var accountedByBatch = positions?.ToDictionary(r => r.BatchId, AccountedBeforePlacing);
 
                 return FarmSetupValidator.Validate(
                     request, existingBatches, existingHouses,
-                    existingFlocks.Select(f => f.Name), allocatedByBatch);
+                    existingFlocks.Select(f => f.Name), allocatedByBatch, accountedByBatch);
             }
 
             var (errors, warnings) = await ValidateNowAsync();
@@ -344,6 +400,88 @@ namespace PoultryFarmAPIWeb.Controllers
             return Ok(result);
         }
 
+        // GET: api/PoultryFarmSetup/runs?userId=&farmId=
+        // 416: every completed setup, what it created, and why it cannot be undone.
+        [HttpGet("runs")]
+        public async Task<IActionResult> GetRuns([FromQuery] string userId, [FromQuery] string farmId)
+        {
+            if (string.IsNullOrEmpty(userId)) return BadRequest("UserId is required.");
+            if (string.IsNullOrEmpty(farmId)) return BadRequest("FarmId is required.");
+            var json = await _setupService.ListRunsAsync(farmId);
+            return Content(json, "application/json");
+        }
+
+        // POST: api/PoultryFarmSetup/runs/{id}/reverse
+        // 416: undo a whole setup -- its flocks, batches, houses and batch
+        // reconciliations -- in one transaction. Refused (400, with the reasons)
+        // while anything has been recorded against them.
+        [HttpPost("runs/{id:int}/reverse")]
+        public async Task<IActionResult> ReverseRun(int id, [FromBody] FarmSetupRunReverseRequest body)
+        {
+            if (body is null) return BadRequest("A request body is required.");
+            if (string.IsNullOrEmpty(body.UserId)) return BadRequest("UserId is required.");
+            if (string.IsNullOrEmpty(body.FarmId)) return BadRequest("FarmId is required.");
+            try
+            {
+                var json = await _setupService.ReverseRunAsync(body.FarmId, id, body.Reason ?? string.Empty, body.UserId);
+                try
+                {
+                    await _auditLog.InsertAsync(BuildAuditRow(body.UserId, body.FarmId, "FarmSetup", id.ToString(),
+                        $"Initial Farm Setup #{id} undone: {body.Reason}", new { setupRunId = id, body.Reason, result = json }));
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Audit row for undoing farm setup {RunId} was not written.", id);
+                }
+                return Content(json, "application/json");
+            }
+            catch (PostgresException ex) when (ex.SqlState == "P0001")
+            {
+                return BadRequest(new { message = ex.MessageText });
+            }
+        }
+
+        // GET: api/PoultryFarmSetup/legacy?userId=&farmId=
+        // 417: what setups completed before tracking appear to have created.
+        [HttpGet("legacy")]
+        public async Task<IActionResult> GetLegacy([FromQuery] string userId, [FromQuery] string farmId)
+        {
+            if (string.IsNullOrEmpty(userId)) return BadRequest("UserId is required.");
+            if (string.IsNullOrEmpty(farmId)) return BadRequest("FarmId is required.");
+            return Content(await _setupService.ListLegacyCandidatesAsync(farmId), "application/json");
+        }
+
+        // POST: api/PoultryFarmSetup/legacy/reverse
+        // 417: undo exactly the ticked items of an earlier setup -- same checks
+        // and write paths as a tracked setup, all or nothing.
+        [HttpPost("legacy/reverse")]
+        public async Task<IActionResult> ReverseLegacy([FromBody] FarmSetupLegacyReverseRequest body)
+        {
+            if (body is null) return BadRequest("A request body is required.");
+            if (string.IsNullOrEmpty(body.UserId)) return BadRequest("UserId is required.");
+            if (string.IsNullOrEmpty(body.FarmId)) return BadRequest("FarmId is required.");
+            if (body.Items is null || body.Items.Count == 0) return BadRequest(new { message = "Tick at least one item to undo." });
+            var items = System.Text.Json.JsonSerializer.Serialize(body.Items.Select(i => new { type = i.Type, id = i.Id }));
+            try
+            {
+                var json = await _setupService.ReverseLegacyAsync(body.FarmId, items, body.Reason ?? string.Empty, body.UserId);
+                try
+                {
+                    await _auditLog.InsertAsync(BuildAuditRow(body.UserId, body.FarmId, "FarmSetup", null,
+                        $"Earlier Initial Farm Setup items undone ({body.Items.Count}): {body.Reason}", new { items = body.Items, body.Reason, result = json }));
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Audit row for undoing earlier farm setup items was not written.");
+                }
+                return Content(json, "application/json");
+            }
+            catch (PostgresException ex) when (ex.SqlState == "P0001")
+            {
+                return BadRequest(new { message = ex.MessageText });
+            }
+        }
+
         // POST: api/PoultryFarmSetup/opening-positions/correct
         //
         // Restating day one, not rewriting what has happened since. Refused the
@@ -395,6 +533,20 @@ namespace PoultryFarmAPIWeb.Controllers
                             + correction.HistoricalCulled + correction.HistoricalTransferred;
                 if (known > difference)
                     return BadRequest(new { message = $"The breakdown adds up to {known:N0} but only {difference:N0} birds are unaccounted for." });
+            }
+
+            // 414: placing MORE birds than were recorded takes them from the
+            // batch, which must still have them.
+            if (correction.OriginallyPlaced > existing.OriginallyPlaced && flock.BatchId > 0)
+            {
+                var positions = await ReadBatchPositionsAsync(correction.FarmId);
+                var pool = positions?.FirstOrDefault(p => p.BatchId == flock.BatchId)?.UnallocatedPool;
+                var extra = correction.OriginallyPlaced - existing.OriginallyPlaced;
+                // A warning, not a block: the batch's own number may be the stale one.
+                if (pool.HasValue && extra > pool.Value)
+                    _logger.LogInformation(
+                        "Opening correction for flock {FlockId} raises placed by {Extra} with only {Pool} unplaced in its batch (allowed; the batch shows over-allocated).",
+                        correction.FlockId, extra, pool.Value);
             }
 
             var ok = await _setupService.CorrectOpeningPositionAsync(correction);

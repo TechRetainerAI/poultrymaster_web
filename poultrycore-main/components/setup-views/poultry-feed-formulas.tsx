@@ -1,6 +1,6 @@
 "use client"
 
-import { useSetupEmbedded, shellClass, SetupTabActions } from "@/components/setup/setup-embed"
+import { useSetupEmbedded, shellClass, SetupTaskBar, SetupTabTools } from "@/components/setup/setup-embed"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -22,7 +22,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { Plus, Pencil, Loader2, Trash2, FlaskConical, AlertTriangle, CheckCircle2, ArrowLeft, ChevronDown, ChevronUp, Copy, Sparkles } from "lucide-react"
+import { Plus, Pencil, Loader2, Trash2, FlaskConical, AlertTriangle, CheckCircle2, ArrowLeft, ChevronDown, ChevronUp, Copy, Sparkles, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/use-permissions"
@@ -255,116 +255,106 @@ export function PoultryFeedFormulasPage() {
               <h1 className="text-2xl font-bold">Feed Formulas</h1>
               <p className="text-sm text-slate-500">Reusable recipes for producing finished feed from ingredients. Used to auto-calculate quantities when producing feed.</p>
             </div>
-            <SetupTabActions>{canManage && (
-              <div className="self-start sm:ml-auto">
-                <Button onClick={openNew} disabled={loading}><Plus className="w-4 h-4 mr-1" /> New Formula</Button>
-              </div>
-            )}</SetupTabActions>
-          </div>
-
-          {/* The defaults (385) are an example, not a rule -- say so where they appear. */}
-          <div className="flex flex-col gap-3 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900 sm:flex-row sm:items-start sm:justify-between">
-            <div className="flex gap-3">
-              <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-sky-600" />
-              <div className="space-y-1">
-                <p className="font-semibold">Default formulas to start with</p>
-                <p>
-                  Pre-Starter (0–10 days), Starter, Grower, Developer and Layer formulas — each for <b>1,000 kg (1 tonne)</b> of feed — are ready to use.
-                  This is one great example many farmers use. To make 2 tonnes, every amount is simply doubled.
-                </p>
-                <p>
-                  Most farms have their own variation. <b>Copy</b> a default to make your own version, edit it, or create a
-                  new formula from scratch.
-                </p>
-              </div>
-            </div>
-            {canManage && (
-              <Button variant="outline" size="sm" className="shrink-0 self-start border-sky-300 bg-white text-sky-800 hover:bg-sky-100"
-                onClick={() => void restoreDefaults()} disabled={restoring || loading}>
-                {restoring ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Plus className="mr-1 h-4 w-4" />}
-                Add missing defaults
-              </Button>
-            )}
+            <SetupTaskBar tasks={[
+              { id: "new", label: "New Formula", icon: Plus, primary: true, onClick: openNew, disabled: loading, hidden: !canManage },
+              { id: "defaults", label: restoring ? "Adding defaults…" : "Add missing defaults", icon: Sparkles,
+                onClick: () => void restoreDefaults(), disabled: restoring || loading, hidden: !canManage },
+            ]} />
           </div>
 
           {loading ? (
             <div className="flex items-center gap-2 text-slate-500 p-8"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>
           ) : (
-            <Card><CardContent className="p-4">
-              <div className="mb-3"><ListFilters search={search} setSearch={setSearch} searchOnly searchPlaceholder="Search formula or feed" /></div>
+            <Card className={embedded ? "gap-0 py-0" : undefined}><CardContent className={embedded ? "p-0" : "p-4"}>
+              {/* In Farm Setup the search sits beside the tab's description line. */}
+              {embedded ? (
+                <SetupTabTools>
+                  <div className="relative w-56">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Input className="h-9 bg-white pl-9" placeholder="Search formula or feed" value={search} onChange={(e) => setSearch(e.target.value)} />
+                  </div>
+                </SetupTabTools>
+              ) : (
+                <div className="mb-3"><ListFilters search={search} setSearch={setSearch} searchOnly searchPlaceholder="Search formula or feed" /></div>
+              )}
               {isMobile && !showTableMobile ? (
                 filtered.length === 0 ? (
-                  <div className="py-12 text-center text-slate-400">No feed formulas yet. Create one to speed up feed production.</div>
+                  <div className="py-12 text-center">
+                    <FlaskConical className="mx-auto mb-3 h-10 w-10 text-slate-300" />
+                    <p className="text-sm text-slate-500">No feed formulas yet. Create one to speed up feed production.</p>
+                  </div>
                 ) : (
                 <div className="space-y-3">
-                  {pg.pageItems.map((f, idx) => {
+                  {pg.pageItems.map((f) => {
                     const usesPct = (f.percentageTotal ?? 0) > 0
                     const pctGood = !usesPct || Math.abs((f.percentageTotal ?? 0) - 100) < 0.01
                     return (
                       <Collapsible
                         key={f.poultryFeedFormulaId}
                         defaultOpen
-                        className={cn("group w-full rounded-xl border shadow-sm overflow-hidden",
-                          idx % 2 === 0 ? "bg-amber-100 border-amber-300" : "bg-white border-slate-200")}
+                        className="group w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md"
                       >
-                        <div className={cn("px-2.5 py-3 transition-colors", idx % 2 === 0 ? "active:bg-black/10" : "active:bg-black/5")}>
-                          <CollapsibleTrigger asChild>
-                            <div className="relative cursor-pointer">
-                              <ChevronDown className="absolute right-0 top-0 h-4 w-4 text-slate-400 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
+                        {/* Premium header: icon tile + title + subtitle */}
+                        <CollapsibleTrigger asChild>
+                          <div className="flex cursor-pointer items-start justify-between gap-2 border-b border-slate-100 px-4 py-3 transition-colors active:bg-slate-50">
+                            <div className="flex min-w-0 items-center gap-2.5">
+                              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-amber-50 text-amber-600"><FlaskConical className="h-4 w-4" /></span>
                               <div className="min-w-0">
-                                <div className="pr-6">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <span className="font-semibold text-slate-900">{f.formulaName}</span>
-                                    {f.isDefault && <DefaultBadge />}
-                                    {f.isActive ? <Badge variant="secondary">Active</Badge> : <Badge variant="outline">Inactive</Badge>}
-                                  </div>
-                                  <div className="mt-0.5 truncate text-xs text-slate-500">{f.finishedFeedItemName ?? "No finished feed"}</div>
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <p className="truncate text-sm font-semibold text-slate-900">{f.formulaName}</p>
+                                  {f.isDefault && <DefaultBadge />}
                                 </div>
-                                <div className="mt-3 grid grid-cols-2 gap-2">
-                                  <div className="rounded-lg bg-blue-100 border border-blue-300 px-3 py-2 shadow-sm">
-                                    <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-900">Ingredients</p>
-                                    <p className="text-xl font-extrabold leading-tight text-blue-800">{f.lineCount ?? 0}</p>
-                                  </div>
-                                  {/* Amber when the percentages do not add to 100 -- the
-                                      same warning the table shows, kept visible here. */}
-                                  <div className={cn("rounded-lg border px-3 py-2 shadow-sm",
-                                    !usesPct ? "bg-slate-100 border-slate-300"
-                                    : pctGood ? "bg-emerald-100 border-emerald-300" : "bg-amber-100 border-amber-400")}>
-                                    <p className={cn("text-[11px] font-semibold uppercase tracking-wide",
-                                      !usesPct ? "text-slate-700" : pctGood ? "text-emerald-900" : "text-amber-900")}>% Total</p>
-                                    {usesPct ? (
-                                      <p className={cn("flex items-center gap-1 text-xl font-extrabold leading-tight",
-                                        pctGood ? "text-emerald-800" : "text-amber-800")}>
-                                        {pctGood ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <AlertTriangle className="h-4 w-4 shrink-0" />}
-                                        {(f.percentageTotal ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}%
-                                      </p>
-                                    ) : <p className="text-xl font-extrabold leading-tight text-slate-500">fixed</p>}
-                                  </div>
-                                </div>
+                                <p className="truncate text-xs text-slate-500">{f.finishedFeedItemName ?? "No finished feed"}</p>
                               </div>
                             </div>
-                          </CollapsibleTrigger>
+                            <div className="flex shrink-0 items-center gap-1.5">
+                              {f.isActive ? <Badge variant="secondary">Active</Badge> : <Badge variant="outline">Inactive</Badge>}
+                              <ChevronDown className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-data-[state=open]:rotate-180" />
+                            </div>
+                          </div>
+                        </CollapsibleTrigger>
+                        {/* Body: key stats */}
+                        <div className="space-y-3 px-4 py-3">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="rounded-lg border border-slate-200 bg-slate-50/70 px-3 py-2">
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Ingredients</p>
+                              <p className="text-lg font-bold leading-tight tabular-nums text-slate-900">{f.lineCount ?? 0}</p>
+                            </div>
+                            {/* Amber when the percentages do not add to 100 -- the
+                                same warning the table shows, kept visible here. */}
+                            <div className={cn("rounded-lg border px-3 py-2",
+                              !usesPct ? "border-slate-200 bg-slate-50/70"
+                              : pctGood ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50")}>
+                              <p className={cn("text-[11px] font-semibold uppercase tracking-wide",
+                                !usesPct ? "text-slate-500" : pctGood ? "text-emerald-700" : "text-amber-700")}>% Total</p>
+                              {usesPct ? (
+                                <p className={cn("flex items-center gap-1 text-lg font-bold leading-tight tabular-nums",
+                                  pctGood ? "text-emerald-700" : "text-amber-700")}>
+                                  {pctGood ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <AlertTriangle className="h-4 w-4 shrink-0" />}
+                                  {(f.percentageTotal ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}%
+                                </p>
+                              ) : <p className="text-lg font-bold leading-tight text-slate-400">fixed</p>}
+                            </div>
+                          </div>
                           <CollapsibleContent>
-                            <div className="mt-4 space-y-2 border-t border-slate-200/70 pt-4 text-sm">
-                              {/* Two per row: labelled buttons overflow a 375px card on one flex line. */}
-                              <div className="grid grid-cols-2 gap-2 pt-2">
-                                <Button variant="outline" size="sm" className={cn("h-10 w-full bg-white", !canManage && "col-span-2")}
-                                  onClick={(e) => { e.stopPropagation(); void openEdit(f) }}>
-                                  <Pencil className="h-4 w-4 mr-2" /> Edit
+                            {/* Two per row: labelled buttons overflow a 375px card on one flex line. */}
+                            <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
+                              <Button variant="outline" size="sm" className={cn("h-10 w-full bg-white", !canManage && "col-span-2")}
+                                onClick={(e) => { e.stopPropagation(); void openEdit(f) }}>
+                                <Pencil className="h-4 w-4 mr-2" /> Edit
+                              </Button>
+                              {canManage && (
+                                <Button variant="outline" size="sm" className="h-10 w-full bg-white text-red-600 border-red-200 hover:bg-red-50"
+                                  onClick={(e) => { e.stopPropagation(); setDeleteTarget(f) }}>
+                                  <Trash2 className="h-4 w-4 mr-2" /> Delete
                                 </Button>
-                                {canManage && (
-                                  <Button variant="outline" size="sm" className="h-10 w-full bg-white text-red-600 border-red-200 hover:bg-red-50"
-                                    onClick={(e) => { e.stopPropagation(); setDeleteTarget(f) }}>
-                                    <Trash2 className="h-4 w-4 mr-2" /> Delete
-                                  </Button>
-                                )}
-                                {canManage && (
-                                  <Button variant="outline" size="sm" className="col-span-2 h-10 w-full bg-white"
-                                    onClick={(e) => { e.stopPropagation(); void openEdit(f, true) }}>
-                                    <Copy className="h-4 w-4 mr-2" /> Copy as my own formula
-                                  </Button>
-                                )}
-                              </div>
+                              )}
+                              {canManage && (
+                                <Button variant="outline" size="sm" className="col-span-2 h-10 w-full bg-white"
+                                  onClick={(e) => { e.stopPropagation(); void openEdit(f, true) }}>
+                                  <Copy className="h-4 w-4 mr-2" /> Copy as my own formula
+                                </Button>
+                              )}
                             </div>
                           </CollapsibleContent>
                         </div>
@@ -388,30 +378,36 @@ export function PoultryFeedFormulasPage() {
                   </Button>
                 </div>
               )}
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
                 <Table className="min-w-[720px]">
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>Formula</TableHead>
-                      <TableHead>Finished Feed</TableHead>
-                      <TableHead className="text-center">Ingredients</TableHead>
-                      <TableHead className="text-center">% Total</TableHead>
-                      <TableHead className="text-center">Status</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+                    <TableRow className="bg-slate-50">
+                      <TableHead className="font-semibold text-slate-900">Formula</TableHead>
+                      <TableHead className="font-semibold text-slate-900">Finished Feed</TableHead>
+                      <TableHead className="text-center font-semibold text-slate-900">Ingredients</TableHead>
+                      <TableHead className="text-center font-semibold text-slate-900">% Total</TableHead>
+                      <TableHead className="text-center font-semibold text-slate-900">Status</TableHead>
+                      <TableHead className="text-right font-semibold text-slate-900">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filtered.length === 0 ? (
-                      <TableRow><TableCell colSpan={6} className="text-center text-slate-400 py-8">No feed formulas yet. Create one to speed up feed production.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={6} className="py-12 text-center">
+                        <FlaskConical className="mx-auto mb-3 h-10 w-10 text-slate-300" />
+                        <p className="text-sm text-slate-500">No feed formulas yet. Create one to speed up feed production.</p>
+                      </TableCell></TableRow>
                     ) : pg.pageItems.map((f) => {
                       const usesPct = (f.percentageTotal ?? 0) > 0
                       const pctGood = !usesPct || Math.abs((f.percentageTotal ?? 0) - 100) < 0.01
                       return (
-                        <TableRow key={f.poultryFeedFormulaId}>
-                          <TableCell className="font-medium">
-                            <span className="inline-flex flex-wrap items-center gap-2">{f.formulaName}{f.isDefault && <DefaultBadge />}</span>
+                        <TableRow key={f.poultryFeedFormulaId} className="hover:bg-slate-50">
+                          <TableCell className="font-medium text-slate-900">
+                            <span className="inline-flex flex-wrap items-center gap-2">
+                              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-amber-50 text-amber-600"><FlaskConical className="h-3.5 w-3.5" /></span>
+                              {f.formulaName}{f.isDefault && <DefaultBadge />}
+                            </span>
                           </TableCell>
-                          <TableCell>{f.finishedFeedItemName ?? "—"}</TableCell>
+                          <TableCell className="text-slate-600">{f.finishedFeedItemName ?? <span className="text-slate-400">—</span>}</TableCell>
                           <TableCell className="text-center tabular-nums">{f.lineCount ?? 0}</TableCell>
                           <TableCell className="text-center tabular-nums">
                             {usesPct ? (

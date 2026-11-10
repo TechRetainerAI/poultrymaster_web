@@ -1,6 +1,6 @@
 "use client"
 
-import { useSetupEmbedded, shellClass, SetupTabActions } from "@/components/setup/setup-embed"
+import { useSetupEmbedded, shellClass, SetupTaskBar } from "@/components/setup/setup-embed"
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge"
 import { FieldCard } from "@/components/ui/field-card"
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
-import { Plus, Pencil, Loader2, Trash2, ListChecks } from "lucide-react"
+import { Plus, Pencil, Loader2, Trash2, ListChecks, Package } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
@@ -172,25 +172,38 @@ export function PoultryProductsPage() {
         <main className={embedded ? "space-y-4 min-w-0" : "flex-1 overflow-y-auto p-4 sm:p-6 space-y-4"}>
           <div className={embedded ? "hidden" : "flex items-center justify-between"}>
             <div><h1 className="text-2xl font-bold">Products</h1><p className="text-sm text-slate-500">Finished goods you produce and stock.</p></div>
-            <SetupTabActions><Button onClick={openNew}><Plus className="w-4 h-4 mr-1" /> New product</Button></SetupTabActions>
+            <SetupTaskBar tasks={[{ id: "new", label: "New product", icon: Plus, primary: true, onClick: openNew }]} />
           </div>
-          <Card><CardContent className="p-4">
-            {loading ? <div className="flex items-center gap-2 text-slate-500 p-8"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div> : (
-              <><div className="hidden md:block overflow-x-auto"><Table className="min-w-[640px]">
-                <TableHeader><TableRow>
-                  <TableHead>Product</TableHead><TableHead>Type</TableHead><TableHead>Unit</TableHead>
-                  <TableHead className="text-right">Price</TableHead><TableHead className="text-right">In stock</TableHead>
-                  <TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead>
+          <Card className="gap-0 py-0"><CardContent className={embedded ? "p-0" : "p-4"}>
+            {loading ? <div className="flex items-center gap-2 text-slate-500 p-8"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>
+             : products.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center">
+                <span className="grid h-12 w-12 place-items-center rounded-full bg-blue-50 text-blue-600"><Package className="h-6 w-6" /></span>
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">No products yet</p>
+                  <p className="text-sm text-slate-500">Finished goods you produce and stock will appear here.</p>
+                </div>
+              </div>
+             ) : (
+              <><div className="hidden md:block overflow-x-auto rounded-xl border border-slate-200 bg-white"><Table className="min-w-[640px]">
+                <TableHeader><TableRow className="bg-slate-50">
+                  <TableHead className="font-semibold text-slate-900">Product</TableHead><TableHead className="font-semibold text-slate-900">Type</TableHead><TableHead className="font-semibold text-slate-900">Unit</TableHead>
+                  <TableHead className="text-right font-semibold text-slate-900">Price</TableHead><TableHead className="text-right font-semibold text-slate-900">In stock</TableHead>
+                  <TableHead className="font-semibold text-slate-900">Status</TableHead><TableHead className="text-right font-semibold text-slate-900">Actions</TableHead>
                 </TableRow></TableHeader>
                 <TableBody>
-                  {products.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center text-slate-500 py-6">No products yet.</TableCell></TableRow>
-                    : pg.pageItems.map((p) => (
-                      <TableRow key={p.poultryProductId}>
-                        <TableCell className="font-medium">{p.name}</TableCell>
-                        <TableCell>{p.productType}</TableCell>
-                        <TableCell>{p.unit ?? "—"}</TableCell>
-                        <TableCell className="text-right">{gh(p.unitPrice)}</TableCell>
-                        <TableCell className="text-right">{p.stockOnHand.toLocaleString()}</TableCell>
+                  {pg.pageItems.map((p) => (
+                      <TableRow key={p.poultryProductId} className="hover:bg-slate-50">
+                        <TableCell className="font-medium text-slate-900">
+                          <span className="flex items-center gap-2.5">
+                            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-600"><Package className="h-4 w-4" /></span>
+                            {p.name}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-slate-600">{p.productType}</TableCell>
+                        <TableCell className="text-slate-600">{p.unit ?? "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums">{gh(p.unitPrice)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{p.stockOnHand.toLocaleString()}</TableCell>
                         <TableCell>{p.isActive ? <Badge className="bg-green-100 text-green-700">Active</Badge> : <Badge variant="secondary">Inactive</Badge>}</TableCell>
                         <TableCell className="text-right">
                           {/* 359: birds are adjusted per flock / batch on the Stock page */}
@@ -208,8 +221,7 @@ export function PoultryProductsPage() {
               <DataPagination {...pg.paginationProps} />
               {/* Mobile cards */}
               <div className="md:hidden space-y-2">
-                {products.length === 0 ? <div className="text-center text-slate-500 py-6">No products yet.</div>
-                  : products.map((p) => (
+                {products.map((p) => (
                     <FieldCard key={p.poultryProductId} title={p.name}
                       badge={p.isActive ? <Badge className="bg-green-100 text-green-700">Active</Badge> : <Badge variant="secondary">Inactive</Badge>}
                       fields={[["Type", p.productType], ["Unit", p.unit ?? "—"], ["Price", gh(p.unitPrice)], ["In stock", p.stockOnHand.toLocaleString()]]}

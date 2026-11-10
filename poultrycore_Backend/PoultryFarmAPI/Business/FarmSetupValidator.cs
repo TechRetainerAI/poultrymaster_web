@@ -172,12 +172,21 @@ namespace PoultryFarmAPIWeb.Business
         /// Birds already allocated out of each existing batch, so reusing one does
         /// not let the farm overspend it.
         /// </param>
+        /// <param name="accountedByBatchId">
+        /// 413 follow-up: birds of each existing batch that already LEFT its
+        /// unallocated pool through posted batch-level movements (historical
+        /// sales, mortality, culls, transfers out, net of additions; reversed
+        /// pairs excluded). They are already in the ledger, so the setup must
+        /// neither ask about them again nor let a new reconciliation explain
+        /// them a second time. Missing = none (an older server).
+        /// </param>
         public static (List<FarmSetupRowError> Errors, List<FarmSetupRowError> Warnings) Validate(
             FarmSetupRequest request,
             IReadOnlyCollection<MainFlockBatchModel> existingBatches,
             IReadOnlyCollection<HouseOccupancyModel> existingHouses,
             IEnumerable<string> existingFlockNames,
-            IReadOnlyDictionary<int, int> allocatedByBatchId)
+            IReadOnlyDictionary<int, int> allocatedByBatchId,
+            IReadOnlyDictionary<int, int>? accountedByBatchId = null)
         {
             var errors = new List<FarmSetupRowError>();
             var warnings = new List<FarmSetupRowError>();
@@ -374,7 +383,25 @@ namespace PoultryFarmAPIWeb.Business
                 }
             }
 
+            // ---- 413: batch reconciliations ---------------------------------
+            var reconByKey = new Dictionary<string, FarmSetupBatchReconciliationInput>(StringComparer.OrdinalIgnoreCase);
+            var recons = request.BatchReconciliations ?? new List<FarmSetupBatchReconciliationInput>();
+            for (var i = 0; i < recons.Count; i++)
+            {
+                var r = recons[i];
+                var rk = Normalize(r.BatchKey);
+                if (!batchKeys.ContainsKey(rk)) { Error("setup", -1, "batchReconciliations", "A batch reconciliation names a batch that is not in this setup."); continue; }
+                if (reconByKey.ContainsKey(rk)) { Error("setup", -1, "batchReconciliations", "A batch has two reconciliations."); continue; }
+                reconByKey[rk] = r;
+                if (r.StillUnallocatedLive < 0 || (r.Lines ?? new()).Any(l => l.Quantity < 0))
+                    Error("batches", batches.IndexOf(batchKeys[rk]), "reconciliation", "Bird counts cannot be negative.");
+                if ((r.Lines ?? new()).Any(l => l.Kind == "Other" && l.Quantity > 0 && string.IsNullOrWhiteSpace(l.Note)))
+                    Error("batches", batches.IndexOf(batchKeys[rk]), "reconciliation", "\"Other\" needs a note saying what happened.");
+            }
+
             // ---- Batch integrity: an ERROR --------------------------------
+            foreach (var key in batchKeys.Keys.Where(k => !placedByBatchKey.ContainsKey(k) && reconByKey.ContainsKey(k)))
+                placedByBatchKey[key] = 0;   // a batch whose birds were all sold before any pen still reconciles
             foreach (var (key, placed) in placedByBatchKey)
             {
                 var batch = batchKeys[key];
@@ -382,10 +409,12 @@ namespace PoultryFarmAPIWeb.Business
 
                 int capacity;
                 int alreadyAllocated = 0;
+                int accounted = 0;
                 if (batch.ExistingBatchId.HasValue && existingBatchById.TryGetValue(batch.ExistingBatchId.Value, out var existing))
                 {
                     capacity = existing.NumberOfBirds;
                     allocatedByBatchId.TryGetValue(existing.BatchId, out alreadyAllocated);
+                    accountedByBatchId?.TryGetValue(existing.BatchId, out accounted);
                 }
                 else
                 {
@@ -398,11 +427,20 @@ namespace PoultryFarmAPIWeb.Business
                     ? existingBatchById[batch.ExistingBatchId.Value].BatchCode
                     : Normalize(batch.BatchCode);
 
-                if (placed + alreadyAllocated > capacity)
+                reconByKey.TryGetValue(key, out var recon);
+                var explained = recon is null ? 0 : recon.Removed() + recon.StillUnallocatedLive;
+
+                // What is left in the batch's pool before this setup places anything:
+                // the same figure fnpoultrybatch_unallocated returns.
+                var pool = capacity - alreadyAllocated - accounted;
+                if (placed + alreadyAllocated + accounted > capacity)
                 {
                     var allocatedNote = alreadyAllocated > 0 ? $" ({alreadyAllocated:N0} already allocated)" : string.Empty;
+                    var accountedNote = accounted > 0 ? $" and {accounted:N0} were already recorded as sold, dead or otherwise gone before reaching a pen" : string.Empty;
                     Error("batches", index, "numberOfBirds",
-                        $"Flocks from {label} were placed with {placed:N0} birds{allocatedNote}, but the batch only had {capacity:N0}.");
+                        accounted > 0
+                            ? $"Flocks from {label} were placed with {placed:N0} birds, but the batch had {capacity:N0}{allocatedNote}{accountedNote}, so only {Math.Max(pool, 0):N0} can still be placed."
+                            : $"Flocks from {label} were placed with {placed:N0} birds{allocatedNote}, but the batch only had {capacity:N0}.");
                 }
                 // A HISTORICAL batch must be fully accounted for. Its birds are not a
                 // plan — they are standing in pens right now, so every one of them
@@ -413,13 +451,30 @@ namespace PoultryFarmAPIWeb.Business
                 // A NEW purchase is the opposite case and stays partial-legal: 12,000
                 // chicks bought today may genuinely have only 8,000 placed so far,
                 // with the rest to go in next week.
+                // A HISTORICAL batch's birds must all be accounted for: in a pen, or
+                // explained on the reconciliation step (sold / died / culled /
+                // transferred before placing, or still alive and waiting). 413
+                // turned "must be in a pen" into "must be accounted for" -- the
+                // farm with 16,000 bought and 6,500 placed can now say where the
+                // other 9,500 went instead of being told to shrink the batch.
                 else if (IsHistoricalBatch(batch, existingBatchById)
-                         && placed + alreadyAllocated < capacity)
+                         && placed + alreadyAllocated + accounted + explained != capacity)
                 {
-                    var missing = capacity - (placed + alreadyAllocated);
+                    var missing = pool - placed;
                     Error("batches", index, "numberOfBirds",
-                        $"{label} is a batch you already had, so all {capacity:N0} of its birds must be in a pen — " +
-                        $"{missing:N0} are unaccounted for. Put them in a pen, or lower the batch to {placed + alreadyAllocated:N0}.");
+                        explained > missing
+                            ? $"{label}: the reconciliation explains {explained:N0} birds but only {missing:N0} never went into a pen."
+                            : $"{label} is a batch you already had, so all {capacity:N0} of its birds must be accounted for — " +
+                              $"{missing - explained:N0} are not. Explain them on the reconciliation step " +
+                              $"(sold, died, culled, transferred, or still alive and not in a pen), or put them in a pen.");
+                }
+                // A new purchase may hold unplaced birds; what the reconciliation
+                // explains can never exceed them.
+                else if (explained > pool - placed)
+                {
+                    Error("batches", index, "numberOfBirds",
+                        $"{label}: the reconciliation explains {explained:N0} birds but only {pool - placed:N0} are not in a pen" +
+                        (accounted > 0 ? $" ({accounted:N0} more were already recorded earlier and are not asked about again)." : "."));
                 }
             }
 

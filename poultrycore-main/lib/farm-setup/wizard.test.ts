@@ -13,6 +13,7 @@ import {
   validateSetup, visibleBatchRows, visibleHouseRows,
   type BatchRow, type FlockRow, type HouseRow, type SetupContext, type SetupDraft,
 } from "./wizard"
+import { batchReconciliationViews, toRequest as toRequest413 } from "./wizard"
 
 const BUSINESS_DATE = "2026-07-11"
 
@@ -385,7 +386,47 @@ describe("validateSetup", () => {
     const { errors } = validateSetup(d, context())
     expect(errors).toHaveLength(1)
     expect(errors[0].section).toBe("batches")
-    expect(errors[0].message).toContain("2,000 are unaccounted for")
+    // 413: the rule is "accounted for", and the farm can explain them instead.
+    expect(errors[0].message).toContain("2,000 are not")
+  })
+
+  it("413: ACCEPTS a historical batch whose never-placed birds are explained", () => {
+    const b = batch({ numberOfBirds: "16000", isHistorical: true })
+    const h = house({ capacity: "" })
+    const d: SetupDraft = {
+      mode: "existing", batches: [b], houses: [h],
+      flocks: [flock(b.key, h.key, { originallyPlaced: "6500", currentLiveBirds: "5950" })],
+      batchReconciliations: {
+        [b.key]: {
+          sales: [
+            { key: "s1", quantity: "2000", pricePerBird: "40", amountReceived: "", valueUnknown: false, date: "2026-07-10" },
+            { key: "s2", quantity: "5000", pricePerBird: "45", amountReceived: "", valueUnknown: false, date: "2026-08-15" },
+          ],
+          mortality: "1000", culled: "", transferred: "", other: "", otherNote: "", stillAlive: "1500",
+        },
+      },
+    }
+    const { errors } = validateSetup(d, context())
+    expect(errors).toHaveLength(0)
+    const [view] = batchReconciliationViews(d, context())
+    // Never-placed is measured on ORIGINALLY placed birds: 16,000 - 6,500, not 16,000 - 5,950.
+    expect(view).toMatchObject({ neverPlaced: 9500, explained: 9500, unexplained: 0, saleValue: 305000 })
+    const req = toRequest413(d, context(), "u", "f") as any
+    expect(req.BatchReconciliations).toHaveLength(1)
+    expect(req.BatchReconciliations[0].StillUnallocatedLive).toBe(1500)
+    expect(req.BatchReconciliations[0].Lines.map((l: any) => l.Kind)).toEqual(["Sale", "Sale", "Mortality"])
+    expect(req.BatchReconciliations[0].Lines[0].AmountReceived).toBe(80000)
+  })
+
+  it("413: refuses explaining more birds than never went into a pen", () => {
+    const b = batch({ numberOfBirds: "1000", isHistorical: true })
+    const h = house({ capacity: "" })
+    const d: SetupDraft = {
+      mode: "existing", batches: [b], houses: [h],
+      flocks: [flock(b.key, h.key, { originallyPlaced: "900", currentLiveBirds: "900" })],
+      batchReconciliations: { [b.key]: { sales: [], mortality: "150", culled: "", transferred: "", other: "", otherNote: "", stillAlive: "" } },
+    }
+    expect(validateSetup(d, context()).errors[0].message).toContain("only 100 never went into a pen")
   })
 
   it("counts what a reused batch has already given out", () => {
@@ -1588,5 +1629,109 @@ describe("balanceBreakdown", () => {
     const b = breakdown(f)
     expect(b.mortality + b.sold + b.culled + b.transferred + b.other).toBe(81)
     expect(b.other).toBe(0)
+  })
+})
+
+// ---- 413 follow-up: dispositions recorded BEFORE the wizard opened ----------
+// Batch B2025: 10,000 bought, 2,500 already posted as a batch-level historical
+// sale (or mortality), then the wizard places 3,000. The pool is 4,500 -- the
+// figure fnpoultrybatch_unallocated enforces -- and the wizard must never ask
+// about (or post) the 2,500 again.
+describe("batch history recorded before setup", () => {
+  const existing = {
+    batchId: 300, batchCode: "B2025", batchName: "Batch2025", breed: "ISA Brown",
+    numberOfBirds: 10000, startDate: "2025-01-01", isHistorical: true,
+  }
+  const position = (over: Record<string, number> = {}) => ({
+    batchId: 300, originalBirds: 10000, originallyAllocated: 0,
+    previouslySold: 0, previousMortality: 0, previouslyCulled: 0, previouslyTransferred: 0,
+    previousOther: 0, previousAdditions: 0, previouslyAccountedFor: 2500,
+    unallocatedPool: 7500, confirmedStillAlive: 0, lastReconciliationNo: "BR-00001",
+    ...over,
+  })
+  const build = (pos = position({ previouslySold: 2500 })) => {
+    const b = batchRowFromExisting(existing)
+    const h = house({ houseName: "Pen 1", capacity: "5000" })
+    const d: SetupDraft = {
+      mode: "existing", batches: [b], houses: [h],
+      flocks: [flock(b.key, h.key, { name: "B2025 - Pen 1", originallyPlaced: "3000", currentLiveBirds: "3000" })],
+    }
+    const ctx = context({ existingBatches: [existing], batchPositions: { 300: pos } })
+    return { d, b, ctx }
+  }
+
+  it("E: 10,000 − 2,500 already recorded − 3,000 placed leaves 4,500, not 7,000", () => {
+    const { d, ctx } = build()
+    const [alloc] = batchAllocationViews(d, ctx)
+    expect(alloc.previouslyAccountedFor).toBe(2500)
+    expect(alloc.available).toBe(7500)
+    expect(alloc.remaining).toBe(4500)
+    const [v] = batchReconciliationViews(d, ctx)
+    expect(v.previouslyAccountedFor).toBe(2500)
+    expect(v.placed).toBe(3000)
+    expect(v.neverPlaced).toBe(4500)
+    expect(v.unexplained).toBe(4500)
+    expect(v.previous?.previouslySold).toBe(2500)
+    // A historical batch must be accounted for -- and the message asks about 4,500.
+    const msgs = validateSetup(d, ctx).errors.map((e) => e.message).join(" | ")
+    expect(msgs).toContain("4,500 are not")
+    expect(msgs).not.toContain("7,000")
+  })
+
+  it("F: 4,500 still alive reconciles with no new movement", () => {
+    const { d, b, ctx } = build()
+    d.batchReconciliations = { [b.key]: { sales: [], mortality: "", culled: "", transferred: "", other: "", otherNote: "", stillAlive: "4500" } }
+    expect(validateSetup(d, ctx).errors).toEqual([])
+    expect(batchReconciliationViews(d, ctx)[0].unexplained).toBe(0)
+    const req = toRequest413(d, ctx, "u", "f")
+    expect(req.BatchReconciliations).toHaveLength(1)
+    expect(req.BatchReconciliations[0].Lines).toEqual([])
+    expect(req.BatchReconciliations[0].StillUnallocatedLive).toBe(4500)
+  })
+
+  it("G: an additional sale of 2,000 posts exactly one −2,000 line, never the 2,500 again", () => {
+    const { d, b, ctx } = build()
+    d.batchReconciliations = { [b.key]: {
+      sales: [{ key: "s1", quantity: "2000", pricePerBird: "50", amountReceived: "", valueUnknown: false, date: BUSINESS_DATE }],
+      mortality: "", culled: "", transferred: "", other: "", otherNote: "", stillAlive: "2500" } }
+    expect(validateSetup(d, ctx).errors).toEqual([])
+    const lines = toRequest413(d, ctx, "u", "f").BatchReconciliations[0].Lines
+    expect(lines).toHaveLength(1)
+    expect(lines[0]).toMatchObject({ Kind: "Sale", Quantity: 2000 })
+  })
+
+  it("H: previously recorded MORTALITY stays mortality and is not asked about again", () => {
+    const { d, b, ctx } = build(position({ previousMortality: 2500 }))
+    const [v] = batchReconciliationViews(d, ctx)
+    expect(v.previous?.previousMortality).toBe(2500)
+    expect(v.previous?.previouslySold).toBe(0)
+    expect(v.neverPlaced).toBe(4500)
+    d.batchReconciliations = { [b.key]: { sales: [], mortality: "", culled: "", transferred: "", other: "", otherNote: "", stillAlive: "4500" } }
+    expect(validateSetup(d, ctx).errors).toEqual([])
+    expect(toRequest413(d, ctx, "u", "f").BatchReconciliations[0].Lines).toEqual([])
+  })
+
+  it("I: explaining 7,000 is refused before it ever reaches the database", () => {
+    const { d, b, ctx } = build()
+    d.batchReconciliations = { [b.key]: {
+      sales: [{ key: "s1", quantity: "2500", pricePerBird: "60", amountReceived: "", valueUnknown: false, date: BUSINESS_DATE }],
+      mortality: "", culled: "", transferred: "", other: "", otherNote: "", stillAlive: "4500" } }
+    const msgs = validateSetup(d, ctx).errors.map((e) => e.message).join(" | ")
+    expect(msgs).toContain("only 4,500 never went into a pen")
+    expect(msgs).toContain("2,500 more were already recorded")
+  })
+
+  it("cannot place more than the pool once earlier dispositions are counted", () => {
+    const { d, ctx } = build()
+    d.flocks[0].originallyPlaced = "8000"
+    d.flocks[0].currentLiveBirds = "8000"
+    expect(batchAllocationViews(d, ctx)[0].status).toBe("over")
+    expect(validateSetup(d, ctx).errors.map((e) => e.message).join(" ")).toContain("only 7,500 can still be placed")
+  })
+
+  it("an older server (no positions) behaves exactly as before", () => {
+    const { d } = build()
+    const ctx = context({ existingBatches: [existing] })
+    expect(batchReconciliationViews(d, ctx)[0].neverPlaced).toBe(7000)
   })
 })

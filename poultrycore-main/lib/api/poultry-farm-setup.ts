@@ -123,6 +123,8 @@ export interface FarmSetupWizardContext {
   flocks: ExistingFlockRow[]
   existingFlockNames: string[]
   allocatedByBatchId: Record<number, number>
+  /** Posted batch-level history per batch (413 ledger). Absent on an older server. */
+  batchPositions?: import("@/lib/farm-setup/wizard").BatchLedgerPosition[]
 }
 
 const lowerFirst = (s: string) => (s.length > 0 ? s[0].toLowerCase() + s.slice(1) : s)
@@ -304,5 +306,70 @@ export function correctOpeningPosition(correction: OpeningPositionCorrection): P
     HistoricalCulled: correction.historicalCulled,
     HistoricalTransferred: correction.historicalTransferred,
     Notes: correction.notes ?? null,
+  })
+}
+
+// ---- 416: completed setups (runs), and undoing one -------------------------
+
+export interface FarmSetupRunItem {
+  type: "Batch" | "House" | "Flock" | "Reconciliation"
+  id: number
+  name: string | null
+  /** Already deleted (or reversed) on its own page. */
+  gone: boolean
+  /** Why this item cannot be deleted right now; empty when it can. */
+  blockers: string[]
+}
+
+export interface FarmSetupRun {
+  setuprunid: number
+  businessdate: string | null
+  completedat: string
+  completedby: string | null
+  source: string | null
+  status: "Completed" | "Reversed"
+  reversedat: string | null
+  reversedby: string | null
+  reversalreason: string | null
+  items: FarmSetupRunItem[]
+  /** Why the whole setup cannot be undone; empty when it can. */
+  blockers: string[]
+}
+
+/** Every completed setup of the company, newest first. Empty before migration 416. */
+export function getFarmSetupRuns(userId: string, farmId: string): Promise<ApiResponse<FarmSetupRun[]>> {
+  const qs = new URLSearchParams({ userId, farmId }).toString()
+  return read<FarmSetupRun[]>(`/PoultryFarmSetup/runs?${qs}`)
+}
+
+/** Undo one whole setup. Refused (with the reasons) once anything was recorded against it. */
+export function reverseFarmSetupRun(runId: number, userId: string, farmId: string, reason: string): Promise<ApiResponse<any>> {
+  return write<any>(`/PoultryFarmSetup/runs/${runId}/reverse`, { UserId: userId, FarmId: farmId, Reason: reason })
+}
+
+// ---- 417: setups completed before tracking -----------------------------------
+
+export interface FarmSetupLegacyCandidate {
+  type: "Batch" | "House" | "Flock" | "Reconciliation"
+  id: number
+  name: string | null
+  /** The batch a flock / reconciliation belongs to (and a batch's own id). */
+  batchid: number | null
+  /** Flocks and reconciliations: certainly from a setup. Batches and houses: maybe older. */
+  suggested: boolean
+  setupdate: string | null
+  blockers: string[]
+}
+
+export function getFarmSetupLegacyCandidates(userId: string, farmId: string): Promise<ApiResponse<FarmSetupLegacyCandidate[]>> {
+  const qs = new URLSearchParams({ userId, farmId }).toString()
+  return read<FarmSetupLegacyCandidate[]>(`/PoultryFarmSetup/legacy?${qs}`)
+}
+
+export function reverseFarmSetupLegacy(
+  items: { type: string; id: number }[], userId: string, farmId: string, reason: string,
+): Promise<ApiResponse<any>> {
+  return write<any>(`/PoultryFarmSetup/legacy/reverse`, {
+    UserId: userId, FarmId: farmId, Reason: reason, Items: items.map((i) => ({ Type: i.type, Id: i.id })),
   })
 }

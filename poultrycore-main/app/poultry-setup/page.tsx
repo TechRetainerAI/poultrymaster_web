@@ -5,8 +5,9 @@
 //   Farm Setup                                 (title)
 //   ( ) Production Setup  ( ) Business Setup   (native radios = section)
 //   [tab] [tab] [tab] …                        (tabs of that section)
-//   One-line description ........ [actions]   (the view's own primary buttons)
+//   One-line description
 //   the full setup view                        (same component as its standalone page)
+//   [task] [task] [...]               [reload] (task bar, fixed at the bottom)
 //
 // The URL is the single source of truth: ?section=production|business&tab=<key>.
 // Radios and tabs push a new URL (so Back / Forward walk the selections); the
@@ -14,8 +15,8 @@
 // the matching tab.
 //
 // Each tab renders the standalone page's own view from components/setup-views/
-// inside a SetupEmbedProvider: the view drops its page shell and title, and its
-// primary actions are portalled into the action slot beside the description.
+// inside a SetupEmbedProvider: the view drops its page shell and title, and
+// registers its buttons (as SetupTask data) on the task bar.
 // Lists, dialogs, filters, validation and API calls are the same code as the
 // standalone route, so the two stay identical.
 
@@ -25,13 +26,15 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Loader2 } from "lucide-react"
+import { Loader2, RotateCw } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { useLogout } from "@/hooks/use-logout"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
 import { cn } from "@/lib/utils"
-import { SetupEmbedProvider } from "@/components/setup/setup-embed"
+import { SetupEmbedProvider, type SetupTask } from "@/components/setup/setup-embed"
+import { TaskBarRow } from "@/components/setup/setup-task-bar"
 import {
   resolveSetupLocation, setupHref, SETUP_SECTIONS,
   type SetupSection, type SetupTabKey,
@@ -157,14 +160,53 @@ function FarmSetupInner() {
       ?.scrollIntoView({ block: "nearest", inline: "nearest" })
   }, [openTab])
 
-  // The view portals its primary buttons into this slot.
-  const [actionsEl, setActionsEl] = useState<HTMLElement | null>(null)
-  const embedValue = useMemo(() => ({ actionsEl, setDirty }), [actionsEl, setDirty])
+  // ---- task bar ------------------------------------------------------------
+  // Each view registers its buttons; the bar shows whatever the open tab has
+  // registered right now, so it follows the tab and the view's own state.
+  const [taskMap, setTaskMap] = useState<Record<string, SetupTask[]>>({})
+  const setTasks = useCallback((owner: string, tasks: SetupTask[] | null) => {
+    setTaskMap((m) => {
+      if (!tasks) {
+        if (!(owner in m)) return m
+        const n = { ...m }; delete n[owner]; return n
+      }
+      return { ...m, [owner]: tasks }
+    })
+  }, [])
+  const tasks = useMemo(() => Object.values(taskMap).flat(), [taskMap])
+  // The view moves its search / view switches into this slot (SetupTabTools).
+  const [toolsEl, setToolsEl] = useState<HTMLElement | null>(null)
+  const embedValue = useMemo(() => ({ setTasks, setDirty, toolsEl }), [setTasks, setDirty, toolsEl])
+
+  // The phone's bottom menu is fixed over the page; keep the task bar just
+  // above it. Its height is measured, so a taller menu (safe area) still fits.
+  const [bottomNavH, setBottomNavH] = useState(0)
+  useEffect(() => {
+    // The menu can mount after this page, or come and go; look it up each time.
+    const update = () => {
+      const nav = document.querySelector<HTMLElement>('nav.fixed.bottom-0[aria-label="Main navigation"]') // the phone menu, not the sidebar
+      setBottomNavH(nav?.offsetHeight ?? 0) // 0 on desktop (lg:hidden)
+    }
+    update()
+    const timer = window.setInterval(update, 1000)
+    window.addEventListener("resize", update)
+    return () => { window.clearInterval(timer); window.removeEventListener("resize", update) }
+  }, [])
+
+  // Reload remounts the open view, so it fetches its data again.
+  const [reloadKey, setReloadKey] = useState(0)
+  const reload = () => {
+    if (dirtyKeys.current.size > 0 && !window.confirm("You have unsaved changes on this tab. Reload and lose them?")) return
+    setReloadKey((k) => k + 1)
+  }
 
   const sectionsVisible = (Object.keys(SETUP_SECTIONS) as SetupSection[])
     .filter((s) => SETUP_SECTIONS[s].tabs.some((t) => allowed(t.key)))
 
+  const showTaskBar = !permissions.isLoading && loc.kind === "ok"
   let body: ReactNode
+  // Section radios (native inputs, styled to the app), beside the title.
+  let radios: ReactNode = null
   if (permissions.isLoading || loc.kind === "redirect") {
     body = <div className="flex items-center gap-2 p-6 text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
   } else if (loc.kind === "none") {
@@ -181,24 +223,25 @@ function FarmSetupInner() {
     const current = section.tabs.find((t) => t.key === loc.tab)!
     const groupKids = current.group ? visibleTabs.filter((t) => t.group === current.group) : []
     const topValue = current.group ? topTabs.find((t) => t.group === current.group)!.key : current.key
+    const section0 = loc.section
+    radios = (
+      <fieldset className="flex flex-wrap items-center gap-x-6 gap-y-2">
+        <legend className="sr-only">Setup section</legend>
+        {sectionsVisible.map((s) => {
+          const on = s === section0
+          return (
+            <label key={s} className={cn("flex cursor-pointer items-center gap-2 text-sm font-semibold", on ? "text-amber-700" : "text-slate-800")}>
+              <input type="radio" name="setup-section" value={s} checked={on}
+                onChange={() => go(s)} className="h-4 w-4 accent-amber-600" />
+              {SETUP_SECTIONS[s].label}
+            </label>
+          )
+        })}
+      </fieldset>
+    )
 
     body = (
       <>
-        {/* Section radios: native inputs, styled to the app. */}
-        <fieldset className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-2">
-          <legend className="sr-only">Setup section</legend>
-          {sectionsVisible.map((s) => {
-            const on = s === loc.section
-            return (
-              <label key={s} className={cn("flex cursor-pointer items-center gap-2 text-sm font-semibold", on ? "text-amber-700" : "text-slate-800")}>
-                <input type="radio" name="setup-section" value={s} checked={on}
-                  onChange={() => go(s)} className="h-4 w-4 accent-amber-600" />
-                {SETUP_SECTIONS[s].label}
-              </label>
-            )
-          })}
-        </fieldset>
-
         <div className="min-w-0 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm md:px-6 md:py-4">
           {/* Underlined text tabs; they scroll sideways on a phone rather than
               widening the page. */}
@@ -232,18 +275,20 @@ function FarmSetupInner() {
             </div>
           )}
 
-          {/* One line on what this tab is for; the view's buttons sit beside it. */}
-          <div className="mt-3 flex flex-col gap-3 border-b border-slate-100 pb-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-slate-600">{current.description}</p>
-            <div ref={setActionsEl} className="flex min-w-0 flex-wrap items-center gap-2 empty:hidden sm:justify-end" />
+          {/* One line on what this tab is for; the tab's own search and view
+              switches sit on the right of it. */}
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-3">
+            <p className="min-w-0 text-sm text-slate-600 sm:flex-none sm:whitespace-nowrap sm:[&:has(+div:not(:empty))]:pt-2">{current.description}</p>
+            <div ref={setToolsEl} className="flex min-w-0 flex-1 flex-wrap items-center gap-2 empty:hidden" />
           </div>
+
 
           {/* key: a new tab or a new company remounts the view, so it loads fresh
               data (a house added a moment ago shows up in Flock groups) and no
               late reply from the previous company can land in it. */}
-          <div className="mt-4 min-w-0">
+          <div className="mt-3 min-w-0">
             <SetupEmbedProvider value={embedValue}>
-              <div key={`${activeFarmId ?? ""}:${loc.tab}`}>{VIEWS[loc.tab]()}</div>
+              <div key={`${activeFarmId ?? ""}:${loc.tab}:${reloadKey}`}>{VIEWS[loc.tab]()}</div>
             </SetupEmbedProvider>
           </div>
         </div>
@@ -257,9 +302,29 @@ function FarmSetupInner() {
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <DashboardHeader />
         <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 pb-16 sm:p-6 lg:pb-6">
-          <h1 className="mb-3 text-2xl font-semibold text-slate-900">Farm Setup</h1>
+          <div className="mb-3 flex flex-wrap items-center gap-x-8 gap-y-2">
+            <h1 className="text-2xl font-semibold text-slate-900">Farm Setup</h1>
+            {radios}
+          </div>
           {body}
         </main>
+
+        {/* Task bar: the open tab's buttons, fixed along the bottom of the
+            screen. It is outside the scrolling area, so it never moves; what
+            does not fit folds into "More". */}
+        {showTaskBar && (
+          <div className="z-30 shrink-0 border-t border-slate-900 bg-slate-800 px-4 py-2 shadow-[0_-4px_12px_rgba(15,23,42,0.12)] sm:px-6"
+            style={{ marginBottom: bottomNavH }}>
+            <div className="flex items-center gap-2">
+              <TaskBarRow tasks={tasks} tone="dark" align="center" className="flex-1" />
+              <span aria-hidden className="h-6 w-px shrink-0 bg-white/20" />
+              <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-slate-300 hover:bg-white/10 hover:text-white"
+                onClick={reload} title="Reload this tab" aria-label="Reload this tab">
+                <RotateCw className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

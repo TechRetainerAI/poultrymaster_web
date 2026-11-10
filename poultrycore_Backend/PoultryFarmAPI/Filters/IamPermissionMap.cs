@@ -211,6 +211,8 @@ namespace PoultryFarmAPIWeb.Filters
             ["poultry/payments"] = "poultry.payments",
             ["poultry/products"] = "poultry.products",
             ["poultry/stock"] = "poultry.stock",
+            // 413. Reconciling a batch's birds is part of managing the batch.
+            ["poultry/bird-reconciliation"] = "poultry.flock-batches",
             ["poultry/production-batches"] = "poultry.production-records",
             ["poultry/production-losses"] = "poultry.loss-records",
             ["poultry/loss-records"] = "poultry.loss-records",

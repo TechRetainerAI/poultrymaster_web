@@ -1,18 +1,23 @@
 "use client"
 
-import { useSetupEmbedded, shellClass, SetupTabActions } from "@/components/setup/setup-embed"
+import { useSetupEmbedded, shellClass, SetupTaskBar, SetupTabTools } from "@/components/setup/setup-embed"
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { Home, Plus, Pencil, Trash2, Loader2, Layers } from "lucide-react"
+import { Home, Plus, Pencil, Trash2, Loader2, Layers, LayoutGrid, List, Search, MapPin } from "lucide-react"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { houseOccupancy, type HouseOccupancy } from "@/components/poultry/house-picker"
+import { cn } from "@/lib/utils"
+import { usePagination } from "@/hooks/use-pagination"
+import { DataPagination } from "@/components/ui/data-pagination"
 import { getHouses, createHouse, updateHouse, deleteHouse } from "@/lib/api/house"
 import { getFlocks, type Flock } from "@/lib/api/flock"
 import { BulkHouseDialog } from "@/components/poultry/bulk-house-dialog"
@@ -41,6 +46,16 @@ export function HousesPage() {
   const [capacity, setCapacity] = useState<string>("")
   const [location, setLocation] = useState<string>("")
   const [saving, setSaving] = useState(false)
+  // Cards or table; remembered per browser.
+  const [view, setView] = useState<"cards" | "table">("cards")
+  const [search, setSearch] = useState("")
+  useEffect(() => {
+    try { const v = localStorage.getItem("houses-view"); if (v === "table" || v === "cards") setView(v) } catch {}
+  }, [])
+  const changeView = (v: "cards" | "table") => {
+    setView(v)
+    try { localStorage.setItem("houses-view", v) } catch {}
+  }
 
   const handleLogout = () => {
     localStorage.removeItem("auth_token")
@@ -125,6 +140,43 @@ export function HousesPage() {
     return map
   }, [flocks])
 
+  const shown = useMemo(() => {
+    const term = search.trim().toLowerCase()
+    return houses.filter((h) => !term
+      || String(h.name || h.houseName || "").toLowerCase().includes(term)
+      || String(h.location || "").toLowerCase().includes(term))
+  }, [houses, search])
+
+  // One pager for both views; it snaps back to page 1 when the search changes.
+  const pg = usePagination(shown, 10)
+
+  const totals = useMemo(() => {
+    let capacity = 0, birds = 0, full = 0
+    for (const h of shown) {
+      const o = houseOccupancy(h, flocks)
+      capacity += o.capacity; birds += o.occupied
+      if (o.state === "full") full += 1
+    }
+    return { capacity, birds, free: Math.max(0, capacity - birds), full }
+  }, [shown, flocks])
+
+  // A house holding birds is not deletable: flock.houseid has no foreign key, so
+  // the delete would succeed and leave every flock in it pointing at nothing.
+  const deleteButton = (h: any, cls: string, iconCls: string) => {
+    const held = occupancy.get(h.houseId)
+    const blocked = (held?.flocks ?? 0) > 0
+    return (
+      <Button size="icon" variant="ghost" disabled={blocked}
+        onClick={() => openDeleteDialog(h)}
+        title={blocked
+          ? `Holds ${held!.birds.toLocaleString()} bird${held!.birds === 1 ? "" : "s"} in ${held!.flocks} flock${held!.flocks === 1 ? "" : "s"}. Move or close them before deleting this house.`
+          : "Delete this house"}
+        className={cn(cls, "text-red-600 disabled:text-slate-300")}>
+        <Trash2 className={iconCls} />
+      </Button>
+    )
+  }
+
   const remove = async () => {
     if (!deletingHouse) return
     const { userId, farmId } = getUserContext()
@@ -151,7 +203,7 @@ export function HousesPage() {
       <div className={shellClass(embedded, "flex-1 flex flex-col min-w-0")}>
         {!embedded && <DashboardHeader />}
         <main className={embedded ? "min-w-0" : "flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0"}>
-          <div className="space-y-6">
+          <div className={embedded ? "space-y-3" : "space-y-6"}>
             <div className={embedded ? "hidden" : "flex items-center justify-between"}>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
@@ -162,17 +214,30 @@ export function HousesPage() {
                   <p className="text-slate-600">Manage poultry houses</p>
                 </div>
               </div>
-              <SetupTabActions><div className="flex flex-wrap items-center gap-2">
-                <Button variant="outline" onClick={() => setBulkDialogOpen(true)} className="flex items-center gap-2">
-                  <Layers className="w-4 h-4" />
-                  Add Multiple Houses/Pens
-                </Button>
-                <Button onClick={openCreate} className="flex items-center gap-2">
-                  <Plus className="w-4 h-4" />
-                  Add House
-                </Button>
-              </div></SetupTabActions>
+              <SetupTaskBar tasks={[
+                { id: "add", label: "Add House", icon: Plus, primary: true, onClick: openCreate },
+                { id: "bulk", label: "Add Multiple Houses/Pens", icon: Layers, onClick: () => setBulkDialogOpen(true) },
+              ]} />
             </div>
+
+            {!loading && houses.length > 0 && (
+              <SetupTabTools standaloneClassName="flex flex-wrap items-center gap-2">
+                <div className={cn("relative", embedded ? "w-full sm:w-64" : "min-w-[220px] flex-1 sm:max-w-sm")}>
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Input className="h-9 bg-white pl-9" placeholder="Search by name or location" value={search} onChange={(e) => setSearch(e.target.value)} />
+                </div>
+                <span className="whitespace-nowrap text-sm text-slate-500">{shown.length} of {houses.length} houses</span>
+                <div className={cn("inline-flex rounded-lg border border-slate-200 bg-white p-0.5", !embedded && "ml-auto")}>
+                  {([["cards", LayoutGrid, "Cards"], ["table", List, "Table"]] as const).map(([v, Icon, label]) => (
+                    <button key={v} type="button" onClick={() => changeView(v)}
+                      className={cn("flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                        view === v ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-100")}>
+                      <Icon className="h-4 w-4" />{label}
+                    </button>
+                  ))}
+                </div>
+              </SetupTabTools>
+            )}
 
             {loading ? (
               <div className="text-center py-12 text-slate-600">Loading houses...</div>
@@ -183,55 +248,131 @@ export function HousesPage() {
                   <p className="text-slate-600">No houses yet.</p>
                 </CardContent>
               </Card>
+            ) : shown.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-slate-300 bg-white py-10 text-center text-sm text-slate-500">
+                No house matches &quot;{search}&quot;.
+              </div>
+            ) : view === "table" ? (
+              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-slate-50">
+                      <TableHead className="font-semibold text-slate-900">House</TableHead>
+                      <TableHead className="font-semibold text-slate-900">Location</TableHead>
+                      <TableHead className="text-right font-semibold text-slate-900">Capacity</TableHead>
+                      <TableHead className="text-right font-semibold text-slate-900">Active flocks</TableHead>
+                      <TableHead className="text-right font-semibold text-slate-900">Birds in house</TableHead>
+                      <TableHead className="min-w-[160px] font-semibold text-slate-900">Used</TableHead>
+                      <TableHead className="text-right font-semibold text-slate-900">Free</TableHead>
+                      <TableHead className="font-semibold text-slate-900">Status</TableHead>
+                      <TableHead className="text-center font-semibold text-slate-900">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pg.pageItems.map((h) => {
+                      const o = houseOccupancy(h, flocks)
+                      const pct = o.capacity > 0 ? Math.min(100, Math.round((o.occupied / o.capacity) * 100)) : null
+                      return (
+                        <TableRow key={h.houseId} className="hover:bg-slate-50">
+                          <TableCell className="font-medium text-slate-900">
+                            <span className="flex items-center gap-2"><Home className="h-4 w-4 shrink-0 text-blue-600" />{h.name || h.houseName}</span>
+                          </TableCell>
+                          <TableCell className="text-slate-600">
+                            {h.location ? <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5 text-slate-400" />{h.location}</span> : <span className="text-slate-400">—</span>}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">{o.capacity > 0 ? o.capacity.toLocaleString() : <span className="text-slate-400">Not set</span>}</TableCell>
+                          <TableCell className="text-right tabular-nums">{o.flockCount}</TableCell>
+                          <TableCell className="text-right tabular-nums">{o.occupied.toLocaleString()}</TableCell>
+                          <TableCell>
+                            {pct == null ? <span className="text-xs text-slate-400">—</span> : (
+                              <div className="flex items-center gap-2">
+                                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+                                  <div className={cn("h-full rounded-full", pct >= 100 ? "bg-red-500" : pct >= 80 ? "bg-amber-500" : "bg-emerald-500")} style={{ width: `${pct}%` }} />
+                                </div>
+                                <span className="w-9 text-right text-xs tabular-nums text-slate-600">{pct}%</span>
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell className={cn("text-right font-semibold tabular-nums", o.state === "full" ? "text-red-600" : "text-emerald-700")}>
+                            {o.free != null ? o.free.toLocaleString() : <span className="font-normal text-slate-400">—</span>}
+                          </TableCell>
+                          <TableCell><StatusPill state={o.state} /></TableCell>
+                          <TableCell>
+                            <div className="flex items-center justify-center gap-1">
+                              <Button size="icon" variant="ghost" onClick={() => openEdit(h)} className="h-8 w-8 hover:bg-blue-50 hover:text-blue-600" title="Edit">
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              {deleteButton(h, "h-8 w-8 hover:bg-red-50", "h-4 w-4")}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                    <TableRow className="bg-slate-50 font-semibold">
+                      <TableCell colSpan={2} className="text-slate-700">Total, all {shown.length} houses{totals.full > 0 ? ` (${totals.full} full)` : ""}</TableCell>
+                      <TableCell className="text-right tabular-nums">{totals.capacity.toLocaleString()}</TableCell>
+                      <TableCell />
+                      <TableCell className="text-right tabular-nums">{totals.birds.toLocaleString()}</TableCell>
+                      <TableCell />
+                      <TableCell className="text-right tabular-nums text-emerald-700">{totals.free.toLocaleString()}</TableCell>
+                      <TableCell colSpan={2} />
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                {houses.map((h) => (
-                  <Card key={h.houseId} className="gap-2 py-3 hover:shadow-md transition-shadow">
-                    <CardHeader className="block px-4">
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <Home className="h-4 w-4 shrink-0 text-blue-600" />
-                          <CardTitle className="truncate text-sm">{h.name || h.houseName}</CardTitle>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {pg.pageItems.map((h) => {
+                  const o = houseOccupancy(h, flocks)
+                  const pct = o.capacity > 0 ? Math.min(100, Math.round((o.occupied / o.capacity) * 100)) : null
+                  return (
+                    <Card key={h.houseId} className="gap-0 overflow-hidden p-0 transition-shadow hover:shadow-md">
+                      {/* Header: name + location, with the row actions */}
+                      <div className="flex items-start justify-between gap-2 border-b border-slate-100 px-4 py-3">
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-600"><Home className="h-4 w-4" /></span>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-slate-900">{h.name || h.houseName}</p>
+                            {h.location
+                              ? <p className="flex items-center gap-1 truncate text-xs text-slate-500" title={h.location}><MapPin className="h-3 w-3 shrink-0" />{h.location}</p>
+                              : <p className="text-xs text-slate-400">No location set</p>}
+                          </div>
                         </div>
                         <div className="flex shrink-0 gap-0.5">
-                          <Button size="icon" variant="ghost" onClick={() => openEdit(h)} className="h-7 w-7">
+                          <Button size="icon" variant="ghost" onClick={() => openEdit(h)} className="h-7 w-7 hover:bg-blue-50 hover:text-blue-600" title="Edit">
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
-                          {(() => {
-                            // A house holding birds is not deletable: flock.houseid
-                            // has no foreign key, so the delete would succeed and
-                            // leave every flock in it pointing at nothing.
-                            const held = occupancy.get(h.houseId)
-                            const blocked = (held?.flocks ?? 0) > 0
-                            return (
-                              <Button size="icon" variant="ghost" disabled={blocked}
-                                onClick={() => openDeleteDialog(h)}
-                                title={blocked
-                                  ? `Holds ${held!.birds.toLocaleString()} bird${held!.birds === 1 ? "" : "s"} in ${held!.flocks} flock${held!.flocks === 1 ? "" : "s"}. Move or close them before deleting this house.`
-                                  : "Delete this house"}
-                                className="h-7 w-7 text-red-600 disabled:text-slate-300">
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            )
-                          })()}
+                          {deleteButton(h, "h-7 w-7", "h-3.5 w-3.5")}
                         </div>
                       </div>
-                    </CardHeader>
-                    <CardContent className="space-y-1 px-4 text-xs">
-                      <div className="flex justify-between">
-                        <span className="text-slate-600">Capacity:</span>
-                        <span className="font-medium">{h.capacity ?? "Not set"}</span>
-                      </div>
-                      {h.location ? (
-                        <div className="flex justify-between gap-2">
-                          <span className="text-slate-600">Location:</span>
-                          <span className="font-medium truncate text-right" title={h.location}>{h.location}</span>
+                      {/* Body: occupancy at a glance */}
+                      <div className="space-y-3 px-4 py-3">
+                        <div className="flex items-center justify-between">
+                          <StatusPill state={o.state} />
+                          <span className="text-xs text-slate-500">{o.flockCount} active {o.flockCount === 1 ? "flock" : "flocks"}</span>
                         </div>
-                      ) : null}
-                    </CardContent>
-                  </Card>
-                ))}
+                        {o.capacity > 0 && pct != null ? (
+                          <div className="space-y-1.5">
+                            <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+                              <div className={cn("h-full rounded-full", pct >= 100 ? "bg-red-500" : pct >= 80 ? "bg-amber-500" : "bg-emerald-500")} style={{ width: `${pct}%` }} />
+                            </div>
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="tabular-nums text-slate-500">{o.occupied.toLocaleString()} / {o.capacity.toLocaleString()} birds</span>
+                              <span className="font-medium text-slate-700">{o.free != null ? `${o.free.toLocaleString()} free` : `${pct}%`}</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-slate-400">Capacity not set</p>
+                        )}
+                      </div>
+                    </Card>
+                  )
+                })}
               </div>
+            )}
+
+            {!loading && shown.length > 0 && (
+              <DataPagination {...pg.paginationProps} variant="records" />
             )}
           </div>
         </main>
@@ -339,4 +480,16 @@ export function HousesPage() {
       </AlertDialog>
     </div>
   )
+}
+
+const STATUS: Record<HouseOccupancy["state"], [string, string]> = {
+  empty: ["Empty", "bg-emerald-50 text-emerald-700 border-emerald-200"],
+  free: ["Has space", "bg-sky-50 text-sky-700 border-sky-200"],
+  full: ["Full", "bg-red-50 text-red-700 border-red-200"],
+  unknown: ["In use", "bg-slate-50 text-slate-600 border-slate-200"],
+}
+
+function StatusPill({ state }: { state: HouseOccupancy["state"] }) {
+  const [text, cls] = STATUS[state]
+  return <span className={cn("inline-flex rounded-full border px-2 py-0.5 text-xs font-medium", cls)}>{text}</span>
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useSetupEmbedded, shellClass, SetupTabActions } from "@/components/setup/setup-embed"
+import { useSetupEmbedded, shellClass, SetupTaskBar, SetupTabTools } from "@/components/setup/setup-embed"
 import { useEffect, useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -17,8 +17,10 @@ import { NumberInput } from "@/components/ui/number-input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { Plus, Pencil, Trash2, Calendar as CalendarIcon, Bird, Users, Search, RefreshCw, Loader2, Save, Filter, ChevronDown, ChevronUp, DollarSign, CheckCircle2, Wallet, Split, Boxes } from "lucide-react"
+import { Plus, Pencil, Trash2, Calendar as CalendarIcon, Bird, Users, Search, RefreshCw, Loader2, Save, Filter, ChevronDown, ChevronUp, DollarSign, CheckCircle2, Wallet, Split, Boxes, ClipboardCheck } from "lucide-react"
 import { BulkFlockBatchDialog } from "@/components/poultry/bulk-flock-batch-dialog"
+import { BatchReconcileDialog } from "@/components/poultry/batch-reconcile-dialog"
+import { getBatchBirdReconciliation, type BatchBirdReconciliationRow } from "@/lib/api/bird-reconciliation"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { getFlockBatches, getFlockBatch, createFlockBatch, updateFlockBatch, deleteFlockBatch, payFlockBatchBalance, type FlockBatch, type FlockBatchInput } from "@/lib/api/flock-batch"
 import { getFlocks, type Flock } from "@/lib/api/flock"
@@ -101,6 +103,18 @@ export function FlockBatchesPage() {
   const [allocationBatchId, setAllocationBatchId] = useState<number | null>(null)
   const [allocationOpen, setAllocationOpen] = useState(false)
   const [justCreated, setJustCreated] = useState<FlockBatch | null>(null)
+  // 413: New purchase vs an existing batch (bought before the farm used the app).
+  const [createMode, setCreateMode] = useState<"new" | "existing">("new")
+  const [justCreatedExisting, setJustCreatedExisting] = useState(false)
+  const [reconcileBatch, setReconcileBatch] = useState<FlockBatch | null>(null)
+  const [createPaidEdited, setCreatePaidEdited] = useState(false)
+  // The server's bird accounting per batch -- the one figure every page agrees on.
+  const [reconRows, setReconRows] = useState<Map<number, BatchBirdReconciliationRow>>(new Map())
+  const loadReconRows = () =>
+    getBatchBirdReconciliation()
+      .then((rows) => setReconRows(new Map(rows.map((r) => [r.batchId, r]))))
+      .catch(() => setReconRows(new Map()))   // before migration 413: fall back to the local figure
+  useEffect(() => { loadReconRows() }, [])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
@@ -254,7 +268,17 @@ export function FlockBatchesPage() {
   )
 
   const unallocatedFor = (batch: FlockBatch) =>
-    unallocatedForBatch(batch.numberOfBirds, allocatedByBatch.get(batch.batchId))
+    reconRows.get(batch.batchId)?.unallocatedPool
+      ?? unallocatedForBatch(batch.numberOfBirds, allocatedByBatch.get(batch.batchId))
+  // Birds sold from the batch: before placement (batchSold) + out of its flocks.
+  const soldFor = (batch: FlockBatch) => {
+    const r = reconRows.get(batch.batchId)
+    return r ? (r.batchSold ?? 0) + (r.flockSold ?? 0) : 0
+  }
+  const needsReconcile = (batch: FlockBatch) => {
+    const r = reconRows.get(batch.batchId)
+    return !!r && r.status !== "FullyAccountedFor"
+  }
 
   const openAllocation = (batchId: number) => {
     setAllocationBatchId(batchId)
@@ -284,6 +308,7 @@ export function FlockBatchesPage() {
 
   // Create handlers
   const openCreateDialog = () => {
+    setCreatePaidEdited(false)
     setCreateForm({
       batchName: "",
       batchCode: "",
@@ -349,13 +374,19 @@ export function FlockBatchesPage() {
       orderPlacementDate: createForm.orderPlacementDate || null,
       estimatedArrivalDate: createForm.estimatedArrivalDate || null,
       poultryCashAccountId: createForm.poultryCashAccountId ? Number(createForm.poultryCashAccountId) : null,
+      isHistorical: createMode === "existing",
     }
 
     const result = await createFlockBatch(flockBatchData)
     if (result.success) {
-      toast({ title: "Success!", description: "Flock batch created successfully." })
+      toast({ title: "Success!", description: createMode === "existing"
+        ? "Existing batch recorded. No expense or cash was posted today."
+        : "Flock batch created successfully." })
       setIsCreateDialogOpen(false)
+      setJustCreatedExisting(createMode === "existing")
+      setCreateMode("new")
       loadFlockBatches()
+      loadReconRows()
       // Offer to divide it now. Deliberately an offer: a farmer who has not
       // decided which pens the birds go into can walk away and come back.
       if (result.data?.batchId) setJustCreated(result.data)
@@ -456,7 +487,13 @@ export function FlockBatchesPage() {
 
     const result = await updateFlockBatch(editingBatchId, flockBatchData)
     if (result.success) {
-      toast({ title: "Success!", description: "Flock batch updated successfully." })
+      const warnings: string[] = (result as any).warnings ?? []
+      if (warnings.length > 0) {
+        toast({ title: "Batch updated — please check", description: warnings.join(" "), duration: 12000 })
+      } else {
+        toast({ title: "Success!", description: "Flock batch updated successfully." })
+      }
+      loadReconRows()
       setIsEditDialogOpen(false)
       loadFlockBatches()
     } else {
@@ -579,7 +616,11 @@ export function FlockBatchesPage() {
     allFlocks.filter(f => f.hasArrived && !f.active).reduce((sum, f) => sum + (Number(f.quantity) || 0), 0),
     [allFlocks]
   )
-  const totalBirdsSold = 0
+  const totalBirdsSold = useMemo(() => {
+    let n = 0
+    reconRows.forEach((r) => { n += (r.batchSold ?? 0) + (r.flockSold ?? 0) })
+    return n
+  }, [reconRows])
 
   // Pagination logic
   const sortedBatches = useMemo(() => sortData(filteredFlockBatches, sortKey, sortDir), [filteredFlockBatches, sortKey, sortDir])
@@ -689,6 +730,18 @@ export function FlockBatchesPage() {
     notes: f.notes,
   })
 
+  // New batch: Amount Paid follows Total Cost (paid in full is the usual case)
+  // until the user types an amount of their own, e.g. a part payment.
+  const patchCreate = (patch: BatchPurchasePatch) => {
+    const paidTyped = patch.amountPaid !== undefined
+    if (paidTyped) setCreatePaidEdited(true)
+    setCreateForm((prev) => {
+      const next = { ...prev, ...fromDraft(patch) }
+      if (!paidTyped && !createPaidEdited && patch.totalCost !== undefined) next.amountPaid = next.totalCost
+      return next
+    })
+  }
+
   const fromDraft = (patch: BatchPurchasePatch) => {
     const out: Record<string, unknown> = {}
     for (const [k, v] of Object.entries(patch)) {
@@ -757,7 +810,7 @@ export function FlockBatchesPage() {
       <div className={shellClass(embedded, "flex-1 flex flex-col min-w-0")}>
         {!embedded && <DashboardHeader />}
         <main className={embedded ? "min-w-0" : "flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0"}>
-          <div className="space-y-6">
+          <div className={embedded ? "space-y-3" : "space-y-6"}>
             {/* Page Header */}
             <div className={cn("flex gap-4", isMobile ? "flex-col" : "items-center justify-between", embedded && "hidden")}>
               <div className="flex items-start gap-3 min-w-0">
@@ -773,20 +826,14 @@ export function FlockBatchesPage() {
                   </p>
                 </div>
               </div>
-              <SetupTabActions><div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto shrink-0">
-                <Button variant="outline" className="gap-2 w-full sm:w-auto h-11 sm:h-10 border-blue-600 text-blue-700 hover:bg-blue-50" onClick={() => setIsBulkOpen(true)}>
-                  <Boxes className="w-4 h-4" />
-                  Add Multiple Batches
-                </Button>
-                <Button className="gap-2 w-full sm:w-auto h-11 sm:h-10 bg-blue-600 hover:bg-blue-700" onClick={openCreateDialog}>
-                  <Plus className="w-4 h-4" />
-                  Add Flock Batch
-                </Button>
-              </div></SetupTabActions>
+              <SetupTaskBar tasks={[
+                { id: "add", label: "Add Flock Batch", icon: Plus, primary: true, onClick: openCreateDialog },
+                { id: "bulk", label: "Add Multiple Batches", icon: Boxes, onClick: () => setIsBulkOpen(true) },
+              ]} />
             </div>
 
-            {/* Score Cards */}
-            {!loading && flockBatches.length > 0 && (
+            {/* Score Cards (standalone page only; Farm Setup leaves them out) */}
+            {!embedded && !loading && flockBatches.length > 0 && (
               <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
                 <ScoreCard
                   label={`Total Purchase Price (${currencySymbol})`}
@@ -824,11 +871,12 @@ export function FlockBatchesPage() {
               </div>
             )}
 
-            {/* Filters */}
-            <div className="flex flex-wrap items-center gap-2 p-2 bg-white rounded border">
-              <div className={cn("relative flex-1 min-w-0", !isMobile && "sm:w-[240px]")}>
+            {/* Filters. In Farm Setup they sit beside the tab's description
+                line (compact sizes); standalone they keep their own box. */}
+            <SetupTabTools standaloneClassName="flex flex-wrap items-center gap-2 p-2 bg-white rounded border">
+              <div className={cn("relative min-w-0", embedded ? (isMobile ? "flex-1" : "w-44") : cn("flex-1", !isMobile && "sm:w-[240px]"))}>
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <Input placeholder="Search by name or code..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+                <Input placeholder={embedded ? "Name or code" : "Search by name or code..."} value={search} onChange={(e) => setSearch(e.target.value)} className={cn("pl-9", embedded && "h-9 bg-white")} />
               </div>
               {isMobile ? (
                 <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
@@ -873,17 +921,17 @@ export function FlockBatchesPage() {
                 </Sheet>
               ) : (
                 <>
-                  <Input type="date" placeholder="From" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-[140px]" />
-                  <Input type="date" placeholder="To" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-[140px]" />
+                  <Input type="date" placeholder="From" title="From date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className={embedded ? "h-9 w-[132px] bg-white" : "w-[140px]"} />
+                  <Input type="date" placeholder="To" title="To date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className={embedded ? "h-9 w-[132px] bg-white" : "w-[140px]"} />
                   <Select value={selectedBreed} onValueChange={setSelectedBreed}>
-                    <SelectTrigger className="w-[180px]"><SelectValue placeholder="Breed" /></SelectTrigger>
+                    <SelectTrigger className={embedded ? "h-9 w-32 bg-white" : "w-[180px]"}><SelectValue placeholder="Breed" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="ALL">All Breeds</SelectItem>
                       {distinctBreeds.map(breed => <SelectItem key={breed} value={breed}>{breed}</SelectItem>)}
                     </SelectContent>
                   </Select>
                   <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                    <SelectTrigger className="w-[160px]"><SelectValue placeholder="Status" /></SelectTrigger>
+                    <SelectTrigger className={embedded ? "h-9 w-32 bg-white" : "w-[160px]"}><SelectValue placeholder="Status" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="ALL">All Statuses</SelectItem>
                       <SelectItem value="active">Active</SelectItem>
@@ -891,12 +939,18 @@ export function FlockBatchesPage() {
                       <SelectItem value="pending">Pending</SelectItem>
                     </SelectContent>
                   </Select>
-                  <div className="ml-auto">
-                    <Button variant="outline" size="sm" onClick={clearFilters}><RefreshCw className="h-4 w-4 mr-2" /> Reset</Button>
-                  </div>
+                  {embedded ? (
+                    <Button variant="outline" size="icon" className="h-9 w-9 bg-white" onClick={clearFilters} title="Reset filters" aria-label="Reset filters">
+                      <RefreshCw className="h-4 w-4" />
+                    </Button>
+                  ) : (
+                    <div className="ml-auto">
+                      <Button variant="outline" size="sm" onClick={clearFilters}><RefreshCw className="h-4 w-4 mr-2" /> Reset</Button>
+                    </div>
+                  )}
                 </>
               )}
-            </div>
+            </SetupTabTools>
 
             {/* Error Alert */}
             {error && (
@@ -913,10 +967,10 @@ export function FlockBatchesPage() {
                 </CardContent>
               </Card>
             ) : filteredFlockBatches.length === 0 ? (
-              <Card className="bg-white">
+              <Card className="border-dashed border-slate-200 bg-white">
                 <CardContent className="p-12 text-center">
-                  <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Bird className="w-8 h-8 text-slate-400" />
+                  <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-amber-50 text-amber-600">
+                    <Bird className="h-8 w-8" />
                   </div>
                   <h3 className="text-lg font-semibold text-slate-900 mb-2">No flock batches found</h3>
                   <p className="text-slate-600 mb-6">Get started by creating your first flock batch.</p>
@@ -927,50 +981,68 @@ export function FlockBatchesPage() {
                 </CardContent>
               </Card>
             ) : (
-              <Card className="bg-white overflow-hidden">
+              <Card className="bg-white overflow-hidden gap-0 py-0">
                 <CardContent className="p-0">
                   {isMobile && !showAllColumnsMobile ? (
                     <div className="space-y-3">
-                      {currentFlockBatches.map((batch, idx) => {
+                      {currentFlockBatches.map((batch) => {
                         const statusLower = (batch.status || "active").toLowerCase()
                         const supplier = suppliers.find(s => s.supplierId === batch.supplierId)
                         const supplierLabel = batch.supplierName || supplier?.name || "—"
                         const computedTotal = Number(batch.totalCost) || (Number(batch.costPerChick) * Number(batch.numberOfBirds)) || 0
+                        const balance = Math.max(0, computedTotal - Number(batch.amountPaid || 0))
                         return (
-                        <Collapsible key={batch.batchId} defaultOpen className={cn("group rounded-xl border shadow-sm overflow-hidden", idx % 2 === 0 ? "bg-amber-100 border-amber-300" : "bg-white border-slate-200")}>
-                          <div className={cn("p-4 active:bg-slate-50/80 transition-colors", idx % 2 === 1 && "bg-slate-50/20")} onClick={() => handleViewFlocks(batch)}>
+                        <Collapsible key={batch.batchId} defaultOpen className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
+                          <div className="transition-colors active:bg-slate-50/80" onClick={() => handleViewFlocks(batch)}>
                             <CollapsibleTrigger asChild>
-                              <div className="flex items-start justify-between gap-3 cursor-pointer">
-                                <div className="min-w-0 flex-1">
-                                  <div className="font-semibold text-slate-900">{batch.batchName}</div>
-                                  <div className="mt-1 flex flex-wrap items-baseline gap-2">
-                                    <Badge variant="outline">{batch.batchCode}</Badge>
-                                    <span className="text-slate-600">{batch.numberOfBirds.toLocaleString()} birds</span>
-                                    <span className="text-slate-500">{batch.breed}</span>
-                                    {statusLower === "pending" ? (
-                                      <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-200">Pending</Badge>
-                                    ) : statusLower === "active" ? (
-                                      <Badge className="bg-green-100 text-green-800 border border-green-200">Active</Badge>
-                                    ) : (
-                                      <Badge variant="secondary" className="bg-gray-100 text-gray-800">Inactive</Badge>
-                                    )}
+                              <div className="flex cursor-pointer items-start justify-between gap-2 border-b border-slate-100 px-4 py-3">
+                                <div className="flex min-w-0 items-center gap-2.5">
+                                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-amber-50 text-amber-600"><Bird className="h-4 w-4" /></span>
+                                  <div className="min-w-0">
+                                    <p className="truncate text-sm font-semibold text-slate-900">{batch.batchName}</p>
+                                    <p className="truncate text-xs text-slate-500">{batch.batchCode}{batch.breed ? ` · ${batch.breed}` : ""}</p>
                                   </div>
                                 </div>
-                                <ChevronDown className="h-5 w-5 text-slate-400 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
+                                <div className="flex shrink-0 items-center gap-2">
+                                  {statusLower === "pending" ? (
+                                    <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-200">Pending</Badge>
+                                  ) : statusLower === "active" ? (
+                                    <Badge className="bg-green-100 text-green-800 border border-green-200">Active</Badge>
+                                  ) : (
+                                    <Badge variant="secondary" className="bg-gray-100 text-gray-800">Inactive</Badge>
+                                  )}
+                                  <ChevronDown className="h-5 w-5 shrink-0 text-slate-400 transition-transform group-data-[state=open]:rotate-180" />
+                                </div>
                               </div>
                             </CollapsibleTrigger>
                             <CollapsibleContent>
-                              <div className="mt-4 pt-4 border-t border-slate-100 space-y-2 text-sm" onClick={(e) => e.stopPropagation()}>
-                                <div className="grid grid-cols-2 gap-2">
-                                  <div><span className="text-slate-500">Start</span> <span className="font-medium">{batch.startDate ? formatDateShort(batch.startDate) : "—"}</span></div>
-                                  <div><span className="text-slate-500">Cost/Chick</span> <span className="font-medium tabular-nums">{Number(batch.costPerChick || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                                  <div><span className="text-slate-500">Total Cost</span> <span className="font-medium tabular-nums">{computedTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                                  <div><span className="text-slate-500">Amount Paid ({currencySymbol})</span> <span className="font-medium tabular-nums">{Number(batch.amountPaid || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                                  <div><span className="text-slate-500">Balance ({currencySymbol})</span> <span className={cn("font-medium tabular-nums", (computedTotal - Number(batch.amountPaid || 0)) > 0 ? "text-red-600" : "text-emerald-700")}>{Math.max(0, computedTotal - Number(batch.amountPaid || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                                  <div><span className="text-slate-500">Supplier</span> <span className="font-medium">{supplierLabel}</span></div>
-                                  <div><span className="text-slate-500">Type</span> <span className="font-medium">{batch.supplierType ? batch.supplierType.charAt(0).toUpperCase() + batch.supplierType.slice(1).toLowerCase() : "—"}</span></div>
+                              <div className="space-y-3 px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-1 text-sm font-medium text-slate-700">
+                                    <Users className="h-3.5 w-3.5 text-slate-400" />
+                                    <span className="tabular-nums">{batch.numberOfBirds.toLocaleString()}</span> birds
+                                  </span>
+                                  {soldFor(batch) > 0 && (
+                                    <span className="inline-flex items-center rounded-lg bg-orange-50 px-2.5 py-1 text-xs font-medium tabular-nums text-orange-700">{soldFor(batch).toLocaleString()} sold</span>
+                                  )}
                                 </div>
-                                <div className="flex gap-2 pt-2">
+                                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                                  <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5"><span className="text-slate-500">Start</span> <span className="font-medium text-slate-900">{batch.startDate ? formatDateShort(batch.startDate) : "—"}</span></div>
+                                  <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5"><span className="text-slate-500">Cost/Chick</span> <span className="font-medium text-slate-900 tabular-nums">{Number(batch.costPerChick || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                                  <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5"><span className="text-slate-500">Total Cost</span> <span className="font-medium text-slate-900 tabular-nums">{computedTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                                  <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5"><span className="text-slate-500">Paid ({currencySymbol})</span> <span className="font-medium text-slate-900 tabular-nums">{Number(batch.amountPaid || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                                  <div className="flex items-center justify-between gap-2"><span className="text-slate-500">Balance ({currencySymbol})</span> <span className={cn("font-semibold tabular-nums", balance > 0 ? "text-red-600" : "text-emerald-700")}>{balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                                  <div className="flex items-center justify-between gap-2"><span className="text-slate-500">Supplier</span> <span className="truncate font-medium text-slate-900">{supplierLabel}</span></div>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs">
+                                  <span className="text-slate-500">Type</span>
+                                  {batch.supplierType ? (
+                                    <Badge variant="outline" className={cn(batch.supplierType.toLowerCase() === "foreign" ? "border-purple-200 bg-purple-50 text-purple-800" : "border-blue-200 bg-blue-50 text-blue-800")}>{batch.supplierType.charAt(0).toUpperCase() + batch.supplierType.slice(1).toLowerCase()}</Badge>
+                                  ) : (
+                                    <span className="text-slate-400">—</span>
+                                  )}
+                                </div>
+                                <div className="flex flex-wrap gap-2 pt-1">
                                   {(computedTotal - Number(batch.amountPaid || 0)) > 0 && (
                                     <Button variant="outline" size="sm" className="flex-1 h-10 text-emerald-600 border-emerald-200 hover:bg-emerald-50" onClick={(e) => { e.stopPropagation(); openPayBalance(batch) }}>
                                       <Wallet className="h-4 w-4 mr-2" /> Pay
@@ -981,6 +1053,9 @@ export function FlockBatchesPage() {
                                       <Split className="h-4 w-4 mr-1" /> Divide
                                     </Button>
                                   )}
+                                  <Button variant="outline" size="sm" className={cn("flex-1 h-10", needsReconcile(batch) ? "text-amber-700 border-amber-200 hover:bg-amber-50" : "")} onClick={(e) => { e.stopPropagation(); setReconcileBatch(batch) }}>
+                                    <ClipboardCheck className="h-4 w-4 mr-1" /> Reconcile
+                                  </Button>
                                   <Button variant="outline" size="sm" className="flex-1 h-10" onClick={(e) => { e.stopPropagation(); openEditDialog(batch.batchId) }}>
                                     <Pencil className="h-4 w-4 mr-2" /> Edit
                                   </Button>
@@ -1019,7 +1094,7 @@ export function FlockBatchesPage() {
                         the table needs its full width to scroll through. */}
                     <Table className="w-full min-w-[1100px]">
                       <TableHeader>
-                        <TableRow className="border-b">
+                        <TableRow className="border-b bg-slate-50">
                           <SortableHeader label="Name" sortKey="name" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[150px]", isMobile && "sticky-col-date bg-slate-50")} />
                           <SortableHeader label="Code" sortKey="code" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[100px]", hideBelow("sm"))} />
                           <SortableHeader label="Number of Birds" sortKey="numberOfBirds" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[120px]", hideBelow("md"))} />
@@ -1062,6 +1137,9 @@ export function FlockBatchesPage() {
                                 {(allocatedByBatch.get(batch.batchId) ?? 0).toLocaleString()} allocated
                                 {unallocatedFor(batch) > 0 && (
                                   <span className="text-amber-600"> · {unallocatedFor(batch).toLocaleString()} unallocated</span>
+                                )}
+                                {soldFor(batch) > 0 && (
+                                  <span className="text-orange-600"> · {soldFor(batch).toLocaleString()} sold</span>
                                 )}
                               </div>
                             </TableCell>
@@ -1127,6 +1205,11 @@ export function FlockBatchesPage() {
                                     <Split className="w-4 h-4" />
                                   </Button>
                                 )}
+                                <Button variant="ghost" size="icon" className={cn("h-8 w-8 hover:bg-amber-50", needsReconcile(batch) ? "text-amber-600" : "text-slate-500")}
+                                  title={needsReconcile(batch) ? "Reconcile birds — some are not accounted for" : "Reconcile birds"}
+                                  onClick={(e) => { e.stopPropagation(); setReconcileBatch(batch) }}>
+                                  <ClipboardCheck className="w-4 h-4" />
+                                </Button>
                                 <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-blue-50 hover:text-blue-600" onClick={(e) => { e.stopPropagation(); openEditDialog(batch.batchId) }}>
                                   <Pencil className="w-4 h-4" />
                                 </Button>
@@ -1209,8 +1292,8 @@ export function FlockBatchesPage() {
               </div>
             )}
 
-            {/* Bird totals (page bottom) */}
-            {!loading && flockBatches.length > 0 && (
+            {/* Bird totals (page bottom; standalone page only) */}
+            {!embedded && !loading && flockBatches.length > 0 && (
               <div className={cn("grid gap-3", isMobile ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-4")}>
                 <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
                   <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Birds</div>
@@ -1333,13 +1416,24 @@ export function FlockBatchesPage() {
             <Alert variant="destructive"><AlertDescription>{createError}</AlertDescription></Alert>
           )}
           <form onSubmit={handleCreateSubmit} className="space-y-4">
+            <div className="flex flex-col gap-2 sm:flex-row" role="radiogroup" aria-label="Are you recording a new batch purchase or an existing batch?">
+              {([
+                ["new", "New batch purchase", "Birds recently purchased or received. The amount paid is today's expense and cash."],
+                ["existing", "Existing batch — already operating", "Bought before you used the system, possibly already placed, sold or lost. Nothing is expensed today; any unpaid balance stays owed."],
+              ] as const).map(([value, title, hint]) => (
+                <label key={value} className={`flex flex-1 cursor-pointer items-start gap-2 rounded-lg border p-3 text-sm ${createMode === value ? "border-blue-500 bg-blue-50" : "border-slate-200 bg-white"}`}>
+                  <input type="radio" name="batch-mode" className="mt-1" checked={createMode === value} disabled={createLoading} onChange={() => setCreateMode(value)} />
+                  <span><span className="block font-medium text-slate-900">{title}</span><span className="block text-xs text-slate-500">{hint}</span></span>
+                </label>
+              ))}
+            </div>
             <div className="rounded-xl border border-slate-200 overflow-hidden">
               <div className="bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Batch Details</div>
               <BatchIdentityFields
                 className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white"
                 value={toDraft(createForm)} disabled={createLoading}
                 knownBreeds={distinctBreeds}
-                onPatch={(patch) => setCreateForm((prev) => ({ ...prev, ...fromDraft(patch) }))}
+                onPatch={patchCreate}
               />
             </div>
 
@@ -1351,7 +1445,8 @@ export function FlockBatchesPage() {
                 suppliers={suppliers} currencySymbol={currencySymbol}
                 /* The Total / Paid / Balance strip below says it better. */
                 showBalance={false}
-                onPatch={(patch) => setCreateForm((prev) => ({ ...prev, ...fromDraft(patch) }))}
+                amountPaidHint="Fills in with the total cost. Change it for a part payment."
+                onPatch={patchCreate}
                 afterSupplier={
                   <CashAccountField accounts={cashAccounts} disabled={createLoading}
                     value={createForm.poultryCashAccountId}
@@ -1637,12 +1732,20 @@ export function FlockBatchesPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Batch {justCreated?.batchCode} created successfully</AlertDialogTitle>
             <AlertDialogDescription>
-              {(justCreated?.numberOfBirds ?? 0).toLocaleString()} birds available. Divide them across your
-              houses/pens now, or come back to it whenever you are ready.
+              {justCreatedExisting
+                ? <>Next: add the flocks it was placed into (Flocks, Add Flock, &quot;Existing flock&quot;), then reconcile the birds that never went into a flock: sold, died, culled, transferred or still waiting.</>
+                : <>{(justCreated?.numberOfBirds ?? 0).toLocaleString()} birds available. Divide them across your
+                houses/pens now, or come back to it whenever you are ready.</>}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>I&apos;ll Do This Later</AlertDialogCancel>
+            {justCreatedExisting && (
+              <AlertDialogAction className="bg-amber-600 hover:bg-amber-700"
+                onClick={() => { const b = justCreated; setJustCreated(null); if (b) setReconcileBatch(b) }}>
+                Reconcile Birds
+              </AlertDialogAction>
+            )}
             <AlertDialogAction
               className="bg-blue-600 hover:bg-blue-700"
               onClick={() => {
@@ -1656,6 +1759,16 @@ export function FlockBatchesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <BatchReconcileDialog
+        open={reconcileBatch !== null}
+        onOpenChange={(o) => { if (!o) setReconcileBatch(null) }}
+        batchId={reconcileBatch?.batchId ?? null}
+        batchLabel={reconcileBatch ? `${reconcileBatch.batchCode} ${reconcileBatch.batchName ?? ""}`.trim() : undefined}
+        costPerBird={reconcileBatch?.costPerChick ?? null}
+        source={embedded ? "Farm Setup" : "Batch"}
+        onPosted={() => { loadReconRows(); loadFlockBatches() }}
+      />
 
       {/* The allocation tool. Same component the Flock Groups page mounts --
           one workflow, two entry points. */}

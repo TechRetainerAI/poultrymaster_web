@@ -1,6 +1,6 @@
 "use client"
 
-import { useSetupEmbedded, shellClass, SetupTabActions } from "@/components/setup/setup-embed"
+import { useSetupEmbedded, shellClass, SetupTaskBar, SetupTabTools } from "@/components/setup/setup-embed"
 import { useEffect, useState, useRef, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { BreedSelect } from "@/components/poultry/breed-select"
@@ -40,11 +40,17 @@ import { toLocalDateKey } from '@/lib/utils/date-key'
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { toastFormGuide } from "@/lib/utils/validation-toast"
-import { getFlocks, getFlock, createFlock, updateFlock, deleteFlock, type Flock, type FlockInput } from "@/lib/api/flock"
+import { getFlocks, getFlock, createFlock, updateFlock, deleteFlock, getFlockEditContext, type Flock, type FlockEditContext, type FlockInput } from "@/lib/api/flock"
+import { FlockHistoryPanel, openingDraftFrom, openingDraftToEdit, openingDraftWarnings, type OpeningHistoryDraft } from "@/components/poultry/flock-history-panel"
+import { createExistingFlock } from "@/lib/api/bird-reconciliation"
+import { ExistingFlockFields, FlockModeSelector, emptyExistingFlockDraft, existingFlockHistory, type ExistingFlockDraft, type FlockCreationMode } from "@/components/poultry/existing-flock-fields"
 import { getHouses, type House } from "@/lib/api/house"
+import { HousePicker } from "@/components/poultry/house-picker"
+import { getBatchBirdReconciliation, type BatchBirdReconciliationRow } from "@/lib/api/bird-reconciliation"
 import { getFlockBatches, type FlockBatch } from "@/lib/api/flock-batch"
 import { getProductionRecords, type ProductionRecord } from "@/lib/api/production-record"
 import { getBirdsLeftForFlockFromRecords } from "@/lib/utils/production-records"
+import { getOpeningPositions, type OpeningFlockPosition } from "@/lib/api/poultry-farm-setup"
 import {
   flockCountsTowardBirdTotals,
   getFlockLifecycleStatus,
@@ -127,6 +133,31 @@ export function FlocksPage() {
 
   // Map of flockId -> noOfBirdsLeft from the most recent production record
   const [flockBirdsLeftMap, setFlockBirdsLeftMap] = useState<Record<number, number>>({})
+  // Saved opening positions (Initial Farm Setup / "existing flock"): the birds
+  // ORIGINALLY placed, keyed by flock. flock.quantity for such a flock is the
+  // live count when it was registered, so it cannot be the "of" figure.
+  const [openingByFlock, setOpeningByFlock] = useState<Record<number, OpeningFlockPosition>>({})
+  // The server's bird accounting per batch (migration 413): how many of a
+  // batch's birds are still not in any flock, after flocks AND birds sold or
+  // lost before placing. A batch's size alone says nothing about what is left.
+  const [reconByBatch, setReconByBatch] = useState<Map<number, BatchBirdReconciliationRow>>(new Map())
+  const loadReconByBatch = () =>
+    getBatchBirdReconciliation()
+      .then((rows) => setReconByBatch(new Map(rows.map((r) => [r.batchId, r]))))
+      .catch(() => setReconByBatch(new Map()))
+
+  /** Birds a flock was placed with: its opening position, else its quantity. */
+  const placedBirds = (f: { flockId: number; quantity?: number | null }) =>
+    openingByFlock[f.flockId]?.originallyPlaced ?? (Number(f.quantity) || 0)
+
+  /** Birds of a batch not in any flock yet. */
+  const notYetPlaced = (batch: FlockBatch) => {
+    const r = reconByBatch.get(batch.batchId)
+    if (r) return Math.max(0, r.unallocatedPool)
+    // Before 413 is reachable: batch size less the birds its flocks were placed with.
+    const used = flocks.filter((f) => f.batchId === batch.batchId).reduce((a, f) => a + placedBirds(f), 0)
+    return Math.max(0, (Number(batch.numberOfBirds) || 0) - used)
+  }
   /** Loaded once; mortality for the summary is derived in useMemo so it matches the same flocks as the other two cards. */
   const [productionRecordsForFarm, setProductionRecordsForFarm] = useState<ProductionRecord[]>([])
   const autoActivateAttemptedRef = useRef<Set<number>>(new Set())
@@ -144,6 +175,10 @@ export function FlocksPage() {
     flockType: "" as "" | FlockType }
   const [createForm, setCreateForm] = useState({ ...emptyFlockForm })
   const [createSelectedBatch, setCreateSelectedBatch] = useState<FlockBatch | null>(null)
+  // 413: new flock, or one already operating (placed vs remaining + history).
+  const todayIso = new Date().toISOString().split("T")[0]
+  const [createMode, setCreateMode] = useState<FlockCreationMode>("new")
+  const [existingDraft, setExistingDraft] = useState<ExistingFlockDraft>(() => emptyExistingFlockDraft(todayIso))
 
   // Closing and reopening flocks live on their own page, Tools > Flock
   // Closeout (/flock-closeout). This page only shows the Closed state.
@@ -155,6 +190,10 @@ export function FlocksPage() {
   const [editingFlockId, setEditingFlockId] = useState<number | null>(null)
   const [editForm, setEditForm] = useState({ ...emptyFlockForm })
   const [editFetching, setEditFetching] = useState(false)
+  // 414: the flock as it was registered, read from posted records.
+  const [editCtx, setEditCtx] = useState<FlockEditContext | null>(null)
+  const [openingDraft, setOpeningDraft] = useState<OpeningHistoryDraft | null>(null)
+  const [deleteCtx, setDeleteCtx] = useState<FlockEditContext | null>(null)
   const [editSelectedBatch, setEditSelectedBatch] = useState<FlockBatch | null>(null)
 
   // Initial load
@@ -250,6 +289,19 @@ export function FlocksPage() {
     const { userId, farmId } = getUserContext()
     if (!userId || !farmId) return
 
+    void getOpeningPositions(userId, farmId)
+      .then((r) => {
+        if (!r.success || !r.data?.positions) return
+        const map: Record<number, OpeningFlockPosition> = {}
+        for (const p of r.data.positions) {
+          // Latest position per flock wins (same rule as the edit context).
+          const prev = map[p.flockId]
+          if (!prev || p.openingPositionId > prev.openingPositionId) map[p.flockId] = p
+        }
+        setOpeningByFlock(map)
+      })
+      .catch(() => { /* list still shows current birds */ })
+
     try {
       const res = await getProductionRecords(userId, farmId)
       if (res.success && res.data && res.data.length > 0) {
@@ -326,6 +378,7 @@ export function FlocksPage() {
   }
 
   const loadFlocks = async () => {
+    loadReconByBatch()   // a save or delete changes what each batch has left
     const { farmId, userId } = getUserContext()
     
     if (!farmId || !userId) {
@@ -490,7 +543,9 @@ export function FlocksPage() {
     const { farmId, userId } = getUserContext()
     if (!farmId || !userId) { toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" }); return }
     if (!createForm.name.trim() || !createForm.startDate) { toastFormGuide(toast, "Add a flock name and the date the flock started."); return }
-    if (createForm.quantity <= 0) { toastFormGuide(toast, "Enter how many birds are in this flock — use a number greater than zero."); return }
+    if (createForm.quantity <= 0) { toastFormGuide(toast, createMode === "existing" ? "Enter how many birds were originally placed in this flock." : "Enter how many birds are in this flock — use a number greater than zero."); return }
+    const existing = createMode === "existing" ? existingFlockHistory(createForm.quantity, existingDraft) : null
+    if (existing?.problem) { toastFormGuide(toast, existing.problem); return }
     if (!createForm.batchId || createForm.batchId === 0) { toastFormGuide(toast, "Link this flock to a batch so bird counts stay accurate."); return }
     if (createSelectedBatch && createForm.quantity > createSelectedBatch.numberOfBirds) { toastFormGuide(toast, `That batch only has ${createSelectedBatch.numberOfBirds} birds available — lower the flock size or pick another batch.`); return }
     // Room/house capacity — cannot place more birds than the room can hold.
@@ -499,8 +554,10 @@ export function FlocksPage() {
       const cap = house?.capacity ?? 0
       if (cap > 0) {
         const occupied = flocks.filter(f => f.houseId === createForm.houseId && f.active).reduce((s, f) => s + (f.quantity || 0), 0)
-        if (occupied + createForm.quantity > cap) {
-          toast({ title: "Over room capacity", description: `${house?.name || "That room"} holds ${cap} birds${occupied ? ` and already has ${occupied}` : ""}. You're trying to place ${(occupied + createForm.quantity).toLocaleString()}. Reduce the number or pick another room.`, variant: "destructive" })
+        // An existing flock occupies the pen with the birds standing today.
+        const standing = existing ? existing.history.currentLiveBirds : createForm.quantity
+        if (occupied + standing > cap) {
+          toast({ title: "Over room capacity", description: `${house?.name || "That room"} holds ${cap} birds${occupied ? ` and already has ${occupied}` : ""}. You're trying to place ${(occupied + standing).toLocaleString()}. Reduce the number or pick another room.`, variant: "destructive" })
           return
         }
       }
@@ -521,9 +578,26 @@ export function FlocksPage() {
       flockType: createForm.flockType || undefined,
     }
 
-    const result = await createFlock(flockData)
+    let result: { success: boolean; message?: string }
+    if (existing) {
+      // One transaction on the server: flock at its remaining birds, the batch
+      // charged the placed birds once, the difference as opening history.
+      try {
+        await createExistingFlock({ ...flockData, startDate: `${flockData.startDate}T00:00:00` }, existing.history, existingDraft.asOfDate,
+          embedded ? "Farm Setup" : "Flocks page")
+        result = { success: true }
+      } catch (err: any) {
+        result = { success: false, message: err?.message || "Failed to create flock" }
+      }
+    } else {
+      result = await createFlock(flockData)
+    }
     if (result.success) {
-      toast({ title: "Success!", description: "Flock created successfully." })
+      toast({ title: "Success!", description: existing
+        ? `Flock created: ${existing.history.originallyPlaced.toLocaleString()} placed, ${existing.history.currentLiveBirds.toLocaleString()} remaining.`
+        : "Flock created successfully." })
+      setCreateMode("new")
+      setExistingDraft(emptyExistingFlockDraft(todayIso))
       setIsCreateDialogOpen(false)
       refreshEggFeatures()
       loadFlocks()
@@ -544,7 +618,11 @@ export function FlocksPage() {
     const { userId, farmId } = getUserContext()
     if (!userId || !farmId) { setEditError("User context not found."); setEditFetching(false); return }
 
-    const result = await getFlock(flockId, userId, farmId)
+    setEditCtx(null)
+    setOpeningDraft(null)
+    const [result, ctx] = await Promise.all([getFlock(flockId, userId, farmId), getFlockEditContext(flockId, farmId)])
+    setEditCtx(ctx)
+    setOpeningDraft(openingDraftFrom(ctx))
     if (result.success && result.data) {
       const f = result.data
       setEditForm({
@@ -576,17 +654,22 @@ export function FlocksPage() {
     const { farmId, userId } = getUserContext()
     if (!farmId || !userId) { toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" }); return }
     if (!editForm.name.trim() || !editForm.startDate) { toastFormGuide(toast, "Add a flock name and the date the flock started."); return }
-    if (editForm.quantity <= 0) { toastFormGuide(toast, "Enter how many birds are in this flock — use a number greater than zero."); return }
-    if (editSelectedBatch && editForm.quantity > editSelectedBatch.numberOfBirds) { toastFormGuide(toast, `That batch only has ${editSelectedBatch.numberOfBirds} birds available — lower the flock size or pick another batch.`); return }
-    // Room/house capacity — exclude the flock being edited from current occupancy.
+    // A flock registered with an opening position takes its count from the
+    // history section; any other flock needs a count on the form.
+    if (!openingDraft && editForm.quantity <= 0) { toastFormGuide(toast, "Enter how many birds are in this flock — use a number greater than zero."); return }
+
+    // Out-of-proportion numbers are WARNINGS — the save still goes through.
+    const localWarnings: string[] = [...openingDraftWarnings(editCtx, openingDraft)]
+    const birdsOnForm = openingDraft
+      ? Number(openingDraft.live || 0) + (editCtx?.quantityAdjustments ?? 0)
+      : editForm.quantity
     if (editForm.houseId) {
       const house = houses.find(h => h.houseId === editForm.houseId)
       const cap = house?.capacity ?? 0
       if (cap > 0) {
         const occupied = flocks.filter(f => f.houseId === editForm.houseId && f.active && f.flockId !== editingFlockId).reduce((s, f) => s + (f.quantity || 0), 0)
-        if (occupied + editForm.quantity > cap) {
-          toast({ title: "Over room capacity", description: `${house?.name || "That room"} holds ${cap} birds${occupied ? ` and already has ${occupied}` : ""}. You're trying to place ${(occupied + editForm.quantity).toLocaleString()}. Reduce the number or pick another room.`, variant: "destructive" })
-          return
+        if (occupied + birdsOnForm > cap) {
+          localWarnings.push(`${house?.name || "That room"} holds ${cap.toLocaleString()} birds${occupied ? ` and already has ${occupied.toLocaleString()}` : ""}; with this flock it has ${(occupied + birdsOnForm).toLocaleString()}.`)
         }
       }
     }
@@ -604,11 +687,19 @@ export function FlocksPage() {
       otherReason: editForm.inactivationReason === 'other' ? editForm.otherReason : '',
       notes: editForm.notes,
       flockType: editForm.flockType || undefined,
+      ...(openingDraft ? { openingHistory: openingDraftToEdit(openingDraft), quantity: birdsOnForm } : {}),
     }
 
     const result = await updateFlock(editingFlockId, flockData)
     if (result.success) {
-      toast({ title: "Success!", description: "Flock updated successfully." })
+      clearFlocksCache()
+      // Server warnings restate the local ones more precisely; show each once.
+      const warnings = Array.from(new Set([...(result.warnings ?? []), ...localWarnings]))
+      if (warnings.length > 0) {
+        toast({ title: "Flock updated — please check", description: warnings.join(" "), duration: 12000 })
+      } else {
+        toast({ title: "Success!", description: "Flock updated successfully." })
+      }
       setIsEditDialogOpen(false)
       refreshEggFeatures()
       loadFlocks()
@@ -623,7 +714,11 @@ export function FlocksPage() {
   // Delete handlers
   const openDeleteDialog = (id: number) => {
     setDeletingId(id)
+    setDeleteCtx(null)
     setDeleteDialogOpen(true)
+    // 414: say up front whether it can be deleted, and why not.
+    const { farmId } = getUserContext()
+    if (farmId) void getFlockEditContext(id, farmId).then(setDeleteCtx)
   }
 
   const handleDelete = async () => {
@@ -636,11 +731,16 @@ export function FlocksPage() {
     setIsDeleting(true)
     const result = await deleteFlock(deletingId, userId, farmId)
     if (result.success) {
-      toast({ title: "Flock deleted", description: "The flock has been successfully deleted." })
+      // Only what the server confirmed it did -- see lib/api/flock.ts.
+      clearFlocksCache()
+      toast({ title: "Flock deleted", description: result.message || "The flock has been deleted." })
       loadFlocks()
+      loadFilterData()
+      loadProductionBirdsLeft()
+      refreshEggFeatures()
       setCurrentPage(1)
     } else {
-      toast({ title: "Delete failed", description: result.message || "Something went wrong. Please try again.", variant: "destructive" })
+      toast({ title: "Not deleted", description: result.message || "Something went wrong. Please try again.", variant: "destructive" })
     }
     setIsDeleting(false)
     setDeleteDialogOpen(false)
@@ -866,6 +966,14 @@ export function FlocksPage() {
     return flock.quantity || 0
   }
 
+  // Birds originally placed: the saved opening position when the flock was
+  // registered as already operating, otherwise the flock's own quantity.
+  const getPlacedBirds = (flock: Flock): number => {
+    const o = openingByFlock[flock.flockId]
+    if (o && o.originallyPlaced > 0) return o.originallyPlaced
+    return flock.quantity || 0
+  }
+
   const hasInactiveFlocks = useMemo(() => {
     return flocks.some((flock) => getFlockLifecycleStatus(flock) !== "active")
   }, [flocks])
@@ -948,7 +1056,7 @@ export function FlocksPage() {
       <div className={shellClass(embedded, "flex-1 flex flex-col min-w-0")}>
         {!embedded && <DashboardHeader />}
         <main className={embedded ? "min-w-0" : "flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0"}>
-          <div className="space-y-6">
+          <div className={embedded ? "space-y-3" : "space-y-6"}>
             {/* Page Header */}
             <div className={embedded ? "hidden" : "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"}>
               <div className="flex items-start gap-3 min-w-0">
@@ -960,16 +1068,10 @@ export function FlocksPage() {
                   <p className="text-sm text-slate-600">Manage your bird flocks</p>
                 </div>
               </div>
-              <SetupTabActions><div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto shrink-0">
-                <Button variant="outline" className="gap-2 w-full sm:w-auto h-11 sm:h-10" onClick={() => setIsAllocateDialogOpen(true)}>
-                  <Plus className="w-4 h-4" />
-                  Add Multiple Flocks
-                </Button>
-                <Button className="gap-2 w-full sm:w-auto h-11 sm:h-10 bg-blue-600 hover:bg-blue-700" onClick={openCreateDialog}>
-                  <Plus className="w-4 h-4" />
-                  Add Flock
-                </Button>
-              </div></SetupTabActions>
+              <SetupTaskBar tasks={[
+                { id: "add", label: "Add Flock", icon: Plus, primary: true, onClick: openCreateDialog },
+                { id: "bulk", label: "Add Multiple Flocks", icon: Plus, onClick: () => setIsAllocateDialogOpen(true) },
+              ]} />
             </div>
 
             {/* Filters: inline on desktop, sheet on mobile */}
@@ -1130,14 +1232,16 @@ export function FlocksPage() {
                 </div>
               </div>
             ) : (
-              <div className="flex flex-wrap items-center gap-2 p-2 bg-white rounded border">
-                <div className="relative w-full sm:w-[240px]">
+              // In Farm Setup the filters sit beside the tab's description line
+              // (compact sizes); standalone they keep their own box.
+              <SetupTabTools standaloneClassName="flex flex-wrap items-center gap-2 p-2 bg-white rounded border">
+                <div className={embedded ? "relative w-40" : "relative w-full sm:w-[240px]"}>
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                  <Input placeholder="Search by name, breed, or notes..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+                  <Input placeholder={embedded ? "Search flocks" : "Search by name, breed, or notes..."} value={search} onChange={(e) => setSearch(e.target.value)} className={embedded ? "h-9 bg-white pl-9" : "pl-9"} />
                 </div>
 
                 <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                  <SelectTrigger className="w-[180px]">
+                  <SelectTrigger className={embedded ? "h-9 w-auto gap-2 bg-white" : "w-[180px]"}>
                     <SelectValue placeholder="Status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1149,7 +1253,7 @@ export function FlocksPage() {
                 </Select>
 
                 <Select value={selectedHouseId} onValueChange={setSelectedHouseId}>
-                  <SelectTrigger className="w-[180px]">
+                  <SelectTrigger className={embedded ? "h-9 w-auto gap-2 bg-white" : "w-[180px]"}>
                     <SelectValue placeholder="House" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1161,7 +1265,7 @@ export function FlocksPage() {
                 </Select>
 
                 <Select value={selectedBatchId} onValueChange={setSelectedBatchId}>
-                  <SelectTrigger className="w-[180px]">
+                  <SelectTrigger className={embedded ? "h-9 w-auto gap-2 bg-white" : "w-[180px]"}>
                     <SelectValue placeholder="Batch" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1172,31 +1276,37 @@ export function FlocksPage() {
                   </SelectContent>
                 </Select>
 
-                <Input type="date" placeholder="From" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-[140px]" />
-                <Input type="date" placeholder="To" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-[140px]" />
+                <Input type="date" placeholder="From" title="From date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className={embedded ? "h-9 w-[140px] bg-white" : "w-[140px]"} />
+                <Input type="date" placeholder="To" title="To date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className={embedded ? "h-9 w-[140px] bg-white" : "w-[140px]"} />
 
                 <NumberInput
                   
-                  placeholder="Min Quantity"
+                  placeholder={embedded ? "Min qty" : "Min Quantity"}
                   value={quantityMin}
                   onChange={(e) => handleQuantityMinChange(e.target.value)}
-                  className="w-[120px]"
+                  className={embedded ? "h-9 w-24 bg-white" : "w-[120px]"}
                 />
 
                 <NumberInput
                   
-                  placeholder="Max Quantity"
+                  placeholder={embedded ? "Max qty" : "Max Quantity"}
                   value={quantityMax}
                   onChange={(e) => handleQuantityMaxChange(e.target.value)}
-                  className="w-[120px]"
+                  className={embedded ? "h-9 w-24 bg-white" : "w-[120px]"}
                 />
 
-                <div className="ml-auto">
-                  <Button variant="outline" size="sm" onClick={clearFilters}>
-                    <RefreshCw className="h-4 w-4 mr-2" /> Reset
+                {embedded ? (
+                  <Button variant="outline" size="icon" className="h-9 w-9 bg-white" onClick={clearFilters} title="Reset filters" aria-label="Reset filters">
+                    <RefreshCw className="h-4 w-4" />
                   </Button>
-                </div>
-              </div>
+                ) : (
+                  <div className="ml-auto">
+                    <Button variant="outline" size="sm" onClick={clearFilters}>
+                      <RefreshCw className="h-4 w-4 mr-2" /> Reset
+                    </Button>
+                  </div>
+                )}
+              </SetupTabTools>
             )}
 
             {/* Error Alert */}
@@ -1206,8 +1316,8 @@ export function FlocksPage() {
               </Alert>
             )}
 
-            {/* Farm totals — compact scorecards */}
-            {!loading && flocks.length > 0 && (
+            {/* Farm totals — compact scorecards (standalone page only) */}
+            {!embedded && !loading && flocks.length > 0 && (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div
                   className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-sm"
@@ -1290,8 +1400,8 @@ export function FlocksPage() {
             ) : filteredFlocks.length === 0 ? (
               <Card className="bg-white">
                 <CardContent className="p-12 text-center">
-                  <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Bird className="w-8 h-8 text-slate-400" />
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50">
+                    <Bird className="h-8 w-8 text-emerald-600" />
                   </div>
                   <h3 className="text-lg font-semibold text-slate-900 mb-2">No flocks found</h3>
                   <p className="text-slate-600 mb-6">Get started by creating your first flock.</p>
@@ -1300,7 +1410,7 @@ export function FlocksPage() {
                       <Plus className="w-4 h-4" />
                       Add Multiple Flocks
                     </Button>
-                    <Button className="gap-2 bg-blue-600 hover:bg-blue-700" onClick={openCreateDialog}>
+                    <Button className="gap-2 bg-emerald-600 hover:bg-emerald-700" onClick={openCreateDialog}>
                       <Plus className="w-4 h-4" />
                       Add Flock
                     </Button>
@@ -1308,25 +1418,30 @@ export function FlocksPage() {
                 </CardContent>
               </Card>
             ) : (
-              <Card className="bg-white overflow-hidden">
+              <Card className="bg-white overflow-hidden gap-0 py-0">
                 <CardContent className="p-0">
                   {isMobile && !showAllColumnsMobile ? (
                     <div className="space-y-3">
-                      {paginatedFlocks.map((flock, idx) => (
-                        <Collapsible key={flock.flockId} defaultOpen className={cn("group rounded-xl border shadow-sm overflow-hidden", idx % 2 === 0 ? "bg-amber-100 border-amber-300" : "bg-white border-slate-200")}>
-                          <div className={cn("p-4 active:bg-slate-50/80 transition-colors", idx % 2 === 1 && "bg-slate-50/20")}>
+                      {paginatedFlocks.map((flock) => (
+                        <Collapsible key={flock.flockId} defaultOpen className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
+                          <div className="p-4 transition-colors active:bg-slate-50/80">
                             <CollapsibleTrigger asChild>
                               <div className="flex items-start justify-between gap-3 cursor-pointer">
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="font-semibold text-slate-900">{flock.name}</span>{isBroilerFlock(flock) && <Badge variant="secondary" className="ml-1.5 bg-orange-100 text-orange-800 border border-orange-200 text-[10px] px-1.5 py-0">Broiler</Badge>}
-                                    {flockLifecycleBadge(flock)}
-                                  </div>
-                                  <div className="mt-1 flex items-baseline gap-3">
-                                    <span className="text-lg font-bold text-emerald-600">{getCurrentBirds(flock).toLocaleString()}</span>
-                                    <span className="text-xs text-slate-500">birds</span>
-                                    <span className="text-slate-400">•</span>
-                                    <span className="text-sm text-slate-600">{formatDateShort(flock.startDate)}</span>
+                                <div className="flex min-w-0 flex-1 items-start gap-2.5">
+                                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-600"><Bird className="h-4 w-4" /></span>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="truncate font-semibold text-slate-900">{flock.name}</span>{isBroilerFlock(flock) && <Badge variant="secondary" className="ml-1.5 bg-orange-100 text-orange-800 border border-orange-200 text-[10px] px-1.5 py-0">Broiler</Badge>}
+                                      {flockLifecycleBadge(flock)}
+                                    </div>
+                                    <div className="mt-1 flex items-baseline gap-2 flex-wrap">
+                                      <span className="text-lg font-bold tabular-nums text-emerald-600">{getCurrentBirds(flock).toLocaleString()}</span>
+                                      <span className="text-xs text-slate-500">
+                                        {getPlacedBirds(flock) !== getCurrentBirds(flock) ? `of ${getPlacedBirds(flock).toLocaleString()} birds` : "birds"}
+                                      </span>
+                                      <span className="text-slate-300">•</span>
+                                      <span className="text-sm text-slate-600">{formatDateShort(flock.startDate)}</span>
+                                    </div>
                                   </div>
                                 </div>
                                 <ChevronDown className="h-5 w-5 text-slate-400 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
@@ -1374,7 +1489,7 @@ export function FlocksPage() {
                     )}
                     <Table className={cn("w-full", !isMobile && "min-w-[700px]")}>
                       <TableHeader>
-                        <TableRow className="border-b">
+                        <TableRow className="border-b bg-slate-50">
                           <TableHead 
                             className={cn("font-semibold text-slate-900 min-w-[120px] cursor-pointer hover:bg-slate-50", isMobile && "sticky-col-date bg-slate-50")}
                             onClick={() => handleSort("name")}
@@ -1481,12 +1596,15 @@ export function FlocksPage() {
                                 </Tooltip>
                               </TooltipProvider>
                             </TableCell>
-                            <TableCell className="text-slate-600 hidden md:table-cell">
+                            <TableCell className="text-slate-600 hidden md:table-cell tabular-nums">
                               <div className="flex items-center gap-2">
                                 <Users className="w-4 h-4 text-slate-400" />
-                                <span>{getCurrentBirds(flock).toLocaleString()} birds</span>
-                                {flock.flockId in flockBirdsLeftMap && flockBirdsLeftMap[flock.flockId] !== flock.quantity && (
-                                  <span className="text-xs text-slate-400">(of {flock.quantity.toLocaleString()})</span>
+                                {getPlacedBirds(flock) !== getCurrentBirds(flock) ? (
+                                  <span title={`${getCurrentBirds(flock).toLocaleString()} alive of ${getPlacedBirds(flock).toLocaleString()} originally placed`}>
+                                    {getCurrentBirds(flock).toLocaleString()} <span className="text-slate-400">of</span> {getPlacedBirds(flock).toLocaleString()}
+                                  </span>
+                                ) : (
+                                  <span>{getCurrentBirds(flock).toLocaleString()} birds</span>
                                 )}
                               </div>
                             </TableCell>
@@ -1604,8 +1722,8 @@ export function FlocksPage() {
               </div>
             )}
 
-            {/* Bird totals (page bottom) */}
-            {!loading && flocks.length > 0 && (
+            {/* Bird totals (page bottom; standalone page only) */}
+            {!embedded && !loading && flocks.length > 0 && (
               <div className={cn("grid gap-3", isMobile ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-4")}>
                 <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
                   <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Birds</div>
@@ -1653,7 +1771,7 @@ export function FlocksPage() {
       />
 
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Bird className="w-5 h-5 text-green-600" /> Add New Flock
@@ -1664,6 +1782,7 @@ export function FlocksPage() {
             <Alert variant="destructive"><AlertDescription>{createError}</AlertDescription></Alert>
           )}
           <form onSubmit={handleCreateSubmit} className="space-y-4">
+            <FlockModeSelector mode={createMode} onChange={setCreateMode} disabled={createLoading} />
             <div className="rounded-xl border border-slate-200 overflow-hidden">
               <div className="bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Flock Information</div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white">
@@ -1675,9 +1794,8 @@ export function FlocksPage() {
                       <option value="">Please select a batch</option>
                       {flockBatches.map(b => <option key={b.batchId} value={b.batchId}>{b.batchName}</option>)}
                     </select>
-                    <Users className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
                   </div>
-                  {createSelectedBatch && <p className="text-xs text-slate-500">Available: {createSelectedBatch.numberOfBirds} birds</p>}
+                  {createSelectedBatch && <BatchAvailability batch={createSelectedBatch} free={notYetPlaced(createSelectedBatch)} recon={reconByBatch.get(createSelectedBatch.batchId)} />}
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-slate-700">Name *</Label>
@@ -1701,20 +1819,27 @@ export function FlocksPage() {
                   <Input type="date" value={createForm.startDate} onChange={(e) => setCreateForm({ ...createForm, startDate: e.target.value })} required disabled={createLoading} />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Number of Birds *</Label>
+                  <Label className="text-sm font-medium text-slate-700">{createMode === "existing" ? "Birds Originally Placed *" : "Number of Birds *"}</Label>
                   <NumberInput min="1" placeholder="e.g., 100" value={createForm.quantity} onChange={(e) => setCreateForm({ ...createForm, quantity: parseInt(e.target.value) || 0 })} required disabled={createLoading} />
-                  {createSelectedBatch && <p className="text-xs text-slate-500">Remaining: {createSelectedBatch.numberOfBirds - createForm.quantity} birds</p>}
+                  {createSelectedBatch && createForm.quantity > 0 && (() => {
+                    const left = notYetPlaced(createSelectedBatch) - createForm.quantity
+                    return left >= 0
+                      ? <p className="text-xs text-slate-500">{left.toLocaleString()} birds left to place after this</p>
+                      : <p className="text-xs text-red-600">{(-left).toLocaleString()} more than the batch has left to place</p>
+                  })()}
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Assign to House</Label>
-                  <div className="relative">
-                    <select className="w-full h-10 rounded-md border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      value={createForm.houseId ?? ''} onChange={(e) => setCreateForm({ ...createForm, houseId: e.target.value ? parseInt(e.target.value) : null })} disabled={createLoading}>
-                      <option value="">No house</option>
-                      {houses.map(h => <option key={h.houseId} value={h.houseId}>{(h as any).houseName || (h as any).name || `House ${h.houseId}`}</option>)}
-                    </select>
-                    <Home className="w-4 h-4 text-slate-400 absolute right-3 top-3" />
+                {createMode === "existing" && (
+                  <div className="md:col-span-2">
+                    <ExistingFlockFields placed={createForm.quantity} draft={existingDraft} onChange={setExistingDraft}
+                      maxDate={todayIso} disabled={createLoading} />
                   </div>
+                )}
+                <div className="space-y-2 md:col-span-2">
+                  <Label className="text-sm font-medium text-slate-700">Assign to House</Label>
+                  <HousePicker houses={houses} flocks={flocks} disabled={createLoading}
+                    value={createForm.houseId}
+                    onChange={(houseId) => setCreateForm((prev) => ({ ...prev, houseId }))}
+                    birds={createMode === "existing" ? (Number(existingDraft.currentLiveBirds) || 0) : createForm.quantity} />
                 </div>
               </div>
             </div>
@@ -1774,7 +1899,7 @@ export function FlocksPage() {
 
       {/* Edit Flock Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Pencil className="w-5 h-5 text-blue-600" /> Edit Flock
@@ -1811,9 +1936,14 @@ export function FlocksPage() {
                         <option value="">No batch</option>
                         {flockBatches.map(b => <option key={b.batchId} value={b.batchId}>{b.batchName}</option>)}
                       </select>
-                      <Users className="w-4 h-4 text-slate-400 absolute right-3 top-3" />
                     </div>
-                    {editSelectedBatch && <p className="text-xs text-slate-500">Available: {editSelectedBatch.numberOfBirds} birds</p>}
+                    {editSelectedBatch && (() => {
+                      // Editing gives the flock back its own birds: they count
+                      // against its batch today and would be freed by the change.
+                      const me = flocks.find((f) => f.flockId === editingFlockId)
+                      const own = me && me.batchId === editSelectedBatch.batchId ? placedBirds(me) : 0
+                      return <BatchAvailability batch={editSelectedBatch} free={notYetPlaced(editSelectedBatch)} recon={reconByBatch.get(editSelectedBatch.batchId)} ownBirds={own} />
+                    })()}
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-slate-700">Name *</Label>
@@ -1837,21 +1967,32 @@ export function FlocksPage() {
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-slate-700">Number of Birds *</Label>
-                    <NumberInput min="1" placeholder="e.g., 100" value={editForm.quantity} onChange={(e) => setEditForm({ ...editForm, quantity: parseInt(e.target.value) || 0 })} required disabled={editLoading} />
+                    {openingDraft ? (
+                      <>
+                        <NumberInput value={Number(openingDraft.live || 0) + (editCtx?.quantityAdjustments ?? 0)} disabled />
+                        <p className="text-xs text-slate-500">Set from the registered bird count in Bird history below.</p>
+                      </>
+                    ) : (
+                      <>
+                        <NumberInput min="1" placeholder="e.g., 100" value={editForm.quantity} onChange={(e) => setEditForm({ ...editForm, quantity: parseInt(e.target.value) || 0 })} required disabled={editLoading} />
+                        {(editCtx?.position?.productionrecordcount ?? 0) > 0 && (
+                          <p className="text-xs text-slate-500">
+                            Birds placed. Live birds now ({(editCtx?.position?.currentlivebirds ?? 0).toLocaleString()}) come from the latest production record.
+                          </p>
+                        )}
+                      </>
+                    )}
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 md:col-span-2">
                     <Label className="text-sm font-medium text-slate-700">Assign to House</Label>
-                    <div className="relative">
-                      <select className="w-full h-10 rounded-md border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        value={editForm.houseId ?? ''} onChange={(e) => setEditForm({ ...editForm, houseId: e.target.value ? parseInt(e.target.value) : null })} disabled={editLoading}>
-                        <option value="">No house</option>
-                        {houses.map(h => <option key={h.houseId} value={h.houseId}>{(h as any).houseName || (h as any).name || `House ${h.houseId}`}</option>)}
-                      </select>
-                      <Home className="w-4 h-4 text-slate-400 absolute right-3 top-3" />
-                    </div>
+                    <HousePicker houses={houses} flocks={flocks} disabled={editLoading}
+                      value={editForm.houseId} excludeFlockId={editingFlockId}
+                      onChange={(houseId) => setEditForm((prev) => ({ ...prev, houseId }))}
+                      birds={openingDraft ? Number(openingDraft.live || 0) + (editCtx?.quantityAdjustments ?? 0) : editForm.quantity} />
                   </div>
                 </div>
               </div>
+              {editCtx && <FlockHistoryPanel ctx={editCtx} draft={openingDraft} onDraftChange={setOpeningDraft} disabled={editLoading} />}
               <div className="rounded-xl border border-slate-200 overflow-hidden">
                 <div className="bg-green-600 px-4 py-2 text-sm font-semibold text-white">Status &amp; Notes</div>
                 <div className="p-4 bg-white space-y-4">
@@ -1912,18 +2053,89 @@ export function FlocksPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Flock</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this flock? This action cannot be undone.
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                {deleteCtx && !deleteCtx.canDelete ? (
+                  <>
+                    <p>This flock has posted activity and cannot be deleted:</p>
+                    <ul className="list-disc pl-5 text-slate-700">
+                      {deleteCtx.deleteBlockers.map((b) => <li key={b.source}>{b.rows.toLocaleString()} {b.label}</li>)}
+                    </ul>
+                    <p>Reverse those entries first, or close the flock (Tools &gt; Flock Closeout) to keep its history.</p>
+                  </>
+                ) : (
+                  <p>
+                    Delete this flock?
+                    {deleteCtx?.position ? ` Its ${deleteCtx.position.originallyplaced.toLocaleString()} placed birds go back to the batch, and its opening entries are reversed.` : ""}
+                    {" "}This cannot be undone.
+                  </p>
+                )}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-red-600 hover:bg-red-700 focus:ring-red-600">
+            <AlertDialogAction onClick={handleDelete} disabled={isDeleting || (deleteCtx != null && !deleteCtx.canDelete)} className="bg-red-600 hover:bg-red-700 focus:ring-red-600">
               {isDeleting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Deleting...</> : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  )
+}
+
+/** What a batch has left to place, and where the rest went. */
+function BatchAvailability({ batch, free, recon, ownBirds = 0 }: {
+  batch: FlockBatch
+  free: number
+  recon?: BatchBirdReconciliationRow
+  ownBirds?: number
+}) {
+  const size = Number(batch.numberOfBirds) || 0
+  const inFlocks = recon ? recon.originallyAllocated : Math.max(0, size - free)
+  const sold = recon?.batchSold ?? 0
+  const lost = recon ? recon.batchMortality + recon.batchCulled + recon.batchTransferred + recon.batchOtherRemovals : 0
+  const segs = [
+    { label: "in flocks", value: inFlocks, color: "bg-emerald-500" },
+    { label: "sold before placing", value: sold, color: "bg-orange-400" },
+    { label: "died or removed before placing", value: lost, color: "bg-rose-400" },
+    { label: "free to place", value: free, color: "bg-indigo-500" },
+  ]
+  const total = Math.max(size, segs.reduce((a, g) => a + g.value, 0), 1)
+  const max = ownBirds + free
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-xs">
+      <div className="flex items-baseline justify-between gap-2">
+        {free > 0 ? (
+          <span className="font-semibold text-indigo-700">{free.toLocaleString()} birds free to place</span>
+        ) : (
+          <span className="font-semibold text-slate-700">No birds left to place</span>
+        )}
+        <span className="text-slate-500">Batch of {size.toLocaleString()}</span>
+      </div>
+      <div className="mt-1.5 flex h-1.5 w-full gap-px overflow-hidden rounded-full bg-slate-200">
+        {segs.filter((g) => g.value > 0).map((g) => (
+          <div key={g.label} className={g.color} style={{ width: `${(g.value / total) * 100}%` }} title={`${g.value.toLocaleString()} ${g.label}`} />
+        ))}
+      </div>
+      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-slate-600">
+        {segs.filter((g) => g.value > 0 && g.label !== "free to place").map((g) => (
+          <span key={g.label} className="flex items-center gap-1">
+            <span className={`h-2 w-2 rounded-full ${g.color}`} />
+            <span className="font-medium tabular-nums text-slate-800">{g.value.toLocaleString()}</span> {g.label}
+          </span>
+        ))}
+      </div>
+      {ownBirds > 0 && (
+        <div className="mt-2 border-t border-slate-200 pt-1.5 text-slate-600">
+          This flock can have up to <span className="font-semibold tabular-nums text-slate-900">{max.toLocaleString()}</span> birds
+          {free > 0
+            ? <> (its own {ownBirds.toLocaleString()} + {free.toLocaleString()} free).</>
+            : <>: the {ownBirds.toLocaleString()} it already has.</>}
+        </div>
+      )}
     </div>
   )
 }
