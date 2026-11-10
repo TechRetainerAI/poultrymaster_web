@@ -1,6 +1,6 @@
 "use client"
 
-import { useSetupEmbedded, shellClass, SetupTabActions } from "@/components/setup/setup-embed"
+import { useSetupEmbedded, shellClass, SetupTaskBar, SetupTabTools } from "@/components/setup/setup-embed"
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -21,7 +21,7 @@ import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
-import { Plus, Pencil, Loader2, Wallet, RefreshCw, ArrowLeftRight, Eye, Trash2, Scale, FileText } from "lucide-react"
+import { Plus, Pencil, Loader2, Wallet, RefreshCw, ArrowLeftRight, Eye, Trash2, Scale, FileText, Search } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { ledgerTypeLabel } from "@/lib/cash/cash-flow"
@@ -246,29 +246,35 @@ export function PoultryCashAccountsPage() {
             <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
               <Wallet className="h-6 w-6 text-sky-600" /> Cash Account
             </h1>
-            <SetupTabActions><div className="flex flex-wrap gap-2 w-full sm:w-auto">
-              <Button variant="outline" className="flex-1 sm:flex-none whitespace-nowrap" onClick={() => setAdjustDlg(true)}><Scale className="h-4 w-4 mr-1" /> Record Cash Adjustment</Button>
-              <Button variant="outline" className="flex-1 sm:flex-none whitespace-nowrap" onClick={reconcile}><RefreshCw className="h-4 w-4 mr-1" /> Recalculate</Button>
-              {/* Reconcile opens the dedicated page — pick an account, count it,
-                  post the difference. Recalculate (rebuilding the cached balance
-                  from the ledger, which moves no money) stays here so the two
-                  balance-truth jobs are one click apart without their names
-                  sitting on top of each other. */}
-              <Button asChild variant="outline" className="flex-1 sm:flex-none whitespace-nowrap">
-                <Link href="/poultry-cash-reconciliation"><Scale className="h-4 w-4 mr-1" /> Reconcile</Link>
-              </Button>
-              {/* The printable, emailable version of this page: per-account
-                  opening/in/out/closing for a period, plus drift and
-                  reconciliation status. This screen is the live one. */}
-              <Button asChild variant="outline" className="flex-1 sm:flex-none whitespace-nowrap">
-                <Link href="/poultry/reports/cash-accounts"><FileText className="h-4 w-4 mr-1" /> Cash Account Report</Link>
-              </Button>
-              <Button variant="outline" className="flex-1 sm:flex-none whitespace-nowrap" onClick={() => setXferDlg(true)}><ArrowLeftRight className="h-4 w-4 mr-1" /> Transfer</Button>
-              <Button variant="outline" className="flex-1 sm:flex-none whitespace-nowrap" onClick={createDefault} disabled={saving}><Wallet className="h-4 w-4 mr-1" /> Create default account</Button>
-              <Button className="flex-1 sm:flex-none whitespace-nowrap" onClick={openNew}><Plus className="h-4 w-4 mr-1" /> New account</Button>
-            </div></SetupTabActions>
+            {/* Reconcile opens the dedicated page: pick an account, count it,
+                post the difference. Recalculate rebuilds the cached balance from
+                the ledger and moves no money. The Cash Account Report is the
+                printable, emailable version of this page. */}
+            <SetupTaskBar tasks={[
+              { id: "new", label: "New account", icon: Plus, primary: true, onClick: openNew },
+              { id: "transfer", label: "Transfer", icon: ArrowLeftRight, onClick: () => setXferDlg(true), group: "money" },
+              { id: "adjust", label: "Record Cash Adjustment", icon: Scale, onClick: () => setAdjustDlg(true), group: "money" },
+              { id: "reconcile", label: "Reconcile", icon: Scale, href: "/poultry-cash-reconciliation", group: "check" },
+              { id: "recalc", label: "Recalculate", icon: RefreshCw, onClick: reconcile, group: "check" },
+              { id: "report", label: "Cash Account Report", icon: FileText, href: "/poultry/reports/cash-accounts", group: "check" },
+              { id: "default", label: "Create default account", icon: Wallet, onClick: createDefault, disabled: saving, more: true },
+            ]} />
           </div>
 
+          {/* In Farm Setup the search and the cash-flow link sit beside the
+              tab's description line. */}
+          {embedded ? (
+            <SetupTabTools>
+              <div className="relative w-full sm:w-64">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Input className="h-9 bg-white pl-9" placeholder="Search account name or type" value={search} onChange={(e) => setSearch(e.target.value)} />
+              </div>
+              <button type="button" onClick={() => router.push("/cash-flow")}
+                className="ml-auto inline-flex items-center gap-1.5 whitespace-nowrap text-sm font-medium text-sky-600 hover:text-sky-700 hover:underline">
+                <ArrowLeftRight className="h-4 w-4" /> See the whole company&apos;s cash flow →
+              </button>
+            </SetupTabTools>
+          ) : (
           <button
             type="button"
             onClick={() => router.push("/cash-flow")}
@@ -276,17 +282,19 @@ export function PoultryCashAccountsPage() {
           >
             <ArrowLeftRight className="h-4 w-4" /> See the whole company&apos;s cash flow →
           </button>
+          )}
 
-          <div className="mb-3 grid grid-cols-2 md:grid-cols-4 gap-3">
+          {/* Summary cards: standalone page only; Farm Setup leaves them out. */}
+          {!embedded && <div className="mb-3 grid grid-cols-2 md:grid-cols-4 gap-3">
             <StatCard label="Total cash at hand" value={fmt(totalCash)} accent="violet" />
             <StatCard label="Active accounts" value={accounts.filter(a => a.isActive).length} accent="emerald" />
             <StatCard label="Pending transfers" value={transfers.filter(t => t.status === "Draft").length} accent="amber" />
             <StatCard label="Approved transfers" value={transfers.filter(t => t.status === "Approved").length} accent="blue" />
-          </div>
+          </div>}
 
-          <ListFilters search={search} setSearch={setSearch} searchOnly searchPlaceholder="Search account name or type" />
+          {!embedded && <ListFilters search={search} setSearch={setSearch} searchOnly searchPlaceholder="Search account name or type" />}
 
-          <Card>
+          <Card className="gap-0 py-0">
             <CardContent className="p-0">
               {loading ? (
                 <div className="p-6 text-slate-500 flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>

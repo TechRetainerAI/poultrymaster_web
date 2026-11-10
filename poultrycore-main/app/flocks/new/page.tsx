@@ -16,6 +16,8 @@ import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Bird, ArrowLeft, Loader2, Users, Home } from "lucide-react"
 import { createFlock, type FlockInput } from "@/lib/api/flock"
+import { createExistingFlock } from "@/lib/api/bird-reconciliation"
+import { ExistingFlockFields, FlockModeSelector, emptyExistingFlockDraft, existingFlockHistory, type ExistingFlockDraft, type FlockCreationMode } from "@/components/poultry/existing-flock-fields"
 import { getHouses, type House } from "@/lib/api/house"
 import { getFlockBatches, type FlockBatch } from "@/lib/api/flock-batch"
 import { getUserContext } from "@/lib/utils/user-context"
@@ -49,6 +51,10 @@ export default function NewFlockPage() {
   const [flockBatchesLoading, setFlockBatchesLoading] = useState(true)
   const [selectedFlockBatch, setSelectedFlockBatch] = useState<FlockBatch | null>(null)
   const [remainingBirds, setRemainingBirds] = useState<number | null>(null)
+  // 413: new flock, or one already operating.
+  const todayIso = new Date().toISOString().split("T")[0]
+  const [mode, setMode] = useState<FlockCreationMode>("new")
+  const [existingDraft, setExistingDraft] = useState<ExistingFlockDraft>(() => emptyExistingFlockDraft(todayIso))
 
   useEffect(() => {
     const loadData = async () => {
@@ -139,6 +145,9 @@ export default function NewFlockPage() {
       }
     }
 
+    const existing = mode === "existing" ? existingFlockHistory(formData.quantity, existingDraft) : null
+    if (existing?.problem) { setError(existing.problem); return }
+
     setLoading(true)
     setError("")
 
@@ -152,7 +161,17 @@ export default function NewFlockPage() {
     console.log("[NewFlockPage] Creating flock with data:", flockData)
     console.log("[NewFlockPage] Selected batch:", selectedFlockBatch)
 
-    const result = await createFlock(flockData)
+    let result: { success: boolean; message?: string }
+    if (existing) {
+      try {
+        await createExistingFlock({ ...flockData, startDate: `${flockData.startDate}T00:00:00` }, existing.history, existingDraft.asOfDate, "Flocks page")
+        result = { success: true }
+      } catch (err: any) {
+        result = { success: false, message: err?.message }
+      }
+    } else {
+      result = await createFlock(flockData)
+    }
 
     if (result.success) {
       refreshEggFeatures()
@@ -205,6 +224,7 @@ export default function NewFlockPage() {
 
             {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-6">
+              <FlockModeSelector mode={mode} onChange={setMode} disabled={loading} />
               {/* Section: Flock Information */}
               <div className="rounded-xl border border-slate-200 overflow-hidden">
                 <div className="bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Flock Information</div>
@@ -292,7 +312,7 @@ export default function NewFlockPage() {
 
                   <div className="space-y-2">
                     <Label htmlFor="quantity" className="text-sm font-medium text-slate-700">
-                      Number of Birds *
+                      {mode === "existing" ? "Birds Originally Placed *" : "Number of Birds *"}
                     </Label>
                     <NumberInput
                       id="quantity"
@@ -310,6 +330,12 @@ export default function NewFlockPage() {
                       </p>
                     )}
                   </div>
+
+                  {mode === "existing" && (
+                    <div className="md:col-span-2">
+                      <ExistingFlockFields placed={formData.quantity} draft={existingDraft} onChange={setExistingDraft} maxDate={todayIso} disabled={loading} />
+                    </div>
+                  )}
 
                   <div className="space-y-2">
                     <Label htmlFor="houseId" className="text-sm font-medium text-slate-700">

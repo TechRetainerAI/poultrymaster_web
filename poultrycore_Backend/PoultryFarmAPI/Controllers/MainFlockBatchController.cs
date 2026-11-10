@@ -14,9 +14,12 @@ namespace PoultryFarmAPIWeb.Controllers
         private readonly IMainFlockBatchService _batchService;
         private readonly IAuditLogService _auditLog;
         private readonly ILogger<MainFlockBatchController> _logger;
+        private readonly IBirdFlockService _flockService;
 
-        public MainFlockBatchController(IMainFlockBatchService batchService, IAuditLogService auditLog, ILogger<MainFlockBatchController> logger)
+        public MainFlockBatchController(IMainFlockBatchService batchService, IAuditLogService auditLog, ILogger<MainFlockBatchController> logger,
+            IBirdFlockService flockService)
         {
+            _flockService = flockService;
             _batchService = batchService;
             _auditLog = auditLog;
             _logger = logger;
@@ -189,9 +192,25 @@ namespace PoultryFarmAPIWeb.Controllers
             var existing = await _batchService.GetById(id, model.UserId, model.FarmId);
             if (existing == null) return NotFound();
 
+            // EVERY batch is editable, however it was created (Initial Farm Setup
+            // included). A bird count that no longer covers what its flocks were
+            // given is a WARNING; the save goes through.
+            var warnings = new List<string>();
+            try
+            {
+                var consumed = await _flockService.GetBirdsConsumedFromBatch(id, model.UserId, model.FarmId);
+                if (model.NumberOfBirds < consumed)
+                    warnings.Add($"Batch '{model.BatchName}' now has {model.NumberOfBirds:N0} birds, but its flocks were originally given " +
+                                 $"{consumed:N0}. Check the batch number or the flocks' originally placed birds.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not check batch {BatchId} against its flocks.", id);
+            }
+
             model.BatchId = id;
             await _batchService.Update(model);
-            return NoContent(); // 204 No Content success response.
+            return Ok(new { message = "Flock batch updated.", warnings });
         }
 
         // DELETE: api/MainFlockBatch/5?userId=xxx&farmId=xxx

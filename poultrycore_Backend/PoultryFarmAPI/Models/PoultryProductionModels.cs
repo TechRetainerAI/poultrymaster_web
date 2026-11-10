@@ -48,6 +48,13 @@ namespace PoultryFarmAPIWeb.Models
         public string? Reason { get; set; }
         public int? ManualMovementId { get; set; }
         public bool ManualReversal { get; set; }
+        /// <summary>413: Flock / BatchUnallocated for a scoped bird movement; null for legacy rows.</summary>
+        public string? BirdScope { get; set; }
+        /// <summary>
+        /// 414: when the movement was posted (UTC). CreatedDate stays the business
+        /// date the ledger is dated by; null here means the time was never recorded.
+        /// </summary>
+        public DateTime? PostedAt { get; set; }
     }
 
     /// <summary>
@@ -65,6 +72,12 @@ namespace PoultryFarmAPIWeb.Models
         public decimal? UnitCost { get; set; }
         public int? BatchId { get; set; }
         public int? FlockId { get; set; }
+        /// <summary>
+        /// 413, birds only: "Flock" (FlockId required) or "BatchUnallocated"
+        /// (FlockId null — the batch's birds not placed in any flock). Explicit,
+        /// because a null FlockId alone proves nothing.
+        /// </summary>
+        public string? Scope { get; set; }
         public DateTime? EffectiveDate { get; set; }
         [Required] public string Reason { get; set; } = string.Empty;
         /// <summary>Historical Mortality of birds only: Keep / Disposed.</summary>

@@ -258,6 +258,8 @@ export const POULTRY_REPORT_MENU_GROUPS: PoultryReportMenuGroup[] = [
       { id: "feed-production-report", title: "Feed Production", description: "Feed produced and ingredient usage, with full costing.", icon: Factory, href: "/poultry-feed-production/reports" },
       item("mortality"),
       item("birds-on-hand"),
+      // 413: standalone page -- every bird each batch bought, accounted for.
+      { id: "batch-bird-reconciliation", title: "Batch Bird Reconciliation", description: "Every bird each batch bought: in flocks, waiting to be placed, sold or lost.", icon: ClipboardCheck, href: "/poultry/reports/batch-bird-reconciliation" },
       item("end-of-flock"),
       item("vaccination-schedule"),
       item("medicine-usage"),

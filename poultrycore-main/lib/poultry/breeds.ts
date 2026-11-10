@@ -37,6 +37,17 @@ export const BREED_CATALOG: { group: string; breeds: string[] }[] = [
     ],
   },
   {
+    // White-egg layers. Each strain is its own breed -- "White Layer — Unknown
+    // Strain" is for a farm that knows the colour but not the strain, and is
+    // never treated as the same breed as any named one.
+    group: "White layers",
+    breeds: [
+      "ISA White", "Dekalb White", "Bovans White", "Shaver White", "Babcock White",
+      "Hy-Line W-36", "Hy-Line W-80", "Lohmann LSL-Lite", "White Leghorn",
+      "H&N Nick Chick", "Novogen White (Novowhite)", "White Layer — Unknown Strain",
+    ],
+  },
+  {
     group: "Broilers",
     breeds: ["Cobb 500", "Ross 308", "Arbor Acres", "Hubbard"],
   },

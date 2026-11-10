@@ -1,6 +1,6 @@
 "use client"
 
-import { useSetupEmbedded, shellClass, SetupTabActions } from "@/components/setup/setup-embed"
+import { useSetupEmbedded, shellClass, SetupTaskBar, SetupTabTools } from "@/components/setup/setup-embed"
 import { useEffect, useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -414,7 +414,7 @@ export function SuppliersPage() {
       <div className={shellClass(embedded, "flex-1 flex flex-col min-w-0")}>
         {!embedded && <DashboardHeader />}
         <main className={embedded ? "min-w-0" : "flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0"}>
-          <div className="space-y-6">
+          <div className={embedded ? "space-y-3" : "space-y-6"}>
             <div className={embedded ? "hidden" : "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"}>
               <div className="flex items-start gap-3 min-w-0">
                 <div className="w-10 h-10 shrink-0 bg-amber-100 rounded-lg flex items-center justify-center">
@@ -425,10 +425,11 @@ export function SuppliersPage() {
                   <p className="text-sm text-slate-600">Manage vendors you buy feed and supplies from</p>
                 </div>
               </div>
-              <SetupTabActions><Button className="gap-2 w-full sm:w-auto h-11 sm:h-10 bg-amber-700 hover:bg-amber-800 shrink-0" onClick={openCreateDialog}>
-                <Plus className="w-4 h-4" />
-                Add supplier
-              </Button></SetupTabActions>
+              <SetupTaskBar tasks={[
+                { id: "add", label: "Add supplier", icon: Plus, primary: true, onClick: openCreateDialog },
+                { id: "pdf", label: "Export PDF", icon: Download, onClick: handleExportPdf, hidden: !embedded || suppliers.length === 0 },
+                { id: "email", label: emailingReport ? "Emailing…" : "Email Report", icon: Mail, onClick: handleEmailReport, disabled: emailingReport, hidden: !embedded || suppliers.length === 0 },
+              ]} />
             </div>
 
             {error && (
@@ -437,7 +438,22 @@ export function SuppliersPage() {
               </Alert>
             )}
 
-            {!loading && suppliers.length > 0 && (
+            {!loading && suppliers.length > 0 && embedded && (
+              <SetupTabTools>
+                <div className="relative w-full sm:w-96">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Input className="h-9 bg-white pl-9" placeholder="Search by name, email, phone, city, or address..."
+                    value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1) }} />
+                </div>
+                {searchQuery && (
+                  <Button variant="outline" size="sm" className="h-9" onClick={clearFilters}>
+                    <RefreshCw className="h-4 w-4 mr-2" /> Clear
+                  </Button>
+                )}
+              </SetupTabTools>
+            )}
+
+            {!loading && suppliers.length > 0 && !embedded && (
               <div className={isMobile ? "space-y-3" : "flex flex-wrap items-center gap-2 p-3 bg-white rounded-lg border"}>
                 {isMobile ? (
                   <>
@@ -524,7 +540,7 @@ export function SuppliersPage() {
                 </CardContent>
               </Card>
             ) : (
-              <Card className="bg-white overflow-hidden">
+              <Card className="bg-white overflow-hidden gap-0 py-0">
                 <CardContent className="p-0">
                   {isMobile && !showAllColumnsMobile ? (
                     <div className="space-y-3">

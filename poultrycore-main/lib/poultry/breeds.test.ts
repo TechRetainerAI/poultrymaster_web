@@ -86,3 +86,34 @@ describe("isKnownBreed", () => {
     expect(isKnownBreed("")).toBe(false)
   })
 })
+
+describe("white layers", () => {
+  const WHITES = [
+    "ISA White", "Dekalb White", "Bovans White", "Shaver White", "Babcock White",
+    "Hy-Line W-36", "Hy-Line W-80", "Lohmann LSL-Lite", "White Leghorn",
+    "H&N Nick Chick", "Novogen White (Novowhite)", "White Layer — Unknown Strain",
+  ]
+
+  it("A: offers every white strain to a company with no history", () => {
+    const values = breedOptions().map((o) => o.value)
+    for (const w of WHITES) expect(values).toContain(w)
+    expect(groupedBreedOptions().find((g) => g.group === "White layers")!.options).toHaveLength(WHITES.length)
+  })
+
+  it("keeps ISA White distinct from Isa Brown, and the unknown strain distinct from all", () => {
+    expect(breedKey("ISA White")).not.toBe(breedKey("Isa Brown"))
+    const keys = BREED_CATALOG.flatMap((g) => g.breeds).map(breedKey)
+    expect(new Set(keys).size).toBe(keys.length)
+  })
+
+  it("restores a saved ISA White when the flock is reopened, without a duplicate", () => {
+    const options = breedOptions(["ISA White"], "ISA White")
+    expect(options[0]).toEqual({ value: "ISA White", label: "ISA White", group: FARM_BREEDS_GROUP })
+    expect(options.filter((o) => breedKey(o.value) === "isa white")).toHaveLength(1)
+  })
+
+  it("still lists the browns exactly as before", () => {
+    const layers = BREED_CATALOG.find((g) => g.group === "Layers")!.breeds
+    expect(layers).toEqual(["Isa Brown", "Lohmann Brown", "Bovan Brown", "Hy-Line Brown", "Shaver Brown", "Dekalb Brown", "Nera Black"])
+  })
+})

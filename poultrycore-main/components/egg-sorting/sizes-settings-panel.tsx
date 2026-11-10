@@ -83,8 +83,8 @@ function usePriceFallbacks() {
 
 /** Egg sorting on/off, the Daily Closing rule, eggs per crate and the Unsorted prices. */
 export function EggSortingSettingsCard({
-  settings, classes, canEdit, onChanged,
-}: CardProps & { settings: EggSortingSettings | null; classes: EggClass[] }) {
+  settings, classes, canEdit, onChanged, compact = false,
+}: CardProps & { settings: EggSortingSettings | null; classes: EggClass[]; compact?: boolean }) {
   const farmId = useAuthStore((s) => s.activeFarmId)
   const { busy, run } = useSaveRunner(onChanged)
   const { packaging, boxesOn, derivedBox, derivedPiece } = usePriceFallbacks()
@@ -132,21 +132,27 @@ export function EggSortingSettingsCard({
     && (crateN !== (settings?.eggsPerCrate ?? 30) || unsortedParsed !== (settings?.unsortedPricePerCrate ?? null) || unsortedPackagingDirty)
 
   return (
-    <Card className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <CardContent className="space-y-4 p-4">
-        <div className="flex items-start justify-between gap-4">
+    <Card className={compact ? "gap-0 rounded-none border-0 bg-transparent py-0 shadow-none" : "rounded-xl border border-slate-200 bg-white shadow-sm"}>
+      <CardContent className={compact ? "space-y-3 p-0" : "space-y-4 p-4"}>
+        <div className={cn("flex justify-between gap-4", compact ? "items-center rounded-lg bg-slate-50 px-3 py-2" : "items-start")}>
           <div className="min-w-0">
+            {compact ? (
+              <p className="text-sm text-slate-700">
+                {on ? "On: sort Unsorted eggs into sizes and sell each size." : "Off: production goes into Unsorted / General eggs."}
+              </p>
+            ) : (<>
             <div className="font-semibold text-slate-900">Egg sorting</div>
             <p className="text-sm text-slate-600">
               Off: production goes into Unsorted / General eggs and you sell those directly — nothing else changes.
               On: you can sort Unsorted eggs into your egg sizes and sell each size separately.
             </p>
+            </>)}
           </div>
           <Switch checked={on} disabled={!canEdit || busy === "settings"}
             onCheckedChange={(v) => void saveSettings({ enableEggSorting: v }, v ? "Egg sorting turned on" : "Egg sorting turned off")} />
         </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="grid min-w-0 grid-cols-1 gap-1 sm:col-span-3 sm:max-w-md">
+        <div className={cn("grid grid-cols-1 gap-3", compact ? "sm:grid-cols-2" : "sm:grid-cols-3")}>
+          <div className={cn("grid min-w-0 grid-cols-1 gap-1", compact ? "sm:col-span-2" : "sm:col-span-3 sm:max-w-md")}>
             <Label className="text-xs text-slate-500">Daily Closing, when the day&apos;s eggs are not all sorted</Label>
             <Select value={policy} disabled={!canEdit || !on || busy === "settings"}
               onValueChange={(v) => void saveSettings({ closingPolicy: v as ClosingPolicy }, "Daily Closing rule saved")}>
@@ -164,16 +170,16 @@ export function EggSortingSettingsCard({
             <Label htmlFor="es-crate" className="text-xs text-slate-500">Eggs per crate</Label>
             <Input id="es-crate" inputMode="numeric" value={crate} disabled={!canEdit}
               onChange={(e) => setCrate(e.target.value.replace(/[^\d]/g, ""))} />
-            <p className="text-[11px] text-slate-500">
+            {!compact && <p className="text-[11px] text-slate-500">
               Used wherever eggs are entered or shown as crates: production, sales, internal use, sorting. Stock is always kept in eggs.
-            </p>
+            </p>}
             {!crateValid && <p className="text-xs text-rose-700">Between 1 and 100.</p>}
           </div>
           <div className="grid min-w-0 grid-cols-1 gap-1">
             <Label htmlFor="es-uprice" className="text-xs text-slate-500">Unsorted / General price per crate</Label>
             <Input id="es-uprice" inputMode="decimal" value={unsortedPrice} placeholder="Not set" disabled={!canEdit}
               onChange={(e) => setUnsortedPrice(e.target.value)} />
-            <p className="text-[11px] text-slate-500">Offered as the price on a sale of unsorted eggs; you can still change it on the sale.</p>
+            {!compact && <p className="text-[11px] text-slate-500">Offered as the price on a sale of unsorted eggs; you can still change it on the sale.</p>}
             {unsortedParsed === "bad" && <p className="text-xs text-rose-700">Enter a price of 0 or more.</p>}
           </div>
           {boxesOn && (
@@ -194,7 +200,7 @@ export function EggSortingSettingsCard({
               {(unsortedBoxParsed === "bad" || unsortedPieceParsed === "bad") && <p className="col-span-2 text-xs text-rose-700">Enter a price of 0 or more.</p>}
             </div>
           )}
-          <div className="flex items-end">
+          <div className={cn("flex items-end", compact && "justify-end sm:col-span-2")}>
             <Button size="sm" className="w-full sm:w-auto" disabled={!canEdit || !settingsDirty || busy === "settings"}
               onClick={() => void run("settings", async () => {
                 const next = {
@@ -222,7 +228,7 @@ export function EggSortingSettingsCard({
 }
 
 /** The farm's egg sizes: rename, price, switch off, add. Never deleted. */
-export function EggSizesCard({ classes, canEdit, onChanged }: CardProps & { classes: EggClass[] }) {
+export function EggSizesCard({ classes, canEdit, onChanged, compact = false }: CardProps & { classes: EggClass[]; compact?: boolean }) {
   const { busy, run } = useSaveRunner(onChanged)
   const { boxesOn, derivedBox, derivedPiece } = usePriceFallbacks()
   const [names, setNames] = useState<Record<number, string>>({})
@@ -248,9 +254,9 @@ export function EggSizesCard({ classes, canEdit, onChanged }: CardProps & { clas
   }
 
   return (
-    <Card className="rounded-xl border border-slate-200 bg-white shadow-sm">
+    <Card className={compact ? "gap-0 rounded-none border-0 bg-transparent py-0 shadow-none" : "rounded-xl border border-slate-200 bg-white shadow-sm"}>
       <CardContent className="p-0">
-        <div className="border-b border-slate-100 px-4 py-3">
+        <div className={cn("border-b border-slate-100 px-4 py-3", compact && "hidden")}>
           <div className="font-semibold text-slate-900">Egg sizes</div>
           <p className="text-sm text-slate-600">
             Each size is its own stock line with its own selling price. Rename, price or switch a size off; sizes are never
@@ -321,8 +327,9 @@ export function EggSizesCard({ classes, canEdit, onChanged }: CardProps & { clas
             )
           })}
         </div>
-        <div className="hidden overflow-x-auto sm:block">
-          <table className={cn("w-full text-sm", boxesOn ? "min-w-[58rem]" : "min-w-[44rem]")}>
+        <div className={cn("hidden overflow-x-auto sm:block", compact && "rounded-lg border border-slate-100")}>
+          <table className={cn("w-full text-sm",
+            compact ? cn("[&_td]:px-2 [&_td]:py-1.5 [&_th]:px-2", boxesOn && "min-w-[40rem]") : boxesOn ? "min-w-[58rem]" : "min-w-[44rem]")}>
             <thead className="bg-slate-50 text-left text-xs uppercase tracking-wider text-slate-500">
               <tr>
                 <th className="px-4 py-2 font-medium">Size</th>
@@ -397,7 +404,7 @@ export function EggSizesCard({ classes, canEdit, onChanged }: CardProps & { clas
           </table>
         </div>
         {canEdit && (
-          <div className="flex flex-wrap items-end gap-2 border-t border-slate-100 px-4 py-3">
+          <div className={cn("flex flex-wrap items-end gap-2", compact ? "pt-3" : "border-t border-slate-100 px-4 py-3")}>
             <div className="min-w-0 flex-1 space-y-1 sm:flex-none">
               <Label htmlFor="es-newsize" className="text-xs text-slate-500">New size</Label>
               <Input id="es-newsize" className="h-9 w-full sm:w-56" value={newName} placeholder="e.g. Peewee" onChange={(e) => setNewName(e.target.value)} />

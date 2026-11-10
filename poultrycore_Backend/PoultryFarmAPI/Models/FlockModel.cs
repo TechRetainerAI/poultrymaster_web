@@ -43,6 +43,28 @@
         /// its type.
         /// </summary>
         public string? FlockType { get; set; }
+
+        /// <summary>
+        /// Edit Flock only: the flock's registration history as the farmer now
+        /// states it (originally placed, alive when registered, and what happened
+        /// to the difference). Null = leave the history as it is. Saved through
+        /// the opening-position correction, which posts only the DIFFERENCE to
+        /// the bird ledger -- nothing is ever posted twice.
+        /// </summary>
+        public FlockOpeningHistoryEdit? OpeningHistory { get; set; }
+}
+
+    public class FlockOpeningHistoryEdit
+    {
+        public int OriginallyPlaced { get; set; }
+        /// <summary>Birds alive when the flock was registered.</summary>
+        public int OpeningLiveBirds { get; set; }
+        public bool HistoryKnown { get; set; } = true;
+        public int HistoricalMortality { get; set; }
+        public int HistoricalSold { get; set; }
+        public int HistoricalCulled { get; set; }
+        public int HistoricalTransferred { get; set; }
+        public string? Notes { get; set; }
 }
 
 }

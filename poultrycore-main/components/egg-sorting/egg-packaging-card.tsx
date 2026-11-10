@@ -12,6 +12,7 @@ import { useEffect, useState } from "react"
 import { Loader2, Package } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
@@ -38,7 +39,7 @@ const DISPLAY_TEXT: Record<EggDisplay, string> = {
 
 const SAMPLE = 10675
 
-export function EggPackagingCard({ canEdit, onChanged }: { canEdit: boolean; onChanged?: () => void }) {
+export function EggPackagingCard({ canEdit, onChanged, compact = false }: { canEdit: boolean; onChanged?: () => void; compact?: boolean }) {
   const { toast } = useToast()
   const farmId = useAuthStore((s) => s.activeFarmId)
   const eggsPerCrate = useEggsPerCrate()
@@ -101,10 +102,13 @@ export function EggPackagingCard({ canEdit, onChanged }: { canEdit: boolean; onC
   }
 
   return (
-    <Card className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <CardContent className="space-y-4 p-4">
-        <div className="flex items-start justify-between gap-4">
+    <Card className={compact ? "gap-0 rounded-none border-0 bg-transparent py-0 shadow-none" : "rounded-xl border border-slate-200 bg-white shadow-sm"}>
+      <CardContent className={compact ? "space-y-3 p-0" : "space-y-4 p-4"}>
+        <div className={cn("flex justify-between gap-4", compact ? "items-center rounded-lg bg-slate-50 px-3 py-2" : "items-start")}>
           <div className="min-w-0">
+            {compact ? (
+              <p className="text-sm text-slate-700">{on ? "Boxes on: count eggs in boxes, crates and pieces." : "Boxes off: eggs are counted in crates and pieces."}</p>
+            ) : (<>
             <div className="flex items-center gap-2 font-semibold text-slate-900">
               <Package className="h-4 w-4 text-amber-600" /> Egg packaging & units
             </div>
@@ -112,6 +116,7 @@ export function EggPackagingCard({ canEdit, onChanged }: { canEdit: boolean; onC
               Large farms that sell by the box can enter and see eggs in boxes, crates and pieces. A box is only a
               way of counting: your stock is always kept in individual eggs, and nothing here packs eggs or changes stock.
             </p>
+            </>)}
           </div>
           <Switch checked={on} disabled={!canEdit || busy || !saved} aria-label="Enable boxes for this farm"
             onCheckedChange={(v) => {
@@ -123,7 +128,7 @@ export function EggPackagingCard({ canEdit, onChanged }: { canEdit: boolean; onC
 
         {loadError && <p className="text-sm text-rose-700">{loadError}</p>}
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className={cn("grid grid-cols-1 gap-3", compact ? "sm:grid-cols-2" : "sm:grid-cols-3")}>
           <div className="grid min-w-0 grid-cols-1 gap-1">
             <Label htmlFor="pk-crates" className="text-xs text-slate-500">Crates per box</Label>
             <Input id="pk-crates" inputMode="numeric" value={crates} placeholder="e.g. 14" disabled={!canEdit || !on}
@@ -157,7 +162,7 @@ export function EggPackagingCard({ canEdit, onChanged }: { canEdit: boolean; onC
                 <SelectItem value="Crates">Crates, then boxes, then pieces</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-[11px] text-slate-500">A sale line asks for boxes, crates and pieces. This only sets which comes first; the eggs sold are the same either way.</p>
+            {!compact && <p className="text-[11px] text-slate-500">A sale line asks for boxes, crates and pieces. This only sets which comes first; the eggs sold are the same either way.</p>}
           </div>
         </div>
 
