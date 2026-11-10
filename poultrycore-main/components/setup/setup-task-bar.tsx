@@ -81,7 +81,7 @@ function Divider({ tone = "light" }: { tone?: TaskBarTone }) {
 
 /** The buttons of one task bar, folding into "More" when the row is too narrow. */
 export function TaskBarRow({ tasks, className, align = "start", tone = "light" }: {
-  tasks: SetupTask[]; className?: string; align?: "start" | "end"; tone?: TaskBarTone
+  tasks: SetupTask[]; className?: string; align?: "start" | "end" | "center"; tone?: TaskBarTone
 }) {
   const live = tasks.filter((t) => !t.hidden)
   const inline = live.filter((t) => !t.more)
@@ -140,7 +140,7 @@ export function TaskBarRow({ tasks, className, align = "start", tone = "light" }
         <span><Button variant="outline" size="icon" className="h-9 w-9" tabIndex={-1}><MoreHorizontal /></Button></span>
       </div>
 
-      <div className={cn("flex items-center gap-2", align === "end" && "justify-end")}>
+      <div className={cn("flex items-center gap-2", align === "end" && "justify-end", align === "center" && "justify-center")}>
         {shown.map((t, i) => (
           <Fragment key={t.id}>
             {withDivider(shown, i) && <Divider tone={tone} />}

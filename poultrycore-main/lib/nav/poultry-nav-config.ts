@@ -400,6 +400,10 @@ export function buildPoultryNavConfig(
         items: [
           { id: "customers", title: "Customers", icon: Users, href: "/customers", visible: money("/customers") },
           { id: "suppliers", title: "Suppliers", icon: Truck, href: "/suppliers", visible: money("/suppliers") },
+          // Cost recognition is a finance decision (it changes what the owner
+          // reads as profit), so it sits with the other Finance rows. Rides
+          // canViewFinancial; its own IAM keys gate what you can do inside.
+          { id: "financial-settings", title: "Financial Settings", icon: Coins, href: "/poultry-financial-settings", visible: featureAccess.canViewFinancial },
         ],
       },
       {
@@ -427,11 +431,7 @@ export function buildPoultryNavConfig(
           // now Production Setup's first tab, "Company settings". /poultry-company-setup still works.
           { id: "production-setup", title: "Production Setup", icon: Settings, href: "/poultry-setup?section=production", visible: featureAccess.canViewSettings },
           { id: "business-setup",   title: "Business Setup",   icon: Settings, href: "/poultry-setup?section=business",   visible: featureAccess.canViewSettings },
-          // Migrations 261-263. Sits with the other setup rows because it is
-          // configuration, but it is a FINANCE decision -- it changes what the
-          // owner reads as profit -- so it rides canViewFinancial rather than
-          // canViewSettings. Its own IAM keys gate what you can do once inside.
-          { id: "financial-settings", title: "Financial Settings", icon: Coins, href: "/poultry-financial-settings", visible: featureAccess.canViewFinancial },
+          // Financial Settings now lives under the Finance group above.
           // Ungated, so this column (and the Setup trigger) always renders.
           { id: "companies",  title: "Companies", icon: Building2, href: "/companies" },
         ],

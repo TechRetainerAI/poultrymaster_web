@@ -316,7 +316,7 @@ function FarmSetupInner() {
           <div className="z-30 shrink-0 border-t border-slate-900 bg-slate-800 px-4 py-2 shadow-[0_-4px_12px_rgba(15,23,42,0.12)] sm:px-6"
             style={{ marginBottom: bottomNavH }}>
             <div className="flex items-center gap-2">
-              <TaskBarRow tasks={tasks} tone="dark" className="flex-1" />
+              <TaskBarRow tasks={tasks} tone="dark" align="center" className="flex-1" />
               <span aria-hidden className="h-6 w-px shrink-0 bg-white/20" />
               <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-slate-300 hover:bg-white/10 hover:text-white"
                 onClick={reload} title="Reload this tab" aria-label="Reload this tab">
