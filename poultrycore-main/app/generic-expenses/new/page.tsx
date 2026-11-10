@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ArrowLeft, DollarSign, Loader2 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
+import { useGenericModules } from "@/hooks/use-generic-modules"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import {
@@ -35,6 +36,7 @@ const PAY_METHODS: Array<{ value: string; label: string }> = [
 export default function NewGenericExpensePage() {
   const router = useRouter()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
+  const modules = useGenericModules()
   const logout = useLogout()
   const { toast } = useToast()
 
@@ -64,7 +66,12 @@ export default function NewGenericExpensePage() {
         const [cs, ss, as] = await Promise.all([getExpenseCategories(), getSuppliers(), getCashAccounts()])
         if (cancelled) return
         setCategories(cs); setSuppliers(ss); setCashAccounts(as)
-        const firstCash = as.find((a) => a.isActive)
+        // Use expense-specific default, then general payment default, then first active
+        const expenseDefaultId = modules.businessSettings?.defaultExpenseCashAccountId
+        const paymentDefaultId = modules.businessSettings?.defaultCashAccountForPayments
+        const defaultAccount = (expenseDefaultId ? as.find((a) => a.genericCashAccountId === expenseDefaultId && a.isActive) : null)
+          ?? (paymentDefaultId ? as.find((a) => a.genericCashAccountId === paymentDefaultId && a.isActive) : null)
+        const firstCash = defaultAccount ?? as.find((a) => a.isActive)
         if (firstCash) setForm((f) => ({ ...f, genericCashAccountId: String(firstCash.genericCashAccountId) }))
       } catch (e: any) {
         if (!cancelled) toast({ title: "Could not load options", description: e?.message ?? String(e), variant: "destructive" })
@@ -74,20 +81,26 @@ export default function NewGenericExpensePage() {
   }, [activeFarmType, router, toast])
 
   const isCredit = form.paymentMethod === "Credit"
+  const approvalThreshold = modules.businessSettings?.requireApprovalAboveAmount ?? null
+  const amount = Number(form.amount) || 0
+  const exceedsThreshold = approvalThreshold !== null && approvalThreshold > 0 && amount > approvalThreshold
+
   const isValid = useMemo(() => {
-    const amt = Number(form.amount) || 0
-    if (amt <= 0) return false
+    if (amount <= 0) return false
     if (!form.genericExpenseCategoryId) return false
     if (isCredit && !form.genericSupplierId) return false
     if (!isCredit && !form.genericCashAccountId) return false
     return true
-  }, [form, isCredit])
+  }, [form, isCredit, amount])
 
   const onSave = async () => {
     if (!isValid) {
       toast({ title: "Fill required fields", description: isCredit ? "Credit expense needs a supplier." : "Non-credit expense needs a cash account.", variant: "destructive" })
       return
     }
+    if (exceedsThreshold && !confirm(
+      `This expense (${amount.toFixed(2)}) exceeds the approval threshold of ${approvalThreshold!.toFixed(2)}. It will require manager approval. Continue?`
+    )) return
     setSaving(true)
     try {
       const created = await createExpense({
@@ -150,6 +163,11 @@ export default function NewGenericExpensePage() {
                 <div>
                   <Label>Amount *</Label>
                   <NumberInput step="0.01" min="0" value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))} />
+                  {exceedsThreshold && (
+                    <p className="text-xs text-amber-600 mt-1">
+                      Exceeds approval threshold of {approvalThreshold!.toFixed(2)} — will require manager approval.
+                    </p>
+                  )}
                 </div>
                 <div>
                   <Label>Paid to</Label>

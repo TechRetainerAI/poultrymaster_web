@@ -41,6 +41,8 @@ export interface Flock {
   closedBy?: string | null
   closeReason?: string | null
   closeoutId?: number | null
+  /** "Layer" | "Broiler" (migration 399). Absent before it: treat as Layer. */
+  flockType?: string | null
 }
 
 export interface FlockInput {
@@ -58,6 +60,27 @@ export interface FlockInput {
   inactivationReason?: string
   otherReason?: string
   notes?: string
+  /**
+   * "Layer" | "Broiler". Omit to leave an existing flock's type alone, or to
+   * let a new flock take the database default (broiler breed, else the
+   * company's business type).
+   */
+  flockType?: string | null
+  /**
+   * Edit Flock only, for a flock registered with an opening position (Initial
+   * Farm Setup / existing flock): the history as the farmer now states it.
+   * Omit to leave it unchanged.
+   */
+  openingHistory?: {
+    originallyPlaced: number
+    openingLiveBirds: number
+    historyKnown: boolean
+    historicalMortality: number
+    historicalSold: number
+    historicalCulled: number
+    historicalTransferred: number
+    notes?: string | null
+  }
 }
 
 export interface ApiResponse<T = any> {
@@ -65,6 +88,8 @@ export interface ApiResponse<T = any> {
   data?: T
   message?: string
   errors?: string[]
+  /** The save went through, but these numbers look out of proportion. */
+  warnings?: string[]
 }
 
 // Mock data for development
@@ -228,6 +253,7 @@ export async function getFlocks(userId?: string, farmId?: string): Promise<ApiRe
         closedBy: flock.ClosedBy ?? flock.closedBy ?? null,
         closeReason: flock.CloseReason ?? flock.closeReason ?? null,
         closeoutId: flock.CloseoutId ?? flock.closeoutId ?? null,
+        flockType: flock.FlockType ?? flock.flockType ?? null,
       }
     })
 
@@ -422,6 +448,7 @@ export async function getFlock(id: number, userId?: string, farmId?: string): Pr
       inactivationReason: data.InactivationReason ?? data.inactivationReason ?? '',
       otherReason: data.OtherReason ?? data.otherReason ?? '',
       notes: data.Notes ?? data.notes ?? '',
+      flockType: data.FlockType ?? data.flockType ?? null,
       closedDate: data.ClosedDate ?? data.closedDate ?? null,
       closedAt: data.ClosedAt ?? data.closedAt ?? null,
       closedBy: data.ClosedBy ?? data.closedBy ?? null,
@@ -517,6 +544,8 @@ export async function createFlock(flock: FlockInput): Promise<ApiResponse<Flock>
       Active: flock.active,
       HasArrived: Boolean(flock.hasArrived),
       BatchId: flock.batchId,
+      // 399: omitted -> the database default (broiler breed, else company type)
+      ...(flock.flockType ? { FlockType: flock.flockType } : {}),
     }
     
     // Only add optional fields if they have values
@@ -680,9 +709,23 @@ export async function updateFlock(id: number, flock: Partial<FlockInput>): Promi
       HasArrived: Boolean(flock.hasArrived),
       HouseId: flock.houseId ?? null,
       BatchId: flock.batchId ?? 0,
+      // 399: omitted -> the flock keeps its type (auto-activate etc. never retype)
+      ...(flock.flockType ? { FlockType: flock.flockType } : {}),
       InactivationReason: flock.inactivationReason || '',
       OtherReason: flock.otherReason || '',
       Notes: flock.notes ?? '',
+      ...(flock.openingHistory ? {
+        OpeningHistory: {
+          OriginallyPlaced: flock.openingHistory.originallyPlaced,
+          OpeningLiveBirds: flock.openingHistory.openingLiveBirds,
+          HistoryKnown: flock.openingHistory.historyKnown,
+          HistoricalMortality: flock.openingHistory.historicalMortality,
+          HistoricalSold: flock.openingHistory.historicalSold,
+          HistoricalCulled: flock.openingHistory.historicalCulled,
+          HistoricalTransferred: flock.openingHistory.historicalTransferred,
+          Notes: flock.openingHistory.notes ?? null,
+        },
+      } : {}),
     }
 
     console.log("[v0] Flock update request body:", requestBody)
@@ -700,7 +743,7 @@ export async function updateFlock(id: number, flock: Partial<FlockInput>): Promi
       console.error("[v0] Flock update error:", errorText)
       return {
         success: false,
-        message: "Failed to update flock",
+        message: serverMessage(errorText) || "Failed to update flock",
         data: null as any,
       }
     }
@@ -726,11 +769,14 @@ export async function updateFlock(id: number, flock: Partial<FlockInput>): Promi
 
     const data = await response.json()
     console.log("[v0] Updated flock data:", data)
+    const rawWarnings = data?.warnings ?? data?.Warnings
+    const warnings = Array.isArray(rawWarnings) ? rawWarnings.filter((w: unknown) => typeof w === "string" && w) : []
 
     return {
       success: true,
       message: "Flock updated successfully",
       data: data as Flock,
+      warnings,
     }
   } catch (error) {
     console.error("[v0] Flock update error:", error)
@@ -739,6 +785,87 @@ export async function updateFlock(id: number, flock: Partial<FlockInput>): Promi
       message: "Failed to update flock",
       data: null as any,
     }
+  }
+}
+
+/** `{ message }` / `{ Message }` / a plain-text body -> the human sentence. */
+function serverMessage(text: string): string {
+  if (!text) return ""
+  try {
+    const j = JSON.parse(text)
+    if (typeof j === "string") return j
+    return j?.message || j?.Message || j?.title || ""
+  } catch {
+    return text.length < 400 ? text : ""
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 414: what Edit Flock restores from posted records.
+// ---------------------------------------------------------------------------
+export interface FlockEditMovement {
+  kind: "Ledger" | "BirdAdjustment"
+  id: number
+  type: string
+  reason?: string | null
+  quantity: number
+  note?: string | null
+  effectiveDate?: string | null
+  postedAt?: string | null
+  createdBy?: string | null
+}
+
+export interface FlockEditContext {
+  flockId: number
+  mode: "New" | "Existing"
+  isDeleted: boolean
+  isClosed: boolean
+  opening: null | {
+    openingPositionId: number
+    effectiveDate: string
+    originallyPlaced: number
+    openingLiveBirds: number
+    historicalMortality: number
+    historicalSold: number
+    historicalCulled: number
+    historicalTransferred: number
+    otherAdjustment: number
+    historyKnown: boolean
+    startDateEstimated: boolean
+    source?: string | null
+    notes?: string | null
+    createdAt?: string | null
+    createdBy?: string | null
+  }
+  position: null | {
+    originallyplaced: number
+    openinglivebirds: number
+    currentlivebirds: number
+    recordedmortality: number
+    productionrecordcount: number
+    birdssold: number
+    birdsculled: number
+    birdstransferred: number
+  }
+  quantityAdjustments: number
+  movements: FlockEditMovement[]
+  quantityLocked: boolean
+  batchLocked: boolean
+  canCorrectOpening: boolean
+  deleteBlockers: { source: string; label: string; rows: number }[]
+  canDelete: boolean
+}
+
+/** Null when the server predates 414 -- the edit form then behaves as before. */
+export async function getFlockEditContext(id: number, farmId: string): Promise<FlockEditContext | null> {
+  try {
+    const endpoint = `/Flock/${id}/edit-context?farmId=${encodeURIComponent(farmId)}`
+    const url = IS_BROWSER ? buildApiUrl(endpoint) : `${DIRECT_API_BASE_URL}/api${endpoint}`
+    const response = await fetch(url, { method: "GET", headers: getAuthHeaders() })
+    if (!response.ok) return null
+    return (await response.json()) as FlockEditContext
+  } catch {
+    return null
   }
 }
 
@@ -805,6 +932,8 @@ export interface AllocateBatchInput {
   breed?: string
   startDate?: string
   hasArrived?: boolean
+  /** "Layer" | "Broiler" for every flock created. Omitted: database default. */
+  flockType?: string
   /** Which screen this allocation came from; recorded in the audit trail. */
   source?: string
 }
@@ -949,6 +1078,7 @@ export async function allocateBatchToFlocks(input: AllocateBatchInput): Promise<
       payload.StartDate = input.startDate.includes("T") ? input.startDate : `${input.startDate}T00:00:00`
     }
     if (input.hasArrived !== undefined) payload.HasArrived = input.hasArrived
+    if (input.flockType) payload.FlockType = input.flockType
 
     const endpoint = `/Flock/bulk-allocate`
     const url = IS_BROWSER ? buildApiUrl(endpoint) : `${DIRECT_API_BASE_URL}/api${endpoint}`
@@ -1031,10 +1161,18 @@ export async function deleteFlock(id: number, userId?: string, farmId?: string):
         if (text) {
           try {
             const data = JSON.parse(text)
+            // 414: the server says what it actually did.
+            if (data && data.deleted === false) {
+              return { success: false, message: data.message || "The flock was not deleted." }
+            }
+            const released = Number(data?.birdsReleased ?? 0)
             return {
               success: true,
-              message: data.message || "Flock deleted successfully",
-            }
+              message: data.message || (released > 0
+                ? `Flock deleted. Its ${released.toLocaleString()} birds are back in the batch, available to place again.`
+                : "Flock deleted successfully"),
+              data,
+            } as ApiResponse
           } catch {
             // Not JSON, that's fine
           }
@@ -1054,7 +1192,7 @@ export async function deleteFlock(id: number, userId?: string, farmId?: string):
       console.error("[v0] Flock delete error:", errorText)
       return {
         success: false,
-        message: errorText || "Failed to delete flock",
+        message: serverMessage(errorText) || "Failed to delete flock",
       }
     }
 

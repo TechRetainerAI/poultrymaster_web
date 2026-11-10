@@ -232,6 +232,71 @@ export interface FlockBatchInput {
    * Update: omit to leave the stored account alone, 0 to clear it, an id to set it.
    */
   poultryCashAccountId?: number | null;
+  /**
+   * 326/413: an EXISTING batch, bought before the farm used the application. No
+   * expense and no cash are posted today; the unpaid balance stays owed. Create
+   * only (omitted on update, which keeps the stored flag).
+   */
+  isHistorical?: boolean;
+}
+
+/** One row of POST /MainFlockBatch/bulk -- see lib/flock-batches/bulk.ts toPayloadItems. */
+export interface BulkFlockBatchItemInput {
+  batchName: string; batchCode: string; breed: string; startDate: string; numberOfBirds: number
+  costPerChick: number; totalCost: number; amountPaid: number; supplierType: string
+  supplierId: number | null; poultryCashAccountId: number | null; status: string; notes: string | null
+}
+export interface BulkFlockBatchResult {
+  createdCount: number
+  batches: FlockBatch[]
+  errors: { index: number; field: string; message: string }[]
+  message?: string
+}
+
+/**
+ * Creates several batches at once. All or nothing: the server validates every
+ * row, then inserts them in one transaction through the same insert as
+ * createFlockBatch. A rejected request still carries per-row errors.
+ */
+export async function createFlockBatchesBulk(input: {
+  userId: string; farmId: string; source?: string; batches: BulkFlockBatchItemInput[]
+}): Promise<ApiResponse<BulkFlockBatchResult>> {
+  const payload = {
+    UserId: input.userId,
+    FarmId: input.farmId,
+    Source: input.source ?? "Flock Purchases page",
+    Batches: input.batches.map((b) => ({
+      BatchName: b.batchName, BatchCode: b.batchCode, Breed: b.breed, StartDate: b.startDate,
+      NumberOfBirds: b.numberOfBirds, CostPerChick: b.costPerChick, TotalCost: b.totalCost, AmountPaid: b.amountPaid,
+      SupplierType: b.supplierType, SupplierId: b.supplierId, PoultryCashAccountId: b.poultryCashAccountId,
+      Status: b.status, Notes: b.notes,
+    })),
+  }
+  const pick = (o: any, k: string) => o?.[k] ?? o?.[k[0].toUpperCase() + k.slice(1)]
+  const mapResult = (raw: any): BulkFlockBatchResult => ({
+    createdCount: Number(pick(raw, "createdCount") ?? 0),
+    batches: (pick(raw, "batches") ?? []).map(mapFlockBatch),
+    errors: (pick(raw, "errors") ?? []).map((e: any) => ({
+      index: Number(pick(e, "index") ?? -1), field: String(pick(e, "field") ?? ""), message: String(pick(e, "message") ?? ""),
+    })),
+    message: pick(raw, "message") ?? undefined,
+  })
+  try {
+    const response = await fetch(buildApiUrl('/MainFlockBatch/bulk'), {
+      method: "POST", headers: getAuthHeaders(), body: JSON.stringify(payload),
+    })
+    const text = await response.text()
+    let body: any = null
+    try { body = text ? JSON.parse(text) : null } catch { /* not JSON */ }
+    if (!response.ok) {
+      const data = body && typeof body === "object" ? mapResult(body) : undefined
+      return { success: false, message: data?.message || (typeof body === "string" ? body : text) || "Failed to create batches", data }
+    }
+    const data = mapResult(body)
+    return { success: true, message: data.message || "Batches created", data }
+  } catch (e: any) {
+    return { success: false, message: e?.message || "Failed to create batches" }
+  }
 }
 
 export async function createFlockBatch(flockBatch: FlockBatchInput): Promise<ApiResponse<FlockBatch>> {
@@ -258,6 +323,7 @@ export async function createFlockBatch(flockBatch: FlockBatchInput): Promise<Api
       OrderPlacementDate: flockBatch.orderPlacementDate ?? null,
       EstimatedArrivalDate: flockBatch.estimatedArrivalDate ?? null,
       PoultryCashAccountId: flockBatch.poultryCashAccountId ?? null,
+      IsHistorical: flockBatch.isHistorical ?? false,
     };
 
     console.log("[v0] Creating flock batch:", url, payload);
@@ -386,10 +452,20 @@ export async function createFlockBatch(flockBatch: FlockBatchInput): Promise<Api
           };
         }
     
+        // 200 carries { message, warnings }; 204 (older API) carries nothing.
+        let warnings: string[] = [];
+        try {
+          const text = await response.text();
+          const body = text ? JSON.parse(text) : null;
+          const raw = body?.warnings ?? body?.Warnings;
+          if (Array.isArray(raw)) warnings = raw.filter((w: unknown) => typeof w === "string" && w);
+        } catch { /* not JSON: no warnings */ }
+
         return {
           success: true,
           message: "Flock batch updated successfully",
-        };
+          warnings,
+        } as any;
       } catch (error) {
         console.error("[v0] Flock batch update error:", error);
         return {

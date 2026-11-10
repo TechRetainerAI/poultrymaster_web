@@ -48,6 +48,11 @@ namespace PoultryFarmAPIWeb.Controllers
             return Ok(new { eggProductId = egg, birdsProductId = birds });
         }
 
+        // Ensure the Broken Eggs / Dead Birds system products exist (372). Idempotent.
+        [PoultryFarmAPIWeb.Filters.AllowStaffSetupWrite]
+        [HttpPost("ensure-byproducts")] public async Task<IActionResult> EnsureByproducts([FromQuery] string farmId)
+        { if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required."); await _svc.EnsureByproductsAsync(farmId); return NoContent(); }
+
         // Reconcile finished-product stock from the transaction ledger (in/out
         // breakdown). Read-only: finished stock is derived, not stored.
         [HttpGet("reconcile-stock")] public async Task<ActionResult<IEnumerable<ProductReconcileRow>>> ReconcileStock(
@@ -224,6 +229,10 @@ namespace PoultryFarmAPIWeb.Controllers
 
         [HttpGet] public async Task<ActionResult<IEnumerable<PoultryLossRecordModel>>> GetAll([FromQuery] string farmId, [FromQuery] string? lossType, [FromQuery] DateTime? fromDate, [FromQuery] DateTime? toDate)
             => string.IsNullOrWhiteSpace(farmId) ? BadRequest("Company ID is required.") : Ok(await _svc.GetAllAsync(farmId, lossType, fromDate, toDate));
+
+        /// <summary>405: damaged eggs from production records, driver returns and egg sorting. Read only.</summary>
+        [HttpGet("auto-damage")] public async Task<ActionResult<IEnumerable<PoultryAutoDamageModel>>> GetAutoDamage([FromQuery] string farmId, [FromQuery] DateTime? fromDate, [FromQuery] DateTime? toDate)
+            => string.IsNullOrWhiteSpace(farmId) ? BadRequest("Company ID is required.") : Ok(await _svc.GetAutoDamageAsync(farmId, fromDate, toDate));
 
         [HttpPost] public async Task<ActionResult<int>> Create([FromBody] PoultryLossRecordModel m)
         { if (string.IsNullOrWhiteSpace(m.FarmId)) return BadRequest("Company ID is required."); var id = await _svc.InsertAsync(m); return Ok(new { poultryLossRecordId = id }); }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace PoultryFarmAPIWeb.Models
@@ -73,6 +73,13 @@ namespace PoultryFarmAPIWeb.Models
         public string? PaymentMethod { get; set; }
         public int? PoultryCashAccountId { get; set; }
         public string? Description { get; set; }
+
+        // 401: "PerBird" (default) or "PerKg". Per kg, the total is
+        // LiveWeightKg x PricePerKg (unless TotalAmount is typed) and the unit
+        // price is total / birds. The weight may be given per bird too.
+        public string? PricingBasis { get; set; }
+        public decimal? LiveWeightKg { get; set; }
+        public decimal? PricePerKg { get; set; }
     }
 
     public class FlockCloseoutCullLine
@@ -190,6 +197,52 @@ namespace PoultryFarmAPIWeb.Models
         public string? ReopenedBy { get; set; }
         public string? ReopenReason { get; set; }
         public List<FlockCloseoutDisposition> Dispositions { get; set; } = new();
+    }
+
+    /// <summary>
+    /// Broiler figures for one flock (migration 402, fnflock_broilerkpis). Built on
+    /// the lifetime summary, so cost and profit are the same numbers. Null means
+    /// not knowable yet (no weigh-in for birds in the house, no weights on sales,
+    /// no feed) -- never a guess. KgIsEstimated: part of the kg came from an
+    /// average, not a scale. Missing: what would complete the figures.
+    /// </summary>
+    public class FlockBroilerKpis
+    {
+        public int FlockId { get; set; }
+        public string FlockName { get; set; } = string.Empty;
+        public string FlockType { get; set; } = "Layer";
+        public string? Breed { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public DateTime StartDate { get; set; }
+        public DateTime? ClosedDate { get; set; }
+        public int AgeInDays { get; set; }
+        public int BirdsStarted { get; set; }
+        public int Deaths { get; set; }
+        public decimal? LiveabilityPct { get; set; }
+        public int BirdsSold { get; set; }
+        public int BirdsSoldWeighed { get; set; }
+        public decimal KgSoldWeighed { get; set; }
+        public decimal? AvgSaleWeightKg { get; set; }
+        public int LiveBirds { get; set; }
+        public DateTime? LatestWeighDate { get; set; }
+        public decimal? LatestAvgWeightKg { get; set; }
+        public decimal? KgSoldEstimated { get; set; }
+        public decimal? KgInHouseEstimated { get; set; }
+        public decimal? KgProduced { get; set; }
+        public bool KgIsEstimated { get; set; }
+        public decimal? AvgLiveWeightKg { get; set; }
+        public decimal FeedKg { get; set; }
+        public decimal? Fcr { get; set; }
+        public decimal? Epef { get; set; }
+        public decimal BirdCost { get; set; }
+        public bool BirdCostRecorded { get; set; }
+        public decimal TotalCost { get; set; }
+        public decimal? CostPerKg { get; set; }
+        public decimal BirdSaleRevenue { get; set; }
+        public decimal? RevenuePerKg { get; set; }
+        public decimal Profit { get; set; }
+        public decimal? ProfitPerKg { get; set; }
+        public string? Missing { get; set; }
     }
 
     /// <summary>

@@ -24,6 +24,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { ExpenseReceiptField } from "@/components/expense/expense-receipt-field"
 import { getUserContext } from "@/lib/utils/user-context"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { FeedPurchaseNotice, isFeedCategory, FEED_EXPENSE_BLOCKED_MESSAGE } from "@/components/expense/feed-purchase-notice"
 import { useBatchFlockSelect, BATCH_ALL } from "@/hooks/use-batch-flock-select"
 
 // Sentinel for "not tied to a single flock" — stored as a farm-level expense
@@ -58,6 +59,7 @@ export default function EditExpensePage() {
     poultryCashAccountId: "",
   })
   const [cashAccounts, setCashAccounts] = useState<PoultryCashAccount[]>([])
+  const [originalCategory, setOriginalCategory] = useState("")
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
   const [savedReceiptPath, setSavedReceiptPath] = useState<string | null>(null)
   const [receiptRemoved, setReceiptRemoved] = useState(false)
@@ -120,6 +122,7 @@ export default function EditExpensePage() {
             }
           : null
       )
+      setOriginalCategory(expense.category || "")
       setFormData({
         flockId: expense.flockId ? String(expense.flockId) : ALL_FLOCKS,
         expenseDate: new Date(expense.expenseDate).toISOString().split("T")[0],
@@ -165,8 +168,9 @@ export default function EditExpensePage() {
       return
     }
 
-    if (!formData.flockId) {
-      setError("Choose which flock this expense belongs to.")
+    // An expense saved as Feed before this rule can still be edited; nothing new becomes Feed.
+    if (isFeedCategory(formData.category) && !isFeedCategory(originalCategory)) {
+      setError(FEED_EXPENSE_BLOCKED_MESSAGE)
       setLoading(false)
       return
     }
@@ -211,7 +215,7 @@ export default function EditExpensePage() {
     const expense: Partial<ExpenseInput> = {
       farmId: effectiveFarmId!,
       userId,
-      flockId: formData.flockId === ALL_FLOCKS ? null : Number(formData.flockId),
+      flockId: !formData.flockId || formData.flockId === ALL_FLOCKS ? null : Number(formData.flockId),
       poultryCashAccountId: formData.poultryCashAccountId ? Number(formData.poultryCashAccountId) : null,
       expenseDate: formData.expenseDate + "T00:00:00Z",
       category: formData.category,
@@ -244,11 +248,11 @@ export default function EditExpensePage() {
 
   if (fetchLoading) {
     return (
-      <div className="flex min-h-screen bg-slate-50">
+      <div className="flex h-screen bg-slate-50">
         <DashboardSidebar onLogout={handleLogout} />
         <div className="flex-1 flex flex-col min-w-0">
           <DashboardHeader />
-          <main className="overflow-y-visible overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
+          <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
             <div className="space-y-6">
               <div className="flex items-center justify-center h-64">
                 <div className="text-center">
@@ -264,11 +268,11 @@ export default function EditExpensePage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-50">
       <DashboardSidebar onLogout={handleLogout} />
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
-        <main className="overflow-y-visible overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
           <div className="space-y-6 space-y-6">
             {/* Page Header */}
             <div className="flex items-center gap-3 mb-6">
@@ -316,11 +320,11 @@ export default function EditExpensePage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="flockId" className="text-sm font-medium text-slate-700">
-                      Select Flock *
+                      Flock <span className="font-normal text-slate-500">(optional)</span>
                     </Label>
                     <Select value={formData.flockId} onValueChange={(value) => handleSelectChange("flockId", value)}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Choose a flock" />
+                        <SelectValue placeholder="No flock (farm-wide)" />
                       </SelectTrigger>
                       <SelectContent>
                         {flocksLoading ? (
@@ -371,6 +375,7 @@ export default function EditExpensePage() {
                       </SelectContent>
                     </Select>
                   </div>
+                  {isFeedCategory(formData.category) && !isFeedCategory(originalCategory) && <FeedPurchaseNotice className="md:col-span-3" />}
 
                   <div className="space-y-2">
                     <Label htmlFor="paymentMethod" className="text-sm font-medium text-slate-700">
@@ -476,7 +481,7 @@ export default function EditExpensePage() {
                 </Button>
                 <Button
                   type="submit"
-                  disabled={loading || flocksLoading}
+                  disabled={loading || flocksLoading || (isFeedCategory(formData.category) && !isFeedCategory(originalCategory))}
                   className="flex items-center gap-2"
                 >
                   {loading ? (

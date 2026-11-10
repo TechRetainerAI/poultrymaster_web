@@ -372,6 +372,13 @@ namespace PoultryFarmAPIWeb.Models
         public decimal? PricePerPiece { get; set; }
         /// <summary>True when Add Sale's total override set this line's amount.</summary>
         public bool? AmountOverridden { get; set; }
+
+        // 401: a bird line. "PerBird" or "PerKg"; Quantity stays the bird
+        // count. Per kg, the database checks the amount and sets the per-bird
+        // price from LiveWeightKg x PricePerKg.
+        public string? PricingBasis { get; set; }
+        public decimal? LiveWeightKg { get; set; }
+        public decimal? PricePerKg { get; set; }
     }
 
     public class SaleGroupResult

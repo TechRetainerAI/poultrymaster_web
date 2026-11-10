@@ -77,6 +77,7 @@ const SHARED_ROUTES = new Set([
   "/help",
   "/terms",
   "/resources",
+  "/poultry-videos",   // training videos, linked from the Business Office too
   "/audit-logs",
   "/test-email-confirmation",
   "/business-office",

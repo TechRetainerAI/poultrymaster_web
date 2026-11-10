@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using PoultryFarmAPIWeb.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
@@ -12,10 +12,116 @@ namespace PoultryFarmAPIWeb.Controllers
     public class MainFlockBatchController : ControllerBase
     {
         private readonly IMainFlockBatchService _batchService;
+        private readonly IAuditLogService _auditLog;
+        private readonly ILogger<MainFlockBatchController> _logger;
+        private readonly IBirdFlockService _flockService;
 
-        public MainFlockBatchController(IMainFlockBatchService batchService)
+        public MainFlockBatchController(IMainFlockBatchService batchService, IAuditLogService auditLog, ILogger<MainFlockBatchController> logger,
+            IBirdFlockService flockService)
         {
+            _flockService = flockService;
             _batchService = batchService;
+            _auditLog = auditLog;
+            _logger = logger;
+        }
+
+        // POST: api/MainFlockBatch/bulk
+        // "Add Multiple Batches": the bulk counterpart of Create, like House/bulk.
+        // Every row is validated first (FlockBatchBulkValidator); then all are
+        // inserted in one transaction through the same spmainflockbatch_insert,
+        // so either every batch exists afterwards or none does. Permission is the
+        // same as Create: IamPermissionMap resolves mainflockbatch + POST.
+        [HttpPost("bulk")]
+        public async Task<ActionResult<BulkFlockBatchCreateResult>> CreateBulk([FromBody] BulkFlockBatchCreateRequest request)
+        {
+            if (request == null) return BadRequest("A request body is required.");
+            if (string.IsNullOrEmpty(request.UserId)) return BadRequest("UserId is required.");
+            if (string.IsNullOrEmpty(request.FarmId)) return BadRequest("FarmId is required.");
+
+            var existing = await _batchService.GetAll(request.UserId, request.FarmId);
+            var errors = FlockBatchBulkValidator.Validate(request.Batches, existing.Select(b => b.BatchCode));
+            if (errors.Count > 0)
+            {
+                return BadRequest(new BulkFlockBatchCreateResult
+                {
+                    Success = false,
+                    Errors = errors,
+                    Message = errors.Count == 1
+                        ? errors[0].Message
+                        : $"{errors.Count} rows need attention before these batches can be created.",
+                });
+            }
+
+            var models = FlockBatchBulkValidator.ToModels(request.UserId, request.FarmId, request.Batches);
+            List<int> ids;
+            try
+            {
+                ids = await _batchService.InsertBulk(models);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Bulk batch creation failed for farm {FarmId}; {Count} batches rolled back.", request.FarmId, models.Count);
+                var detail = ex is Npgsql.PostgresException pg ? pg.MessageText : ex.Message;
+                return StatusCode(500, new BulkFlockBatchCreateResult
+                {
+                    Success = false,
+                    Message = "None of the batches were created. " + detail,
+                });
+            }
+
+            var idSet = new HashSet<int>(ids);
+            var created = (await _batchService.GetAll(request.UserId, request.FarmId))
+                .Where(b => idSet.Contains(b.BatchId)).ToList();
+            await WriteBulkAuditAsync(request, created);
+
+            return Ok(new BulkFlockBatchCreateResult
+            {
+                Success = true,
+                CreatedCount = ids.Count,
+                Batches = created,
+                Message = ids.Count == 1 ? "1 batch created successfully." : $"{ids.Count} batches created successfully.",
+            });
+        }
+
+        // One audit row per batch on top of the request-level row the global
+        // AuditLogActionFilter writes, so each batch is traceable on its own.
+        private async Task WriteBulkAuditAsync(BulkFlockBatchCreateRequest request, List<MainFlockBatchModel> created)
+        {
+            var source = string.IsNullOrWhiteSpace(request.Source) ? "Bulk Batch Creation" : request.Source!.Trim();
+            var userName = User?.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value
+                           ?? User?.Identity?.Name
+                           ?? Request.Headers["X-Username"].FirstOrDefault()
+                           ?? request.UserId;
+            foreach (var b in created)
+            {
+                try
+                {
+                    await _auditLog.InsertAsync(new AuditLogModel
+                    {
+                        UserId = request.UserId,
+                        UserName = userName,
+                        FarmId = request.FarmId,
+                        Action = "POST",
+                        Resource = "MainFlockBatch",
+                        ResourceId = b.BatchId.ToString(),
+                        Details = $"POST MainFlockBatch (ID: {b.BatchId}) - Created via {source}",
+                        Data = System.Text.Json.JsonSerializer.Serialize(new
+                        {
+                            source, batchSize = created.Count, b.BatchId, b.BatchName, b.BatchCode,
+                            b.NumberOfBirds, b.TotalCost, b.AmountPaid,
+                        }),
+                        IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                        UserAgent = Request.Headers["User-Agent"].FirstOrDefault(),
+                        Timestamp = DateTime.UtcNow,
+                        Status = "Success",
+                    });
+                }
+                catch (Exception ex)
+                {
+                    // The batches are committed; a lost audit row must not turn success into an error.
+                    _logger.LogError(ex, "Could not write bulk audit row for batch {BatchId}.", b.BatchId);
+                }
+            }
         }
 
         // GET: api/MainFlockBatch?userId=xxx&farmId=xxx
@@ -86,9 +192,25 @@ namespace PoultryFarmAPIWeb.Controllers
             var existing = await _batchService.GetById(id, model.UserId, model.FarmId);
             if (existing == null) return NotFound();
 
+            // EVERY batch is editable, however it was created (Initial Farm Setup
+            // included). A bird count that no longer covers what its flocks were
+            // given is a WARNING; the save goes through.
+            var warnings = new List<string>();
+            try
+            {
+                var consumed = await _flockService.GetBirdsConsumedFromBatch(id, model.UserId, model.FarmId);
+                if (model.NumberOfBirds < consumed)
+                    warnings.Add($"Batch '{model.BatchName}' now has {model.NumberOfBirds:N0} birds, but its flocks were originally given " +
+                                 $"{consumed:N0}. Check the batch number or the flocks' originally placed birds.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not check batch {BatchId} against its flocks.", id);
+            }
+
             model.BatchId = id;
             await _batchService.Update(model);
-            return NoContent(); // 204 No Content success response.
+            return Ok(new { message = "Flock batch updated.", warnings });
         }
 
         // DELETE: api/MainFlockBatch/5?userId=xxx&farmId=xxx

@@ -14,7 +14,7 @@ import { useLogout } from "@/hooks/use-logout"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useToast } from "@/hooks/use-toast"
 import { useBillingNavVisible } from "@/hooks/use-billing-nav"
-import { Briefcase, Building2, Bird, Droplets, ShoppingBag, Bell, HelpCircle, LogOut, Menu, Settings, CreditCard, Plus, Loader2, ListTodo } from "lucide-react"
+import { Briefcase, Building2, Bird, Droplets, ShoppingBag, Bell, HelpCircle, LogOut, Menu, Settings, CreditCard, Plus, Loader2, ListTodo, PlayCircle } from "lucide-react"
 import { BoCompanySelector } from "@/components/dashboard/bo-company-selector"
 import { getMyCompanies, switchCompany, dashboardHomeForType, type Company } from "@/lib/api/companies"
 import { companyColorMap, companyInitial, FALLBACK_COMPANY_COLOR } from "@/lib/utils/company-color"
@@ -127,6 +127,11 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
     { key: "settings", href: "/business-office/setup", label: "Administration", icon: Settings },
     ...(billingVisible ? [{ key: "billing", href: "/business-office/billing", label: "Billing", icon: CreditCard }] : []),
   ] : []
+  // Support videos sit right ABOVE Administration, and show for everyone (not
+  // only admins) since they are training, not setup.
+  const learn = [
+    { key: "videos", href: "/poultry-videos", label: "Support Videos", icon: PlayCircle },
+  ]
 
   function Group({ title, items }: { title?: string; items: { key: string; href: string; label: string; icon: any }[] }) {
     return (
@@ -237,6 +242,7 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
             Logout. No group header — it'd just repeat the row. Help moved to
             the top bar, beside the account name. */}
         <div className="mt-auto pt-2">
+          <Group items={learn} />
           <Group items={business} />
         </div>
       </nav>

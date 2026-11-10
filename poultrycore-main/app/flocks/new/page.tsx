@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react"
 import { BreedSelect } from "@/components/poultry/breed-select"
+import { FlockTypeSelect } from "@/components/poultry/flock-type-select"
+import { defaultFlockType, type FlockType } from "@/lib/poultry/flock-type"
+import { usePoultryBusinessType, useRefreshPoultryEggFeatures } from "@/hooks/use-poultry-egg-features"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -13,6 +16,8 @@ import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Bird, ArrowLeft, Loader2, Users, Home } from "lucide-react"
 import { createFlock, type FlockInput } from "@/lib/api/flock"
+import { createExistingFlock } from "@/lib/api/bird-reconciliation"
+import { ExistingFlockFields, FlockModeSelector, emptyExistingFlockDraft, existingFlockHistory, type ExistingFlockDraft, type FlockCreationMode } from "@/components/poultry/existing-flock-fields"
 import { getHouses, type House } from "@/lib/api/house"
 import { getFlockBatches, type FlockBatch } from "@/lib/api/flock-batch"
 import { getUserContext } from "@/lib/utils/user-context"
@@ -21,6 +26,9 @@ export default function NewFlockPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  // 399: undefined = automatic (the server's default); a click makes it explicit.
+  const businessType = usePoultryBusinessType()
+  const refreshEggFeatures = useRefreshPoultryEggFeatures()
 
   const [formData, setFormData] = useState<FlockInput>({
     farmId: "",
@@ -43,6 +51,10 @@ export default function NewFlockPage() {
   const [flockBatchesLoading, setFlockBatchesLoading] = useState(true)
   const [selectedFlockBatch, setSelectedFlockBatch] = useState<FlockBatch | null>(null)
   const [remainingBirds, setRemainingBirds] = useState<number | null>(null)
+  // 413: new flock, or one already operating.
+  const todayIso = new Date().toISOString().split("T")[0]
+  const [mode, setMode] = useState<FlockCreationMode>("new")
+  const [existingDraft, setExistingDraft] = useState<ExistingFlockDraft>(() => emptyExistingFlockDraft(todayIso))
 
   useEffect(() => {
     const loadData = async () => {
@@ -133,6 +145,9 @@ export default function NewFlockPage() {
       }
     }
 
+    const existing = mode === "existing" ? existingFlockHistory(formData.quantity, existingDraft) : null
+    if (existing?.problem) { setError(existing.problem); return }
+
     setLoading(true)
     setError("")
 
@@ -146,9 +161,20 @@ export default function NewFlockPage() {
     console.log("[NewFlockPage] Creating flock with data:", flockData)
     console.log("[NewFlockPage] Selected batch:", selectedFlockBatch)
 
-    const result = await createFlock(flockData)
+    let result: { success: boolean; message?: string }
+    if (existing) {
+      try {
+        await createExistingFlock({ ...flockData, startDate: `${flockData.startDate}T00:00:00` }, existing.history, existingDraft.asOfDate, "Flocks page")
+        result = { success: true }
+      } catch (err: any) {
+        result = { success: false, message: err?.message }
+      }
+    } else {
+      result = await createFlock(flockData)
+    }
 
     if (result.success) {
+      refreshEggFeatures()
       router.push("/flocks")
     } else {
       setError(result.message || "Failed to create flock")
@@ -169,11 +195,11 @@ export default function NewFlockPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-50">
       <DashboardSidebar onLogout={handleLogout} />
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
-        <main className="overflow-y-visible overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
           <div className="space-y-6 max-w-3xl">
             {/* Page Header */}
             <div className="flex items-center gap-3">
@@ -198,6 +224,7 @@ export default function NewFlockPage() {
 
             {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-6">
+              <FlockModeSelector mode={mode} onChange={setMode} disabled={loading} />
               {/* Section: Flock Information */}
               <div className="rounded-xl border border-slate-200 overflow-hidden">
                 <div className="bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Flock Information</div>
@@ -260,6 +287,16 @@ export default function NewFlockPage() {
                   </div>
 
                   <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">Flock type</Label>
+                    <FlockTypeSelect
+                      value={(formData.flockType as FlockType | undefined) || defaultFlockType(formData.breed, businessType)}
+                      automatic={!formData.flockType}
+                      disabled={loading}
+                      onChange={(flockType) => setFormData((prev) => ({ ...prev, flockType }))}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
                     <Label htmlFor="startDate" className="text-sm font-medium text-slate-700">
                       Start Date *
                     </Label>
@@ -275,7 +312,7 @@ export default function NewFlockPage() {
 
                   <div className="space-y-2">
                     <Label htmlFor="quantity" className="text-sm font-medium text-slate-700">
-                      Number of Birds *
+                      {mode === "existing" ? "Birds Originally Placed *" : "Number of Birds *"}
                     </Label>
                     <NumberInput
                       id="quantity"
@@ -293,6 +330,12 @@ export default function NewFlockPage() {
                       </p>
                     )}
                   </div>
+
+                  {mode === "existing" && (
+                    <div className="md:col-span-2">
+                      <ExistingFlockFields placed={formData.quantity} draft={existingDraft} onChange={setExistingDraft} maxDate={todayIso} disabled={loading} />
+                    </div>
+                  )}
 
                   <div className="space-y-2">
                     <Label htmlFor="houseId" className="text-sm font-medium text-slate-700">

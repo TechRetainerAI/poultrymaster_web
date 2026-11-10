@@ -17,7 +17,7 @@ import {
   Activity, AlertTriangle, ArrowLeftRight, Banknote, BarChart3, Bell, Bird, BookOpen, Box, Boxes,
   Building2, CreditCard, DollarSign, Egg, Factory, FileText, HelpCircle, History, Hourglass,
   Coins, HandCoins, ListTodo, Package, PackageMinus, Pill, Receipt, Scale, Settings, ShoppingCart, Truck, User, UserCog, Users,
-  Users2, Wallet, Wheat, PiggyBank, TrendingUp, Sparkles, ClipboardCheck, CalendarCheck, Flag, Repeat, Skull, PlayCircle,
+  Users2, Wallet, Wheat, PiggyBank, TrendingUp, Sparkles, ClipboardCheck, CalendarCheck, Flag, Repeat, Skull, PlayCircle, Drumstick,
 } from "lucide-react"
 import type { UserPermissions } from "@/hooks/use-permissions"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
@@ -37,7 +37,29 @@ export interface PoultryNavDeps {
    * cleared the bar, which is a different answer and must survive as one.
    */
   quickLinkHrefs?: string[] | null
+
+  /**
+   * False when the company runs only broilers (migration 399) -- see
+   * usePoultryEggFeatures. The egg pages are then hidden from every panel.
+   * Undefined means true: callers that do not know keep today's menus.
+   */
+  showEggFeatures?: boolean
+
+  /** False when the company has never had a broiler flock (402). Undefined = true. */
+  showBroilerFeatures?: boolean
 }
+
+/**
+ * Pages that only mean anything on a farm whose birds lay. Hidden, not
+ * removed: the routes still open, so a link from an old report still works.
+ */
+export const POULTRY_EGG_ONLY_HREFS: ReadonlySet<string> = new Set([
+  "/poultry-egg-sorting",
+  "/egg-production",
+  "/egg-tracker",
+  "/broken-eggs-tracker",
+  "/business-office/egg-pick-settings",
+])
 
 export interface PoultryNavConfig {
   /** Stays a narrow single-column dropdown — a shortcut bar, not a menu. */
@@ -59,7 +81,7 @@ export interface PoultryNavConfig {
 }
 
 export function buildPoultryNavConfig(
-  { permissions, onOpenAlerts, alertCount, quickLinkHrefs }: PoultryNavDeps,
+  { permissions, onOpenAlerts, alertCount, quickLinkHrefs, showEggFeatures = true, showBroilerFeatures = true }: PoultryNavDeps,
 ): PoultryNavConfig {
   const { featureAccess, isAdmin } = permissions
   const canSeeStaff = isAdmin || featureAccess.canSeeEmployees
@@ -148,6 +170,8 @@ export function buildPoultryNavConfig(
         items: [
           { id: "production-records", title: "Production Records", icon: FileText, href: "/production-records" },
           { id: "batch-production",   title: "Batch Production",   icon: Boxes,    href: "/batch-production-records" },
+          // 400: broilers phase 2. Any flock can be weighed; broilers come first.
+          { id: "weigh-ins",          title: "Weigh-ins",          icon: Scale,    href: "/poultry-weigh-ins" },
           // Egg Sorting Workspace (341-343): sorts Unsorted egg stock into
           // sizes, by pick or all at once. The legacy "Egg sorting" row
           // (/egg-production) is hidden from the menus; the page itself is
@@ -334,6 +358,8 @@ export function buildPoultryNavConfig(
           { id: "feed-tracker",       title: "Feed tracker",       icon: Wheat,     href: "/feed-tracker" },
           { id: "feed-inventory-tracker", title: "Feed inventory tracker", icon: History, href: "/feed-inventory-tracker" },
           { id: "birds-left",         title: "Birds tracker",      icon: Bird,      href: "/birds-left-tracker" },
+          // 402: FCR, liveability, EPEF and cost per kg per broiler flock.
+          { id: "broiler-performance", title: "Broiler performance", icon: Drumstick, href: "/poultry-broiler-performance", visible: showBroilerFeatures },
           { id: "dead-birds-tracker", title: "Dead birds tracker", icon: Skull,     href: "/dead-birds-tracker" },
           { id: "medication-tracker", title: "Medication tracker", icon: Pill,      href: "/medication-tracker" },
           { id: "weekly-report",      title: "Analytical Report",  icon: FileText,  href: "/weekly-report" },
@@ -344,36 +370,40 @@ export function buildPoultryNavConfig(
 
     setup: [
       {
-        key: "company",
-        label: "Company",
+        key: "farm",
+        label: "Farm",
         items: [
-          // Points at the real setup page rather than /settings, which is now
-          // only a redirect. Matches Water's "Company Setup" row.
-          { id: "farm-setup", title: "Farm Setup",    icon: Settings, href: "/poultry-setup",         visible: featureAccess.canViewSettings },
-          { id: "settings",   title: "Company Setup", icon: Settings, href: "/poultry-company-setup", visible: featureAccess.canViewSettings },
-          // Migrations 261-263. Sits with the other setup rows because it is
-          // configuration, but it is a FINANCE decision -- it changes what the
-          // owner reads as profit -- so it rides canViewFinancial rather than
-          // canViewSettings. Its own IAM keys gate what you can do once inside.
-          { id: "financial-settings", title: "Financial Settings", icon: Coins, href: "/poultry-financial-settings", visible: featureAccess.canViewFinancial },
-          // Ungated, so this column (and the Setup trigger) always renders.
-          { id: "companies",  title: "Companies", icon: Building2, href: "/companies" },
+          { id: "houses", title: "Houses",       icon: Building2, href: "/houses" },
+          { id: "flocks", title: "Flock Groups", icon: Bird,      href: "/flocks" },
+          // Also in Operations > Purchase. Listed here too so the batches sit
+          // beside the houses and flock groups they are divided into. Same page;
+          // the Quick Links picker keeps the first occurrence of an href.
+          { id: "flock-batch-setup", title: "Flock Purchases (Batches)", icon: Boxes, href: "/flock-batch" },
         ],
       },
       // Group ORDER is load-bearing: the panel is a 3-column grid filled row by
       // row, so these six groups read as two rows --
-      //   Company | Delivery | Production   (the operating chain)
-      //   Finance | Farm     | People
+      //   Farm    | Finance  | Production   (what a new farm sets up first)
+      //   Company | Delivery | People
       // Reordering here silently reshuffles the panel; keep the pairs of three
       // together, and keep `columns={3}` on the Setup NavMegaMenu in
       // components/dashboard/top-nav.tsx in step with it.
       {
-        key: "delivery-setup",
-        label: "Delivery",
+        // Customers and Suppliers are master data maintained here, not part of
+        // the day's selling flow — but they're the two trading parties every
+        // receivable and payable hangs off, so they get their own Finance group
+        // rather than sitting under Company. Both rows are money()-gated, so
+        // this group drops out for a user without financial access; that's safe
+        // because Company is ungated.
+        key: "finance",
+        label: "Finance",
         items: [
-          { id: "drivers",  title: "Drivers",  icon: Users2, href: "/poultry-drivers" },
-          { id: "vehicles", title: "Vehicles", icon: Truck,  href: "/poultry-vehicles" },
-          { id: "routes",   title: "Routes",   icon: Truck,  href: "/poultry-routes" },
+          { id: "customers", title: "Customers", icon: Users, href: "/customers", visible: money("/customers") },
+          { id: "suppliers", title: "Suppliers", icon: Truck, href: "/suppliers", visible: money("/suppliers") },
+          // Cost recognition is a finance decision (it changes what the owner
+          // reads as profit), so it sits with the other Finance rows. Rides
+          // canViewFinancial; its own IAM keys gate what you can do inside.
+          { id: "financial-settings", title: "Financial Settings", icon: Coins, href: "/poultry-financial-settings", visible: featureAccess.canViewFinancial },
         ],
       },
       {
@@ -387,33 +417,32 @@ export function buildPoultryNavConfig(
           // Pick times, egg sorting, packaging and sizes: farm-level settings
           // that production and sales key off, so they sit with the other
           // production master data rather than under Company.
-          { id: "egg-picks",     title: "Egg Configuration", icon: Egg,    href: "/business-office/egg-pick-settings", visible: isAdmin },
+          { id: "egg-picks",     title: "Egg Settings", icon: Egg,    href: "/business-office/egg-pick-settings", visible: isAdmin },
         ],
       },
       {
-        // Customers and Suppliers are master data maintained here, not part of
-        // the day's selling flow — but they're the two trading parties every
-        // receivable and payable hangs off, so they get their own Finance group
-        // rather than sitting under Company. Both rows are money()-gated, so
-        // this group drops out for a user without financial access; that's safe
-        // because Company is ungated.
-        key: "finance",
-        label: "Finance",
+        key: "company",
+        label: "Company",
         items: [
-          { id: "customers", title: "Customers", icon: Users, href: "/customers", visible: money("/customers") },
-          { id: "suppliers", title: "Suppliers", icon: Truck, href: "/suppliers", visible: money("/suppliers") },
+          // Points at the real setup page rather than /settings, which is now
+          // only a redirect. Matches Water's "Company Setup" row.
+          // The two doors into the consolidated Farm Setup page. They replace
+          // the old "Farm Setup" + "Company Setup" rows: the company profile is
+          // now Production Setup's first tab, "Company settings". /poultry-company-setup still works.
+          { id: "production-setup", title: "Production Setup", icon: Settings, href: "/poultry-setup?section=production", visible: featureAccess.canViewSettings },
+          { id: "business-setup",   title: "Business Setup",   icon: Settings, href: "/poultry-setup?section=business",   visible: featureAccess.canViewSettings },
+          // Financial Settings now lives under the Finance group above.
+          // Ungated, so this column (and the Setup trigger) always renders.
+          { id: "companies",  title: "Companies", icon: Building2, href: "/companies" },
         ],
       },
       {
-        key: "farm",
-        label: "Farm",
+        key: "delivery-setup",
+        label: "Delivery",
         items: [
-          { id: "houses", title: "Houses",       icon: Building2, href: "/houses" },
-          { id: "flocks", title: "Flock Groups", icon: Bird,      href: "/flocks" },
-          // Also in Operations > Purchase. Listed here too so the batches sit
-          // beside the houses and flock groups they are divided into. Same page;
-          // the Quick Links picker keeps the first occurrence of an href.
-          { id: "flock-batch-setup", title: "Flock Purchases (Batches)", icon: Boxes, href: "/flock-batch" },
+          { id: "drivers",  title: "Drivers",  icon: Users2, href: "/poultry-drivers" },
+          { id: "vehicles", title: "Vehicles", icon: Truck,  href: "/poultry-vehicles" },
+          { id: "routes",   title: "Routes",   icon: Truck,  href: "/poultry-routes" },
         ],
       },
       {
@@ -502,7 +531,7 @@ export function buildPoultryNavConfig(
           { id: "audit-logs",  title: "Activity Log",        icon: Activity,   href: "/audit-logs", visible: featureAccess.canViewActivityLog },
           { id: "resources",   title: "Resources",           icon: BookOpen,   href: "/resources" },
           { id: "help",        title: "Help Center",         icon: HelpCircle, href: "/help" },
-          { id: "videos",      title: "Videos",              icon: PlayCircle, href: "/poultry-videos" },
+          { id: "videos",      title: "Support Videos",      icon: PlayCircle, href: "/poultry-videos" },
           { id: "terms",       title: "Terms & Conditions",  icon: ListTodo,   href: "/terms" },
         ],
       },
@@ -518,6 +547,18 @@ export function buildPoultryNavConfig(
       if (!Array.isArray(section)) continue
       for (const group of section as MegaMenuGroup[]) {
         group.items = group.items.map((i) => (isSetupAdminRoute(i.href) ? { ...i, visible: false } : i))
+      }
+    }
+  }
+
+  // A broiler-only company (399): no egg sorting, egg trackers or egg settings.
+  // Before the quick links, so a pinned egg page is dropped with them.
+  if (!showEggFeatures) {
+    for (const section of Object.values(config)) {
+      if (!Array.isArray(section)) continue
+      for (const group of section as MegaMenuGroup[]) {
+        group.items = group.items.map((i) =>
+          i.href && POULTRY_EGG_ONLY_HREFS.has(i.href) ? { ...i, visible: false } : i)
       }
     }
   }

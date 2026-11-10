@@ -20,5 +20,10 @@ namespace PoultryFarmAPIWeb.Business
         // Inventory reports
         Task<List<GenericProductLowStockRowModel>> GetLowStockAsync(string farmId);
         Task ReconcileStockAsync(string farmId);
+
+        // UOM conversions (migration 364)
+        Task<List<GenericUomConversionModel>> GetUomConversionsAsync(string farmId, int? productId);
+        Task<int> UpsertUomConversionAsync(string farmId, int? productId, string fromUnit, string toUnit, decimal factor);
+        Task DeleteUomConversionAsync(int id, string farmId);
     }
 }

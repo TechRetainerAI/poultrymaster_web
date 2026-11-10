@@ -135,13 +135,13 @@ export default function GenericDashboardPage() {
               </div>
 
               {/* This week + cash accounts */}
-              <div className="grid grid-cols-1 lg:grid-cols-7 gap-4 mb-4">
-                <Card className="lg:col-span-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+                <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-xs uppercase tracking-wide text-slate-500">This week (last 7 days)</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                       <KV label="Sales"           value={fmtMoney(week!.weekSales)} />
                       <KV label="Expenses"        value={fmtMoney(week!.weekExpenses)} />
                       <KV label="Purchases paid"  value={fmtMoney(week!.weekPurchasesPaid)} />
@@ -179,7 +179,7 @@ export default function GenericDashboardPage() {
                   </CardContent>
                 </Card>
 
-                <Card className="lg:col-span-3">
+                <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-xs uppercase tracking-wide text-slate-500 flex items-center gap-2">
                       <Wallet className="h-4 w-4" /> Cash accounts
@@ -244,9 +244,9 @@ export default function GenericDashboardPage() {
 
 function KV({ label, value, valueClass = "" }: { label: string; value: string; valueClass?: string }) {
   return (
-    <div>
+    <div className="min-w-0">
       <div className="text-xs text-slate-500">{label}</div>
-      <div className={`text-lg font-semibold ${valueClass}`}>{value}</div>
+      <div className={`text-base font-semibold tabular-nums truncate ${valueClass}`}>{value}</div>
     </div>
   )
 }

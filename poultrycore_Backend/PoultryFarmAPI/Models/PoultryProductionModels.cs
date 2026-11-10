@@ -48,6 +48,13 @@ namespace PoultryFarmAPIWeb.Models
         public string? Reason { get; set; }
         public int? ManualMovementId { get; set; }
         public bool ManualReversal { get; set; }
+        /// <summary>413: Flock / BatchUnallocated for a scoped bird movement; null for legacy rows.</summary>
+        public string? BirdScope { get; set; }
+        /// <summary>
+        /// 414: when the movement was posted (UTC). CreatedDate stays the business
+        /// date the ledger is dated by; null here means the time was never recorded.
+        /// </summary>
+        public DateTime? PostedAt { get; set; }
     }
 
     /// <summary>
@@ -65,6 +72,12 @@ namespace PoultryFarmAPIWeb.Models
         public decimal? UnitCost { get; set; }
         public int? BatchId { get; set; }
         public int? FlockId { get; set; }
+        /// <summary>
+        /// 413, birds only: "Flock" (FlockId required) or "BatchUnallocated"
+        /// (FlockId null — the batch's birds not placed in any flock). Explicit,
+        /// because a null FlockId alone proves nothing.
+        /// </summary>
+        public string? Scope { get; set; }
         public DateTime? EffectiveDate { get; set; }
         [Required] public string Reason { get; set; } = string.Empty;
         /// <summary>Historical Mortality of birds only: Keep / Disposed.</summary>
@@ -348,6 +361,26 @@ namespace PoultryFarmAPIWeb.Models
         public string? CreatedBy { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
+    }
+
+    /// <summary>
+    /// 405: a damage row derived from a production record's broken eggs, a
+    /// driver-return / delivery / batch loss, or an egg-class 'Egg Loss'. Read
+    /// only -- never stored -- so it cannot drift from its source.
+    /// </summary>
+    public class PoultryAutoDamageModel
+    {
+        public string SourceType { get; set; } = string.Empty;
+        public int? SourceId { get; set; }
+        public DateTime LossDate { get; set; }
+        public string LossType { get; set; } = "Damage";
+        public string? ProductName { get; set; }
+        public decimal Quantity { get; set; }
+        public decimal? EstimatedValue { get; set; }
+        public string? Details { get; set; }
+        public string? FlockName { get; set; }
+        public int? BrokenEggs { get; set; }
+        public int? Disposed { get; set; }
     }
 
     public class PoultryDailyClosingModel

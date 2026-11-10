@@ -1,13 +1,12 @@
 "use client"
 
-import { useState, useTransition, useEffect, Fragment } from "react"
+import { useState, useTransition, useEffect, useMemo, Fragment } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useGenericModules } from "@/hooks/use-generic-modules"
-import { buildGenericNavGroups } from "@/lib/nav/generic-nav-config"
 import { useIsMobile } from "@/hooks/use-mobile"
 import {
   BarChart3,
@@ -60,6 +59,10 @@ import {
   Inbox,
   Factory,
   Star,
+  Zap,
+  GraduationCap,
+  ClipboardCheck,
+  PlayCircle,
 } from "lucide-react"
 import { InventoryLogo } from "@/components/auth/logo"
 import { useAlertsStore, type AlertItem } from "@/lib/store/alerts-store"
@@ -76,9 +79,10 @@ import { buildPoultryNavConfig } from "@/lib/nav/poultry-nav-config"
 import { buildWaterNavConfig } from "@/lib/nav/water-nav-config"
 import { buildHotelNavConfig } from "@/lib/nav/hotel-nav-config"
 import { buildRestaurantNavConfig } from "@/lib/nav/restaurant-nav-config"
+import { buildGenericNavConfig } from "@/lib/nav/generic-nav-config"
 import { useQuickLinkHrefs } from "@/lib/store/quick-links-store"
 import { QuickLinksDialog } from "@/components/dashboard/quick-links-dialog"
-import { navPathActive, type MegaMenuGroup, type NavGroup } from "@/lib/nav/nav-model"
+import { navPathActive, type MegaMenuGroup, type NavAccent, type NavGroup } from "@/lib/nav/nav-model"
 import { SidebarFlyoutMenu } from "@/components/dashboard/nav/sidebar-flyout-menu"
 import { POULTRY_REPORT_NAV_GROUPS, WATER_REPORT_NAV_GROUPS, HOTEL_REPORT_NAV_GROUPS, RESTAURANT_REPORT_NAV_GROUPS } from "@/lib/nav/report-nav-adapters"
 
@@ -182,7 +186,6 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const openAlerts = useAlertsStore((s: { alerts: AlertItem[]; open: () => void }) => s.open)
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const activeFarmId = useAuthStore((s) => s.activeFarmId)
-  const clearActiveCompany = useAuthStore((s) => s.clearActiveCompany)
   const isWater = activeFarmType === "Water"
   const isGeneric = activeFarmType === "Generic"
   const isHotel = activeFarmType === "Hotel"
@@ -300,17 +303,25 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   // the mobile bar through one cached hook.
   const genericModules = useGenericModules()
 
-  // The Generic lists live in lib/nav/generic-nav-config.ts, shared with the
-  // header search so the two cannot disagree about what a company has.
-  const {
-    catalog: genericCatalogItems,
-    subscriptions: genericSubscriptionItems,
-    sales: genericSalesItems,
-    purchasing: genericPurchasingItems,
-    money: genericMoneyItems,
-    people: genericPeopleItems,
-    admin: genericAdminItems,
-  } = buildGenericNavGroups(genericModules, permissions.isAdmin)
+  // Generic sidebar: built from the shared nav config so the sidebar and
+  // top-nav always agree on labels and visibility.
+  const genericNav = useMemo(() => buildGenericNavConfig(genericModules, permissions), [genericModules, permissions])
+  const isSchool = genericModules.industry === "School"
+  const isSub = genericModules.isSubscriptionBusiness
+
+  // Flatten MegaMenuGroup[] → NavItem[] for renderGroup
+  // MegaMenuItem uses { id, title, icon, href } while the sidebar needs { href, label, icon }
+  const flat = (groups: { items: { href?: string; title: string; icon: any }[] }[]) =>
+    groups.flatMap((g) => g.items.filter((i) => i.href).map((i) => ({ href: i.href!, label: i.title, icon: i.icon })))
+
+  const genericCatalogItems = flat(genericNav.catalog)
+  const genericSubscriptionItems = flat(genericNav.billing)
+  const genericSalesItems = flat(genericNav.salesOrStudents)
+  const genericPurchasingItems = flat(genericNav.expenses)
+  const genericMoneyItems = flat(genericNav.money)
+  const genericPeopleItems = flat(genericNav.people)
+  const genericSchoolItems = flat(genericNav.school)
+  const genericAdminItems = flat(genericNav.admin)
 
   // Hotel company nav items (shown when activeFarmType === "Hotel")
   const gateHotel = <T extends { href: string }>(items: T[]) =>
@@ -384,8 +395,8 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     // in their groups above; this is the equivalent row for Poultry, pointing at the
     // database-backed pages rather than /settings (now only a redirect).
     ...((!isWater && !isGeneric && !isHotel && !isRestaurant && permissions.featureAccess.canViewSettings)
-      ? [{ href: "/poultry-setup", label: "Farm Setup", icon: Settings },
-         { href: "/poultry-company-setup", label: "Company Setup", icon: Settings }] : []),
+      ? [{ href: "/poultry-setup?section=production", label: "Production Setup", icon: Settings },
+         { href: "/poultry-setup?section=business", label: "Business Setup", icon: Settings }] : []),
     // Configuration, but a finance decision: it changes what the owner reads as
     // profit, so it follows the financial flag rather than the settings one.
     ...((!isWater && !isGeneric && !isHotel && !isRestaurant && permissions.featureAccess.canViewFinancial)
@@ -414,8 +425,8 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     const content = (
       <div
         className={cn(
-          // 12px, matching the menu rows (see sidebar-flyout-menu.tsx).
-          "flex items-center gap-2 px-4 pr-1 py-2.5 text-xs leading-5 font-medium rounded-md transition-colors relative",
+          // 14px, matching the menu rows (see nav/sidebar-flyout-menu.tsx).
+          "flex items-center gap-2 px-4 pr-1 py-2.5 text-sm leading-5 font-medium rounded-md transition-colors relative",
           isActive
             ? "bg-slate-700 text-white border-l-[3px] border-blue-400 pl-[10px]"
             : alerting
@@ -510,7 +521,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
       <div>
         <button
           onClick={() => toggleGroup(groupKey)}
-          className="w-full flex items-center justify-between px-4 py-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider hover:text-slate-300 transition-colors"
+          className="w-full flex items-center justify-between px-4 py-1.5 text-[13px] font-semibold text-slate-500 uppercase tracking-wider hover:text-slate-300 transition-colors"
         >
           <span>{title}</span>
           <ChevronDown
@@ -565,6 +576,8 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
    * `inlineLead` is rows only the drawer needs -- beside the rail the same
    * thing is the header's "View all" link.
    */
+  const sidebarAccent: NavAccent = isWater ? "sky" : isGeneric ? "emerald" : isHotel ? "violet" : isRestaurant ? "rose" : "orange"
+
   const renderMenu = (
     label: string, Icon: any, groups: MegaMenuGroup[], menuKey: string,
     panel: MenuPanel, inlineLead: SidebarGroup[] = [],
@@ -577,7 +590,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
           columns={panel.columns} viewAll={panel.viewAll}
           activeHrefs={panel.activeHrefs} highlightActiveRow={panel.highlightActiveRow}
           collapsed={isCollapsed}
-          accent="orange"
+          accent={sidebarAccent}
         />
       )
     }
@@ -595,7 +608,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
           onClick={() => setOpenGroups((prev) => ({ ...prev, [menuKey]: !isOpen }))}
           aria-expanded={isOpen}
           className={cn(
-            "w-full flex items-center gap-2 rounded-md border-l-[3px] border-transparent py-2.5 pl-[10px] pr-3 text-xs leading-5 font-semibold transition-colors",
+            "w-full flex items-center gap-2 rounded-md border-l-[3px] border-transparent py-2.5 pl-[10px] pr-3 text-sm leading-5 font-semibold transition-colors",
             containsActive ? "text-white" : "text-slate-200 hover:bg-slate-800 hover:text-white",
           )}
         >
@@ -617,6 +630,28 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
           </div>
         )}
       </div>
+    )
+  }
+
+  // Sales, Expenses and Money are three separate sidebar menus (they used to be
+  // one "Sales, Expenses & Money" menu with three columns). Every company
+  // type's nav config keeps the three as groups keyed sales / expenses / money
+  // inside salesMoney, so the split is done here once. A menu whose rows are
+  // all hidden (staff without financial access) renders nothing.
+  const renderSalesMoneyMenus = (groups: MegaMenuGroup[], prefix: string) => {
+    const pick = (k: string) => groups.filter((g) => g.key === k)
+    return (
+      <>
+        {renderMenu("Sales", ShoppingCart, pick("sales"), `menu:${prefix}Sales`, {
+          blurb: "Record sales, collect payments and see what customers owe.", columns: 1,
+        })}
+        {renderMenu("Expenses", Receipt, pick("expenses"), `menu:${prefix}Expenses`, {
+          blurb: "Expenses, suppliers, payroll and other costs.", columns: 1,
+        })}
+        {renderMenu("Money", Wallet, pick("money"), `menu:${prefix}Money`, {
+          blurb: "Cash accounts, transfers, owner money, loans and profit.", columns: 1,
+        })}
+      </>
     )
   }
 
@@ -679,7 +714,10 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
           {renderNavItem(
             { href: "/business-office", label: "Business Office", icon: Briefcase },
             true,
-            () => { try { clearActiveCompany() } catch {}; handleLinkClick?.(); router.push("/business-office") },
+            // Don't clear the company here: the page still on screen would
+            // re-run its loader with no company and toast "No active company".
+            // BusinessOfficeShell clears it on mount, after this page is gone.
+            () => { handleLinkClick?.(); router.push("/business-office") },
           )}
         </div>
 
@@ -717,10 +755,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
                 blurb: "Delivery runs, production and stock — everything that moves water.",
                 columns: 3,
               })}
-              {renderMenu("Sales, Expenses & Money", Wallet, waterNav!.salesMoney, "menu:waterMoney", {
-                blurb: "Orders, collections, expenses and cash.",
-                columns: 3,
-              })}
+              {renderSalesMoneyMenus(waterNav!.salesMoney, "water")}
               {renderMenu("Trackers", BarChart3, waterNav!.analytics, "menu:waterAnalytics", {
                 blurb: "Explore where your stock actually moved.", columns: 1,
               })}
@@ -757,10 +792,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
                 blurb: "Orders, menu, kitchen and tables.",
                 columns: 1,
               })}
-              {renderMenu("Sales, Expenses & Money", Wallet, hotelNav!.salesMoney, "menu:hotelMoney", {
-                blurb: "Sales, expenses, payments, payroll, cash and financial activity.",
-                columns: 3,
-              })}
+              {renderSalesMoneyMenus(hotelNav!.salesMoney, "hotel")}
               {hotelReportsItems.length > 0 && renderMenu("Reports", BarChart3, HOTEL_REPORT_NAV_GROUPS, "menu:hotelReports", {
                 blurb: "Occupancy, revenue, housekeeping and operational reports.",
                 columns: 3,
@@ -800,10 +832,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
                 blurb: "Ingredients, stock and purchases.",
                 columns: 1,
               })}
-              {renderMenu("Sales, Expenses & Money", Wallet, restaurantNav!.salesMoney, "menu:restaurantMoney", {
-                blurb: "Sales, expenses, payments, payroll, cash and financial activity.",
-                columns: 3,
-              })}
+              {renderSalesMoneyMenus(restaurantNav!.salesMoney, "restaurant")}
               {renderMenu("Growth", Users, restaurantNav!.growth, "menu:restaurantGrowth", {
                 blurb: "Customers, loyalty, events, gift cards and notifications.",
                 columns: 2,
@@ -822,47 +851,50 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
           </>
         ) : isGeneric ? (
           <>
-            {/* Generic Company — Catalog. Gone entirely for a company with no
-                stock modules on, rather than an empty heading. */}
-            {genericCatalogItems.length > 0 && (
-              <>
-                {renderGroup("Catalog", genericCatalogItems, "genericCatalog")}
-
-                <div className="border-t border-slate-800 mx-2" />
-              </>
-            )}
-
-            {genericSubscriptionItems.length > 0 && (
-              <>
-                {/* Generic Company — Subscriptions (migrations 242-243) */}
-                {renderGroup("Subscriptions", genericSubscriptionItems, "genericSubscriptions")}
-
-                <div className="border-t border-slate-800 mx-2" />
-              </>
-            )}
-
-            {/* Generic Company — Sales */}
-            {renderGroup("Sales", genericSalesItems, "genericSales")}
-
-            <div className="border-t border-slate-800 mx-2" />
-
-            {/* Generic Company — Purchasing */}
-            {renderGroup("Purchasing", genericPurchasingItems, "genericPurchasing")}
-
-            <div className="border-t border-slate-800 mx-2" />
-
-            {/* Generic Company — Money */}
-            {renderGroup("Money", genericMoneyItems, "genericMoney")}
-
-            <div className="border-t border-slate-800 mx-2" />
-
-            {/* Generic Company — People (Phase 6) */}
-            {renderGroup("People", genericPeopleItems, "genericPeople")}
-
-            <div className="border-t border-slate-800 mx-2" />
-
-            {/* Generic Company — Admin */}
-            {renderGroup("Admin", genericAdminItems, "genericAdmin")}
+            {/* Generic Company — same flyout-menu pattern as Water/Hotel/Restaurant.
+                Groups come from buildGenericNavConfig, accent is emerald. */}
+            <div className="space-y-1">
+              {genericNav.catalog.length > 0 && renderMenu(
+                "Catalog & Stock", ShoppingBag, genericNav.catalog, "menu:genericCatalog", {
+                  blurb: "Products, inventory, stock adjustments and internal use.",
+                  columns: 1,
+                })}
+              {genericNav.billing.length > 0 && renderMenu(
+                genericNav.billing[0]?.label ?? "Billing", Receipt, genericNav.billing, "menu:genericBilling", {
+                  blurb: `${genericModules.labels.planPlural}, ${genericModules.labels.subscriptionPlural.toLowerCase()} and billing runs.`,
+                  columns: 1,
+                })}
+              {renderMenu(
+                genericNav.salesOrStudents[0]?.label ?? "Sales", isSub ? Users : ShoppingCart, genericNav.salesOrStudents, "menu:genericSales", {
+                  blurb: isSub ? `${genericModules.labels.customerPlural}, payments and balances.` : "Sales, customers and payments.",
+                  columns: 1,
+                })}
+              {renderMenu(
+                genericNav.expenses[0]?.label ?? "Expenses", DollarSign, genericNav.expenses, "menu:genericExpenses", {
+                  blurb: isSub ? "Vendors, expenses and recurring costs." : "Suppliers, purchases and expenses.",
+                  columns: 1,
+                })}
+              {renderMenu(
+                genericNav.money[0]?.label ?? "Money", Wallet, genericNav.money, "menu:genericMoney", {
+                  blurb: "Cash accounts, transfers, daily closing and owner funds.",
+                  columns: 1,
+                })}
+              {genericNav.people.length > 0 && renderMenu(
+                genericNav.people[0]?.label ?? "People", Users2, genericNav.people, "menu:genericPeople", {
+                  blurb: "Employees, attendance, payroll and payments.",
+                  columns: 1,
+                })}
+              {genericNav.school.length > 0 && renderMenu(
+                "School", GraduationCap, genericNav.school, "menu:genericSchool", {
+                  blurb: "Classes, academic terms and student attendance.",
+                  columns: 1,
+                })}
+              {renderMenu(
+                "Admin", Settings, genericNav.admin, "menu:genericAdmin", {
+                  blurb: "Reports, setup and settings.",
+                  columns: 1,
+                })}
+            </div>
           </>
         ) : (
           <>
@@ -894,10 +926,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
                 blurb: "Production, flock purchases, deliveries, stock and health.",
                 columns: 2,
               })}
-              {renderMenu("Sales, Expenses & Money", Wallet, poultryNav!.salesMoney, "menu:poultryMoney", {
-                blurb: "Manage sales, expenses, payments, payroll, cash and financial activity.",
-                columns: 3,
-              })}
+              {renderSalesMoneyMenus(poultryNav!.salesMoney, "poultry")}
               {renderMenu("Trackers", BarChart3, poultryNav!.analytics, "menu:poultryAnalytics", {
                 blurb: "Day-to-day trackers.", columns: 1,
               })}
@@ -969,6 +998,11 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
               blurb: "Account, companies, billing.", columns: 1,
             })
           : renderGroup("System", systemItems, "system")}
+
+        {/* Videos -- its own row right below System so the how-to videos are
+            one click away (they are also inside the System menu). Poultry
+            only, since the videos teach the poultry screens. */}
+        {poultryNav && renderNavItem({ href: "/poultry-videos", label: "Support Videos", icon: PlayCircle })}
       </nav>
 
       {/* Logout */}

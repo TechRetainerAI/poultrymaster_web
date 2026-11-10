@@ -47,11 +47,11 @@ export default function PoultryReportsIndexPage() {
   }, [activeFarmType, router])
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-50">
       <DashboardSidebar onLogout={logout} />
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
-        <main className="overflow-y-visible overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
           <div className="mb-6 flex items-start gap-3">
             <div className="rounded-lg bg-sky-100 p-2"><BarChart3 className="h-6 w-6 text-sky-700" /></div>
             <div>

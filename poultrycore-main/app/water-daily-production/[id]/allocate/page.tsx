@@ -157,11 +157,11 @@ export default function AllocateWaterDailyProductionPage() {
 
   if (loading || !day) {
     return (
-      <div className="flex min-h-screen bg-slate-50">
+      <div className="flex h-screen bg-slate-50">
         <DashboardSidebar onLogout={logout} />
         <div className="flex-1 flex flex-col min-w-0">
           <DashboardHeader />
-          <main className="p-6 flex items-center gap-2 text-slate-500">
+          <main className="flex-1 overflow-y-auto p-6 flex items-center gap-2 text-slate-500">
             <Loader2 className="w-4 h-4 animate-spin" /> Loading…
           </main>
         </div>
@@ -172,11 +172,11 @@ export default function AllocateWaterDailyProductionPage() {
   const materials = day.materials || []
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-50">
       <DashboardSidebar onLogout={logout} />
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
-        <main className="overflow-y-visible overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
           <div className="mb-4 flex flex-wrap items-center gap-2">
             <Button variant="ghost" size="sm" onClick={() => router.push(`/water-daily-production/${id}`)}>
               <ArrowLeft className="w-4 h-4 mr-1" /> Back

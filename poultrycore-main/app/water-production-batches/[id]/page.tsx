@@ -98,11 +98,11 @@ export default function WaterProductionBatchDetailsPage() {
   const efficiency      = batch?.productionEfficiencyPercent ?? 0
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-50">
       <DashboardSidebar onLogout={logout} />
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
-        <main className="overflow-y-visible overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0 space-y-4">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0 space-y-4">
           <div className="flex items-start justify-between flex-wrap gap-2">
             <div className="flex items-start gap-3 min-w-0">
               <div className="w-10 h-10 shrink-0 bg-sky-100 rounded-lg flex items-center justify-center">

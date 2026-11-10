@@ -12,6 +12,7 @@ import '../reports/report_routes.dart' show openAppHref;
 import '../trackers/tracker_logic.dart' show tNum, tStr, tIntOrNull, loc;
 import '../trackers/tracker_widgets.dart';
 import 'batch_production_logic.dart';
+import 'production_logic.dart' show fetchBirdsOnDate;
 
 import 'package:poultrycore_mobile/design/tone.dart';
 class BatchAllocateScreen extends StatefulWidget {
@@ -38,6 +39,8 @@ class _BatchAllocateScreenState extends State<BatchAllocateScreen> {
   ApiClient get _api => widget.session.farmClient;
   String get _userId => widget.session.tokens.userId ?? '';
   String get _farmId => widget.company.farmId;
+  Map<int, num> _openingBirds = {};
+
   bool get _readOnly => _batch != null && !const ['PendingAllocation', 'Allocated', 'Reversed'].contains(tStr(_batch!['status']));
 
   @override
@@ -65,6 +68,23 @@ class _BatchAllocateScreenState extends State<BatchAllocateScreen> {
       err = e.message;
     }
     final r = await lists;
+    // 406: each included flock's opening count on the batch's day.
+    final opening = <int, num>{};
+    if (b is Map) {
+      final day = tStr(b['productionDate']).padRight(10).substring(0, 10).trim();
+      if (day.length == 10) {
+        final seeds = await Future.wait([
+          for (final incl in listOf(b, 'includedFlocks'))
+            () async {
+              final fid = tIntOrNull(incl['flockId']) ?? 0;
+              return (fid, await fetchBirdsOnDate(_api, _farmId, fid, day));
+            }(),
+        ]);
+        for (final (fid, seed) in seeds) {
+          if (seed != null) opening[fid] = seed.birds;
+        }
+      }
+    }
     if (!mounted) return;
     if (b is! Map) {
       trackerToast(context, 'Could not load batch', description: err, error: true);
@@ -77,11 +97,12 @@ class _BatchAllocateScreenState extends State<BatchAllocateScreen> {
       _batch = batch;
       _flocksById = {for (final f in r[0]) tIntOrNull(f['flockId']) ?? 0: f};
       _records = r[1];
+      _openingBirds = opening;
       if (listOf(batch, 'allocations').isNotEmpty) {
         _rows = allocationsToRows(batch);
         _method = 'Manual';
       } else {
-        _rows = buildBlankRows(batch, _flocksById, _records);
+        _rows = buildBlankRows(batch, _flocksById, _records, opening);
         openMethod = const ['PendingAllocation', 'Allocated'].contains(tStr(batch['status']));
       }
       _seed++;
@@ -97,7 +118,7 @@ class _BatchAllocateScreenState extends State<BatchAllocateScreen> {
     if (b == null) return;
     setState(() {
       _method = m;
-      _rows = applyMethod(m, _rows.isNotEmpty ? _rows : buildBlankRows(b, _flocksById, _records), b, _records);
+      _rows = applyMethod(m, _rows.isNotEmpty ? _rows : buildBlankRows(b, _flocksById, _records, _openingBirds), b, _records);
       _seed++;
     });
   }

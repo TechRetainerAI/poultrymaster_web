@@ -137,3 +137,37 @@ export function explainLoadFailure(
     hint: "Try again in a moment. If it keeps happening, pass the detail below to whoever looks after your system.",
   }
 }
+
+/**
+ * A payment bigger than what the cash account holds.
+ *
+ * The database refuses it (sppoultrysupplierpayment_record and its cousins) as
+ *   "This payment would overdraw the cash account (balance 0.00, payment 2500.00)."
+ * which is accurate but names no account and reads like a system fault. A
+ * farmer paying from an empty MoMo wallet should be told which wallet, how much
+ * is in it, and what to do next.
+ */
+function money(n: number): string {
+  return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+export function cashShortfallMessage(accountName: string | null | undefined, balance: number, payment: number): string {
+  const name = (accountName || "").trim() || "cash account"
+  return `Your ${name} has ${money(balance)}, cannot pay ${money(payment)}. Please top up or choose another account.`
+}
+
+/**
+ * If `message` is the database's overdraw refusal, the farmer-facing sentence
+ * for it; otherwise null so the caller keeps whatever it had.
+ */
+export function explainCashShortfall(message: string | null | undefined, accountName?: string | null): string | null {
+  const text = message || ""
+  if (!/would overdraw|would go negative|insufficient (funds|balance)/i.test(text)) return null
+  const m = text.match(/balance\s+(-?[\d,]+(?:\.\d+)?)\s*,\s*payment\s+(-?[\d,]+(?:\.\d+)?)/i)
+  if (m) {
+    const num = (s: string) => Number(s.replace(/,/g, ""))
+    return cashShortfallMessage(accountName, num(m[1]), num(m[2]))
+  }
+  const name = (accountName || "").trim() || "cash account"
+  return `Your ${name} does not have enough money for this payment. Please top up or choose another account.`
+}

@@ -585,7 +585,7 @@ export default function WeeklyReportPage() {
   const totalDebt = useMemo(() => debtors.reduce((s, d) => s + d.amount, 0), [debtors])
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-50">
       <style>{`
         @media print {
           @page { size: A4 portrait; margin: 12mm; }
@@ -605,7 +605,7 @@ export default function WeeklyReportPage() {
       <DashboardSidebar onLogout={handleLogout} />
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
-        <main className="overflow-y-visible overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
           <div className="space-y-6">
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

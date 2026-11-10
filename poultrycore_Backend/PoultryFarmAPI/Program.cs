@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using System.Configuration;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Configuration;
@@ -102,6 +102,8 @@ builder.Services.AddScoped<IPoultryFinancialActivityService>(sp => new PoultryFi
 builder.Services.AddScoped<IWaterBalanceService>(sp => new WaterBalanceService(connectionString));
 
 builder.Services.AddScoped<IHouseService>(sp => new HouseService(connectionString));
+// Batch Bird Reconciliation (413): every bird a batch bought, accounted for.
+builder.Services.AddScoped<IBirdReconciliationService>(sp => new BirdReconciliationService(connectionString));
 // Initial Farm Setup orchestrates the three services above inside one
 // transaction; it deliberately owns no insert of its own (migration 319).
 builder.Services.AddScoped<IFarmSetupService>(sp => new FarmSetupService(
@@ -354,6 +356,8 @@ builder.Services.AddScoped<IPoultryFlockAnomalyService>(sp => new PoultryFlockAn
 // Treatment campaigns (339): medication for many flocks over one or more days,
 // posted as medication lines through spproductionrecord_update.
 builder.Services.AddScoped<IPoultryTreatmentCampaignService>(sp => new PoultryTreatmentCampaignService(connectionString));
+// 400: flock weigh-ins (broilers phase 2).
+builder.Services.AddScoped<IFlockWeighInService>(sp => new FlockWeighInService(connectionString));
 // Egg Sorting Workspace (341-343): egg classes in the one stock ledger and the
 // Unsorted -> size transformation. Rules live in SQL; this only maps rows.
 builder.Services.AddScoped<IPoultryEggSortingService>(sp => new PoultryEggSortingService(connectionString));
@@ -428,6 +432,14 @@ builder.Services.AddScoped<IGenericCompanyService>(sp => new GenericCompanyServi
 builder.Services.AddScoped<IGenericProductService>(sp => new GenericProductService(connectionString));
 builder.Services.AddScoped<IGenericServiceCatalogService>(sp => new GenericServiceCatalogService(connectionString));
 builder.Services.AddScoped<IGenericInventoryService>(sp => new GenericInventoryService(connectionString));
+builder.Services.AddScoped<IGenericDeliveryService>(sp => new GenericDeliveryService(connectionString));
+builder.Services.AddScoped<IGenericDriverService>(sp => new GenericDriverService(connectionString));
+builder.Services.AddScoped<IGenericRouteService>(sp => new GenericRouteService(connectionString));
+builder.Services.AddScoped<IGenericLoanService>(sp => new GenericLoanService(connectionString));
+builder.Services.AddScoped<IGenericAssetService>(sp => new GenericAssetService(connectionString));
+builder.Services.AddScoped<IGenericCustomerCreditService>(sp => new GenericCustomerCreditService(connectionString));
+builder.Services.AddScoped<IGenericSupplierCreditService>(sp => new GenericSupplierCreditService(connectionString));
+builder.Services.AddScoped<IGenericDeferredCostService>(sp => new GenericDeferredCostService(connectionString));
 
 // Phase 3: Customers + Sales + Customer Payments + Cash Transactions.
 // Sale_Approve is the meaty one: writes stock movement SaleOut per product,
@@ -450,6 +462,8 @@ builder.Services.AddScoped<IGenericMoneyOutService>(sp => new GenericMoneyOutSer
 // Phase 7: the read side (migration 250) -- the subscription dashboard and the
 // reports that were not already answerable from an existing function.
 builder.Services.AddScoped<IGenericSubscriptionReportService>(sp => new GenericSubscriptionReportService(connectionString));
+// Phase C: school-specific classes and academic terms (migration 366).
+builder.Services.AddScoped<IGenericSchoolService>(sp => new GenericSchoolService(connectionString));
 
 // Phase 4: Suppliers + Purchases + Expenses + Cash Transfers (the money-out
 // side). Purchase_Approve mirrors Sale_Approve; Expense_Approve branches on
@@ -581,10 +595,12 @@ builder.Services.AddControllers(options =>
     // Filters/IamEnforcementFilter.cs before switching it on.
     options.Filters.AddService<PoultryFarmAPIWeb.Filters.IamEnforcementFilter>();
     options.Filters.AddService<PoultryFarmAPIWeb.Filters.CompanyTypeFilter>();
+    options.Filters.AddService<PoultryFarmAPIWeb.Filters.GenericModuleFilter>();
     options.Filters.AddService<AuditLogActionFilter>();
 });
 builder.Services.AddScoped<PoultryFarmAPIWeb.Filters.IamEnforcementFilter>();
 builder.Services.AddScoped<PoultryFarmAPIWeb.Filters.CompanyTypeFilter>();
+builder.Services.AddScoped<PoultryFarmAPIWeb.Filters.GenericModuleFilter>();
 builder.Services.AddScoped<AuditLogActionFilter>();
 builder.Services.AddSignalR();
 

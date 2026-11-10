@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react"
 import { parseDateParam } from "@/lib/utils/date-param"
 import { useRouter } from "next/navigation"
 import { BatchProductionRecordModal } from "@/components/production/batch-production-record-modal"
+import { DayRecordsDialog, type DayFields } from "@/components/production/day-records-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -17,7 +18,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { Plus, Download, Search, RefreshCw, Loader2, ChevronDown, ChevronUp, Filter, Mail, Layers } from "lucide-react"
+import { Plus, Download, Search, RefreshCw, Loader2, ChevronDown, ChevronUp, Filter, Mail, Layers, CalendarDays } from "lucide-react"
 import { sendReportEmail } from "@/lib/api/email"
 import {
   getBatchProductionRecords,
@@ -38,6 +39,8 @@ import { usePickSettings } from "@/hooks/use-pick-settings"
 import { useToast } from "@/hooks/use-toast"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { cn } from "@/lib/utils"
+import { PeriodSelect } from "@/components/ui/period-select"
+import { rangeToPeriod, type DateRange, type PeriodKey } from "@/lib/date-ranges"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import {
@@ -76,6 +79,12 @@ const batchFilterKey = (r: ProductionBatchRecord): string =>
 
 type ConfirmType = "delete" | "post" | "reverse" | "cancel" | "deleteAllocation"
 
+// Batch records keep their numbers under their own names.
+const BATCH_DAY_FIELDS: DayFields = {
+  date: "productionDate", p1: "firstPickTotal", p2: "secondPickTotal", p3: "thirdPickTotal", broken: "brokenEggs",
+  eggs: "totalEggs", feed: "feedKg", birds: "birdsLeft", deaths: "deaths", left: "birdsLeft",
+}
+
 interface ConfirmState {
   type: ConfirmType
   id: number
@@ -89,6 +98,8 @@ export default function BatchProductionRecordsPage() {
   // reachable from inside it via "Open Full Page".
   const [formOpen, setFormOpen] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
+  // "View by day": every batch record on one day.
+  const [dayOpen, setDayOpen] = useState(false)
   const router = useRouter()
   const permissions = usePermissions()
   // When the farm has the 4th pick switched off in Egg Pick Settings, the
@@ -115,7 +126,7 @@ export default function BatchProductionRecordsPage() {
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [itemsPerPage, setItemsPerPage] = useState(15)
 
   // Sort state
   const [sortKey, setSortKey] = useState<string | null>(null)
@@ -140,6 +151,15 @@ export default function BatchProductionRecordsPage() {
   const [draftBatch, setDraftBatch] = useState<string>("ALL")
   const [draftMonth, setDraftMonth] = useState<string>("ALL")
   const [draftYear, setDraftYear] = useState<string>("ALL")
+
+  // Period presets drive the From/To boxes, as on Production Records. No dates
+  // is the unfiltered default, so it reads as All Time; hand-picked dates fall
+  // back to Custom via rangeToPeriod.
+  const periodOf = (from: string, to: string): PeriodKey => (!from && !to ? "allTime" : rangeToPeriod(from, to))
+  const applyPeriod = (p: PeriodKey, rg: DateRange | null, setFrom: (v: string) => void, setTo: (v: string) => void) => {
+    if (p === "allTime") { setFrom(""); setTo("") }
+    else if (rg) { setFrom(rg.from); setTo(rg.to) }
+  }
 
   const hasActiveFilters = search || dateFrom || dateTo || selectedStatus !== "ALL" || selectedBatch !== "ALL" || selectedMonth !== "ALL" || selectedYear !== "ALL"
   const hasDraftChanges =
@@ -567,46 +587,46 @@ export default function BatchProductionRecordsPage() {
     const push = (node: React.ReactNode) => buttons.push(node)
     switch (r.status) {
       case "Draft":
-        push(<Button key="edit" variant="ghost" size="sm" className="shrink-0" onClick={() => { setEditingId(r.id); setFormOpen(true) }}>Edit</Button>)
-        if (permissions.canDelete) push(<Button key="del" variant="ghost" size="sm" className="text-red-600 shrink-0" onClick={() => openDelete(r)}>Delete</Button>)
-        push(<Button key="cancel" variant="ghost" size="sm" className="text-slate-500 shrink-0" onClick={() => openCancel(r)}>Cancel</Button>)
+        push(<Button key="edit" variant="ghost" size="sm" className="h-7 px-2 text-xs shrink-0" onClick={() => { setEditingId(r.id); setFormOpen(true) }}>Edit</Button>)
+        if (permissions.canDelete) push(<Button key="del" variant="ghost" size="sm" className="h-7 px-2 text-xs text-red-600 shrink-0" onClick={() => openDelete(r)}>Delete</Button>)
+        push(<Button key="cancel" variant="ghost" size="sm" className="h-7 px-2 text-xs text-slate-500 shrink-0" onClick={() => openCancel(r)}>Cancel</Button>)
         break
       case "PendingAllocation":
-        push(<Button key="edit" variant="ghost" size="sm" className="shrink-0" onClick={() => { setEditingId(r.id); setFormOpen(true) }}>Edit</Button>)
-        push(<Button key="alloc" variant="ghost" size="sm" className="text-blue-600 shrink-0" onClick={() => router.push(`/batch-production-records/${r.id}/allocate`)}>Allocation</Button>)
-        if (permissions.canDelete) push(<Button key="del" variant="ghost" size="sm" className="text-red-600 shrink-0" onClick={() => openDelete(r)}>Delete</Button>)
-        push(<Button key="cancel" variant="ghost" size="sm" className="text-slate-500 shrink-0" onClick={() => openCancel(r)}>Cancel</Button>)
+        push(<Button key="edit" variant="ghost" size="sm" className="h-7 px-2 text-xs shrink-0" onClick={() => { setEditingId(r.id); setFormOpen(true) }}>Edit</Button>)
+        push(<Button key="alloc" variant="ghost" size="sm" className="h-7 px-2 text-xs text-blue-600 shrink-0" onClick={() => router.push(`/batch-production-records/${r.id}/allocate`)}>Allocation</Button>)
+        if (permissions.canDelete) push(<Button key="del" variant="ghost" size="sm" className="h-7 px-2 text-xs text-red-600 shrink-0" onClick={() => openDelete(r)}>Delete</Button>)
+        push(<Button key="cancel" variant="ghost" size="sm" className="h-7 px-2 text-xs text-slate-500 shrink-0" onClick={() => openCancel(r)}>Cancel</Button>)
         break
       case "Allocated":
-        push(<Button key="alloc" variant="ghost" size="sm" className="text-blue-600 shrink-0" onClick={() => router.push(`/batch-production-records/${r.id}/allocate`)}>Allocation</Button>)
-        push(<Button key="post" variant="ghost" size="sm" className="text-emerald-600 shrink-0" onClick={() => openPost(r)}>Post</Button>)
-        push(<Button key="delalloc" variant="ghost" size="sm" className="text-red-600 shrink-0" onClick={() => openDeleteAllocation(r)}>Delete Allocation</Button>)
-        push(<Button key="cancel" variant="ghost" size="sm" className="text-slate-500 shrink-0" onClick={() => openCancel(r)}>Cancel</Button>)
+        push(<Button key="alloc" variant="ghost" size="sm" className="h-7 px-2 text-xs text-blue-600 shrink-0" onClick={() => router.push(`/batch-production-records/${r.id}/allocate`)}>Allocation</Button>)
+        push(<Button key="post" variant="ghost" size="sm" className="h-7 px-2 text-xs text-emerald-600 shrink-0" onClick={() => openPost(r)}>Post</Button>)
+        push(<Button key="delalloc" variant="ghost" size="sm" className="h-7 px-2 text-xs text-red-600 shrink-0" onClick={() => openDeleteAllocation(r)}>Delete Allocation</Button>)
+        push(<Button key="cancel" variant="ghost" size="sm" className="h-7 px-2 text-xs text-slate-500 shrink-0" onClick={() => openCancel(r)}>Cancel</Button>)
         break
       case "Posted":
-        push(<Button key="view" variant="ghost" size="sm" className="shrink-0" onClick={() => router.push(`/batch-production-records/${r.id}`)}>View</Button>)
-        push(<Button key="rev" variant="ghost" size="sm" className="text-amber-600 shrink-0" onClick={() => openReverse(r)}>Reverse</Button>)
-        if (permissions.canDelete) push(<Button key="delalloc" variant="ghost" size="sm" className="text-red-600 shrink-0" onClick={() => openDeleteAllocation(r)}>Delete Allocation</Button>)
+        push(<Button key="view" variant="ghost" size="sm" className="h-7 px-2 text-xs shrink-0" onClick={() => router.push(`/batch-production-records/${r.id}`)}>View</Button>)
+        push(<Button key="rev" variant="ghost" size="sm" className="h-7 px-2 text-xs text-amber-600 shrink-0" onClick={() => openReverse(r)}>Reverse</Button>)
+        if (permissions.canDelete) push(<Button key="delalloc" variant="ghost" size="sm" className="h-7 px-2 text-xs text-red-600 shrink-0" onClick={() => openDeleteAllocation(r)}>Delete Allocation</Button>)
         break
       case "Reversed":
-        push(<Button key="view" variant="ghost" size="sm" className="shrink-0" onClick={() => router.push(`/batch-production-records/${r.id}`)}>View</Button>)
-        push(<Button key="alloc" variant="ghost" size="sm" className="text-blue-600 shrink-0" onClick={() => router.push(`/batch-production-records/${r.id}/allocate`)}>Edit Allocation</Button>)
-        push(<Button key="repost" variant="ghost" size="sm" className="text-emerald-600 shrink-0" onClick={() => openRepost(r)}>Repost</Button>)
-        if (permissions.canDelete) push(<Button key="delalloc" variant="ghost" size="sm" className="text-red-600 shrink-0" onClick={() => openDeleteAllocation(r)}>Delete Allocation</Button>)
+        push(<Button key="view" variant="ghost" size="sm" className="h-7 px-2 text-xs shrink-0" onClick={() => router.push(`/batch-production-records/${r.id}`)}>View</Button>)
+        push(<Button key="alloc" variant="ghost" size="sm" className="h-7 px-2 text-xs text-blue-600 shrink-0" onClick={() => router.push(`/batch-production-records/${r.id}/allocate`)}>Edit Allocation</Button>)
+        push(<Button key="repost" variant="ghost" size="sm" className="h-7 px-2 text-xs text-emerald-600 shrink-0" onClick={() => openRepost(r)}>Repost</Button>)
+        if (permissions.canDelete) push(<Button key="delalloc" variant="ghost" size="sm" className="h-7 px-2 text-xs text-red-600 shrink-0" onClick={() => openDeleteAllocation(r)}>Delete Allocation</Button>)
         break
       case "Cancelled":
-        push(<Button key="view" variant="ghost" size="sm" className="shrink-0" onClick={() => router.push(`/batch-production-records/${r.id}`)}>View</Button>)
+        push(<Button key="view" variant="ghost" size="sm" className="h-7 px-2 text-xs shrink-0" onClick={() => router.push(`/batch-production-records/${r.id}`)}>View</Button>)
         break
     }
     return <div className="flex items-center gap-1">{buttons}</div>
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-50">
       <DashboardSidebar onLogout={handleLogout} />
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
-        <main className="overflow-x-hidden px-2 py-4 sm:p-6 pb-20 lg:pb-4">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-4 sm:p-6 pb-20 lg:pb-4">
           <div className="space-y-4 sm:space-y-6 min-w-0 w-full">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div className="flex items-start gap-3 min-w-0">
@@ -618,9 +638,25 @@ export default function BatchProductionRecordsPage() {
                   <p className="text-sm text-slate-600">Log batch-level production and allocate totals across flocks</p>
                 </div>
               </div>
-              <Button className="gap-2 shrink-0 w-full sm:w-auto h-11 sm:h-10 bg-emerald-600 hover:bg-emerald-700" onClick={() => { setEditingId(null); setFormOpen(true) }}>
-                <Plus className="w-4 h-4" /> Log Batch Production
-              </Button>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 shrink-0 w-full sm:w-auto">
+                <Button className="gap-2 shrink-0 w-full sm:w-auto h-11 sm:h-10 bg-emerald-600 hover:bg-emerald-700" onClick={() => { setEditingId(null); setFormOpen(true) }}>
+                  <Plus className="w-4 h-4" /> Log Batch Production
+                </Button>
+                <Button variant="outline" className="gap-2 w-full sm:w-auto h-11 sm:h-10" onClick={() => setDayOpen(true)}>
+                  <CalendarDays className="w-4 h-4" /> View by Day
+                </Button>
+                {/* Exports sit beside the main action on desktop. Phones keep
+                    their compact CSV / PDF buttons in the filter row below. */}
+                {!isMobile && (
+                  <>
+                    <Button variant="outline" className="h-10" onClick={exportCsv}><Download className="h-4 w-4 mr-2" /> Export CSV</Button>
+                    <Button variant="outline" className="h-10" onClick={exportPdf}><Download className="h-4 w-4 mr-2" /> Export PDF</Button>
+                    <Button variant="outline" className="h-10" onClick={handleEmailReport} disabled={emailingReport}>
+                      {emailingReport ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Mail className="h-4 w-4 mr-2" />} Email Report
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
 
             {error && (
@@ -660,6 +696,12 @@ export default function BatchProductionRecordsPage() {
                       <MobileFilterSheetBody>
                         <div className="space-y-3">
                           <p className="text-sm font-medium text-slate-700">Date range</p>
+                          <PeriodSelect
+                            label={null}
+                            className="h-12 w-full text-base"
+                            value={periodOf(draftDateFrom, draftDateTo)}
+                            onChange={(p, rg) => applyPeriod(p, rg, setDraftDateFrom, setDraftDateTo)}
+                          />
                           <div className="flex flex-col gap-4">
                             <div className="min-w-0 space-y-2">
                               <label htmlFor="batch-filter-from" className="text-xs font-medium text-slate-500">Start date</label>
@@ -752,15 +794,24 @@ export default function BatchProductionRecordsPage() {
                 </div>
               </div>
             ) : (
-              <div className="flex flex-row flex-wrap items-center gap-2 p-2 bg-white rounded-lg border">
-                <div className="relative w-[240px] min-w-0">
+              <div className="flex flex-row flex-nowrap items-center gap-2 p-2 bg-white rounded-lg border overflow-x-auto">
+                <div className="relative flex-[1.6] basis-0 min-w-[120px]">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <Input placeholder="Search batch name..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
                 </div>
-                <Input type="date" placeholder="From" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-[140px]" />
-                <Input type="date" placeholder="To" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-[140px]" />
+                <div className="flex-1 basis-0 min-w-[96px]">
+                  <PeriodSelect
+                    label={null}
+                    className="w-full"
+                    value={periodOf(dateFrom, dateTo)}
+                    onChange={(p, rg) => applyPeriod(p, rg, setDateFrom, setDateTo)}
+                  />
+                </div>
+                <Input type="date" placeholder="From" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-[134px] shrink-0 px-2" />
+                <Input type="date" placeholder="To" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-[134px] shrink-0 px-2" />
+                <div className="flex-1 basis-0 min-w-[96px]">
                 <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                  <SelectTrigger className="w-[180px]"><SelectValue placeholder="Status" /></SelectTrigger>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Status" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ALL">All Statuses</SelectItem>
                     {ALL_STATUSES.map((s) => (
@@ -768,8 +819,10 @@ export default function BatchProductionRecordsPage() {
                     ))}
                   </SelectContent>
                 </Select>
+                </div>
+                <div className="flex-1 basis-0 min-w-[96px]">
                 <Select value={selectedBatch} onValueChange={setSelectedBatch}>
-                  <SelectTrigger className="w-[200px]"><SelectValue placeholder="Batch" /></SelectTrigger>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Batch" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ALL">All Batches</SelectItem>
                     {distinctBatches.map((b) => (
@@ -777,8 +830,10 @@ export default function BatchProductionRecordsPage() {
                     ))}
                   </SelectContent>
                 </Select>
+                </div>
+                <div className="flex-1 basis-0 min-w-[96px]">
                 <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                  <SelectTrigger className="w-[120px]"><SelectValue placeholder="Month" /></SelectTrigger>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Month" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ALL">All Months</SelectItem>
                     {distinctMonths.map((m) => {
@@ -787,8 +842,10 @@ export default function BatchProductionRecordsPage() {
                     })}
                   </SelectContent>
                 </Select>
+                </div>
+                <div className="w-[84px] shrink-0">
                 <Select value={selectedYear} onValueChange={setSelectedYear}>
-                  <SelectTrigger className="w-[100px]"><SelectValue placeholder="Year" /></SelectTrigger>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Year" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ALL">All</SelectItem>
                     {distinctYears.map((y) => (
@@ -796,14 +853,8 @@ export default function BatchProductionRecordsPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                <div className="ml-auto flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={clearFilters}><RefreshCw className="h-4 w-4 mr-2" /> Reset</Button>
-                  <Button variant="outline" size="sm" onClick={exportCsv}><Download className="h-4 w-4 mr-2" /> Export CSV</Button>
-                  <Button size="sm" onClick={exportPdf}><Download className="h-4 w-4 mr-2" /> Export PDF</Button>
-                  <Button variant="outline" size="sm" onClick={handleEmailReport} disabled={emailingReport}>
-                    {emailingReport ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Mail className="h-4 w-4 mr-2" />} Email Report
-                  </Button>
                 </div>
+                <Button variant="outline" size="sm" onClick={clearFilters} className="h-9 shrink-0"><RefreshCw className="h-4 w-4 mr-1.5" /> Reset</Button>
               </div>
             )}
 
@@ -934,28 +985,28 @@ export default function BatchProductionRecordsPage() {
                         </Button>
                       </div>
                     )}
-                    <Table className={cn("min-w-[1700px]", isMobile && "min-w-[1500px]")}>
+                    <Table className={cn("min-w-[1350px] text-xs", isMobile && "min-w-[1250px]")}>
                       <TableHeader className="sticky top-0 bg-blue-50 z-10">
                         <TableRow className="border-b border-blue-200">
-                          <SortableHeader label="Date" sortKey="date" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className={cn("min-w-[100px] px-3 py-2", isMobile && "sticky-col-date bg-blue-50")} />
-                          <SortableHeader label="Batch Name" sortKey="batchName" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[180px] px-3 py-2 whitespace-nowrap" />
-                          <SortableHeader label="Age" sortKey="age" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[90px] px-3 py-2" />
-                          <SortableHeader label="1st Pick" sortKey="firstPickTotal" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-blue-100 text-blue-900 font-semibold whitespace-nowrap" />
-                          <SortableHeader label="2nd Pick" sortKey="secondPickTotal" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-orange-100 text-orange-900 font-semibold whitespace-nowrap" />
-                          <SortableHeader label="3rd Pick" sortKey="thirdPickTotal" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-purple-100 text-purple-900 font-semibold whitespace-nowrap" />
+                          <SortableHeader label="Date" sortKey="date" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className={cn("min-w-[100px] px-2 py-1.5", isMobile && "sticky-col-date bg-blue-50")} />
+                          <SortableHeader label="Batch Name" sortKey="batchName" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[180px] px-2 py-1.5 whitespace-nowrap" />
+                          <SortableHeader label="Age" sortKey="age" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[90px] px-2 py-1.5" />
+                          <SortableHeader label="1st Pick" sortKey="firstPickTotal" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[60px] px-2 py-1.5 bg-blue-100 text-blue-900 font-semibold whitespace-nowrap" />
+                          <SortableHeader label="2nd Pick" sortKey="secondPickTotal" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[60px] px-2 py-1.5 bg-orange-100 text-orange-900 font-semibold whitespace-nowrap" />
+                          <SortableHeader label="3rd Pick" sortKey="thirdPickTotal" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[60px] px-2 py-1.5 bg-purple-100 text-purple-900 font-semibold whitespace-nowrap" />
                           {enableFourthPick && (
-                            <SortableHeader label="4th Pick" sortKey="fourthPickTotal" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-teal-100 text-teal-900 font-semibold whitespace-nowrap" />
+                            <SortableHeader label="4th Pick" sortKey="fourthPickTotal" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[60px] px-2 py-1.5 bg-teal-100 text-teal-900 font-semibold whitespace-nowrap" />
                           )}
-                          <SortableHeader label="Broken" sortKey="brokenEggs" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-red-50 text-red-800 font-semibold" />
-                          <SortableHeader label="Total" sortKey="totalEggs" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2" />
-                          <SortableHeader label="Egg%" sortKey="eggPercent" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2" />
-                          <SortableHeader label="Feed" sortKey="feedKg" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2" />
-                          <SortableHeader label="Birds" sortKey="birdsLeft" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2" />
-                          <SortableHeader label="Deaths" sortKey="deaths" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[72px] px-3 py-2 whitespace-nowrap" />
-                          <SortableHeader label="Left" sortKey="birdsLeft" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[70px] px-3 py-2 whitespace-nowrap" />
-                          <SortableHeader label="Meds" sortKey="meds" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[90px] px-3 py-2 whitespace-nowrap" />
-                          <SortableHeader label="Status" sortKey="status" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[120px] px-3 py-2 whitespace-nowrap" />
-                          <TableHead className="text-left min-w-[200px] px-3 py-2 whitespace-nowrap">Actions</TableHead>
+                          <SortableHeader label="Broken" sortKey="brokenEggs" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[60px] px-2 py-1.5 bg-red-50 text-red-800 font-semibold" />
+                          <SortableHeader label="Total" sortKey="totalEggs" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[60px] px-2 py-1.5" />
+                          <SortableHeader label="Egg%" sortKey="eggPercent" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[60px] px-2 py-1.5" />
+                          <SortableHeader label="Feed" sortKey="feedKg" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[60px] px-2 py-1.5" />
+                          <SortableHeader label="Birds" sortKey="birdsLeft" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[60px] px-2 py-1.5" />
+                          <SortableHeader label="Deaths" sortKey="deaths" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[56px] px-2 py-1.5 whitespace-nowrap" />
+                          <SortableHeader label="Left" sortKey="birdsLeft" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[52px] px-2 py-1.5 whitespace-nowrap" />
+                          <SortableHeader label="Meds" sortKey="meds" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[90px] px-2 py-1.5 whitespace-nowrap" />
+                          <SortableHeader label="Status" sortKey="status" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[120px] px-2 py-1.5 whitespace-nowrap" />
+                          <TableHead className="text-left min-w-[200px] px-2 py-1.5 whitespace-nowrap">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -972,30 +1023,30 @@ export default function BatchProductionRecordsPage() {
                                 the row's own bg-slate-50/40 is translucent, so
                                 columns would scroll visibly through it. Match
                                 the stripe rather than always white. */}
-                            <TableCell className={cn("px-3 py-2 whitespace-nowrap min-w-[100px]", isMobile && (idx % 2 === 0 ? "sticky-col-date bg-white" : "sticky-col-date bg-slate-100"))}>{isMobile ? formatDateShort(r.productionDate) : fmtDateTime(r.productionDate, r)}</TableCell>
-                            <TableCell className="px-3 py-2 min-w-[180px]">
+                            <TableCell className={cn("px-2 py-1.5 whitespace-nowrap min-w-[100px]", isMobile && (idx % 2 === 0 ? "sticky-col-date bg-white" : "sticky-col-date bg-slate-100"))}>{isMobile ? formatDateShort(r.productionDate) : fmtDateTime(r.productionDate, r)}</TableCell>
+                            <TableCell className="px-2 py-1.5 min-w-[180px]">
                               <div className="font-medium text-slate-800 truncate max-w-[220px]">{batchNameLabel(r)}</div>
                               <div className="text-xs text-slate-500 truncate max-w-[220px]">{batchScopeLabel(r)}</div>
                             </TableCell>
-                            <TableCell className="px-3 py-2 whitespace-nowrap">{formatAge(r)}</TableCell>
-                            <TableCell className="text-right px-3 py-2 text-blue-700 bg-blue-50/40 rounded-sm">{r.firstPickTotal ?? 0}</TableCell>
-                            <TableCell className="text-right px-3 py-2 text-orange-700 bg-orange-50/40 rounded-sm">{r.secondPickTotal ?? 0}</TableCell>
-                            <TableCell className="text-right px-3 py-2 text-purple-700 bg-purple-50/40 rounded-sm">{r.thirdPickTotal ?? 0}</TableCell>
+                            <TableCell className="px-2 py-1.5 whitespace-nowrap">{formatAge(r)}</TableCell>
+                            <TableCell className="text-right px-2 py-1.5 text-blue-700 bg-blue-50/40 rounded-sm">{r.firstPickTotal ?? 0}</TableCell>
+                            <TableCell className="text-right px-2 py-1.5 text-orange-700 bg-orange-50/40 rounded-sm">{r.secondPickTotal ?? 0}</TableCell>
+                            <TableCell className="text-right px-2 py-1.5 text-purple-700 bg-purple-50/40 rounded-sm">{r.thirdPickTotal ?? 0}</TableCell>
                             {enableFourthPick && (
-                              <TableCell className="text-right px-3 py-2 text-teal-700 bg-teal-50/40 rounded-sm">{r.fourthPickTotal ?? 0}</TableCell>
+                              <TableCell className="text-right px-2 py-1.5 text-teal-700 bg-teal-50/40 rounded-sm">{r.fourthPickTotal ?? 0}</TableCell>
                             )}
-                            <TableCell className="text-right px-3 py-2 text-red-700 bg-red-50/40 rounded-sm">{r.brokenEggs ?? 0}</TableCell>
-                            <TableCell className="text-right px-3 py-2 font-semibold text-slate-900">{r.totalEggs ?? 0}</TableCell>
-                            <TableCell className="text-right px-3 py-2">{eggPercent(r)}</TableCell>
-                            <TableCell className="text-right px-3 py-2">{(Number(r.feedKg) || 0).toFixed(2)}</TableCell>
-                            <TableCell className="text-right px-3 py-2">{r.birdsLeft ?? "—"}</TableCell>
-                            <TableCell className="text-right px-3 py-2">
+                            <TableCell className="text-right px-2 py-1.5 text-red-700 bg-red-50/40 rounded-sm">{r.brokenEggs ?? 0}</TableCell>
+                            <TableCell className="text-right px-2 py-1.5 font-semibold text-slate-900">{r.totalEggs ?? 0}</TableCell>
+                            <TableCell className="text-right px-2 py-1.5">{eggPercent(r)}</TableCell>
+                            <TableCell className="text-right px-2 py-1.5">{(Number(r.feedKg) || 0).toFixed(2)}</TableCell>
+                            <TableCell className="text-right px-2 py-1.5">{r.birdsLeft ?? "—"}</TableCell>
+                            <TableCell className="text-right px-2 py-1.5">
                               <span className={cn("px-2 py-0.5 rounded text-xs", (r.deaths ?? 0) > 0 ? "bg-red-50 text-red-700" : "bg-slate-50 text-slate-600")}>{r.deaths ?? 0}</span>
                             </TableCell>
-                            <TableCell className="text-right px-3 py-2">{r.birdsLeft ?? "—"}</TableCell>
-                            <TableCell className="px-3 py-2 whitespace-nowrap">{medsLabel(r)}</TableCell>
-                            <TableCell className="px-3 py-2 whitespace-nowrap"><StatusBadge status={r.status} /></TableCell>
-                            <TableCell className="text-left px-3 py-2 whitespace-nowrap">
+                            <TableCell className="text-right px-2 py-1.5">{r.birdsLeft ?? "—"}</TableCell>
+                            <TableCell className="px-2 py-1.5 whitespace-nowrap">{medsLabel(r)}</TableCell>
+                            <TableCell className="px-2 py-1.5 whitespace-nowrap"><StatusBadge status={r.status} /></TableCell>
+                            <TableCell className="text-left px-2 py-1.5 whitespace-nowrap">
                               {renderActions(r)}
                             </TableCell>
                           </TableRow>
@@ -1071,6 +1122,27 @@ export default function BatchProductionRecordsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <DayRecordsDialog
+        open={dayOpen}
+        onOpenChange={setDayOpen}
+        records={records}
+        fields={BATCH_DAY_FIELDS}
+        pickColumns={enableFourthPick ? [{ header: "4th Pick", key: "fourthPickTotal" }] : []}
+        firstHeader="Batch Name"
+        secondHeader="Flocks"
+        flockLabel={batchNameLabel}
+        batchLabel={batchScopeLabel}
+        description="Every batch production record logged on the chosen day."
+        statusCell={(r) => <StatusBadge status={r.status} />}
+        canEdit
+        editLabel="Open"
+        onEdit={(r) => { setDayOpen(false); router.push(`/batch-production-records/${r.id}`) }}
+        onShowInTable={(d) => {
+          setDateFrom(d); setDateTo(d); setDraftDateFrom(d); setDraftDateTo(d)
+          setDayOpen(false)
+        }}
+      />
 
       <BatchProductionRecordModal
         open={formOpen}

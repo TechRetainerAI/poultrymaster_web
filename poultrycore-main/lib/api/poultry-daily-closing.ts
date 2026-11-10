@@ -52,6 +52,8 @@ export interface ClosingWorkspace {
     records: number
     eggsProduced: number
     eggsDamaged: number
+    /** 404: Broken Eggs disposed that day, net. Missing before 404 / in older snapshots. */
+    eggsDisposed?: number
     goodEggs: number
     mortality: number
     feedKg: number
@@ -170,6 +172,7 @@ export interface ClosingHistoryRow {
   closingCash?: number | null
   cashDifference?: number | null
   eggsDamaged?: number | null
+  eggsDisposed?: number | null
   mortality?: number | null
   feedKg?: number | null
   blockingCount?: number | null

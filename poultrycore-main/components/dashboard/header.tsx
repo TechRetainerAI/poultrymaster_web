@@ -6,7 +6,7 @@ import { useFarmAlertCount } from "@/hooks/use-farm-alert-count"
 
 import { Button } from "@/components/ui/button"
 import { MessageCircle, User, Menu, Briefcase, Bell } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useChatStore } from "@/lib/store/chat-store"
 import { useSidebarStore } from "@/lib/store/sidebar-store"
@@ -24,7 +24,6 @@ export function DashboardHeader() {
   const { isCollapsed, isMobileOpen, toggleMobile } = useSidebarStore()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const alertCount = useFarmAlertCount()
-  const clearActiveCompany = useAuthStore((s) => s.clearActiveCompany)
   const [username, setUsername] = useState("")
   const [roleLabel, setRoleLabel] = useState("")
 
@@ -42,8 +41,24 @@ export function DashboardHeader() {
     activeFarmType === "Hotel" || activeFarmType === "Restaurant" ? "Search pages and reports…" :
     "Search pages, customers, flocks…"
 
+  // Pages are screen-high and only <main> scrolls, so the header stays put.
+  // Its height is published as --app-header-h so long tables (globals.css)
+  // can size themselves to the space left under it and keep their column
+  // headings in view.
+  const headerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = headerRef.current
+    if (!el || typeof ResizeObserver === "undefined") return
+    const root = document.documentElement
+    const set = () => root.style.setProperty("--app-header-h", `${el.offsetHeight}px`)
+    set()
+    const ro = new ResizeObserver(set)
+    ro.observe(el)
+    return () => { ro.disconnect(); root.style.removeProperty("--app-header-h") }
+  }, [])
+
   return (
-    <div className="flex flex-col min-w-0 overflow-x-hidden">
+    <div ref={headerRef} data-app-header className="flex flex-col min-w-0 overflow-x-hidden">
       {/* Loads the farm's eggs per crate (344) once, for every egg screen. */}
       <EggsPerCrateLoader />
       <EggPackagingLoader />
@@ -101,7 +116,8 @@ export function DashboardHeader() {
                 variant="ghost"
                 size="icon"
                 onClick={() => {
-                  try { clearActiveCompany() } catch {}
+                  // BusinessOfficeShell clears the company on mount; clearing
+                  // here made the current page reload with no company.
                   router.push("/business-office")
                 }}
                 title="Business Office"

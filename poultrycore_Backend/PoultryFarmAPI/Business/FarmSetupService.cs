@@ -239,6 +239,74 @@ namespace PoultryFarmAPIWeb.Business
         // The setup itself
         // ------------------------------------------------------------------
 
+        // ------------------------------------------------------------------
+        // 416: setup runs -- list and undo
+        // ------------------------------------------------------------------
+
+        public async Task<string> ListRunsAsync(string farmId)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            using (var has = new NpgsqlCommand("SELECT to_regprocedure('sppoultryfarmsetuprun_list(text)') IS NOT NULL", conn))
+            {
+                if (await has.ExecuteScalarAsync() is not true) return "[]";
+            }
+            using var cmd = new NpgsqlCommand(
+                "SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY r.setuprunid DESC), '[]'::jsonb)::text " +
+                "FROM sppoultryfarmsetuprun_list(p_farmid => @FarmId::text) r", conn);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            return (string?)await cmd.ExecuteScalarAsync() ?? "[]";
+        }
+
+        public async Task<string> ReverseRunAsync(string farmId, int setupRunId, string reason, string? by)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            using var tx = await conn.BeginTransactionAsync();
+            using var cmd = new NpgsqlCommand(
+                "SELECT sppoultryfarmsetuprun_reverse(p_farmid => @FarmId::text, p_setuprunid => @Run::int, " +
+                "p_reason => @Reason::text, p_by => @By::text)::text", conn, tx);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@Run", setupRunId);
+            cmd.Parameters.AddWithValue("@Reason", reason ?? string.Empty);
+            cmd.Parameters.AddWithValue("@By", (object?)by ?? DBNull.Value);
+            var json = (string?)await cmd.ExecuteScalarAsync() ?? "{}";
+            await tx.CommitAsync();
+            return json;
+        }
+
+        public async Task<string> ListLegacyCandidatesAsync(string farmId)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            using (var has = new NpgsqlCommand("SELECT to_regprocedure('fnpoultryfarmsetuplegacy_candidates(text)') IS NOT NULL", conn))
+            {
+                if (await has.ExecuteScalarAsync() is not true) return "[]";
+            }
+            using var cmd = new NpgsqlCommand(
+                "SELECT COALESCE(jsonb_agg(to_jsonb(c)), '[]'::jsonb)::text " +
+                "FROM fnpoultryfarmsetuplegacy_candidates(p_farmid => @FarmId::text) c", conn);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            return (string?)await cmd.ExecuteScalarAsync() ?? "[]";
+        }
+
+        public async Task<string> ReverseLegacyAsync(string farmId, string itemsJson, string reason, string? by)
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            using var tx = await conn.BeginTransactionAsync();
+            using var cmd = new NpgsqlCommand(
+                "SELECT sppoultryfarmsetuplegacy_reverse(p_farmid => @FarmId::text, p_items => @Items::jsonb, " +
+                "p_reason => @Reason::text, p_by => @By::text)::text", conn, tx);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@Items", itemsJson);
+            cmd.Parameters.AddWithValue("@Reason", reason ?? string.Empty);
+            cmd.Parameters.AddWithValue("@By", (object?)by ?? DBNull.Value);
+            var json = (string?)await cmd.ExecuteScalarAsync() ?? "{}";
+            await tx.CommitAsync();
+            return json;
+        }
+
         public async Task<FarmSetupResult> CompleteAsync(
             FarmSetupRequest request,
             DateTime effectiveBusinessDate,
@@ -280,6 +348,38 @@ namespace PoultryFarmAPIWeb.Business
                 if (conflicts.Count > 0)
                 {
                     throw new FarmSetupConflictException(conflicts);
+                }
+
+                // 416: this setup is a run that remembers what it creates, so it
+                // can be undone later. Skipped (not failed) until 416 is applied.
+                stage = "recording the setup run";
+                int? runId = null;
+                using (var has = new NpgsqlCommand(
+                    "SELECT to_regprocedure('sppoultryfarmsetuprun_start(text,date,text,text)') IS NOT NULL", conn, tx))
+                {
+                    if (await has.ExecuteScalarAsync() is true)
+                    {
+                        using var start = new NpgsqlCommand(
+                            "SELECT sppoultryfarmsetuprun_start(p_farmid => @FarmId::text, p_businessdate => @Date::date, " +
+                            "p_by => @By::text, p_source => @Source::text)", conn, tx);
+                        start.Parameters.AddWithValue("@FarmId", request.FarmId);
+                        start.Parameters.AddWithValue("@Date", effectiveBusinessDate.Date);
+                        start.Parameters.AddWithValue("@By", request.UserId);
+                        start.Parameters.AddWithValue("@Source", source);
+                        runId = Convert.ToInt32(await start.ExecuteScalarAsync());
+                        result.SetupRunId = runId;
+                    }
+                }
+                async Task TrackAsync(string type, int id)
+                {
+                    if (runId is null) return;
+                    using var add = new NpgsqlCommand(
+                        "SELECT sppoultryfarmsetuprun_additem(p_setuprunid => @Run::int, p_entitytype => @Type::text, p_entityid => @Id::int)",
+                        conn, tx);
+                    add.Parameters.AddWithValue("@Run", runId.Value);
+                    add.Parameters.AddWithValue("@Type", type);
+                    add.Parameters.AddWithValue("@Id", id);
+                    await add.ExecuteNonQueryAsync();
                 }
 
                 // ---- 1. Batches -------------------------------------------
@@ -331,6 +431,7 @@ namespace PoultryFarmAPIWeb.Business
                     using var cmd = MainFlockBatchService.BuildInsertCommand(conn, tx, model);
                     batchIdByKey[key] = Convert.ToInt32(await cmd.ExecuteScalarAsync());
                     result.BatchesCreated++;
+                    await TrackAsync("Batch", batchIdByKey[key]);
                 }
 
                 // ---- 2. Houses --------------------------------------------
@@ -352,6 +453,7 @@ namespace PoultryFarmAPIWeb.Business
                         string.IsNullOrWhiteSpace(h.Location) ? null : h.Location!.Trim());
                     houseIdByKey[key] = Convert.ToInt32(await cmd.ExecuteScalarAsync());
                     result.HousesCreated++;
+                    await TrackAsync("House", houseIdByKey[key]);
                 }
 
                 // ---- 3. Flocks, then 4. their opening positions ------------
@@ -389,72 +491,67 @@ namespace PoultryFarmAPIWeb.Business
                         Notes = f.Notes,
                     };
 
-                    stage = $"creating flock \"{flock.Name}\"";
-                    using var flockCmd = BirdFlockService.BuildFlockInsertCommand(conn, tx, flock);
-                    var flockId = Convert.ToInt32(await flockCmd.ExecuteScalarAsync());
+                    // 413: the same poster the Flocks page uses for an existing
+                    // flock -- flock at its live birds, opening position, and one
+                    // opening ledger movement that names this batch and flock.
+                    stage = $"creating flock \"{flock.Name}\" and its opening position";
+                    var (mortality, sold, culled, transferred, _) = FarmSetupValidator.Breakdown(f);
+                    var posted = await OpeningFlockPoster.PostAsync(conn, tx, flock,
+                        new ExistingFlockHistory
+                        {
+                            OriginallyPlaced = f.OriginallyPlaced,
+                            CurrentLiveBirds = f.CurrentLiveBirds,
+                            HistoryKnown = f.HistoryKnown,
+                            HistoricalMortality = mortality,
+                            HistoricalSold = sold,
+                            HistoricalCulled = culled,
+                            HistoricalTransferred = transferred,
+                            Notes = f.Notes,
+                        },
+                        effectiveBusinessDate, estimated, source, request.UserId);
                     result.FlocksCreated++;
-
-                    var (mortality, sold, culled, transferred, other) = FarmSetupValidator.Breakdown(f);
-
-                    stage = $"recording the opening position for \"{flock.Name}\"";
-                    using var openingCmd = new NpgsqlCommand(
-                        "SELECT * FROM sppoultryopeningposition_insert(" +
-                        "p_farmid => @FarmId::text, p_flockid => @FlockId::int, " +
-                        "p_effectivebusinessdate => @EffectiveDate::date, " +
-                        "p_originallyplaced => @OriginallyPlaced::int, p_openinglivebirds => @OpeningLive::int, " +
-                        "p_historicalmortality => @Mortality::int, p_historicalsold => @Sold::int, " +
-                        "p_historicalculled => @Culled::int, p_historicaltransferred => @Transferred::int, " +
-                        "p_otheradjustment => @Other::int, p_historyknown => @HistoryKnown::boolean, " +
-                        "p_startdateestimated => @Estimated::boolean, p_source => @Source::text, " +
-                        "p_notes => @Notes::text, p_createdby => @CreatedBy::text)", conn, tx);
-                    openingCmd.Parameters.AddWithValue("@FarmId", request.FarmId);
-                    openingCmd.Parameters.AddWithValue("@FlockId", flockId);
-                    openingCmd.Parameters.AddWithValue("@EffectiveDate", effectiveBusinessDate.Date);
-                    openingCmd.Parameters.AddWithValue("@OriginallyPlaced", f.OriginallyPlaced);
-                    openingCmd.Parameters.AddWithValue("@OpeningLive", f.CurrentLiveBirds);
-                    openingCmd.Parameters.AddWithValue("@Mortality", mortality);
-                    openingCmd.Parameters.AddWithValue("@Sold", sold);
-                    openingCmd.Parameters.AddWithValue("@Culled", culled);
-                    openingCmd.Parameters.AddWithValue("@Transferred", transferred);
-                    openingCmd.Parameters.AddWithValue("@Other", other);
-                    openingCmd.Parameters.AddWithValue("@HistoryKnown", f.HistoryKnown);
-                    openingCmd.Parameters.AddWithValue("@Estimated", estimated);
-                    openingCmd.Parameters.AddWithValue("@Source", source);
-                    openingCmd.Parameters.AddWithValue("@Notes", (object?)f.Notes ?? DBNull.Value);
-                    openingCmd.Parameters.AddWithValue("@CreatedBy", request.UserId);
-                    var openingPositionId = Convert.ToInt32(await openingCmd.ExecuteScalarAsync());
                     result.OpeningPositionsCreated++;
-
-                    // The bird ledger has to be told, or it keeps the full placed
-                    // figure the batch insert put there (spmainflockbatch_insert posts
-                    // 'Bird Batch Purchase' = numberofbirds) and the closing report
-                    // reports two different bird counts from the same screen.
-                    //
-                    // Inside THIS transaction, so a farm can never end up with flocks
-                    // that say 919 and a ledger that still says 1,000. Append-only and
-                    // keyed on the opening position id, so a retry posts nothing.
-                    var reduction = FarmSetupValidator.HistoricalReduction(f);
-                    if (reduction > 0)
-                    {
-                        stage = $"posting the opening bird movement for \"{flock.Name}\"";
-                        using var ledgerCmd = new NpgsqlCommand(
-                            "SELECT * FROM sppoultryopeningbirdstock_post(" +
-                            "p_farmid => @FarmId::text, p_openingpositionid => @OpeningId::int, " +
-                            "p_reduction => @Reduction::int, p_effectivedate => @EffectiveDate::date, " +
-                            "p_note => @Note::text, p_createdby => @CreatedBy::text)", conn, tx);
-                        ledgerCmd.Parameters.AddWithValue("@FarmId", request.FarmId);
-                        ledgerCmd.Parameters.AddWithValue("@OpeningId", openingPositionId);
-                        ledgerCmd.Parameters.AddWithValue("@Reduction", reduction);
-                        ledgerCmd.Parameters.AddWithValue("@EffectiveDate", effectiveBusinessDate.Date);
-                        ledgerCmd.Parameters.AddWithValue("@Note",
-                            $"Opening historical reduction for {FarmSetupValidator.Normalize(f.Name)} ({source})");
-                        ledgerCmd.Parameters.AddWithValue("@CreatedBy", request.UserId);
-                        result.OpeningLedgerMovements += Convert.ToInt32(await ledgerCmd.ExecuteScalarAsync());
-                    }
+                    await TrackAsync("Flock", posted.FlockId);
+                    result.OpeningLedgerMovements += posted.LedgerRows;
 
                     result.OriginallyPlaced += f.OriginallyPlaced;
                     result.OpeningLiveBirds += f.CurrentLiveBirds;
                     result.HistoricalReduction += FarmSetupValidator.HistoricalReduction(f);
+                }
+
+                // ---- 4b. Batch reconciliation (413) -------------------------
+                // Birds a batch bought that never went into a pen. AFTER the flocks,
+                // because the batch's unplaced pool is what is left once they are
+                // placed. Same function as the Batch page; inside this commit, so a
+                // farm can never be created with half its batch explained.
+                foreach (var r in request.BatchReconciliations ?? new List<FarmSetupBatchReconciliationInput>())
+                {
+                    var key = FarmSetupValidator.Normalize(r.BatchKey);
+                    if (!batchIdByKey.TryGetValue(key, out var reconBatchId)) continue;
+                    var removed = r.Removed();
+                    if (removed == 0 && r.StillUnallocatedLive == 0 && (r.Lines ?? new()).All(l => l.Quantity == 0)) continue;
+
+                    stage = $"reconciling the birds of batch {key} that never went into a pen";
+                    using var reconCmd = BirdReconciliationService.BuildPostCommand(conn, tx, new BatchReconciliationRequest
+                    {
+                        FarmId = request.FarmId,
+                        BatchId = reconBatchId,
+                        AsOfDate = effectiveBusinessDate.Date,
+                        Lines = r.Lines ?? new List<BatchReconciliationLine>(),
+                        StillUnallocatedLive = r.StillUnallocatedLive,
+                        Notes = r.Notes,
+                        Source = source,
+                        CreatedBy = request.UserId,
+                    });
+                    var reconJson = await reconCmd.ExecuteScalarAsync() as string;
+                    result.BatchReconciliationsPosted++;
+                    if (!string.IsNullOrEmpty(reconJson))
+                    {
+                        using var doc = System.Text.Json.JsonDocument.Parse(reconJson);
+                        if (doc.RootElement.TryGetProperty("reconciliationId", out var rid) && rid.TryGetInt32(out var reconId))
+                            await TrackAsync("Reconciliation", reconId);
+                    }
+                    result.BatchBirdsReconciled += removed;
                 }
 
                 // ---- 5. Mark it done --------------------------------------
@@ -612,9 +709,20 @@ namespace PoultryFarmAPIWeb.Business
                 // flock has no production records — with any, the quantity is no
                 // longer the current count and moving it would rewrite history.
                 var flock = _flockService.GetFlockById(correction.FlockId, correction.UserId, correction.FarmId);
-                if (flock is not null && flock.Quantity != correction.OpeningLiveBirds)
+                // 413: a flock adjusted before its first record carries those
+                // adjustments in its quantity too; restating day one keeps them.
+                int laterAdjustments;
+                using (var adjCmd = new NpgsqlCommand(
+                    "SELECT fnflock_quantityadjustments(p_farmid => @FarmId::text, p_flockid => @FlockId::int)", conn, tx))
                 {
-                    flock.Quantity = correction.OpeningLiveBirds;
+                    adjCmd.Parameters.AddWithValue("@FarmId", correction.FarmId);
+                    adjCmd.Parameters.AddWithValue("@FlockId", correction.FlockId);
+                    laterAdjustments = Convert.ToInt32(await adjCmd.ExecuteScalarAsync());
+                }
+                var targetQuantity = correction.OpeningLiveBirds + laterAdjustments;
+                if (flock is not null && flock.Quantity != targetQuantity)
+                {
+                    flock.Quantity = targetQuantity;
                     flock.UserId = correction.UserId;
                     flock.FarmId = correction.FarmId;
                     using var updateCmd = new NpgsqlCommand(

@@ -9,6 +9,7 @@
 // as one sale number with one payment.
 
 import { Plus, X } from "lucide-react"
+import { birdLineAmount, isLiveBirdProduct, type BirdPricing } from "@/lib/poultry/bird-pricing"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { NumberInput } from "@/components/ui/number-input"
@@ -96,6 +97,8 @@ export interface ExtraEggLine {
   pricePerBox?: number | null
   /** 394: null = the crate price shared over the crate. */
   pricePerPiece?: number | null
+  /** 401: a live-bird line priced per bird or per kg, with its live weight. */
+  birdPricing?: BirdPricing
 }
 
 // 374: Broken Eggs is not an egg line (no size, no crates): it is its own stock.
@@ -115,6 +118,10 @@ export const extraLineQuantity = (l: ExtraEggLine) => (extraLineIsEggs(l) ? extr
 
 /** Same pricing as the main line: eggs per crate (loose pro rata), else quantity x price. */
 export const extraLineTotal = (l: ExtraEggLine) => {
+  // 401: a bird line priced per kg is weight x price per kg.
+  if (!extraLineIsEggs(l) && isLiveBirdProduct(l.product) && l.birdPricing?.basis === "PerKg") {
+    return birdLineAmount(Number(l.quantity) || 0, l.unitPrice, l.birdPricing)
+  }
   if (!extraLineIsEggs(l)) return Math.round((Number(l.quantity) || 0) * l.unitPrice * 100) / 100
   const p = getEggPackagingNow()
   // 394: a box farm prices each part at its own price (the database's rule);

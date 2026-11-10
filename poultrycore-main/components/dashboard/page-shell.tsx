@@ -32,13 +32,14 @@ export function PageShell({ boActive, children }: { boActive: BoActive; children
     </BusinessOfficeShell>
   )
 
-  // Company chrome — matches the pages' original min-h-screen (page-scroll) layout.
+  // Company chrome — the screen-high layout every company page uses: the
+  // header stays put and only the content under it scrolls.
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-50">
       <DashboardSidebar onLogout={logout} />
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <DashboardHeader />
-        {children}
+        <div className="flex-1 min-h-0 overflow-y-auto">{children}</div>
       </div>
     </div>
   )

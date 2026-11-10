@@ -6,6 +6,7 @@ namespace PoultryFarmAPIWeb.Business
     {
         Task<int> Insert(ProductionRecordModel model);
         Task Update(ProductionRecordModel model);
+        Task<BirdsOnDateModel?> GetBirdsOnDate(string farmId, int flockId, DateTime date, int? excludeRecordId);
         /// <summary>389: a feed-only (FeedUsage) record saved from the production form becomes production.</summary>
         Task MarkRecorded(int recordId, string farmId);
         Task<ProductionRecordModel?> GetById(int recordId, string userId, string farmId);

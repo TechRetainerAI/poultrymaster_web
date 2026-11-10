@@ -193,11 +193,11 @@ function PaymentsPageInner() {
 
   if (permissions.isLoading) {
     return (
-      <div className="flex min-h-screen bg-slate-50">
+      <div className="flex h-screen bg-slate-50">
         <DashboardSidebar onLogout={handleLogout} />
         <div className="flex-1 flex flex-col min-w-0">
           <DashboardHeader />
-          <main className="overflow-y-visible p-6 flex items-center justify-center">
+          <main className="flex-1 overflow-y-auto p-6 flex items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
           </main>
         </div>
@@ -208,7 +208,7 @@ function PaymentsPageInner() {
   if (!canAccessPayments) return null
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-50">
       <DashboardSidebar onLogout={handleLogout} />
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />

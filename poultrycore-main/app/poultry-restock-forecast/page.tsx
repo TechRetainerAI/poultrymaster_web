@@ -95,11 +95,11 @@ export default function InventoryRestockForecastPage() {
   const urgentCount = (rows ?? []).filter((r) => isActionable(r.status)).length
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-50">
       <DashboardSidebar onLogout={logout} />
       <div className="flex min-w-0 flex-1 flex-col">
         <DashboardHeader />
-        <main className="min-w-0 flex-1 overflow-x-hidden p-4 pb-16 sm:p-6 lg:pb-6">
+        <main className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-4 pb-16 sm:p-6 lg:pb-6">
           <div className="space-y-4">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div className="flex items-start gap-3">

@@ -487,10 +487,18 @@ export interface PoultryStockTransaction {
   // 373: provenance of manual movements (and the byproducts they made)
   batchId?: number | null; batchCode?: string | null; flockId?: number | null; flockName?: string | null
   effectiveDate?: string | null; reason?: string | null; manualMovementId?: number | null; manualReversal?: boolean
+  /** 413: which bird pool a bird row touched. null = a legacy row (never read as "not placed"). */
+  birdScope?: "Flock" | "BatchUnallocated" | null
+  /** 414: when the row was posted (UTC). null = never recorded; createdDate stays the business date. */
+  postedAt?: string | null
 }
 
 export const listPoultryProducts = () =>
   jget<PoultryProduct[]>(`/Poultry/products?farmId=${encodeURIComponent(activeFarmId())}`)
+// Broken Eggs / Dead Birds system products (372). Idempotent; a company made
+// after the 372 seed has none until its first production record posts them.
+export const ensurePoultryByproducts = () =>
+  jsend<void>(`/Poultry/products/ensure-byproducts?farmId=${encodeURIComponent(activeFarmId())}`, "POST")
 export const createPoultryProduct = (input: PoultryProductInput) =>
   jsend<PoultryProduct>(`/Poultry/products`, "POST", { ...input, farmId: activeFarmId() })
 export const updatePoultryProduct = (id: number, input: PoultryProductInput) =>
@@ -562,7 +570,13 @@ export const MANUAL_MOVEMENT_REASONS = [
   "Opening Inventory", "Opening Bird Count", "Historical Mortality", "Historical Production",
   "Stock Count Correction", "Unrecorded Breakage", "Cull", "Historical Sale / Use", "Disposal",
   "Transfer Adjustment", "Migration", "Data Correction", "Damage", "Loss", "Other",
+  // 413
+  "Historical Sale", "Transfer Out",
 ] as const
+/** 413: reasons that take birds away -- never an increase (undo one by reversing it). */
+export const BIRD_DECREASE_REASONS: readonly string[] = [
+  "Historical Sale", "Historical Sale / Use", "Historical Mortality", "Cull", "Transfer Out", "Damage", "Loss", "Disposal",
+]
 export type ManualMovementReason = (typeof MANUAL_MOVEMENT_REASONS)[number]
 
 export interface PoultryManualMovementInput {
@@ -574,8 +588,10 @@ export interface PoultryManualMovementInput {
   quantity: number
   unitCost?: number | null
   batchId?: number | null
-  /** null with a batch = the batch's birds not placed in a flock. */
+  /** null with a batch = the batch's birds not placed in a flock (send scope "BatchUnallocated"). */
   flockId?: number | null
+  /** 413, birds only: explicit pool. Required for birds with no flock. */
+  scope?: "Flock" | "BatchUnallocated" | null
   /** yyyy-MM-dd business date. */
   effectiveDate: string
   reason: string
@@ -802,6 +818,13 @@ export const listPoultryProductionLosses = (opts?: { fromDate?: string; toDate?:
   if (opts?.fromDate) qs.append("fromDate", opts.fromDate)
   if (opts?.toDate) qs.append("toDate", opts.toDate)
   return jget<PoultryProductionLoss[]>(`/Poultry/production-losses?${qs.toString()}`)
+}
+/** 405: damaged eggs from production records, driver returns and egg sorting, read server-side. */
+export const listPoultryAutoDamage = (opts?: { fromDate?: string; toDate?: string }) => {
+  const qs = new URLSearchParams({ farmId: activeFarmId() })
+  if (opts?.fromDate) qs.append("fromDate", opts.fromDate)
+  if (opts?.toDate) qs.append("toDate", opts.toDate)
+  return jget<import("@/lib/poultry/auto-loss-entries").AutoDamageApiRow[]>(`/Poultry/loss-records/auto-damage?${qs.toString()}`)
 }
 export const listPoultryLossRecords = (opts?: { lossType?: string; fromDate?: string; toDate?: string }) => {
   const qs = new URLSearchParams({ farmId: activeFarmId() })

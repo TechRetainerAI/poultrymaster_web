@@ -26,6 +26,9 @@ import {
 import { BulkHouseDialog } from "@/components/poultry/bulk-house-dialog"
 import { getUserContext } from "@/lib/utils/user-context"
 import { useToast } from "@/hooks/use-toast"
+import { FlockTypeSelect } from "@/components/poultry/flock-type-select"
+import { defaultFlockType, type FlockType } from "@/lib/poultry/flock-type"
+import { usePoultryBusinessType, useRefreshPoultryEggFeatures } from "@/hooks/use-poultry-egg-features"
 
 // "Divide Into Flocks" — take one purchased batch and spread it across pens,
 // creating a flock per pen in a single safe operation.
@@ -82,6 +85,11 @@ export function BatchAllocationDialog({
   const [rows, setRows] = useState<AllocationRow[]>([])
   const [submitted, setSubmitted] = useState(false)
   const [saving, setSaving] = useState(false)
+  // 399: one type for every flock this allocation creates. "" = automatic,
+  // the server's default (broiler breed, else the company's business type).
+  const [flockType, setFlockType] = useState<"" | FlockType>("")
+  const businessType = usePoultryBusinessType()
+  const refreshEggFeatures = useRefreshPoultryEggFeatures()
   const [serverErrors, setServerErrors] = useState<Record<number, Partial<Record<string, string>>>>({})
   const [result, setResult] = useState<FlockAllocationResult | null>(null)
   const [bulkHouseOpen, setBulkHouseOpen] = useState(false)
@@ -250,6 +258,7 @@ export function BatchAllocationDialog({
         batchId: batch.batchId,
         source: source ?? "Batch Allocation Tool",
         allocations: toPayloadItems(rows),
+        flockType: flockType || undefined,
       })
 
       if (!res.success) {
@@ -276,6 +285,7 @@ export function BatchAllocationDialog({
 
       setResult(res.data ?? null)
       setStep("done")
+      refreshEggFeatures()
       await onCreated?.(res.data as FlockAllocationResult)
     } catch (e: any) {
       toast({
@@ -395,6 +405,15 @@ export function BatchAllocationDialog({
             {/* ---- Step 2: houses + grid ------------------------------------ */}
             {batch && step === "allocate" && (
               <>
+                <div className="space-y-2 max-w-md">
+                  <Label className="text-sm font-medium text-slate-700">Flock type</Label>
+                  <FlockTypeSelect
+                    value={flockType || defaultFlockType(batch.breed, businessType)}
+                    automatic={!flockType}
+                    disabled={saving}
+                    onChange={setFlockType}
+                  />
+                </div>
                 <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
                   <div className="bg-blue-600 px-4 py-2 text-sm font-semibold text-white flex items-center justify-between">
                     <span>Choose Houses/Pens</span>

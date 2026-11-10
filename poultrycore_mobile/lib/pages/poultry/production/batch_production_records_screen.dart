@@ -27,6 +27,7 @@ import 'batch_production_logic.dart';
 import 'production_logic.dart';
 import 'package:poultrycore_mobile/design/tone.dart';
 import 'production_records_screen.dart' show ProdCard;
+import 'production_day_view.dart';
 
 const _monthsShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -646,6 +647,27 @@ class _BatchProductionRecordsScreenState extends State<BatchProductionRecordsScr
               onPressed: () => _openForm(),
               icon: const Icon(Icons.add, size: 18),
               label: const Text('Log Batch Production'),
+            ),
+            const SizedBox(height: 8),
+            // Every batch record on one day (web: View by Day).
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(44)),
+              onPressed: () => showProductionDayView(
+                context,
+                records: _records,
+                fields: batchDayFields,
+                extraPicks: [if (_picks.enableFourth) ('4th Pick', 'fourthPickTotal')],
+                flockLabel: batchNameLabel,
+                batchLabel: batchScopeLabel,
+                batchPrefix: 'Flocks: ',
+                showBirds: false,
+                badge: (r) => batchStatusBadge(r['status']),
+                editIcon: Icons.open_in_new,
+                editTooltip: 'View',
+                onEdit: _view,
+              ),
+              icon: const Icon(Icons.calendar_month_outlined, size: 18),
+              label: const Text('View by Day'),
             ),
             const SizedBox(height: 14),
             if (_error.isNotEmpty) ...[TrackerBanner.error(_error), const SizedBox(height: 12)],

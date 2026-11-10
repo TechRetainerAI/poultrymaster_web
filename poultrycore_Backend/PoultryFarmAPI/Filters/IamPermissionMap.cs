@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 
 namespace PoultryFarmAPIWeb.Filters
 {
@@ -185,6 +185,10 @@ namespace PoultryFarmAPIWeb.Filters
             // cancel. Reversal is checked explicitly against .delete in the
             // controller.
             ["poultry/treatment-campaigns"] = "poultry.health",
+            // 400. Weigh-ins are a daily flock record, like production records,
+            // and are kept by the same people. GET view, POST create, PUT edit,
+            // DELETE delete (soft, with a reason).
+            ["poultry/weigh-ins"] = "poultry.production-records",
             // 341-343. Egg Sorting Workspace: its own resource. view = workspace,
             // ledger, reports; create = save / commit a sorting; edit = sizes
             // and settings; delete = discard a draft. Reversal is a POST to
@@ -207,6 +211,8 @@ namespace PoultryFarmAPIWeb.Filters
             ["poultry/payments"] = "poultry.payments",
             ["poultry/products"] = "poultry.products",
             ["poultry/stock"] = "poultry.stock",
+            // 413. Reconciling a batch's birds is part of managing the batch.
+            ["poultry/bird-reconciliation"] = "poultry.flock-batches",
             ["poultry/production-batches"] = "poultry.production-records",
             ["poultry/production-losses"] = "poultry.loss-records",
             ["poultry/loss-records"] = "poultry.loss-records",

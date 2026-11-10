@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+import { cashShortfallMessage, explainCashShortfall } from "@/lib/api/http-error"
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
@@ -21,6 +22,7 @@ import { ExpenseReceiptField } from "@/components/expense/expense-receipt-field"
 import { getUserContext } from "@/lib/utils/user-context"
 import { getFlockSelectEmptyHint } from "@/lib/utils/flock-utils"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { FeedPurchaseNotice, isFeedCategory, FEED_EXPENSE_BLOCKED_MESSAGE } from "@/components/expense/feed-purchase-notice"
 import { useBatchFlockSelect, BATCH_ALL } from "@/hooks/use-batch-flock-select"
 
 // Sentinel for "not tied to a single flock" — stored as a farm-level expense
@@ -118,8 +120,8 @@ export default function NewExpensePage() {
       return
     }
 
-    if (!formData.flockId) {
-      setError("Choose which flock this expense belongs to.")
+    if (isFeedCategory(formData.category)) {
+      setError(FEED_EXPENSE_BLOCKED_MESSAGE)
       setLoading(false)
       return
     }
@@ -148,6 +150,16 @@ export default function NewExpensePage() {
       return
     }
 
+    // Paying more than the chosen account holds -- see app/expenses/page.tsx.
+    const acct = formData.poultryCashAccountId
+      ? cashAccounts.find((a) => a.poultryCashAccountId === Number(formData.poultryCashAccountId))
+      : undefined
+    if (acct && !acct.allowNegativeBalance && acct.currentBalance - Number(formData.amount) < 0) {
+      setError(cashShortfallMessage(acct.accountName, acct.currentBalance, Number(formData.amount)))
+      setLoading(false)
+      return
+    }
+
     let descriptionOut = formData.description.trim()
     if (receiptFile) {
       const up = await uploadExpenseReceipt(receiptFile, farmId)
@@ -162,7 +174,7 @@ export default function NewExpensePage() {
     const expense: ExpenseInput = {
       farmId,
       userId,
-      flockId: formData.flockId === ALL_FLOCKS ? null : Number(formData.flockId),
+      flockId: !formData.flockId || formData.flockId === ALL_FLOCKS ? null : Number(formData.flockId),
       poultryCashAccountId: formData.poultryCashAccountId ? Number(formData.poultryCashAccountId) : null,
       expenseDate: formData.expenseDate + "T00:00:00Z",
       category: formData.category,
@@ -176,7 +188,7 @@ export default function NewExpensePage() {
     if (result.success) {
       router.push("/expenses")
     } else {
-      setError(result.message)
+      setError(explainCashShortfall(result.message, acct?.accountName) ?? result.message ?? "Could not save the expense. Please try again.")
       setLoading(false)
     }
   }
@@ -194,11 +206,11 @@ export default function NewExpensePage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-50">
       <DashboardSidebar onLogout={handleLogout} />
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
-        <main className="overflow-y-visible overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
           <div className="space-y-6 max-w-3xl">
             {/* Page Header */}
             <div className="flex items-center gap-3">
@@ -240,10 +252,10 @@ export default function NewExpensePage() {
                     <div className="text-xs text-slate-500">Filters flocks below.</div>
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium text-slate-700">Select Flock *</Label>
+                    <Label className="text-sm font-medium text-slate-700">Flock <span className="font-normal text-slate-500">(optional)</span></Label>
                     <Select value={formData.flockId} onValueChange={(value) => handleSelectChange("flockId", value)}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Choose a flock" />
+                        <SelectValue placeholder="No flock (farm-wide)" />
                       </SelectTrigger>
                       <SelectContent>
                         {flocksLoading ? (
@@ -295,6 +307,7 @@ export default function NewExpensePage() {
                       </SelectContent>
                     </Select>
                   </div>
+                  {isFeedCategory(formData.category) && <FeedPurchaseNotice className="md:col-span-3" />}
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-slate-700">Amount *</Label>
                     <NumberInput
@@ -378,7 +391,7 @@ export default function NewExpensePage() {
                 </Button>
                 <Button
                   type="submit"
-                  disabled={loading || flocksLoading || flocks.length === 0}
+                  disabled={loading || isFeedCategory(formData.category)}
                   className="min-w-[160px]"
                 >
                   {loading ? (

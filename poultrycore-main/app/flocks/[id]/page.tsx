@@ -12,7 +12,10 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Bird, ArrowLeft, Loader2, Save, Users, Home } from "lucide-react"
-import { getFlock, updateFlock, type FlockInput } from "@/lib/api/flock"
+import { getFlock, updateFlock, getFlockEditContext, type FlockEditContext, type FlockInput } from "@/lib/api/flock"
+import { FlockHistoryPanel, openingDraftFrom, openingDraftToEdit, openingDraftWarnings, type OpeningHistoryDraft } from "@/components/poultry/flock-history-panel"
+import { useToast } from "@/hooks/use-toast"
+import { clearFlocksCache } from "@/lib/utils/flock-utils"
 import { getHouses, type House } from "@/lib/api/house"
 import { getFlockBatches, type FlockBatch } from "@/lib/api/flock-batch"
 import { getUserContext } from "@/lib/utils/user-context"
@@ -26,6 +29,10 @@ export default function EditFlockPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
+  // 414: restored from posted records, not from the dialog that created it.
+  const [editCtx, setEditCtx] = useState<FlockEditContext | null>(null)
+  const [openingDraft, setOpeningDraft] = useState<OpeningHistoryDraft | null>(null)
+  const { toast } = useToast()
 
   const [formData, setFormData] = useState<FlockInput>({
     farmId: "",
@@ -70,11 +77,14 @@ export default function EditFlockPage() {
       return
     }
 
-    const [flockRes, housesRes, flockBatchesRes] = await Promise.all([
+    const [flockRes, housesRes, flockBatchesRes, ctx] = await Promise.all([
       getFlock(parseInt(flockId), userId, farmId),
       getHouses(userId, farmId),
       getFlockBatches(userId, farmId),
+      getFlockEditContext(parseInt(flockId), farmId),
     ])
+    setEditCtx(ctx)
+    setOpeningDraft(openingDraftFrom(ctx))
 
     if (housesRes.success && Array.isArray(housesRes.data)) setHouses(housesRes.data as House[])
     setHousesLoading(false)
@@ -92,6 +102,8 @@ export default function EditFlockPage() {
         breed: flock.breed ?? "",
         quantity: flock.quantity ?? 0,
         active: flock.active ?? false,
+        hasArrived: Boolean(flock.hasArrived),
+        flockType: flock.flockType ?? null,
         houseId: flock.houseId ?? null,
         batchId: flock.batchId ?? 0,
         inactivationReason: flock.inactivationReason ?? "",
@@ -135,15 +147,16 @@ export default function EditFlockPage() {
       return
     }
 
-    if (formData.quantity <= 0) {
+    if (!openingDraft && formData.quantity <= 0) {
       setError("Quantity must be greater than 0")
       return
     }
 
-    if (selectedFlockBatch && formData.quantity > selectedFlockBatch.numberOfBirds) {
-      setError("Quantity cannot be greater than the available birds in the selected batch")
-      return
-    }
+    // Out-of-proportion numbers are WARNINGS — the save still goes through.
+    const localWarnings: string[] = [...openingDraftWarnings(editCtx, openingDraft)]
+    const birdsOnForm = openingDraft
+      ? Number(openingDraft.live || 0) + (editCtx?.quantityAdjustments ?? 0)
+      : formData.quantity
 
     setSaving(true)
     setError("")
@@ -161,11 +174,21 @@ export default function EditFlockPage() {
       inactivationReason: formData.inactivationReason,
       otherReason: formData.inactivationReason === 'other' ? formData.otherReason : '',
       notes: formData.notes,
+      hasArrived: formData.hasArrived,
+      flockType: formData.flockType || undefined,
+      ...(openingDraft ? { openingHistory: openingDraftToEdit(openingDraft), quantity: birdsOnForm } : {}),
     }
 
     const result = await updateFlock(parseInt(flockId), flockData)
 
     if (result.success) {
+      clearFlocksCache()
+      const warnings = Array.from(new Set([...(result.warnings ?? []), ...localWarnings]))
+      if (warnings.length > 0) {
+        toast({ title: "Flock updated — please check", description: warnings.join(" "), duration: 12000 })
+      } else {
+        toast({ title: "Flock updated" })
+      }
       router.push("/flocks")
     } else {
       setError(result.message || "Failed to update flock")
@@ -187,11 +210,11 @@ export default function EditFlockPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen bg-slate-50">
+      <div className="flex h-screen bg-slate-50">
         <DashboardSidebar onLogout={handleLogout} />
         <div className="flex-1 flex flex-col min-w-0">
           <DashboardHeader />
-          <main className="overflow-y-visible overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
+          <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
             <div className="space-y-6 max-w-3xl">
               <div className="flex items-center gap-3">
                 <Button variant="ghost" size="icon" onClick={() => router.push("/flocks")} className="shrink-0">
@@ -224,11 +247,11 @@ export default function EditFlockPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-50">
       <DashboardSidebar onLogout={handleLogout} />
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
-        <main className="overflow-y-visible overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
           <div className="space-y-6 max-w-3xl">
             {/* Page Header */}
             <div className="flex items-center gap-3">
@@ -328,16 +351,29 @@ export default function EditFlockPage() {
                     <Label htmlFor="quantity" className="text-sm font-medium text-slate-700">
                       Number of Birds *
                     </Label>
-                    <NumberInput
-                      id="quantity"
-                      
-                      min="1"
-                      placeholder="e.g., 100"
-                      value={formData.quantity}
-                      onChange={(e) => handleInputChange("quantity", parseInt(e.target.value) || 0)}
-                      required
-                      disabled={saving}
-                    />
+                    {openingDraft ? (
+                      <>
+                        <NumberInput id="quantity" value={Number(openingDraft.live || 0) + (editCtx?.quantityAdjustments ?? 0)} disabled />
+                        <p className="text-xs text-slate-500">Set by &quot;Current birds when registered&quot; in Bird history below.</p>
+                      </>
+                    ) : (
+                      <>
+                        <NumberInput
+                          id="quantity"
+                          min="1"
+                          placeholder="e.g., 100"
+                          value={formData.quantity}
+                          onChange={(e) => handleInputChange("quantity", parseInt(e.target.value) || 0)}
+                          required
+                          disabled={saving}
+                        />
+                        {(editCtx?.position?.productionrecordcount ?? 0) > 0 && (
+                          <p className="text-xs text-slate-500">
+                            Birds placed. Live birds now ({(editCtx?.position?.currentlivebirds ?? 0).toLocaleString()}) come from the latest production record.
+                          </p>
+                        )}
+                      </>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -362,6 +398,10 @@ export default function EditFlockPage() {
                   </div>
                 </div>
               </div>
+
+              {editCtx && (
+                <FlockHistoryPanel ctx={editCtx} draft={openingDraft} onDraftChange={setOpeningDraft} disabled={saving} />
+              )}
 
               {/* Section: Status & Notes */}
               <div className="rounded-xl border border-slate-200 overflow-hidden">
@@ -461,6 +501,7 @@ export default function EditFlockPage() {
                 </Button>
               </div>
             </form>
+
 
             {/* Treatments from campaigns (339), kept with the flock. */}
             <div className="mt-6">

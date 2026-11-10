@@ -130,11 +130,11 @@ export default function RestaurantDailyClosingPage() {
   const takings = p ? p.takingsCash + p.takingsCard + p.takingsMobile + p.takingsGiftCard + p.takingsOther : 0
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex h-screen bg-gray-50">
       <DashboardSidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
-        <main className="flex-1 p-4 sm:p-6 space-y-4 pb-24 lg:pb-6">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 pb-24 lg:pb-6">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <h1 className="text-2xl font-bold">Daily Closing</h1>

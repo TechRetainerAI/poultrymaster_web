@@ -106,6 +106,22 @@ namespace PoultryFarmAPIWeb.Models
         [StringLength(1000)]
         public string? Notes { get; set; }
 
+        // Student extension fields (migration 365). Nullable — only for schools.
+        public DateTime? DateOfBirth { get; set; }
+        [StringLength(50)]
+        public string? AdmissionNumber { get; set; }
+        [StringLength(100)]
+        public string? ClassOrGrade { get; set; }
+        [StringLength(200)]
+        public string? GuardianName { get; set; }
+        [StringLength(50)]
+        public string? GuardianPhone { get; set; }
+        [StringLength(150)]
+        public string? GuardianEmail { get; set; }
+        public DateTime? EnrollmentDate { get; set; }
+        [StringLength(20)]
+        public string? Gender { get; set; }
+
         // Filled by the controller from auth context. Not validated.
         public string? CreatedBy { get; set; }
 

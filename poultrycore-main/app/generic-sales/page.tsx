@@ -26,6 +26,15 @@ function fmt(n: number) {
   return new Intl.NumberFormat(undefined, { style: "currency", currency: "GHS", maximumFractionDigits: 2 }).format(n)
 }
 
+function displayCustomer(s: GenericSale): string {
+  if (s.customerName) return s.customerName
+  if (s.notes?.startsWith("Customer: ")) {
+    const pipe = s.notes.indexOf(" | ")
+    return pipe > 0 ? s.notes.slice(10, pipe) : s.notes.slice(10)
+  }
+  return "Walk-in"
+}
+
 function statusBadgeClass(s: string) {
   switch (s) {
     case "Approved":  return "bg-emerald-100 text-emerald-800 hover:bg-emerald-100"
@@ -121,7 +130,7 @@ function GenericSalesPageInner() {
                   getKey={(s) => s.genericSaleId}
                   primary={(s) => (
                     <Link href={`/generic-sales/${s.genericSaleId}`} className="text-emerald-700 underline">
-                      #{s.genericSaleId} · {s.customerName ?? "Walk-in"}
+                      #{s.genericSaleId} · {displayCustomer(s)}
                     </Link>
                   )}
                   secondary={(s) => (
@@ -134,7 +143,7 @@ function GenericSalesPageInner() {
                   trailing={(s) => <Badge className={statusBadgeClass(s.status)}>{s.status}</Badge>}
                   details={(s) => [
                     { label: "Date", value: fmtDateTime(s.saleDate, s) },
-                    { label: "Customer", value: s.customerName ?? "Walk-in" },
+                    { label: "Customer", value: displayCustomer(s) },
                     { label: "Type", value: s.salesType },
                     { label: "Total", value: fmt(s.totalAmount) },
                     { label: "Paid", value: fmt(s.amountPaid) },
@@ -166,7 +175,7 @@ function GenericSalesPageInner() {
                           <TableRow key={s.genericSaleId}>
                             <TableCell><Link href={`/generic-sales/${s.genericSaleId}`} className="text-emerald-700 underline">#{s.genericSaleId}</Link></TableCell>
                             <TableCell>{fmtDateTime(s.saleDate, s)}</TableCell>
-                            <TableCell>{s.customerName ?? <span className="text-slate-500">Walk-in</span>}</TableCell>
+                            <TableCell>{s.customerName ? s.customerName : <span className="text-slate-500">{displayCustomer(s)}</span>}</TableCell>
                             <TableCell className="text-xs text-slate-500">{s.salesType}</TableCell>
                             <TableCell className="text-right">{fmt(s.totalAmount)}</TableCell>
                             <TableCell className="text-right">{fmt(s.amountPaid)}</TableCell>
