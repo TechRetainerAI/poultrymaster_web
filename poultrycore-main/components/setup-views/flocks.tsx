@@ -1400,8 +1400,8 @@ export function FlocksPage() {
             ) : filteredFlocks.length === 0 ? (
               <Card className="bg-white">
                 <CardContent className="p-12 text-center">
-                  <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Bird className="w-8 h-8 text-slate-400" />
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50">
+                    <Bird className="h-8 w-8 text-emerald-600" />
                   </div>
                   <h3 className="text-lg font-semibold text-slate-900 mb-2">No flocks found</h3>
                   <p className="text-slate-600 mb-6">Get started by creating your first flock.</p>
@@ -1410,7 +1410,7 @@ export function FlocksPage() {
                       <Plus className="w-4 h-4" />
                       Add Multiple Flocks
                     </Button>
-                    <Button className="gap-2 bg-blue-600 hover:bg-blue-700" onClick={openCreateDialog}>
+                    <Button className="gap-2 bg-emerald-600 hover:bg-emerald-700" onClick={openCreateDialog}>
                       <Plus className="w-4 h-4" />
                       Add Flock
                     </Button>
@@ -1422,23 +1422,26 @@ export function FlocksPage() {
                 <CardContent className="p-0">
                   {isMobile && !showAllColumnsMobile ? (
                     <div className="space-y-3">
-                      {paginatedFlocks.map((flock, idx) => (
-                        <Collapsible key={flock.flockId} defaultOpen className={cn("group rounded-xl border shadow-sm overflow-hidden", idx % 2 === 0 ? "bg-amber-100 border-amber-300" : "bg-white border-slate-200")}>
-                          <div className={cn("p-4 active:bg-slate-50/80 transition-colors", idx % 2 === 1 && "bg-slate-50/20")}>
+                      {paginatedFlocks.map((flock) => (
+                        <Collapsible key={flock.flockId} defaultOpen className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
+                          <div className="p-4 transition-colors active:bg-slate-50/80">
                             <CollapsibleTrigger asChild>
                               <div className="flex items-start justify-between gap-3 cursor-pointer">
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="font-semibold text-slate-900">{flock.name}</span>{isBroilerFlock(flock) && <Badge variant="secondary" className="ml-1.5 bg-orange-100 text-orange-800 border border-orange-200 text-[10px] px-1.5 py-0">Broiler</Badge>}
-                                    {flockLifecycleBadge(flock)}
-                                  </div>
-                                  <div className="mt-1 flex items-baseline gap-3">
-                                    <span className="text-lg font-bold text-emerald-600">{getCurrentBirds(flock).toLocaleString()}</span>
-                                    <span className="text-xs text-slate-500">
-                                      {getPlacedBirds(flock) !== getCurrentBirds(flock) ? `of ${getPlacedBirds(flock).toLocaleString()} birds` : "birds"}
-                                    </span>
-                                    <span className="text-slate-400">•</span>
-                                    <span className="text-sm text-slate-600">{formatDateShort(flock.startDate)}</span>
+                                <div className="flex min-w-0 flex-1 items-start gap-2.5">
+                                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-600"><Bird className="h-4 w-4" /></span>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="truncate font-semibold text-slate-900">{flock.name}</span>{isBroilerFlock(flock) && <Badge variant="secondary" className="ml-1.5 bg-orange-100 text-orange-800 border border-orange-200 text-[10px] px-1.5 py-0">Broiler</Badge>}
+                                      {flockLifecycleBadge(flock)}
+                                    </div>
+                                    <div className="mt-1 flex items-baseline gap-2 flex-wrap">
+                                      <span className="text-lg font-bold tabular-nums text-emerald-600">{getCurrentBirds(flock).toLocaleString()}</span>
+                                      <span className="text-xs text-slate-500">
+                                        {getPlacedBirds(flock) !== getCurrentBirds(flock) ? `of ${getPlacedBirds(flock).toLocaleString()} birds` : "birds"}
+                                      </span>
+                                      <span className="text-slate-300">•</span>
+                                      <span className="text-sm text-slate-600">{formatDateShort(flock.startDate)}</span>
+                                    </div>
                                   </div>
                                 </div>
                                 <ChevronDown className="h-5 w-5 text-slate-400 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
@@ -1486,7 +1489,7 @@ export function FlocksPage() {
                     )}
                     <Table className={cn("w-full", !isMobile && "min-w-[700px]")}>
                       <TableHeader>
-                        <TableRow className="border-b">
+                        <TableRow className="border-b bg-slate-50">
                           <TableHead 
                             className={cn("font-semibold text-slate-900 min-w-[120px] cursor-pointer hover:bg-slate-50", isMobile && "sticky-col-date bg-slate-50")}
                             onClick={() => handleSort("name")}
@@ -1593,7 +1596,7 @@ export function FlocksPage() {
                                 </Tooltip>
                               </TooltipProvider>
                             </TableCell>
-                            <TableCell className="text-slate-600 hidden md:table-cell">
+                            <TableCell className="text-slate-600 hidden md:table-cell tabular-nums">
                               <div className="flex items-center gap-2">
                                 <Users className="w-4 h-4 text-slate-400" />
                                 {getPlacedBirds(flock) !== getCurrentBirds(flock) ? (

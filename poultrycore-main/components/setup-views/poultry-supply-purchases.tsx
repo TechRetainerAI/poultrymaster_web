@@ -883,8 +883,8 @@ function PoultryRawMaterialsPageInner() {
                   {/* Six columns, not ten: category and cost treatment ride under
                       the name, the two units share one cell, and the minimum sits
                       under the stock it applies to. */}
-                  <div className="hidden md:block overflow-x-auto"><Table>
-                    <TableHeader><TableRow>
+                  <div className="hidden overflow-x-auto rounded-xl border border-slate-200 bg-white md:block"><Table>
+                    <TableHeader><TableRow className="bg-slate-50 hover:bg-slate-50 [&>th]:font-semibold [&>th]:text-slate-900">
                       {(() => { const onSort = (k: string) => setItemsSort((s) => toggleSort(k, s.key, s.direction)); const cs = itemsSort.key, cd = itemsSort.direction; return (<>
                       <SortableHeader label="Item" sortKey="itemName" currentSort={cs} currentDirection={cd} onSort={onSort} />
                       <TableHead>Units</TableHead>
@@ -896,9 +896,12 @@ function PoultryRawMaterialsPageInner() {
                     </TableRow></TableHeader>
                     <TableBody>
                       {filteredItems.length === 0 ? (
-                        <TableRow><TableCell colSpan={6} className="text-center text-slate-500 py-8">{items.length === 0 ? "No items yet — add one with New Item." : "No items match these filters."}</TableCell></TableRow>
+                        <TableRow className="hover:bg-transparent"><TableCell colSpan={6} className="py-12 text-center">
+                          <span className="mx-auto mb-3 grid h-10 w-10 place-items-center rounded-lg bg-blue-50 text-blue-600"><Box className="h-5 w-5" /></span>
+                          <p className="text-sm text-slate-500">{items.length === 0 ? "No items yet — add one with New Item." : "No items match these filters."}</p>
+                        </TableCell></TableRow>
                       ) : pgItems.pageItems.map((i) => (
-                        <TableRow key={i.poultryRawMaterialItemId} className={cn(!i.isActive && "text-slate-500")}>
+                        <TableRow key={i.poultryRawMaterialItemId} className={cn("transition-colors hover:bg-slate-50", !i.isActive && "text-slate-500")}>
                           <TableCell>
                             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                               <span className="font-medium text-slate-900">{i.itemName}{i.isDefault && <DefaultTag />}</span>
@@ -921,7 +924,7 @@ function PoultryRawMaterialsPageInner() {
                               if (!v) return <span className="text-slate-400">—</span>
                               return (
                                 <>
-                                  <div className="font-medium" title={OPERATIONAL_VALUE_TOOLTIP}>{gh(v.operationalValue)}</div>
+                                  <div className="font-medium tabular-nums" title={OPERATIONAL_VALUE_TOOLTIP}>{gh(v.operationalValue)}</div>
                                   {v.deferredValue > 0 ? (
                                     <button type="button"
                                       className="text-[11px] text-amber-700 underline decoration-dotted underline-offset-2 hover:text-amber-900"
@@ -941,15 +944,45 @@ function PoultryRawMaterialsPageInner() {
                       ))}
                     </TableBody>
                   </Table></div>
-                  {/* Mobile cards */}
-                  <div className="md:hidden space-y-2">
-                    {filteredItems.length === 0 ? <div className="text-center text-slate-500 py-6">{items.length === 0 ? "No items yet — add one with New Item." : "No items match these filters."}</div>
-                      : pgItems.pageItems.map((i) => (
-                        <FieldCard key={i.poultryRawMaterialItemId} title={<>{i.itemName}{i.isDefault && <DefaultTag />}</>}
-                          badge={<ItemStatus item={i} />}
-                          fields={[["Category", <CategoryTag category={i.category} />], ["Units", unitsText(i)], ["In stock", `${i.currentQuantity.toLocaleString()} ${i.unitOfMeasure ?? ""}`.trim()], ["Min alert", i.minimumStockAlert.toLocaleString()], ["Cost", `${methodShortLabel(i.effectiveCostRecognitionMethod)}${i.costRecognitionSource === "ItemOverride" ? " (override)" : ""}`], ["Stock value", (() => { const v = valuationByItem.get(i.poultryRawMaterialItemId); return v ? gh(v.operationalValue) : "—" })()]]}
-                          actions={itemActions(i)} />
-                      ))}
+                  {/* Mobile cards — premium list layout (icon tile + key stats). */}
+                  <div className="space-y-3 md:hidden">
+                    {filteredItems.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-slate-200 bg-white px-4 py-10 text-center">
+                        <span className="mx-auto mb-3 grid h-10 w-10 place-items-center rounded-lg bg-blue-50 text-blue-600"><Box className="h-5 w-5" /></span>
+                        <p className="text-sm text-slate-500">{items.length === 0 ? "No items yet — add one with New Item." : "No items match these filters."}</p>
+                      </div>
+                    ) : pgItems.pageItems.map((i) => {
+                        const v = valuationByItem.get(i.poultryRawMaterialItemId)
+                        return (
+                          <Card key={i.poultryRawMaterialItemId} className={cn("gap-0 overflow-hidden p-0 transition-shadow hover:shadow-md", !i.isActive && "opacity-80")}>
+                            <div className="flex items-start justify-between gap-2 border-b border-slate-100 px-4 py-3">
+                              <div className="flex min-w-0 items-center gap-2.5">
+                                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-600"><Box className="h-4 w-4" /></span>
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-semibold text-slate-900">{i.itemName}{i.isDefault && <DefaultTag />}</p>
+                                  <p className="truncate text-xs text-slate-500"><CategoryTag category={i.category} /></p>
+                                </div>
+                              </div>
+                              <div className="flex shrink-0 items-center gap-0.5">{itemActions(i)}</div>
+                            </div>
+                            <div className="space-y-3 px-4 py-3">
+                              <div className="flex items-center justify-between gap-2">
+                                <ItemStatus item={i} />
+                                <span className="truncate text-xs text-slate-500">{unitsText(i)}</span>
+                              </div>
+                              <StockLevel item={i} />
+                              <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-2 text-sm">
+                                <span className="text-xs text-slate-500">Stock value</span>
+                                <span className="font-medium tabular-nums text-slate-900">{v ? gh(v.operationalValue) : "—"}</span>
+                              </div>
+                              <div className="flex items-center justify-between gap-2 text-sm">
+                                <span className="text-xs text-slate-500">Cost</span>
+                                <span className="text-xs text-slate-600">{methodShortLabel(i.effectiveCostRecognitionMethod)}{i.costRecognitionSource === "ItemOverride" ? " (override)" : ""}</span>
+                              </div>
+                            </div>
+                          </Card>
+                        )
+                      })}
                   </div>
                   {/* After BOTH lists, so it reads as "below the table" in either layout. */}
                   <DataPagination {...pgItems.paginationProps} />

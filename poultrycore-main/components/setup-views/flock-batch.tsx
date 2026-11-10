@@ -967,10 +967,10 @@ export function FlockBatchesPage() {
                 </CardContent>
               </Card>
             ) : filteredFlockBatches.length === 0 ? (
-              <Card className="bg-white">
+              <Card className="border-dashed border-slate-200 bg-white">
                 <CardContent className="p-12 text-center">
-                  <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Bird className="w-8 h-8 text-slate-400" />
+                  <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-amber-50 text-amber-600">
+                    <Bird className="h-8 w-8" />
                   </div>
                   <h3 className="text-lg font-semibold text-slate-900 mb-2">No flock batches found</h3>
                   <p className="text-slate-600 mb-6">Get started by creating your first flock batch.</p>
@@ -985,47 +985,64 @@ export function FlockBatchesPage() {
                 <CardContent className="p-0">
                   {isMobile && !showAllColumnsMobile ? (
                     <div className="space-y-3">
-                      {currentFlockBatches.map((batch, idx) => {
+                      {currentFlockBatches.map((batch) => {
                         const statusLower = (batch.status || "active").toLowerCase()
                         const supplier = suppliers.find(s => s.supplierId === batch.supplierId)
                         const supplierLabel = batch.supplierName || supplier?.name || "—"
                         const computedTotal = Number(batch.totalCost) || (Number(batch.costPerChick) * Number(batch.numberOfBirds)) || 0
+                        const balance = Math.max(0, computedTotal - Number(batch.amountPaid || 0))
                         return (
-                        <Collapsible key={batch.batchId} defaultOpen className={cn("group rounded-xl border shadow-sm overflow-hidden", idx % 2 === 0 ? "bg-amber-100 border-amber-300" : "bg-white border-slate-200")}>
-                          <div className={cn("p-4 active:bg-slate-50/80 transition-colors", idx % 2 === 1 && "bg-slate-50/20")} onClick={() => handleViewFlocks(batch)}>
+                        <Collapsible key={batch.batchId} defaultOpen className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
+                          <div className="transition-colors active:bg-slate-50/80" onClick={() => handleViewFlocks(batch)}>
                             <CollapsibleTrigger asChild>
-                              <div className="flex items-start justify-between gap-3 cursor-pointer">
-                                <div className="min-w-0 flex-1">
-                                  <div className="font-semibold text-slate-900">{batch.batchName}</div>
-                                  <div className="mt-1 flex flex-wrap items-baseline gap-2">
-                                    <Badge variant="outline">{batch.batchCode}</Badge>
-                                    <span className="text-slate-600">{batch.numberOfBirds.toLocaleString()} birds</span>
-                                    {soldFor(batch) > 0 && <span className="text-orange-600 text-xs">{soldFor(batch).toLocaleString()} sold</span>}
-                                    <span className="text-slate-500">{batch.breed}</span>
-                                    {statusLower === "pending" ? (
-                                      <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-200">Pending</Badge>
-                                    ) : statusLower === "active" ? (
-                                      <Badge className="bg-green-100 text-green-800 border border-green-200">Active</Badge>
-                                    ) : (
-                                      <Badge variant="secondary" className="bg-gray-100 text-gray-800">Inactive</Badge>
-                                    )}
+                              <div className="flex cursor-pointer items-start justify-between gap-2 border-b border-slate-100 px-4 py-3">
+                                <div className="flex min-w-0 items-center gap-2.5">
+                                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-amber-50 text-amber-600"><Bird className="h-4 w-4" /></span>
+                                  <div className="min-w-0">
+                                    <p className="truncate text-sm font-semibold text-slate-900">{batch.batchName}</p>
+                                    <p className="truncate text-xs text-slate-500">{batch.batchCode}{batch.breed ? ` · ${batch.breed}` : ""}</p>
                                   </div>
                                 </div>
-                                <ChevronDown className="h-5 w-5 text-slate-400 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
+                                <div className="flex shrink-0 items-center gap-2">
+                                  {statusLower === "pending" ? (
+                                    <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-200">Pending</Badge>
+                                  ) : statusLower === "active" ? (
+                                    <Badge className="bg-green-100 text-green-800 border border-green-200">Active</Badge>
+                                  ) : (
+                                    <Badge variant="secondary" className="bg-gray-100 text-gray-800">Inactive</Badge>
+                                  )}
+                                  <ChevronDown className="h-5 w-5 shrink-0 text-slate-400 transition-transform group-data-[state=open]:rotate-180" />
+                                </div>
                               </div>
                             </CollapsibleTrigger>
                             <CollapsibleContent>
-                              <div className="mt-4 pt-4 border-t border-slate-100 space-y-2 text-sm" onClick={(e) => e.stopPropagation()}>
-                                <div className="grid grid-cols-2 gap-2">
-                                  <div><span className="text-slate-500">Start</span> <span className="font-medium">{batch.startDate ? formatDateShort(batch.startDate) : "—"}</span></div>
-                                  <div><span className="text-slate-500">Cost/Chick</span> <span className="font-medium tabular-nums">{Number(batch.costPerChick || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                                  <div><span className="text-slate-500">Total Cost</span> <span className="font-medium tabular-nums">{computedTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                                  <div><span className="text-slate-500">Amount Paid ({currencySymbol})</span> <span className="font-medium tabular-nums">{Number(batch.amountPaid || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                                  <div><span className="text-slate-500">Balance ({currencySymbol})</span> <span className={cn("font-medium tabular-nums", (computedTotal - Number(batch.amountPaid || 0)) > 0 ? "text-red-600" : "text-emerald-700")}>{Math.max(0, computedTotal - Number(batch.amountPaid || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                                  <div><span className="text-slate-500">Supplier</span> <span className="font-medium">{supplierLabel}</span></div>
-                                  <div><span className="text-slate-500">Type</span> <span className="font-medium">{batch.supplierType ? batch.supplierType.charAt(0).toUpperCase() + batch.supplierType.slice(1).toLowerCase() : "—"}</span></div>
+                              <div className="space-y-3 px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-1 text-sm font-medium text-slate-700">
+                                    <Users className="h-3.5 w-3.5 text-slate-400" />
+                                    <span className="tabular-nums">{batch.numberOfBirds.toLocaleString()}</span> birds
+                                  </span>
+                                  {soldFor(batch) > 0 && (
+                                    <span className="inline-flex items-center rounded-lg bg-orange-50 px-2.5 py-1 text-xs font-medium tabular-nums text-orange-700">{soldFor(batch).toLocaleString()} sold</span>
+                                  )}
                                 </div>
-                                <div className="flex gap-2 pt-2">
+                                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                                  <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5"><span className="text-slate-500">Start</span> <span className="font-medium text-slate-900">{batch.startDate ? formatDateShort(batch.startDate) : "—"}</span></div>
+                                  <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5"><span className="text-slate-500">Cost/Chick</span> <span className="font-medium text-slate-900 tabular-nums">{Number(batch.costPerChick || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                                  <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5"><span className="text-slate-500">Total Cost</span> <span className="font-medium text-slate-900 tabular-nums">{computedTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                                  <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5"><span className="text-slate-500">Paid ({currencySymbol})</span> <span className="font-medium text-slate-900 tabular-nums">{Number(batch.amountPaid || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                                  <div className="flex items-center justify-between gap-2"><span className="text-slate-500">Balance ({currencySymbol})</span> <span className={cn("font-semibold tabular-nums", balance > 0 ? "text-red-600" : "text-emerald-700")}>{balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                                  <div className="flex items-center justify-between gap-2"><span className="text-slate-500">Supplier</span> <span className="truncate font-medium text-slate-900">{supplierLabel}</span></div>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs">
+                                  <span className="text-slate-500">Type</span>
+                                  {batch.supplierType ? (
+                                    <Badge variant="outline" className={cn(batch.supplierType.toLowerCase() === "foreign" ? "border-purple-200 bg-purple-50 text-purple-800" : "border-blue-200 bg-blue-50 text-blue-800")}>{batch.supplierType.charAt(0).toUpperCase() + batch.supplierType.slice(1).toLowerCase()}</Badge>
+                                  ) : (
+                                    <span className="text-slate-400">—</span>
+                                  )}
+                                </div>
+                                <div className="flex flex-wrap gap-2 pt-1">
                                   {(computedTotal - Number(batch.amountPaid || 0)) > 0 && (
                                     <Button variant="outline" size="sm" className="flex-1 h-10 text-emerald-600 border-emerald-200 hover:bg-emerald-50" onClick={(e) => { e.stopPropagation(); openPayBalance(batch) }}>
                                       <Wallet className="h-4 w-4 mr-2" /> Pay
@@ -1077,7 +1094,7 @@ export function FlockBatchesPage() {
                         the table needs its full width to scroll through. */}
                     <Table className="w-full min-w-[1100px]">
                       <TableHeader>
-                        <TableRow className="border-b">
+                        <TableRow className="border-b bg-slate-50">
                           <SortableHeader label="Name" sortKey="name" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[150px]", isMobile && "sticky-col-date bg-slate-50")} />
                           <SortableHeader label="Code" sortKey="code" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[100px]", hideBelow("sm"))} />
                           <SortableHeader label="Number of Birds" sortKey="numberOfBirds" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[120px]", hideBelow("md"))} />

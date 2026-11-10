@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { NumberInput } from "@/components/ui/number-input"
@@ -321,37 +321,53 @@ export function HousesPage() {
                 </Table>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                {pg.pageItems.map((h) => (
-                  <Card key={h.houseId} className="gap-2 py-3 hover:shadow-md transition-shadow">
-                    <CardHeader className="block px-4">
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <Home className="h-4 w-4 shrink-0 text-blue-600" />
-                          <CardTitle className="truncate text-sm">{h.name || h.houseName}</CardTitle>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {pg.pageItems.map((h) => {
+                  const o = houseOccupancy(h, flocks)
+                  const pct = o.capacity > 0 ? Math.min(100, Math.round((o.occupied / o.capacity) * 100)) : null
+                  return (
+                    <Card key={h.houseId} className="gap-0 overflow-hidden p-0 transition-shadow hover:shadow-md">
+                      {/* Header: name + location, with the row actions */}
+                      <div className="flex items-start justify-between gap-2 border-b border-slate-100 px-4 py-3">
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-600"><Home className="h-4 w-4" /></span>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-slate-900">{h.name || h.houseName}</p>
+                            {h.location
+                              ? <p className="flex items-center gap-1 truncate text-xs text-slate-500" title={h.location}><MapPin className="h-3 w-3 shrink-0" />{h.location}</p>
+                              : <p className="text-xs text-slate-400">No location set</p>}
+                          </div>
                         </div>
                         <div className="flex shrink-0 gap-0.5">
-                          <Button size="icon" variant="ghost" onClick={() => openEdit(h)} className="h-7 w-7">
+                          <Button size="icon" variant="ghost" onClick={() => openEdit(h)} className="h-7 w-7 hover:bg-blue-50 hover:text-blue-600" title="Edit">
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
                           {deleteButton(h, "h-7 w-7", "h-3.5 w-3.5")}
                         </div>
                       </div>
-                    </CardHeader>
-                    <CardContent className="space-y-1 px-4 text-xs">
-                      <div className="flex justify-between">
-                        <span className="text-slate-600">Capacity:</span>
-                        <span className="font-medium">{h.capacity ?? "Not set"}</span>
-                      </div>
-                      {h.location ? (
-                        <div className="flex justify-between gap-2">
-                          <span className="text-slate-600">Location:</span>
-                          <span className="font-medium truncate text-right" title={h.location}>{h.location}</span>
+                      {/* Body: occupancy at a glance */}
+                      <div className="space-y-3 px-4 py-3">
+                        <div className="flex items-center justify-between">
+                          <StatusPill state={o.state} />
+                          <span className="text-xs text-slate-500">{o.flockCount} active {o.flockCount === 1 ? "flock" : "flocks"}</span>
                         </div>
-                      ) : null}
-                    </CardContent>
-                  </Card>
-                ))}
+                        {o.capacity > 0 && pct != null ? (
+                          <div className="space-y-1.5">
+                            <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+                              <div className={cn("h-full rounded-full", pct >= 100 ? "bg-red-500" : pct >= 80 ? "bg-amber-500" : "bg-emerald-500")} style={{ width: `${pct}%` }} />
+                            </div>
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="tabular-nums text-slate-500">{o.occupied.toLocaleString()} / {o.capacity.toLocaleString()} birds</span>
+                              <span className="font-medium text-slate-700">{o.free != null ? `${o.free.toLocaleString()} free` : `${pct}%`}</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-slate-400">Capacity not set</p>
+                        )}
+                      </div>
+                    </Card>
+                  )
+                })}
               </div>
             )}
 
