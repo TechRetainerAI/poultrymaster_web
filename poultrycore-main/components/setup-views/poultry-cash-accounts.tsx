@@ -270,7 +270,7 @@ export function PoultryCashAccountsPage() {
                 <Input className="h-9 bg-white pl-9" placeholder="Search account name or type" value={search} onChange={(e) => setSearch(e.target.value)} />
               </div>
               <button type="button" onClick={() => router.push("/cash-flow")}
-                className="inline-flex items-center gap-1.5 whitespace-nowrap text-sm font-medium text-sky-600 hover:text-sky-700 hover:underline">
+                className="ml-auto inline-flex items-center gap-1.5 whitespace-nowrap text-sm font-medium text-sky-600 hover:text-sky-700 hover:underline">
                 <ArrowLeftRight className="h-4 w-4" /> See the whole company&apos;s cash flow →
               </button>
             </SetupTabTools>

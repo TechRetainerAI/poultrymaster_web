@@ -1296,7 +1296,7 @@ export function FlocksPage() {
                 />
 
                 {embedded ? (
-                  <Button variant="outline" size="icon" className="h-9 w-9 bg-white" onClick={clearFilters} title="Reset filters" aria-label="Reset filters">
+                  <Button variant="outline" size="icon" className="ml-auto h-9 w-9 bg-white" onClick={clearFilters} title="Reset filters" aria-label="Reset filters">
                     <RefreshCw className="h-4 w-4" />
                   </Button>
                 ) : (
