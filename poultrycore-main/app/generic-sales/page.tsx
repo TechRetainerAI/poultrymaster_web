@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
-import { Loader2, Plus, ShoppingCart } from "lucide-react"
+import { Loader2, Plus, ShoppingCart, AlertCircle } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -41,6 +41,16 @@ function statusBadgeClass(s: string) {
     case "Cancelled": return "bg-rose-100 text-rose-800 hover:bg-rose-100"
     case "Refunded":  return "bg-amber-100 text-amber-800 hover:bg-amber-100"
     default:          return "bg-slate-100 text-slate-800 hover:bg-slate-100"
+  }
+}
+
+function paymentBadgeClass(s: string) {
+  switch (s) {
+    case "Paid":           return "bg-emerald-50 text-emerald-700 hover:bg-emerald-50"
+    case "PartiallyPaid":  return "bg-amber-50 text-amber-700 hover:bg-amber-50"
+    case "Unpaid":         return "bg-rose-50 text-rose-700 hover:bg-rose-50"
+    case "Overdue":        return "bg-red-100 text-red-800 hover:bg-red-100"
+    default:               return "bg-slate-50 text-slate-600 hover:bg-slate-50"
   }
 }
 
@@ -80,6 +90,19 @@ function GenericSalesPageInner() {
     [rows, search, dateFrom, dateTo],
   )
 
+  // Accounts receivable summary — total outstanding across all approved sales
+  const creditSummary = useMemo(() => {
+    let totalSales = 0, totalPaid = 0, totalOutstanding = 0, creditCount = 0
+    for (const s of rows) {
+      if (s.status === "Approved" || s.status === "Draft") {
+        totalSales += s.totalAmount
+        totalPaid += s.amountPaid
+        if (s.balance > 0) { totalOutstanding += s.balance; creditCount++ }
+      }
+    }
+    return { totalSales, totalPaid, totalOutstanding, creditCount }
+  }, [rows])
+
   return (
     <div className="flex h-screen bg-slate-50">
       <DashboardSidebar onLogout={logout} />
@@ -97,6 +120,16 @@ function GenericSalesPageInner() {
               <Link href="/generic-sales/new"><Plus className="h-4 w-4 mr-1" />New sale</Link>
             </Button>
           </div>
+
+          {/* Accounts receivable summary */}
+          {!loading && creditSummary.creditCount > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+              <Card><CardContent className="py-3 px-4"><div className="text-xs text-slate-500">Total sales</div><div className="text-lg font-semibold">{fmt(creditSummary.totalSales)}</div></CardContent></Card>
+              <Card><CardContent className="py-3 px-4"><div className="text-xs text-slate-500">Total received</div><div className="text-lg font-semibold text-emerald-700">{fmt(creditSummary.totalPaid)}</div></CardContent></Card>
+              <Card><CardContent className="py-3 px-4"><div className="text-xs text-slate-500">Outstanding (A/R)</div><div className="text-lg font-semibold text-rose-700">{fmt(creditSummary.totalOutstanding)}</div></CardContent></Card>
+              <Card><CardContent className="py-3 px-4"><div className="text-xs text-slate-500">Unpaid invoices</div><div className="text-lg font-semibold">{creditSummary.creditCount}</div></CardContent></Card>
+            </div>
+          )}
 
           <div className="flex gap-1 mb-3 flex-wrap">
             {STATUS_FILTERS.map((s) => (
@@ -148,6 +181,7 @@ function GenericSalesPageInner() {
                     { label: "Total", value: fmt(s.totalAmount) },
                     { label: "Paid", value: fmt(s.amountPaid) },
                     { label: "Balance", value: <span className={s.balance > 0 ? "text-rose-700 font-semibold" : ""}>{fmt(s.balance)}</span> },
+                    ...(s.paymentStatus ? [{ label: "Payment", value: <Badge className={paymentBadgeClass(s.paymentStatus)}>{s.paymentStatus}</Badge> }] : []),
                   ]}
                   actions={(s) => (
                     <Button asChild size="sm" variant="outline" className="flex-1 h-10">
@@ -166,6 +200,7 @@ function GenericSalesPageInner() {
                           <TableHead className="text-right">Total</TableHead>
                           <TableHead className="text-right">Paid</TableHead>
                           <TableHead className="text-right">Balance</TableHead>
+                          <TableHead>Payment</TableHead>
                           <TableHead>Status</TableHead>
                           <TableHead></TableHead>
                         </TableRow>
@@ -180,6 +215,7 @@ function GenericSalesPageInner() {
                             <TableCell className="text-right">{fmt(s.totalAmount)}</TableCell>
                             <TableCell className="text-right">{fmt(s.amountPaid)}</TableCell>
                             <TableCell className={`text-right ${s.balance > 0 ? "text-rose-700 font-semibold" : ""}`}>{fmt(s.balance)}</TableCell>
+                            <TableCell>{s.paymentStatus && <Badge className={paymentBadgeClass(s.paymentStatus)}>{s.paymentStatus}</Badge>}</TableCell>
                             <TableCell><Badge className={statusBadgeClass(s.status)}>{s.status}</Badge></TableCell>
                             <TableCell><Button asChild size="sm" variant="ghost"><Link href={`/generic-sales/${s.genericSaleId}`}>Details</Link></Button></TableCell>
                           </TableRow>

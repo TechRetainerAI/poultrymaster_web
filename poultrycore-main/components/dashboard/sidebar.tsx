@@ -855,7 +855,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
                 Groups come from buildGenericNavConfig, accent is emerald. */}
             <div className="space-y-1">
               {genericNav.catalog.length > 0 && renderMenu(
-                "Catalog & Stock", ShoppingBag, genericNav.catalog, "menu:genericCatalog", {
+                "Operations", ShoppingBag, genericNav.catalog, "menu:genericCatalog", {
                   blurb: "Products, inventory, stock adjustments and internal use.",
                   columns: 1,
                 })}

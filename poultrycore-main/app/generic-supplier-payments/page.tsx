@@ -25,7 +25,8 @@ import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import {
   approveSupplierPayment, cancelSupplierPayment, createSupplierPayment, getCashAccounts, getSupplierPayments, getSuppliers,
-  type GenericCashAccount, type GenericSupplier, type GenericSupplierPayment,
+  getPurchases, getSupplierCredits,
+  type GenericCashAccount, type GenericSupplier, type GenericSupplierPayment, type GenericPurchase, type GenericSupplierCredit,
 } from "@/lib/api/generic"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
@@ -70,8 +71,13 @@ function GenericSupplierPaymentsPageInner() {
     paymentMethod: "Cash",
     genericCashAccountId: "",
     paymentDate: new Date().toISOString().slice(0, 10),
+    linkedPurchaseId: "",
     notes: "",
   })
+  // Outstanding purchases and advance credits for the selected supplier
+  const [supplierPurchases, setSupplierPurchases] = useState<GenericPurchase[]>([])
+  const [supplierAdvances, setSupplierAdvances] = useState<GenericSupplierCredit[]>([])
+  const [loadingExtras, setLoadingExtras] = useState(false)
 
   const load = async () => {
     setLoading(true)
@@ -97,6 +103,20 @@ function GenericSupplierPaymentsPageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFarmType, router, status])
 
+  // When a supplier is picked, fetch their unpaid purchases and active advance credits
+  const loadSupplierExtras = async (supplierId: number) => {
+    setLoadingExtras(true)
+    try {
+      const [purchases, credits] = await Promise.all([
+        getPurchases("Approved"),
+        getSupplierCredits(),
+      ])
+      setSupplierPurchases(purchases.filter((p) => p.genericSupplierId === supplierId && p.balance > 0))
+      setSupplierAdvances(credits.filter((c) => c.genericSupplierId === supplierId && c.status === "Active" && c.remainingBalance > 0))
+    } catch { setSupplierPurchases([]); setSupplierAdvances([]) }
+    finally { setLoadingExtras(false) }
+  }
+
   const visibleRows = useMemo(
     () => filterByDateAndSearch(rows, {
       search, dateFrom, dateTo,
@@ -117,13 +137,15 @@ function GenericSupplierPaymentsPageInner() {
         amount,
         paymentMethod: form.paymentMethod,
         genericCashAccountId: form.genericCashAccountId ? Number(form.genericCashAccountId) : null,
+        linkedPurchaseId: form.linkedPurchaseId ? Number(form.linkedPurchaseId) : null,
         paymentDate: form.paymentDate,
         notes: form.notes || null,
       })
       if (created) {
         toast({ title: "Supplier payment created as Draft. Approve to debit supplier + cash." })
         setOpen(false)
-        setForm({ genericSupplierId: "", amount: "0", paymentMethod: "Cash", genericCashAccountId: form.genericCashAccountId, paymentDate: new Date().toISOString().slice(0, 10), notes: "" })
+        setForm({ genericSupplierId: "", amount: "0", paymentMethod: "Cash", genericCashAccountId: form.genericCashAccountId, paymentDate: new Date().toISOString().slice(0, 10), linkedPurchaseId: "", notes: "" })
+        setSupplierPurchases([]); setSupplierAdvances([])
         await load()
       }
     } catch (e: any) {
@@ -166,7 +188,11 @@ function GenericSupplierPaymentsPageInner() {
                 <div className="space-y-4">
                   <FormSection title="Supplier" color="indigo" columns={1}>
                     <FormField label="Supplier *">
-                      <Select value={form.genericSupplierId} onValueChange={(v) => setForm((f) => ({ ...f, genericSupplierId: v }))}>
+                      <Select value={form.genericSupplierId} onValueChange={(v) => {
+                        setForm((f) => ({ ...f, genericSupplierId: v, linkedPurchaseId: "" }))
+                        setSupplierPurchases([]); setSupplierAdvances([])
+                        if (v) void loadSupplierExtras(Number(v))
+                      }}>
                         <SelectTrigger><SelectValue placeholder="Pick supplier..." /></SelectTrigger>
                         <SelectContent>{suppliers.map((s) => <SelectItem key={s.genericSupplierId} value={String(s.genericSupplierId)}>{s.supplierName}{s.currentBalance > 0 ? ` – owed ${fmt(s.currentBalance)}` : ""}</SelectItem>)}</SelectContent>
                       </Select>
@@ -196,6 +222,48 @@ function GenericSupplierPaymentsPageInner() {
                       </Select>
                     </FormField>
                   </FormSection>
+
+                  {form.genericSupplierId && supplierAdvances.length > 0 && (
+                    <div className="rounded-md border border-indigo-200 bg-indigo-50 p-3 text-sm">
+                      <div className="font-medium text-indigo-800 mb-1">Advance credit available</div>
+                      {supplierAdvances.map((a) => (
+                        <div key={a.genericSupplierCreditId} className="text-indigo-700">
+                          {a.creditType} #{a.genericSupplierCreditId} — remaining: {fmt(a.remainingBalance)}
+                        </div>
+                      ))}
+                      <div className="text-xs text-indigo-600 mt-1">Consider applying advance credits before making additional cash payments.</div>
+                    </div>
+                  )}
+
+                  {form.genericSupplierId && supplierPurchases.length > 0 && (
+                    <FormSection title="Link to purchase (optional)" color="amber" columns={1}>
+                      <FormField label="Outstanding purchase">
+                        <Select value={form.linkedPurchaseId || "__none__"} onValueChange={(v) => {
+                          const purchaseId = v === "__none__" ? "" : v
+                          setForm((f) => {
+                            if (purchaseId) {
+                              const purchase = supplierPurchases.find((p) => String(p.genericPurchaseId) === purchaseId)
+                              if (purchase) return { ...f, linkedPurchaseId: purchaseId, amount: String(purchase.balance) }
+                            }
+                            return { ...f, linkedPurchaseId: purchaseId }
+                          })
+                        }}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">— General payment (no specific purchase) —</SelectItem>
+                            {supplierPurchases.map((p) => (
+                              <SelectItem key={p.genericPurchaseId} value={String(p.genericPurchaseId)}>
+                                Purchase #{p.genericPurchaseId} · {new Date(p.purchaseDate).toLocaleDateString()} · Balance: {fmt(p.balance)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormField>
+                    </FormSection>
+                  )}
+                  {form.genericSupplierId && loadingExtras && (
+                    <div className="flex items-center gap-2 text-xs text-slate-400"><Loader2 className="h-3 w-3 animate-spin" /> Loading supplier data…</div>
+                  )}
 
                   <FormSection title="Notes" color="slate" columns={1}>
                     <FormField label="Notes">
@@ -252,6 +320,7 @@ function GenericSupplierPaymentsPageInner() {
                     { label: "Supplier", value: p.supplierName ?? "–" },
                     { label: "Method", value: p.paymentMethod },
                     { label: "Amount", value: <span className="font-semibold text-rose-700">{fmt(p.amount)}</span> },
+                    ...(p.linkedPurchaseId ? [{ label: "Linked purchase", value: `#${p.linkedPurchaseId}` }] : []),
                   ]}
                   actions={(p) => (
                     <>
@@ -277,6 +346,7 @@ function GenericSupplierPaymentsPageInner() {
                           <TableHead>Supplier</TableHead>
                           <TableHead>Method</TableHead>
                           <TableHead className="text-right">Amount</TableHead>
+                          <TableHead>Linked purchase</TableHead>
                           <TableHead>Status</TableHead>
                           <TableHead></TableHead>
                         </TableRow>
@@ -289,6 +359,7 @@ function GenericSupplierPaymentsPageInner() {
                             <TableCell>{p.supplierName ?? "–"}</TableCell>
                             <TableCell className="text-xs text-slate-500">{p.paymentMethod}</TableCell>
                             <TableCell className="text-right font-semibold text-rose-700">{fmt(p.amount)}</TableCell>
+                            <TableCell className="text-xs text-slate-500">{p.linkedPurchaseId ? `#${p.linkedPurchaseId}` : "—"}</TableCell>
                             <TableCell><Badge className={badgeClass(p.status)}>{p.status}</Badge></TableCell>
                             <TableCell className="flex gap-1">
                               {p.status === "Draft" && (

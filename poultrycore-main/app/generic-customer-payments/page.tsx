@@ -25,7 +25,8 @@ import { useToast } from "@/hooks/use-toast"
 import { useGenericModules } from "@/hooks/use-generic-modules"
 import {
   approveCustomerPayment, cancelCustomerPayment, createCustomerPayment, getCashAccounts, getCustomerPayments, getCustomers,
-  type GenericCashAccount, type GenericCustomer, type GenericCustomerPayment,
+  getSales,
+  type GenericCashAccount, type GenericCustomer, type GenericCustomerPayment, type GenericSale,
 } from "@/lib/api/generic"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
@@ -72,8 +73,12 @@ function GenericCustomerPaymentsPageInner() {
     paymentMethod: "Cash",
     genericCashAccountId: "",
     paymentDate: new Date().toISOString().slice(0, 10),
+    linkedSaleId: "",
     notes: "",
   })
+  // Outstanding sales for the selected customer (for linking payments to specific invoices)
+  const [customerSales, setCustomerSales] = useState<GenericSale[]>([])
+  const [loadingSales, setLoadingSales] = useState(false)
 
   const load = async () => {
     setLoading(true)
@@ -100,6 +105,19 @@ function GenericCustomerPaymentsPageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFarmType, router, status])
 
+  // When a customer is picked in the payment dialog, fetch their unpaid sales
+  const loadCustomerSales = async (customerId: number) => {
+    setLoadingSales(true)
+    try {
+      const all = await getSales("Approved")
+      const unpaid = all.filter(
+        (s) => s.genericCustomerId === customerId && s.balance > 0
+      )
+      setCustomerSales(unpaid)
+    } catch { setCustomerSales([]) }
+    finally { setLoadingSales(false) }
+  }
+
   const visibleRows = useMemo(
     () => filterByDateAndSearch(rows, {
       search, dateFrom, dateTo,
@@ -120,13 +138,15 @@ function GenericCustomerPaymentsPageInner() {
         amount,
         paymentMethod: form.paymentMethod,
         genericCashAccountId: form.genericCashAccountId ? Number(form.genericCashAccountId) : null,
+        linkedSaleId: form.linkedSaleId ? Number(form.linkedSaleId) : null,
         paymentDate: form.paymentDate,
         notes: form.notes || null,
       })
       if (created) {
         toast({ title: `${labels.payment} created as Draft. Approve to update ledger + cash.` })
         setOpen(false)
-        setForm({ genericCustomerId: "", amount: "0", paymentMethod: "Cash", genericCashAccountId: form.genericCashAccountId, paymentDate: new Date().toISOString().slice(0, 10), notes: "" })
+        setForm({ genericCustomerId: "", amount: "0", paymentMethod: "Cash", genericCashAccountId: form.genericCashAccountId, paymentDate: new Date().toISOString().slice(0, 10), linkedSaleId: "", notes: "" })
+        setCustomerSales([])
         await load()
       }
     } catch (e: any) {
@@ -169,7 +189,11 @@ function GenericCustomerPaymentsPageInner() {
                 <div className="space-y-4">
                   <FormSection title={labels.customer} color="indigo" columns={1}>
                     <FormField label={`${labels.customer} *`}>
-                      <Select value={form.genericCustomerId} onValueChange={(v) => setForm((f) => ({ ...f, genericCustomerId: v }))}>
+                      <Select value={form.genericCustomerId} onValueChange={(v) => {
+                        setForm((f) => ({ ...f, genericCustomerId: v, linkedSaleId: "" }))
+                        setCustomerSales([])
+                        if (v) void loadCustomerSales(Number(v))
+                      }}>
                         <SelectTrigger><SelectValue placeholder={`Pick ${labels.customer.toLowerCase()}...`} /></SelectTrigger>
                         <SelectContent>{customers.map((c) => <SelectItem key={c.genericCustomerId} value={String(c.genericCustomerId)}>{c.customerName}{c.currentBalance > 0 ? ` – owes ${fmt(c.currentBalance)}` : ""}</SelectItem>)}</SelectContent>
                       </Select>
@@ -199,6 +223,37 @@ function GenericCustomerPaymentsPageInner() {
                       </Select>
                     </FormField>
                   </FormSection>
+
+                  {form.genericCustomerId && customerSales.length > 0 && (
+                    <FormSection title="Link to sale (optional)" color="amber" columns={1}>
+                      <FormField label="Outstanding sale">
+                        <Select value={form.linkedSaleId || "__none__"} onValueChange={(v) => {
+                          const saleId = v === "__none__" ? "" : v
+                          setForm((f) => {
+                            // Auto-fill amount with the sale balance if linking
+                            if (saleId) {
+                              const sale = customerSales.find((s) => String(s.genericSaleId) === saleId)
+                              if (sale) return { ...f, linkedSaleId: saleId, amount: String(sale.balance) }
+                            }
+                            return { ...f, linkedSaleId: saleId }
+                          })
+                        }}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">— General payment (no specific sale) —</SelectItem>
+                            {customerSales.map((s) => (
+                              <SelectItem key={s.genericSaleId} value={String(s.genericSaleId)}>
+                                Sale #{s.genericSaleId} · {new Date(s.saleDate).toLocaleDateString()} · Balance: {fmt(s.balance)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormField>
+                    </FormSection>
+                  )}
+                  {form.genericCustomerId && loadingSales && (
+                    <div className="flex items-center gap-2 text-xs text-slate-400"><Loader2 className="h-3 w-3 animate-spin" /> Loading outstanding sales…</div>
+                  )}
 
                   <FormSection title="Notes" color="slate" columns={1}>
                     <FormField label="Notes">
@@ -255,6 +310,7 @@ function GenericCustomerPaymentsPageInner() {
                     { label: "Customer", value: p.customerName ?? "–" },
                     { label: "Method", value: p.paymentMethod },
                     { label: "Amount", value: <span className="font-semibold text-emerald-700">{fmt(p.amount)}</span> },
+                    ...(p.linkedSaleId ? [{ label: "Linked sale", value: `#${p.linkedSaleId}` }] : []),
                   ]}
                   actions={(p) => (
                     <>
@@ -280,6 +336,7 @@ function GenericCustomerPaymentsPageInner() {
                           <TableHead>Customer</TableHead>
                           <TableHead>Method</TableHead>
                           <TableHead className="text-right">Amount</TableHead>
+                          <TableHead>Linked sale</TableHead>
                           <TableHead>Status</TableHead>
                           <TableHead></TableHead>
                         </TableRow>
@@ -292,6 +349,7 @@ function GenericCustomerPaymentsPageInner() {
                             <TableCell>{p.customerName ?? "–"}</TableCell>
                             <TableCell className="text-xs text-slate-500">{p.paymentMethod}</TableCell>
                             <TableCell className="text-right font-semibold text-emerald-700">{fmt(p.amount)}</TableCell>
+                            <TableCell className="text-xs text-slate-500">{p.linkedSaleId ? `#${p.linkedSaleId}` : "—"}</TableCell>
                             <TableCell><Badge className={badgeClass(p.status)}>{p.status}</Badge></TableCell>
                             <TableCell className="flex gap-1">
                               {p.status === "Draft" && (

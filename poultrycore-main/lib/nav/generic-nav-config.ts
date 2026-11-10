@@ -101,7 +101,7 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
     item("/generic-routes", "Routes", MapPin),
   ]
   if (catalogItems.length > 0) {
-    catalog.push({ key: "catalog", label: "Catalog & Stock", items: catalogItems })
+    catalog.push({ key: "catalog", label: "Operations", items: catalogItems })
   }
 
   // ---- Expenses & Vendors / Purchasing ----

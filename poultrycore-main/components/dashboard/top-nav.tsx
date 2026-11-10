@@ -349,11 +349,11 @@ function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePerm
 
         {/* Quick Sale hidden — only Sales is shown */}
 
-        {/* Catalog & Stock — retail businesses */}
+        {/* Operations — retail businesses */}
         {nav.catalog.length > 0 && (
           <NavMegaMenu
-            label="Catalog" icon={ShoppingBag}
-            title="Catalog & Stock"
+            label="Operations" icon={ShoppingBag}
+            title="Operations"
             blurb="Products, inventory, stock adjustments and internal use."
             groups={nav.catalog}
             columns={1} widthRem={18} layout="grid" accent="emerald"
