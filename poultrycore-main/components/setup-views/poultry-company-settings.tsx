@@ -10,7 +10,7 @@
 // Currency lives on the Farms row and is saved alongside; the time zone also
 // lives on Farms but saves itself (see CompanyTimeZoneField for why).
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Loader2, Save, Undo2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -139,10 +139,6 @@ const fieldsOf = (p: Profile): Fields => ({
 })
 type Currency = { code: string; symbol: string; show: boolean }
 
-function SectionTitle({ children }: { children: ReactNode }) {
-  return <h3 className="mb-3 text-sm font-semibold text-slate-800">{children}</h3>
-}
-
 export function CompanySettingsForm() {
   const { toast } = useToast()
   const { canEdit } = usePermissions()
@@ -205,64 +201,94 @@ export function CompanySettingsForm() {
 
   if (loading || curLoading) return <Loading />
   return (
-    <div className="space-y-5">
-      <div>
-        <SectionTitle>Company and farm</SectionTitle>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <div><Label>Farm / brand name</Label>
-            <Input value={form.brandName} disabled={ro} placeholder="e.g. Gyimah Farm" onChange={(e) => setForm({ ...form, brandName: e.target.value })} /></div>
-          <div><Label>Owner name</Label>
-            <Input value={form.ownerName} disabled={ro} onChange={(e) => setForm({ ...form, ownerName: e.target.value })} /></div>
-          <div><Label>Main location / town</Label>
-            <Input value={form.mainLocation} disabled={ro} onChange={(e) => setForm({ ...form, mainLocation: e.target.value })} /></div>
-          <div><Label>Phone</Label>
-            <Input value={form.phoneNumber} disabled={ro} placeholder="+233..." onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })} /></div>
-          <div><Label>Email</Label>
-            <Input type="email" value={form.email} disabled={ro} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
-          <div><Label>Business type</Label>
-            <Select value={form.businessType} onValueChange={(v) => setForm({ ...form, businessType: v })} disabled={ro}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{POULTRY_BUSINESS_TYPES.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-            </Select></div>
-          <div><Label>Housing system</Label>
-            <Select value={form.housingSystem} onValueChange={(v) => setForm({ ...form, housingSystem: v })} disabled={ro}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{POULTRY_HOUSING_SYSTEMS.map((o) => <SelectItem key={o} value={o}>{POULTRY_HOUSING_LABELS[o]}</SelectItem>)}</SelectContent>
-            </Select></div>
-          <div><Label>Farm site address</Label>
-            <Input value={form.farmSiteAddress} disabled={ro} onChange={(e) => setForm({ ...form, farmSiteAddress: e.target.value })} /></div>
-          <div><Label>Total capacity (birds)</Label>
-            <NumberInput min={0} value={form.totalCapacity ?? ""} disabled={ro}
-              onChange={(e) => setForm({ ...form, totalCapacity: e.target.value === "" ? null : Number(e.target.value) })} /></div>
-          <div><Label>Eggs per crate</Label>
-            <NumberInput min={1} value={form.defaultCrateEggCount} disabled={ro}
-              onChange={(e) => setForm({ ...form, defaultCrateEggCount: Number(e.target.value) || 30 })} /></div>
-          <div><Label>Operating hours</Label>
-            <Input value={form.operatingHours} disabled={ro} placeholder="e.g. 6:00 AM – 6:00 PM"
-              onChange={(e) => setForm({ ...form, operatingHours: e.target.value })} /></div>
-          <div><Label htmlFor="farm-currency">Currency</Label>
-            {/* Picking a currency fills in its standard symbol; the symbol stays
-                editable because many Ghanaian businesses write "GHC", not "₵". */}
-            <CurrencySelect id="farm-currency" value={cur.code} disabled={ro}
-              onChange={(o) => setCur({ ...cur, code: o.code, symbol: o.symbol })} /></div>
-          <div><Label>Symbol</Label>
-            <Input value={cur.symbol} disabled={ro} maxLength={10} placeholder={currencySymbolFor(cur.code) || "GHC"}
-              onChange={(e) => setCur({ ...cur, symbol: e.target.value })}
-              onBlur={() => { if (!cur.symbol.trim()) setCur({ ...cur, symbol: currencySymbolFor(cur.code) || cur.code }) }} />
-            <p className="mt-1 text-xs text-slate-500">To hide it, turn off &quot;Show symbol on amounts&quot;.</p></div>
-          <div className="flex h-9 items-center gap-3 self-start md:mt-6">
-            <Switch checked={cur.show} disabled={ro} onCheckedChange={(v) => setCur({ ...cur, show: v })} id="show-symbol" />
-            <Label htmlFor="show-symbol" className="mb-0">Show symbol on amounts</Label>
+    <div className="space-y-6">
+      <div className="divide-y divide-slate-100">
+        {/* Business profile */}
+        <section className="grid gap-x-10 gap-y-5 pb-8 lg:grid-cols-[minmax(0,240px)_1fr]">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-900">Business profile</h3>
+            <p className="mt-1 text-sm leading-relaxed text-slate-500">Your farm&apos;s name, owner and how customers and receipts reach you.</p>
           </div>
-          {/* Saves itself with its own button (it validates the zone and marks it
-              confirmed), so it is not part of this form's unsaved changes. */}
-          <CompanyTimeZoneField className="md:col-span-2" />
-        </div>
-      </div>
+          <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
+            <div className="space-y-1.5 sm:col-span-2"><Label>Farm / brand name</Label>
+              <Input value={form.brandName} disabled={ro} placeholder="e.g. Gyimah Farm" onChange={(e) => setForm({ ...form, brandName: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label>Owner name</Label>
+              <Input value={form.ownerName} disabled={ro} onChange={(e) => setForm({ ...form, ownerName: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label>Phone</Label>
+              <Input value={form.phoneNumber} disabled={ro} placeholder="+233..." onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label>Email</Label>
+              <Input type="email" value={form.email} disabled={ro} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label>Main location / town</Label>
+              <Input value={form.mainLocation} disabled={ro} onChange={(e) => setForm({ ...form, mainLocation: e.target.value })} /></div>
+            <div className="space-y-1.5 sm:col-span-2"><Label>Farm site address</Label>
+              <Input value={form.farmSiteAddress} disabled={ro} onChange={(e) => setForm({ ...form, farmSiteAddress: e.target.value })} /></div>
+          </div>
+        </section>
 
-      <div className="border-t border-slate-100 pt-4">
-        <Label>Notes</Label>
-        <Textarea value={form.notes} disabled={ro} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+        {/* Farm details */}
+        <section className="grid gap-x-10 gap-y-5 py-8 lg:grid-cols-[minmax(0,240px)_1fr]">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-900">Farm details</h3>
+            <p className="mt-1 text-sm leading-relaxed text-slate-500">Flock type, housing and the defaults your production records start from.</p>
+          </div>
+          <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
+            <div className="space-y-1.5"><Label>Business type</Label>
+              <Select value={form.businessType} onValueChange={(v) => setForm({ ...form, businessType: v })} disabled={ro}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{POULTRY_BUSINESS_TYPES.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select></div>
+            <div className="space-y-1.5"><Label>Housing system</Label>
+              <Select value={form.housingSystem} onValueChange={(v) => setForm({ ...form, housingSystem: v })} disabled={ro}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{POULTRY_HOUSING_SYSTEMS.map((o) => <SelectItem key={o} value={o}>{POULTRY_HOUSING_LABELS[o]}</SelectItem>)}</SelectContent>
+              </Select></div>
+            <div className="space-y-1.5"><Label>Total capacity (birds)</Label>
+              <NumberInput min={0} value={form.totalCapacity ?? ""} disabled={ro}
+                onChange={(e) => setForm({ ...form, totalCapacity: e.target.value === "" ? null : Number(e.target.value) })} /></div>
+            <div className="space-y-1.5"><Label>Eggs per crate</Label>
+              <NumberInput min={1} value={form.defaultCrateEggCount} disabled={ro}
+                onChange={(e) => setForm({ ...form, defaultCrateEggCount: Number(e.target.value) || 30 })} /></div>
+            <div className="space-y-1.5 sm:col-span-2"><Label>Operating hours</Label>
+              <Input value={form.operatingHours} disabled={ro} placeholder="e.g. 6:00 AM – 6:00 PM"
+                onChange={(e) => setForm({ ...form, operatingHours: e.target.value })} /></div>
+          </div>
+        </section>
+
+        {/* Currency & time zone */}
+        <section className="grid gap-x-10 gap-y-5 py-8 lg:grid-cols-[minmax(0,240px)_1fr]">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-900">Currency &amp; time zone</h3>
+            <p className="mt-1 text-sm leading-relaxed text-slate-500">How money is shown on amounts, and the time zone your days and reports follow.</p>
+          </div>
+          <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
+            <div className="space-y-1.5"><Label htmlFor="farm-currency">Currency</Label>
+              {/* Picking a currency fills in its standard symbol; the symbol stays
+                  editable because many Ghanaian businesses write "GHC", not "₵". */}
+              <CurrencySelect id="farm-currency" value={cur.code} disabled={ro}
+                onChange={(o) => setCur({ ...cur, code: o.code, symbol: o.symbol })} /></div>
+            <div className="space-y-1.5"><Label>Symbol</Label>
+              <Input value={cur.symbol} disabled={ro} maxLength={10} placeholder={currencySymbolFor(cur.code) || "GHC"}
+                onChange={(e) => setCur({ ...cur, symbol: e.target.value })}
+                onBlur={() => { if (!cur.symbol.trim()) setCur({ ...cur, symbol: currencySymbolFor(cur.code) || cur.code }) }} />
+              <p className="text-xs text-slate-500">To hide it, turn off &quot;Show symbol on amounts&quot;.</p></div>
+            <label htmlFor="show-symbol" className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2.5 sm:col-span-2">
+              <Switch checked={cur.show} disabled={ro} onCheckedChange={(v) => setCur({ ...cur, show: v })} id="show-symbol" />
+              <span className="text-sm font-medium text-slate-700">Show symbol on amounts</span>
+            </label>
+            {/* Saves itself with its own button (it validates the zone and marks it
+                confirmed), so it is not part of this form's unsaved changes. */}
+            <CompanyTimeZoneField className="sm:col-span-2" />
+          </div>
+        </section>
+
+        {/* Notes */}
+        <section className="grid gap-x-10 gap-y-5 pt-8 lg:grid-cols-[minmax(0,240px)_1fr]">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-900">Notes</h3>
+            <p className="mt-1 text-sm leading-relaxed text-slate-500">Anything else you want kept on file for this company.</p>
+          </div>
+          <Textarea value={form.notes} disabled={ro} className="min-h-[120px]" onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+        </section>
       </div>
 
       {/* In Farm Setup, Save and Discard are on the task bar. */}
