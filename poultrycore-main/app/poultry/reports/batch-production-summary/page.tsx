@@ -38,6 +38,8 @@ import { getFlockPositions, type FlockPositionRow } from "@/lib/api/flock-positi
 import { flockLifetime } from "@/lib/flocks/bird-position"
 import { toLocalDateKey } from "@/lib/utils/date-key"
 import { cn } from "@/lib/utils"
+import { PeriodSelect } from "@/components/ui/period-select"
+import { rangeToPeriod } from "@/lib/date-ranges"
 import { exportTableToPdf, emailTableAsPdf, type PdfExportColumn, type PdfExportOptions } from "@/lib/utils/pdf-export"
 import { PoultryReportExportButtons } from "@/components/poultry-reports/poultry-report-ui"
 
@@ -331,6 +333,16 @@ export default function BatchProductionSummaryReport() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <Input placeholder="Search batch, code, breed…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
               </div>
+              {/* Same Period list as the other reports. Blank dates = everything, shown as All Time. */}
+              <PeriodSelect
+                label={null}
+                className="w-44"
+                value={!dateFrom && !dateTo ? "allTime" : rangeToPeriod(dateFrom, dateTo)}
+                onChange={(p, range) => {
+                  if (p === "allTime") { setDateFrom(""); setDateTo("") }
+                  else if (range) { setDateFrom(range.from); setDateTo(range.to) }
+                }}
+              />
               <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-[150px]" />
               <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-[150px]" />
               <div className="ml-auto flex items-center gap-2">

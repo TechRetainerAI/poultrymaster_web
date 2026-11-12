@@ -32,6 +32,8 @@ namespace PoultryFarmAPIWeb.Models
         public DateTime? EndDate { get; set; }
         public string? DatePreset { get; set; }
         public int? FlockId { get; set; }
+        /// <summary>432: narrow to the flocks of one batch (flock.batchid). Combines with FlockId.</summary>
+        public int? BatchId { get; set; }
         public int? CustomerId { get; set; }
         /// <summary>
         /// Sale rows carry both: CustomerId since migration 223, and the free-text

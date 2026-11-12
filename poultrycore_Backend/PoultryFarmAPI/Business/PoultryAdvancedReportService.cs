@@ -78,6 +78,7 @@ namespace PoultryFarmAPIWeb.Business
             };
             if (!string.IsNullOrWhiteSpace(f.DatePreset)) d["Period"] = f.DatePreset;
             if (f.FlockId.HasValue) d["Flock"] = f.FlockId.Value.ToString();
+            if (f.BatchId.HasValue) d["Batch"] = f.BatchId.Value.ToString();
             if (!string.IsNullOrWhiteSpace(f.CustomerName)) d["Customer"] = f.CustomerName;
             if (!string.IsNullOrWhiteSpace(f.SupplierName)) d["Supplier"] = f.SupplierName;
             if (f.IncludeClosedFlocks) d["Include closed flocks"] = "Yes";
@@ -86,6 +87,16 @@ namespace PoultryFarmAPIWeb.Business
 
         private static NpgsqlParameter PFlock(PoultryReportFilterDto f) =>
             new("@FlockId", (object?)f.FlockId ?? DBNull.Value);
+
+        // 432: the batch filter. p_batchid is only named in the call when a batch
+        // is picked, so the reports keep working on a database without 432.
+        private static string PBatchArg(PoultryReportFilterDto f) =>
+            f.BatchId.HasValue ? ", p_batchid => @BatchId::int" : "";
+
+        private static void AddBatch(NpgsqlCommand cmd, PoultryReportFilterDto f)
+        {
+            if (f.BatchId.HasValue) cmd.Parameters.AddWithValue("@BatchId", f.BatchId.Value);
+        }
 
         // =====================================================================
         // 1. Farm Summary
@@ -97,11 +108,11 @@ namespace PoultryFarmAPIWeb.Business
             var resp = NewResponse<PoultryFarmSummaryReportSummary, PoultryFarmSummaryReportRow>("Poultry Farm Summary", f, start, end);
 
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_farmsummary_rs1(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_includeclosedflocks => @IncludeClosedFlocks::boolean, p_flockid => @FlockId::int); SELECT * FROM sppoultryreport_farmsummary_rs2(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_includeclosedflocks => @IncludeClosedFlocks::boolean, p_flockid => @FlockId::int)", conn);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_farmsummary_rs1(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_includeclosedflocks => @IncludeClosedFlocks::boolean, p_flockid => @FlockId::int" + PBatchArg(f) + "); SELECT * FROM sppoultryreport_farmsummary_rs2(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_includeclosedflocks => @IncludeClosedFlocks::boolean, p_flockid => @FlockId::int" + PBatchArg(f) + ")", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
-            cmd.Parameters.Add(PFlock(f));
+            cmd.Parameters.Add(PFlock(f)); AddBatch(cmd, f);
             cmd.Parameters.AddWithValue("@IncludeClosedFlocks", f.IncludeClosedFlocks);
 
             await conn.OpenAsync();
@@ -154,7 +165,7 @@ namespace PoultryFarmAPIWeb.Business
             resp.Summary = summary;
             resp.Warnings.Add("Feed cost is shown from expenses categorised as \"Feed\"; itemised feed valuation is not tracked.");
             // 375: byproduct stock and sales, apart from the eggs / live birds.
-            var bpFarm = await ByproductTotalsAsync(f.FarmId, start, end, f.FlockId);
+            var bpFarm = await ByproductTotalsAsync(f.FarmId, start, end, f.FlockId, f.BatchId);
             if (bpFarm.Count > 0)
             {
                 summary.BrokenEggsInStock = Bp(bpFarm, "BrokenEggs")?.Closing;
@@ -174,11 +185,11 @@ namespace PoultryFarmAPIWeb.Business
             var resp = NewResponse<PoultryDailyEggProductionReportSummary, PoultryDailyEggProductionReportRow>("Poultry Daily Egg Production", f, start, end);
 
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_dailyeggproduction(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_flockid => @FlockId::int)", conn);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_dailyeggproduction(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_flockid => @FlockId::int" + PBatchArg(f) + ")", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
-            cmd.Parameters.Add(PFlock(f));
+            cmd.Parameters.Add(PFlock(f)); AddBatch(cmd, f);
 
             await conn.OpenAsync();
             using var r = await cmd.ExecuteReaderAsync();
@@ -227,7 +238,7 @@ namespace PoultryFarmAPIWeb.Business
             }
             resp.Summary = summary;
             // 375: what became of the broken eggs. Production totals stay as produced.
-            var bpDaily = Bp(await ByproductTotalsAsync(f.FarmId, start, end, f.FlockId), "BrokenEggs");
+            var bpDaily = Bp(await ByproductTotalsAsync(f.FarmId, start, end, f.FlockId, f.BatchId), "BrokenEggs");
             if (bpDaily is not null)
             {
                 summary.BrokenEggsSold = bpDaily.Sold; summary.BrokenEggsDisposed = bpDaily.Disposed; summary.BrokenEggsRemaining = bpDaily.Closing;
@@ -245,11 +256,11 @@ namespace PoultryFarmAPIWeb.Business
             var resp = NewResponse<PoultryFlockProductionSummaryReportSummary, PoultryFlockProductionSummaryReportRow>("Poultry Flock Production Summary", f, start, end);
 
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_flockproductionsummary(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_includeclosedflocks => @IncludeClosedFlocks::boolean, p_flockid => @FlockId::int)", conn);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_flockproductionsummary(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_includeclosedflocks => @IncludeClosedFlocks::boolean, p_flockid => @FlockId::int" + PBatchArg(f) + ")", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
-            cmd.Parameters.Add(PFlock(f));
+            cmd.Parameters.Add(PFlock(f)); AddBatch(cmd, f);
             cmd.Parameters.AddWithValue("@IncludeClosedFlocks", f.IncludeClosedFlocks);
 
             await conn.OpenAsync();
@@ -291,7 +302,7 @@ namespace PoultryFarmAPIWeb.Business
                 LowestProducingFlock = produced.OrderBy(x => x.TotalEggs).FirstOrDefault()?.FlockName,
             };
             // 375
-            var bpFlock = Bp(await ByproductTotalsAsync(f.FarmId, start, end, f.FlockId), "BrokenEggs");
+            var bpFlock = Bp(await ByproductTotalsAsync(f.FarmId, start, end, f.FlockId, f.BatchId), "BrokenEggs");
             if (bpFlock is not null && resp.Summary is not null)
             {
                 resp.Summary.BrokenEggsGenerated = bpFlock.Generated; resp.Summary.BrokenEggsSold = bpFlock.Sold;
@@ -310,11 +321,11 @@ namespace PoultryFarmAPIWeb.Business
             var resp = NewResponse<PoultryHenDayProductionReportSummary, PoultryHenDayProductionReportRow>("Poultry Hen-Day Production", f, start, end);
 
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_hendayproduction(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_flockid => @FlockId::int)", conn);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_hendayproduction(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_flockid => @FlockId::int" + PBatchArg(f) + ")", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
-            cmd.Parameters.Add(PFlock(f));
+            cmd.Parameters.Add(PFlock(f)); AddBatch(cmd, f);
 
             await conn.OpenAsync();
             using var r = await cmd.ExecuteReaderAsync();
@@ -360,11 +371,11 @@ namespace PoultryFarmAPIWeb.Business
             var resp = NewResponse<PoultryMortalityReportSummary, PoultryMortalityReportRow>("Poultry Mortality", f, start, end);
 
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_mortality(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_flockid => @FlockId::int)", conn);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_mortality(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_flockid => @FlockId::int" + PBatchArg(f) + ")", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
-            cmd.Parameters.Add(PFlock(f));
+            cmd.Parameters.Add(PFlock(f)); AddBatch(cmd, f);
 
             await conn.OpenAsync();
             using var r = await cmd.ExecuteReaderAsync();
@@ -417,7 +428,7 @@ namespace PoultryFarmAPIWeb.Business
                     startedByFlock.TryGetValue(kv.Key, out var st) && st > 0 && (Percent(kv.Value, st) ?? 0) > 10),
             };
             // 375: dead bird disposition. Deaths above are unchanged by it.
-            var bpMort = Bp(await ByproductTotalsAsync(f.FarmId, start, end, f.FlockId), "DeadBirds");
+            var bpMort = Bp(await ByproductTotalsAsync(f.FarmId, start, end, f.FlockId, f.BatchId), "DeadBirds");
             if (bpMort is not null && resp.Summary is not null)
             {
                 resp.Summary.DeadBirdsGenerated = bpMort.Generated; resp.Summary.DeadBirdsSold = bpMort.Sold;
@@ -437,10 +448,10 @@ namespace PoultryFarmAPIWeb.Business
             var resp = NewResponse<PoultryBirdsOnHandReportSummary, PoultryBirdsOnHandReportRow>("Poultry Birds on Hand", f, start, end);
 
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_birdsonhand(p_farmid => @FarmId::text, p_enddate => @EndDate::date, p_includeclosedflocks => @IncludeClosedFlocks::boolean, p_flockid => @FlockId::int)", conn);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_birdsonhand(p_farmid => @FarmId::text, p_enddate => @EndDate::date, p_includeclosedflocks => @IncludeClosedFlocks::boolean, p_flockid => @FlockId::int" + PBatchArg(f) + ")", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@EndDate", end);
-            cmd.Parameters.Add(PFlock(f));
+            cmd.Parameters.Add(PFlock(f)); AddBatch(cmd, f);
             cmd.Parameters.AddWithValue("@IncludeClosedFlocks", f.IncludeClosedFlocks);
 
             await conn.OpenAsync();
@@ -488,7 +499,7 @@ namespace PoultryFarmAPIWeb.Business
             };
             resp.Warnings.Add("Birds placed, deaths, sold, culled and transferred include each flock's opening history from Initial Farm Setup. Variance is the part of the latest count that no recorded movement explains.");
             // 375: informational only -- dead birds are never live birds on hand.
-            var bpHand = Bp(await ByproductTotalsAsync(f.FarmId, start, end, f.FlockId), "DeadBirds");
+            var bpHand = Bp(await ByproductTotalsAsync(f.FarmId, start, end, f.FlockId, f.BatchId), "DeadBirds");
             if (bpHand is not null && resp.Summary is not null) resp.Summary.DeadBirdsPendingDisposition = bpHand.Closing;
             return resp;
         }
@@ -503,11 +514,11 @@ namespace PoultryFarmAPIWeb.Business
             var resp = NewResponse<PoultryFeedUsageReportSummary, PoultryFeedUsageReportRow>("Poultry Feed Usage", f, start, end);
 
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_feedusage(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_flockid => @FlockId::int)", conn);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_feedusage(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_flockid => @FlockId::int" + PBatchArg(f) + ")", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
-            cmd.Parameters.Add(PFlock(f));
+            cmd.Parameters.Add(PFlock(f)); AddBatch(cmd, f);
 
             await conn.OpenAsync();
             using var r = await cmd.ExecuteReaderAsync();
@@ -614,11 +625,11 @@ namespace PoultryFarmAPIWeb.Business
             var resp = NewResponse<PoultryFeedCostPerEggReportSummary, PoultryFeedCostPerEggReportRow>("Poultry Feed Cost Per Egg", f, start, end);
 
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_feedcostperegg(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_includeclosedflocks => @IncludeClosedFlocks::boolean, p_flockid => @FlockId::int)", conn);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_feedcostperegg(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_includeclosedflocks => @IncludeClosedFlocks::boolean, p_flockid => @FlockId::int" + PBatchArg(f) + ")", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
-            cmd.Parameters.Add(PFlock(f));
+            cmd.Parameters.Add(PFlock(f)); AddBatch(cmd, f);
             cmd.Parameters.AddWithValue("@IncludeClosedFlocks", f.IncludeClosedFlocks);
 
             await conn.OpenAsync();
@@ -777,7 +788,7 @@ namespace PoultryFarmAPIWeb.Business
         /// Per byproduct (BrokenEggs / DeadBirds), for the period and optionally one
         /// flock. Empty on a database without 375, so the reports still load.
         /// </summary>
-        private async Task<Dictionary<string, ByproductTotals>> ByproductTotalsAsync(string? farmId, DateTime start, DateTime end, int? flockId)
+        private async Task<Dictionary<string, ByproductTotals>> ByproductTotalsAsync(string? farmId, DateTime start, DateTime end, int? flockId, int? batchId = null)
         {
             var d = new Dictionary<string, ByproductTotals>();
             try
@@ -785,7 +796,9 @@ namespace PoultryFarmAPIWeb.Business
                 using var conn = new NpgsqlConnection(_connectionString);
                 using var cmd = new NpgsqlCommand(
                     "SELECT * FROM sppoultryreport_byproducts(p_farmid => @FarmId::text, p_startdate => @S::date, p_enddate => @E::date, " +
-                    "p_flockid => @F::int, p_role => NULL::text, p_byflock => FALSE)", conn);
+                    "p_flockid => @F::int, p_role => NULL::text, p_byflock => FALSE" +
+                    (batchId.HasValue ? ", p_batchid => @B::int" : "") + ")", conn);
+                if (batchId.HasValue) cmd.Parameters.AddWithValue("@B", batchId.Value);
                 cmd.Parameters.AddWithValue("@FarmId", farmId ?? "");
                 cmd.Parameters.AddWithValue("@S", start.Date);
                 cmd.Parameters.AddWithValue("@E", end.Date);
@@ -824,7 +837,8 @@ namespace PoultryFarmAPIWeb.Business
             using var conn = new NpgsqlConnection(_connectionString);
             using var cmd = new NpgsqlCommand(
                 "SELECT * FROM sppoultryreport_byproducts(p_farmid => @FarmId::text, p_startdate => @S::date, p_enddate => @E::date, " +
-                "p_flockid => @F::int, p_role => @Role::text, p_byflock => TRUE)", conn);
+                "p_flockid => @F::int, p_role => @Role::text, p_byflock => TRUE" + PBatchArg(f).Replace("@BatchId", "@B") + ")", conn);
+            if (f.BatchId.HasValue) cmd.Parameters.AddWithValue("@B", f.BatchId.Value);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@S", start);
             cmd.Parameters.AddWithValue("@E", end);
@@ -862,8 +876,8 @@ namespace PoultryFarmAPIWeb.Business
                 ByproductRevenue = resp.Rows.Sum(x => x.Revenue),
             };
             resp.Warnings.Add("Each row: Opening + Generated + Manual in - Sold - Disposed - Internal use - Manual out +/- Reversals = Closing. Dead birds are never part of the live bird count.");
-            if (f.FlockId is not null)
-                resp.Warnings.Add("Filtered to one flock: stock that cannot be traced to a flock (egg sorting breakage, pooled manual entries) is left out.");
+            if (f.FlockId is not null || f.BatchId is not null)
+                resp.Warnings.Add((f.FlockId is not null ? "Filtered to one flock" : "Filtered to one batch") + ": stock that cannot be traced to a flock (egg sorting breakage, pooled manual entries) is left out.");
             else if (resp.Rows.Any(x => x.FlockId is null && (x.Generated != 0 || x.Closing != 0 || x.ManualIn != 0)))
                 resp.Warnings.Add("\"Pooled\" rows are stock not traced to a flock (egg sorting breakage, manual entries without a flock). They are not guessed onto a flock.");
             return resp;
@@ -879,11 +893,11 @@ namespace PoultryFarmAPIWeb.Business
             var resp = NewResponse<PoultryEggSalesReportSummary, PoultryEggSalesReportRow>("Poultry Egg Sales", f, start, end);
 
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_eggsales_rs1(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_customername => @CustomerName::text, p_flockid => @FlockId::int); SELECT * FROM sppoultryreport_eggsales_rs2(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_customername => @CustomerName::text, p_flockid => @FlockId::int)", conn);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_eggsales_rs1(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_customername => @CustomerName::text, p_flockid => @FlockId::int" + PBatchArg(f) + "); SELECT * FROM sppoultryreport_eggsales_rs2(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_customername => @CustomerName::text, p_flockid => @FlockId::int" + PBatchArg(f) + ")", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
-            cmd.Parameters.Add(PFlock(f));
+            cmd.Parameters.Add(PFlock(f)); AddBatch(cmd, f);
             cmd.Parameters.AddWithValue("@CustomerName", (object?)f.CustomerName ?? DBNull.Value);
 
             await conn.OpenAsync();
@@ -1082,11 +1096,11 @@ namespace PoultryFarmAPIWeb.Business
             var resp = NewResponse<PoultryExpenseSummaryReportSummary, PoultryExpenseSummaryReportRow>("Poultry Expense Summary", f, start, end);
 
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_expensesummary(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_supplier => @Supplier::text, p_flockid => @FlockId::int, p_category => @Category::text)", conn);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_expensesummary(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_supplier => @Supplier::text, p_flockid => @FlockId::int" + PBatchArg(f) + ", p_category => @Category::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
-            cmd.Parameters.Add(PFlock(f));
+            cmd.Parameters.Add(PFlock(f)); AddBatch(cmd, f);
             cmd.Parameters.AddWithValue("@Supplier", (object?)f.SupplierName ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Category", (object?)f.Category ?? DBNull.Value);
 
@@ -1415,11 +1429,11 @@ namespace PoultryFarmAPIWeb.Business
             var resp = NewResponse<PoultryProfitLossByFlockReportSummary, PoultryProfitLossByFlockReportRow>("Poultry Profit & Loss by Flock", f, start, end);
 
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_profitlossbyflock(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_includeclosedflocks => @IncludeClosedFlocks::boolean, p_flockid => @FlockId::int)", conn);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_profitlossbyflock(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_includeclosedflocks => @IncludeClosedFlocks::boolean, p_flockid => @FlockId::int" + PBatchArg(f) + ")", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
-            cmd.Parameters.Add(PFlock(f));
+            cmd.Parameters.Add(PFlock(f)); AddBatch(cmd, f);
             cmd.Parameters.AddWithValue("@IncludeClosedFlocks", f.IncludeClosedFlocks);
 
             await conn.OpenAsync();
@@ -1574,11 +1588,11 @@ namespace PoultryFarmAPIWeb.Business
             var resp = NewResponse<PoultryCostPerEggReportSummary, PoultryCostPerEggReportRow>("Poultry Cost Per Egg", f, start, end);
 
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_costperegg(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_includeclosedflocks => @IncludeClosedFlocks::boolean, p_flockid => @FlockId::int)", conn);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_costperegg(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_includeclosedflocks => @IncludeClosedFlocks::boolean, p_flockid => @FlockId::int" + PBatchArg(f) + ")", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
-            cmd.Parameters.Add(PFlock(f));
+            cmd.Parameters.Add(PFlock(f)); AddBatch(cmd, f);
             cmd.Parameters.AddWithValue("@IncludeClosedFlocks", f.IncludeClosedFlocks);
 
             await conn.OpenAsync();
@@ -1636,11 +1650,11 @@ namespace PoultryFarmAPIWeb.Business
             var resp = NewResponse<PoultryVaccinationScheduleReportSummary, PoultryVaccinationScheduleReportRow>("Poultry Vaccination Schedule", f, start, end);
 
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_vaccinationschedule(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_flockid => @FlockId::int)", conn);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_vaccinationschedule(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_flockid => @FlockId::int" + PBatchArg(f) + ")", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
-            cmd.Parameters.Add(PFlock(f));
+            cmd.Parameters.Add(PFlock(f)); AddBatch(cmd, f);
 
             await conn.OpenAsync();
             using var r = await cmd.ExecuteReaderAsync();
@@ -1684,11 +1698,11 @@ namespace PoultryFarmAPIWeb.Business
             var resp = NewResponse<PoultryMedicineUsageReportSummary, PoultryMedicineUsageReportRow>("Poultry Medicine Usage", f, start, end);
 
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_medicineusage(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_flockid => @FlockId::int)", conn);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_medicineusage(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_flockid => @FlockId::int" + PBatchArg(f) + ")", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
-            cmd.Parameters.Add(PFlock(f));
+            cmd.Parameters.Add(PFlock(f)); AddBatch(cmd, f);
 
             await conn.OpenAsync();
             using var r = await cmd.ExecuteReaderAsync();
@@ -1737,11 +1751,11 @@ namespace PoultryFarmAPIWeb.Business
             var resp = NewResponse<PoultryMissingDailyRecordsReportSummary, PoultryMissingDailyRecordsReportRow>("Poultry Missing Daily Records", f, start, end);
 
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_missingdailyrecords_rs1(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_flockid => @FlockId::int); SELECT * FROM sppoultryreport_missingdailyrecords_rs2(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_flockid => @FlockId::int)", conn);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_missingdailyrecords_rs1(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_flockid => @FlockId::int" + PBatchArg(f) + "); SELECT * FROM sppoultryreport_missingdailyrecords_rs2(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_flockid => @FlockId::int" + PBatchArg(f) + ")", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
-            cmd.Parameters.Add(PFlock(f));
+            cmd.Parameters.Add(PFlock(f)); AddBatch(cmd, f);
 
             await conn.OpenAsync();
             using var r = await cmd.ExecuteReaderAsync();
@@ -1794,10 +1808,10 @@ namespace PoultryFarmAPIWeb.Business
             var resp = NewResponse<PoultryEndOfFlockReportSummary, PoultryEndOfFlockReportRow>("Poultry End-of-Flock", f, start, end);
 
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_endofflock(p_farmid => @FarmId::text, p_enddate => @EndDate::date, p_includeactiveflocks => @IncludeActiveFlocks::boolean, p_flockid => @FlockId::int)", conn);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_endofflock(p_farmid => @FarmId::text, p_enddate => @EndDate::date, p_includeactiveflocks => @IncludeActiveFlocks::boolean, p_flockid => @FlockId::int" + PBatchArg(f) + ")", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@EndDate", end);
-            cmd.Parameters.Add(PFlock(f));
+            cmd.Parameters.Add(PFlock(f)); AddBatch(cmd, f);
             // Active flocks always come back; closed / inactive ones are dropped
             // below unless "Include closed flocks" is ticked.
             cmd.Parameters.AddWithValue("@IncludeActiveFlocks", true);
@@ -1883,7 +1897,7 @@ namespace PoultryFarmAPIWeb.Business
             };
             resp.Warnings.Add("End-of-flock figures cover the flock lifecycle up to the selected end date. Birds placed, deaths, culls and birds sold / transferred include each flock's opening history from Initial Farm Setup.");
             // 375: dead bird disposition over the flocks' lives.
-            var bpEnd = Bp(await ByproductTotalsAsync(f.FarmId, new DateTime(2000, 1, 1), end, f.FlockId), "DeadBirds");
+            var bpEnd = Bp(await ByproductTotalsAsync(f.FarmId, new DateTime(2000, 1, 1), end, f.FlockId, f.BatchId), "DeadBirds");
             if (bpEnd is not null && resp.Summary is not null)
             {
                 resp.Summary.DeadBirdsGenerated = bpEnd.Generated + bpEnd.Opening; resp.Summary.DeadBirdsSold = bpEnd.Sold;

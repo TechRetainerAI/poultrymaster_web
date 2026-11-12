@@ -358,6 +358,12 @@ export default function PoultryFarmSetupPage() {
   useEffect(() => { void load() }, [load])
 
   const setupContext: SetupContext = useMemo(() => toSetupContext(context), [context])
+  // Where a pen is. A draft saved before existing houses carried their location
+  // still has it blank, so fall back to the house as the farm has it.
+  const houseLocationOf = (row: { location?: string; existingHouseId?: number | null }) =>
+    (row.location?.trim()
+      || (row.existingHouseId != null ? setupContext.existingHouses.find((h) => h.houseId === row.existingHouseId)?.location?.trim() : "")
+      || "")
 
   const { errors, warnings } = useMemo(
     () => validateSetup(draft, setupContext),
@@ -491,6 +497,19 @@ export default function PoultryFarmSetupPage() {
         }],
       }
     })
+  }
+
+  /**
+   * A new, empty flock row for the batch being placed. The pen is picked on the
+   * row itself (picking it names the flock); it carries the batch's date.
+   */
+  const addFlockRow = () => {
+    if (!activeBatchKey) return
+    const b = draft.batches.find((x) => x.key === activeBatchKey)
+    setDraft((d) => ({
+      ...d,
+      flocks: [...d.flocks, { ...emptyFlock(activeBatchKey, ""), startDate: b?.startDate ?? "" }],
+    }))
   }
 
   const selectAllPens = (on: boolean) => {
@@ -1679,6 +1698,9 @@ export default function PoultryFarmSetupPage() {
                                             <Badge variant="outline" className="h-5 shrink-0 border-emerald-300 bg-emerald-50 px-1.5 text-[10px] text-emerald-700">Empty</Badge>
                                           ) : null}
                                         </span>
+                                        {houseLocationOf(v.row) && (
+                                          <span className="block truncate text-xs text-slate-600">{houseLocationOf(v.row)}</span>
+                                        )}
                                         <span className="block text-xs text-slate-500 tabular-nums">
                                           {full && v.load?.capacity != null
                                             ? `${v.load.total.toLocaleString()} of ${v.load.capacity.toLocaleString()} birds`
@@ -1791,6 +1813,10 @@ export default function PoultryFarmSetupPage() {
                           </Button>
                           <Button type="button" variant="ghost" size="sm"
                             onClick={() => setAllocPhase("pens")}>Change House/Pen</Button>
+                          <Button type="button" variant="ghost" size="sm"
+                            onClick={() => setNewPenOpen(true)}>
+                            <Plus className="mr-1 h-4 w-4" /> New house/pen
+                          </Button>
                           <span className="ml-auto text-xs text-slate-500">
                             A suggestion — every number stays editable.
                           </span>
@@ -1841,10 +1867,13 @@ export default function PoultryFarmSetupPage() {
                           <span className="text-sm font-semibold">
                             Flocks <span className="ml-1 rounded-full bg-white/25 px-2 py-0.5 text-xs">{activeBatchFlocks.length}</span>
                           </span>
+                          <Button type="button" size="sm" variant="secondary" className="h-7" onClick={addFlockRow}>
+                            <Plus className="mr-1 h-4 w-4" /> Add flock
+                          </Button>
                         </div>
                         <div className="space-y-4 bg-amber-50/40 p-3 sm:p-4">
                         {activeBatchFlocks.length === 0 && (
-                          <p className="text-sm text-slate-600">No pens chosen yet — use “Change House/Pen” above.</p>
+                          <p className="text-sm text-slate-600">No pens chosen yet — use “Change House/Pen” above, or “Add flock”.</p>
                         )}
                         {activeBatchFlocks.map(({ row: f, index: i }, n) => {
                             const reduction = historicalReduction(f)
@@ -1917,10 +1946,16 @@ export default function PoultryFarmSetupPage() {
                                       })
                                     }}
                                   >
-                                    <SelectTrigger><SelectValue placeholder="House" /></SelectTrigger>
+                                    {/* The location line is for the open list; the closed box shows the name only. */}
+                                    <SelectTrigger className="[&_.pen-location]:hidden"><SelectValue placeholder="House" /></SelectTrigger>
                                     <SelectContent>
                                       {penOptions(houseViews, f.houseKey).map((v) => (
-                                        <SelectItem key={v.row.key} value={v.row.key}>{v.row.houseName || "(unnamed)"}</SelectItem>
+                                        <SelectItem key={v.row.key} value={v.row.key}>
+                                          <span className="flex flex-col">
+                                            <span>{v.row.houseName || "(unnamed)"}</span>
+                                            {houseLocationOf(v.row) && <span className="pen-location text-xs text-slate-500">{houseLocationOf(v.row)}</span>}
+                                          </span>
+                                        </SelectItem>
                                       ))}
                                     </SelectContent>
                                   </Select>
@@ -1999,6 +2034,12 @@ export default function PoultryFarmSetupPage() {
                           })}
                         </div>
                         </div>
+
+                          <div className="flex justify-start pt-1">
+                            <Button type="button" variant="outline" size="sm" onClick={addFlockRow}>
+                              <Plus className="mr-1 h-4 w-4" /> Add flock
+                            </Button>
+                          </div>
 
                           {/* Moving between batches is selection, not saving: the
                               whole setup is posted once, at the end, in one
@@ -2516,7 +2557,7 @@ function toSetupContext(context: FarmSetupWizardContext | null | undefined): Set
       isHistorical: b.isHistorical ?? undefined,
     })),
     existingHouses: (context?.houses ?? []).map((h: any) => ({
-      houseId: h.houseId, houseName: h.houseName, capacity: h.capacity,
+      houseId: h.houseId, houseName: h.houseName, capacity: h.capacity, location: h.location ?? h.Location ?? null,
       occupied: h.occupied ?? 0, availableCapacity: h.availableCapacity, activeFlocks: h.activeFlocks ?? 0,
     })),
     existingFlocks: (context?.flocks ?? []).map((f) => ({

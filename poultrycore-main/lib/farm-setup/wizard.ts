@@ -172,6 +172,7 @@ export interface ExistingHouse {
   houseId: number
   houseName: string
   capacity?: number | null
+  location?: string | null
   occupied: number
   availableCapacity?: number | null
   activeFlocks: number
@@ -378,7 +379,7 @@ export function houseRowFromExisting(house: ExistingHouse): HouseRow {
     existingHouseId: house.houseId,
     houseName: house.houseName,
     capacity: house.capacity != null ? String(house.capacity) : "",
-    location: "",
+    location: house.location ?? "",
   }
 }
 
