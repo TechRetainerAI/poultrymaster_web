@@ -924,6 +924,98 @@ export const unapprovePoultryPayrollRun = (id: number, reason: string) =>
 export const deletePoultryPayrollRun = (id: number) =>
   jsend<void>(`/Poultry/payroll-runs/${id}?farmId=${fid()}&deletedBy=${encodeURIComponent(currentUserId() || "")}`, "DELETE")
 
+// ----- Payroll templates (419) -------------------------------------------------
+// The standard payroll, set up once. Each period's run is created from it as a
+// Draft and can still be adjusted; editing a template changes future runs only.
+export const PAYROLL_FREQUENCIES = ["Monthly", "Fortnightly", "Weekly"] as const
+export type PayrollFrequency = typeof PAYROLL_FREQUENCIES[number]
+
+export interface PoultryPayrollTemplateLine {
+  poultryPayrollTemplateLineId?: number
+  poultryStaffId: number
+  staffName?: string | null
+  staffRole?: string | null
+  staffIsActive?: boolean
+  basicPay: number
+  dailyWage: number
+  commission: number
+  bonus: number
+  deductions: number
+  netPay?: number
+  paymentMethod?: string | null
+  notes?: string | null
+}
+
+export interface PoultryPayrollTemplate {
+  poultryPayrollTemplateId: number
+  name: string
+  frequency: PayrollFrequency | string
+  poultryCashAccountId?: number | null
+  cashAccountName?: string | null
+  notes?: string | null
+  isActive: boolean
+  lineCount: number
+  staffInactiveCount: number
+  totalGross: number
+  totalDeductions: number
+  totalNet: number
+  runCount: number
+  lastPeriodStart?: string | null
+  lastPeriodEnd?: string | null
+  createdBy?: string | null
+  createdAt: string
+  updatedBy?: string | null
+  updatedAt?: string | null
+  lines: PoultryPayrollTemplateLine[]
+}
+
+export const listPoultryPayrollTemplates = (includeInactive = false) =>
+  jget<PoultryPayrollTemplate[]>(`/Poultry/payroll-templates?farmId=${fid()}&includeInactive=${includeInactive}`)
+
+export const getPoultryPayrollTemplate = (id: number) =>
+  jget<PoultryPayrollTemplate>(`/Poultry/payroll-templates/${id}?farmId=${fid()}`)
+
+export const savePoultryPayrollTemplate = (id: number | null, input: {
+  name: string; frequency: string; poultryCashAccountId?: number | null; notes?: string | null
+  lines: PoultryPayrollTemplateLine[]
+}) =>
+  jsend<{ poultryPayrollTemplateId: number }>(
+    id ? `/Poultry/payroll-templates/${id}` : `/Poultry/payroll-templates`,
+    id ? "PUT" : "POST",
+    {
+      ...input, farmId: activeFarmId(), savedBy: currentUserId() || null,
+      lines: input.lines.map((l) => ({
+        poultryStaffId: l.poultryStaffId, basicPay: Number(l.basicPay) || 0, dailyWage: Number(l.dailyWage) || 0,
+        commission: Number(l.commission) || 0, bonus: Number(l.bonus) || 0, deductions: Number(l.deductions) || 0,
+        paymentMethod: l.paymentMethod || null, notes: l.notes || null,
+      })),
+    })
+
+export const setPoultryPayrollTemplateActive = (id: number, isActive: boolean) =>
+  jsend<void>(`/Poultry/payroll-templates/${id}/active`, "POST",
+    { farmId: activeFarmId(), isActive, by: currentUserId() || null })
+
+export const createPoultryPayrollRunFromTemplate = (id: number, input: {
+  periodStart: string; periodEnd: string; payDate?: string | null
+  poultryCashAccountId?: number | null; notes?: string | null
+}) =>
+  jsend<{ poultryPayrollRunId: number }>(`/Poultry/payroll-templates/${id}/create-run`, "POST",
+    { ...input, farmId: activeFarmId(), createdBy: currentUserId() || null })
+
+/** The period after the template's last run (or the current one if it has none). */
+export function nextPayrollPeriod(t: Pick<PoultryPayrollTemplate, "frequency" | "lastPeriodEnd">, todayIso: string) {
+  const iso = (d: Date) => d.toISOString().split("T")[0]
+  const parse = (s: string) => { const [y, m, d] = s.split("T")[0].split("-").map(Number); return new Date(Date.UTC(y, m - 1, d)) }
+  let start: Date
+  if (t.lastPeriodEnd) { start = parse(t.lastPeriodEnd); start.setUTCDate(start.getUTCDate() + 1) }
+  else if (t.frequency === "Monthly") { const n = parse(todayIso); start = new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), 1)) }
+  else start = parse(todayIso)
+  const end = new Date(start)
+  if (t.frequency === "Monthly") { end.setUTCMonth(end.getUTCMonth() + 1); end.setUTCDate(end.getUTCDate() - 1) }
+  else end.setUTCDate(end.getUTCDate() + (t.frequency === "Fortnightly" ? 13 : 6))
+  return { periodStart: iso(start), periodEnd: iso(end) }
+}
+
 // ----- Customer payments (partial payments against a sale) --------------------
 // Port of the Water payment client (lib/api/water.ts).
 export interface PoultryPayment {

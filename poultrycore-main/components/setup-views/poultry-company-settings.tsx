@@ -204,12 +204,12 @@ export function CompanySettingsForm() {
     <div className="space-y-6">
       <div className="divide-y divide-slate-100">
         {/* Business profile */}
-        <section className="grid gap-x-10 gap-y-5 pb-8 lg:grid-cols-[minmax(0,240px)_1fr]">
+        <section className="space-y-4 pb-8">
           <div>
             <h3 className="text-sm font-semibold text-slate-900">Business profile</h3>
             <p className="mt-1 text-sm leading-relaxed text-slate-500">Your farm&apos;s name, owner and how customers and receipts reach you.</p>
           </div>
-          <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
+          <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1.5 sm:col-span-2"><Label>Farm / brand name</Label>
               <Input value={form.brandName} disabled={ro} placeholder="e.g. Gyimah Farm" onChange={(e) => setForm({ ...form, brandName: e.target.value })} /></div>
             <div className="space-y-1.5"><Label>Owner name</Label>
@@ -226,12 +226,12 @@ export function CompanySettingsForm() {
         </section>
 
         {/* Farm details */}
-        <section className="grid gap-x-10 gap-y-5 py-8 lg:grid-cols-[minmax(0,240px)_1fr]">
+        <section className="space-y-4 py-8">
           <div>
             <h3 className="text-sm font-semibold text-slate-900">Farm details</h3>
             <p className="mt-1 text-sm leading-relaxed text-slate-500">Flock type, housing and the defaults your production records start from.</p>
           </div>
-          <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
+          <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1.5"><Label>Business type</Label>
               <Select value={form.businessType} onValueChange={(v) => setForm({ ...form, businessType: v })} disabled={ro}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -255,12 +255,12 @@ export function CompanySettingsForm() {
         </section>
 
         {/* Currency & time zone */}
-        <section className="grid gap-x-10 gap-y-5 py-8 lg:grid-cols-[minmax(0,240px)_1fr]">
+        <section className="space-y-4 py-8">
           <div>
             <h3 className="text-sm font-semibold text-slate-900">Currency &amp; time zone</h3>
             <p className="mt-1 text-sm leading-relaxed text-slate-500">How money is shown on amounts, and the time zone your days and reports follow.</p>
           </div>
-          <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
+          <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1.5"><Label htmlFor="farm-currency">Currency</Label>
               {/* Picking a currency fills in its standard symbol; the symbol stays
                   editable because many Ghanaian businesses write "GHC", not "₵". */}
@@ -271,18 +271,18 @@ export function CompanySettingsForm() {
                 onChange={(e) => setCur({ ...cur, symbol: e.target.value })}
                 onBlur={() => { if (!cur.symbol.trim()) setCur({ ...cur, symbol: currencySymbolFor(cur.code) || cur.code }) }} />
               <p className="text-xs text-slate-500">To hide it, turn off &quot;Show symbol on amounts&quot;.</p></div>
-            <label htmlFor="show-symbol" className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2.5 sm:col-span-2">
+            <label htmlFor="show-symbol" className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2.5 self-end sm:col-span-2">
               <Switch checked={cur.show} disabled={ro} onCheckedChange={(v) => setCur({ ...cur, show: v })} id="show-symbol" />
               <span className="text-sm font-medium text-slate-700">Show symbol on amounts</span>
             </label>
             {/* Saves itself with its own button (it validates the zone and marks it
                 confirmed), so it is not part of this form's unsaved changes. */}
-            <CompanyTimeZoneField className="sm:col-span-2" />
+            <CompanyTimeZoneField className="sm:col-span-2 lg:col-span-4" />
           </div>
         </section>
 
         {/* Notes */}
-        <section className="grid gap-x-10 gap-y-5 pt-8 lg:grid-cols-[minmax(0,240px)_1fr]">
+        <section className="space-y-4 pt-8">
           <div>
             <h3 className="text-sm font-semibold text-slate-900">Notes</h3>
             <p className="mt-1 text-sm leading-relaxed text-slate-500">Anything else you want kept on file for this company.</p>

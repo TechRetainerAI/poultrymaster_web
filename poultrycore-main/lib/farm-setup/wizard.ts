@@ -172,6 +172,7 @@ export interface ExistingHouse {
   houseId: number
   houseName: string
   capacity?: number | null
+  location?: string | null
   occupied: number
   availableCapacity?: number | null
   activeFlocks: number
@@ -378,7 +379,7 @@ export function houseRowFromExisting(house: ExistingHouse): HouseRow {
     existingHouseId: house.houseId,
     houseName: house.houseName,
     capacity: house.capacity != null ? String(house.capacity) : "",
-    location: "",
+    location: house.location ?? "",
   }
 }
 
@@ -1556,4 +1557,110 @@ export function toRequest(draft: SetupDraft, context: SetupContext, userId: stri
         ],
       })),
   }
+}
+
+/**
+ * Bring a saved draft up to date with what the farm has NOW.
+ *
+ * An "existing farm" setup copies the farm's batches and pens into the draft
+ * when it starts. A draft resumed later (after leaving to add a batch on the
+ * Flock Batch page, say) still held that copy, so the new batch was missing and
+ * a deleted one lingered. On every resume:
+ *   * batches/pens added since are appended after the existing rows;
+ *   * existing rows are refreshed from the server (name, code, breed, birds,
+ *     start date, capacity) but keep their key, so flocks stay linked;
+ *   * rows whose batch/pen was deleted are dropped, and flocks pointing at them
+ *     are cleared so validation asks for a new pick.
+ * New rows typed in the wizard are never touched. A "newBatch" setup did not
+ * load the farm's records, so it only drops deleted ones.
+ */
+export function syncDraftWithContext(draft: SetupDraft, ctx: SetupContext): {
+  draft: SetupDraft
+  addedBatches: number; removedBatches: number; addedHouses: number; removedHouses: number
+} {
+  const batchById = new Map(ctx.existingBatches.map((b) => [b.batchId, b]))
+  const houseById = new Map(ctx.existingHouses.map((h) => [h.houseId, h]))
+
+  const goneBatchKeys = new Set<string>()
+  const batches: BatchRow[] = []
+  for (const b of draft.batches) {
+    if (b.existingBatchId == null) { batches.push(b); continue }
+    const now = batchById.get(b.existingBatchId)
+    if (!now) { goneBatchKeys.add(b.key); continue }
+    batches.push({
+      ...b,
+      batchName: now.batchName, batchCode: now.batchCode, breed: now.breed,
+      numberOfBirds: String(now.numberOfBirds),
+      startDate: now.startDate ? String(now.startDate).split("T")[0] : b.startDate,
+      isHistorical: now.isHistorical ?? b.isHistorical,
+    })
+  }
+  const goneHouseKeys = new Set<string>()
+  const houses: HouseRow[] = []
+  for (const h of draft.houses) {
+    if (h.existingHouseId == null) { houses.push(h); continue }
+    const now = houseById.get(h.existingHouseId)
+    if (!now) { goneHouseKeys.add(h.key); continue }
+    houses.push({ ...h, houseName: now.houseName, capacity: now.capacity != null ? String(now.capacity) : h.capacity })
+  }
+
+  let addedBatches = 0, addedHouses = 0
+  if (draft.mode === "existing") {
+    const haveB = new Set(batches.map((b) => b.existingBatchId).filter((x) => x != null))
+    const newB = ctx.existingBatches.filter((b) => !haveB.has(b.batchId)).map(batchRowFromExisting)
+    if (newB.length) {
+      const at = batches.reduce((last, b, i) => (b.existingBatchId != null ? i : last), -1) + 1
+      batches.splice(at, 0, ...newB)
+      addedBatches = newB.length
+    }
+    const haveH = new Set(houses.map((h) => h.existingHouseId).filter((x) => x != null))
+    const newH = ctx.existingHouses.filter((h) => !haveH.has(h.houseId)).map(houseRowFromExisting)
+    if (newH.length) {
+      const at = houses.reduce((last, h, i) => (h.existingHouseId != null ? i : last), -1) + 1
+      houses.splice(at, 0, ...newH)
+      addedHouses = newH.length
+    }
+  }
+
+  const flocks = draft.flocks.map((f) => ({
+    ...f,
+    batchKey: goneBatchKeys.has(f.batchKey) ? "" : f.batchKey,
+    houseKey: goneHouseKeys.has(f.houseKey) ? "" : f.houseKey,
+  }))
+  const batchReconciliations = draft.batchReconciliations
+    ? Object.fromEntries(Object.entries(draft.batchReconciliations).filter(([k]) => !goneBatchKeys.has(k)))
+    : draft.batchReconciliations
+
+  return {
+    draft: { ...draft, batches, houses, flocks, ...(batchReconciliations ? { batchReconciliations } : {}) },
+    addedBatches, removedBatches: goneBatchKeys.size, addedHouses, removedHouses: goneHouseKeys.size,
+  }
+}
+
+/**
+ * Batches step tabs: like Houses/Pens (All / Empty / new), but by how many of a
+ * batch's birds are already in pens -- the same arithmetic the allocation step
+ * uses (batchAllocationViews), so the two steps never disagree.
+ *   all      every batch
+ *   full     every bird accounted for ("complete"; "over" too, so it is seen)
+ *   partial  some birds placed, some not
+ *   none     no bird placed yet
+ *   new      only the batches this setup is creating
+ */
+export type BatchStepFilter = "all" | "full" | "partial" | "none" | "new"
+
+const inFilter = (v: BatchAllocationView, f: BatchStepFilter) =>
+  f === "all" ? true
+  : f === "new" ? !v.isExisting
+  : f === "full" ? v.status === "complete" || v.status === "over"
+  : f === "partial" ? v.status === "partial"
+  : v.status === "unallocated"
+
+export function filterBatchStepRows(views: BatchAllocationView[], filter: BatchStepFilter): BatchAllocationView[] {
+  return views.filter((v) => inFilter(v, filter))
+}
+
+export function countBatchStepFilters(views: BatchAllocationView[]): Record<BatchStepFilter, number> {
+  const fs: BatchStepFilter[] = ["all", "full", "partial", "none", "new"]
+  return Object.fromEntries(fs.map((f) => [f, views.filter((v) => inFilter(v, f)).length])) as Record<BatchStepFilter, number>
 }

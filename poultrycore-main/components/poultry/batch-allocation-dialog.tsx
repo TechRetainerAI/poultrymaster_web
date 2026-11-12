@@ -12,7 +12,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog"
 import {
-  AlertCircle, ArrowLeft, Bird, CheckCircle2, Home, Loader2, Plus, Scale, Trash2, Wand2,
+  AlertCircle, ArrowLeft, Bird, CheckCircle2, Home, Loader2, MapPin, Plus, Scale, Trash2, Wand2,
 } from "lucide-react"
 import {
   allocateBatchToFlocks, getBatchAllocationContext,
@@ -304,7 +304,7 @@ export function BatchAllocationDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] flex flex-col">
+        <DialogContent className="w-[96vw] sm:max-w-[1500px] max-h-[92vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>
               {step === "done" ? "Flocks created" : "Divide Batch Into Flocks"}
@@ -442,7 +442,7 @@ export function BatchAllocationDialog({
                         </p>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2">
                         {houses.map((h) => {
                           const room = availableCapacity(h)
                           const checked = selectedHouseIds.includes(h.houseId)
@@ -460,6 +460,11 @@ export function BatchAllocationDialog({
                               />
                               <span className="min-w-0">
                                 <span className="block font-medium text-slate-900 truncate">{h.houseName}</span>
+                                {h.location && (
+                                  <span className="flex items-center gap-1 text-[11px] text-slate-500 truncate" title={h.location}>
+                                    <MapPin className="h-3 w-3 shrink-0" />{h.location}
+                                  </span>
+                                )}
                                 <span className="block text-xs text-slate-500">
                                   {h.capacity ? `Capacity ${h.capacity.toLocaleString()}` : "No capacity set"}
                                   {h.occupied > 0 && ` · holds ${h.occupied.toLocaleString()}`}
@@ -537,6 +542,11 @@ export function BatchAllocationDialog({
                           >
                             <div className="col-span-12 md:col-span-3 min-w-0">
                               <p className="font-medium text-slate-900 truncate">{house?.houseName ?? `House ${row.houseId}`}</p>
+                              {house?.location && (
+                                <p className="flex items-center gap-1 text-[11px] text-slate-500 truncate" title={house.location}>
+                                  <MapPin className="h-3 w-3 shrink-0" />{house.location}
+                                </p>
+                              )}
                               {houseError && <p className="text-xs text-red-600">{houseError}</p>}
                             </div>
                             <div className="col-span-6 md:col-span-2 text-sm text-slate-600">
@@ -614,7 +624,9 @@ export function BatchAllocationDialog({
                         <div key={row.id} className="flex items-center justify-between px-3 py-2 text-sm">
                           <span className="font-medium text-slate-900 truncate">{row.name}</span>
                           <span className="text-slate-600 shrink-0">
-                            {house?.houseName ?? `House ${row.houseId}`} · {Number(row.quantity || 0).toLocaleString()} birds
+                            {house?.houseName ?? `House ${row.houseId}`}
+                            {house?.location && <span className="text-xs text-slate-400"> ({house.location})</span>}
+                            {" "}· {Number(row.quantity || 0).toLocaleString()} birds
                           </span>
                         </div>
                       )

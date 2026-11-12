@@ -62,6 +62,7 @@ import {
   type CustomerCreditEvent, type CustomerCreditSummaryRow, type CustomerRefundRow, type ManualCreditRow,
 } from "@/lib/api/customer-credit"
 import { RefundCreditDialog, type RefundTarget } from "@/components/sales/refund-credit-dialog"
+import { creditPerm, creditRoutes } from "@/lib/api/credit-module"
 import { ManualCreditDialog } from "@/components/sales/manual-credit-dialog"
 
 type Tab = "held" | "manual" | "refunds"
@@ -88,8 +89,10 @@ export default function CustomerCreditsPage() {
   const money = (n: number) => formatCurrency(Number(n) || 0, currencyCode)
 
   // Same audience as Customer Balances; refunding is a customer-payment action.
-  const canView = can("poultry.customer-balances.view")
-  const canRefund = can("poultry.customer-payments.create")
+  // 424: the same page serves Water (water-customer-credits re-exports it).
+  const canView = can(creditPerm("customer-balances.view"))
+  const canRefund = can(creditPerm("customer-payments.create"))
+  const routes = creditRoutes()
   // 363 / 367: adding or reversing credit by hand, and reversing a refund, are
   // the owner's / an admin's call -- the server refuses anyone else.
   const canManage = isAdmin
@@ -363,7 +366,7 @@ export default function CustomerCreditsPage() {
                 </Button>
               )}
               <Button asChild variant="outline" className="h-10">
-                <Link href="/customer-balances"><Users className="mr-1 h-4 w-4" /> Customer Balances</Link>
+                <Link href={routes.balances}><Users className="mr-1 h-4 w-4" /> Customer Balances</Link>
               </Button>
               <Button variant="outline" onClick={load} disabled={loading} className="h-10">
                 <RefreshCw className={loading ? "mr-1 h-4 w-4 animate-spin" : "mr-1 h-4 w-4"} /> Refresh
@@ -462,7 +465,7 @@ export default function CustomerCreditsPage() {
                                       {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                                     </TableCell>
                                     <TableCell className="font-medium">
-                                      <Link href={`/customers/${r.customerId}`} className="hover:underline" onClick={(e) => e.stopPropagation()}>{r.customerName}</Link>
+                                      <Link href={routes.customer(r.customerId)} className="hover:underline" onClick={(e) => e.stopPropagation()}>{r.customerName}</Link>
                                     </TableCell>
                                     <TableCell className="text-right font-semibold tabular-nums text-blue-700">{money(r.availableCredit)}</TableCell>
                                     <TableCell className="text-right tabular-nums">{r.paymentCount}</TableCell>

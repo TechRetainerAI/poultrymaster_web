@@ -113,10 +113,15 @@ namespace PoultryFarmAPIWeb.Controllers
             return NoContent();
         }
 
-        [HttpDelete("{id:int}")] public async Task<IActionResult> Delete(int id, [FromQuery] string farmId)
+        // 418. Purchases can no longer be deleted (web or mobile): reverse them.
+        [HttpDelete("{id:int}")] public IActionResult Delete(int id, [FromQuery] string farmId)
+            => BadRequest("Purchases can't be deleted. Reverse the purchase instead -- it stays in the list marked Reversed.");
+
+        [HttpPost("{id:int}/reverse")] public async Task<IActionResult> Reverse(int id, [FromBody] PoultryRawMaterialPurchaseReverseRequest body)
         {
-            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
-            await _svc.DeleteAsync(id, farmId);
+            if (body is null || string.IsNullOrWhiteSpace(body.FarmId)) return BadRequest("Company ID is required.");
+            if (string.IsNullOrWhiteSpace(body.Reason)) return BadRequest("Give a reason for reversing this purchase.");
+            await _svc.ReverseAsync(id, body.FarmId, body.Reason.Trim(), body.ReversedBy);
             return NoContent();
         }
 

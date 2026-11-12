@@ -18,6 +18,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { PayrollTemplatesPanel } from "@/components/poultry/payroll-templates"
+import { usePermissions } from "@/hooks/use-permissions"
 import { Plus, Loader2, Banknote, Eye, Users, Trash2, CheckCircle2, RotateCcw, XCircle, HandCoins } from "lucide-react"
 import Link from "next/link"
 import {
@@ -38,6 +41,8 @@ import {
   unapprovePoultryPayrollRun, deletePoultryPayrollRun,
   listPoultryCashAccounts, listPoultryStaff,
   POULTRY_PAYMENT_METHODS,
+  listPoultryPayrollTemplates, createPoultryPayrollRunFromTemplate, nextPayrollPeriod,
+  type PoultryPayrollTemplate,
   type PoultryPayrollRun, type PoultryCashAccount, type PoultryStaff,
 } from "@/lib/api/poultry-finance"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
@@ -82,6 +87,11 @@ export default function PoultryPayrollPage() {
   const [staff, setStaff] = useState<PoultryStaff[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState("all")
+  // 419. Payroll templates.
+  const { canEdit } = usePermissions()
+  const [tab, setTab] = useState<"runs" | "templates">("runs")
+  const [templates, setTemplates] = useState<PoultryPayrollTemplate[]>([])
+  const [templatesRefresh, setTemplatesRefresh] = useState(0)
 
   const visible = useMemo(() => statusFilter === "all" ? runs : runs.filter(r => r.status === statusFilter), [runs, statusFilter])
 
@@ -91,7 +101,8 @@ export default function PoultryPayrollPage() {
 
   // create run
   const [open, setOpen] = useState(false)
-  const [form, setForm] = useState({ periodStart: today(), periodEnd: today(), payDate: "", poultryCashAccountId: 0, notes: "" })
+  const blankForm = () => ({ templateId: 0, periodStart: today(), periodEnd: today(), payDate: "", poultryCashAccountId: 0, notes: "" })
+  const [form, setForm] = useState(blankForm())
   const [saving, setSaving] = useState(false)
 
   // items dialog
@@ -138,13 +149,29 @@ export default function PoultryPayrollPage() {
   async function load() {
     setLoading(true)
     try {
-      const [r, a, s] = await Promise.all([listPoultryPayrollRuns(), listPoultryCashAccounts(), listPoultryStaff()])
-      setRuns(r); setAccounts(a); setStaff(s)
+      const [r, a, s, t] = await Promise.all([
+        listPoultryPayrollRuns(), listPoultryCashAccounts(), listPoultryStaff(),
+        listPoultryPayrollTemplates().catch(() => [] as PoultryPayrollTemplate[]),   // 419; empty until migrated
+      ])
+      setRuns(r); setAccounts(a); setStaff(s); setTemplates(t)
     } catch (e: any) { toast({ title: "Could not load payroll", description: e?.message, variant: "destructive" }) }
     finally { setLoading(false) }
   }
 
+  /** 419. Pick a template in New payroll run: next period + its cash account. */
+  function pickTemplate(templateId: number, t?: PoultryPayrollTemplate) {
+    const tpl = t ?? templates.find((x) => x.poultryPayrollTemplateId === templateId)
+    if (!tpl) { setForm((f) => ({ ...f, templateId: 0 })); return }
+    const p = nextPayrollPeriod(tpl, today())
+    setForm((f) => ({ ...f, templateId: tpl.poultryPayrollTemplateId, periodStart: p.periodStart, periodEnd: p.periodEnd,
+      payDate: p.periodEnd, poultryCashAccountId: tpl.poultryCashAccountId ?? 0 }))
+  }
+  function startFromTemplate(t: PoultryPayrollTemplate) {
+    setForm(blankForm()); pickTemplate(t.poultryPayrollTemplateId, t); setTab("runs"); setOpen(true)
+  }
+
   async function createRun() {
+    if (form.templateId) return createRunFromTemplate()
     setSaving(true)
     try {
       await createPoultryPayrollRun({
@@ -154,8 +181,39 @@ export default function PoultryPayrollPage() {
         notes: form.notes || null,
       })
       toast({ title: "Payroll run created" })
-      setOpen(false); setForm({ periodStart: today(), periodEnd: today(), payDate: "", poultryCashAccountId: 0, notes: "" })
+      setOpen(false); setForm(blankForm())
       await load()
+    } catch (e: any) { toast({ title: "Could not create run", description: e?.message, variant: "destructive" }) }
+    finally { setSaving(false) }
+  }
+
+  /**
+   * 419. Create the run from the template (one Draft line per active staff
+   * member), then add each worker's scheduled advance repayments exactly as
+   * adding a line by hand does, and open the lines for review.
+   */
+  async function createRunFromTemplate() {
+    setSaving(true)
+    try {
+      const { poultryPayrollRunId } = await createPoultryPayrollRunFromTemplate(form.templateId, {
+        periodStart: form.periodStart, periodEnd: form.periodEnd,
+        payDate: form.payDate || null,
+        poultryCashAccountId: form.poultryCashAccountId || null,
+        notes: form.notes || null,
+      })
+      const created = await getPoultryPayrollRun(poultryPayrollRunId)
+      const added: string[] = []
+      for (const it of created.items ?? []) added.push(...await autoAddSuggestedDeductions(it, it.poultryStaffId))
+      toast({
+        title: `Payroll run created with ${(created.items ?? []).length} staff`,
+        description: added.length > 0
+          ? `Advance repayments added: ${added.join(", ")}. Review the lines, then approve.`
+          : "Review the lines (change anything different this period), then approve.",
+      })
+      setOpen(false); setForm(blankForm())
+      setTemplatesRefresh((n) => n + 1)
+      await load()
+      await openItems(created)
     } catch (e: any) { toast({ title: "Could not create run", description: e?.message, variant: "destructive" }) }
     finally { setSaving(false) }
   }
@@ -350,7 +408,7 @@ export default function PoultryPayrollPage() {
                   <HandCoins className="h-4 w-4 mr-1" /> Employee Loans &amp; Advances
                 </Link>
               </Button>
-              <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4 mr-1" /> New payroll run</Button>
+              <Button onClick={() => { setForm(blankForm()); setOpen(true) }}><Plus className="h-4 w-4 mr-1" /> New payroll run</Button>
             </div>
           </div>
 
@@ -361,6 +419,16 @@ export default function PoultryPayrollPage() {
             <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Total net paid</div><div className="text-xl font-semibold tabular-nums text-green-700">{gh(totalNetPaid)}</div></CardContent></Card>
           </div>
 
+          <Tabs value={tab} onValueChange={(v) => setTab(v as "runs" | "templates")}>
+          <TabsList className="mb-3">
+            <TabsTrigger value="runs">Payroll runs</TabsTrigger>
+            <TabsTrigger value="templates">Templates{templates.length > 0 ? ` (${templates.length})` : ""}</TabsTrigger>
+          </TabsList>
+          <TabsContent value="templates">
+            <PayrollTemplatesPanel staff={staff} accounts={accounts} canEdit={canEdit} onUse={startFromTemplate}
+              refreshKey={templatesRefresh} />
+          </TabsContent>
+          <TabsContent value="runs">
           <div className="mb-3 flex items-center gap-2">
             <span className="text-sm text-slate-600">Status</span>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -436,6 +504,8 @@ export default function PoultryPayrollPage() {
               )}
             </CardContent>
           </Card>
+          </TabsContent>
+          </Tabs>
         </main>
       </div>
 
@@ -444,9 +514,29 @@ export default function PoultryPayrollPage() {
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Banknote className="w-5 h-5 text-green-600" /> New payroll run</DialogTitle>
-            <DialogDescription>Create a Draft run, then add staff lines</DialogDescription>
+            <DialogDescription>
+              {form.templateId ? "Created as a Draft with the template's staff and pay. You can still change any line before approving." : "Create a Draft run, then add staff lines"}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            <FormSection title="Start from" color="green" columns={1}>
+              <FormField label="Payroll template">
+                <Select value={String(form.templateId)} onValueChange={(v) => pickTemplate(Number(v))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">Blank run (add staff one by one)</SelectItem>
+                    {templates.map((t) => (
+                      <SelectItem key={t.poultryPayrollTemplateId} value={String(t.poultryPayrollTemplateId)}>
+                        {t.name} · {t.frequency} · {t.lineCount} staff · {gh(t.totalNet)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+              {templates.length === 0 && (
+                <p className="text-xs text-slate-500">Tip: set up a template on the Templates tab so the same staff don&apos;t have to be entered every period.</p>
+              )}
+            </FormSection>
             <FormSection title="Period" color="indigo">
               <FormField label="Period start *"><Input type="date" value={form.periodStart} onChange={(e) => setForm({ ...form, periodStart: e.target.value })} /></FormField>
               <FormField label="Period end *"><Input type="date" value={form.periodEnd} onChange={(e) => setForm({ ...form, periodEnd: e.target.value })} /></FormField>

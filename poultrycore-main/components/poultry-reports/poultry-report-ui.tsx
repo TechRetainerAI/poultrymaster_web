@@ -74,18 +74,12 @@ export interface SummaryCard { label: string; value: string; accent?: Accent; no
 
 export function PoultryReportSummaryCards({ cards }: { cards: SummaryCard[] }) {
   if (!cards.length) return null
-  // One row on a wide screen whatever the count. The grid was fixed at four
-  // columns, so a five-card report (Expense Summary) wrapped the last card onto
-  // a second row on its own. Tailwind needs whole class names to survive the
-  // build, so these are spelled out rather than interpolated.
-  const wide =
-    cards.length <= 2 ? "lg:grid-cols-2" :
-    cards.length === 3 ? "lg:grid-cols-3" :
-    cards.length === 4 ? "lg:grid-cols-4" :
-    cards.length === 5 ? "lg:grid-cols-5" :
-    cards.length === 6 ? "lg:grid-cols-6" : "lg:grid-cols-4"
+  // Compact cards, as on Batch Production Summary, on ONE row wherever the
+  // screen allows: on a wide screen each card takes an equal share with a
+  // ~9rem floor, so up to 8 or 9 fit side by side and only a narrow window
+  // wraps. (A fixed column count left a nine-card report on three rows.)
   return (
-    <div className={`mb-4 grid grid-cols-2 md:grid-cols-3 ${wide} gap-3 print:gap-2`}>
+    <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] print:gap-2">
       {cards.map((card) => {
         const valueCls =
           card.accent === "green" ? "text-emerald-700" :
@@ -98,9 +92,9 @@ export function PoultryReportSummaryCards({ cards }: { cards: SummaryCard[] }) {
         return (
           <Card key={card.label} className="relative overflow-hidden border-slate-200 shadow-sm print:border print:shadow-none">
             <div className={`absolute inset-y-0 left-0 w-1 ${barCls}`} />
-            <CardContent className="p-4 pl-5 print:p-3">
-              <div className="text-xs uppercase tracking-wider text-slate-500">{card.label}</div>
-              <div className={`text-lg sm:text-xl font-semibold tabular-nums mt-1 break-words ${valueCls}`}>{card.value}</div>
+            <CardContent className="px-3 py-2.5 pl-4 print:p-3">
+              <div className="text-[10px] font-medium uppercase leading-tight tracking-wider text-slate-500">{card.label}</div>
+              <div className={`mt-0.5 text-base font-bold leading-snug tabular-nums break-words ${valueCls}`}>{card.value}</div>
               {/* Scope caveat, for a figure that does not follow the report's
                   date range. Kept in print — an exported report is the copy
                   most likely to be read without the filter in view. */}

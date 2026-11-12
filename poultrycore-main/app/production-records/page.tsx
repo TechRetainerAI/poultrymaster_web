@@ -55,6 +55,8 @@ import {
   sumActiveFlocksBirdsLeft,
 } from "@/lib/utils/production-records"
 import { flockCountsTowardBirdTotals } from "@/lib/utils/flock-eligibility"
+import { getFlockPositions, type FlockPositionRow } from "@/lib/api/flock-positions"
+import { flockLifetime, positionsById } from "@/lib/flocks/bird-position"
 import { eggGradeFromApi, formatEggGradeLabel } from "@/lib/constants/egg-grade"
 import { fmtDateTime, businessSortValue } from "@/lib/utils/company-datetime"
 import { getEggSortingPicks, getEggSortingSettings } from "@/lib/api/egg-sorting"
@@ -139,6 +141,8 @@ export default function ProductionRecordsPage() {
   // and a link, never the sorting grid itself.
   const [sortingStatus, setSortingStatus] = useState<Map<number, { status: PickStatus; left: number }>>(new Map())
   const [flocks, setFlocks] = useState<Flock[]>([])
+  // 421: each flock's server-side bird position; empty before 421 is deployed.
+  const [positionByFlock, setPositionByFlock] = useState<Map<number, FlockPositionRow>>(new Map())
   const [batches, setBatches] = useState<FlockBatch[]>([])
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deletingId, setDeletingId] = useState<number | null>(null)
@@ -223,11 +227,13 @@ export default function ProductionRecordsPage() {
       setLoading(false)
       return
     }
-    const [res, flocksRes, batchesRes] = await Promise.all([
+    const [res, flocksRes, batchesRes, posRows] = await Promise.all([
       getProductionRecords(userId, farmId),
       getFlocks(userId, farmId),
       getFlockBatches(userId, farmId),
+      getFlockPositions(farmId),
     ])
+    setPositionByFlock(positionsById(posRows))
     if (res.success && res.data) {
       setRecords(res.data)
       setError("")
@@ -440,15 +446,28 @@ export default function ProductionRecordsPage() {
   const totalBrokens = useMemo(() => filtered.reduce((s, r) => s + (Number((r as any).brokenEggs) || 0), 0), [filtered])
 
   // Farm-wide bird headlines: same definitions as the Flocks page (eligible flocks only; ignores table date/search filters).
+  // 421: placed = birds each flock STARTED with (for a flock from Initial Farm
+  // Setup flock.quantity is only the opening LIVE count), left = live now.
   const farmOverallTotalBirds = useMemo(
     () =>
       flocks
         .filter((f) => flockCountsTowardBirdTotals(f))
-        .reduce((sum, flock) => sum + (flock.quantity || 0), 0),
-    [flocks],
+        .reduce((sum, flock) => {
+          const p = positionByFlock.get(flock.flockId)
+          return sum + (p ? flockLifetime(p).started : (flock.quantity || 0))
+        }, 0),
+    [flocks, positionByFlock],
   )
 
-  const farmTotalBirdsLeft = useMemo(() => sumActiveFlocksBirdsLeft(flocks, records), [flocks, records])
+  const farmTotalBirdsLeft = useMemo(() => {
+    if (positionByFlock.size === 0) return sumActiveFlocksBirdsLeft(flocks, records)
+    return flocks
+      .filter((f) => flockCountsTowardBirdTotals(f))
+      .reduce((sum, flock) => {
+        const p = positionByFlock.get(flock.flockId)
+        return sum + (p ? p.currentLiveBirds : 0)
+      }, 0)
+  }, [flocks, records, positionByFlock])
 
   const birdsLostPlacedMinusLeft = useMemo(
     () => Math.max(0, farmOverallTotalBirds - farmTotalBirdsLeft),
@@ -1119,14 +1138,14 @@ export default function ProductionRecordsPage() {
                   label="Overall Total Birds"
                   value={farmOverallTotalBirds.toLocaleString()}
                   valueClass="text-slate-900"
-                  note="Birds placed when each flock was created."
+                  note="Birds each flock was placed with, including birds lost before tracking began."
                 />
                 <StatTile
                   isMobile={isMobile}
                   label="Total Birds Left"
                   value={farmTotalBirdsLeft.toLocaleString()}
                   valueClass="text-emerald-700"
-                  note="Latest count still alive per flock, taken from your last entry for each."
+                  note="Birds alive now per flock: your last count, less birds sold or closed out since."
                 />
               </div>
             )}
