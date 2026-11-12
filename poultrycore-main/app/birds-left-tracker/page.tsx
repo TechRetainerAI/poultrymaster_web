@@ -18,6 +18,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { getProductionRecords, type ProductionRecord } from "@/lib/api/production-record"
 import { getFlocks, type Flock } from "@/lib/api/flock"
+import { getFlockBatches, type FlockBatch } from "@/lib/api/flock-batch"
 import { getSales, type Sale } from "@/lib/api/sale"
 import { getUserContext } from "@/lib/utils/user-context"
 import { formatDateShort, cn } from "@/lib/utils"
@@ -41,6 +42,9 @@ export default function BirdsLeftTrackerPage() {
   const [error, setError] = useState("")
   const [refreshing, setRefreshing] = useState(false)
 
+  // Batch filter: narrows both tables (and the flock list) to one batch's flocks.
+  const [batchFilter, setBatchFilter] = useState("ALL")
+  const [batches, setBatches] = useState<FlockBatch[]>([])
   const [flockFilter, setFlockFilter] = useState("ALL")
   const [typeFilter, setTypeFilter] = useState<"ALL" | "IN" | "OUT">("ALL")
   const [ledgerDateFrom, setLedgerDateFrom] = useState("")
@@ -76,11 +80,13 @@ export default function BirdsLeftTrackerPage() {
       setRefreshing(false)
       return
     }
-    const [flocksRes, prodRes, salesRes] = await Promise.all([
+    const [flocksRes, prodRes, salesRes, batchesRes] = await Promise.all([
       getFlocks(userId, farmId),
       getProductionRecords(userId, farmId),
       getSales(userId, farmId),
+      getFlockBatches(userId, farmId).catch(() => ({ success: false, data: [] as FlockBatch[] })),
     ])
+    setBatches(batchesRes.success && Array.isArray(batchesRes.data) ? batchesRes.data : [])
     if (flocksRes.success && flocksRes.data) setFlocks(flocksRes.data)
     else setFlocks([])
     if (prodRes.success && prodRes.data) {
@@ -115,25 +121,56 @@ export default function BirdsLeftTrackerPage() {
     [flocks, records, sales],
   )
 
-  const totalPlaced = useMemo(() => summaries.reduce((s, r) => s + r.placedIn, 0), [summaries])
-  const totalBirdsLeft = useMemo(
-    () => summaries.reduce((s, r) => s + r.birdsLeftCalculated, 0),
-    [summaries],
-  )
 
   const ledger = useMemo(() => buildBirdsLeftLedger(flocks, records, sales), [flocks, records, sales])
 
+  // The flocks of the chosen batch (null = every batch).
+  const batchFlockIds = useMemo(() => {
+    if (batchFilter === "ALL") return null
+    const bid = Number(batchFilter)
+    return new Set(flocks.filter((f) => Number(f.batchId) === bid).map((f) => f.flockId))
+  }, [flocks, batchFilter])
+  const flockOptions = useMemo(
+    () => (batchFlockIds ? flocks.filter((f) => batchFlockIds.has(f.flockId)) : flocks),
+    [flocks, batchFlockIds],
+  )
+  // Picking a batch clears a flock that is not in it.
+  useEffect(() => {
+    if (flockFilter !== "ALL" && batchFlockIds && !batchFlockIds.has(Number(flockFilter))) setFlockFilter("ALL")
+  }, [batchFlockIds, flockFilter])
+  // THE scope of the page: batch + flock. The headline cards, "By flock" and the
+  // ledger all follow it, so every number on the page describes the same birds.
+  // (Type and dates are ledger-only: they pick ledger rows, not flocks.)
+  const inScope = useCallback((flockId: number) =>
+    (!batchFlockIds || batchFlockIds.has(flockId)) && (flockFilter === "ALL" || flockId === Number(flockFilter)),
+  [batchFlockIds, flockFilter])
+  const byFlockRows = useMemo(() => summaries.filter((r) => inScope(r.flockId)), [summaries, inScope])
+  const scopedLedger = useMemo(() => ledger.filter((r) => inScope(r.flockId)), [ledger, inScope])
+  const totalPlaced = useMemo(() => byFlockRows.reduce((s, r) => s + r.placedIn, 0), [byFlockRows])
+  const totalBirdsLeft = useMemo(() => byFlockRows.reduce((s, r) => s + r.birdsLeftCalculated, 0), [byFlockRows])
+  const scopeLabel = flockFilter !== "ALL"
+    ? (flocks.find((f) => f.flockId === Number(flockFilter))?.name ?? "this flock")
+    : batchFilter !== "ALL"
+      ? (() => { const b = batches.find((x) => String(x.batchId) === batchFilter); return b ? `batch ${b.batchName}` : "this batch" })()
+      : "all flocks"
+  // Batch name per flock, for the By flock table.
+  const batchNameOfFlock = useMemo(() => {
+    const byId = new Map(batches.map((b) => [b.batchId, b.batchCode || b.batchName]))
+    return new Map(flocks.map((f) => [f.flockId, f.batchId != null ? byId.get(Number(f.batchId)) ?? "" : ""]))
+  }, [flocks, batches])
+  // Calculated vs last production log: the comparison this table exists for.
+  const diffOf = (r: { birdsLeftCalculated: number; birdsLeftFromLatestLog: number | null }) =>
+    r.birdsLeftFromLatestLog == null ? null : r.birdsLeftFromLatestLog - r.birdsLeftCalculated
+  const mismatchCount = byFlockRows.filter((r) => { const d = diffOf(r); return d != null && d !== 0 }).length
+  const clearScope = () => { setBatchFilter("ALL"); setFlockFilter("ALL") }
+
   const filteredLedger = useMemo(() => {
-    let list = ledger.slice()
-    if (flockFilter !== "ALL") {
-      const fid = parseInt(flockFilter, 10)
-      list = list.filter((r) => r.flockId === fid)
-    }
+    let list = scopedLedger.slice()
     if (typeFilter !== "ALL") list = list.filter((r) => r.type === typeFilter)
     if (ledgerDateFrom) list = list.filter((r) => r.date >= ledgerDateFrom)
     if (ledgerDateTo) list = list.filter((r) => r.date <= ledgerDateTo)
     return list
-  }, [ledger, flockFilter, typeFilter, ledgerDateFrom, ledgerDateTo])
+  }, [scopedLedger, typeFilter, ledgerDateFrom, ledgerDateTo])
 
   const sortedLedger = useMemo(
     () =>
@@ -153,13 +190,13 @@ export default function BirdsLeftTrackerPage() {
   const ledgerTotals = useMemo(() => {
     let inQty = 0
     let outQty = 0
-    for (const r of ledger) {
+    for (const r of scopedLedger) {
       const qty = Number(r.quantity) || 0
       if (r.type === "IN") inQty += qty
       else outQty += qty
     }
     return { in: inQty, out: outQty }
-  }, [ledger])
+  }, [scopedLedger])
 
   // Column totals across the filtered set, not just the visible page. The Qty
   // column carries its direction in `type` rather than the sign, so the two
@@ -173,12 +210,12 @@ export default function BirdsLeftTrackerPage() {
     [sortedLedger]
   )
   const ledgerFiltersActive =
-    flockFilter !== "ALL" || typeFilter !== "ALL" || ledgerDateFrom !== "" || ledgerDateTo !== ""
+    typeFilter !== "ALL" || ledgerDateFrom !== "" || ledgerDateTo !== ""
 
   // "By flock" column totals.
   const flockTotals = useMemo(
     () =>
-      summaries.reduce(
+      byFlockRows.reduce(
         (acc, r) => ({
           placedIn: acc.placedIn + (Number(r.placedIn) || 0),
           mortalityOut: acc.mortalityOut + (Number(r.totalMortalityOut) || 0),
@@ -187,7 +224,7 @@ export default function BirdsLeftTrackerPage() {
         }),
         { placedIn: 0, mortalityOut: 0, salesOut: 0, left: 0 }
       ),
-    [summaries]
+    [byFlockRows]
   )
 
   const ledgerTotalPages = Math.max(1, Math.ceil(sortedLedger.length / ledgerPageSize))
@@ -199,7 +236,7 @@ export default function BirdsLeftTrackerPage() {
 
   useEffect(() => {
     setLedgerPage(1)
-  }, [flockFilter, typeFilter, ledgerDateFrom, ledgerDateTo])
+  }, [batchFilter, flockFilter, typeFilter, ledgerDateFrom, ledgerDateTo])
 
   const handleLedgerSort = (key: string) => {
     const r = toggleSort(key, ledgerSortKey, ledgerSortDir)
@@ -263,15 +300,57 @@ export default function BirdsLeftTrackerPage() {
               </Card>
             ) : (
               <>
+                {/* Batch + Flock: one place, and everything below follows it. */}
+                <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:flex-row sm:items-end">
+                  <div className="flex min-w-0 flex-col gap-1 sm:w-64">
+                    <span className="text-xs font-medium text-slate-600">Batch</span>
+                    <Select value={batchFilter} onValueChange={setBatchFilter}>
+                      <SelectTrigger className="w-full"><SelectValue placeholder="All batches" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ALL">All batches</SelectItem>
+                        {batches.map((b) => (
+                          <SelectItem key={b.batchId} value={String(b.batchId)}>
+                            {b.batchName}{b.batchCode ? ` (${b.batchCode})` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex min-w-0 flex-col gap-1 sm:w-64">
+                    <span className="text-xs font-medium text-slate-600">Flock</span>
+                    <Select value={flockFilter} onValueChange={setFlockFilter}>
+                      <SelectTrigger className="w-full"><SelectValue placeholder="All flocks" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ALL">{batchFlockIds ? "All flocks in this batch" : "All flocks"}</SelectItem>
+                        {flockOptions.map((f) => (
+                          <SelectItem key={f.flockId} value={String(f.flockId)}>
+                            {f.name || `Flock #${f.flockId}`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex flex-1 flex-wrap items-center gap-2 sm:justify-end">
+                    <span className="text-sm text-slate-600">
+                      Showing <span className="font-semibold text-slate-900">{scopeLabel}</span>
+                      {" · "}{byFlockRows.length.toLocaleString()} flock{byFlockRows.length === 1 ? "" : "s"}
+                    </span>
+                    {(batchFilter !== "ALL" || flockFilter !== "ALL") && (
+                      <Button type="button" variant="outline" size="sm" onClick={clearScope}>Clear</Button>
+                    )}
+                  </div>
+                </div>
+
                 {/* Four across on a desktop, two on a phone: the two standing
                     figures and the two movement totals that produce them, all
                     on one band. placed + in are the same number by
                     construction — placement is the only IN — and left is
-                    in − out, so the row reads as its own arithmetic. */}
+                    in − out, so the row reads as its own arithmetic. They
+                    follow the Batch / Flock filter above. */}
                 <div className={cn("grid gap-3", isMobile ? "grid-cols-2" : "grid-cols-2 lg:grid-cols-4")}>
                   <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      Total birds placed (all flocks)
+                      Birds placed
                     </div>
                     <div className="text-2xl font-bold text-emerald-700 tabular-nums mt-1">
                       {totalPlaced.toLocaleString()}
@@ -279,7 +358,7 @@ export default function BirdsLeftTrackerPage() {
                   </div>
                   <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      Birds left (placed − deaths − bird sales)
+                      Birds left <span className="normal-case tracking-normal text-slate-400">(placed − deaths − sales)</span>
                     </div>
                     <div className="text-2xl font-bold text-sky-700 tabular-nums mt-1">
                       {totalBirdsLeft.toLocaleString()}
@@ -287,7 +366,7 @@ export default function BirdsLeftTrackerPage() {
                   </div>
                   <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      Total IN (ledger)
+                      Total IN
                     </div>
                     <div className="text-2xl font-bold text-emerald-600 tabular-nums mt-1">
                       {ledgerTotals.in.toLocaleString()}
@@ -295,7 +374,7 @@ export default function BirdsLeftTrackerPage() {
                   </div>
                   <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      Total OUT (deaths + bird sales)
+                      Total OUT <span className="normal-case tracking-normal text-slate-400">(deaths + sales)</span>
                     </div>
                     <div className="text-2xl font-bold text-red-600 tabular-nums mt-1">
                       {ledgerTotals.out.toLocaleString()}
@@ -307,8 +386,14 @@ export default function BirdsLeftTrackerPage() {
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base">By flock</CardTitle>
                     <CardDescription>
-                      Compare calculated balance with the latest &ldquo;birds left&rdquo; on production records.
+                      Birds left as calculated (placed − deaths − sales), next to the &ldquo;birds left&rdquo; on each
+                      flock&apos;s latest production record. A difference means one of them needs checking.
                     </CardDescription>
+                    {mismatchCount > 0 && (
+                      <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-900">
+                        {mismatchCount.toLocaleString()} flock{mismatchCount === 1 ? "" : "s"} where the two do not agree — marked below.
+                      </p>
+                    )}
                   </CardHeader>
                   <CardContent className="overflow-x-auto table-scroll-wrapper pb-2">
                     {isMobile && !showFlockTableMobile ? (
@@ -319,11 +404,11 @@ export default function BirdsLeftTrackerPage() {
                          cross-check against the last production log sit inside.
                        */
                       <div className="space-y-3">
-                        {summaries.length === 0 ? (
-                          <p className="py-8 text-center text-sm text-slate-500">No flocks yet.</p>
+                        {byFlockRows.length === 0 ? (
+                          <p className="py-8 text-center text-sm text-slate-500">{batchFilter !== "ALL" || flockFilter !== "ALL" ? "No flocks match this batch / flock." : "No flocks yet."}</p>
                         ) : (
                           <>
-                            {summaries.map((row, idx) => (
+                            {byFlockRows.map((row, idx) => (
                               <Collapsible
                                 key={row.flockId}
                                 defaultOpen
@@ -339,6 +424,12 @@ export default function BirdsLeftTrackerPage() {
                                       <div className="min-w-0">
                                         <div className="flex flex-wrap items-center gap-2 pr-6">
                                           <span className="font-semibold text-slate-900">{row.flockName}</span>
+                                          {batchNameOfFlock.get(row.flockId) && (
+                                            <Badge variant="outline" className="bg-white text-[11px] font-normal">{batchNameOfFlock.get(row.flockId)}</Badge>
+                                          )}
+                                          {(() => { const d = diffOf(row); return d != null && d !== 0 ? (
+                                            <Badge className="bg-amber-100 text-amber-900 hover:bg-amber-100 text-[11px]">Check: {d > 0 ? "+" : ""}{d.toLocaleString()}</Badge>
+                                          ) : null })()}
                                         </div>
                                         <div className="mt-3 grid grid-cols-2 gap-2">
                                           <div className="rounded-lg border border-emerald-300 bg-emerald-100 px-3 py-2 shadow-sm">
@@ -388,8 +479,8 @@ export default function BirdsLeftTrackerPage() {
                                 otherwise drop. */}
                             <div className="rounded-xl border border-slate-300 bg-slate-100 px-3 py-3">
                               <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                                Total — {summaries.length.toLocaleString()}{" "}
-                                {summaries.length === 1 ? "flock" : "flocks"}
+                                Total — {byFlockRows.length.toLocaleString()}{" "}
+                                {byFlockRows.length === 1 ? "flock" : "flocks"}
                               </p>
                               <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
                                 <div>
@@ -442,28 +533,31 @@ export default function BirdsLeftTrackerPage() {
                         </Button>
                       </div>
                     )}
-                    <Table className="w-full min-w-[640px]">
+                    <Table className="w-full min-w-[820px]">
                       <TableHeader>
                         <TableRow>
                           <TableHead>Flock</TableHead>
+                          <TableHead>Batch</TableHead>
                           <TableHead className="text-right">Placed (IN)</TableHead>
                           <TableHead className="text-right">Deaths OUT</TableHead>
                           <TableHead className="text-right">Sales OUT</TableHead>
                           <TableHead className="text-right">Birds left</TableHead>
                           <TableHead className="text-right">From last log</TableHead>
+                          <TableHead className="text-right">Difference</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {summaries.length === 0 ? (
+                        {byFlockRows.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={6} className="text-center text-slate-500 py-8">
-                              No flocks yet.
+                            <TableCell colSpan={8} className="text-center text-slate-500 py-8">
+                              {batchFilter !== "ALL" || flockFilter !== "ALL" ? "No flocks match this batch / flock." : "No flocks yet."}
                             </TableCell>
                           </TableRow>
                         ) : (
-                          summaries.map((row) => (
+                          byFlockRows.map((row) => (
                             <TableRow key={row.flockId}>
                               <TableCell className="font-medium">{row.flockName}</TableCell>
+                              <TableCell className="text-slate-600">{batchNameOfFlock.get(row.flockId) || "—"}</TableCell>
                               <TableCell className="text-right tabular-nums">
                                 {row.placedIn.toLocaleString()}
                               </TableCell>
@@ -481,17 +575,25 @@ export default function BirdsLeftTrackerPage() {
                                   ? row.birdsLeftFromLatestLog.toLocaleString()
                                   : "—"}
                               </TableCell>
+                              <TableCell className="text-right tabular-nums">
+                                {(() => {
+                                  const d = diffOf(row)
+                                  if (d == null) return <span className="text-slate-400" title="No production record yet">—</span>
+                                  if (d === 0) return <span className="text-emerald-700">Matches</span>
+                                  return <span className="rounded bg-amber-100 px-1.5 py-0.5 font-semibold text-amber-900">{d > 0 ? "+" : ""}{d.toLocaleString()}</span>
+                                })()}
+                              </TableCell>
                             </TableRow>
                           ))
                         )}
                       </TableBody>
-                      {summaries.length > 0 && (
+                      {byFlockRows.length > 0 && (
                         <TableFooter>
                           <TableRow className="bg-slate-50 hover:bg-slate-50">
-                            <TableCell className="font-medium text-slate-700">
+                            <TableCell className="font-medium text-slate-700" colSpan={2}>
                               Total
                               <span className="ml-2 font-normal text-slate-500">
-                                ({summaries.length.toLocaleString()} {summaries.length === 1 ? "flock" : "flocks"})
+                                ({byFlockRows.length.toLocaleString()} {byFlockRows.length === 1 ? "flock" : "flocks"})
                               </span>
                             </TableCell>
                             <TableCell className="text-right tabular-nums font-bold">
@@ -507,6 +609,9 @@ export default function BirdsLeftTrackerPage() {
                               {flockTotals.left.toLocaleString()}
                             </TableCell>
                             <TableCell />
+                            <TableCell className="text-right text-xs text-slate-500">
+                              {mismatchCount > 0 ? `${mismatchCount} to check` : ""}
+                            </TableCell>
                           </TableRow>
                         </TableFooter>
                       )}
@@ -525,22 +630,9 @@ export default function BirdsLeftTrackerPage() {
                     <div
                       className={cn(
                         "grid gap-2 pt-3",
-                        isMobile ? "grid-cols-1" : "grid-cols-2 lg:grid-cols-5",
+                        isMobile ? "grid-cols-1" : "grid-cols-3 lg:max-w-2xl",
                       )}
                     >
-                      <Select value={flockFilter} onValueChange={setFlockFilter}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Flock" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="ALL">All flocks</SelectItem>
-                          {flocks.map((f) => (
-                            <SelectItem key={f.flockId} value={String(f.flockId)}>
-                              {f.name || `Flock #${f.flockId}`}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
                       <Select
                         value={typeFilter}
                         onValueChange={(v) => setTypeFilter(v as "ALL" | "IN" | "OUT")}

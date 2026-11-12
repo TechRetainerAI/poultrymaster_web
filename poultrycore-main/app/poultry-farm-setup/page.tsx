@@ -61,12 +61,13 @@ import {
 import {
   batchRowFromExisting, breakdown, defaultFlockName, emptyBatch, emptyFlock, emptyHouse,
   errorsBySection, flocksNeedingReconciliation, generateBatches, historicalReduction,
-  balanceBreakdown, batchAllocationViews, batchDraft, batchEditRows, distributePensEvenly,
-  fillPensToCapacity, fromBatchDraft,
+  balanceBreakdown, batchAllocationViews, batchDraft, distributePensEvenly,
+  fillPensToCapacity, fromBatchDraft, syncDraftWithContext, filterBatchStepRows, countBatchStepFilters,
+  type BatchStepFilter,
   houseCapacityNote, houseLoad, houseRowFromExisting, houseRowViews,
   penOptions, seedReconciliation,
-  renameForHouse, summarize, summarizeBatchEditRows, summarizeBatchRows, summarizeHouseRows,
-  toRequest, validateSetup, visibleBatchEditRows, visibleBatchRows, visibleHouseRows,
+  renameForHouse, summarize, summarizeBatchRows, summarizeHouseRows,
+  toRequest, validateSetup, visibleBatchRows, visibleHouseRows,
   type BatchAllocationStatus, type SetupRowError,
   type BatchRow, type FlockRow, type HouseRow, type SetupContext, type SetupDraft,
 } from "@/lib/farm-setup/wizard"
@@ -144,6 +145,17 @@ export default function PoultryFarmSetupPage() {
    */
   const [savedDraft, setSavedDraft] = useState<FarmSetupDraft | null>(null)
   const [draftState, setDraftState] = useState<"idle" | "saving" | "saved" | "error">("idle")
+
+  /** Tell the user what changed when a resumed draft was brought up to date. */
+  const announceSync = useCallback((r: ReturnType<typeof syncDraftWithContext>) => {
+    const parts: string[] = []
+    const n = (k: number, one: string, many: string) => `${k} ${k === 1 ? one : many}`
+    if (r.addedBatches) parts.push(`${n(r.addedBatches, "batch", "batches")} added since you left`)
+    if (r.removedBatches) parts.push(`${n(r.removedBatches, "batch", "batches")} no longer on the farm`)
+    if (r.addedHouses) parts.push(`${n(r.addedHouses, "pen", "pens")} added since you left`)
+    if (r.removedHouses) parts.push(`${n(r.removedHouses, "pen", "pens")} no longer on the farm`)
+    if (parts.length) toast({ title: "Setup updated with your farm's latest records", description: parts.join(" · ") + "." })
+  }, [toast])
 
   const clearSavedDraft = useCallback(async () => {
     const { userId, farmId } = getUserContext()
@@ -256,10 +268,12 @@ export default function PoultryFarmSetupPage() {
   // Off by default: existing assignments are context, and loading them into the
   // form is what makes a farm think its history is being recreated.
   const [showExistingFlocks, setShowExistingFlocks] = useState(false)
-  // Off by default: the Batches step is for describing NEW stock. What the farm
-  // already has is locked, adds nothing to fill in, and is still available to
-  // the allocation step regardless.
-  const [showExistingBatches, setShowExistingBatches] = useState(false)
+  // Batches step tabs, like Houses/Pens: All / Fully allocated / Partly
+  // allocated / Not allocated / New in this setup. "All" by default so the farm
+  // sees every batch it has and how many of its birds are already in pens.
+  const [batchFilter, setBatchFilter] = useState<BatchStepFilter>("all")
+  // Step 3 pen picker: All / Empty / Has birds, like the Houses/Pens step.
+  const [penPickFilter, setPenPickFilter] = useState<"all" | "empty" | "occupied">("all")
   // The pen whose capacity is being corrected from an allocation row, by key.
   const [capacityPenKey, setCapacityPenKey] = useState<string | null>(null)
   // The batch whose bird count is being corrected from the allocation header.
@@ -322,7 +336,10 @@ export default function PoultryFarmSetupPage() {
           try {
             const parsed = JSON.parse(saved.draft) as SetupDraft
             if (Array.isArray(parsed?.batches) && Array.isArray(parsed?.flocks)) {
-              setDraft(parsed)
+              // The farm may have changed since the draft was saved.
+              const synced = syncDraftWithContext(parsed, toSetupContext(ctxRes.data))
+              setDraft(synced.draft)
+              announceSync(synced)
               if (saved.phase) setAllocPhase(saved.phase as "batch" | "pens" | "allocate")
               navigate("wizard", i as Step, true)
               restored = true
@@ -336,31 +353,11 @@ export default function PoultryFarmSetupPage() {
     }
     if (openRes.success && openRes.data) setOpening(openRes.data)
     setLoading(false)
-  }, [toast, navigate])
+  }, [toast, navigate, announceSync])
 
   useEffect(() => { void load() }, [load])
 
-  const setupContext: SetupContext = useMemo(() => ({
-    existingBatches: (context?.batches ?? []).map((b: any) => ({
-      batchId: b.batchId, batchCode: b.batchCode, batchName: b.batchName,
-      breed: b.breed, numberOfBirds: b.numberOfBirds, startDate: b.startDate,
-      // The server enforces the STORED flag (FarmSetupValidator.IsHistoricalBatch);
-      // dropping it here made the wizard treat every reused batch as a new purchase.
-      isHistorical: b.isHistorical ?? undefined,
-    })),
-    existingHouses: (context?.houses ?? []).map((h: any) => ({
-      houseId: h.houseId, houseName: h.houseName, capacity: h.capacity,
-      occupied: h.occupied ?? 0, availableCapacity: h.availableCapacity, activeFlocks: h.activeFlocks ?? 0,
-    })),
-    existingFlocks: (context?.flocks ?? []).map((f) => ({
-      flockId: f.flockId, name: f.name, batchId: f.batchId, houseId: f.houseId,
-      houseName: f.houseName, quantity: f.quantity ?? 0, active: f.active ?? true,
-    })),
-    existingFlockNames: context?.existingFlockNames ?? [],
-    allocatedByBatchId: context?.allocatedByBatchId ?? {},
-    batchPositions: Object.fromEntries((context?.batchPositions ?? []).map((p) => [p.batchId, p])),
-    businessDate: context?.businessDate ? String(context.businessDate).split("T")[0] : new Date().toISOString().slice(0, 10),
-  }), [context])
+  const setupContext: SetupContext = useMemo(() => toSetupContext(context), [context])
 
   const { errors, warnings } = useMemo(
     () => validateSetup(draft, setupContext),
@@ -400,12 +397,6 @@ export default function PoultryFarmSetupPage() {
   const batchStart = batchStartOverride ?? String(suggestedBatchStart)
   const houseSummary = useMemo(() => summarizeHouseRows(houseViews), [houseViews])
 
-  const batchEditViews = useMemo(() => batchEditRows(draft), [draft])
-  const visibleBatchEdits = useMemo(
-    () => visibleBatchEditRows(batchEditViews, showExistingBatches),
-    [batchEditViews, showExistingBatches],
-  )
-  const batchEditSummary = useMemo(() => summarizeBatchEditRows(batchEditViews), [batchEditViews])
 
   // Breeds this farm already uses, offered first in every breed picker. Drawn
   // from the batches it has AND the ones being typed now, so a breed entered on
@@ -420,6 +411,14 @@ export default function PoultryFarmSetupPage() {
 
   // ---- The allocation workspace ---------------------------------------
   const batchViews = useMemo(() => batchAllocationViews(draft, setupContext), [draft, setupContext])
+  // Batches step: the cards shown under the chosen tab, in draft order, each
+  // with its allocation figures.
+  const batchFilterCounts = useMemo(() => countBatchStepFilters(batchViews), [batchViews])
+  const visibleBatchEdits = useMemo(
+    () => filterBatchStepRows(batchViews, batchFilter)
+      .map((v) => ({ row: v.batch, index: v.index, isExisting: v.isExisting, alloc: v })),
+    [batchViews, batchFilter],
+  )
   const visibleBatches = useMemo(
     // The batch being worked on stays listed even once it is complete.
     () => visibleBatchRows(batchViews, showAllBatches, selectedBatchKey || undefined),
@@ -752,7 +751,11 @@ export default function PoultryFarmSetupPage() {
     if (!savedDraft) return
     try {
       const parsed = JSON.parse(savedDraft.draft) as SetupDraft
-      setDraft(parsed)
+      // The farm may have changed since the draft was saved (a batch added on
+      // the Flock Batch page, a pen deleted): bring it up to date.
+      const synced = syncDraftWithContext(parsed, setupContext)
+      setDraft(synced.draft)
+      announceSync(synced)
       if (savedDraft.phase) setAllocPhase(savedDraft.phase as "batch" | "pens" | "allocate")
       setSubmitted(false)
       setServerErrors({})
@@ -829,6 +832,16 @@ export default function PoultryFarmSetupPage() {
   }
 
   const goNext = () => {
+    // Step 3, choosing pens: the bottom Continue does what "Continue to
+    // allocation" does, instead of complaining about flocks not filled in yet.
+    if (step === 2 && allocPhase === "pens") {
+      if (activeBatchFlocks.length === 0) {
+        toast({ title: "Tick the pens these birds are in", description: "Then Continue takes you to the allocation.", variant: "warning" })
+        return
+      }
+      setAllocPhase("allocate")
+      return
+    }
     setSubmitted(true)
     // Only what this step can fix. A setup-wide complaint about missing flocks
     // is true — and unfixable — while you are still describing pens and batches,
@@ -961,7 +974,9 @@ export default function PoultryFarmSetupPage() {
                         <p className="mt-1 text-sm leading-relaxed text-slate-700">
                           {(() => {
                             try {
-                              const d = JSON.parse(savedDraft.draft) as SetupDraft
+                              // Counted as it WILL be on Resume: brought up to date
+                              // with the farm's current batches and pens.
+                              const d = syncDraftWithContext(JSON.parse(savedDraft.draft) as SetupDraft, setupContext).draft
                               const parts = [
                                 `${d.batches?.length ?? 0} batch${(d.batches?.length ?? 0) === 1 ? "" : "es"}`,
                                 `${d.houses?.length ?? 0} pen${(d.houses?.length ?? 0) === 1 ? "" : "s"}`,
@@ -1311,20 +1326,45 @@ export default function PoultryFarmSetupPage() {
                           </Button>
                         </div>
                         <div className="space-y-4 bg-amber-50/40 p-3 sm:p-4">
-                        {batchEditSummary.existing > 0 && (
-                          <label className="flex w-fit items-center gap-2 rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-slate-700">
-                            <Checkbox checked={showExistingBatches}
-                              onCheckedChange={(v) => setShowExistingBatches(v === true)} />
-                            Show the {batchEditSummary.existing.toLocaleString()} batch
-                            {batchEditSummary.existing === 1 ? "" : "es"} you already have
-                          </label>
+                        {/* Like Houses/Pens: tabs by how many birds are already in
+                            pens. Hidden batches stay in the draft -- only the view
+                            changes. */}
+                        {draft.batches.length > 0 && (
+                          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm">
+                            <span className="text-slate-600">
+                              {batchFilterCounts.full.toLocaleString()} fully allocated · {batchFilterCounts.partial.toLocaleString()} partly ·{" "}
+                              {batchFilterCounts.none.toLocaleString()} not allocated
+                            </span>
+                            <div role="group" aria-label="Filter batches" className="inline-flex shrink-0 flex-wrap rounded-md border border-slate-300 bg-white p-0.5">
+                              {([
+                                ["all", `All batches (${batchFilterCounts.all.toLocaleString()})`],
+                                ["full", `Fully allocated (${batchFilterCounts.full.toLocaleString()})`],
+                                ["partial", `Partly allocated (${batchFilterCounts.partial.toLocaleString()})`],
+                                ["none", `Not allocated (${batchFilterCounts.none.toLocaleString()})`],
+                                ["new", `New in this setup (${batchFilterCounts.new.toLocaleString()})`],
+                              ] as const).map(([value, label]) => (
+                                <button key={value} type="button" aria-pressed={batchFilter === value}
+                                  onClick={() => setBatchFilter(value)}
+                                  className={`rounded px-3 py-1 text-xs font-medium transition-colors ${batchFilter === value ? "bg-amber-500 text-white" : "text-slate-700 hover:bg-amber-50"}`}>
+                                  {label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
                         )}
-                        {visibleBatchEdits.length === 0 && (
+                        {draft.batches.length === 0 && (
                           <p className="text-slate-600 text-sm">
-                            No new batches yet. Create some above, or add one at a time.
+                            No batches yet. Create some above, or add one at a time.
                           </p>
                         )}
-                        {visibleBatchEdits.map(({ row: b, index: i, isExisting: existing }, n) => {
+                        {draft.batches.length > 0 && visibleBatchEdits.length === 0 && (
+                          <p className="text-slate-600 text-sm">
+                            {batchFilter === "new"
+                              ? "No new batches yet. Create some above, or add one at a time."
+                              : "No batches in this group. Choose “All batches” to see them all."}
+                          </p>
+                        )}
+                        {visibleBatchEdits.map(({ row: b, index: i, isExisting: existing, alloc }, n) => {
                             const locked = existing
                             return (
                             <div key={b.key} className={`relative rounded-lg border border-l-4 p-3 space-y-3 shadow-sm [&_input]:bg-white [&_button[role=combobox]]:bg-white [&_[data-slot=select-trigger]]:bg-white ${lineCardShell(existing, submitted ? fieldErrors.batches?.[i] : undefined, serverErrors.batches?.[i])}`}>
@@ -1333,7 +1373,17 @@ export default function PoultryFarmSetupPage() {
                                 <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
                                   {b.batchCode || b.batchName || `Batch ${i + 1}`}
                                   <NewExistingBadge existing={existing} />
+                                  <AllocationBadge status={alloc.status} />
                                 </span>
+                                {alloc.batchBirds > 0 && (
+                                  <span className="text-xs text-slate-600">
+                                    <span className="font-semibold tabular-nums text-slate-800">{(alloc.previouslyAllocated + alloc.thisAllocation).toLocaleString()}</span>
+                                    {" "}of {alloc.batchBirds.toLocaleString()} birds allocated
+                                    {alloc.previouslyAccountedFor > 0 && ` · ${alloc.previouslyAccountedFor.toLocaleString()} sold/died before placing`}
+                                    {" · "}
+                                    <span className={`font-semibold tabular-nums ${alloc.remaining > 0 ? "text-amber-700" : "text-slate-800"}`}>{alloc.remaining.toLocaleString()}</span> not allocated
+                                  </span>
+                                )}
                                 <Button type="button" variant="ghost" size="sm" onClick={() => removeBatch(i)}
                                   className="h-8 px-2 text-red-600 hover:bg-red-50" aria-label="Remove batch">
                                   <Trash2 className="w-4 h-4" />
@@ -1566,12 +1616,42 @@ export default function PoultryFarmSetupPage() {
                                 </Button>
                               </div>
 
+                              {(() => {
+                                const holds = (v: (typeof houseViews)[number]) => (v.load?.total ?? 0) > 0
+                                const emptyCount = houseViews.filter((v) => !holds(v)).length
+                                return (
+                                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm">
+                                    <span className="text-slate-600">
+                                      {emptyCount.toLocaleString()} empty · {(houseViews.length - emptyCount).toLocaleString()} with birds
+                                    </span>
+                                    <div role="group" aria-label="Filter pens" className="inline-flex shrink-0 rounded-md border border-slate-300 bg-white p-0.5">
+                                      {([
+                                        ["all", `All pens (${houseViews.length.toLocaleString()})`],
+                                        ["empty", `Empty (${emptyCount.toLocaleString()})`],
+                                        ["occupied", `Has birds (${(houseViews.length - emptyCount).toLocaleString()})`],
+                                      ] as const).map(([value, label]) => (
+                                        <button key={value} type="button" aria-pressed={penPickFilter === value}
+                                          onClick={() => setPenPickFilter(value)}
+                                          className={`rounded px-3 py-1 text-xs font-medium transition-colors ${penPickFilter === value ? "bg-amber-500 text-white" : "text-slate-700 hover:bg-amber-50"}`}>
+                                          {label}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )
+                              })()}
+
                               <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-                                {/* Every pen is listed, full ones included, so none
-                                    seems to have vanished. A full pen cannot be
-                                    ticked; one this batch already uses stays
-                                    clickable so it can be unticked. */}
-                                {houseViews.map((v) => {
+                                {/* Every pen is listed under "All pens", full ones
+                                    included, so none seems to have vanished. A full
+                                    pen cannot be ticked; one this batch already uses
+                                    stays clickable (and listed under any filter) so
+                                    it can be unticked. */}
+                                {houseViews.filter((v) => {
+                                  if (penPickFilter === "all" || pensInActiveBatch.has(v.row.key)) return true
+                                  const holds = (v.load?.total ?? 0) > 0
+                                  return penPickFilter === "empty" ? !holds : holds
+                                }).map((v) => {
                                   const on = pensInActiveBatch.has(v.row.key)
                                   const full = !v.hasRoom
                                   const locked = full && !on
@@ -1593,14 +1673,18 @@ export default function PoultryFarmSetupPage() {
                                           <span className={`truncate font-medium ${locked ? "text-slate-500" : "text-slate-900"}`}>
                                             {v.row.houseName || "(unnamed)"}
                                           </span>
-                                          {full && (
+                                          {full ? (
                                             <Badge variant="outline" className="h-5 shrink-0 border-red-300 px-1.5 text-[10px] text-red-700">Full</Badge>
-                                          )}
+                                          ) : (v.load?.total ?? 0) === 0 ? (
+                                            <Badge variant="outline" className="h-5 shrink-0 border-emerald-300 bg-emerald-50 px-1.5 text-[10px] text-emerald-700">Empty</Badge>
+                                          ) : null}
                                         </span>
                                         <span className="block text-xs text-slate-500 tabular-nums">
                                           {full && v.load?.capacity != null
                                             ? `${v.load.total.toLocaleString()} of ${v.load.capacity.toLocaleString()} birds`
-                                            : free == null ? "No limit set" : `${free.toLocaleString()} free`}
+                                            : (v.load?.total ?? 0) > 0
+                                              ? `Holds ${v.load!.total.toLocaleString()} birds${free == null ? "" : ` · ${free.toLocaleString()} free`}`
+                                              : free == null ? "No limit set" : `${free.toLocaleString()} free`}
                                         </span>
                                       </span>
                                     </label>
@@ -2421,6 +2505,41 @@ function NewExistingBadge({ existing }: { existing: boolean }) {
 }
 
 /** A wizard card (pen, batch, flock) styled like a New sale line: white, coloured left edge. */
+/** The wizard's view of the farm's current records (from the setup context). */
+function toSetupContext(context: FarmSetupWizardContext | null | undefined): SetupContext {
+  return {
+    existingBatches: (context?.batches ?? []).map((b: any) => ({
+      batchId: b.batchId, batchCode: b.batchCode, batchName: b.batchName,
+      breed: b.breed, numberOfBirds: b.numberOfBirds, startDate: b.startDate,
+      // The server enforces the STORED flag (FarmSetupValidator.IsHistoricalBatch);
+      // dropping it here made the wizard treat every reused batch as a new purchase.
+      isHistorical: b.isHistorical ?? undefined,
+    })),
+    existingHouses: (context?.houses ?? []).map((h: any) => ({
+      houseId: h.houseId, houseName: h.houseName, capacity: h.capacity,
+      occupied: h.occupied ?? 0, availableCapacity: h.availableCapacity, activeFlocks: h.activeFlocks ?? 0,
+    })),
+    existingFlocks: (context?.flocks ?? []).map((f) => ({
+      flockId: f.flockId, name: f.name, batchId: f.batchId, houseId: f.houseId,
+      houseName: f.houseName, quantity: f.quantity ?? 0, active: f.active ?? true,
+    })),
+    existingFlockNames: context?.existingFlockNames ?? [],
+    allocatedByBatchId: context?.allocatedByBatchId ?? {},
+    batchPositions: Object.fromEntries((context?.batchPositions ?? []).map((p) => [p.batchId, p])),
+    businessDate: context?.businessDate ? String(context.businessDate).split("T")[0] : new Date().toISOString().slice(0, 10),
+  }
+}
+
+/** Batches step: how much of a batch is already in pens. */
+function AllocationBadge({ status }: { status: string }) {
+  const [label, cls] =
+    status === "complete" ? ["Fully allocated", "border-emerald-300 bg-emerald-50 text-emerald-700"]
+    : status === "over" ? ["Over-allocated", "border-red-300 bg-red-50 text-red-700"]
+    : status === "partial" ? ["Partly allocated", "border-amber-300 bg-amber-50 text-amber-800"]
+    : ["Not allocated", "border-slate-300 bg-slate-50 text-slate-600"]
+  return <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${cls}`}>{label}</span>
+}
+
 const lineCardShell = (isExisting: boolean, live?: Record<string, string>, server?: Record<string, string>) => {
   const invalid = (live && Object.keys(live).length > 0) || (server && Object.keys(server).length > 0)
   if (invalid) return "border-red-300 bg-red-50 border-l-red-500"

@@ -22,7 +22,8 @@ import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
-import { Plus, Pencil, Loader2, Trash2, CheckCircle2, Undo2, ChevronDown, ChevronUp, ExternalLink } from "lucide-react"
+import { Plus, Pencil, Loader2, Trash2, CheckCircle2, Undo2, ChevronDown, ChevronUp, ExternalLink, Search, X } from "lucide-react"
+import { SortableHeader, toggleSort, sortData, type SortDirection } from "@/components/ui/sortable-header"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
@@ -43,6 +44,16 @@ type Row =
   | { kind: "manual"; key: string; date: string; l: PoultryLossRecord }
   | { kind: "auto"; key: string; date: string; a: AutoLossEntry }
 
+const rowType = (r: Row) => (r.kind === "auto" ? r.a.lossType : r.l.lossType) || ""
+const rowProduct = (r: Row) => (r.kind === "auto" ? r.a.productName : r.l.productName) || ""
+const rowQty = (r: Row) => (r.kind === "auto" ? r.a.quantity : r.l.quantity) ?? null
+const rowValue = (r: Row) => (r.kind === "auto" ? r.a.estimatedValue : r.l.estimatedValue) ?? null
+const rowReason = (r: Row) => (r.kind === "auto" ? r.a.reason : r.l.reason) || ""
+/** Approved / Pending for manual records, Automatic for rows read from other pages. */
+const rowStatus = (r: Row) => (r.kind === "auto" ? "Automatic" : r.l.status === "Approved" ? "Approved" : "Pending")
+/** Manual, or the page an automatic row came from. */
+const rowSource = (r: Row) => (r.kind === "auto" ? r.a.sourceLabel : "Entered here")
+
 const EMPTY = { lossDate: new Date().toISOString().split("T")[0], lossType: "Damage", poultryProductId: 0, quantity: 0, estimatedValue: 0, reason: "", notes: "" }
 
 export default function PoultryLossRecordsPage() {
@@ -56,7 +67,60 @@ export default function PoultryLossRecordsPage() {
     ...manual.map((l) => ({ kind: "manual" as const, key: `m-${l.poultryLossRecordId}`, date: (l.lossDate || "").split("T")[0], l })),
     ...auto.map((a) => ({ kind: "auto" as const, key: a.key, date: (a.lossDate || "").split("T")[0], a })),
   ].sort((x, y) => (x.date < y.date ? 1 : x.date > y.date ? -1 : 0)), [manual, auto])
-  const pg = usePagination(rows)
+  // Filters and sorting (both the cards and the table follow them).
+  const [search, setSearch] = useState("")
+  const [typeFilter, setTypeFilter] = useState("ALL")
+  const [productFilter, setProductFilter] = useState("ALL")
+  const [statusFilter, setStatusFilter] = useState("ALL")
+  const [sourceFilter, setSourceFilter] = useState("ALL")
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
+  const [sortKey, setSortKey] = useState<string | null>("date")
+  const [sortDir, setSortDir] = useState<SortDirection>("desc")
+  const onSort = (key: string) => {
+    const next = toggleSort(key, sortKey, sortDir)
+    setSortKey(next.key); setSortDir(next.direction)
+  }
+  const typeOptions = useMemo(() => Array.from(new Set([...LOSS_TYPES, ...rows.map(rowType)].filter(Boolean))).sort(), [rows])
+  const productOptions = useMemo(() => Array.from(new Set(rows.map(rowProduct).filter(Boolean))).sort((a, b) => a.localeCompare(b)), [rows])
+  const sourceOptions = useMemo(() => Array.from(new Set(rows.map(rowSource))).sort((a, b) => a.localeCompare(b)), [rows])
+  const filtersActive = search.trim() !== "" || typeFilter !== "ALL" || productFilter !== "ALL" || statusFilter !== "ALL"
+    || sourceFilter !== "ALL" || dateFrom !== "" || dateTo !== ""
+  const clearFilters = () => {
+    setSearch(""); setTypeFilter("ALL"); setProductFilter("ALL"); setStatusFilter("ALL")
+    setSourceFilter("ALL"); setDateFrom(""); setDateTo("")
+  }
+  const shown = useMemo(() => {
+    const term = search.trim().toLowerCase()
+    const list = rows.filter((r) => {
+      if (term && ![rowType(r), rowProduct(r), rowReason(r), rowSource(r), r.kind === "manual" ? r.l.notes ?? "" : ""]
+        .some((x) => x.toLowerCase().includes(term))) return false
+      if (typeFilter !== "ALL" && rowType(r) !== typeFilter) return false
+      if (productFilter !== "ALL" && rowProduct(r) !== productFilter) return false
+      if (statusFilter !== "ALL" && rowStatus(r) !== statusFilter) return false
+      if (sourceFilter !== "ALL" && rowSource(r) !== sourceFilter) return false
+      if (dateFrom && r.date < dateFrom) return false
+      if (dateTo && r.date > dateTo) return false
+      return true
+    })
+    return sortData(list, sortKey, sortDir, (r, key) => {
+      switch (key) {
+        case "date": return r.kind === "auto" ? r.a.lossDate : r.l.lossDate
+        case "type": return rowType(r)
+        case "product": return rowProduct(r) || null
+        case "qty": return rowQty(r)
+        case "value": return rowValue(r)
+        case "status": return rowStatus(r)
+        default: return null
+      }
+    })
+  }, [rows, search, typeFilter, productFilter, statusFilter, sourceFilter, dateFrom, dateTo, sortKey, sortDir])
+  const shownTotals = useMemo(() => shown.reduce((t, r) => ({
+    qty: t.qty + (Number(rowQty(r)) || 0),
+    value: t.value + (Number(rowValue(r)) || 0),
+    pending: t.pending + (rowStatus(r) === "Pending" ? 1 : 0),
+  }), { qty: 0, value: 0, pending: 0 }), [shown])
+  const pg = usePagination(shown)
   const [products, setProducts] = useState<PoultryProduct[]>([])
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
@@ -129,10 +193,37 @@ export default function PoultryLossRecordsPage() {
             <div><h1 className="text-2xl font-bold">Loss & Damage Records</h1><p className="text-sm text-slate-500">Damages, mortality, spoilage, missing stock. Damaged eggs from production records, driver returns and egg sorting are added automatically — change those at their source.</p></div>
             <Button onClick={openNew}><Plus className="w-4 h-4 mr-1" /> New record</Button>
           </div>
+          {!loading && rows.length > 0 && (
+            <Card><CardContent className="p-3 space-y-3">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
+                <div className="relative sm:col-span-2 lg:col-span-2">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Input className="h-9 pl-9" placeholder="Search product, reason, notes" value={search} onChange={(e) => setSearch(e.target.value)} />
+                </div>
+                <LossFilter label="Type" value={typeFilter} onChange={setTypeFilter} allLabel="All types" options={typeOptions} />
+                <LossFilter label="Product" value={productFilter} onChange={setProductFilter} allLabel="All products" options={productOptions} />
+                <LossFilter label="Status" value={statusFilter} onChange={setStatusFilter} allLabel="All statuses" options={["Pending", "Approved", "Automatic"]} />
+                <LossFilter label="Source" value={sourceFilter} onChange={setSourceFilter} allLabel="All sources" options={sourceOptions} />
+                <Input type="date" aria-label="From date" title="From date" className="h-9" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+                <Input type="date" aria-label="To date" title="To date" className="h-9" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+              </div>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600">
+                <span><span className="font-semibold text-slate-900">{shown.length.toLocaleString()}</span> of {rows.length.toLocaleString()} records</span>
+                <span>Qty <span className="font-semibold text-slate-900">{shownTotals.qty.toLocaleString()}</span></span>
+                <span>Value <span className="font-semibold text-slate-900">{gh(shownTotals.value)}</span></span>
+                {shownTotals.pending > 0 && <span className="text-amber-700">{shownTotals.pending} pending approval</span>}
+                {filtersActive && (
+                  <Button size="sm" variant="ghost" className="ml-auto h-8 gap-1 text-slate-600" onClick={clearFilters}>
+                    <X className="h-3.5 w-3.5" /> Clear filters
+                  </Button>
+                )}
+              </div>
+            </CardContent></Card>
+          )}
           <Card><CardContent className="p-4">
             {loading ? <div className="flex items-center gap-2 text-slate-500 p-8"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>
               : isMobile && !showTableMobile ? (
-              rows.length === 0 ? <div className="py-8 text-center text-slate-500">No loss records yet.</div> : (
+              shown.length === 0 ? <div className="py-8 text-center text-slate-500">{rows.length === 0 ? "No loss records yet." : "No records match these filters."}</div> : (
               <div className="space-y-3">
                 {pg.pageItems.map((row, idx) => row.kind === "auto" ? (
                   <div key={row.key} className={cn("rounded-xl border shadow-sm px-2.5 py-3", idx % 2 === 0 ? "bg-amber-100 border-amber-300" : "bg-white border-slate-200")}>
@@ -236,9 +327,14 @@ export default function PoultryLossRecordsPage() {
                 </div>
               )}
               <div className="overflow-x-auto -mx-4 px-4"><Table className="min-w-[640px]">
-                <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Type</TableHead><TableHead>Product</TableHead><TableHead className="text-right">Qty</TableHead><TableHead className="text-right">Value</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+                <TableHeader><TableRow>
+                  {([["date", "Date", ""], ["type", "Type", ""], ["product", "Product", ""], ["qty", "Qty", "text-right"], ["value", "Value", "text-right"], ["status", "Status", ""]] as const).map(([k, label, cls]) => (
+                    <SortableHeader key={k} label={label} sortKey={k} currentSort={sortKey} currentDirection={sortDir} onSort={onSort} className={cls} />
+                  ))}
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow></TableHeader>
                 <TableBody>
-                  {rows.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center text-slate-500 py-6">No loss records yet.</TableCell></TableRow>
+                  {shown.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center text-slate-500 py-6">{rows.length === 0 ? "No loss records yet." : "No records match these filters."}</TableCell></TableRow>
                     : pg.pageItems.map((row) => row.kind === "auto" ? (
                       <TableRow key={row.key} className="bg-slate-50/60">
                         <TableCell>{fmtDateTime(row.a.lossDate)}</TableCell>
@@ -307,5 +403,21 @@ export default function PoultryLossRecordsPage() {
 
       <ConfirmDeleteDialog open={!!delTarget} onOpenChange={(o) => !o && setDelTarget(null)} onConfirm={confirmDelete} title="Delete loss record?" description="This removes the pending record." />
     </div>
+  )
+}
+
+function LossFilter({ label, value, onChange, allLabel, options }: {
+  label: string; value: string; onChange: (v: string) => void; allLabel: string; options: string[]
+}) {
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger aria-label={label} title={label} className={cn("h-9", value !== "ALL" && "border-blue-300 bg-blue-50")}>
+        <SelectValue placeholder={allLabel} />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="ALL">{allLabel}</SelectItem>
+        {options.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+      </SelectContent>
+    </Select>
   )
 }
