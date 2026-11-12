@@ -23,9 +23,9 @@ import { fetchRevenueDashboard, type RevenueDashboard } from "./platform-activit
 import { fetchOrganizations, type OrganizationSummary } from "./platform-activity-api"
 import { appendActivity, clearActivityLog, readActivityLog, type DeveloperActivity } from "./activity-log"
 
-type DevPage = "dashboard" | "intel" | "success" | "analytics" | "revenue" | "operations" | "farms" | "customers" | "audit" | "reports" | "billing" | "settings"
+type DevPage = "dashboard" | "intel" | "success" | "analytics" | "revenue" | "operations" | "farms" | "customers" | "audit" | "devlog" | "reports" | "billing" | "settings"
 
-const DEV_PAGES: DevPage[] = ["dashboard", "intel", "success", "analytics", "revenue", "operations", "farms", "customers", "audit", "reports", "billing", "settings"]
+const DEV_PAGES: DevPage[] = ["dashboard", "intel", "success", "analytics", "revenue", "operations", "farms", "customers", "audit", "devlog", "reports", "billing", "settings"]
 
 /** Deep links: #/page?k=v so dashboards, directory focus and audit filters survive reload/sharing. */
 function readHash(): { page: DevPage | null; params: URLSearchParams } {
@@ -512,6 +512,7 @@ export default function App() {
     farms: { title: "Companies", sub: "Every registered company across the platform" },
     customers: { title: "Customers", sub: "Billed organizations and their subscription state" },
     audit: { title: "Platform Activity Audit", sub: "Raw cross-tenant audit trail - deep investigation" },
+    devlog: { title: "Developer Activity Log", sub: "Local audit trail of your actions in this browser session" },
     reports: { title: "Reports & Analytics", sub: "Performance and activity analytics" },
     billing: { title: "Billing", sub: "Markets, tiers, prices, discounts & organizations" },
     settings: { title: "Settings", sub: "Platform-wide operational switches" },
@@ -565,6 +566,10 @@ export default function App() {
           <button type="button" className={devPage === "audit" ? "active" : ""} onClick={() => setDevPage("audit")}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/></svg>
             Activity Audit
+          </button>
+          <button type="button" className={devPage === "devlog" ? "active" : ""} onClick={() => setDevPage("devlog")}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/></svg>
+            Developer Activity Log
           </button>
           <button type="button" className={devPage === "reports" ? "active" : ""} onClick={() => setDevPage("reports")}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3v18h18"/><path d="M7 15v3M12 10v8M17 6v12"/></svg>
@@ -697,7 +702,7 @@ export default function App() {
               onOpenBilling={(owner) => { setBillingOwner(owner); setBillingSection("orgs"); setDevPage("billing") }}
               revenueByOrg={revenue ? new Map(revenue.organizations.map((o) => [o.organizationId, o])) : null}
             />
-          ) : (
+          ) : devPage === "audit" ? (
             <>
             {selectedAuditFarmId && <FarmDetailPanel token={token!} farmId={selectedAuditFarmId} />}
             <div className="card">
@@ -887,8 +892,7 @@ export default function App() {
               </div>
             </div>
             </>
-          )}
-
+          ) : devPage === "devlog" ? (
           <div className="card">
         <div className="card-toolbar">
           <h2 className="card-toolbar-title">Developer Activity Log</h2>
@@ -938,6 +942,7 @@ export default function App() {
           </table>
         </div>
           </div>
+          ) : null}
         </div>
       </div>
     </div>
