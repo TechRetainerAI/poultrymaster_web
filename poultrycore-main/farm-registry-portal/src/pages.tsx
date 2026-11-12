@@ -57,6 +57,7 @@ export function FarmsPage({ farms, onAudit, token, onDeleted }: {
 }) {
   const [deleting, setDeleting] = useState<string | null>(null)
   const [deleteErr, setDeleteErr] = useState<string | null>(null)
+  const [detailFarm, setDetailFarm] = useState<FarmSummary | null>(null)
 
   async function deleteFarm(f: FarmSummary) {
     const name = (f.farmName || "").trim()
@@ -201,6 +202,7 @@ export function FarmsPage({ farms, onAudit, token, onDeleted }: {
                 <td>{f.totalUsers}</td>
                 <td>{f.staffCount}</td>
                 <td>
+                  <button type="button" className="link-btn" onClick={() => setDetailFarm(f)}>Details</button>
                   <button type="button" className="link-btn" onClick={() => onAudit(f.farmId)}>Audit</button>
                   <button type="button" className="link-btn link-danger" disabled={deleting === f.farmId}
                     onClick={() => void deleteFarm(f)}>
@@ -213,6 +215,22 @@ export function FarmsPage({ farms, onAudit, token, onDeleted }: {
         </table>
       </div>
       <Pager page={page} total={filtered.length} onPage={setPage} />
+      {detailFarm && (
+        <div className="farm-detail-overlay" onClick={() => setDetailFarm(null)}>
+          <div className="farm-detail-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="farm-detail-modal-head">
+              <h2>{detailFarm.farmName || "Farm details"}</h2>
+              <button type="button" className="link-btn" onClick={() => setDetailFarm(null)}>Close ✕</button>
+            </div>
+            <div className="farm-detail-stats">
+              <div className="setting-tile"><div className="setting-name">Joined</div><div className="setting-desc">{detailFarm.createdAt ? new Date(detailFarm.createdAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "—"}</div></div>
+              <div className="setting-tile"><div className="setting-name">Subscription</div><div className="setting-desc">{detailFarm.hasPaidSubscription ? "Subscribed" : "Free account"}</div></div>
+              <div className="setting-tile"><div className="setting-name">Users</div><div className="setting-desc">{detailFarm.totalUsers} user{detailFarm.totalUsers === 1 ? "" : "s"} · {detailFarm.staffCount} staff</div></div>
+            </div>
+            <FarmDetailPanel token={token} farmId={detailFarm.farmId} />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
