@@ -167,6 +167,8 @@ export interface PoultryBirdsOnHandReportSummary {
 export interface PoultryBirdsOnHandReportRow {
   flockId: number | null; flockName: string; birdsPlaced: number; transfersIn: number | null
   deaths: number; culls: number | null; birdsSold: number | null; transfersOut: number | null
+  /** 419: opening "other" reduction from Initial Farm Setup. Absent on an older API. */
+  otherReductions?: number | null
   expectedBirdsOnHand: number; currentRecordedBirds: number; variance: number; status: string
 }
 

@@ -30,6 +30,9 @@ import {
   type BirdsLeftLedgerRow,
 } from "@/lib/utils/birds-left-ledger"
 import { flockCountsTowardBirdTotals } from "@/lib/utils/flock-eligibility"
+import { getFlockPositions } from "@/lib/api/flock-positions"
+import { positionsById } from "@/lib/flocks/bird-position"
+import type { FlockPositionLookup } from "@/lib/utils/birds-left-ledger"
 
 
 export default function BirdsLeftTrackerPage() {
@@ -72,6 +75,9 @@ export default function BirdsLeftTrackerPage() {
     router.push("/login")
   }
 
+  // Undefined before 419 is deployed: the ledger then uses flock.quantity.
+  const [positions, setPositions] = useState<FlockPositionLookup | undefined>(undefined)
+
   const loadData = useCallback(async () => {
     const { farmId, userId } = getUserContext()
     if (!farmId || !userId) {
@@ -80,13 +86,17 @@ export default function BirdsLeftTrackerPage() {
       setRefreshing(false)
       return
     }
-    const [flocksRes, prodRes, salesRes, batchesRes] = await Promise.all([
+    const [flocksRes, prodRes, salesRes, batchesRes, posRows] = await Promise.all([
       getFlocks(userId, farmId),
       getProductionRecords(userId, farmId),
       getSales(userId, farmId),
       getFlockBatches(userId, farmId).catch(() => ({ success: false, data: [] as FlockBatch[] })),
+      getFlockPositions(farmId),
     ])
     setBatches(batchesRes.success && Array.isArray(batchesRes.data) ? batchesRes.data : [])
+    // 419: each flock's opening position, so a flock from Initial Farm Setup
+    // goes IN with the birds originally placed and its history goes OUT.
+    setPositions(posRows ? positionsById(posRows) : undefined)
     if (flocksRes.success && flocksRes.data) setFlocks(flocksRes.data)
     else setFlocks([])
     if (prodRes.success && prodRes.data) {
@@ -117,12 +127,13 @@ export default function BirdsLeftTrackerPage() {
         flocks.filter((f) => flockCountsTowardBirdTotals(f)),
         records,
         sales,
+        positions,
       ),
-    [flocks, records, sales],
+    [flocks, records, sales, positions],
   )
 
 
-  const ledger = useMemo(() => buildBirdsLeftLedger(flocks, records, sales), [flocks, records, sales])
+  const ledger = useMemo(() => buildBirdsLeftLedger(flocks, records, sales, positions), [flocks, records, sales, positions])
 
   // The flocks of the chosen batch (null = every batch).
   const batchFlockIds = useMemo(() => {
@@ -220,9 +231,10 @@ export default function BirdsLeftTrackerPage() {
           placedIn: acc.placedIn + (Number(r.placedIn) || 0),
           mortalityOut: acc.mortalityOut + (Number(r.totalMortalityOut) || 0),
           salesOut: acc.salesOut + (Number(r.totalBirdSalesOut) || 0),
+          otherOut: acc.otherOut + (Number(r.totalOtherOut) || 0),
           left: acc.left + (Number(r.birdsLeftCalculated) || 0),
         }),
-        { placedIn: 0, mortalityOut: 0, salesOut: 0, left: 0 }
+        { placedIn: 0, mortalityOut: 0, salesOut: 0, otherOut: 0, left: 0 }
       ),
     [byFlockRows]
   )
@@ -358,7 +370,7 @@ export default function BirdsLeftTrackerPage() {
                   </div>
                   <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      Birds left <span className="normal-case tracking-normal text-slate-400">(placed − deaths − sales)</span>
+                      Birds left <span className="normal-case tracking-normal text-slate-400">(placed − deaths − sales − culls / other)</span>
                     </div>
                     <div className="text-2xl font-bold text-sky-700 tabular-nums mt-1">
                       {totalBirdsLeft.toLocaleString()}
@@ -374,7 +386,7 @@ export default function BirdsLeftTrackerPage() {
                   </div>
                   <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      Total OUT <span className="normal-case tracking-normal text-slate-400">(deaths + sales)</span>
+                      Total OUT <span className="normal-case tracking-normal text-slate-400">(deaths, sales, culls / other)</span>
                     </div>
                     <div className="text-2xl font-bold text-red-600 tabular-nums mt-1">
                       {ledgerTotals.out.toLocaleString()}
@@ -462,6 +474,14 @@ export default function BirdsLeftTrackerPage() {
                                           {row.totalBirdSalesOut.toLocaleString()}
                                         </span>
                                       </div>
+                                      {row.totalOtherOut > 0 && (
+                                        <div className="col-span-2">
+                                          <span className="text-slate-500">Culled / other OUT</span>{" "}
+                                          <span className="font-medium tabular-nums text-slate-700">
+                                            {row.totalOtherOut.toLocaleString()}
+                                          </span>
+                                        </div>
+                                      )}
                                       <div className="col-span-2">
                                         <span className="text-slate-500">From last log</span>{" "}
                                         <span className="font-medium tabular-nums text-slate-700">
@@ -507,6 +527,14 @@ export default function BirdsLeftTrackerPage() {
                                     {flockTotals.salesOut.toLocaleString()}
                                   </span>
                                 </div>
+                                {flockTotals.otherOut > 0 && (
+                                  <div>
+                                    <span className="text-slate-500">Culled / other</span>{" "}
+                                    <span className="font-bold tabular-nums text-slate-700">
+                                      {flockTotals.otherOut.toLocaleString()}
+                                    </span>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </>
@@ -533,7 +561,7 @@ export default function BirdsLeftTrackerPage() {
                         </Button>
                       </div>
                     )}
-                    <Table className="w-full min-w-[820px]">
+                    <Table className="w-full min-w-[920px]">
                       <TableHeader>
                         <TableRow>
                           <TableHead>Flock</TableHead>
@@ -541,6 +569,7 @@ export default function BirdsLeftTrackerPage() {
                           <TableHead className="text-right">Placed (IN)</TableHead>
                           <TableHead className="text-right">Deaths OUT</TableHead>
                           <TableHead className="text-right">Sales OUT</TableHead>
+                          <TableHead className="text-right">Culled / other OUT</TableHead>
                           <TableHead className="text-right">Birds left</TableHead>
                           <TableHead className="text-right">From last log</TableHead>
                           <TableHead className="text-right">Difference</TableHead>
@@ -549,7 +578,7 @@ export default function BirdsLeftTrackerPage() {
                       <TableBody>
                         {byFlockRows.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={8} className="text-center text-slate-500 py-8">
+                            <TableCell colSpan={9} className="text-center text-slate-500 py-8">
                               {batchFilter !== "ALL" || flockFilter !== "ALL" ? "No flocks match this batch / flock." : "No flocks yet."}
                             </TableCell>
                           </TableRow>
@@ -566,6 +595,9 @@ export default function BirdsLeftTrackerPage() {
                               </TableCell>
                               <TableCell className="text-right tabular-nums text-amber-800">
                                 {row.totalBirdSalesOut.toLocaleString()}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums text-slate-700">
+                                {row.totalOtherOut.toLocaleString()}
                               </TableCell>
                               <TableCell className="text-right tabular-nums font-semibold text-sky-800">
                                 {row.birdsLeftCalculated.toLocaleString()}
@@ -604,6 +636,9 @@ export default function BirdsLeftTrackerPage() {
                             </TableCell>
                             <TableCell className="text-right tabular-nums font-bold text-amber-800">
                               {flockTotals.salesOut.toLocaleString()}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums font-bold text-slate-700">
+                              {flockTotals.otherOut.toLocaleString()}
                             </TableCell>
                             <TableCell className="text-right tabular-nums font-bold text-sky-800">
                               {flockTotals.left.toLocaleString()}

@@ -66,6 +66,21 @@ export interface BatchBirdReconciliationRow {
   status: BatchReconciliationStatus
   lastReconciledAt: string | null
   lastReconciliationNo: string | null
+  // 418: where the birds PLACED IN FLOCKS went. With flockLiveBirds these add
+  // up to originallyAllocated exactly. Absent on an older API (treat as 0).
+  /** Opening position (Initial Farm Setup): lost before tracking began. */
+  flockHistMortality?: number
+  flockHistSold?: number
+  flockHistCulled?: number
+  flockHistTransferred?: number
+  flockHistOther?: number
+  /** Since tracking began. */
+  flockRecordedMortality?: number
+  flockPostedSold?: number
+  flockCulled?: number
+  flockTransferred?: number
+  /** Signed remainder: count corrections, quantity adjustments, birds left in closed or deleted flocks. */
+  flockOtherChanges?: number
 }
 
 export interface BatchReconciliationFlock {

@@ -19,7 +19,8 @@ import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { formatCurrency } from "@/lib/utils/currency"
 import { recordCustomerRefund } from "@/lib/api/customer-credit"
-import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poultry-finance"
+import { type PoultryCashAccount } from "@/lib/api/poultry-finance"
+import { listCreditCashAccounts } from "@/lib/api/credit-module"
 
 export interface RefundTarget {
   customerId: number
@@ -54,7 +55,7 @@ export function RefundCreditDialog({ target, currencyCode, onOpenChange, onRefun
     setError(null); setReason(""); setMethod("Cash")
     if (!target) return
     setAmount(target.availableCredit > 0 ? target.availableCredit.toFixed(2) : "")
-    listPoultryCashAccounts()
+    listCreditCashAccounts()
       .then((a: PoultryCashAccount[]) => {
         const active = a.filter((x: any) => x.isActive !== false)
         setAccounts(active)

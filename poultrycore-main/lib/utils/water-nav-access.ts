@@ -97,7 +97,11 @@ const WATER_ROUTE_ACCESS: Record<string, (f: FeatureAccessPermissions, isAdmin: 
   // what is outstanding on them. Taking the payment is gated separately, inside
   // the page, on water.customer-payments.create / water.supplier-payments.create.
   "/water-customer-balances": (f, isAdmin) => isAdmin || f.canViewFinancial || f.canEnterSales || f.canViewCustomers,
+  // 422: same audience as Customer Balances; refunds are gated inside the page.
+  "/water-customer-credits": (f, isAdmin) => isAdmin || f.canViewFinancial || f.canEnterSales || f.canViewCustomers,
   "/water-supplier-balances": (f, isAdmin) => isAdmin || f.canViewFinancial || f.canEnterExpenses || f.canViewCustomers,
+  // 424: same audience as Supplier Balances.
+  "/water-supplier-credits": (f, isAdmin) => isAdmin || f.canViewFinancial || f.canEnterExpenses || f.canViewCustomers,
   // Same audience as Supplier Balances: the paid side of the same ledger.
   "/water-supplier-payments": (f, isAdmin) => isAdmin || f.canViewFinancial || f.canEnterExpenses || f.canViewCustomers,
   "/water-customers": (f, isAdmin) => isAdmin || f.canViewCustomers || f.canViewFinancial || f.canEnterSales,

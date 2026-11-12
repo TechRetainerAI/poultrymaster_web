@@ -13,6 +13,8 @@
 // purchase here; it is paid like a purchase on Supplier Balances.
 
 import { farmApiUrl, getAuthHeaders, getUserContext } from "./config"
+// 424: the same routes exist under Water/.
+import { creditModule } from "./credit-module"
 
 export interface SupplierCreditSummaryRow {
   supplierId: number
@@ -152,13 +154,13 @@ const post = <T,>(path: string, body: object) => {
   return call<T>(`${path}?farmId=${encodeURIComponent(farmId)}`, { method: "POST", body: JSON.stringify({ ...body, farmId }) })
 }
 
-export const listSupplierCredit = () => call<SupplierCreditSummaryRow[]>(`Poultry/supplier-credits?${q()}`)
+export const listSupplierCredit = () => call<SupplierCreditSummaryRow[]>(`${creditModule()}/supplier-credits?${q()}`)
 export const listSupplierCreditEvents = (supplierId?: number) =>
-  call<SupplierCreditEvent[]>(`Poultry/supplier-credits/events?${q({ supplierId })}`)
+  call<SupplierCreditEvent[]>(`${creditModule()}/supplier-credits/events?${q({ supplierId })}`)
 export const listSupplierCreditApplications = (supplierId?: number) =>
-  call<SupplierCreditApplication[]>(`Poultry/supplier-credits/applications?${q({ supplierId })}`)
+  call<SupplierCreditApplication[]>(`${creditModule()}/supplier-credits/applications?${q({ supplierId })}`)
 export const listSupplierRefunds = (supplierId?: number) =>
-  call<SupplierRefundRow[]>(`Poultry/supplier-credits/refunds?${q({ supplierId })}`)
+  call<SupplierRefundRow[]>(`${creditModule()}/supplier-credits/refunds?${q({ supplierId })}`)
 
 /** Total credit a supplier holds for the business (0 when none). */
 export async function supplierCreditTotal(supplierId: number): Promise<number> {
@@ -168,32 +170,32 @@ export async function supplierCreditTotal(supplierId: number): Promise<number> {
 
 export const createSupplierCredit = (input: {
   supplierId: number; kind: SupplierCreditKind; amount: number; creditDate?: string | null; reference?: string | null; reason: string
-}) => post<{ paymentId: number }>("Poultry/supplier-credits/manual", input)
+}) => post<{ paymentId: number }>(`${creditModule()}/supplier-credits/manual`, input)
 
 export const reverseSupplierCredit = (paymentId: number, reason: string) =>
-  post<{ reversed: number }>(`Poultry/supplier-credits/${paymentId}/reverse`, { reason })
+  post<{ reversed: number }>(`${creditModule()}/supplier-credits/${paymentId}/reverse`, { reason })
 
 export const applySupplierCredit = (input: {
   poultrySupplierPaymentId: number; documentType: string; documentId: number; amount: number
-}) => post<{ allocationId: number }>("Poultry/supplier-credits/apply", input)
+}) => post<{ allocationId: number }>(`${creditModule()}/supplier-credits/apply`, input)
 
 export const unapplySupplierCredit = (allocationId: number, reason: string) =>
-  post<{ allocationId: number }>(`Poultry/supplier-credits/applications/${allocationId}/reverse`, { reason })
+  post<{ allocationId: number }>(`${creditModule()}/supplier-credits/applications/${allocationId}/reverse`, { reason })
 
 export const recordSupplierRefund = (input: {
   poultrySupplierPaymentId: number; amount: number; poultryCashAccountId: number
   paymentMethod?: string | null; refundDate?: string | null; reason: string
-}) => post<{ refundId: number }>("Poultry/supplier-credits/refunds", input)
+}) => post<{ refundId: number }>(`${creditModule()}/supplier-credits/refunds`, input)
 
 export const reverseSupplierRefund = (refundId: number, reason: string) =>
-  post<{ refundId: number }>(`Poultry/supplier-credits/refunds/${refundId}/reverse`, { reason })
+  post<{ refundId: number }>(`${creditModule()}/supplier-credits/refunds/${refundId}/reverse`, { reason })
 
-export const listSupplierDebts = (supplierId?: number) => call<SupplierDebtRow[]>(`Poultry/supplier-debts?${q({ supplierId })}`)
+export const listSupplierDebts = (supplierId?: number) => call<SupplierDebtRow[]>(`${creditModule()}/supplier-debts?${q({ supplierId })}`)
 
 export const createSupplierDebt = (input: {
   supplierId: number; amount: number; debtDate: string; entryType: SupplierDebtEntryType
   description: string; reference?: string | null; notes?: string | null
-}) => post<{ debtId: number; debtNumber: string }>("Poultry/supplier-debts", input)
+}) => post<{ debtId: number; debtNumber: string }>(`${creditModule()}/supplier-debts`, input)
 
 export const reverseSupplierDebt = (debtId: number, reason: string) =>
-  post<{ debtId: number }>(`Poultry/supplier-debts/${debtId}/reverse`, { reason })
+  post<{ debtId: number }>(`${creditModule()}/supplier-debts/${debtId}/reverse`, { reason })

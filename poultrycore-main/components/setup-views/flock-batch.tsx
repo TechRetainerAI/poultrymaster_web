@@ -26,6 +26,8 @@ import { getFlockBatches, getFlockBatch, createFlockBatch, updateFlockBatch, del
 import { getFlocks, type Flock } from "@/lib/api/flock"
 import { getOpeningPositions, type OpeningFlockPosition } from "@/lib/api/poultry-farm-setup"
 import { consumedByBatch, unallocatedForBatch } from "@/lib/flocks/allocation"
+import { getFlockPositions, type FlockPositionRow } from "@/lib/api/flock-positions"
+import { flockLifetime, positionsById } from "@/lib/flocks/bird-position"
 import { BatchAllocationDialog } from "@/components/poultry/batch-allocation-dialog"
 import { getSuppliers, type Supplier } from "@/lib/api/supplier"
 import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poultry-finance"
@@ -116,6 +118,19 @@ export function FlockBatchesPage() {
       .then((rows) => setReconRows(new Map(rows.map((r) => [r.batchId, r]))))
       .catch(() => setReconRows(new Map()))   // before migration 413: fall back to the local figure
   useEffect(() => { loadReconRows() }, [])
+  // 419: every flock's bird position (placed, opening history, since, live).
+  // Empty before 419 is deployed -- the page then falls back to flock.quantity.
+  const [positionByFlock, setPositionByFlock] = useState<Map<number, FlockPositionRow>>(new Map())
+  useEffect(() => {
+    const { farmId } = getUserContext()
+    if (!farmId) return
+    void getFlockPositions(farmId).then((rows) => setPositionByFlock(positionsById(rows))).catch(() => {})
+  }, [])
+  /** Birds a flock STARTED with (placed; opening live when its history is unknown). */
+  const startedBirdsOf = (f: { flockId: number; quantity?: number | null }) => {
+    const p = positionByFlock.get(f.flockId)
+    return p ? flockLifetime(p).started : (Number(f.quantity) || 0)
+  }
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
@@ -253,6 +268,20 @@ export function FlockBatchesPage() {
   const soldFor = (batch: FlockBatch) => {
     const r = reconRows.get(batch.batchId)
     return r ? (r.batchSold ?? 0) + (r.flockSold ?? 0) : 0
+  }
+  // 418: every bird of the batch that died -- before placing, in its flocks
+  // before tracking began (Initial Farm Setup), and recorded since.
+  const diedFor = (batch: FlockBatch) => {
+    const r = reconRows.get(batch.batchId)
+    return r ? (r.batchMortality ?? 0) + (r.flockHistMortality ?? 0) + (r.flockRecordedMortality ?? 0) : 0
+  }
+  // Culled, transferred out or otherwise removed (not sold, not died).
+  const otherGoneFor = (batch: FlockBatch) => {
+    const r = reconRows.get(batch.batchId)
+    if (!r) return 0
+    return (r.batchCulled ?? 0) + (r.batchTransferred ?? 0) + (r.batchOtherRemovals ?? 0) - (r.batchAdditions ?? 0)
+      + (r.flockHistCulled ?? 0) + (r.flockHistTransferred ?? 0) + (r.flockHistOther ?? 0)
+      + (r.flockCulled ?? 0) + (r.flockTransferred ?? 0)
   }
   const needsReconcile = (batch: FlockBatch) => {
     const r = reconRows.get(batch.batchId)
@@ -476,8 +505,9 @@ export function FlockBatchesPage() {
     [flockBatches]
   )
   const totalBirdsArrived = useMemo(() =>
-    allFlocks.filter((f) => f.hasArrived).reduce((sum, f) => sum + (Number(f.quantity) || 0), 0),
-    [allFlocks]
+    allFlocks.filter((f) => f.hasArrived).reduce((sum, f) => sum + startedBirdsOf(f), 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allFlocks, positionByFlock]
   )
   const numberOfActiveBatches = useMemo(() =>
     flockBatches.filter(b => (b.status || "active").toLowerCase() === "active").length,
@@ -486,16 +516,19 @@ export function FlockBatchesPage() {
 
   // Bottom totals derived from actual flocks (Number of Birds card uses the same source)
   const totalBirds = useMemo(() =>
-    allFlocks.filter(f => f.hasArrived).reduce((sum, f) => sum + (Number(f.quantity) || 0), 0),
-    [allFlocks]
+    allFlocks.filter(f => f.hasArrived).reduce((sum, f) => sum + startedBirdsOf(f), 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allFlocks, positionByFlock]
   )
   const totalActiveBirds = useMemo(() =>
-    allFlocks.filter(f => f.hasArrived && f.active).reduce((sum, f) => sum + (Number(f.quantity) || 0), 0),
-    [allFlocks]
+    allFlocks.filter(f => f.hasArrived && f.active).reduce((sum, f) => sum + startedBirdsOf(f), 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allFlocks, positionByFlock]
   )
   const totalInactiveBirds = useMemo(() =>
-    allFlocks.filter(f => f.hasArrived && !f.active).reduce((sum, f) => sum + (Number(f.quantity) || 0), 0),
-    [allFlocks]
+    allFlocks.filter(f => f.hasArrived && !f.active).reduce((sum, f) => sum + startedBirdsOf(f), 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allFlocks, positionByFlock]
   )
   const totalBirdsSold = useMemo(() => {
     let n = 0
@@ -731,7 +764,7 @@ export function FlockBatchesPage() {
                 <ScoreCard
                   label="Number of Birds"
                   value={totalBirdsArrived.toLocaleString()}
-                  description="Birds that have arrived across all batches."
+                  description="Birds placed in flocks across all batches, including birds lost before tracking began."
                   note={
                     totalBirdsPurchased > 0 && totalBirdsPurchased !== totalBirdsArrived
                       ? `of ${totalBirdsPurchased.toLocaleString()} purchased`
@@ -904,6 +937,12 @@ export function FlockBatchesPage() {
                                   {soldFor(batch) > 0 && (
                                     <span className="inline-flex items-center rounded-lg bg-orange-50 px-2.5 py-1 text-xs font-medium tabular-nums text-orange-700">{soldFor(batch).toLocaleString()} sold</span>
                                   )}
+                                  {diedFor(batch) > 0 && (
+                                    <span className="inline-flex items-center rounded-lg bg-rose-50 px-2.5 py-1 text-xs font-medium tabular-nums text-rose-700">{diedFor(batch).toLocaleString()} died</span>
+                                  )}
+                                  {otherGoneFor(batch) > 0 && (
+                                    <span className="inline-flex items-center rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium tabular-nums text-slate-700">{otherGoneFor(batch).toLocaleString()} culled / moved</span>
+                                  )}
                                 </div>
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                                   <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5"><span className="text-slate-500">Start</span> <span className="font-medium text-slate-900">{batch.startDate ? formatDateShort(batch.startDate) : "—"}</span></div>
@@ -1019,6 +1058,12 @@ export function FlockBatchesPage() {
                                 )}
                                 {soldFor(batch) > 0 && (
                                   <span className="text-orange-600"> · {soldFor(batch).toLocaleString()} sold</span>
+                                )}
+                                {diedFor(batch) > 0 && (
+                                  <span className="text-rose-600"> · {diedFor(batch).toLocaleString()} died</span>
+                                )}
+                                {otherGoneFor(batch) > 0 && (
+                                  <span className="text-slate-600"> · {otherGoneFor(batch).toLocaleString()} culled / moved</span>
                                 )}
                               </div>
                             </TableCell>
@@ -1235,7 +1280,14 @@ export function FlockBatchesPage() {
                       <TableRow key={flock.flockId}>
                         <TableCell className="font-medium">{flock.name}</TableCell>
                         <TableCell>{flock.breed}</TableCell>
-                        <TableCell>{flock.quantity.toLocaleString()} birds</TableCell>
+                        <TableCell>
+                          {startedBirdsOf(flock).toLocaleString()} birds
+                          {positionByFlock.get(flock.flockId) && (
+                            <span className="block text-xs text-slate-500">
+                              {positionByFlock.get(flock.flockId)!.currentLiveBirds.toLocaleString()} live now
+                            </span>
+                          )}
+                        </TableCell>
                         <TableCell>{fmtDateTime(flock.startDate, flock)}</TableCell>
                         <TableCell>
                           {life === "pending" ? (
@@ -1268,7 +1320,7 @@ export function FlockBatchesPage() {
                     <span className="font-semibold">
                       {batchFlocks
                         .filter((f) => flockCountsTowardBirdTotals(f))
-                        .reduce((sum, f) => sum + (f.quantity || 0), 0)
+                        .reduce((sum, f) => sum + startedBirdsOf(f), 0)
                         .toLocaleString()}
                     </span>
                   </div>
