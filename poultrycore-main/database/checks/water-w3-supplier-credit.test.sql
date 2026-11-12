@@ -1,5 +1,5 @@
 -- =============================================================================
--- Checks for 424 (Water supplier credit / refunds / debt, W3). SELF-ROLLING-
+-- Checks for 426 (Water supplier credit / refunds / debt, W3). SELF-ROLLING-
 -- BACK, fixtures in a real Water company, dated 2001 (credit refuses future
 -- dates). Prints 'water W3: all checks passed'.
 -- =============================================================================

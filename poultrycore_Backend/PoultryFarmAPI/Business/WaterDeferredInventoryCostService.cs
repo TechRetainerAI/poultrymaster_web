@@ -34,7 +34,7 @@ namespace PoultryFarmAPIWeb.Business
 
         Task<List<WaterConsumptionCostLayerModel>> GetCostBreakdownAsync(string farmId, int productionBatchId);
 
-        // 426: cost for stock no purchase covers (poultry 371, same DTOs).
+        // 428: cost for stock no purchase covers (poultry 371, same DTOs).
         Task<List<ManualDeferredCostRow>> GetManualAsync(string farmId);
         Task<List<UncoveredStockRow>> GetUncoveredStockAsync(string farmId);
         Task<string> CreateManualAsync(ManualDeferredCostRequest r);
@@ -258,7 +258,7 @@ namespace PoultryFarmAPIWeb.Business
             }
             return list;
         }
-        // ------------------------------------------------ 426 manual deferred cost
+        // ------------------------------------------------ 428 manual deferred cost
 
         public async Task<List<ManualDeferredCostRow>> GetManualAsync(string farmId)
         {

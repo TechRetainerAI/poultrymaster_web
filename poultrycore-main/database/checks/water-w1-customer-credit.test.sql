@@ -1,5 +1,5 @@
 -- =============================================================================
--- Checks for 422 (Water customer credit, W1).  SELF-ROLLING-BACK, fixtures in a
+-- Checks for 424 (Water customer credit, W1).  SELF-ROLLING-BACK, fixtures in a
 -- real Water company, dated 2001 (credit refuses future dates).  Prints 'water W1: all checks passed'.
 -- =============================================================================
 \set ON_ERROR_STOP on

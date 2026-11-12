@@ -93,7 +93,7 @@ export function RecordPaymentDialog({
   const isCustomer = side === "customer"
   // 367 / 370: a poultry payment need not be applied in full -- the rest is
   // kept as the customer's / supplier's credit (applied to nothing = an advance).
-  // 422 / 424: water customer and supplier payments too.
+  // 424 / 426: water customer and supplier payments too.
   const allowUnallocated = module === "poultry" || module === "water"
   const creditWord = isCustomer ? "customer credit" : "supplier credit"
   const docWord = isCustomer ? "sale" : "purchase"
@@ -120,7 +120,7 @@ export function RecordPaymentDialog({
   // 384 (customer): the leftover is credit unless ticked onto P&L with a sale type.
   const [addToPL, setAddToPL] = useState(false)
   const [saleType, setSaleType] = useState("")
-  // 423: on Water, "what was sold" is one of the company's own products.
+  // 425: on Water, "what was sold" is one of the company's own products.
   const [waterSaleTypes, setWaterSaleTypes] = useState<string[] | null>(null)
   useEffect(() => {
     if (!open || module !== "water" || !remainderAsOldDebt || waterSaleTypes) return

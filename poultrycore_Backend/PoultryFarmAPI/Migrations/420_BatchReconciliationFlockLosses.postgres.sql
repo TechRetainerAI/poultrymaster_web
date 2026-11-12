@@ -1,5 +1,5 @@
 -- =============================================================================
--- 418_BatchReconciliationFlockLosses.postgres.sql   (requires 319, 413, 414)
+-- 420_BatchReconciliationFlockLosses.postgres.sql   (requires 319, 413, 414)
 --
 -- Purpose
 -- -------
@@ -58,7 +58,7 @@ CREATE FUNCTION public.sppoultrybatchreconcile_summary(p_farmid text)
                flocklivebirds integer, totallivebirds integer, flockhistoricalreductions integer,
                historicalsalebirds integer, historicalsalevalue numeric, historicalreceived numeric, historicalowed numeric,
                status text, lastreconciledat timestamp without time zone, lastreconciliationno text,
-               -- 418: the flock side
+               -- 420: the flock side
                flockhistmortality integer, flockhistsold integer, flockhistculled integer,
                flockhisttransferred integer, flockhistother integer,
                flockrecordedmortality integer, flockpostedsold integer,
@@ -77,7 +77,7 @@ AS $function$
                SUM(bp.originallyplaced)::int AS placed,
                SUM(CASE WHEN f.closeddate IS NULL THEN bp.currentlivebirds ELSE 0 END)::int AS live,
                SUM(bp.openingmortality + bp.openingsold + bp.openingculled + bp.openingtransferred + bp.openingother)::int AS hred,
-               -- 418
+               -- 420
                SUM(bp.openingmortality)::int   AS hmort,
                SUM(bp.openingsold)::int        AS hsold,
                SUM(bp.openingculled)::int      AS hcull,
@@ -139,7 +139,7 @@ AS $function$
                fnpoultrybatch_unallocated(p_farmid, b.batchid) AS pool,
                lr.unexplainedbirds AS lrx, lr.createdat AS lrat, lr.reconciliationno AS lrno,
                hs.birds AS hsb, hs.val AS hsv, hs.recv AS hsr, hs.owed AS hso,
-               -- 418
+               -- 420
                COALESCE(fl.hmort, 0) AS hmort, COALESCE(fl.hsold, 0) AS hsold, COALESCE(fl.hcull, 0) AS hcull,
                COALESCE(fl.hxfer, 0) AS hxfer, COALESCE(fl.hothr, 0) AS hothr,
                COALESCE(fl.rmort, 0) AS rmort, COALESCE(fl.psold, 0) AS psold,
@@ -173,7 +173,7 @@ AS $function$
                 WHEN x.unx > 0 THEN 'NeedsReconciliation'
                 ELSE 'FullyAccountedFor' END,
            x.lrat, x.lrno,
-           -- 418
+           -- 420
            x.hmort, x.hsold, x.hcull, x.hxfer, x.hothr,
            x.rmort, x.psold, x.pcull, x.pxfer,
            (x.placed - x.hmort - x.hsold - x.hcull - x.hxfer - x.hothr
@@ -184,7 +184,7 @@ $function$;
 
 -- ----------------------------------------------------------- self-test ------
 -- The identity must hold for every batch in the database, and the columns
--- that existed before 418 must be what they were.
+-- that existed before 420 must be what they were.
 DO $t$
 DECLARE v_bad integer;
 BEGIN
@@ -197,7 +197,7 @@ BEGIN
                                   + s.flockculled + s.flocktransferred
                                   + s.flockotherchanges + s.flocklivebirds;
     IF v_bad > 0 THEN
-        RAISE EXCEPTION '418: % batch(es) do not balance', v_bad;
+        RAISE EXCEPTION '420: % batch(es) do not balance', v_bad;
     END IF;
 
     SELECT COUNT(*) INTO v_bad
@@ -206,7 +206,7 @@ BEGIN
     WHERE  s.flockhistoricalreductions <> s.flockhistmortality + s.flockhistsold + s.flockhistculled
                                         + s.flockhisttransferred + s.flockhistother;
     IF v_bad > 0 THEN
-        RAISE EXCEPTION '418: % batch(es) split the historical reduction wrongly', v_bad;
+        RAISE EXCEPTION '420: % batch(es) split the historical reduction wrongly', v_bad;
     END IF;
 END
 $t$;

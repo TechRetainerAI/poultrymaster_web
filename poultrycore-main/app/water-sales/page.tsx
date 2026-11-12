@@ -18,7 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { Plus, Trash2, Loader2, ShoppingCart, X, Wallet, Ban, CheckCircle2, Receipt, History } from "lucide-react"
 import { PaymentHistoryDialog } from "@/components/balances/payment-history-dialog"
-// 422: customer credit can pay a water sale too (an allocation, no new cash).
+// 424: customer credit can pay a water sale too (an allocation, no new cash).
 import { ApplyCreditDialog, type ApplyCreditTarget } from "@/components/sales/apply-credit-dialog"
 import { listCustomerCredit } from "@/lib/api/customer-credit"
 import { getSelectedCurrency } from "@/lib/utils/currency"
@@ -132,7 +132,7 @@ function WaterSalesPageInner() {
     try {
       const [s, p, c] = await Promise.all([listWaterSales(), listWaterProducts(), listWaterCustomers()])
       setSales(s); setProducts(p); setCustomers(c)
-      // 422: which customers hold credit. Best-effort: before 422 is deployed
+      // 424: which customers hold credit. Best-effort: before 424 is deployed
       // the route is missing and the button simply never shows.
       listCustomerCredit()
         .then((rows) => setCreditByCustomer(new Map(rows.map((r) => [r.customerId, r.availableCredit]))))
@@ -258,7 +258,7 @@ function WaterSalesPageInner() {
   const { can } = usePermissions()
   const [creditByCustomer, setCreditByCustomer] = useState<Map<number, number>>(new Map())
   const [applyCredit, setApplyCredit] = useState<ApplyCreditTarget | null>(null)
-  /** 422: the sale's customer holds credit that can pay it. */
+  /** 424: the sale's customer holds credit that can pay it. */
   const creditFor = (sale: WaterSale) =>
     sale.waterCustomerId != null && sale.status !== "Cancelled" && sale.balance > 0
       ? (creditByCustomer.get(sale.waterCustomerId) ?? 0) : 0

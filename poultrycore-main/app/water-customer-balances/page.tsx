@@ -27,14 +27,14 @@ export default function WaterCustomerBalancesPage() {
       // The water Sales page is a list with its own filters rather than a
       // per-sale route, so deep-link into it with the sale highlighted.
       documentHref={(doc) => `/water-sales?saleId=${doc.documentId}`}
-      // 423: debts recorded by hand (owed without a sale). An open debt shows
+      // 425: debts recorded by hand (owed without a sale). An open debt shows
       // among the customer's open items; recording is a header button,
       // reversing is on the debt's row (owner / admin).
       headerActions={(reload) => <RecordCustomerDebtButton onChanged={reload} />}
       documentActions={(doc, party, compact, reload) => (
         <ReverseCustomerDebtButton doc={doc} partyName={party.partyName} compact={compact} onChanged={reload} />
       )}
-      // 422: customer credit (advances, left-over payments, opening credit,
+      // 424: customer credit (advances, left-over payments, opening credit,
       // credit notes) sits beside -- never netted into -- what is owed.
       afterTable={(_reload, paymentsVersion) => <CustomerCreditPanel refreshKey={paymentsVersion} />}
       permissions={{

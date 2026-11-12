@@ -10,7 +10,7 @@
 // Recording and reversing are owner / admin only.
 
 import { farmApiUrl, getAuthHeaders, getUserContext } from "./config"
-// 423: the same routes exist under Water/.
+// 425: the same routes exist under Water/.
 import { creditModule } from "./credit-module"
 
 export type CustomerDebtEntryType =

@@ -1,5 +1,5 @@
 -- =============================================================================
--- 421_WaterPaymentsClosingCashFlowFixes.postgres.sql   (Water credits programme, W0)
+-- 423_WaterPaymentsClosingCashFlowFixes.postgres.sql   (Water credits programme, W0)
 --
 -- Purpose
 -- -------
@@ -76,7 +76,7 @@ BEGIN
     FROM   watersales s
     WHERE  s.watersaleid = p_watersaleid;
 
-    -- 421: the payment names its customer and its source, like every other
+    -- 423: the payment names its customer and its source, like every other
     -- writer's payment, so customer payment history can find it.
     INSERT INTO waterpayments
         (farmid, watersaleid, amount, paymentmethod, paymentdate, reference, note, createdby, paymentgroupid,
@@ -95,7 +95,7 @@ BEGIN
         (p_farmid, 'water', v_paymentid, p_watersaleid, p_amount,
          v_before, v_before - p_amount, 'Posted', p_createdby, v_paymentdate);
 
-    -- 421: the shared recompute counts POSTED payments only. This writer used to
+    -- 423: the shared recompute counts POSTED payments only. This writer used to
     -- sum every payment on the sale, reversed ones included, so the first
     -- reversal followed by a new payment left the sale over-paid.
     PERFORM public.spwatersale_recompute(p_farmid, p_watersaleid);
@@ -153,7 +153,7 @@ AS $function$
     sale_money AS (
         SELECT
             COALESCE(SUM(s2.totalamount), 0) AS totalincome,
-            -- 421: what was still OWED at the end of the day (364's rule), not
+            -- 423: what was still OWED at the end of the day (364's rule), not
             -- what is owed now -- a payment made later must not rewrite a past day.
             COALESCE(SUM(public.fnwatersale_owedasof(p_farmid, s2.watersaleid, p_closingdate)), 0) AS creditsales
         FROM   watersales s2
@@ -171,9 +171,9 @@ AS $function$
         LEFT   JOIN watersales ps ON ps.watersaleid = pay.watersaleid AND ps.farmid = pay.farmid
         WHERE  pay.farmid = p_farmid
            AND COALESCE(pay.sourcetype, '') <> 'DeliveryRun'
-           -- 421: a reversed payment collected nothing.
+           -- 423: a reversed payment collected nothing.
            AND COALESCE(pay.status, 'Posted') = 'Posted'
-           -- 421: a payment on a sale made the SAME day is already in that sale's
+           -- 423: a payment on a sale made the SAME day is already in that sale's
            -- paid part (income less credit); counting it here too doubled it.
            AND NOT (ps.watersaleid IS NOT NULL
                     AND COALESCE(ps.sourcetype, '') <> 'DeliveryRun'
@@ -282,7 +282,7 @@ BEGIN
       AND  e.sourceid = p_paymentid AND COALESCE(e.status, '') <> 'Cancelled'
     LIMIT  1;
 
-    -- 421: give back the cash that LEFT, not the expense's amount. Since 275 the
+    -- 423: give back the cash that LEFT, not the expense's amount. Since 275 the
     -- expense holds only the part expensed at purchase while the CashOut keyed to
     -- it is the full purchase portion, so refunding e.amount left a payment with
     -- deferred stock permanently short in the cash account.
@@ -613,7 +613,7 @@ BEGIN
 
       AND  COALESCE(e.paymentmethod, '') <> 'NonCash'
 
-      -- 421: a supplier payment's own aggregated expense row is not read here.
+      -- 423: a supplier payment's own aggregated expense row is not read here.
       -- It holds only the part expensed at purchase and is Cancelled on
       -- reversal; the payment's cash is reported from the payment below (3c).
       AND  COALESCE(e.sourcetype, '') <> 'WaterSupplierPayment'
@@ -685,7 +685,7 @@ BEGIN
 
       AND  sa.module = 'water'
 
-      -- 421: a reversed payment's money still LEFT on its date (376's rule);
+      -- 423: a reversed payment's money still LEFT on its date (376's rule);
       -- the reversal brings it back on its own date (3d). Allocations are only
       -- ever reversed together with their payment.
       AND  (sa.status = 'Posted' OR (sa.status = 'Reversed' AND sp.status = 'Reversed'))
@@ -702,7 +702,7 @@ BEGIN
 
 
 
-    -- ---- 3c. 421: supplier payments for raw-material purchases ------------
+    -- ---- 3c. 423: supplier payments for raw-material purchases ------------
     --
     -- The FULL purchase portion, on the payment date -- deferred lots included,
     -- because the supplier was paid for them whether or not their cost has
@@ -740,7 +740,7 @@ BEGIN
       AND  sp.paymentdate >= v_from
       AND  sp.paymentdate <= v_to;
 
-    -- ---- 3d. 421: a reversed supplier payment's money coming back ---------
+    -- ---- 3d. 423: a reversed supplier payment's money coming back ---------
     --
     -- Everything the payment paid out (purchases and bills), back in on the
     -- day it was reversed.
@@ -1115,7 +1115,7 @@ AS $function$
                WHEN r.rowsource IN ('Expense', 'ExpensePayment')
                    THEN COALESCE(NULLIF(btrim(c.name), ''), 'Uncategorised')
                WHEN r.rowsource IN ('Receipt', 'SaleResidual') THEN 'Sales'
-               -- 421
+               -- 423
                WHEN r.rowsource IN ('SupplierPurchasePayment', 'SupplierPaymentReversal')
                    THEN 'Raw Materials / Inventory Purchase'
                ELSE COALESCE(NULLIF(btrim(r.sourcetype), ''), 'Other')

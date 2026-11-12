@@ -1,5 +1,5 @@
 -- =============================================================================
--- 419_FlockReportsOpeningPosition.postgres.sql   (requires 319, 338, 352, 389, 402, 406, 413, 418)
+-- 421_FlockReportsOpeningPosition.postgres.sql   (requires 319, 338, 352, 389, 402, 406, 413, 420)
 --
 -- Purpose
 -- -------
@@ -250,7 +250,7 @@ BEGIN
         f.startdate                                             AS placementdate,
         -- DATEDIFF(WEEK, ...): SQL Server counts Monday-aligned week boundaries since 1900-01-01
         (((p_enddate - DATE '1900-01-01') / 7) - ((f.startdate - DATE '1900-01-01') / 7)) AS flockageweeks,
-        -- 419: placed / deaths / remaining from the flock's bird position as of
+        -- 421: placed / deaths / remaining from the flock's bird position as of
         -- the end date, so the opening historical reduction is counted.
         (CASE WHEN bp.historyknown THEN bp.originallyplaced ELSE bp.openinglivebirds END)::int AS birdsplaced,
         (CASE WHEN bp.historyknown THEN bp.openingmortality ELSE 0 END + bp.recordedmortality)::int AS totaldeaths,
@@ -292,7 +292,7 @@ CREATE FUNCTION public.sppoultryreport_mortality(p_farmid text, p_startdate date
 AS $function$
 BEGIN
     RETURN QUERY
-    -- 419: one bird position per flock. birdsplaced is the birds the flock
+    -- 421: one bird position per flock. birdsplaced is the birds the flock
     -- STARTED with (originally placed; opening live when the history is
     -- unknown) and deathsbefore is every death before the start date
     -- (opening historical mortality + recorded), so the cumulative % is
@@ -335,7 +335,7 @@ CREATE FUNCTION public.sppoultryreport_birdsonhand(p_farmid text, p_enddate date
  LANGUAGE plpgsql
 AS $function$
 BEGIN
-    -- 419: every figure from the flock's bird position as of the end date.
+    -- 421: every figure from the flock's bird position as of the end date.
     --   birdsplaced  = birds the flock STARTED with (originally placed; the
     --                  opening live count when the history is unknown)
     --   deaths       = opening historical mortality (history known) + recorded
@@ -405,8 +405,8 @@ BEGIN
         f.name::text                                                                            AS flockname,
         -- DATEDIFF(WEEK, ...): SQL Server counts Monday-aligned week boundaries since 1900-01-01
         (((p_enddate - DATE '1900-01-01') / 7) - ((f.startdate - DATE '1900-01-01') / 7))       AS flockageweeks,
-        (CASE WHEN bp.historyknown THEN bp.originallyplaced ELSE bp.openinglivebirds END)::int AS birdsplaced,   -- 419
-        bp.currentlivebirds                                                                     AS currentbirds,   -- 419
+        (CASE WHEN bp.historyknown THEN bp.originallyplaced ELSE bp.openinglivebirds END)::int AS birdsplaced,   -- 421
+        bp.currentlivebirds                                                                     AS currentbirds,   -- 421
         COALESCE(agg.c_eggs, 0)::bigint                                                         AS totaleggs,
         COALESCE(agg.c_peakdaily, 0)::bigint                                                    AS peakdailyeggs,
         COALESCE(agg.c_days, 0)::int                                                            AS productiondays,
@@ -470,8 +470,8 @@ BEGIN
     SELECT
         f.flockid,
         f.name::text                                            AS flockname,
-        (CASE WHEN bp.historyknown THEN bp.originallyplaced ELSE bp.openinglivebirds END)::int AS startingbirds,   -- 419
-        bp.currentlivebirds                                     AS currentbirds,    -- 419
+        (CASE WHEN bp.historyknown THEN bp.originallyplaced ELSE bp.openinglivebirds END)::int AS startingbirds,   -- 421
+        bp.currentlivebirds                                     AS currentbirds,    -- 421
         COALESCE(pr.c_eggs, 0)::bigint                          AS eggsproduced,
         COALESCE(pr.c_broken, 0)::bigint                        AS brokenrejectedeggs,
         COALESCE(pr.c_birddays, 0)::bigint                      AS birddays,
@@ -567,7 +567,7 @@ BEGIN
     SELECT
         f.flockid,
         f.name::text                                                                                AS flockname,
-        public.fnflock_startedbirds(p_farmid, f.flockid)                                            AS birdsplaced,   -- 419
+        public.fnflock_startedbirds(p_farmid, f.flockid)                                            AS birdsplaced,   -- 421
         COALESCE(rev.c_eggrevenue, 0)                                                               AS eggrevenue,
         COALESCE(rev.c_birdrevenue, 0)                                                              AS birdsalesrevenue,
         COALESCE(rev.c_revenue, 0) - COALESCE(rev.c_eggrevenue, 0) - COALESCE(rev.c_birdrevenue, 0) AS otherrevenue,
@@ -615,7 +615,7 @@ BEGIN
     CROSS  JOIN LATERAL public.fnflock_birdposition(f.farmid, f.flockid) a
     CROSS  JOIN LATERAL public.fnflock_birdpositionasof(f.farmid, f.flockid, NULL) b
     WHERE  ROW(a.*) IS DISTINCT FROM ROW(b.*);
-    IF v_bad > 0 THEN RAISE EXCEPTION '419: as-of position differs from fnflock_birdposition for % flock(s)', v_bad; END IF;
+    IF v_bad > 0 THEN RAISE EXCEPTION '421: as-of position differs from fnflock_birdposition for % flock(s)', v_bad; END IF;
 
     -- (b) ... and as of a far-future date too
     SELECT COUNT(*) INTO v_bad
@@ -623,7 +623,7 @@ BEGIN
     CROSS  JOIN LATERAL public.fnflock_birdposition(f.farmid, f.flockid) a
     CROSS  JOIN LATERAL public.fnflock_birdpositionasof(f.farmid, f.flockid, DATE '2999-12-31') b
     WHERE  ROW(a.*) IS DISTINCT FROM ROW(b.*);
-    IF v_bad > 0 THEN RAISE EXCEPTION '419: as-of(2999) position differs for % flock(s)', v_bad; END IF;
+    IF v_bad > 0 THEN RAISE EXCEPTION '421: as-of(2999) position differs for % flock(s)', v_bad; END IF;
 
     -- (c) a flock WITHOUT an opening position reports exactly what it did:
     --     placed = flock.quantity (less FlockQuantity adjustments)
@@ -632,7 +632,7 @@ BEGIN
     CROSS  JOIN LATERAL public.sppoultryreport_birdsonhand(f.farmid, DATE '2999-12-31', f.flockid, TRUE) r
     WHERE  NOT EXISTS (SELECT 1 FROM poultryopeningflockposition o WHERE o.farmid = f.farmid AND o.flockid = f.flockid)
       AND  r.birdsplaced <> COALESCE(f.quantity, 0) - public.fnflock_quantityadjustments(f.farmid, f.flockid);
-    IF v_bad > 0 THEN RAISE EXCEPTION '419: % flock(s) without an opening position changed their placed figure', v_bad; END IF;
+    IF v_bad > 0 THEN RAISE EXCEPTION '421: % flock(s) without an opening position changed their placed figure', v_bad; END IF;
 
     -- (d) a flock WITH a known opening position reports its originally placed
     SELECT COUNT(*) INTO v_bad
@@ -644,7 +644,7 @@ BEGIN
                                   WHERE o2.farmid = o.farmid AND o2.flockid = o.flockid)
       AND  NOT COALESCE(f.isdeleted, FALSE)
       AND  r.birdsplaced <> o.originallyplaced;
-    IF v_bad > 0 THEN RAISE EXCEPTION '419: % opening flock(s) do not report their originally placed birds', v_bad; END IF;
+    IF v_bad > 0 THEN RAISE EXCEPTION '421: % opening flock(s) do not report their originally placed birds', v_bad; END IF;
 END
 $t$;
 

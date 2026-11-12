@@ -1,5 +1,5 @@
 # =============================================================================
-# Apply migration 424 (Water credits programme W3: supplier credit, advances,
+# Apply migration 426 (Water credits programme W3: supplier credit, advances,
 # refunds and supplier debt). New tables + functions + reader patches; no
 # existing record's money moves. Re-runs the W0-W2 checks too.
 #
@@ -19,7 +19,7 @@ param(
     [string] $MigrationsDir = (Join-Path $PSScriptRoot '..\..\poultrycore_Backend\PoultryFarmAPI\Migrations'),
     [string] $ChecksDir = (Join-Path $PSScriptRoot 'checks'),
     [string] $OutDir   = (Join-Path $env:TEMP 'water-supplier-credit'),
-    # Apply only these (e.g. -Only 420_FlockReportsSkipDeletedAndPending.postgres.sql when 418/419 are already in).
+    # Apply only these (e.g. -Only 422_FlockReportsSkipDeletedAndPending.postgres.sql when 420/421 are already in).
     [string[]] $Only,
     [switch] $Apply
 )
@@ -31,7 +31,7 @@ if (-not (Test-Path $Psql)) { throw "psql not found at $Psql" }
 if (-not (Test-Path $MigrationsDir)) { throw "Migrations dir not found: $MigrationsDir" }
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
-$files  = @('424_WaterSupplierCredit.postgres.sql')
+$files  = @('426_WaterSupplierCredit.postgres.sql')
 if ($Only) { $files = @($files | Where-Object { $Only -contains $_ }); if (-not $files) { throw 'Nothing matches -Only.' } }
 $checks = @('water-w0-fixes.test.sql', 'water-w1-customer-credit.test.sql', 'water-w2-customer-debt.test.sql', 'water-w3-supplier-credit.test.sql')
 $passMarkers = @('water W0: all checks passed', 'water W1: all checks passed', 'water W2: all checks passed', 'water W3: all checks passed')
@@ -154,7 +154,7 @@ if (-not $diff) {
     Write-Host "No money moved. ($((Get-Content $after).Count) lines compared)" -ForegroundColor Green
 } else {
     $diff | Select-Object -First 40 | Format-Table -AutoSize | Out-String | Write-Host
-    Write-Host 'Any line here is a bug -- 424 moves no money.' -ForegroundColor Red
+    Write-Host 'Any line here is a bug -- 426 moves no money.' -ForegroundColor Red
 }
 
 Write-Host ''

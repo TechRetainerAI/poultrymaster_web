@@ -149,7 +149,7 @@ namespace PoultryFarmAPIWeb.Models
         public DateTime? LastReconciledAt { get; set; }
         public string? LastReconciliationNo { get; set; }
 
-        // 418: where the birds PLACED IN FLOCKS went. Together with FlockLiveBirds
+        // 420: where the birds PLACED IN FLOCKS went. Together with FlockLiveBirds
         // these add up to OriginallyAllocated exactly.
         /// <summary>Opening position (Initial Farm Setup): lost before tracking began.</summary>
         public int FlockHistMortality { get; set; }

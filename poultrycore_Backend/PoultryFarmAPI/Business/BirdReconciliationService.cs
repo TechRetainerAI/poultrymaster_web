@@ -84,7 +84,7 @@ namespace PoultryFarmAPIWeb.Business
         {
             var list = new List<BatchBirdReconciliationRow>();
             using var c = new NpgsqlConnection(_cs);
-            // 418 adds the flock-side columns. Before 418 they are absent, so
+            // 420 adds the flock-side columns. Before 420 they are absent, so
             // fall back to the old inline flock-sold join (opening + posted sales).
             using var cmd = new NpgsqlCommand(@"
                 SELECT s.*, COALESCE(fs.sold, 0)::int AS flocksold
@@ -132,7 +132,7 @@ namespace PoultryFarmAPIWeb.Business
             return list;
         }
 
-        // A column 418 added; 0 when the database predates it.
+        // A column 420 added; 0 when the database predates it.
         private static int IntOr0(NpgsqlDataReader r, string name)
         {
             for (var i = 0; i < r.FieldCount; i++)

@@ -1,5 +1,5 @@
 -- =============================================================================
--- Checks for 426 (Water manual deferred cost, W5). SELF-ROLLING-BACK, fixtures
+-- Checks for 428 (Water manual deferred cost, W5). SELF-ROLLING-BACK, fixtures
 -- in a real Water company. Prints 'water W5: all checks passed'.
 -- =============================================================================
 \set ON_ERROR_STOP on

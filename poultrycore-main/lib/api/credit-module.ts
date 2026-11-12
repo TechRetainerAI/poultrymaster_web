@@ -1,6 +1,6 @@
 /**
  * Customer credit is one feature on two company types (poultry 351-371, water
- * 422). The API routes and DTOs are identical -- only the route prefix and a
+ * 424). The API routes and DTOs are identical -- only the route prefix and a
  * few loaders differ -- so the credit pages and dialogs call these instead of
  * a module's own client.
  */
@@ -79,7 +79,7 @@ export function creditBalanceModule(): "poultry" | "water" {
   return creditModule() === "Water" ? "water" : "poultry"
 }
 
-/** The company's suppliers as { id, name }, sorted by name (424). */
+/** The company's suppliers as { id, name }, sorted by name (426). */
 export async function listCreditSuppliers(): Promise<{ id: number; name: string }[]> {
   let list: { id: number; name: string }[] = []
   if (creditModule() === "Water") {
@@ -92,7 +92,7 @@ export async function listCreditSuppliers(): Promise<{ id: number; name: string 
   return list.filter((x) => x.id > 0 && x.name).sort((a, b) => a.name.localeCompare(b.name))
 }
 
-/** Supplier-side links, per module (424). */
+/** Supplier-side links, per module (426). */
 export function supplierCreditRoutes() {
   const water = creditModule() === "Water"
   return {

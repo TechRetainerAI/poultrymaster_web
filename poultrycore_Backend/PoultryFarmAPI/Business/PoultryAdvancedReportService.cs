@@ -369,7 +369,7 @@ namespace PoultryFarmAPIWeb.Business
             await conn.OpenAsync();
             using var r = await cmd.ExecuteReaderAsync();
             // Rows arrive ordered by flock, date (asc) so we can build cumulative.
-            // 419: the cumulative count starts from every death BEFORE the range
+            // 421: the cumulative count starts from every death BEFORE the range
             // (opening historical mortality + recorded), and BirdsPlaced is the
             // birds the flock started with, so the % is the flock's lifetime one.
             var cumulativeByFlock = new Dictionary<int, int>();
@@ -408,7 +408,7 @@ namespace PoultryFarmAPIWeb.Business
                 AverageDailyDeaths = byDay.Count == 0 ? 0 : Math.Round(byDay.Average(x => (double)x.D), 1),
                 HighestMortalityDay = byDay.OrderByDescending(x => x.D).FirstOrDefault()?.Key,
                 HighestMortalityDayDeaths = byDay.OrderByDescending(x => x.D).FirstOrDefault()?.D ?? 0,
-                // 419: the farm's figure (every flock's lifetime deaths over every
+                // 421: the farm's figure (every flock's lifetime deaths over every
                 // flock's starting birds), not the latest row's single flock.
                 CumulativeMortalityPercent = startedByFlock.Values.Sum() > 0
                     ? Percent(cumulativeByFlock.Values.Sum(), startedByFlock.Values.Sum())
@@ -447,7 +447,7 @@ namespace PoultryFarmAPIWeb.Business
             using var r = await cmd.ExecuteReaderAsync();
             while (await r.ReadAsync())
             {
-                // 419: every figure from the flock's bird position as of the end
+                // 421: every figure from the flock's bird position as of the end
                 // date -- placed is what the flock started with, and deaths, sold,
                 // culled and transferred include the opening historical reduction.
                 var placed = IntOr(r, "BirdsPlaced");
@@ -1833,7 +1833,7 @@ namespace PoultryFarmAPIWeb.Business
                     FlockAgeWeeks = IntN(r, "FlockAgeWeeks"),
                     BirdsPlaced = placed,
                     TotalDeaths = deaths,
-                    // 419: opening history (when known) + since tracking began
+                    // 421: opening history (when known) + since tracking began
                     Culls = (BoolOr(r, "HistoryKnown", true) ? IntOr(r, "OpeningCulled") : 0) + IntOr(r, "BirdsCulled"),
                     BirdsSoldTransferred = (BoolOr(r, "HistoryKnown", true) ? IntOr(r, "OpeningSold") + IntOr(r, "OpeningTransferred") : 0)
                                          + IntOr(r, "BirdsSold") + IntOr(r, "BirdsTransferred"),

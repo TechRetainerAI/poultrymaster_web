@@ -1,5 +1,5 @@
 -- =============================================================================
--- Checks for 423 (Water customer debt, W2).  SELF-ROLLING-BACK, fixtures in a
+-- Checks for 425 (Water customer debt, W2).  SELF-ROLLING-BACK, fixtures in a
 -- real Water company, dated 2001 (debts and credits refuse future dates).
 -- Prints 'water W2: all checks passed'.
 -- =============================================================================

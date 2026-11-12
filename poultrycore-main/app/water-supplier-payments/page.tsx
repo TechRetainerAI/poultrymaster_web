@@ -25,7 +25,7 @@ export default function WaterSupplierPaymentsPage() {
       partyHref={() => "/water-suppliers"}
       documentHref={(a) => a.documentType === "SupplierDebt" ? null
         : `/water-supply-purchases?tab=purchases&purchaseId=${a.documentId}`}
-      // 424: a payment not tied to one purchase -- spread, or kept as an advance.
+      // 426: a payment not tied to one purchase -- spread, or kept as an advance.
       headerActions={(reload) => can("water.supplier-payments.create")
         ? <RecordPartyPaymentButton side="supplier" onPosted={reload} />
         : null}

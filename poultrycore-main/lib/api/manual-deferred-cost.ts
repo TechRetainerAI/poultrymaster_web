@@ -70,7 +70,7 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
   return data as T
 }
 
-// 426: the same routes exist under Water/ -- the prefix follows the active company.
+// 428: the same routes exist under Water/ -- the prefix follows the active company.
 const root = () => `${creditModule()}/deferred-inventory-costs`
 
 export const listManualDeferredCosts = () =>

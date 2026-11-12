@@ -1,5 +1,5 @@
 -- =============================================================================
--- 424_WaterSupplierCredit.postgres.sql   (Water credits programme W3; requires 421-423)
+-- 426_WaterSupplierCredit.postgres.sql   (Water credits programme W3; requires 423-425)
 --
 -- Purpose
 -- -------
@@ -579,7 +579,7 @@ AS $function$
       AND  (e.sourcetype IS NULL
             OR e.sourcetype IN ('CapitalAsset', 'CapitalAssetCost'))
     UNION ALL
-    -- 424: what the business owes a supplier without a purchase here
+    -- 426: what the business owes a supplier without a purchase here
     SELECT 'SupplierDebt'::text, d.debtid, d.supplierid, d.debtdate,
            ('Debt ' || d.debtnumber || COALESCE(' - ' || NULLIF(btrim(d.description), ''), ''))::text,
            d.debtnumber::text, d.amount, d.amountpaid,
@@ -630,7 +630,7 @@ BEGIN
     IF v_count > 0 AND v_minamount <= 0 THEN
         RAISE EXCEPTION 'Each allocation must be greater than 0.';
     END IF;
-    -- 424: what is not applied is the supplier's credit (an advance when nothing is).
+    -- 426: what is not applied is the supplier's credit (an advance when nothing is).
     IF v_allocated::numeric(14,2) > p_amount::numeric(14,2) THEN
         RAISE EXCEPTION 'Allocated total (%) is more than the payment amount (%).',
               v_allocated::numeric(14,2), p_amount::numeric(14,2);
@@ -693,7 +693,7 @@ BEGIN
              v_row.amount, v_row.balance, v_row.balance - v_row.amount,
              'Posted', p_createdby, v_date);
 
-        -- 424: purchases, bills and supplier debts
+        -- 426: purchases, bills and supplier debts
         PERFORM public.fnwaterpayable_addpaid(p_farmid, v_row.documenttype, v_row.documentid, v_row.amount);
     END LOOP;
 
@@ -722,7 +722,7 @@ BEGIN
                      AND COALESCE(sp.status, 'Posted') = 'Posted') THEN
         RAISE EXCEPTION 'This payment has already been reversed.';
     END IF;
-    -- 424
+    -- 426
     IF EXISTS (SELECT 1 FROM watersupplierpayments sp WHERE sp.watersupplierpaymentid = p_paymentid
                AND sp.farmid = p_farmid AND public.fnwatersupplier_iscreditkind(sp.sourcetype)) THEN
         RAISE EXCEPTION 'This is supplier credit added by hand -- reverse it on Supplier Credits.';
@@ -742,7 +742,7 @@ BEGIN
         WHERE  sa.farmid = p_farmid AND sa.module = 'water'
           AND  sa.paymentid = p_paymentid AND sa.status = 'Posted'
     LOOP
-        PERFORM public.fnwaterpayable_addpaid(p_farmid, v_row.documenttype, v_row.documentid, -v_row.amountapplied);   -- 424
+        PERFORM public.fnwaterpayable_addpaid(p_farmid, v_row.documenttype, v_row.documentid, -v_row.amountapplied);   -- 426
         v_count := v_count + 1;
     END LOOP;
 
@@ -788,7 +788,7 @@ BEGIN
       AND  COALESCE(sp.status, 'Posted') = 'Posted';
 
     IF v_pay.watersupplierpaymentid IS NULL THEN RETURN; END IF;
-    -- 424: credit added by hand moves no money.
+    -- 426: credit added by hand moves no money.
     IF EXISTS (SELECT 1 FROM watersupplierpayments sp WHERE sp.watersupplierpaymentid = p_paymentid
                AND sp.farmid = p_farmid AND public.fnwatersupplier_iscreditkind(sp.sourcetype)) THEN
         RETURN;
@@ -925,7 +925,7 @@ BEGIN
         WHERE  watercashaccountid = v_acct AND farmid = p_farmid;
     END IF;
 
-    -- ---- 424: supplier debts and the part applied to nothing (an advance) --
+    -- ---- 426: supplier debts and the part applied to nothing (an advance) --
     -- Money out on the payment date, keyed to the payment like the bill part,
     -- so the reversal (_unsync's bill half) gives it back too.
     IF v_pay.totalamount - v_purchase - v_bills > 0 AND v_acct IS NOT NULL THEN
@@ -1028,7 +1028,7 @@ BEGIN
 
       AND  COALESCE(p.status, 'Posted') = 'Posted'
 
-      -- 422: opening credit and credit notes are credit, not money received.
+      -- 424: opening credit and credit notes are credit, not money received.
       AND  NOT public.fnwater_isnocashcredit(p.sourcetype)
 
       AND  p.paymentdate >= v_from
@@ -1037,7 +1037,7 @@ BEGIN
 
 
 
-    -- ---- 1b. 422: customer refunds -----------------------------------------
+    -- ---- 1b. 424: customer refunds -----------------------------------------
     -- Money out on the refund date, and it stays there when the refund is
     -- reversed (the money did leave); the reversal is money back in on its date.
     RETURN QUERY
@@ -1124,7 +1124,7 @@ BEGIN
                                -- anything, so it must not reduce the residual.
 
                                AND  COALESCE(wp.status, 'Posted') = 'Posted'), 0)
-                 -- 422: credit applied to the sale is not money taken at the till
+                 -- 424: credit applied to the sale is not money taken at the till
                  - public.fnwatersale_creditapplied(p_farmid, s.watersaleid)
 
                , 2) AS residual
@@ -1258,7 +1258,7 @@ BEGIN
 
       AND  COALESCE(e.paymentmethod, '') <> 'NonCash'
 
-      -- 421: a supplier payment's own aggregated expense row is not read here.
+      -- 423: a supplier payment's own aggregated expense row is not read here.
       -- It holds only the part expensed at purchase and is Cancelled on
       -- reversal; the payment's cash is reported from the payment below (3c).
       AND  COALESCE(e.sourcetype, '') <> 'WaterSupplierPayment'
@@ -1330,12 +1330,12 @@ BEGIN
 
       AND  sa.module = 'water'
 
-      -- 421: a reversed payment's money still LEFT on its date (376's rule);
+      -- 423: a reversed payment's money still LEFT on its date (376's rule);
       -- the reversal brings it back on its own date (3d). Allocations are only
       -- ever reversed together with their payment.
       AND  (sa.status = 'Posted' OR (sa.status = 'Reversed' AND sp.status = 'Reversed'))
 
-      AND  NOT sa.fromcredit                                -- 424
+      AND  NOT sa.fromcredit                                -- 426
 
       AND  sa.documenttype = 'Expense'
 
@@ -1349,7 +1349,7 @@ BEGIN
 
 
 
-    -- ---- 3c. 421: supplier payments for raw-material purchases ------------
+    -- ---- 3c. 423: supplier payments for raw-material purchases ------------
     --
     -- The FULL purchase portion, on the payment date -- deferred lots included,
     -- because the supplier was paid for them whether or not their cost has
@@ -1376,8 +1376,8 @@ BEGIN
         FROM   supplierpaymentallocation sa
         WHERE  sa.farmid = sp.farmid AND sa.module = 'water'
           AND  sa.paymentid = sp.watersupplierpaymentid
-          AND  sa.documenttype NOT IN ('Expense', 'SupplierDebt')     -- 424
-          AND  NOT sa.fromcredit                                     -- 424
+          AND  sa.documenttype NOT IN ('Expense', 'SupplierDebt')     -- 426
+          AND  NOT sa.fromcredit                                     -- 426
           AND  (sa.status = 'Posted' OR (sa.status = 'Reversed' AND sp.status = 'Reversed'))
     ) x
     LEFT   JOIN watersuppliers s
@@ -1388,7 +1388,7 @@ BEGIN
       AND  sp.paymentdate >= v_from
       AND  sp.paymentdate <= v_to;
 
-    -- ---- 3d. 421: a reversed supplier payment's money coming back ---------
+    -- ---- 3d. 423: a reversed supplier payment's money coming back ---------
     --
     -- Everything the payment paid out (purchases and bills), back in on the
     -- day it was reversed.
@@ -1410,20 +1410,20 @@ BEGIN
            sp.reversedat
     FROM   watersupplierpayments sp
     CROSS  JOIN LATERAL (
-        -- 424: the whole payment (an advance has no allocations at all)
+        -- 426: the whole payment (an advance has no allocations at all)
         SELECT sp.totalamount::numeric AS amount
     ) x
     LEFT   JOIN watersuppliers s
            ON  s.watersupplierid = sp.supplierid AND s.farmid = sp.farmid
     WHERE  sp.farmid = p_farmid
       AND  sp.status = 'Reversed'
-      AND  NOT public.fnwatersupplier_iscreditkind(sp.sourcetype)   -- 424
+      AND  NOT public.fnwatersupplier_iscreditkind(sp.sourcetype)   -- 426
       AND  sp.reversedat IS NOT NULL
       AND  x.amount <> 0
       AND  sp.reversedat >= v_from
       AND  sp.reversedat <= v_to;
 
-    -- ---- 3e. 424: supplier debts and advances --------------------------------
+    -- ---- 3e. 426: supplier debts and advances --------------------------------
     -- The part of a payment no other row shows: what it paid on supplier debts
     -- and what it applied to nothing (an advance / overpayment), on the
     -- payment's own day. With 3b and 3c a payment always totals its amount.
@@ -1450,7 +1450,7 @@ BEGIN
       AND  x.amount > 0
       AND  sp.paymentdate >= v_from AND sp.paymentdate <= v_to;
 
-    -- ---- 3g / 3h. 424: supplier refunds ---------------------------------------
+    -- ---- 3g / 3h. 426: supplier refunds ---------------------------------------
     RETURN QUERY
     SELECT 'SupplierRefund'::text, FALSE, r.refundid, r.watercashaccountid, NULL::text,
            r.refunddate::timestamp, 'CashIn'::text, 'WaterSupplierRefund'::text, r.refundid, FALSE,
@@ -1808,12 +1808,12 @@ AS $function$
                WHEN r.rowsource IN ('Expense', 'ExpensePayment')
                    THEN COALESCE(NULLIF(btrim(c.name), ''), 'Uncategorised')
                WHEN r.rowsource IN ('Receipt', 'SaleResidual') THEN 'Sales'
-               -- 422
-               WHEN r.rowsource IN ('CustomerRefund', 'CustomerRefundReversal') THEN 'Customer refunds'
                -- 424
+               WHEN r.rowsource IN ('CustomerRefund', 'CustomerRefundReversal') THEN 'Customer refunds'
+               -- 426
                WHEN r.rowsource = 'SupplierAdvanceOrDebt' THEN 'Supplier advances & debts'
                WHEN r.rowsource IN ('SupplierRefund', 'SupplierRefundReversal') THEN 'Supplier refunds'
-               -- 421
+               -- 423
                WHEN r.rowsource IN ('SupplierPurchasePayment', 'SupplierPaymentReversal')
                    THEN 'Raw Materials / Inventory Purchase'
                ELSE COALESCE(NULLIF(btrim(r.sourcetype), ''), 'Other')
@@ -1900,7 +1900,7 @@ AS $function$
           AND  (p_to   IS NULL OR sp.paymentdate::date <= p_to)
 
         UNION ALL
-        -- 424: money the supplier sent back out of credit
+        -- 426: money the supplier sent back out of credit
         SELECT r.refunddate, 'Refund'::text, r.refundnumber::text,
                ('Refund from supplier' || COALESCE(' - ' || NULLIF(btrim(r.reason), ''), ''))::text,
                r.amount::numeric(14,2), 0::numeric(14,2),
@@ -1939,7 +1939,7 @@ AS $function$
            COALESCE((SELECT SUM(sp.totalamount) FROM watersupplierpayments sp
                      WHERE sp.farmid = p_farmid
                        AND COALESCE(sp.status, 'Posted') = 'Posted'
-                       AND NOT public.fnwatersupplier_iscreditkind(sp.sourcetype)   -- 424
+                       AND NOT public.fnwatersupplier_iscreditkind(sp.sourcetype)   -- 426
                        AND sp.paymentdate::date = CURRENT_DATE), 0)::numeric(14,2),
            COALESCE(MAX(p.totalbalance), 0)::numeric(14,2),
            (SELECT p2.suppliername FROM per p2 ORDER BY p2.totalbalance DESC LIMIT 1)
@@ -1973,7 +1973,7 @@ AS $function$
     FROM   watersupplierpayments sp
     LEFT   JOIN watersuppliers s ON s.watersupplierid = sp.supplierid AND s.farmid = sp.farmid
     WHERE  sp.farmid = p_farmid
-      -- 424: credit added by hand lives on Supplier Credits
+      -- 426: credit added by hand lives on Supplier Credits
       AND  NOT public.fnwatersupplier_iscreditkind(sp.sourcetype)
       AND  (p_supplierid IS NULL OR sp.supplierid = p_supplierid)
       AND  (p_from IS NULL OR sp.paymentdate::date >= p_from)

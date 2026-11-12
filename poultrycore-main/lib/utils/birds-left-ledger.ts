@@ -30,7 +30,7 @@ export type FlockBirdsSummary = {
   birdsLeftFromLatestLog: number | null
 }
 
-/** The flock's server-side bird position (migration 419), when the API has it. */
+/** The flock's server-side bird position (migration 421), when the API has it. */
 export type FlockPositionLookup = Map<number, FlockPositionRow>
 
 /**
@@ -45,7 +45,7 @@ export function isBirdSaleProduct(product: string | null | undefined): boolean {
 }
 
 /**
- * Birds a flock went IN with. With its position (419) that is the birds it
+ * Birds a flock went IN with. With its position (421) that is the birds it
  * STARTED with -- originally placed; the opening live count when the farm said
  * the history is not known. Without it, flock.quantity, which for a flock from
  * Initial Farm Setup is only the opening LIVE count.

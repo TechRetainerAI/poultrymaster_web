@@ -76,7 +76,7 @@ export default function SupplierCreditsPage() {
   const currencyCode = code || getSelectedCurrency()
   const money = (n: number) => formatCurrency(Number(n) || 0, currencyCode)
 
-  // 424: the same page serves Water (water-supplier-credits re-exports it).
+  // 426: the same page serves Water (water-supplier-credits re-exports it).
   const canView = can(creditPerm("supplier-balances.view"))
   // Paying an advance, applying credit and taking a refund are supplier-payment actions.
   const canPay = can(creditPerm("supplier-payments.create"))

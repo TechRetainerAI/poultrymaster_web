@@ -301,7 +301,7 @@ function WaterDeferredCostsInner() {
             {DEFERRED_PAGE_INTRO}
           </div>
 
-          {/* 426: cost for stock no purchase covers (e.g. opening stock), recorded as an event. */}
+          {/* 428: cost for stock no purchase covers (e.g. opening stock), recorded as an event. */}
           <ManualDeferredCostPanel onChanged={() => { void load() }} />
 
           {/* Filters */}

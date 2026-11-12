@@ -117,8 +117,8 @@ export function FlockBatchesPage() {
       .then((rows) => setReconRows(new Map(rows.map((r) => [r.batchId, r]))))
       .catch(() => setReconRows(new Map()))   // before migration 413: fall back to the local figure
   useEffect(() => { loadReconRows() }, [])
-  // 419: every flock's bird position (placed, opening history, since, live).
-  // Empty before 419 is deployed -- the page then falls back to flock.quantity.
+  // 421: every flock's bird position (placed, opening history, since, live).
+  // Empty before 421 is deployed -- the page then falls back to flock.quantity.
   const [positionByFlock, setPositionByFlock] = useState<Map<number, FlockPositionRow>>(new Map())
   useEffect(() => {
     const { farmId } = getUserContext()
@@ -290,7 +290,7 @@ export function FlockBatchesPage() {
     const r = reconRows.get(batch.batchId)
     return r ? (r.batchSold ?? 0) + (r.flockSold ?? 0) : 0
   }
-  // 418: every bird of the batch that died -- before placing, in its flocks
+  // 420: every bird of the batch that died -- before placing, in its flocks
   // before tracking began (Initial Farm Setup), and recorded since.
   const diedFor = (batch: FlockBatch) => {
     const r = reconRows.get(batch.batchId)

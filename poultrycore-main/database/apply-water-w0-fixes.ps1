@@ -1,5 +1,5 @@
 # =============================================================================
-# Apply migration 421 (Water credits programme W0: Sales-page payment recompute,
+# Apply migration 423 (Water credits programme W0: Sales-page payment recompute,
 # Daily Closing owed-as-of / collections, supplier payment reversal cash, Cash
 # Flow supplier payment arms). Functions only, plus a backfill of the customer
 # on Sales-page payments; no money moves.
@@ -7,8 +7,8 @@
 # DEPLOY ORDER: this script only. No API or web change.
 #
 #   1. MEASURE   water money per company.
-#   2. DRY RUN   421 + checks/water-w0-fixes.test.sql, ROLLED BACK.
-#   3. APPLY     421 in its own transaction.
+#   2. DRY RUN   423 + checks/water-w0-fixes.test.sql, ROLLED BACK.
+#   3. APPLY     423 in its own transaction.
 #   4. MEASURE   again: nothing may move.
 #
 #   .pply-water-w0-fixes.ps1           # measure + dry run
@@ -25,7 +25,7 @@ param(
     [string] $MigrationsDir = (Join-Path $PSScriptRoot '..\..\poultrycore_Backend\PoultryFarmAPI\Migrations'),
     [string] $ChecksDir = (Join-Path $PSScriptRoot 'checks'),
     [string] $OutDir   = (Join-Path $env:TEMP 'water-w0-fixes'),
-    # Apply only these (e.g. -Only 420_FlockReportsSkipDeletedAndPending.postgres.sql when 418/419 are already in).
+    # Apply only these (e.g. -Only 422_FlockReportsSkipDeletedAndPending.postgres.sql when 420/421 are already in).
     [string[]] $Only,
     [switch] $Apply
 )
@@ -37,7 +37,7 @@ if (-not (Test-Path $Psql)) { throw "psql not found at $Psql" }
 if (-not (Test-Path $MigrationsDir)) { throw "Migrations dir not found: $MigrationsDir" }
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
-$files  = @('421_WaterPaymentsClosingCashFlowFixes.postgres.sql')
+$files  = @('423_WaterPaymentsClosingCashFlowFixes.postgres.sql')
 if ($Only) { $files = @($files | Where-Object { $Only -contains $_ }); if (-not $files) { throw 'Nothing matches -Only.' } }
 $checks = @('water-w0-fixes.test.sql')
 $passMarkers = @('water W0: all checks passed')
@@ -160,7 +160,7 @@ if (-not $diff) {
     Write-Host "No money moved. ($((Get-Content $after).Count) lines compared)" -ForegroundColor Green
 } else {
     $diff | Select-Object -First 40 | Format-Table -AutoSize | Out-String | Write-Host
-    Write-Host 'Any line here is a bug -- 421 moves no money.' -ForegroundColor Red
+    Write-Host 'Any line here is a bug -- 423 moves no money.' -ForegroundColor Red
 }
 
 Write-Host ''

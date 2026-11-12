@@ -37,7 +37,7 @@ export default function WaterSupplierBalancesPage() {
       // Raw-material purchases live on a tab of the raw materials page rather
       // than at a route of their own, so this lands on that tab with the one
       // purchase in focus.
-      // 424: debts recorded by hand (owed without a purchase): recording is a
+      // 426: debts recorded by hand (owed without a purchase): recording is a
       // header button, reversing is on the debt's row (owner / admin). Credit
       // the supplier holds for us sits under the table.
       headerActions={(reload) => <RecordSupplierDebtButton onChanged={reload} />}
@@ -46,7 +46,7 @@ export default function WaterSupplierBalancesPage() {
       )}
       afterTable={(_reload, paymentsVersion) => <SupplierCreditPanel refreshKey={paymentsVersion} />}
       documentHref={(doc) =>
-        doc.documentType === "SupplierDebt" ? null   // 424: a supplier debt has no page of its own
+        doc.documentType === "SupplierDebt" ? null   // 426: a supplier debt has no page of its own
           : `/water-supply-purchases?tab=purchases&purchaseId=${doc.documentId}`
       }
       permissions={{

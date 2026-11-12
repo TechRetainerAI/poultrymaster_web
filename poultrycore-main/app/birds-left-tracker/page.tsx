@@ -71,7 +71,7 @@ export default function BirdsLeftTrackerPage() {
     router.push("/login")
   }
 
-  // Undefined before 419 is deployed: the ledger then uses flock.quantity.
+  // Undefined before 421 is deployed: the ledger then uses flock.quantity.
   const [positions, setPositions] = useState<FlockPositionLookup | undefined>(undefined)
 
   const loadData = useCallback(async () => {
@@ -88,7 +88,7 @@ export default function BirdsLeftTrackerPage() {
       getSales(userId, farmId),
       getFlockPositions(farmId),
     ])
-    // 419: each flock's opening position, so a flock from Initial Farm Setup
+    // 421: each flock's opening position, so a flock from Initial Farm Setup
     // goes IN with the birds originally placed and its history goes OUT.
     setPositions(posRows ? positionsById(posRows) : undefined)
     if (flocksRes.success && flocksRes.data) setFlocks(flocksRes.data)

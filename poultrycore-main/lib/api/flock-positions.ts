@@ -2,7 +2,7 @@ import { buildApiUrl, getAuthHeaders } from "./config"
 import type { FlockBirdPosition } from "./flock-closeout"
 
 /**
- * GET /api/Flock/positions (migration 419): every flock's bird position --
+ * GET /api/Flock/positions (migration 421): every flock's bird position --
  * originally placed, the opening historical reduction from Initial Farm Setup,
  * what was recorded since, and live now -- in one call.
  *
@@ -18,7 +18,7 @@ export interface FlockPositionRow extends FlockBirdPosition {
   startedBirds: number
 }
 
-/** Null when the server predates 419 -- callers fall back to their old figures. */
+/** Null when the server predates 421 -- callers fall back to their old figures. */
 export async function getFlockPositions(farmId: string): Promise<FlockPositionRow[] | null> {
   if (!farmId) return null
   try {

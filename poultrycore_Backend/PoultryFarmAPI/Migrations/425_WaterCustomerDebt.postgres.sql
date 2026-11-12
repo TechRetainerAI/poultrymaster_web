@@ -1,48 +1,33 @@
 -- =============================================================================
--- 422_WaterCustomerCredit.postgres.sql   (Water credits programme W1; requires 421)
+-- 425_WaterCustomerDebt.postgres.sql   (Water credits programme W2; requires 424)
 --
 -- Purpose
 -- -------
--- Water had no customer credit at all: a payment had to equal the sales it
--- paid, there was no customer advance, no opening credit, no credit note and no
--- refund.  This brings poultry's 351/363/367 to Water, reshaped for how Water
--- counts money.
+-- Poultry 369 / 382 / 383 / 384 for Water:
 --
--- The model
--- ---------
---  * A CREDIT is a waterpayments row with NO sale (watersaleid NULL), kind in
---    sourcetype:
---      Deposit        customer advance -- money in NOW, to a chosen account
---                     (CashIn 'WaterCustomerAdvance'); user decision 2026-11-12
---      Overpayment    what a customer payment left after its sales -- same
---                     money as the payment, so collected the same way (closing)
---      OpeningCredit  credit held before the system -- no money
---      CreditNote     an allowance -- no money; NEGATIVE revenue on the P&L
---  * APPLYING credit to a sale is an allocation only (customerpaymentallocation
---    from the credit row to the sale) -- no payment row on the sale, so Daily
---    Closing and Cash Flow can never read applied credit as cash.  A sale's
---    amountpaid = posted payments on it + credit applied to it.
---  * A REFUND (watercustomerrefunds + lines naming the credit it drew from) is
---    real money out of an account (CashOut 'WaterCustomerRefund'); reversing it
---    keeps the refund (Reversed) and puts the money back (CashIn).
---  * Available credit = credit rows - applications - posted refunds.
+--  * CUSTOMER DEBT (369): what a customer owes WITHOUT a sale -- an opening
+--    balance, an old or external debt, a migration, an adjustment. Recording one
+--    moves nothing: no revenue, no stock, no cash. It is owed: Customer
+--    Balances, the statement, the payment dialog's open items, the customer
+--    list, the credit summary's "still owes".
+--  * PAYING A DEBT is an ordinary customer payment: allocations {debtid,
+--    amount} beside {saleid, amount}. Each becomes a waterpayments row with no
+--    sale and waterdebtid set, and an allocation under module 'water-debt'
+--    (customerpaymentallocation.saleid holds the DEBT id there). Same money as
+--    the rest of the payment, so Daily Closing and Cash Flow count it like any
+--    customer payment.
+--  * Reversing a debt is refused while any payment is applied to it.
+--  * DEBT PAYMENTS ON P&L (382): revenue, line 'Customer debt collections', on
+--    the payment date; in by default, the owner / an admin can exclude a
+--    payment (waterpayments.excludefrompl for the whole payment).
+--  * OLD DEBT (383/384): Record customer payment can say the leftover "pays for
+--    a sale made before the system" -- it becomes a HistoricalDebt (paidonentry,
+--    with its sale type) paid in the same payment, so it is revenue. Leftover is
+--    credit by default (384's rule). Reversing such a payment reverses the debt.
 --
--- Readers patched (live bodies, 2026-11-12, after 421)
--- ----------------------------------------------------
---   spwatersale_recompute, fnwatersale_owedasof, spwaterpayment_record
---   spwatercustomerpayment_record  (remainder -> Overpayment credit)
---   spwatercustomerpayment_reverse (hand-made credit refused; refunded refused;
---                                   sales its credit paid are owed again)
---   spwatersale_delete / _cancel, spwaterdriverreturn_reverse (release credit)
---   fnwaterdailyclosing_livetotals (collections skip advances / no-cash credit)
---   spwatercashflow_rows / _detail (no-cash credit is not a receipt; applied
---                                   credit is not till money; refund arms)
---   spwatercustomerstatement       (applied credit has its own line)
---   spwatercustomerbalancesummary, spwatercustomerpayment_history
---   spwaterreport_periodpnl, _pllines, _plrevenuedetail (credit notes)
---
--- Not changed on purpose: spwaterreport_plsummary keeps its columns (its
--- totalrevenue comes from periodpnl, so it already nets credit notes).
+-- A payment on a debt is a row WITHOUT a sale, which 424 took to mean credit.
+-- 424's credit functions are re-created here identifying credit by KIND
+-- (fnwater_iscreditkind), not by the missing sale.
 --
 -- Deploy order: this migration, then the Farm API, then the web app.
 -- =============================================================================
@@ -51,49 +36,168 @@
 BEGIN;
 
 -- ============================================================ 1. schema =====
--- A credit is a waterpayments row with NO sale.  Four kinds:
---   Deposit        customer advance: real money, posted to a cash account now
---   Overpayment    what a customer payment left over after its sales: same
---                  money as the payment it came with (collected at closing)
---   OpeningCredit  credit the customer already held before the system: no money
---   CreditNote     an allowance given: no money; negative revenue on the P&L
-ALTER TABLE public.waterpayments ALTER COLUMN watersaleid DROP NOT NULL;
+CREATE TABLE IF NOT EXISTS public.watercustomerdebts (
+    debtid           integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    farmid           text          NOT NULL,
+    debtnumber       text          NOT NULL,
+    watercustomerid  integer       NOT NULL,
+    amount           numeric(14,2) NOT NULL CHECK (amount > 0),
+    debtdate         date          NOT NULL,
+    entrytype        text          NOT NULL CHECK (entrytype IN
+                         ('OpeningBalance', 'HistoricalDebt', 'Adjustment', 'Migration', 'ExternalTransaction', 'Other')),
+    description      text          NOT NULL,
+    reference        text,
+    notes            text,
+    saletype         text,                         -- what an old debt was for (384)
+    paidonentry      boolean       NOT NULL DEFAULT false,   -- recorded only because a payment paid it (383)
+    status           text          NOT NULL DEFAULT 'Posted' CHECK (status IN ('Posted', 'Reversed')),
+    createdby        text,
+    createdat        timestamp     NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
+    reversedby       text,
+    reversedat       timestamp,
+    reversalreason   text
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_watercustomerdebts_number ON public.watercustomerdebts (farmid, debtnumber);
+CREATE INDEX IF NOT EXISTS ix_watercustomerdebts_cust ON public.watercustomerdebts (farmid, watercustomerid) WHERE status = 'Posted';
+
+ALTER TABLE public.waterpayments ADD COLUMN IF NOT EXISTS waterdebtid integer;
+CREATE INDEX IF NOT EXISTS ix_waterpayments_debt ON public.waterpayments (farmid, waterdebtid) WHERE waterdebtid IS NOT NULL;
+ALTER TABLE public.waterpayments ADD COLUMN IF NOT EXISTS excludefrompl boolean NOT NULL DEFAULT false;
+ALTER TABLE public.waterpayments ADD COLUMN IF NOT EXISTS plexcludedby text;
+ALTER TABLE public.waterpayments ADD COLUMN IF NOT EXISTS plexcludedat timestamp;
+
+-- A payment row is on a sale, on a debt, or is credit -- never two of them.
 ALTER TABLE public.waterpayments DROP CONSTRAINT IF EXISTS ck_waterpayments_saleorcredit;
 ALTER TABLE public.waterpayments ADD CONSTRAINT ck_waterpayments_saleorcredit CHECK (
-       watersaleid IS NOT NULL
-    OR (sourcetype IN ('Deposit', 'Overpayment', 'OpeningCredit', 'CreditNote') AND watercustomerid IS NOT NULL));
+       (watersaleid IS NOT NULL AND waterdebtid IS NULL)
+    OR (watersaleid IS NULL AND waterdebtid IS NOT NULL AND watercustomerid IS NOT NULL)
+    OR (watersaleid IS NULL AND waterdebtid IS NULL
+        AND sourcetype IN ('Deposit', 'Overpayment', 'OpeningCredit', 'CreditNote') AND watercustomerid IS NOT NULL));
 
-CREATE TABLE IF NOT EXISTS public.watercustomerrefunds (
-    refundid            integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-    farmid              text          NOT NULL,
-    refundnumber        text          NOT NULL,
-    watercustomerid     integer       NOT NULL,
-    amount              numeric(14,2) NOT NULL CHECK (amount > 0),
-    refunddate          date          NOT NULL,
-    watercashaccountid  integer       NOT NULL,
-    paymentmethod       text,
-    reason              text          NOT NULL,
-    status              text          NOT NULL DEFAULT 'Posted' CHECK (status IN ('Posted', 'Reversed')),
-    createdby           text,
-    createdat           timestamp     NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
-    reversedby          text,
-    reversedat          timestamp,
-    reversalreason      text,
-    reversaldate        date
-);
-CREATE UNIQUE INDEX IF NOT EXISTS ux_watercustomerrefunds_number ON public.watercustomerrefunds (farmid, refundnumber);
-CREATE INDEX IF NOT EXISTS ix_watercustomerrefunds_customer ON public.watercustomerrefunds (farmid, watercustomerid);
+-- ============================================================ 2. debts =====
+-- Owed on a debt = amount - posted allocations (module 'water-debt';
+-- customerpaymentallocation.saleid holds the DEBT id under that module).
+CREATE OR REPLACE FUNCTION public.fnwatercustomerdebt_paid(p_farmid text, p_debtid integer)
+RETURNS numeric LANGUAGE sql STABLE AS $f$
+    SELECT COALESCE(SUM(ca.amountapplied), 0)::numeric(14,2)
+    FROM   customerpaymentallocation ca
+    WHERE  ca.module = 'water-debt' AND ca.saleid = p_debtid AND ca.farmid = p_farmid AND ca.status = 'Posted';
+$f$;
 
--- Which credit each refund drew from (one refund can take from several).
-CREATE TABLE IF NOT EXISTS public.watercustomerrefundlines (
-    refundlineid    integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-    refundid        integer       NOT NULL REFERENCES public.watercustomerrefunds (refundid),
-    farmid          text          NOT NULL,
-    waterpaymentid  integer       NOT NULL,
-    amount          numeric(14,2) NOT NULL CHECK (amount > 0)
-);
-CREATE INDEX IF NOT EXISTS ix_watercustomerrefundlines_payment ON public.watercustomerrefundlines (farmid, waterpaymentid);
+CREATE OR REPLACE FUNCTION public.fnwatercustomerdebt_balance(p_farmid text, p_debtid integer)
+RETURNS numeric LANGUAGE sql STABLE AS $f$
+    SELECT CASE WHEN d.status = 'Posted'
+                THEN GREATEST(d.amount - public.fnwatercustomerdebt_paid(p_farmid, d.debtid), 0) ELSE 0 END::numeric(14,2)
+    FROM   watercustomerdebts d WHERE d.debtid = p_debtid AND d.farmid = p_farmid;
+$f$;
 
+-- What a customer owes on debts (for balances, statements, credit summary).
+CREATE OR REPLACE FUNCTION public.fnwatercustomer_debtowed(p_farmid text, p_customerid integer)
+RETURNS numeric LANGUAGE sql STABLE AS $f$
+    SELECT COALESCE(SUM(public.fnwatercustomerdebt_balance(p_farmid, d.debtid)), 0)::numeric(14,2)
+    FROM   watercustomerdebts d
+    WHERE  d.farmid = p_farmid AND d.watercustomerid = p_customerid AND d.status = 'Posted';
+$f$;
+
+-- Record what a customer owes without a sale. No revenue, no stock, no cash.
+CREATE OR REPLACE FUNCTION public.spwatercustomerdebt_create(
+    p_farmid text, p_customerid integer, p_amount numeric, p_debtdate date, p_entrytype text,
+    p_description text, p_reference text DEFAULT NULL, p_notes text DEFAULT NULL, p_by text DEFAULT NULL,
+    p_saletype text DEFAULT NULL, p_paidonentry boolean DEFAULT false)
+RETURNS jsonb LANGUAGE plpgsql AS $f$
+DECLARE
+    v_id   integer;
+    v_no   text;
+    v_date date := COALESCE(p_debtdate, (now() AT TIME ZONE 'utc')::date);
+BEGIN
+    IF p_amount IS NULL OR p_amount <= 0 THEN
+        RAISE EXCEPTION 'Enter an amount greater than 0.' USING ERRCODE = 'P0001';
+    END IF;
+    IF p_description IS NULL OR length(btrim(p_description)) = 0 THEN
+        RAISE EXCEPTION 'Describe what the debt is for.' USING ERRCODE = 'P0001';
+    END IF;
+    IF COALESCE(p_entrytype, '') NOT IN ('OpeningBalance', 'HistoricalDebt', 'Adjustment', 'Migration', 'ExternalTransaction', 'Other') THEN
+        RAISE EXCEPTION 'Choose what kind of debt this is.' USING ERRCODE = 'P0001';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM watercustomers c WHERE c.watercustomerid = p_customerid AND c.farmid = p_farmid) THEN
+        RAISE EXCEPTION 'Customer does not belong to this company.' USING ERRCODE = 'P0001';
+    END IF;
+    IF v_date > (now() AT TIME ZONE 'utc')::date + 1 THEN
+        RAISE EXCEPTION 'The debt date is in the future.' USING ERRCODE = 'P0001';
+    END IF;
+    PERFORM pg_advisory_xact_lock(hashtext('water-debtnumber:' || p_farmid));
+    SELECT 'CD-' || lpad((COALESCE(MAX(NULLIF(regexp_replace(d.debtnumber, '\D', '', 'g'), '')::int), 0) + 1)::text, 5, '0')
+    INTO   v_no FROM watercustomerdebts d WHERE d.farmid = p_farmid;
+    INSERT INTO watercustomerdebts
+        (farmid, debtnumber, watercustomerid, amount, debtdate, entrytype, description, reference, notes,
+         saletype, paidonentry, createdby)
+    VALUES (p_farmid, v_no, p_customerid, round(p_amount, 2), v_date, p_entrytype, btrim(p_description),
+            NULLIF(btrim(p_reference), ''), NULLIF(btrim(p_notes), ''), NULLIF(btrim(p_saletype), ''),
+            COALESCE(p_paidonentry, false), p_by)
+    RETURNING debtid INTO v_id;
+    RETURN jsonb_build_object('debtId', v_id, 'debtNumber', v_no);
+END
+$f$;
+
+-- Refused while any payment is applied to it; an unpaid debt is simply Reversed.
+CREATE OR REPLACE FUNCTION public.spwatercustomerdebt_reverse(p_farmid text, p_debtid integer, p_reason text,
+                                                              p_by text DEFAULT NULL)
+RETURNS integer LANGUAGE plpgsql AS $f$
+DECLARE v_d watercustomerdebts%ROWTYPE;
+BEGIN
+    IF p_reason IS NULL OR length(btrim(p_reason)) = 0 THEN
+        RAISE EXCEPTION 'Give a reason for reversing the debt.' USING ERRCODE = 'P0001';
+    END IF;
+    SELECT * INTO v_d FROM watercustomerdebts d WHERE d.debtid = p_debtid AND d.farmid = p_farmid FOR UPDATE;
+    IF NOT FOUND THEN RAISE EXCEPTION 'Debt not found for this company.' USING ERRCODE = 'P0001'; END IF;
+    IF v_d.status <> 'Posted' THEN RAISE EXCEPTION 'This debt has already been reversed.' USING ERRCODE = 'P0001'; END IF;
+    IF public.fnwatercustomerdebt_paid(p_farmid, p_debtid) > 0 THEN
+        RAISE EXCEPTION 'Payments have been applied to debt %. Reverse those payments first.', v_d.debtnumber
+            USING ERRCODE = 'P0001';
+    END IF;
+    UPDATE watercustomerdebts SET status = 'Reversed', reversedby = p_by, reversedat = (now() AT TIME ZONE 'utc'),
+           reversalreason = btrim(p_reason)
+    WHERE  debtid = p_debtid;
+    RETURN p_debtid;
+END
+$f$;
+
+CREATE OR REPLACE FUNCTION public.spwatercustomerdebt_list(p_farmid text, p_customerid integer DEFAULT NULL)
+RETURNS TABLE(debtid integer, debtnumber text, customerid integer, customername text, amount numeric, paid numeric,
+              balance numeric, debtdate date, entrytype text, description text, reference text, notes text,
+              status text, createdby text, createdat timestamp, reversedby text, reversedat timestamp,
+              reversalreason text, saletype text, paidonentry boolean)
+LANGUAGE sql STABLE AS $f$
+    SELECT d.debtid, d.debtnumber, d.watercustomerid, c.name::text, d.amount,
+           public.fnwatercustomerdebt_paid(p_farmid, d.debtid), public.fnwatercustomerdebt_balance(p_farmid, d.debtid),
+           d.debtdate, d.entrytype, d.description, d.reference, d.notes, d.status, d.createdby, d.createdat,
+           d.reversedby, d.reversedat, d.reversalreason, d.saletype, d.paidonentry
+    FROM   watercustomerdebts d
+    LEFT   JOIN watercustomers c ON c.watercustomerid = d.watercustomerid AND c.farmid = d.farmid
+    WHERE  d.farmid = p_farmid AND (p_customerid IS NULL OR d.watercustomerid = p_customerid)
+    ORDER  BY d.debtdate DESC, d.debtid DESC;
+$f$;
+
+-- Open debts for the payment dialog, in the open-sales shape.
+CREATE OR REPLACE FUNCTION public.spwatercustomeropendebts(p_farmid text, p_customerid integer)
+RETURNS TABLE(debtid integer, debtnumber text, debtdate timestamp, description text, amount numeric, paid numeric,
+              balance numeric, duedate date, agedays integer, status text, isoverdue boolean)
+LANGUAGE sql STABLE AS $f$
+    SELECT d.debtid, d.debtnumber, d.debtdate::timestamp, d.description, d.amount,
+           public.fnwatercustomerdebt_paid(p_farmid, d.debtid), public.fnwatercustomerdebt_balance(p_farmid, d.debtid),
+           (d.debtdate + COALESCE(c.paymenttermsdays, 0))::date,
+           (CURRENT_DATE - d.debtdate)::integer,
+           CASE WHEN public.fnwatercustomerdebt_paid(p_farmid, d.debtid) > 0 THEN 'PartiallyPaid' ELSE 'Pending' END::text,
+           (d.debtdate + COALESCE(c.paymenttermsdays, 0)) < CURRENT_DATE
+    FROM   watercustomerdebts d
+    LEFT   JOIN watercustomers c ON c.watercustomerid = d.watercustomerid AND c.farmid = d.farmid
+    WHERE  d.farmid = p_farmid AND d.watercustomerid = p_customerid AND d.status = 'Posted'
+      AND  public.fnwatercustomerdebt_balance(p_farmid, d.debtid) > 0
+    ORDER  BY d.debtdate, d.debtid;
+$f$;
+
+
+-- (424's credit functions, re-created with the credit-kind test -- 425)
 -- ======================================================= 2. credit basics ====
 CREATE OR REPLACE FUNCTION public.fnwater_iscreditkind(p_kind text)
 RETURNS boolean LANGUAGE sql IMMUTABLE AS $f$
@@ -127,7 +231,7 @@ RETURNS numeric LANGUAGE sql STABLE AS $f$
                              AND r.status = 'Posted'), 0), 0)
         FROM   waterpayments p
         WHERE  p.farmid = p_farmid AND p.waterpaymentid = p_waterpaymentid
-          AND  p.watersaleid IS NULL AND COALESCE(p.status, 'Posted') = 'Posted'), 0)::numeric(14,2);
+          AND  public.fnwater_iscreditkind(p.sourcetype) AND COALESCE(p.status, 'Posted') = 'Posted'), 0)::numeric(14,2);
 $f$;
 
 CREATE OR REPLACE FUNCTION public.fnwatercustomer_credit(p_farmid text, p_customerid integer)
@@ -135,7 +239,7 @@ RETURNS numeric LANGUAGE sql STABLE AS $f$
     SELECT COALESCE(SUM(public.fnwaterpayment_unapplied(p_farmid, p.waterpaymentid)), 0)::numeric(14,2)
     FROM   waterpayments p
     WHERE  p.farmid = p_farmid AND p.watercustomerid = p_customerid
-      AND  p.watersaleid IS NULL AND COALESCE(p.status, 'Posted') = 'Posted';
+      AND  public.fnwater_iscreditkind(p.sourcetype) AND COALESCE(p.status, 'Posted') = 'Posted';
 $f$;
 
 -- Credit applied to a sale: posted allocations whose payment row has no sale.
@@ -145,7 +249,7 @@ RETURNS numeric LANGUAGE sql STABLE AS $f$
     FROM   customerpaymentallocation ca
     JOIN   waterpayments p ON p.waterpaymentid = ca.paymentid AND p.farmid = ca.farmid
     WHERE  ca.farmid = p_farmid AND ca.module = 'water' AND ca.saleid = p_watersaleid
-      AND  ca.status = 'Posted' AND p.watersaleid IS NULL;
+      AND  ca.status = 'Posted' AND public.fnwater_iscreditkind(p.sourcetype);
 $f$;
 
 -- Hand back the credit applied to a sale that is going away (deleted, cancelled,
@@ -160,7 +264,7 @@ BEGIN
     FROM   waterpayments p
     WHERE  p.waterpaymentid = ca.paymentid AND p.farmid = ca.farmid
       AND  ca.farmid = p_farmid AND ca.module = 'water' AND ca.saleid = p_watersaleid
-      AND  ca.status = 'Posted' AND p.watersaleid IS NULL;
+      AND  ca.status = 'Posted' AND public.fnwater_iscreditkind(p.sourcetype);
     GET DIAGNOSTICS v_n = ROW_COUNT;
     RETURN v_n;
 END
@@ -177,7 +281,7 @@ LANGUAGE sql STABLE AS $f$
            p.sourcetype::text, NULL::integer, NULL::text, p.watercashaccountid
     FROM   waterpayments p
     WHERE  p.farmid = p_farmid AND p.watercustomerid = p_customerid
-      AND  p.watersaleid IS NULL AND COALESCE(p.status, 'Posted') = 'Posted'
+      AND  public.fnwater_iscreditkind(p.sourcetype) AND COALESCE(p.status, 'Posted') = 'Posted'
       AND  public.fnwaterpayment_unapplied(p_farmid, p.waterpaymentid) > 0
     ORDER  BY p.paymentdate, p.waterpaymentid;
 $f$;
@@ -189,12 +293,13 @@ LANGUAGE sql STABLE AS $f$
            COALESCE((SELECT SUM(GREATEST(s.totalamount - s.amountpaid, 0)) FROM watersales s
                      WHERE s.farmid = p_farmid AND s.watercustomerid = c.watercustomerid
                        AND COALESCE(s.status, '') <> 'Cancelled'), 0)::numeric(14,2)
+           + public.fnwatercustomer_debtowed(p_farmid, c.watercustomerid)      -- 425
     FROM (
         SELECT p.watercustomerid,
                SUM(public.fnwaterpayment_unapplied(p_farmid, p.waterpaymentid))::numeric(14,2) AS credit,
                COUNT(*) FILTER (WHERE public.fnwaterpayment_unapplied(p_farmid, p.waterpaymentid) > 0)::integer AS n
         FROM   waterpayments p
-        WHERE  p.farmid = p_farmid AND p.watersaleid IS NULL
+        WHERE  p.farmid = p_farmid AND public.fnwater_iscreditkind(p.sourcetype)
           AND  COALESCE(p.status, 'Posted') = 'Posted'
         GROUP  BY p.watercustomerid
     ) x
@@ -235,7 +340,7 @@ LANGUAGE sql STABLE AS $f$
                          FROM watercustomerrefundlines rl JOIN watercustomerrefunds rf ON rf.refundid = rl.refundid
                          WHERE rl.farmid = p.farmid AND rl.waterpaymentid = p.waterpaymentid
                            AND rf.status = 'Posted') r
-    WHERE  p.farmid = p_farmid AND p.watersaleid IS NULL
+    WHERE  p.farmid = p_farmid AND public.fnwater_iscreditkind(p.sourcetype)
       AND  (p_customerid IS NULL OR p.watercustomerid = p_customerid)
     ORDER  BY p.paymentdate DESC, p.waterpaymentid DESC;
 $f$;
@@ -258,7 +363,7 @@ LANGUAGE sql STABLE AS $f$
     JOIN   public.spwatercustomercredit_events(p_farmid, NULL) e ON e.waterpaymentid = p.waterpaymentid
     LEFT   JOIN watercustomers c ON c.watercustomerid = p.watercustomerid AND c.farmid = p.farmid
     LEFT   JOIN watercashaccounts a ON a.watercashaccountid = p.watercashaccountid AND a.farmid = p.farmid
-    WHERE  p.farmid = p_farmid AND p.watersaleid IS NULL
+    WHERE  p.farmid = p_farmid AND public.fnwater_iscreditkind(p.sourcetype)
       AND  public.fnwater_ismanualcredit(p.sourcetype)
     ORDER  BY p.paymentdate DESC, p.waterpaymentid DESC;
 $f$;
@@ -347,13 +452,13 @@ BEGIN
         RAISE EXCEPTION 'Give a reason for reversing the credit.' USING ERRCODE = 'P0001';
     END IF;
     SELECT * INTO v_p FROM waterpayments p
-    WHERE  p.farmid = p_farmid AND p.paymentgroupid = p_paymentgroupid AND p.watersaleid IS NULL
+    WHERE  p.farmid = p_farmid AND p.paymentgroupid = p_paymentgroupid AND public.fnwater_iscreditkind(p.sourcetype)
     FOR UPDATE;
     IF NOT FOUND OR NOT public.fnwater_ismanualcredit(v_p.sourcetype) THEN
         RAISE EXCEPTION 'That credit was not found for this company.' USING ERRCODE = 'P0001';
     END IF;
     IF EXISTS (SELECT 1 FROM waterpayments p WHERE p.farmid = p_farmid AND p.paymentgroupid = p_paymentgroupid
-               AND p.watersaleid IS NOT NULL) THEN
+               AND NOT public.fnwater_iscreditkind(p.sourcetype)) THEN
         RAISE EXCEPTION 'This credit came with a payment -- reverse the payment instead.' USING ERRCODE = 'P0001';
     END IF;
     IF COALESCE(v_p.status, 'Posted') <> 'Posted' THEN
@@ -484,7 +589,7 @@ BEGIN
     PERFORM pg_advisory_xact_lock(hashtext('water-customercredit:' || p_farmid || ':' || p_customerid::text));
     IF p_paymentid IS NOT NULL THEN
         IF NOT EXISTS (SELECT 1 FROM waterpayments p WHERE p.waterpaymentid = p_paymentid AND p.farmid = p_farmid
-                       AND p.watercustomerid = p_customerid AND p.watersaleid IS NULL) THEN
+                       AND p.watercustomerid = p_customerid AND public.fnwater_iscreditkind(p.sourcetype)) THEN
             RAISE EXCEPTION 'That credit does not belong to this customer.' USING ERRCODE = 'P0001';
         END IF;
         IF public.fnwaterpayment_unapplied(p_farmid, p_paymentid) < v_left THEN
@@ -582,119 +687,9 @@ LANGUAGE sql STABLE AS $f$
     ORDER  BY r.refunddate DESC, r.refundid DESC;
 $f$;
 
--- ================================================ 5. patched live bodies ====
-
-CREATE OR REPLACE FUNCTION public.spwatersale_recompute(p_farmid text, p_watersaleid integer)
- RETURNS void
- LANGUAGE plpgsql
-AS $function$
-DECLARE
-    v_total numeric(14,2);
-    v_sum   numeric(14,2);
-    v_status text;
-BEGIN
-    SELECT s.totalamount, s.status INTO v_total, v_status
-    FROM   watersales s
-    WHERE  s.watersaleid = p_watersaleid AND s.farmid = p_farmid
-    LIMIT  1;
-
-    IF v_total IS NULL THEN RETURN; END IF;
-
-    v_sum := COALESCE((SELECT SUM(p.amount) FROM waterpayments p
-                       WHERE p.watersaleid = p_watersaleid AND p.farmid = p_farmid
-                         AND COALESCE(p.status, 'Posted') = 'Posted'), 0)
-           -- 422: plus customer credit applied to the sale (no payment row)
-           + public.fnwatersale_creditapplied(p_farmid, p_watersaleid);
-
-    UPDATE watersales s
-    SET    amountpaid  = v_sum,
-           status      = CASE
-                             WHEN v_status = 'Cancelled'    THEN 'Cancelled'
-                             WHEN v_sum >= s.totalamount    THEN 'Paid'
-                             WHEN v_sum > 0                 THEN 'PartiallyPaid'
-                             ELSE 'Pending'
-                         END,
-           updateddate = (now() at time zone 'utc')
-    WHERE  s.watersaleid = p_watersaleid AND s.farmid = p_farmid;
-END;
-$function$;
-
-CREATE OR REPLACE FUNCTION public.fnwatersale_owedasof(p_farmid text, p_watersaleid integer, p_asof date)
- RETURNS numeric
- LANGUAGE sql
- STABLE
-AS $function$
-    SELECT GREATEST(
-               COALESCE(s.totalamount, 0) - COALESCE(s.amountpaid, 0)
-             + COALESCE((SELECT SUM(p.amount) FROM waterpayments p
-                         WHERE p.farmid = s.farmid AND p.watersaleid = s.watersaleid
-                           AND COALESCE(p.status, 'Posted') = 'Posted'
-                           AND p.paymentdate >= p_asof::timestamp + interval '1 day'), 0)
-             -- 422: credit applied after the day had not reduced it yet
-             + COALESCE((SELECT SUM(ca.amountapplied) FROM customerpaymentallocation ca
-                         JOIN waterpayments cp ON cp.waterpaymentid = ca.paymentid AND cp.farmid = ca.farmid
-                         WHERE ca.farmid = s.farmid AND ca.module = 'water' AND ca.saleid = s.watersaleid
-                           AND ca.status = 'Posted' AND cp.watersaleid IS NULL
-                           AND ca.createdat >= p_asof::timestamp + interval '1 day'), 0),
-           0)::numeric
-    FROM   watersales s
-    WHERE  s.watersaleid = p_watersaleid AND s.farmid = p_farmid;
-$function$;
-
-CREATE OR REPLACE FUNCTION public.spwaterpayment_record(p_farmid text, p_watersaleid integer DEFAULT NULL::integer, p_amount numeric DEFAULT NULL::numeric, p_paymentmethod text DEFAULT NULL::text, p_paymentdate timestamp without time zone DEFAULT NULL::timestamp without time zone, p_reference text DEFAULT NULL::text, p_note text DEFAULT NULL::text, p_createdby text DEFAULT NULL::text)
- RETURNS integer
- LANGUAGE plpgsql
-AS $function$
-DECLARE
-    v_paymentdate timestamp := p_paymentdate;
-    v_paymentid   integer;
-    v_before      numeric;
-BEGIN
-    IF v_paymentdate IS NULL THEN
-        v_paymentdate := (now() at time zone 'utc');
-    END IF;
-
-    -- Sale must belong to farm.
-    IF NOT EXISTS (SELECT 1 FROM watersales s
-                   WHERE s.watersaleid = p_watersaleid AND s.farmid = p_farmid) THEN
-        RAISE EXCEPTION 'Sale does not belong to this farm.';
-    END IF;
-
-    -- What the sale still owed a moment before this payment.
-    -- 422: the balance the sale shows (payments AND applied credit)
-    SELECT GREATEST(s.totalamount - s.amountpaid, 0)
-    INTO   v_before
-    FROM   watersales s
-    WHERE  s.watersaleid = p_watersaleid;
-
-    -- 421: the payment names its customer and its source, like every other
-    -- writer's payment, so customer payment history can find it.
-    INSERT INTO waterpayments
-        (farmid, watersaleid, amount, paymentmethod, paymentdate, reference, note, createdby, paymentgroupid,
-         watercustomerid, sourcetype)
-    VALUES (p_farmid, p_watersaleid, p_amount, p_paymentmethod, v_paymentdate, p_reference, p_note, p_createdby, gen_random_uuid(),
-            (SELECT s.watercustomerid FROM watersales s WHERE s.watersaleid = p_watersaleid AND s.farmid = p_farmid),
-            'SaleEntry')
-    RETURNING waterpaymentid INTO v_paymentid;
-
-    -- The snapshot. Same shape spwatercustomerpayment_record writes, so both
-    -- writers' payments read identically on the page and in the statement.
-    INSERT INTO customerpaymentallocation
-        (farmid, module, paymentid, saleid, amountapplied,
-         salebalancebefore, salebalanceafter, status, createdby, createdat)
-    VALUES
-        (p_farmid, 'water', v_paymentid, p_watersaleid, p_amount,
-         v_before, v_before - p_amount, 'Posted', p_createdby, v_paymentdate);
-
-    -- 421: the shared recompute counts POSTED payments only. This writer used to
-    -- sum every payment on the sale, reversed ones included, so the first
-    -- reversal followed by a new payment left the sale over-paid.
-    PERFORM public.spwatersale_recompute(p_farmid, p_watersaleid);
-
-    RETURN v_paymentid;
-END;
-$function$;
-
+-- ======================================================= 3. payments =======
+-- A customer payment applied to sales {saleid, amount} and/or debts
+-- {debtid, amount}; what is left over is the customer's credit (424).
 CREATE OR REPLACE FUNCTION public.spwatercustomerpayment_record(p_farmid text, p_customerid integer, p_amount numeric, p_allocations jsonb, p_paymentmethod text DEFAULT NULL::text, p_paymentdate timestamp without time zone DEFAULT NULL::timestamp without time zone, p_cashaccountid integer DEFAULT NULL::integer, p_reference text DEFAULT NULL::text, p_note text DEFAULT NULL::text, p_sourcetype text DEFAULT 'CustomerBalances'::text, p_createdby text DEFAULT NULL::text)
  RETURNS uuid
  LANGUAGE plpgsql
@@ -727,45 +722,36 @@ BEGIN
         RAISE EXCEPTION 'Cash account does not belong to this company.';
     END IF;
 
-    SELECT COUNT(*), COUNT(DISTINCT a.saleid), COALESCE(SUM(a.amount), 0),
-           COALESCE(MIN(a.amount), 0)
+    SELECT COUNT(*), COUNT(DISTINCT COALESCE('S' || a.saleid::text, 'D' || a.debtid::text)),
+           COALESCE(SUM(a.amount), 0), COALESCE(MIN(a.amount), 0)
     INTO   v_count, v_distinct, v_allocated, v_minamount
-    FROM   jsonb_to_recordset(COALESCE(p_allocations, '[]'::jsonb))
-           AS a(saleid integer, amount numeric)
-    WHERE  a.saleid IS NOT NULL AND COALESCE(a.amount, 0) <> 0;
-
+    FROM   jsonb_to_recordset(COALESCE(p_allocations, '[]'::jsonb)) AS a(saleid integer, debtid integer, amount numeric)
+    WHERE  (a.saleid IS NOT NULL OR a.debtid IS NOT NULL) AND COALESCE(a.amount, 0) <> 0;
     IF v_distinct <> v_count THEN
-        RAISE EXCEPTION 'The same sale appears more than once in this payment.';
+        RAISE EXCEPTION 'The same sale or debt appears more than once in this payment.';
     END IF;
-    IF v_minamount <= 0 THEN
+    IF v_count > 0 AND v_minamount <= 0 THEN
         RAISE EXCEPTION 'Each allocation must be greater than 0.';
     END IF;
-    -- 422: a payment may be bigger than the sales it pays; the rest is the
-    -- customer's credit (an 'Overpayment' row in the same payment).
     IF v_allocated::numeric(14,2) > p_amount::numeric(14,2) THEN
         RAISE EXCEPTION 'Allocated total (%) is more than the payment amount (%).',
               v_allocated::numeric(14,2), p_amount::numeric(14,2);
     END IF;
-
-    -- Every id must resolve, or the loop below would quietly process fewer
-    -- sales than were validated and the payment would post short.
     SELECT COUNT(*) INTO v_missing
-    FROM   jsonb_to_recordset(COALESCE(p_allocations, '[]'::jsonb))
-           AS a(saleid integer, amount numeric)
-    WHERE  a.saleid IS NOT NULL AND COALESCE(a.amount, 0) <> 0
-      AND  NOT EXISTS (SELECT 1 FROM watersales s
-                       WHERE s.watersaleid = a.saleid AND s.farmid = p_farmid);
+    FROM   jsonb_to_recordset(COALESCE(p_allocations, '[]'::jsonb)) AS a(saleid integer, debtid integer, amount numeric)
+    WHERE  COALESCE(a.amount, 0) <> 0
+      AND  ((a.saleid IS NOT NULL AND NOT EXISTS (SELECT 1 FROM watersales s WHERE s.watersaleid = a.saleid AND s.farmid = p_farmid))
+         OR (a.saleid IS NULL AND a.debtid IS NOT NULL
+             AND NOT EXISTS (SELECT 1 FROM watercustomerdebts d WHERE d.debtid = a.debtid AND d.farmid = p_farmid)));
     IF v_missing > 0 THEN
-        RAISE EXCEPTION '% of the selected sales do not belong to this company.', v_missing;
+        RAISE EXCEPTION '% of the selected items do not belong to this company.', v_missing;
     END IF;
 
-    -- Oldest first, so the before/after pair on each allocation reads the way
-    -- the statement will.
+    -- sales, oldest first
     FOR v_row IN
         SELECT a.saleid, a.amount::numeric(14,2) AS amount,
                s.totalamount, s.amountpaid, s.saledate, s.watercustomerid, s.status
-        FROM   jsonb_to_recordset(COALESCE(p_allocations, '[]'::jsonb))
-               AS a(saleid integer, amount numeric)
+        FROM   jsonb_to_recordset(COALESCE(p_allocations, '[]'::jsonb)) AS a(saleid integer, debtid integer, amount numeric)
         JOIN   watersales s ON s.watersaleid = a.saleid AND s.farmid = p_farmid
         WHERE  a.saleid IS NOT NULL AND COALESCE(a.amount, 0) <> 0
         ORDER  BY s.saledate, s.watersaleid
@@ -776,45 +762,65 @@ BEGIN
         IF v_row.status = 'Cancelled' THEN
             RAISE EXCEPTION 'Sale #% is cancelled and cannot take a payment.', v_row.saleid;
         END IF;
-
         v_before := GREATEST(v_row.totalamount - v_row.amountpaid, 0)::numeric(14,2);
-
         IF v_before <= 0 THEN
             RAISE EXCEPTION 'Sale #% is already fully paid.', v_row.saleid;
         END IF;
         IF v_row.amount > v_before THEN
-            RAISE EXCEPTION 'Cannot apply % to sale #% -- its balance is only %.',
-                  v_row.amount, v_row.saleid, v_before;
+            RAISE EXCEPTION 'Cannot apply % to sale #% -- its balance is only %.', v_row.amount, v_row.saleid, v_before;
         END IF;
-
         INSERT INTO waterpayments
             (farmid, watersaleid, amount, paymentmethod, paymentdate, reference, note,
-             createdby, createddate, status, sourcetype, watercustomerid,
-             watercashaccountid, paymentgroupid)
+             createdby, createddate, status, sourcetype, watercustomerid, watercashaccountid, paymentgroupid)
         VALUES
             (p_farmid, v_row.saleid, v_row.amount, p_paymentmethod, v_date, p_reference, p_note,
              p_createdby, (now() at time zone 'utc'), 'Posted',
-             COALESCE(p_sourcetype, 'CustomerBalances'), p_customerid,
-             p_cashaccountid, v_group)
+             COALESCE(p_sourcetype, 'CustomerBalances'), p_customerid, p_cashaccountid, v_group)
         RETURNING waterpaymentid INTO v_paymentid;
-
         INSERT INTO customerpaymentallocation
-            (farmid, module, paymentid, saleid, amountapplied,
-             salebalancebefore, salebalanceafter, status, createdby, createdat)
+            (farmid, module, paymentid, saleid, amountapplied, salebalancebefore, salebalanceafter, status, createdby, createdat)
         VALUES
-            (p_farmid, 'water', v_paymentid, v_row.saleid, v_row.amount,
-             v_before, v_before - v_row.amount, 'Posted', p_createdby, v_date);
-
+            (p_farmid, 'water', v_paymentid, v_row.saleid, v_row.amount, v_before, v_before - v_row.amount, 'Posted', p_createdby, v_date);
         PERFORM spwatersale_recompute(p_farmid, v_row.saleid);
     END LOOP;
 
-    -- 422: the part not applied to any sale is credit for the customer. Same
-    -- money as the rest of the payment, so it is counted the same way.
+    -- 425: debts recorded by hand, oldest first. Same money as the rest of the payment.
+    FOR v_row IN
+        SELECT a.debtid, a.amount::numeric(14,2) AS amount, d.watercustomerid, d.debtnumber
+        FROM   jsonb_to_recordset(COALESCE(p_allocations, '[]'::jsonb)) AS a(saleid integer, debtid integer, amount numeric)
+        JOIN   watercustomerdebts d ON d.debtid = a.debtid AND d.farmid = p_farmid
+        WHERE  a.saleid IS NULL AND a.debtid IS NOT NULL AND COALESCE(a.amount, 0) <> 0
+        ORDER  BY d.debtdate, d.debtid
+    LOOP
+        IF v_row.watercustomerid IS DISTINCT FROM p_customerid THEN
+            RAISE EXCEPTION 'Debt % does not belong to this customer.', v_row.debtnumber;
+        END IF;
+        v_before := public.fnwatercustomerdebt_balance(p_farmid, v_row.debtid);
+        IF v_before <= 0 THEN
+            RAISE EXCEPTION 'Debt % is already paid (or reversed).', v_row.debtnumber;
+        END IF;
+        IF v_row.amount > v_before THEN
+            RAISE EXCEPTION 'Cannot apply % to debt % -- it only has % owed.', v_row.amount, v_row.debtnumber, v_before;
+        END IF;
+        INSERT INTO waterpayments
+            (farmid, watersaleid, waterdebtid, amount, paymentmethod, paymentdate, reference, note,
+             createdby, createddate, status, sourcetype, watercustomerid, watercashaccountid, paymentgroupid)
+        VALUES
+            (p_farmid, NULL, v_row.debtid, v_row.amount, p_paymentmethod, v_date, p_reference, p_note,
+             p_createdby, (now() at time zone 'utc'), 'Posted',
+             COALESCE(p_sourcetype, 'CustomerBalances'), p_customerid, p_cashaccountid, v_group)
+        RETURNING waterpaymentid INTO v_paymentid;
+        INSERT INTO customerpaymentallocation
+            (farmid, module, paymentid, saleid, amountapplied, salebalancebefore, salebalanceafter, status, createdby, createdat)
+        VALUES
+            (p_farmid, 'water-debt', v_paymentid, v_row.debtid, v_row.amount, v_before, v_before - v_row.amount, 'Posted', p_createdby, v_date);
+    END LOOP;
+
+    -- 424: the part not applied to anything is credit for the customer.
     IF p_amount::numeric(14,2) - COALESCE(v_allocated, 0)::numeric(14,2) > 0 THEN
         INSERT INTO waterpayments
             (farmid, watersaleid, amount, paymentmethod, paymentdate, reference, note,
-             createdby, createddate, status, sourcetype, watercustomerid,
-             watercashaccountid, paymentgroupid)
+             createdby, createddate, status, sourcetype, watercustomerid, watercashaccountid, paymentgroupid)
         VALUES
             (p_farmid, NULL, p_amount::numeric(14,2) - COALESCE(v_allocated, 0)::numeric(14,2),
              p_paymentmethod, v_date, p_reference, p_note,
@@ -824,6 +830,39 @@ BEGIN
     RETURN v_group;
 END;
 $function$;
+
+-- 383/384: Record customer payment with "this pays for a sale made before the
+-- system": the leftover becomes an old debt (HistoricalDebt, paidonentry, with
+-- its sale type) paid in the same payment -- so it is revenue (Customer debt
+-- collections), not credit.
+CREATE OR REPLACE FUNCTION public.spwatercustomerpayment_recordolddebt(
+    p_farmid text, p_customerid integer, p_amount numeric, p_allocations jsonb,
+    p_paymentmethod text DEFAULT NULL, p_paymentdate timestamp DEFAULT NULL,
+    p_cashaccountid integer DEFAULT NULL, p_reference text DEFAULT NULL, p_note text DEFAULT NULL,
+    p_sourcetype text DEFAULT 'PaymentsPage', p_createdby text DEFAULT NULL, p_saletype text DEFAULT NULL)
+RETURNS uuid LANGUAGE plpgsql AS $f$
+DECLARE
+    v_alloc jsonb := COALESCE(p_allocations, '[]'::jsonb);
+    v_used  numeric(14,2);
+    v_rest  numeric(14,2);
+    v_res   jsonb;
+    v_date  timestamp := COALESCE(p_paymentdate, (now() at time zone 'utc'));
+    v_type  text := NULLIF(btrim(p_saletype), '');
+BEGIN
+    SELECT COALESCE(SUM(a.amount), 0) INTO v_used
+    FROM   jsonb_to_recordset(v_alloc) AS a(saleid integer, debtid integer, amount numeric)
+    WHERE  (a.saleid IS NOT NULL OR a.debtid IS NOT NULL) AND COALESCE(a.amount, 0) <> 0;
+    v_rest := round(COALESCE(p_amount, 0), 2) - v_used;
+    IF v_rest > 0 THEN
+        v_res := public.spwatercustomerdebt_create(p_farmid, p_customerid, v_rest, v_date::date, 'HistoricalDebt',
+                     'Old debt paid on entry' || COALESCE(': ' || v_type, '') || ' (from before the system)',
+                     p_reference, p_note, p_createdby, v_type, true);
+        v_alloc := v_alloc || jsonb_build_array(jsonb_build_object('debtid', (v_res->>'debtId')::int, 'amount', v_rest));
+    END IF;
+    RETURN public.spwatercustomerpayment_record(p_farmid, p_customerid, p_amount, v_alloc, p_paymentmethod,
+               p_paymentdate, p_cashaccountid, p_reference, p_note, p_sourcetype, p_createdby);
+END
+$f$;
 
 CREATE OR REPLACE FUNCTION public.spwatercustomerpayment_reverse(p_farmid text, p_paymentgroupid uuid, p_reason text DEFAULT NULL::text, p_reversedby text DEFAULT NULL::text)
  RETURNS integer
@@ -843,13 +882,13 @@ BEGIN
                      AND COALESCE(p.status, 'Posted') = 'Posted') THEN
         RAISE EXCEPTION 'This payment has already been reversed.';
     END IF;
-    -- 422: credit added by hand is reversed on the Customer Credits page.
+    -- 424: credit added by hand is reversed on the Customer Credits page.
     IF NOT EXISTS (SELECT 1 FROM waterpayments p
                    WHERE p.paymentgroupid = p_paymentgroupid AND p.farmid = p_farmid
                      AND NOT public.fnwater_ismanualcredit(p.sourcetype)) THEN
         RAISE EXCEPTION 'This is credit added by hand -- reverse it on the Customer Credits page.';
     END IF;
-    -- 422: what this payment left as credit and then refunded must come back first.
+    -- 424: what this payment left as credit and then refunded must come back first.
     IF EXISTS (SELECT 1 FROM waterpayments p
                JOIN watercustomerrefundlines rl ON rl.waterpaymentid = p.waterpaymentid AND rl.farmid = p.farmid
                JOIN watercustomerrefunds r ON r.refundid = rl.refundid AND r.status = 'Posted'
@@ -857,306 +896,397 @@ BEGIN
         RAISE EXCEPTION 'Part of this payment was refunded to the customer. Reverse the refund first.';
     END IF;
 
+    -- the sales this payment (or its left-over credit) paid -- they are owed again
+    CREATE TEMP TABLE IF NOT EXISTS _wpr_sales (saleid integer) ON COMMIT DROP;
+    DELETE FROM _wpr_sales;
+    INSERT INTO _wpr_sales
+    SELECT DISTINCT ca.saleid FROM customerpaymentallocation ca
+    JOIN   waterpayments p ON p.waterpaymentid = ca.paymentid AND p.farmid = ca.farmid
+    WHERE  p.paymentgroupid = p_paymentgroupid AND p.farmid = p_farmid
+      AND  ca.module = 'water' AND ca.status = 'Posted';
+
     UPDATE customerpaymentallocation ca
-    SET    status = 'Reversed', reversedby = p_reversedby, reversedat = v_now,
-           reversalreason = p_reason
+    SET    status = 'Reversed', reversedby = p_reversedby, reversedat = v_now, reversalreason = p_reason
     FROM   waterpayments p
     WHERE  p.paymentgroupid = p_paymentgroupid AND p.farmid = p_farmid
-      AND  ca.module = 'water' AND ca.paymentid = p.waterpaymentid
-      AND  ca.status = 'Posted';
-
+      AND  ca.module IN ('water', 'water-debt')           -- 425: debt allocations too
+      AND  ca.paymentid = p.waterpaymentid AND ca.status = 'Posted';
     UPDATE waterpayments p
-    SET    status = 'Reversed', reversedby = p_reversedby, reversedat = v_now,
-           reversalreason = p_reason
+    SET    status = 'Reversed', reversedby = p_reversedby, reversedat = v_now, reversalreason = p_reason
     WHERE  p.paymentgroupid = p_paymentgroupid AND p.farmid = p_farmid
       AND  COALESCE(p.status, 'Posted') = 'Posted';
     GET DIAGNOSTICS v_count = ROW_COUNT;
 
-    -- 422: every sale the payment touched -- its own, and any its left-over
-    -- credit had been applied to (those are owed again).
-    FOR v_sale IN
-        SELECT DISTINCT p.watersaleid FROM waterpayments p
-        WHERE  p.paymentgroupid = p_paymentgroupid AND p.farmid = p_farmid AND p.watersaleid IS NOT NULL
-        UNION
-        SELECT DISTINCT ca.saleid FROM customerpaymentallocation ca
-        JOIN   waterpayments p ON p.waterpaymentid = ca.paymentid AND p.farmid = ca.farmid
-        WHERE  p.paymentgroupid = p_paymentgroupid AND p.farmid = p_farmid AND ca.module = 'water'
+    FOR v_sale IN SELECT saleid FROM _wpr_sales UNION
+                  SELECT DISTINCT p.watersaleid FROM waterpayments p
+                  WHERE p.paymentgroupid = p_paymentgroupid AND p.farmid = p_farmid AND p.watersaleid IS NOT NULL
     LOOP
         PERFORM spwatersale_recompute(p_farmid, v_sale);
     END LOOP;
 
+    -- 383: a debt recorded only because this payment paid it goes with it --
+    -- otherwise it would be owed again, money nobody owes.
+    UPDATE watercustomerdebts d
+    SET    status = 'Reversed', reversedby = p_reversedby, reversedat = v_now,
+           reversalreason = COALESCE(p_reason, 'Payment reversed')
+    FROM   waterpayments p
+    WHERE  p.paymentgroupid = p_paymentgroupid AND p.farmid = p_farmid
+      AND  d.debtid = p.waterdebtid AND d.farmid = p.farmid
+      AND  d.paidonentry AND d.status = 'Posted'
+      AND  public.fnwatercustomerdebt_paid(p_farmid, d.debtid) = 0;
     RETURN v_count;
 END;
 $function$;
 
-CREATE OR REPLACE FUNCTION public.spwatersale_delete(p_watersaleid integer, p_farmid text)
- RETURNS void
- LANGUAGE plpgsql
-AS $function$
-DECLARE
-    v_src text;
+-- ===================================================== 4. P&L (382) ========
+-- What a payment puts on P&L: the part that paid debts recorded by hand.
+CREATE OR REPLACE FUNCTION public.fnwaterpayment_plamount(p_farmid text, p_paymentgroupid uuid)
+RETURNS numeric LANGUAGE sql STABLE AS $f$
+    SELECT COALESCE(SUM(p.amount), 0)::numeric(14,2)
+    FROM   waterpayments p
+    WHERE  p.farmid = p_farmid AND p.paymentgroupid = p_paymentgroupid
+      AND  p.waterdebtid IS NOT NULL AND COALESCE(p.status, 'Posted') = 'Posted';
+$f$;
+
+-- Owner / admin: keep one payment off P&L (or put it back).
+CREATE OR REPLACE FUNCTION public.spwaterpayment_setplexclusion(p_farmid text, p_paymentgroupid uuid,
+                                                                p_exclude boolean, p_by text DEFAULT NULL)
+RETURNS integer LANGUAGE plpgsql AS $f$
+DECLARE v_n integer;
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM watersales s WHERE s.watersaleid = p_watersaleid AND s.farmid = p_farmid) THEN
-        RAISE EXCEPTION 'Sale not found.';
+    IF NOT EXISTS (SELECT 1 FROM waterpayments p WHERE p.farmid = p_farmid AND p.paymentgroupid = p_paymentgroupid) THEN
+        RAISE EXCEPTION 'Payment not found for this company.' USING ERRCODE = 'P0001';
     END IF;
-
-    SELECT s.sourcetype INTO v_src
-    FROM   watersales s
-    WHERE  s.watersaleid = p_watersaleid AND s.farmid = p_farmid
-    LIMIT 1;
-
-    IF (v_src = 'DeliveryRun') THEN
-        RAISE EXCEPTION 'This sale was created from a delivery and cannot be deleted here. Reverse the delivery return instead.';
+    IF NOT EXISTS (SELECT 1 FROM waterpayments p WHERE p.farmid = p_farmid AND p.paymentgroupid = p_paymentgroupid
+                   AND COALESCE(p.status, 'Posted') = 'Posted') THEN
+        RAISE EXCEPTION 'This payment has been reversed.' USING ERRCODE = 'P0001';
     END IF;
+    IF public.fnwaterpayment_plamount(p_farmid, p_paymentgroupid) <= 0 THEN
+        RAISE EXCEPTION 'Only a payment on a customer debt is on Profit & Loss.' USING ERRCODE = 'P0001';
+    END IF;
+    UPDATE waterpayments
+    SET    excludefrompl = COALESCE(p_exclude, false),
+           plexcludedby = CASE WHEN p_exclude THEN p_by END,
+           plexcludedat = CASE WHEN p_exclude THEN (now() AT TIME ZONE 'utc') END
+    WHERE  farmid = p_farmid AND paymentgroupid = p_paymentgroupid;
+    GET DIAGNOSTICS v_n = ROW_COUNT;
+    RETURN v_n;
+END
+$f$;
 
-    -- on-hand is the sum of stock transactions, so removing this sale's rows
-    -- restores the stock it took out.
-    -- 422: credit applied to this sale is the customer's again.
-    PERFORM public.fnwatersale_releasecredit(p_farmid, p_watersaleid, NULL, 'Sale deleted');
-    DELETE FROM waterstocktransactions st WHERE st.farmid = p_farmid AND st.relatedsaleid = p_watersaleid;
-    DELETE FROM waterpayments  wp WHERE wp.farmid = p_farmid AND wp.watersaleid = p_watersaleid;
-    DELETE FROM watersaleitems si WHERE si.watersaleid = p_watersaleid;
-    DELETE FROM watersales     s  WHERE s.watersaleid = p_watersaleid AND s.farmid = p_farmid;
-END;
+-- Revenue from debt payments in a window (periodpnl and its itemisation agree on this).
+CREATE OR REPLACE FUNCTION public.fnwaterpl_debtcollections(p_farmid text, p_start timestamp, p_end timestamp)
+RETURNS TABLE(total numeric, n integer) LANGUAGE sql STABLE AS $f$
+    SELECT COALESCE(SUM(p.amount), 0)::numeric(14,2), COUNT(*)::integer
+    FROM   waterpayments p
+    WHERE  p.farmid = p_farmid AND p.waterdebtid IS NOT NULL
+      AND  COALESCE(p.status, 'Posted') = 'Posted' AND NOT p.excludefrompl
+      AND  p.paymentdate >= p_start AND p.paymentdate < p_end;
+$f$;
+
+-- ================================================ 5. patched live bodies ====
+
+CREATE OR REPLACE FUNCTION public.spwatercustomerbalances(p_farmid text, p_from date DEFAULT NULL::date, p_to date DEFAULT NULL::date, p_customerid integer DEFAULT NULL::integer, p_status text DEFAULT 'All'::text, p_minbalance numeric DEFAULT NULL::numeric, p_search text DEFAULT NULL::text)
+ RETURNS TABLE(customerid integer, customername text, contactphone text, contactemail text, paymenttermsdays integer, totalbalance numeric, opensalecount integer, oldestsaledate date, latestsaledate date, lastpaymentdate timestamp without time zone, overdueamount numeric, totalsales numeric, totalpaid numeric)
+ LANGUAGE sql
+ STABLE
+AS $function$
+    WITH opensales AS (
+        SELECT s.watercustomerid                                   AS customerid,
+               s.watersaleid                                       AS saleid,
+               s.saledate::date                                    AS saledate,
+               s.totalamount,
+               GREATEST(s.totalamount - s.amountpaid, 0)::numeric(14,2) AS balance,
+               s.amountpaid                                        AS received,
+               COALESCE(c.paymenttermsdays, 0)                      AS terms
+        FROM   watersales s
+        JOIN   watercustomers c ON c.watercustomerid = s.watercustomerid
+                               AND c.farmid = s.farmid
+        WHERE  s.farmid = p_farmid
+          AND  s.watercustomerid IS NOT NULL
+          AND  COALESCE(s.status, '') <> 'Cancelled'
+          AND  (p_customerid IS NULL OR s.watercustomerid = p_customerid)
+          AND  (p_from IS NULL OR s.saledate::date >= p_from)
+          AND  (p_to   IS NULL OR s.saledate::date <= p_to)
+          AND  (s.totalamount - s.amountpaid) > 0
+        UNION ALL
+        -- 425: debts recorded by hand are owed too (saleid holds the debt id here)
+        SELECT d.watercustomerid, -d.debtid, d.debtdate, d.amount,
+               public.fnwatercustomerdebt_balance(p_farmid, d.debtid),
+               public.fnwatercustomerdebt_paid(p_farmid, d.debtid),
+               COALESCE(c.paymenttermsdays, 0)
+        FROM   watercustomerdebts d
+        JOIN   watercustomers c ON c.watercustomerid = d.watercustomerid AND c.farmid = d.farmid
+        WHERE  d.farmid = p_farmid AND d.status = 'Posted'
+          AND  (p_customerid IS NULL OR d.watercustomerid = p_customerid)
+          AND  (p_from IS NULL OR d.debtdate >= p_from)
+          AND  (p_to   IS NULL OR d.debtdate <= p_to)
+          AND  public.fnwatercustomerdebt_balance(p_farmid, d.debtid) > 0
+    ),
+    filtered AS (
+        SELECT o.*,
+               (o.saledate + o.terms)                  AS duedate,
+               ((o.saledate + o.terms) < CURRENT_DATE) AS isoverdue
+        FROM   opensales o
+        WHERE  CASE COALESCE(p_status, 'All')
+                    WHEN 'Partial' THEN o.received > 0
+                    WHEN 'Unpaid'  THEN o.received = 0
+                    WHEN 'Overdue' THEN (o.saledate + o.terms) < CURRENT_DATE
+                    ELSE TRUE
+               END
+    )
+    SELECT c.watercustomerid,
+           c.name::text,
+           c.contactphone::text,
+           c.contactemail::text,
+           COALESCE(c.paymenttermsdays, 0),
+           SUM(f.balance)::numeric(14,2),
+           COUNT(*)::integer,
+           MIN(f.saledate),
+           MAX(f.saledate),
+           (SELECT MAX(p.paymentdate) FROM waterpayments p
+            WHERE p.farmid = p_farmid AND p.watercustomerid = c.watercustomerid
+              AND COALESCE(p.status, 'Posted') = 'Posted'),
+           SUM(CASE WHEN f.isoverdue THEN f.balance ELSE 0 END)::numeric(14,2),
+           SUM(f.totalamount)::numeric(14,2),
+           SUM(f.received)::numeric(14,2)
+    FROM   filtered f
+    JOIN   watercustomers c ON c.watercustomerid = f.customerid AND c.farmid = p_farmid
+    WHERE  (p_search IS NULL OR btrim(p_search) = ''
+            OR c.name ILIKE '%' || btrim(p_search) || '%'
+            OR COALESCE(c.contactphone, '') ILIKE '%' || btrim(p_search) || '%')
+    GROUP  BY c.watercustomerid, c.name, c.contactphone, c.contactemail, c.paymenttermsdays
+    HAVING (p_minbalance IS NULL OR SUM(f.balance) >= p_minbalance)
+    ORDER  BY SUM(f.balance) DESC;
 $function$;
 
-CREATE OR REPLACE FUNCTION public.spwatersale_cancel(p_watersaleid integer, p_farmid text)
- RETURNS void
- LANGUAGE plpgsql
+CREATE OR REPLACE FUNCTION public.spwatercustomerpayment_allocations(p_farmid text, p_paymentgroupid uuid)
+ RETURNS TABLE(allocationid integer, documenttype text, documentid integer, reference text, documentdate date, label text, documenttotal numeric, amountapplied numeric, balancebefore numeric, balanceafter numeric, status text)
+ LANGUAGE sql
+ STABLE
 AS $function$
-BEGIN
-    -- Reverse stock-out txns by inserting compensating returns.
-    INSERT INTO waterstocktransactions (farmid, waterproductid, txntype, quantity, relatedsaleid, note)
-    SELECT p_farmid, st.waterproductid, 'Return', -st.quantity, p_watersaleid,
-           'Cancellation of sale #' || p_watersaleid::text
-    FROM   waterstocktransactions st
-    WHERE  st.relatedsaleid = p_watersaleid AND st.farmid = p_farmid AND st.txntype = 'Sale';
-
-    UPDATE watersales s
-    SET    status = 'Cancelled',
-           updateddate = (now() at time zone 'utc')
-    WHERE  s.watersaleid = p_watersaleid AND s.farmid = p_farmid;
-    -- 422: credit applied to this sale is the customer's again.
-    PERFORM public.fnwatersale_releasecredit(p_farmid, p_watersaleid, NULL, 'Sale cancelled');
-    PERFORM public.spwatersale_recompute(p_farmid, p_watersaleid);
-END;
+    SELECT ca.allocationid,
+           'WaterSale'::text,
+           ca.saleid,
+           ('W' || ca.saleid::text)::text,
+           s.saledate::date,
+           COALESCE(NULLIF(btrim(s.notes), ''), 'Water sale')::text,
+           s.totalamount,
+           ca.amountapplied,
+           ca.salebalancebefore,
+           ca.salebalanceafter,
+           ca.status::text
+    FROM   customerpaymentallocation ca
+    JOIN   waterpayments p ON p.waterpaymentid = ca.paymentid AND p.farmid = ca.farmid
+    LEFT   JOIN watersales s ON s.watersaleid = ca.saleid AND s.farmid = ca.farmid
+    WHERE  ca.farmid = p_farmid
+      AND  ca.module = 'water'
+      AND  p.paymentgroupid = p_paymentgroupid
+    UNION ALL
+    -- 425: the lines of a payment that paid a customer debt
+    SELECT ca.allocationid, 'CustomerDebt'::text, ca.saleid, d.debtnumber::text, d.debtdate,
+           ('Debt ' || d.debtnumber || COALESCE(' - ' || NULLIF(btrim(d.description), ''), ''))::text,
+           d.amount, ca.amountapplied, ca.salebalancebefore, ca.salebalanceafter, ca.status::text
+    FROM   customerpaymentallocation ca
+    JOIN   waterpayments p ON p.waterpaymentid = ca.paymentid AND p.farmid = ca.farmid
+    LEFT   JOIN watercustomerdebts d ON d.debtid = ca.saleid AND d.farmid = ca.farmid
+    WHERE  ca.farmid = p_farmid AND ca.module = 'water-debt' AND p.paymentgroupid = p_paymentgroupid
+    ORDER  BY 5, 3;
 $function$;
 
-CREATE OR REPLACE FUNCTION public.spwaterdriverreturn_reverse(p_waterdriverreturnid integer, p_farmid text, p_reversedby text DEFAULT NULL::text, p_reason text DEFAULT NULL::text)
- RETURNS void
+CREATE OR REPLACE FUNCTION public.spwatercustomer_getall(p_farmid text)
+ RETURNS TABLE(watercustomerid integer, farmid text, name text, contactphone text, contactemail text, address text, city text, notes text, createddate timestamp without time zone, updateddate timestamp without time zone, customertype text, defaultcustomertype text, isdefaultcustomer boolean, issystemgenerated boolean, isactive boolean, outstandingbalance numeric)
  LANGUAGE plpgsql
 AS $function$
-DECLARE
-    v_status      text;
-    v_loadingid   integer;
-    v_sale        record;
-    v_reversenote text;
 BEGIN
-    SELECT dr.status, dr.watervehicleloadingid
-      INTO v_status, v_loadingid
-    FROM   waterdriverreturns dr
-    WHERE  dr.waterdriverreturnid = p_waterdriverreturnid AND dr.farmid = p_farmid
-    LIMIT  1;
-
-    IF v_status IS NULL THEN
-        RAISE EXCEPTION 'Driver return % not found.', p_waterdriverreturnid;
-    END IF;
-    IF v_status <> 'Approved' THEN
-        RAISE EXCEPTION 'Only Approved driver returns can be reversed. Current status: %.', v_status;
-    END IF;
-
-    -- 1. Cancel sales created from this run (SourceType='DeliveryRun', SourceId=ReturnId).
-    FOR v_sale IN
-        SELECT s.watersaleid, s.amountpaid
+    RETURN QUERY
+    WITH ob AS (
+        SELECT s.watercustomerid,
+               SUM(s.totalamount - s.amountpaid) AS outstanding
         FROM   watersales s
         WHERE  s.farmid = p_farmid
-          AND  s.sourcetype = 'DeliveryRun'
-          AND  s.sourceid   = p_waterdriverreturnid
-          AND  COALESCE(s.status, '') NOT IN ('Cancelled','Reversed')
-    LOOP
-        -- WaterPayments has no Status column - annotate via Note instead and
-        -- leave the row in place so cash totals stay traceable.
-        UPDATE waterpayments p
-        SET    note = left(COALESCE(p.note, '') || ' [Reversed - delivery reconciliation reversed]', 500)
-        WHERE  p.farmid = p_farmid
-          AND  p.watersaleid = v_sale.watersaleid;
-
-        -- Cancel the sale itself.
-        UPDATE watersales s
-        SET    status      = 'Cancelled',
-               updateddate = (now() at time zone 'utc'),
-               notes       = left(COALESCE(s.notes, '') || chr(10) || 'Reversed - delivery reconciliation reversed.', 500)
-        WHERE  s.watersaleid = v_sale.watersaleid AND s.farmid = p_farmid;
-        -- 422: credit applied to this sale is the customer's again.
-        PERFORM public.fnwatersale_releasecredit(p_farmid, v_sale.watersaleid, p_reversedby, 'Delivery return reversed');
-    END LOOP;
-
-    -- 2. Reverse the LoadReturnIn stock txns this reconciliation created.
-    v_reversenote := concat('Reverse reconciliation - driver return #', p_waterdriverreturnid);
-
-    INSERT INTO waterstocktransactions
-        (farmid, waterproductid, txntype, quantity, unitcost, relatedsaleid, note, createdby)
-    SELECT st.farmid, st.waterproductid, 'Adjust', -st.quantity, NULL, NULL,
-           v_reversenote, p_reversedby
-    FROM   waterstocktransactions st
-    WHERE  st.farmid = p_farmid
-      AND  st.txntype = 'LoadReturnIn'
-      AND  st.note LIKE concat('Driver return #', p_waterdriverreturnid, '%');
-
-    -- 3. Flip loading back to "Returned" so the user can edit the return.
-    UPDATE watervehicleloadings l
-    SET    status = 'Returned', updatedat = (now() at time zone 'utc')
-    WHERE  l.watervehicleloadingid = v_loadingid AND l.farmid = p_farmid;
-
-    -- 4. Flip the return back to Draft + record the reversal.
-    UPDATE waterdriverreturns dr
-    SET    status     = 'Draft',
-           approvedby = NULL,
-           approvedat = NULL,
-           updatedat  = (now() at time zone 'utc'),
-           notes      = left(COALESCE(dr.notes, '') || chr(10) ||
-                             'Reversed by ' || COALESCE(p_reversedby, '') ||
-                             '. Reason: ' || COALESCE(p_reason, '(none)'), 1000)
-    WHERE  dr.waterdriverreturnid = p_waterdriverreturnid AND dr.farmid = p_farmid;
+          AND  s.status NOT IN ('Cancelled')
+          AND  s.watercustomerid IS NOT NULL
+        GROUP  BY s.watercustomerid
+    )
+    SELECT c.watercustomerid, c.farmid::text, c.name::text,
+           c.contactphone::text, c.contactemail::text, c.address::text, c.city::text, c.notes::text,
+           c.createddate, c.updateddate,
+           c.customertype::text, c.defaultcustomertype::text,
+           c.isdefaultcustomer, c.issystemgenerated, c.isactive,
+           COALESCE(ob.outstanding, 0)
+             + public.fnwatercustomer_debtowed(p_farmid, c.watercustomerid) AS outstandingbalance   -- 425
+    FROM   watercustomers c
+    LEFT   JOIN ob ON ob.watercustomerid = c.watercustomerid
+    WHERE  c.farmid = p_farmid
+    ORDER  BY c.issystemgenerated DESC, c.name;  -- system rows pinned to top
 END;
 $function$;
 
-CREATE OR REPLACE FUNCTION public.fnwaterdailyclosing_livetotals(p_farmid text, p_closingdate date)
- RETURNS TABLE(bagsproduced numeric, totalproductioncost numeric, bagssold numeric, totalincome numeric, creditsales numeric, customercollections numeric, bagsreturned numeric, bagsdamaged numeric, drivershortagestotal numeric, momobalance numeric, bankbalance numeric, rawmaterialspendtoday numeric, closingstockbags numeric, totalexpenses numeric, cashathand numeric)
+CREATE OR REPLACE FUNCTION public.spwatercustomerstatement(p_farmid text, p_customerid integer, p_from date DEFAULT NULL::date, p_to date DEFAULT NULL::date)
+ RETURNS TABLE(entrydate date, entrytype text, reference text, description text, debit numeric, credit numeric, runningbalance numeric, saleid integer, sortkey integer, paymentgroupid uuid, allocationcount integer, sourcetype text)
  LANGUAGE sql
+ STABLE
 AS $function$
-    WITH
-    prod AS (
-        SELECT
-            COALESCE(SUM((pb.bagsproduced - COALESCE(pb.damagedbags, 0))::numeric(14,3)), 0) AS bagsproduced,
-            COALESCE(SUM(pb.totalproductioncost), 0) AS totalproductioncost
-        FROM waterproductionbatches pb
-        WHERE pb.farmid = p_farmid AND pb.isdeleted = FALSE AND pb.status = 'Approved'
-          AND pb.productiondate = p_closingdate
-    ),
-    sale_items AS (
-        SELECT COALESCE(SUM(si.quantity::numeric(14,3)), 0) AS bagssold
+    WITH lines AS (
+        -- Opening balance: what was owed before the window opened. p_from NULL
+        -- means "the whole history", and a whole-history statement has nothing
+        -- before it -- so the opening MUST be zero. The usual
+        -- `p_from IS NULL OR ...` idiom here would instead match every sale ever
+        -- and count the entire ledger twice.
+        SELECT CASE WHEN p_from IS NULL THEN NULL::date ELSE p_from END AS entrydate,
+               'OpeningBalance'::text  AS entrytype,
+               NULL::text              AS reference,
+               'Opening balance'::text AS description,
+               CASE WHEN p_from IS NULL THEN 0::numeric(14,2) ELSE (COALESCE((
+                   SELECT SUM(GREATEST(s.totalamount - s.amountpaid, 0))
+                   FROM   watersales s
+                   WHERE  s.farmid = p_farmid AND s.watercustomerid = p_customerid
+                     AND  COALESCE(s.status, '') <> 'Cancelled'
+                     AND  s.saledate::date < p_from), 0)
+                 -- 425: debts dated before the window, as owed today
+                 + COALESCE((SELECT SUM(public.fnwatercustomerdebt_balance(p_farmid, d.debtid))
+                             FROM watercustomerdebts d
+                             WHERE d.farmid = p_farmid AND d.watercustomerid = p_customerid
+                               AND d.status = 'Posted' AND d.debtdate < p_from), 0))::numeric(14,2) END AS debit,
+               0::numeric(14,2) AS credit,
+               NULL::integer    AS saleid,
+               0                AS sortkey,
+               0                AS pin,
+               NULL::uuid       AS paymentgroupid,
+               NULL::integer    AS allocationcount,
+               NULL::text       AS sourcetype
+
+        UNION ALL
+
+        SELECT s.saledate::date, 'Sale'::text,
+               ('W' || s.watersaleid::text)::text,
+               COALESCE(NULLIF(btrim(s.notes), ''), 'Water sale')::text,
+               s.totalamount::numeric(14,2), 0::numeric(14,2),
+               s.watersaleid, 1, 1,
+               NULL::uuid, NULL::integer, 'Sale'::text
         FROM   watersales s
-        INNER  JOIN watersaleitems si ON si.watersaleid = s.watersaleid
-        WHERE  s.farmid = p_farmid AND s.status NOT IN ('Cancelled')
-           AND COALESCE(s.sourcetype, '') <> 'DeliveryRun'
-           AND s.saledate >= p_closingdate::timestamp
-           AND s.saledate <  p_closingdate::timestamp + interval '1 day'
+        WHERE  s.farmid = p_farmid AND s.watercustomerid = p_customerid
+          AND  COALESCE(s.status, '') <> 'Cancelled'
+          AND  (p_from IS NULL OR s.saledate::date >= p_from)
+          AND  (p_to   IS NULL OR s.saledate::date <= p_to)
+
+        UNION ALL
+
+        -- Money the sale records as received with no payment row behind it --
+        -- a sale entered as already paid. Without this the statement shows the
+        -- debit and never the receipt, and its closing figure disagrees with
+        -- the balances page. Only the POSITIVE remainder: a negative one means
+        -- the payment rows exceed what the sale says it received, which is a
+        -- data problem to surface, not to quietly subtract.
+        SELECT s.saledate::date, 'Payment'::text,
+               ('W' || s.watersaleid::text)::text,
+               'Paid at point of sale'::text,
+               0::numeric(14,2), v.residual,
+               s.watersaleid, 2, 1,
+               NULL::uuid, 1, 'Counter'::text
+        FROM   watersales s
+        CROSS  JOIN LATERAL (
+            SELECT ROUND(GREATEST(COALESCE(s.amountpaid, 0), 0)
+                       - COALESCE((SELECT SUM(p2.amount) FROM waterpayments p2
+                                   WHERE p2.watersaleid = s.watersaleid
+                                     AND p2.farmid = s.farmid
+                                     AND COALESCE(p2.status, 'Posted') = 'Posted'), 0)
+                       -- 424: applied credit has its own line below
+                       - public.fnwatersale_creditapplied(p_farmid, s.watersaleid), 2) AS residual
+        ) v
+        WHERE  s.farmid = p_farmid AND s.watercustomerid = p_customerid
+          AND  COALESCE(s.status, '') <> 'Cancelled'
+          AND  v.residual > 0
+          AND  (p_from IS NULL OR s.saledate::date >= p_from)
+          AND  (p_to   IS NULL OR s.saledate::date <= p_to)
+
+        UNION ALL
+
+        -- ONE LINE PER PAYMENT EVENT.
+        SELECT MIN(p.paymentdate)::date, 'Payment'::text,
+               COALESCE(MIN(p.paymentnumber),
+                        NULLIF(btrim(MIN(p.reference)), ''),
+                        'PMT' || MIN(p.waterpaymentid)::text)::text,
+               ('Payment'
+                || COALESCE(' â€” ' || NULLIF(btrim(MIN(p.paymentmethod)), ''), '')
+                || CASE WHEN COUNT(DISTINCT p.watersaleid) > 1
+                        THEN ' across ' || COUNT(DISTINCT p.watersaleid)::text || ' sales'
+                        ELSE COALESCE(' (sale W' || MIN(p.watersaleid)::text || ')', ' (customer debt)')
+                   END)::text,
+               0::numeric(14,2), SUM(p.amount)::numeric(14,2),
+               CASE WHEN COUNT(DISTINCT p.watersaleid) = 1 THEN MIN(p.watersaleid) END,
+               2, 1,
+               p.paymentgroupid,
+               COUNT(DISTINCT p.waterpaymentid)::integer,
+               MIN(p.sourcetype)::text
+        FROM   waterpayments p
+        WHERE  p.farmid = p_farmid AND p.watercustomerid = p_customerid
+          AND  COALESCE(p.status, 'Posted') = 'Posted'
+          -- 424: only money paid onto sales; credit is on the Credits page and
+          -- reaches the statement when it is applied (below)
+          AND  (p.watersaleid IS NOT NULL OR p.waterdebtid IS NOT NULL)   -- 425: debt payments too
+          -- A CANCELLED SALE'S PAYMENTS DO NOT CREDIT THE CUSTOMER. The debit
+          -- leg above has always excluded cancelled sales; this leg did not, so
+          -- their credits survived and drove the balance down -- one customer
+          -- read as being OWED 13,414 because 17 payments against cancelled
+          -- sales stayed on their statement. That is the whole of the drift
+          -- between this statement and the balances page.
+          --
+          -- Written as NOT EXISTS-cancelled rather than EXISTS-not-cancelled on
+          -- purpose: a payment whose sale row is missing entirely keeps showing,
+          -- exactly as it does today. Only cancellation is being filtered.
+          AND  NOT EXISTS (SELECT 1 FROM watersales s
+                           WHERE s.watersaleid = p.watersaleid
+                             AND s.farmid = p.farmid
+                             AND COALESCE(s.status, '') = 'Cancelled')
+          AND  (p_from IS NULL OR p.paymentdate::date >= p_from)
+          AND  (p_to   IS NULL OR p.paymentdate::date <= p_to)
+        GROUP  BY p.paymentgroupid
+        UNION ALL
+        -- 425: a debt recorded by hand
+        SELECT d.debtdate, 'Debt'::text, d.debtnumber::text,
+               (CASE WHEN d.saletype IS NOT NULL THEN 'Old debt: ' || d.saletype ELSE 'Customer debt' END
+                || COALESCE(' - ' || NULLIF(btrim(d.description), ''), ''))::text,
+               d.amount::numeric(14,2), 0::numeric(14,2),
+               NULL::integer, 1, 1, NULL::uuid, NULL::integer, 'CustomerDebt'::text
+        FROM   watercustomerdebts d
+        WHERE  d.farmid = p_farmid AND d.watercustomerid = p_customerid AND d.status = 'Posted'
+          AND  (p_from IS NULL OR d.debtdate >= p_from)
+          AND  (p_to   IS NULL OR d.debtdate <= p_to)
+        UNION ALL
+        -- 424: credit applied to a sale
+        SELECT ca.createdat::date, 'Payment'::text,
+               COALESCE(cp.paymentnumber, 'CR' || cp.waterpaymentid::text)::text,
+               ('Credit applied (sale W' || ca.saleid::text || ')')::text,
+               0::numeric(14,2), ca.amountapplied::numeric(14,2),
+               ca.saleid, 2, 1,
+               cp.paymentgroupid, 1, 'CreditApplied'::text
+        FROM   customerpaymentallocation ca
+        JOIN   waterpayments cp ON cp.waterpaymentid = ca.paymentid AND cp.farmid = ca.farmid
+        JOIN   watersales s ON s.watersaleid = ca.saleid AND s.farmid = ca.farmid
+        WHERE  ca.farmid = p_farmid AND ca.module = 'water' AND ca.status = 'Posted'
+          AND  cp.watersaleid IS NULL AND s.watercustomerid = p_customerid
+          AND  COALESCE(s.status, '') <> 'Cancelled'
+          AND  (p_from IS NULL OR ca.createdat::date >= p_from)
+          AND  (p_to   IS NULL OR ca.createdat::date <= p_to)
     ),
-    sale_money AS (
-        SELECT
-            COALESCE(SUM(s2.totalamount), 0) AS totalincome,
-            -- 421: what was still OWED at the end of the day (364's rule), not
-            -- what is owed now -- a payment made later must not rewrite a past day.
-            COALESCE(SUM(public.fnwatersale_owedasof(p_farmid, s2.watersaleid, p_closingdate)), 0) AS creditsales
-        FROM   watersales s2
-        WHERE  s2.farmid = p_farmid AND s2.status NOT IN ('Cancelled')
-           AND COALESCE(s2.sourcetype, '') <> 'DeliveryRun'
-           AND s2.saledate >= p_closingdate::timestamp
-           AND s2.saledate <  p_closingdate::timestamp + interval '1 day'
-    ),
-    payments AS (
-        SELECT
-            COALESCE(SUM(pay.amount), 0) AS customercollections,
-            COALESCE(SUM(CASE WHEN pay.paymentmethod IN ('Mobile Money', 'MoMo', 'Momo') THEN pay.amount ELSE 0 END), 0) AS momopayments,
-            COALESCE(SUM(CASE WHEN pay.paymentmethod IN ('Bank', 'Bank Transfer', 'Transfer') THEN pay.amount ELSE 0 END), 0) AS bankpayments
-        FROM   waterpayments pay
-        LEFT   JOIN watersales ps ON ps.watersaleid = pay.watersaleid AND ps.farmid = pay.farmid
-        WHERE  pay.farmid = p_farmid
-           AND COALESCE(pay.sourcetype, '') <> 'DeliveryRun'
-           -- 421: a reversed payment collected nothing.
-           AND COALESCE(pay.status, 'Posted') = 'Posted'
-           -- 422: a customer advance went straight into its account; opening
-           -- credit and credit notes are not money. None of it is in the drawer.
-           AND NOT public.fnwater_ismanualcredit(pay.sourcetype)
-           -- 421: a payment on a sale made the SAME day is already in that sale's
-           -- paid part (income less credit); counting it here too doubled it.
-           AND NOT (ps.watersaleid IS NOT NULL
-                    AND COALESCE(ps.sourcetype, '') <> 'DeliveryRun'
-                    AND ps.saledate >= p_closingdate::timestamp
-                    AND ps.saledate <  p_closingdate::timestamp + interval '1 day')
-           AND pay.paymentdate >= p_closingdate::timestamp
-           AND pay.paymentdate <  p_closingdate::timestamp + interval '1 day'
-    ),
-    ranked_returns AS (
-        SELECT
-            dr.waterdriverreturnid, dr.watervehicleloadingid,
-            dr.bagsreturned, dr.bagsdamaged, dr.bagssold,
-            dr.cashcollected, dr.momocollected, dr.bankcollected, dr.creditsalesamount, dr.shortageamount,
-            ROW_NUMBER() OVER (PARTITION BY dr.watervehicleloadingid ORDER BY dr.waterdriverreturnid DESC) AS rn
-        FROM   waterdriverreturns dr
-        WHERE  dr.farmid = p_farmid AND dr.status = 'Approved'
-           AND dr.returndate >= p_closingdate::timestamp
-           AND dr.returndate <  p_closingdate::timestamp + interval '1 day'
-    ),
-    driver_returns AS (
-        SELECT
-            COALESCE(SUM(rr.bagsreturned::numeric(14,3)), 0) AS bagsreturned,
-            COALESCE(SUM(rr.bagsdamaged::numeric(14,3)), 0)  AS bagsdamaged,
-            COALESCE(SUM(rr.bagssold::numeric(14,3)), 0)     AS driverbagssold,
-            COALESCE(SUM(rr.cashcollected + rr.momocollected + rr.bankcollected + rr.creditsalesamount), 0) AS drivertotalincome,
-            COALESCE(SUM(rr.creditsalesamount), 0) AS drivercreditsales,
-            COALESCE(SUM(rr.momocollected), 0) AS drivermomo,
-            COALESCE(SUM(rr.bankcollected), 0) AS driverbank,
-            COALESCE(SUM(rr.shortageamount), 0) AS drivershortages
-        FROM   ranked_returns rr
-        WHERE  rr.rn = 1
-    ),
-    raw_spend AS (
-        SELECT COALESCE(SUM(rp.amountpaid), 0) AS rawmaterialspendtoday
-        FROM   waterrawmaterialpurchases rp
-        WHERE  rp.farmid = p_farmid
-           AND rp.purchasedate >= p_closingdate::timestamp
-           AND rp.purchasedate <  p_closingdate::timestamp + interval '1 day'
-    ),
-    gen_exp AS (
-        SELECT COALESCE(SUM(e.amount), 0) AS generalexpenses
-        FROM   waterexpenses e
-        WHERE  e.farmid = p_farmid AND e.isdeleted = FALSE AND e.status = 'Approved'
-           AND COALESCE(e.sourcetype, '') NOT IN ('RawMaterialPurchase', 'WaterInternalUsage')
-           AND e.expensedate >= p_closingdate::timestamp
-           AND e.expensedate <  p_closingdate::timestamp + interval '1 day'
-    ),
-    delivery_exp AS (
-        SELECT COALESCE(SUM(de.amount), 0) AS deliveryexpenses
-        FROM   waterdeliveryexpenses de
-        INNER  JOIN ranked_returns rr2 ON rr2.waterdriverreturnid = de.waterdriverreturnid AND rr2.rn = 1
-        WHERE  de.isapproved = TRUE
-    ),
-    closing_stock AS (
-        SELECT COALESCE(SUM(st.quantity::numeric(14,3)), 0) AS closingstockbags
-        FROM   waterstocktransactions st WHERE st.farmid = p_farmid
+    ordered AS (
+        -- `reference` is the final tiebreaker now that two payments on one day
+        -- can both have a null saleid.
+        SELECT l.*,
+               ROW_NUMBER() OVER (
+                   ORDER BY l.pin, l.entrydate NULLS FIRST, l.sortkey,
+                            l.saleid NULLS FIRST, l.reference) AS rn
+        FROM   lines l
     )
-    SELECT
-        prod.bagsproduced,
-        prod.totalproductioncost,
-        sale_items.bagssold + driver_returns.driverbagssold          AS bagssold,
-        sale_money.totalincome + driver_returns.drivertotalincome    AS totalincome,
-        sale_money.creditsales + driver_returns.drivercreditsales    AS creditsales,
-        payments.customercollections,
-        driver_returns.bagsreturned,
-        driver_returns.bagsdamaged,
-        driver_returns.drivershortages                               AS drivershortagestotal,
-        driver_returns.drivermomo + payments.momopayments            AS momobalance,
-        driver_returns.driverbank + payments.bankpayments            AS bankbalance,
-        raw_spend.rawmaterialspendtoday,
-        closing_stock.closingstockbags,
-        prod.totalproductioncost + raw_spend.rawmaterialspendtoday
-            + gen_exp.generalexpenses + delivery_exp.deliveryexpenses AS totalexpenses,
-        (sale_money.totalincome + driver_returns.drivertotalincome)
-            - (sale_money.creditsales + driver_returns.drivercreditsales)
-            + payments.customercollections
-            - (prod.totalproductioncost + raw_spend.rawmaterialspendtoday
-               + gen_exp.generalexpenses + delivery_exp.deliveryexpenses) AS cashathand
-    FROM   prod
-    CROSS  JOIN sale_items
-    CROSS  JOIN sale_money
-    CROSS  JOIN payments
-    CROSS  JOIN driver_returns
-    CROSS  JOIN raw_spend
-    CROSS  JOIN gen_exp
-    CROSS  JOIN delivery_exp
-    CROSS  JOIN closing_stock
+    SELECT o.entrydate, o.entrytype, o.reference, o.description,
+           o.debit, o.credit,
+           SUM(o.debit - o.credit) OVER (ORDER BY o.rn
+               ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)::numeric(14,2),
+           o.saleid, o.sortkey, o.paymentgroupid, o.allocationcount, o.sourcetype
+    FROM   ordered o
+    ORDER  BY o.rn;
 $function$;
 
 CREATE OR REPLACE FUNCTION public.spwatercashflow_rows(p_farmid text, p_fromdate timestamp without time zone DEFAULT NULL::timestamp without time zone, p_todate timestamp without time zone DEFAULT NULL::timestamp without time zone)
@@ -1206,7 +1336,9 @@ BEGIN
 
                     NULLIF(btrim(p.reference), ''),
 
-                    'Payment for sale #' || p.watersaleid::text)::text,
+                    'Payment for sale #' || p.watersaleid::text,
+                    CASE WHEN p.waterdebtid IS NOT NULL THEN 'Payment on a customer debt'   -- 425
+                         ELSE 'Customer payment' END)::text,
 
            'OperatingIn'::text
 
@@ -1225,7 +1357,7 @@ BEGIN
 
       AND  COALESCE(p.status, 'Posted') = 'Posted'
 
-      -- 422: opening credit and credit notes are credit, not money received.
+      -- 424: opening credit and credit notes are credit, not money received.
       AND  NOT public.fnwater_isnocashcredit(p.sourcetype)
 
       AND  p.paymentdate >= v_from
@@ -1234,7 +1366,7 @@ BEGIN
 
 
 
-    -- ---- 1b. 422: customer refunds -----------------------------------------
+    -- ---- 1b. 424: customer refunds -----------------------------------------
     -- Money out on the refund date, and it stays there when the refund is
     -- reversed (the money did leave); the reversal is money back in on its date.
     RETURN QUERY
@@ -1321,7 +1453,7 @@ BEGIN
                                -- anything, so it must not reduce the residual.
 
                                AND  COALESCE(wp.status, 'Posted') = 'Posted'), 0)
-                 -- 422: credit applied to the sale is not money taken at the till
+                 -- 424: credit applied to the sale is not money taken at the till
                  - public.fnwatersale_creditapplied(p_farmid, s.watersaleid)
 
                , 2) AS residual
@@ -1455,7 +1587,7 @@ BEGIN
 
       AND  COALESCE(e.paymentmethod, '') <> 'NonCash'
 
-      -- 421: a supplier payment's own aggregated expense row is not read here.
+      -- 423: a supplier payment's own aggregated expense row is not read here.
       -- It holds only the part expensed at purchase and is Cancelled on
       -- reversal; the payment's cash is reported from the payment below (3c).
       AND  COALESCE(e.sourcetype, '') <> 'WaterSupplierPayment'
@@ -1527,7 +1659,7 @@ BEGIN
 
       AND  sa.module = 'water'
 
-      -- 421: a reversed payment's money still LEFT on its date (376's rule);
+      -- 423: a reversed payment's money still LEFT on its date (376's rule);
       -- the reversal brings it back on its own date (3d). Allocations are only
       -- ever reversed together with their payment.
       AND  (sa.status = 'Posted' OR (sa.status = 'Reversed' AND sp.status = 'Reversed'))
@@ -1544,7 +1676,7 @@ BEGIN
 
 
 
-    -- ---- 3c. 421: supplier payments for raw-material purchases ------------
+    -- ---- 3c. 423: supplier payments for raw-material purchases ------------
     --
     -- The FULL purchase portion, on the payment date -- deferred lots included,
     -- because the supplier was paid for them whether or not their cost has
@@ -1582,7 +1714,7 @@ BEGIN
       AND  sp.paymentdate >= v_from
       AND  sp.paymentdate <= v_to;
 
-    -- ---- 3d. 421: a reversed supplier payment's money coming back ---------
+    -- ---- 3d. 423: a reversed supplier payment's money coming back ---------
     --
     -- Everything the payment paid out (purchases and bills), back in on the
     -- day it was reversed.
@@ -1945,262 +2077,6 @@ END;
 
 $function$;
 
-CREATE OR REPLACE FUNCTION public.spwatercashflow_detail(p_farmid text, p_fromdate timestamp without time zone DEFAULT NULL::timestamp without time zone, p_todate timestamp without time zone DEFAULT NULL::timestamp without time zone)
- RETURNS TABLE(rowsource text, offledger boolean, sourcerowid integer, cashaccountid integer, accountname text, transactiondate timestamp without time zone, transactiontype text, sourcetype text, sourceid integer, istransfer boolean, amount numeric, description text, flowgroup text, category text, createdat timestamp without time zone)
- LANGUAGE sql
- STABLE
-AS $function$
-    SELECT r.rowsource, r.offledger, r.sourcerowid, r.cashaccountid, r.accountname,
-           r.transactiondate, r.transactiontype, r.sourcetype, r.sourceid,
-           r.istransfer, r.amount, r.description, r.flowgroup,
-           CASE
-               WHEN r.rowsource IN ('Expense', 'ExpensePayment')
-                   THEN COALESCE(NULLIF(btrim(c.name), ''), 'Uncategorised')
-               WHEN r.rowsource IN ('Receipt', 'SaleResidual') THEN 'Sales'
-               -- 422
-               WHEN r.rowsource IN ('CustomerRefund', 'CustomerRefundReversal') THEN 'Customer refunds'
-               -- 421
-               WHEN r.rowsource IN ('SupplierPurchasePayment', 'SupplierPaymentReversal')
-                   THEN 'Raw Materials / Inventory Purchase'
-               ELSE COALESCE(NULLIF(btrim(r.sourcetype), ''), 'Other')
-           END::text,
-           r.createdat              -- 302: the entry time
-    FROM   public.spwatercashflow_rows(p_farmid, p_fromdate, p_todate) r
-    LEFT   JOIN waterexpenses e
-           ON  r.rowsource IN ('Expense', 'ExpensePayment')
-           AND e.waterexpenseid = r.sourceid
-           AND lower(e.farmid::text) = lower(p_farmid)
-    LEFT   JOIN waterexpensecategories c
-           ON  c.waterexpensecategoryid = e.waterexpensecategoryid;
-$function$;
-
-CREATE OR REPLACE FUNCTION public.spwatercustomerstatement(p_farmid text, p_customerid integer, p_from date DEFAULT NULL::date, p_to date DEFAULT NULL::date)
- RETURNS TABLE(entrydate date, entrytype text, reference text, description text, debit numeric, credit numeric, runningbalance numeric, saleid integer, sortkey integer, paymentgroupid uuid, allocationcount integer, sourcetype text)
- LANGUAGE sql
- STABLE
-AS $function$
-    WITH lines AS (
-        -- Opening balance: what was owed before the window opened. p_from NULL
-        -- means "the whole history", and a whole-history statement has nothing
-        -- before it -- so the opening MUST be zero. The usual
-        -- `p_from IS NULL OR ...` idiom here would instead match every sale ever
-        -- and count the entire ledger twice.
-        SELECT CASE WHEN p_from IS NULL THEN NULL::date ELSE p_from END AS entrydate,
-               'OpeningBalance'::text  AS entrytype,
-               NULL::text              AS reference,
-               'Opening balance'::text AS description,
-               CASE WHEN p_from IS NULL THEN 0::numeric(14,2) ELSE COALESCE((
-                   SELECT SUM(GREATEST(s.totalamount - s.amountpaid, 0))
-                   FROM   watersales s
-                   WHERE  s.farmid = p_farmid AND s.watercustomerid = p_customerid
-                     AND  COALESCE(s.status, '') <> 'Cancelled'
-                     AND  s.saledate::date < p_from), 0)::numeric(14,2) END AS debit,
-               0::numeric(14,2) AS credit,
-               NULL::integer    AS saleid,
-               0                AS sortkey,
-               0                AS pin,
-               NULL::uuid       AS paymentgroupid,
-               NULL::integer    AS allocationcount,
-               NULL::text       AS sourcetype
-
-        UNION ALL
-
-        SELECT s.saledate::date, 'Sale'::text,
-               ('W' || s.watersaleid::text)::text,
-               COALESCE(NULLIF(btrim(s.notes), ''), 'Water sale')::text,
-               s.totalamount::numeric(14,2), 0::numeric(14,2),
-               s.watersaleid, 1, 1,
-               NULL::uuid, NULL::integer, 'Sale'::text
-        FROM   watersales s
-        WHERE  s.farmid = p_farmid AND s.watercustomerid = p_customerid
-          AND  COALESCE(s.status, '') <> 'Cancelled'
-          AND  (p_from IS NULL OR s.saledate::date >= p_from)
-          AND  (p_to   IS NULL OR s.saledate::date <= p_to)
-
-        UNION ALL
-
-        -- Money the sale records as received with no payment row behind it --
-        -- a sale entered as already paid. Without this the statement shows the
-        -- debit and never the receipt, and its closing figure disagrees with
-        -- the balances page. Only the POSITIVE remainder: a negative one means
-        -- the payment rows exceed what the sale says it received, which is a
-        -- data problem to surface, not to quietly subtract.
-        SELECT s.saledate::date, 'Payment'::text,
-               ('W' || s.watersaleid::text)::text,
-               'Paid at point of sale'::text,
-               0::numeric(14,2), v.residual,
-               s.watersaleid, 2, 1,
-               NULL::uuid, 1, 'Counter'::text
-        FROM   watersales s
-        CROSS  JOIN LATERAL (
-            SELECT ROUND(GREATEST(COALESCE(s.amountpaid, 0), 0)
-                       - COALESCE((SELECT SUM(p2.amount) FROM waterpayments p2
-                                   WHERE p2.watersaleid = s.watersaleid
-                                     AND p2.farmid = s.farmid
-                                     AND COALESCE(p2.status, 'Posted') = 'Posted'), 0)
-                       -- 422: applied credit has its own line below
-                       - public.fnwatersale_creditapplied(p_farmid, s.watersaleid), 2) AS residual
-        ) v
-        WHERE  s.farmid = p_farmid AND s.watercustomerid = p_customerid
-          AND  COALESCE(s.status, '') <> 'Cancelled'
-          AND  v.residual > 0
-          AND  (p_from IS NULL OR s.saledate::date >= p_from)
-          AND  (p_to   IS NULL OR s.saledate::date <= p_to)
-
-        UNION ALL
-
-        -- ONE LINE PER PAYMENT EVENT.
-        SELECT MIN(p.paymentdate)::date, 'Payment'::text,
-               COALESCE(MIN(p.paymentnumber),
-                        NULLIF(btrim(MIN(p.reference)), ''),
-                        'PMT' || MIN(p.waterpaymentid)::text)::text,
-               ('Payment'
-                || COALESCE(' â€” ' || NULLIF(btrim(MIN(p.paymentmethod)), ''), '')
-                || CASE WHEN COUNT(DISTINCT p.watersaleid) > 1
-                        THEN ' across ' || COUNT(DISTINCT p.watersaleid)::text || ' sales'
-                        ELSE ' (sale W' || MIN(p.watersaleid)::text || ')'
-                   END)::text,
-               0::numeric(14,2), SUM(p.amount)::numeric(14,2),
-               CASE WHEN COUNT(DISTINCT p.watersaleid) = 1 THEN MIN(p.watersaleid) END,
-               2, 1,
-               p.paymentgroupid,
-               COUNT(DISTINCT p.waterpaymentid)::integer,
-               MIN(p.sourcetype)::text
-        FROM   waterpayments p
-        WHERE  p.farmid = p_farmid AND p.watercustomerid = p_customerid
-          AND  COALESCE(p.status, 'Posted') = 'Posted'
-          -- 422: only money paid onto sales; credit is on the Credits page and
-          -- reaches the statement when it is applied (below)
-          AND  p.watersaleid IS NOT NULL
-          -- A CANCELLED SALE'S PAYMENTS DO NOT CREDIT THE CUSTOMER. The debit
-          -- leg above has always excluded cancelled sales; this leg did not, so
-          -- their credits survived and drove the balance down -- one customer
-          -- read as being OWED 13,414 because 17 payments against cancelled
-          -- sales stayed on their statement. That is the whole of the drift
-          -- between this statement and the balances page.
-          --
-          -- Written as NOT EXISTS-cancelled rather than EXISTS-not-cancelled on
-          -- purpose: a payment whose sale row is missing entirely keeps showing,
-          -- exactly as it does today. Only cancellation is being filtered.
-          AND  NOT EXISTS (SELECT 1 FROM watersales s
-                           WHERE s.watersaleid = p.watersaleid
-                             AND s.farmid = p.farmid
-                             AND COALESCE(s.status, '') = 'Cancelled')
-          AND  (p_from IS NULL OR p.paymentdate::date >= p_from)
-          AND  (p_to   IS NULL OR p.paymentdate::date <= p_to)
-        GROUP  BY p.paymentgroupid
-        UNION ALL
-        -- 422: credit applied to a sale
-        SELECT ca.createdat::date, 'Payment'::text,
-               COALESCE(cp.paymentnumber, 'CR' || cp.waterpaymentid::text)::text,
-               ('Credit applied (sale W' || ca.saleid::text || ')')::text,
-               0::numeric(14,2), ca.amountapplied::numeric(14,2),
-               ca.saleid, 2, 1,
-               cp.paymentgroupid, 1, 'CreditApplied'::text
-        FROM   customerpaymentallocation ca
-        JOIN   waterpayments cp ON cp.waterpaymentid = ca.paymentid AND cp.farmid = ca.farmid
-        JOIN   watersales s ON s.watersaleid = ca.saleid AND s.farmid = ca.farmid
-        WHERE  ca.farmid = p_farmid AND ca.module = 'water' AND ca.status = 'Posted'
-          AND  cp.watersaleid IS NULL AND s.watercustomerid = p_customerid
-          AND  COALESCE(s.status, '') <> 'Cancelled'
-          AND  (p_from IS NULL OR ca.createdat::date >= p_from)
-          AND  (p_to   IS NULL OR ca.createdat::date <= p_to)
-    ),
-    ordered AS (
-        -- `reference` is the final tiebreaker now that two payments on one day
-        -- can both have a null saleid.
-        SELECT l.*,
-               ROW_NUMBER() OVER (
-                   ORDER BY l.pin, l.entrydate NULLS FIRST, l.sortkey,
-                            l.saleid NULLS FIRST, l.reference) AS rn
-        FROM   lines l
-    )
-    SELECT o.entrydate, o.entrytype, o.reference, o.description,
-           o.debit, o.credit,
-           SUM(o.debit - o.credit) OVER (ORDER BY o.rn
-               ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)::numeric(14,2),
-           o.saleid, o.sortkey, o.paymentgroupid, o.allocationcount, o.sourcetype
-    FROM   ordered o
-    ORDER  BY o.rn;
-$function$;
-
-CREATE OR REPLACE FUNCTION public.spwatercustomerbalancesummary(p_farmid text)
- RETURNS TABLE(totalbalance numeric, partycount integer, overduebalance numeric, paymentstoday numeric, largestbalance numeric, largestbalanceparty text)
- LANGUAGE sql
- STABLE
-AS $function$
-    WITH per AS (
-        SELECT b.customerid, b.customername, b.totalbalance, b.overdueamount
-        FROM   spwatercustomerbalances(p_farmid) b
-    )
-    SELECT COALESCE(SUM(p.totalbalance), 0)::numeric(14,2),
-           COUNT(*)::integer,
-           COALESCE(SUM(p.overdueamount), 0)::numeric(14,2),
-           COALESCE((SELECT SUM(w.amount) FROM waterpayments w
-                     WHERE w.farmid = p_farmid
-                       AND COALESCE(w.status, 'Posted') = 'Posted'
-                       AND NOT public.fnwater_isnocashcredit(w.sourcetype)   -- 422
-                       AND w.paymentdate::date = CURRENT_DATE), 0)::numeric(14,2),
-           COALESCE(MAX(p.totalbalance), 0)::numeric(14,2),
-           (SELECT p2.customername FROM per p2 ORDER BY p2.totalbalance DESC LIMIT 1)
-    FROM   per p;
-$function$;
-
-CREATE OR REPLACE FUNCTION public.spwatercustomerpayment_history(p_farmid text, p_customerid integer DEFAULT NULL::integer, p_saleid integer DEFAULT NULL::integer, p_from date DEFAULT NULL::date, p_to date DEFAULT NULL::date)
- RETURNS TABLE(paymentgroupid uuid, paymentnumber text, customerid integer, customername text, paymentdate timestamp without time zone, totalamount numeric, paymentmethod text, reference text, note text, sourcetype text, status text, allocationcount integer, watercashaccountid integer, createdby text, reversedby text, reversedat timestamp without time zone, reversalreason text, saleid integer, saletotal numeric, balancebefore numeric, amountapplied numeric, balanceafter numeric, createdat timestamp without time zone)
- LANGUAGE sql
- STABLE
-AS $function$
-    SELECT p.paymentgroupid,
-           MIN(p.paymentnumber)::text,
-           MIN(p.watercustomerid),
-           MIN(c.name)::text,
-           MIN(p.paymentdate),
-           SUM(p.amount)::numeric(14,2),
-           MIN(p.paymentmethod)::text,
-           MIN(p.reference)::text,
-           MIN(p.note)::text,
-           MIN(p.sourcetype)::text,
-           MIN(COALESCE(p.status, 'Posted'))::text,
-           -- DISTINCT on the payment row, not COUNT(*): the joins below are 1:1
-           -- today, and this stays right if one of them ever is not.
-           COUNT(DISTINCT p.waterpaymentid)::integer,
-           MIN(p.watercashaccountid),
-           MIN(p.createdby)::text,
-           MIN(p.reversedby)::text,
-           MIN(p.reversedat),
-           MIN(p.reversalreason)::text,
-           CASE WHEN COUNT(DISTINCT p.waterpaymentid) = 1 THEN MIN(p.watersaleid) END,
-           CASE WHEN COUNT(DISTINCT p.waterpaymentid) = 1 THEN MIN(s.totalamount)::numeric(14,2) END,
-           CASE WHEN COUNT(DISTINCT p.waterpaymentid) = 1 THEN MIN(ca.salebalancebefore)::numeric(14,2) END,
-           CASE WHEN COUNT(DISTINCT p.waterpaymentid) = 1 THEN MIN(ca.amountapplied)::numeric(14,2) END,
-           CASE WHEN COUNT(DISTINCT p.waterpaymentid) = 1 THEN MIN(ca.salebalanceafter)::numeric(14,2) END
-           , MIN(p.createddate)   -- 304: the entry time
-    FROM   waterpayments p
-    LEFT   JOIN watercustomers c ON c.watercustomerid = p.watercustomerid AND c.farmid = p.farmid
-    LEFT   JOIN watersales s     ON s.watersaleid = p.watersaleid AND s.farmid = p.farmid
-    -- Payments taken before 227 have no allocation row; those columns come back
-    -- NULL and the page falls back to what it can show.
-    LEFT   JOIN customerpaymentallocation ca
-           ON  ca.module = 'water'
-           AND ca.paymentid = p.waterpaymentid
-           AND ca.farmid = p.farmid
-           -- 422: the payment's own sale only; a credit row's applications to
-           -- other sales would multiply the payment's amount
-           AND ca.saleid = p.watersaleid
-    WHERE  p.farmid = p_farmid
-      AND  (p_customerid IS NULL OR p.watercustomerid = p_customerid)
-      AND  (p_from IS NULL OR p.paymentdate::date >= p_from)
-      AND  (p_to   IS NULL OR p.paymentdate::date <= p_to)
-      AND  (p_saleid IS NULL OR EXISTS (
-              SELECT 1 FROM waterpayments p2
-              WHERE p2.paymentgroupid = p.paymentgroupid AND p2.watersaleid = p_saleid))
-    GROUP  BY p.paymentgroupid
-    -- 422: credit added by hand lives on the Customer Credits page
-    HAVING bool_or(NOT public.fnwater_ismanualcredit(p.sourcetype))
-    ORDER  BY MIN(p.paymentdate) DESC;
-$function$;
-
 CREATE OR REPLACE FUNCTION public.spwaterreport_periodpnl(p_farmid text, p_fromdate date, p_todate date)
  RETURNS TABLE(periodstart date, periodend date, totalincome numeric, totalexpenses numeric, rawmaterialcost numeric, productioncost numeric, totallosses numeric, netprofit numeric, profitmarginpct numeric, bagsproduced integer, bagssold integer, avgprofitperbag numeric)
  LANGUAGE plpgsql
@@ -2244,12 +2120,14 @@ BEGIN
         WHERE dr.farmid = p_farmid AND dr.status IN ('Draft','Approved')
           AND dr.returndate >= v_start AND dr.returndate < v_end), 0);
 
-    -- 422: a credit note is an allowance given -- revenue the business gave up.
+    -- 424: a credit note is an allowance given -- revenue the business gave up.
     v_totalincome := (v_storefrontincome + v_driverincome
                       - COALESCE((SELECT SUM(cn.amount) FROM waterpayments cn
                                   WHERE cn.farmid = p_farmid AND cn.sourcetype = 'CreditNote'
                                     AND COALESCE(cn.status, 'Posted') = 'Posted'
-                                    AND cn.paymentdate >= v_start AND cn.paymentdate < v_end), 0))::numeric(14,2);
+                                    AND cn.paymentdate >= v_start AND cn.paymentdate < v_end), 0)
+                      -- 425 (382): money paid on debts recorded by hand is revenue
+                      + (SELECT dc.total FROM public.fnwaterpl_debtcollections(p_farmid, v_start, v_end) dc))::numeric(14,2);
 
     -- Cash paid for raw materials (matches the closing's AmountPaid basis).
     v_rawmaterialcost := COALESCE((
@@ -2361,7 +2239,11 @@ AS $function$
         WHERE  dr.farmid = p_farmid AND dr.status IN ('Draft', 'Approved')
           AND  dr.returndate >= b.s AND dr.returndate < b.e
         UNION ALL
-        -- 422: credit notes -- allowances given, negative revenue
+        -- 425 (382): money paid on customer debts recorded by hand
+        SELECT 'DebtCollections', 'Customer debt collections', dc.total, dc.n, 4
+        FROM   bounds b CROSS JOIN LATERAL public.fnwaterpl_debtcollections(p_farmid, b.s, b.e) dc
+        UNION ALL
+        -- 424: credit notes -- allowances given, negative revenue
         SELECT 'CreditNotes', 'Credit notes & allowances',
                -COALESCE(SUM(cn.amount), 0), COUNT(*)::integer, 3
         FROM   waterpayments cn, bounds b
@@ -2530,7 +2412,21 @@ AS $function$
       AND  dr.returndate <  p_enddate::timestamp + make_interval(days => 1)
       AND  (p_linekey IS NULL OR p_linekey = 'DeliveryCollections')
     UNION ALL
-    -- 422
+    -- 425 (382/384): debt payments; an old debt names what was sold
+    SELECT p.paymentdate, COALESCE(p.paymentnumber, 'PAY' || p.waterpaymentid::text)::text,
+           COALESCE(c.name, 'Customer')::text,
+           (CASE WHEN d.saletype IS NOT NULL THEN 'Old debt collected: ' || d.saletype || ' - ' ELSE '' END
+            || 'Debt ' || d.debtnumber)::text,
+           p.amount::numeric(14,2)
+    FROM   waterpayments p
+    JOIN   watercustomerdebts d ON d.debtid = p.waterdebtid AND d.farmid = p.farmid
+    LEFT   JOIN watercustomers c ON c.watercustomerid = p.watercustomerid AND c.farmid = p.farmid
+    WHERE  p.farmid = p_farmid AND COALESCE(p.status, 'Posted') = 'Posted' AND NOT p.excludefrompl
+      AND  p.paymentdate >= p_startdate::timestamp
+      AND  p.paymentdate <  p_enddate::timestamp + make_interval(days => 1)
+      AND  (p_linekey IS NULL OR p_linekey = 'DebtCollections')
+    UNION ALL
+    -- 424
     SELECT cn.paymentdate, COALESCE(cn.paymentnumber, 'CR' || cn.waterpaymentid::text)::text,
            COALESCE(c.name, 'Customer')::text,
            ('Credit note' || COALESCE(': ' || NULLIF(btrim(cn.note), ''), ''))::text,
@@ -2549,28 +2445,9 @@ $function$;
 DO $grants$
 BEGIN
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'poultryapp') THEN
-        GRANT SELECT, INSERT, UPDATE ON public.watercustomerrefunds, public.watercustomerrefundlines TO poultryapp;
+        GRANT SELECT, INSERT, UPDATE ON public.watercustomerdebts TO poultryapp;
     END IF;
 END
 $grants$;
-
--- ========================================================= 7. self-test ====
--- Nothing on today's data may change: no credit rows exist yet, so every
--- sale's amountpaid must already equal what recompute now derives.
-DO $t$
-DECLARE v_bad integer;
-BEGIN
-    SELECT COUNT(*) INTO v_bad
-    FROM   watersales s
-    WHERE  s.amountpaid <> COALESCE((SELECT SUM(p.amount) FROM waterpayments p
-                                     WHERE p.watersaleid = s.watersaleid AND p.farmid = s.farmid
-                                       AND COALESCE(p.status, 'Posted') = 'Posted'), 0)
-                         + public.fnwatersale_creditapplied(s.farmid, s.watersaleid)
-      AND  EXISTS (SELECT 1 FROM waterpayments p WHERE p.watersaleid = s.watersaleid);
-    IF v_bad > 0 THEN
-        RAISE NOTICE '422: % sale(s) already disagree with their payments (left unchanged)', v_bad;
-    END IF;
-END
-$t$;
 
 COMMIT;

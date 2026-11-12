@@ -175,7 +175,7 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount, qui
           // "Who owes us what" — the collections control centre, so it belongs
           // with the money coming in rather than with the cash accounts.
           { id: "customer-balances", title: "Customer Balances", icon: Users, href: "/water-customer-balances" },
-          // 422: credit the business holds for customers (advances, left-over payments).
+          // 424: credit the business holds for customers (advances, left-over payments).
           { id: "customer-credits", title: "Customer Credits", icon: PiggyBank, href: "/water-customer-credits" },
         ],
       },
@@ -203,7 +203,7 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount, qui
           // we've paid against it.
           { id: "supplier-payments", title: "Supplier Payments", icon: Receipt, href: "/water-supplier-payments" },
           { id: "supplier-balances", title: "Supplier Balances", icon: Truck, href: "/water-supplier-balances" },
-          // 424: credit suppliers hold for us (advances, credit notes).
+          // 426: credit suppliers hold for us (advances, credit notes).
           { id: "supplier-credits", title: "Supplier Credits", icon: PiggyBank, href: "/water-supplier-credits" },
           // Sits with Expenses because that is what it is about: stock cost
           // that has NOT become an expense yet. It is deliberately not under
