@@ -1,4 +1,4 @@
--- 419: Payroll templates -- set the payroll up once, use it every period.
+-- 428 (was 419): Payroll templates -- set the payroll up once, use it every period.
 --
 -- Until now every payroll run started empty and each staff line was typed in
 -- again. A TEMPLATE holds the standard payroll: which staff, their basic pay,

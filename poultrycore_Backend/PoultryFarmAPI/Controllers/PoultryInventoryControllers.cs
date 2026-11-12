@@ -113,7 +113,7 @@ namespace PoultryFarmAPIWeb.Controllers
             return NoContent();
         }
 
-        // 418. Purchases can no longer be deleted (web or mobile): reverse them.
+        // 427. Purchases can no longer be deleted (web or mobile): reverse them.
         [HttpDelete("{id:int}")] public IActionResult Delete(int id, [FromQuery] string farmId)
             => BadRequest("Purchases can't be deleted. Reverse the purchase instead -- it stays in the list marked Reversed.");
 

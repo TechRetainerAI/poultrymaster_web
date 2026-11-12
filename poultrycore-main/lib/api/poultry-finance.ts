@@ -924,7 +924,7 @@ export const unapprovePoultryPayrollRun = (id: number, reason: string) =>
 export const deletePoultryPayrollRun = (id: number) =>
   jsend<void>(`/Poultry/payroll-runs/${id}?farmId=${fid()}&deletedBy=${encodeURIComponent(currentUserId() || "")}`, "DELETE")
 
-// ----- Payroll templates (419) -------------------------------------------------
+// ----- Payroll templates (428) -------------------------------------------------
 // The standard payroll, set up once. Each period's run is created from it as a
 // Draft and can still be adjusted; editing a template changes future runs only.
 export const PAYROLL_FREQUENCIES = ["Monthly", "Fortnightly", "Weekly"] as const
