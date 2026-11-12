@@ -876,7 +876,7 @@ export default function App() {
                           <td>{r.action}</td>
                           <td>{r.resource}</td>
                           <td>{r.status}</td>
-                          <td style={{ maxWidth: 240, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          <td style={{ minWidth: 220, whiteSpace: "normal", wordBreak: "break-word" }}>
                             {r.details || "—"}
                           </td>
                         </tr>
