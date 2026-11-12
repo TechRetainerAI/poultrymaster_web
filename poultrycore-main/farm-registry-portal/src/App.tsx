@@ -599,30 +599,6 @@ export default function App() {
             Settings
           </button>
         </nav>
-        {devPage === "audit" && <>
-          <div className="dev-sidebar-section">Companies — audit filter</div>
-          <button
-            type="button"
-            className={`dev-farm-btn${selectedAuditFarmId === null ? " active" : ""}`}
-            onClick={() => selectFarmForAudit(null)}
-          >
-            <span className="name">All companies</span>
-            <span className="id">Show every audit row</span>
-          </button>
-          <div className="dev-farm-list">
-            {farmsSorted.map((f) => (
-              <button
-                key={f.farmId}
-                type="button"
-                className={`dev-farm-btn${selectedAuditFarmId === f.farmId ? " active" : ""}`}
-                onClick={() => selectFarmForAudit(f.farmId)}
-              >
-                <span className="name">{f.farmName?.trim() || "Unnamed farm"}</span>
-                <span className="id">{f.totalUsers} user{f.totalUsers === 1 ? "" : "s"} · {f.staffCount} staff</span>
-              </button>
-            ))}
-          </div>
-        </>}
         <div className="admin-user">
           <span className="admin-avatar">{(username || localStorage.getItem("lastDeveloperUser") || "DV").slice(0, 2).toUpperCase()}</span>
           <div>
@@ -746,6 +722,13 @@ export default function App() {
                       value={auditSearch}
                       onChange={(e) => setAuditSearch(e.target.value)}
                     />
+                  </label>
+                  <label className="audit-filter-label">
+                    Company
+                    <select className="audit-filter-input" value={selectedAuditFarmId ?? ""} onChange={(e) => setSelectedAuditFarmId(e.target.value || null)}>
+                      <option value="">All companies</option>
+                      {farmsSorted.map((f) => <option key={f.farmId} value={f.farmId}>{f.farmName?.trim() || "Unnamed farm"}</option>)}
+                    </select>
                   </label>
                   <label className="audit-filter-label">
                     Status
