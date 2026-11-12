@@ -41,7 +41,7 @@ export function RecordPartyPaymentButton({ side, onPosted }: { side: "customer" 
     if (!pickOpen) return
     setCustomerId("")
     const { userId, farmId } = getUserContext()
-    // 423: on a Water company the customers are water customers, and a customer
+    // 425: on a Water company the customers are water customers, and a customer
     // payment posts no cash (it is counted at the daily closing) -- no accounts.
     const water = creditModule() === "Water"
     const people: Promise<{ id: number; name: string }[]> = isCustomer && water
@@ -61,7 +61,7 @@ export function RecordPartyPaymentButton({ side, onPosted }: { side: "customer" 
         .sort((a, b) => a.name.localeCompare(b.name))))
       .catch(() => setCustomers([]))
     if (water && isCustomer) { setCashAccounts([]); return }
-    // 424: water supplier payments post cash from a water account
+    // 426: water supplier payments post cash from a water account
     ;(water ? listCreditCashAccounts() : listPoultryCashAccounts())
       .then((accounts) => setCashAccounts(accounts
         .filter((a) => a.isActive)

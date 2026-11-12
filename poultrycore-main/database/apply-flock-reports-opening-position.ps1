@@ -1,19 +1,19 @@
 # =============================================================================
-# Apply migrations 418 + 419 + 420 (flock / batch reports count the opening historical
+# Apply migrations 420 + 421 + 422 (flock / batch reports count the opening historical
 # reduction from Initial Farm Setup). Read-only report functions only; no
 # existing record is touched.
 #
-#   418  sppoultrybatchreconcile_summary: the flock side of each batch
-#   419  fnflock_birdpositionasof, fnflock_startedbirds, sppoultryflock_positions,
+#   420  sppoultrybatchreconcile_summary: the flock side of each batch
+#   421  fnflock_birdpositionasof, fnflock_startedbirds, sppoultryflock_positions,
 #        and End of Flock / Mortality / Birds on Hand / Flock Production Summary /
 #        Farm Summary / P&L by Flock rebuilt on the bird position
-#   420  the bird reports skip deleted flocks and flocks whose birds have not arrived
+#   422  the bird reports skip deleted flocks and flocks whose birds have not arrived
 #
 # DEPLOY ORDER: this script FIRST, then the API, then the web app.
 #
 # Four phases, as the other apply scripts:
 #   1. MEASURE   flocks, opening positions, ledger, sales, batches per company.
-#   2. DRY RUN   418 + 419 (their own self-tests), ROLLED BACK.
+#   2. DRY RUN   420 + 421 (their own self-tests), ROLLED BACK.
 #   3. APPLY     each in its own transaction.
 #   4. MEASURE   again: nothing may move.
 #
@@ -32,7 +32,7 @@ param(
     [string] $MigrationsDir = (Join-Path $PSScriptRoot '..\..\poultrycore_Backend\PoultryFarmAPI\Migrations'),
     [string] $ChecksDir = (Join-Path $PSScriptRoot 'checks'),
     [string] $OutDir   = (Join-Path $env:TEMP 'flock-reports-opening-position'),
-    # Apply only these (e.g. -Only 420_FlockReportsSkipDeletedAndPending.postgres.sql when 418/419 are already in).
+    # Apply only these (e.g. -Only 422_FlockReportsSkipDeletedAndPending.postgres.sql when 420/421 are already in).
     [string[]] $Only,
     [switch] $Apply
 )
@@ -44,7 +44,7 @@ if (-not (Test-Path $Psql)) { throw "psql not found at $Psql" }
 if (-not (Test-Path $MigrationsDir)) { throw "Migrations dir not found: $MigrationsDir" }
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
-$files  = @('418_BatchReconciliationFlockLosses.postgres.sql', '419_FlockReportsOpeningPosition.postgres.sql', '420_FlockReportsSkipDeletedAndPending.postgres.sql')
+$files  = @('420_BatchReconciliationFlockLosses.postgres.sql', '421_FlockReportsOpeningPosition.postgres.sql', '422_FlockReportsSkipDeletedAndPending.postgres.sql')
 if ($Only) { $files = @($files | Where-Object { $Only -contains $_ }); if (-not $files) { throw 'Nothing matches -Only.' } }
 # Both migrations carry their own self-tests (they RAISE on failure).
 $checks = @()
@@ -167,7 +167,7 @@ if (-not $diff) {
     Write-Host "No money moved. ($((Get-Content $after).Count) lines compared)" -ForegroundColor Green
 } else {
     $diff | Select-Object -First 40 | Format-Table -AutoSize | Out-String | Write-Host
-    Write-Host 'Any line here is a bug -- 418/419 change no existing record.' -ForegroundColor Red
+    Write-Host 'Any line here is a bug -- 420/421 change no existing record.' -ForegroundColor Red
 }
 
 Write-Host ''

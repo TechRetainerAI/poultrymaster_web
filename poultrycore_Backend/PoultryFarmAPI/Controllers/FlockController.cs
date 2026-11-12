@@ -617,7 +617,7 @@ namespace PoultryFarmAPIWeb.Controllers
         }
 
         // GET: api/Flock/positions?farmId=...
-        // 419: every flock's bird position -- originally placed, the opening
+        // 421: every flock's bird position -- originally placed, the opening
         // historical reduction, what was recorded since and live now -- so list
         // pages stop reading flock.quantity (the opening LIVE count) as "placed".
         [HttpGet("positions")]

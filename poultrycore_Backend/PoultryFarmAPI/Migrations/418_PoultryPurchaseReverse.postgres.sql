@@ -1,4 +1,4 @@
--- 427 (was 418): Supply purchases are reversed, not deleted.
+-- 418: Supply purchases are reversed, not deleted.
 --
 -- Until now the only way to undo a purchase on /poultry-supply-purchases was
 -- Delete, which removed the row outright -- and refused as soon as any of the

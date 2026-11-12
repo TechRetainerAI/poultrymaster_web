@@ -214,7 +214,7 @@ namespace PoultryFarmAPIWeb.Models
         public string? CreatedBy { get; set; }
     }
 
-    // 427. Reverse a supply purchase.
+    // 418. Reverse a supply purchase.
     public class PoultryRawMaterialPurchaseReverseRequest
     {
         public string FarmId { get; set; } = string.Empty;

@@ -459,10 +459,17 @@ export default function WaterExpensesPage() {
                             <CheckCircle2 className="h-4 w-4 mr-1" /> Approve
                           </Button>
                         )}
-                        {d.status !== "Cancelled" && d.status !== "Rejected" && (
+                        {d.status !== "Cancelled" && d.status !== "Rejected" && !d.sourceType && (
                           <Button size="sm" variant="outline" className="flex-1 h-10 text-red-600 border-red-200" onClick={() => setCancelTarget(d)}>
                             <XCircle className="h-4 w-4 mr-1" /> Cancel
                           </Button>
+                        )}
+                        {/* 430: an automatic expense is undone on the record
+                            that created it (the Source link), never here. */}
+                        {d.status !== "Cancelled" && d.status !== "Rejected" && d.sourceType && (
+                          <p className="flex-1 self-center text-xs text-slate-500">
+                            Created automatically. To undo it, open the Source and change it there.
+                          </p>
                         )}
                       </>
                     )
@@ -534,7 +541,8 @@ export default function WaterExpensesPage() {
                                       <History className="h-4 w-4" />
                                     </Button>
                                   )}
-                                  {d.status !== "Cancelled" && d.status !== "Rejected" && <Button size="sm" variant="ghost" onClick={() => setCancelTarget(d)}><XCircle className="h-4 w-4 text-rose-500" /></Button>}
+                                  {/* 430: automatic expenses are undone on their Source, not cancelled here. */}
+                                  {d.status !== "Cancelled" && d.status !== "Rejected" && !d.sourceType && <Button size="sm" variant="ghost" title="Cancel expense" onClick={() => setCancelTarget(d)}><XCircle className="h-4 w-4 text-rose-500" /></Button>}
                                 </TableCell>
                               </TableRow>
                             )

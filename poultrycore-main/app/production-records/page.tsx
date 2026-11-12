@@ -141,7 +141,7 @@ export default function ProductionRecordsPage() {
   // and a link, never the sorting grid itself.
   const [sortingStatus, setSortingStatus] = useState<Map<number, { status: PickStatus; left: number }>>(new Map())
   const [flocks, setFlocks] = useState<Flock[]>([])
-  // 419: each flock's server-side bird position; empty before 419 is deployed.
+  // 421: each flock's server-side bird position; empty before 421 is deployed.
   const [positionByFlock, setPositionByFlock] = useState<Map<number, FlockPositionRow>>(new Map())
   const [batches, setBatches] = useState<FlockBatch[]>([])
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -446,7 +446,7 @@ export default function ProductionRecordsPage() {
   const totalBrokens = useMemo(() => filtered.reduce((s, r) => s + (Number((r as any).brokenEggs) || 0), 0), [filtered])
 
   // Farm-wide bird headlines: same definitions as the Flocks page (eligible flocks only; ignores table date/search filters).
-  // 419: placed = birds each flock STARTED with (for a flock from Initial Farm
+  // 421: placed = birds each flock STARTED with (for a flock from Initial Farm
   // Setup flock.quantity is only the opening LIVE count), left = live now.
   const farmOverallTotalBirds = useMemo(
     () =>

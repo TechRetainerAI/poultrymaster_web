@@ -13,7 +13,7 @@
 // purchase here; it is paid like a purchase on Supplier Balances.
 
 import { farmApiUrl, getAuthHeaders, getUserContext } from "./config"
-// 424: the same routes exist under Water/.
+// 426: the same routes exist under Water/.
 import { creditModule } from "./credit-module"
 
 export interface SupplierCreditSummaryRow {

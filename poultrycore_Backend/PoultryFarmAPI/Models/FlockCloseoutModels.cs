@@ -38,7 +38,7 @@ namespace PoultryFarmAPIWeb.Models
     }
 
     /// <summary>
-    /// 419: one flock's bird position for list pages (sppoultryflock_positions).
+    /// 421: one flock's bird position for list pages (sppoultryflock_positions).
     /// StartedBirds = originally placed, or the opening live count when the
     /// opening history is not known.
     /// </summary>

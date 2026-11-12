@@ -300,7 +300,7 @@ export const updatePoultryRawMaterialPurchase = (id: number, input: PoultryRawMa
 export const deletePoultryRawMaterialPurchase = (id: number) =>
   jsend<void>(`/Poultry/raw-material-purchases/${id}?farmId=${encodeURIComponent(activeFarmId())}`, "DELETE")
 
-/** 427. Reverse a purchase: it stays in the list marked Reversed; its stock,
+/** 418. Reverse a purchase: it stays in the list marked Reversed; its stock,
  *  payments, up-front cash and expense are taken back. Purchases can't be deleted. */
 export const reversePoultryRawMaterialPurchase = (id: number, reason: string) =>
   jsend<void>(`/Poultry/raw-material-purchases/${id}/reverse`, "POST", {

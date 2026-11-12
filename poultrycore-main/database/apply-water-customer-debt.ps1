@@ -1,5 +1,5 @@
 # =============================================================================
-# Apply migration 423 (Water credits programme W2: customer debt, debt payments
+# Apply migration 425 (Water credits programme W2: customer debt, debt payments
 # on P&L with per-payment exclusion, old-debt payments with a sale type).
 # New table + functions + reader patches; no existing record's money moves.
 #
@@ -19,7 +19,7 @@ param(
     [string] $MigrationsDir = (Join-Path $PSScriptRoot '..\..\poultrycore_Backend\PoultryFarmAPI\Migrations'),
     [string] $ChecksDir = (Join-Path $PSScriptRoot 'checks'),
     [string] $OutDir   = (Join-Path $env:TEMP 'water-customer-debt'),
-    # Apply only these (e.g. -Only 420_FlockReportsSkipDeletedAndPending.postgres.sql when 418/419 are already in).
+    # Apply only these (e.g. -Only 422_FlockReportsSkipDeletedAndPending.postgres.sql when 420/421 are already in).
     [string[]] $Only,
     [switch] $Apply
 )
@@ -31,7 +31,7 @@ if (-not (Test-Path $Psql)) { throw "psql not found at $Psql" }
 if (-not (Test-Path $MigrationsDir)) { throw "Migrations dir not found: $MigrationsDir" }
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
-$files  = @('423_WaterCustomerDebt.postgres.sql')
+$files  = @('425_WaterCustomerDebt.postgres.sql')
 if ($Only) { $files = @($files | Where-Object { $Only -contains $_ }); if (-not $files) { throw 'Nothing matches -Only.' } }
 $checks = @('water-w1-customer-credit.test.sql', 'water-w2-customer-debt.test.sql')
 $passMarkers = @('water W1: all checks passed', 'water W2: all checks passed')
@@ -154,7 +154,7 @@ if (-not $diff) {
     Write-Host "No money moved. ($((Get-Content $after).Count) lines compared)" -ForegroundColor Green
 } else {
     $diff | Select-Object -First 40 | Format-Table -AutoSize | Out-String | Write-Host
-    Write-Host 'Any line here is a bug -- 423 moves no money.' -ForegroundColor Red
+    Write-Host 'Any line here is a bug -- 425 moves no money.' -ForegroundColor Red
 }
 
 Write-Host ''

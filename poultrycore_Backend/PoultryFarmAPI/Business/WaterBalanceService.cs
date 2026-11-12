@@ -28,7 +28,7 @@ namespace PoultryFarmAPIWeb.Business
 
         Task<List<BalanceAuditRow>> Audit(string farmId);
 
-        // 422: customer credit (the poultry 351/363/367 routes, same DTOs).
+        // 424: customer credit (the poultry 351/363/367 routes, same DTOs).
         Task<List<CustomerCreditSummaryRow>> GetCustomerCreditSummary(string farmId);
         Task<List<CustomerCreditRow>> GetCustomerCredit(string farmId, int customerId);
         Task<decimal> ApplyCustomerCredit(CustomerCreditApplyRequest r);
@@ -40,13 +40,13 @@ namespace PoultryFarmAPIWeb.Business
         Task<int> ReverseManualCredit(Guid paymentGroupId, ManualCreditReverseRequest r);
         Task<List<ManualCreditRow>> GetManualCredits(string farmId);
 
-        // 423: customer debt (poultry 369/382 routes, same DTOs).
+        // 425: customer debt (poultry 369/382 routes, same DTOs).
         Task<string> CreateCustomerDebt(CustomerDebtRequest r);
         Task<int> ReverseCustomerDebt(int debtId, CustomerDebtReverseRequest r);
         Task<List<CustomerDebtRow>> GetCustomerDebts(string farmId, int? customerId);
         Task SetCustomerPaymentPLExclusion(string farmId, Guid paymentGroupId, bool exclude, string? by);
 
-        // 424: supplier credit, advances, refunds and debt (poultry 370 routes, same DTOs).
+        // 426: supplier credit, advances, refunds and debt (poultry 370 routes, same DTOs).
         Task<List<SupplierCreditSummaryRow>> GetSupplierCreditSummary(string farmId);
         Task<List<SupplierCreditEventRow>> GetSupplierCreditEvents(string farmId, int? supplierId);
         Task<List<SupplierCreditApplicationRow>> GetSupplierCreditApplications(string farmId, int? supplierId);
@@ -61,7 +61,7 @@ namespace PoultryFarmAPIWeb.Business
         Task<int> ReverseSupplierDebt(int debtId, SupplierReasonRequest r);
         Task<List<SupplierDebtRow>> GetSupplierDebts(string farmId, int? supplierId);
 
-        // 425: supplier debt payments on Profit & Loss.
+        // 427: supplier debt payments on Profit & Loss.
         Task SetSupplierPaymentPLExclusion(string farmId, int paymentId, bool exclude, string? by);
     }
 
@@ -170,7 +170,7 @@ namespace PoultryFarmAPIWeb.Business
                     ["documentid"] = a.DocumentId,
                     ["amount"] = a.Amount,
                 }
-                // 423: a customer debt is paid like a sale, as {debtid, amount}.
+                // 425: a customer debt is paid like a sale, as {debtid, amount}.
                 : string.Equals(a.DocumentType, CustomerDebtDocumentType, StringComparison.OrdinalIgnoreCase)
                     ? new Dictionary<string, object?>
                     {
@@ -251,7 +251,7 @@ namespace PoultryFarmAPIWeb.Business
 
         public const string CustomerDebtDocumentType = "CustomerDebt";
 
-        /// <summary>423: the customer's open sales AND open debts, oldest first.</summary>
+        /// <summary>425: the customer's open sales AND open debts, oldest first.</summary>
         public async Task<List<OpenDocumentRow>> GetOpenSales(string farmId, int customerId, DateTime? from, DateTime? to, string? status)
         {
             var sales = await GetOpenSaleRows(farmId, customerId, from, to, status);
@@ -285,7 +285,7 @@ namespace PoultryFarmAPIWeb.Business
             }
             catch (PostgresException ex) when (ex.SqlState == "42883")
             {
-                debts = new();   // before 423 is applied
+                debts = new();   // before 425 is applied
             }
             debts = debts.Where(d =>
                 (from is null || d.DocumentDate.Date >= from.Value.Date) &&
@@ -361,7 +361,7 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<string> RecordCustomerPayment(RecordPaymentRequest r)
         {
             using var conn = new NpgsqlConnection(_connectionString);
-            // 423 (383/384): "this pays for a sale made before the system" -- the
+            // 425 (383/384): "this pays for a sale made before the system" -- the
             // leftover becomes an old debt paid on entry, with its sale type.
             var saleType = r.RemainderAsOldDebt && !string.IsNullOrWhiteSpace(r.OldDebtSaleType) ? r.OldDebtSaleType.Trim() : null;
             using var cmd = new NpgsqlCommand(
@@ -386,7 +386,7 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Transaction = tx;
             var result = await cmd.ExecuteScalarAsync();
             var groupId = result?.ToString() ?? string.Empty;
-            // 423 (382): kept off Profit & Loss from the start -- only matters when it paid a debt.
+            // 425 (382): kept off Profit & Loss from the start -- only matters when it paid a debt.
             if (r.ExcludeFromPL && Guid.TryParse(groupId, out var g))
             {
                 using var ex = new NpgsqlCommand(
@@ -404,7 +404,7 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<int> RecordSupplierPayment(RecordPaymentRequest r)
         {
             using var conn = new NpgsqlConnection(_connectionString);
-            // 425 (383): Record supplier payment -- the rest pays a debt from before the system.
+            // 427 (383): Record supplier payment -- the rest pays a debt from before the system.
             using var cmd = new NpgsqlCommand(
                 (r.RemainderAsOldDebt ? "SELECT spwatersupplierpayment_recordolddebt(" : "SELECT spwatersupplierpayment_record(") +
                 "p_farmid => @FarmId::text, p_supplierid => @PartyId::int, p_amount => @Amount::numeric, p_allocations => @Allocations::jsonb, p_paymentmethod => @PaymentMethod::text, p_paymentdate => @PaymentDate::timestamp, p_cashaccountid => @CashAccountId::int, p_reference => @Reference::text, p_note => @Notes::text, p_sourcetype => @SourceType::text, p_createdby => @CreatedBy::text)", conn);
@@ -424,7 +424,7 @@ namespace PoultryFarmAPIWeb.Business
             await using var tx = await conn.BeginTransactionAsync();
             cmd.Transaction = tx;
             var id = Convert.ToInt32(await cmd.ExecuteScalarAsync());
-            // 425 (382): kept off Profit & Loss from the start -- only matters when it paid a supplier debt.
+            // 427 (382): kept off Profit & Loss from the start -- only matters when it paid a supplier debt.
             if (r.ExcludeFromPL)
             {
                 using var ex = new NpgsqlCommand(
@@ -465,7 +465,7 @@ namespace PoultryFarmAPIWeb.Business
             return Convert.ToInt32(await cmd.ExecuteScalarAsync());
         }
 
-        /// <summary>423 (382): each row also says what it puts on Profit & Loss and whether it is excluded.</summary>
+        /// <summary>425 (382): each row also says what it puts on Profit & Loss and whether it is excluded.</summary>
         public async Task<List<PaymentHistoryRow>> GetCustomerPayments(string farmId, int? customerId, int? saleId, DateTime? from, DateTime? to)
         {
             var rows = await GetCustomerPaymentRows(farmId, customerId, saleId, from, to);
@@ -487,7 +487,7 @@ namespace PoultryFarmAPIWeb.Business
             }
             catch (PostgresException ex) when (ex.SqlState == "42703")
             {
-                return rows;   // before 423 is applied
+                return rows;   // before 425 is applied
             }
             foreach (var row in rows)
                 if (pl.TryGetValue(row.PaymentId, out var v)) { row.PLAmount = v.amount; row.ExcludedFromPL = v.excluded; }
@@ -538,7 +538,7 @@ namespace PoultryFarmAPIWeb.Business
                 BalanceAfter = DecN(r, "balanceafter"),
             });
 
-        /// <summary>425 (382): each row also says what it puts on Profit & Loss and whether it is excluded.</summary>
+        /// <summary>427 (382): each row also says what it puts on Profit & Loss and whether it is excluded.</summary>
         public async Task<List<PaymentHistoryRow>> GetSupplierPayments(string farmId, int? supplierId, string? documentType, int? documentId, DateTime? from, DateTime? to)
         {
             var rows = await GetSupplierPaymentRows(farmId, supplierId, documentType, documentId, from, to);
@@ -559,7 +559,7 @@ namespace PoultryFarmAPIWeb.Business
             }
             catch (PostgresException ex) when (ex.SqlState == "42703" || ex.SqlState == "42883")
             {
-                return rows;   // before 425 is applied
+                return rows;   // before 427 is applied
             }
             foreach (var row in rows)
                 if (pl.TryGetValue(row.PaymentId, out var v)) { row.PLAmount = v.amount; row.ExcludedFromPL = v.excluded; }
@@ -693,7 +693,7 @@ namespace PoultryFarmAPIWeb.Business
                 Allocated = Dec(r, "allocated"),
                 Difference = Dec(r, "difference"),
             });
-        // ------------------------------------------------- 422 customer credit
+        // ------------------------------------------------- 424 customer credit
         // Same DTOs as poultry; the water functions name their columns
         // waterpaymentid / watercashaccountid, mapped onto the shared fields.
 
@@ -905,7 +905,7 @@ namespace PoultryFarmAPIWeb.Business
                 ReversedAt = DateN(r, "reversedat"),
                 ReversalReason = Str(r, "reversalreason"),
             });
-        // ------------------------------------------------- 423 customer debt
+        // ------------------------------------------------- 425 customer debt
 
         /// <summary>Record what a customer owes without a sale. No cash, no revenue.</summary>
         public async Task<string> CreateCustomerDebt(CustomerDebtRequest r)
@@ -987,7 +987,7 @@ namespace PoultryFarmAPIWeb.Business
             await cmd.ExecuteNonQueryAsync();
         }
 
-        // ------------------------------------------------- 424 supplier credit
+        // ------------------------------------------------- 426 supplier credit
         // Translated from PoultryBalanceService (370): same DTOs, water functions,
         // water column names mapped onto the shared fields.
 
@@ -1229,7 +1229,7 @@ namespace PoultryFarmAPIWeb.Business
                 ReversedAt = DateN(r, "reversedat"),
                 ReversalReason = Str(r, "reversalreason"),
             });
-        /// <summary>425 (382): a supplier debt payment is on Profit & Loss unless the owner / an admin excludes it.</summary>
+        /// <summary>427 (382): a supplier debt payment is on Profit & Loss unless the owner / an admin excludes it.</summary>
         public async Task SetSupplierPaymentPLExclusion(string farmId, int paymentId, bool exclude, string? by)
         {
             using var conn = new NpgsqlConnection(_connectionString);

@@ -74,7 +74,7 @@ namespace PoultryFarmAPIWeb.Controllers
                 ? BadRequest("Company ID is required.")
                 : Ok(await _svc.GetCostBreakdownAsync(farmId, productionBatchId));
 
-        // 426: cost for stock no purchase covers -- owner / admin records and reverses.
+        // 428: cost for stock no purchase covers -- owner / admin records and reverses.
         [HttpGet("manual")]
         public async Task<ActionResult<List<ManualDeferredCostRow>>> GetManual([FromQuery] string farmId)
             => string.IsNullOrWhiteSpace(farmId) ? BadRequest("Company ID is required.") : Ok(await _svc.GetManualAsync(farmId));

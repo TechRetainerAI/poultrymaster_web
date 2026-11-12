@@ -1,5 +1,5 @@
 -- =============================================================================
--- Checks for 425 (Water supplier debt payments on P&L + old debt, W4).
+-- Checks for 427 (Water supplier debt payments on P&L + old debt, W4).
 -- SELF-ROLLING-BACK, fixtures in a real Water company. Prints
 -- 'water W4: all checks passed'.
 -- =============================================================================

@@ -139,9 +139,9 @@ export function FlocksPage() {
   // ORIGINALLY placed, keyed by flock. flock.quantity for such a flock is the
   // live count when it was registered, so it cannot be the "of" figure.
   const [openingByFlock, setOpeningByFlock] = useState<Record<number, OpeningFlockPosition>>({})
-  // 419: every flock's bird position from the server (fnflock_birdposition):
+  // 421: every flock's bird position from the server (fnflock_birdposition):
   // placed, the opening historical reduction, what was recorded since, live
-  // now. Empty when the API predates 419 -- the old per-page figures are used.
+  // now. Empty when the API predates 421 -- the old per-page figures are used.
   const [positionByFlock, setPositionByFlock] = useState<Map<number, FlockPositionRow>>(new Map())
   // The server's bird accounting per batch (migration 413): how many of a
   // batch's birds are still not in any flock, after flocks AND birds sold or
@@ -923,7 +923,7 @@ export function FlocksPage() {
   const paginatedFlocks = filteredFlocks.slice(startIndex, endIndex)
 
   // Bottom totals (farm-wide; ignore current filters so the page-level summary stays stable).
-  // 419: birds a flock STARTED with -- for an onboarded flock flock.quantity is
+  // 421: birds a flock STARTED with -- for an onboarded flock flock.quantity is
   // the opening LIVE count, which drops every bird lost before tracking began.
   const startedBirdsOf = (f: Flock): number => {
     const p = positionByFlock.get(f.flockId)
@@ -986,7 +986,7 @@ export function FlocksPage() {
   // Get the actual current bird count for a flock:
   // Use noOfBirdsLeft from the most recent production record, or fall back to the flock's initial quantity
   const getCurrentBirds = (flock: Flock): number => {
-    // 419: live now -- the last count less sales / closeouts made after it.
+    // 421: live now -- the last count less sales / closeouts made after it.
     const p = positionByFlock.get(flock.flockId)
     if (p) return p.currentLiveBirds
     if (flock.flockId in flockBirdsLeftMap) {
@@ -1022,7 +1022,7 @@ export function FlocksPage() {
     const eligibleIds = new Set(
       flocks.filter((f) => flockCountsTowardBirdTotals(f)).map((f) => f.flockId)
     )
-    // 419: lifetime deaths -- opening historical mortality + recorded.
+    // 421: lifetime deaths -- opening historical mortality + recorded.
     if (positionByFlock.size > 0) {
       let total = 0
       for (const id of eligibleIds) {
@@ -1039,7 +1039,7 @@ export function FlocksPage() {
   }, [flocks, productionRecordsForFarm, positionByFlock])
 
   const totalMortalityAllRowsFarm = useMemo(() => {
-    // 419: every flock's lifetime deaths (opening historical + recorded).
+    // 421: every flock's lifetime deaths (opening historical + recorded).
     if (positionByFlock.size > 0) {
       let total = 0
       for (const p of positionByFlock.values()) if (!p.isDeleted) total += flockLifetime(p).deaths
@@ -1072,7 +1072,7 @@ export function FlocksPage() {
    * Birds that left the same flocks WITHOUT dying: sold, culled, transferred
    * or another opening reduction (lifetime, from the bird position).  A sale
    * lowers the headcount too, so the deaths-vs-headcount check must allow for
-   * it.  Null before 419 is deployed -- the check then compares deaths only.
+   * it.  Null before 421 is deployed -- the check then compares deaths only.
    */
   const birdsRemovedNotDied = useMemo(() => {
     if (positionByFlock.size === 0) return null

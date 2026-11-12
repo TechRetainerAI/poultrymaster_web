@@ -119,7 +119,7 @@ export default function BatchProductionSummaryReport() {
   }
 
   // Records → flock → batch aggregation.
-  // 419: each flock's bird position from the server. Null before 419 is
+  // 421: each flock's bird position from the server. Null before 421 is
   // deployed -- then placed falls back to birds bought and current birds to the
   // latest production records, as before.
   const [positions, setPositions] = useState<FlockPositionRow[] | null>(null)
@@ -159,7 +159,7 @@ export default function BatchProductionSummaryReport() {
         breed: b.breed || "",
         status: b.status || "active",
         flockCount: flocksByBatch.get(b.batchId)?.size ?? 0,
-        // 419: birds PLACED in the batch's flocks (including the ones lost
+        // 421: birds PLACED in the batch's flocks (including the ones lost
         // before tracking began), and live now in its open flocks.
         birdsPlaced: positions
           ? positions.filter((p) => p.batchId === b.batchId && !p.isDeleted)

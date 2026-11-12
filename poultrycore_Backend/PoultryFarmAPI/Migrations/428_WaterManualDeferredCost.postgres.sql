@@ -1,5 +1,5 @@
 -- =============================================================================
--- 426_WaterManualDeferredCost.postgres.sql   (Water credits programme W5; requires 277-279)
+-- 428_WaterManualDeferredCost.postgres.sql   (Water credits programme W5; requires 277-279)
 --
 -- Purpose
 -- -------
@@ -226,7 +226,7 @@ AS $function$
     LEFT   JOIN waterrawmaterialitems i
            ON i.waterrawmaterialitemid = pu.waterrawmaterialitemid
     WHERE  pu.farmid = p_farmid
-      AND  COALESCE(pu.lotsource, '') <> 'ManualDeferredCost'   -- 426: nothing is owed on it
+      AND  COALESCE(pu.lotsource, '') <> 'ManualDeferredCost'   -- 428: nothing is owed on it
     UNION ALL
     SELECT 'Expense'::text, e.waterexpenseid, e.supplierid,
            e.expensedate::date,
@@ -260,7 +260,7 @@ AS $function$
       AND  (e.sourcetype IS NULL
             OR e.sourcetype IN ('CapitalAsset', 'CapitalAssetCost'))
     UNION ALL
-    -- 424: what the business owes a supplier without a purchase here
+    -- 426: what the business owes a supplier without a purchase here
     SELECT 'SupplierDebt'::text, d.debtid, d.supplierid, d.debtdate,
            ('Debt ' || d.debtnumber || COALESCE(' - ' || NULLIF(btrim(d.description), ''), ''))::text,
            d.debtnumber::text, d.amount, d.amountpaid,
@@ -295,7 +295,7 @@ AS $function$
     sale_money AS (
         SELECT
             COALESCE(SUM(s2.totalamount), 0) AS totalincome,
-            -- 421: what was still OWED at the end of the day (364's rule), not
+            -- 423: what was still OWED at the end of the day (364's rule), not
             -- what is owed now -- a payment made later must not rewrite a past day.
             COALESCE(SUM(public.fnwatersale_owedasof(p_farmid, s2.watersaleid, p_closingdate)), 0) AS creditsales
         FROM   watersales s2
@@ -313,12 +313,12 @@ AS $function$
         LEFT   JOIN watersales ps ON ps.watersaleid = pay.watersaleid AND ps.farmid = pay.farmid
         WHERE  pay.farmid = p_farmid
            AND COALESCE(pay.sourcetype, '') <> 'DeliveryRun'
-           -- 421: a reversed payment collected nothing.
+           -- 423: a reversed payment collected nothing.
            AND COALESCE(pay.status, 'Posted') = 'Posted'
-           -- 422: a customer advance went straight into its account; opening
+           -- 424: a customer advance went straight into its account; opening
            -- credit and credit notes are not money. None of it is in the drawer.
            AND NOT public.fnwater_ismanualcredit(pay.sourcetype)
-           -- 421: a payment on a sale made the SAME day is already in that sale's
+           -- 423: a payment on a sale made the SAME day is already in that sale's
            -- paid part (income less credit); counting it here too doubled it.
            AND NOT (ps.watersaleid IS NOT NULL
                     AND COALESCE(ps.sourcetype, '') <> 'DeliveryRun'
@@ -355,7 +355,7 @@ AS $function$
         SELECT COALESCE(SUM(rp.amountpaid), 0) AS rawmaterialspendtoday
         FROM   waterrawmaterialpurchases rp
         WHERE  rp.farmid = p_farmid
-           AND COALESCE(rp.lotsource, '') <> 'ManualDeferredCost'   -- 426: not money spent today
+           AND COALESCE(rp.lotsource, '') <> 'ManualDeferredCost'   -- 428: not money spent today
            AND rp.purchasedate >= p_closingdate::timestamp
            AND rp.purchasedate <  p_closingdate::timestamp + interval '1 day'
     ),
@@ -452,20 +452,20 @@ BEGIN
         WHERE dr.farmid = p_farmid AND dr.status IN ('Draft','Approved')
           AND dr.returndate >= v_start AND dr.returndate < v_end), 0);
 
-    -- 422: a credit note is an allowance given -- revenue the business gave up.
+    -- 424: a credit note is an allowance given -- revenue the business gave up.
     v_totalincome := (v_storefrontincome + v_driverincome
                       - COALESCE((SELECT SUM(cn.amount) FROM waterpayments cn
                                   WHERE cn.farmid = p_farmid AND cn.sourcetype = 'CreditNote'
                                     AND COALESCE(cn.status, 'Posted') = 'Posted'
                                     AND cn.paymentdate >= v_start AND cn.paymentdate < v_end), 0)
-                      -- 423 (382): money paid on debts recorded by hand is revenue
+                      -- 425 (382): money paid on debts recorded by hand is revenue
                       + (SELECT dc.total FROM public.fnwaterpl_debtcollections(p_farmid, v_start, v_end) dc))::numeric(14,2);
 
     -- Cash paid for raw materials (matches the closing's AmountPaid basis).
     v_rawmaterialcost := COALESCE((
         SELECT SUM(p.amountpaid) FROM waterrawmaterialpurchases p
         WHERE p.farmid = p_farmid AND p.purchasedate >= v_start AND p.purchasedate < v_end
-          -- 426: a manual cost reaches the P&L only as its stock is consumed
+          -- 428: a manual cost reaches the P&L only as its stock is consumed
           AND COALESCE(p.lotsource, '') <> 'ManualDeferredCost'), 0);
 
     v_productioncost := COALESCE((
@@ -487,7 +487,7 @@ BEGIN
         WHERE dr.farmid = p_farmid AND dr.status IN ('Draft','Approved') AND de.isapproved = TRUE
           AND dr.returndate >= v_start AND dr.returndate < v_end), 0);
 
-    -- 425 (382): money paid on supplier debts recorded by hand is an operating expense
+    -- 427 (382): money paid on supplier debts recorded by hand is an operating expense
     v_operatingexpenses := (v_generalexpenses + v_deliveryexpenses
                             + (SELECT x.total FROM public.fnwaterpl_supplierdebtpayments(p_farmid, v_start, v_end) x))::numeric(14,2);
 
@@ -575,11 +575,11 @@ AS $function$
         WHERE  dr.farmid = p_farmid AND dr.status IN ('Draft', 'Approved')
           AND  dr.returndate >= b.s AND dr.returndate < b.e
         UNION ALL
-        -- 423 (382): money paid on customer debts recorded by hand
+        -- 425 (382): money paid on customer debts recorded by hand
         SELECT 'DebtCollections', 'Customer debt collections', dc.total, dc.n, 4
         FROM   bounds b CROSS JOIN LATERAL public.fnwaterpl_debtcollections(p_farmid, b.s, b.e) dc
         UNION ALL
-        -- 422: credit notes -- allowances given, negative revenue
+        -- 424: credit notes -- allowances given, negative revenue
         SELECT 'CreditNotes', 'Credit notes & allowances',
                -COALESCE(SUM(cn.amount), 0), COUNT(*)::integer, 3
         FROM   waterpayments cn, bounds b
@@ -593,7 +593,7 @@ AS $function$
                COALESCE(SUM(p.amountpaid), 0) AS amt, COUNT(*)::integer AS n, 11 AS ord
         FROM   waterrawmaterialpurchases p, bounds b
         WHERE  p.farmid = p_farmid
-          AND  COALESCE(p.lotsource, '') <> 'ManualDeferredCost'   -- 426
+          AND  COALESCE(p.lotsource, '') <> 'ManualDeferredCost'   -- 428
           AND  p.purchasedate >= b.s AND p.purchasedate < b.e
         UNION ALL
         -- DATE comparison, inclusive both ends. periodpnl's own shape; see header.
@@ -711,7 +711,7 @@ AS $function$
     SELECT 'OperatingExpense', deliv.k, deliv.lbl, deliv.amt::numeric(14,2), 40, FALSE, deliv.n
     FROM   deliv WHERE deliv.amt <> 0 OR deliv.n > 0
     UNION ALL
-    -- 425 (382): money paid on supplier debts recorded by hand
+    -- 427 (382): money paid on supplier debts recorded by hand
     SELECT 'OperatingExpense', 'SupplierDebtPayments', 'Supplier debt payments', x.total, 41, FALSE, x.n
     FROM   bounds b CROSS JOIN LATERAL public.fnwaterpl_supplierdebtpayments(p_farmid, b.s, b.e) x
     WHERE  x.total <> 0
@@ -741,7 +741,7 @@ AS $function$
     FROM   waterrawmaterialpurchases p
     LEFT   JOIN waterrawmaterialitems i ON i.waterrawmaterialitemid = p.waterrawmaterialitemid
     WHERE  p.farmid = p_farmid
-      AND  COALESCE(p.lotsource, '') <> 'ManualDeferredCost'   -- 426
+      AND  COALESCE(p.lotsource, '') <> 'ManualDeferredCost'   -- 428
       AND  p.purchasedate >= p_startdate::timestamp
       AND  p.purchasedate <  p_enddate::timestamp + make_interval(days => 1)
       AND  (p_linekey IS NULL OR p_linekey = 'RawMaterials')
@@ -772,7 +772,7 @@ BEGIN
                              FROM   waterrawmaterialpurchases p
                              WHERE  p.waterrawmaterialitemid = i.waterrawmaterialitemid
                                AND  p.farmid = i.farmid
-                               -- 426: a manual cost covers stock already counted; it adds none
+                               -- 428: a manual cost covers stock already counted; it adds none
                                AND  COALESCE(p.lotsource, '') <> 'ManualDeferredCost'), 0)
                  - COALESCE((SELECT SUM(u.quantityused)
                              FROM   waterrawmaterialusage u
@@ -855,7 +855,7 @@ BEGIN
     FROM   waterrawmaterialpurchases p
     INNER  JOIN waterrawmaterialitems i ON i.waterrawmaterialitemid = p.waterrawmaterialitemid
     WHERE  p.farmid = p_farmid
-      AND  COALESCE(p.lotsource, '') <> 'ManualDeferredCost'   -- 426: shown on Deferred costs, not as a purchase
+      AND  COALESCE(p.lotsource, '') <> 'ManualDeferredCost'   -- 428: shown on Deferred costs, not as a purchase
       AND  (p_fromdate IS NULL OR p.purchasedate::date >= p_fromdate)
       AND  (p_todate   IS NULL OR p.purchasedate::date <= p_todate)
     ORDER  BY p.purchasedate DESC, p.waterrawmaterialpurchaseid DESC;
@@ -895,7 +895,7 @@ AS $function$
                  AND  sa.status = 'Posted'
            ) a ON TRUE
     WHERE  pu.farmid = p_farmid
-      AND  COALESCE(pu.lotsource, '') <> 'ManualDeferredCost'   -- 426
+      AND  COALESCE(pu.lotsource, '') <> 'ManualDeferredCost'   -- 428
       AND  (pu.amountpaid - COALESCE(a.allocated, 0)) <> 0
     UNION ALL
     SELECT 'supplier'::text, 'Expense'::text, e.waterexpenseid,
@@ -937,7 +937,7 @@ DECLARE
     v_msg1            text;
     v_updcashaccountid integer := NULL;
 BEGIN
-    -- 426: a manual cost is not a purchase -- reverse it on Deferred costs.
+    -- 428: a manual cost is not a purchase -- reverse it on Deferred costs.
     IF EXISTS (SELECT 1 FROM waterrawmaterialpurchases g WHERE g.waterrawmaterialpurchaseid = p_waterrawmaterialpurchaseid
                AND g.farmid = p_farmid AND g.lotsource = 'ManualDeferredCost') THEN
         RAISE EXCEPTION 'This is a manual deferred cost, not a purchase. Reverse it on Deferred costs.' USING ERRCODE = 'P0001';
@@ -1061,7 +1061,7 @@ DECLARE
     v_currentstock    numeric;
     v_msg2            text;
 BEGIN
-    -- 426: a manual cost is not a purchase -- reverse it on Deferred costs.
+    -- 428: a manual cost is not a purchase -- reverse it on Deferred costs.
     IF EXISTS (SELECT 1 FROM waterrawmaterialpurchases g WHERE g.waterrawmaterialpurchaseid = p_waterrawmaterialpurchaseid
                AND g.farmid = p_farmid AND g.lotsource = 'ManualDeferredCost') THEN
         RAISE EXCEPTION 'This is a manual deferred cost, not a purchase. Reverse it on Deferred costs.' USING ERRCODE = 'P0001';
@@ -1121,7 +1121,7 @@ DECLARE
     v_doc    record;
     v_amount numeric(14,2);
 BEGIN
-    -- 426: a manual cost is not a purchase -- reverse it on Deferred costs.
+    -- 428: a manual cost is not a purchase -- reverse it on Deferred costs.
     IF EXISTS (SELECT 1 FROM waterrawmaterialpurchases g WHERE g.waterrawmaterialpurchaseid = p_waterrawmaterialpurchaseid
                AND g.farmid = p_farmid AND g.lotsource = 'ManualDeferredCost') THEN
         RAISE EXCEPTION 'This is a manual deferred cost, not a purchase. Reverse it on Deferred costs.' USING ERRCODE = 'P0001';

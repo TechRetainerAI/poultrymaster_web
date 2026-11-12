@@ -1,5 +1,5 @@
 -- =============================================================================
--- 420_FlockReportsSkipDeletedAndPending.postgres.sql   (requires 419)
+-- 422_FlockReportsSkipDeletedAndPending.postgres.sql   (requires 421)
 --
 -- Purpose
 -- -------
@@ -10,14 +10,14 @@
 --     placed, all of them in deleted flocks;
 --   * flocks whose birds have not arrived yet (hasarrived = false) -- counted as
 --     placed before a single bird was there.
--- Both predate 419, but 419 made them visible: placed is now the originally
+-- Both predate 421, but 421 made them visible: placed is now the originally
 -- placed figure, so the gap grew.
 --
 -- What this does
 -- --------------
 -- End of Flock, Birds on Hand, Flock Production Summary and Farm Summary rows
 -- skip deleted flocks and flocks whose birds have not arrived.  Inactive and
--- CLOSED flocks stay -- they are what End of Flock is for.  Bodies are 419's,
+-- CLOSED flocks stay -- they are what End of Flock is for.  Bodies are 421's,
 -- with only that filter added; signatures unchanged (CREATE OR REPLACE).
 --
 -- Not changed: P&L by Flock (money, not birds; it already skips deleted flocks
@@ -100,7 +100,7 @@ BEGIN
         f.startdate                                             AS placementdate,
         -- DATEDIFF(WEEK, ...): SQL Server counts Monday-aligned week boundaries since 1900-01-01
         (((p_enddate - DATE '1900-01-01') / 7) - ((f.startdate - DATE '1900-01-01') / 7)) AS flockageweeks,
-        -- 419: placed / deaths / remaining from the flock's bird position as of
+        -- 421: placed / deaths / remaining from the flock's bird position as of
         -- the end date, so the opening historical reduction is counted.
         (CASE WHEN bp.historyknown THEN bp.originallyplaced ELSE bp.openinglivebirds END)::int AS birdsplaced,
         (CASE WHEN bp.historyknown THEN bp.openingmortality ELSE 0 END + bp.recordedmortality)::int AS totaldeaths,
@@ -130,8 +130,8 @@ BEGIN
     WHERE  f.farmid = p_farmid
       AND  (p_flockid IS NULL OR f.flockid = p_flockid)
       AND  (p_includeactiveflocks OR NOT COALESCE(f.active, TRUE))
-      AND  NOT COALESCE(f.isdeleted, FALSE)      -- 420: a deleted flock placed nothing
-      AND  COALESCE(f.hasarrived, TRUE)          -- 420: nor did one whose birds have not arrived
+      AND  NOT COALESCE(f.isdeleted, FALSE)      -- 422: a deleted flock placed nothing
+      AND  COALESCE(f.hasarrived, TRUE)          -- 422: nor did one whose birds have not arrived
     ORDER  BY f.name;
 END
 $function$;
@@ -144,7 +144,7 @@ CREATE OR REPLACE FUNCTION public.sppoultryreport_birdsonhand(p_farmid text, p_e
  LANGUAGE plpgsql
 AS $function$
 BEGIN
-    -- 419: every figure from the flock's bird position as of the end date.
+    -- 421: every figure from the flock's bird position as of the end date.
     --   birdsplaced  = birds the flock STARTED with (originally placed; the
     --                  opening live count when the history is unknown)
     --   deaths       = opening historical mortality (history known) + recorded
@@ -171,8 +171,8 @@ BEGIN
     WHERE  f.farmid = p_farmid
       AND  (p_flockid IS NULL OR f.flockid = p_flockid)
       AND  (p_includeclosedflocks OR COALESCE(f.active, TRUE))
-      AND  NOT COALESCE(f.isdeleted, FALSE)      -- 420: a deleted flock placed nothing
-      AND  COALESCE(f.hasarrived, TRUE)          -- 420: nor did one whose birds have not arrived
+      AND  NOT COALESCE(f.isdeleted, FALSE)      -- 422: a deleted flock placed nothing
+      AND  COALESCE(f.hasarrived, TRUE)          -- 422: nor did one whose birds have not arrived
     ORDER  BY f.name;
 END
 $function$;
@@ -215,8 +215,8 @@ BEGIN
         f.name::text                                                                            AS flockname,
         -- DATEDIFF(WEEK, ...): SQL Server counts Monday-aligned week boundaries since 1900-01-01
         (((p_enddate - DATE '1900-01-01') / 7) - ((f.startdate - DATE '1900-01-01') / 7))       AS flockageweeks,
-        (CASE WHEN bp.historyknown THEN bp.originallyplaced ELSE bp.openinglivebirds END)::int AS birdsplaced,   -- 419
-        bp.currentlivebirds                                                                     AS currentbirds,   -- 419
+        (CASE WHEN bp.historyknown THEN bp.originallyplaced ELSE bp.openinglivebirds END)::int AS birdsplaced,   -- 421
+        bp.currentlivebirds                                                                     AS currentbirds,   -- 421
         COALESCE(agg.c_eggs, 0)::bigint                                                         AS totaleggs,
         COALESCE(agg.c_peakdaily, 0)::bigint                                                    AS peakdailyeggs,
         COALESCE(agg.c_days, 0)::int                                                            AS productiondays,
@@ -232,8 +232,8 @@ BEGIN
     WHERE  f.farmid = p_farmid
       AND  (p_flockid IS NULL OR f.flockid = p_flockid)
       AND  (p_includeclosedflocks OR COALESCE(f.active, TRUE))
-      AND  NOT COALESCE(f.isdeleted, FALSE)      -- 420: a deleted flock placed nothing
-      AND  COALESCE(f.hasarrived, TRUE)          -- 420: nor did one whose birds have not arrived
+      AND  NOT COALESCE(f.isdeleted, FALSE)      -- 422: a deleted flock placed nothing
+      AND  COALESCE(f.hasarrived, TRUE)          -- 422: nor did one whose birds have not arrived
     ORDER  BY f.name;
 END
 $function$;
@@ -282,8 +282,8 @@ BEGIN
     SELECT
         f.flockid,
         f.name::text                                            AS flockname,
-        (CASE WHEN bp.historyknown THEN bp.originallyplaced ELSE bp.openinglivebirds END)::int AS startingbirds,   -- 419
-        bp.currentlivebirds                                     AS currentbirds,    -- 419
+        (CASE WHEN bp.historyknown THEN bp.originallyplaced ELSE bp.openinglivebirds END)::int AS startingbirds,   -- 421
+        bp.currentlivebirds                                     AS currentbirds,    -- 421
         COALESCE(pr.c_eggs, 0)::bigint                          AS eggsproduced,
         COALESCE(pr.c_broken, 0)::bigint                        AS brokenrejectedeggs,
         COALESCE(pr.c_birddays, 0)::bigint                      AS birddays,
@@ -300,8 +300,8 @@ BEGIN
     WHERE  f.farmid = p_farmid
       AND  (p_flockid IS NULL OR f.flockid = p_flockid)
       AND  (p_includeclosedflocks OR COALESCE(f.active, TRUE))
-      AND  NOT COALESCE(f.isdeleted, FALSE)      -- 420: a deleted flock placed nothing
-      AND  COALESCE(f.hasarrived, TRUE)          -- 420: nor did one whose birds have not arrived
+      AND  NOT COALESCE(f.isdeleted, FALSE)      -- 422: a deleted flock placed nothing
+      AND  COALESCE(f.hasarrived, TRUE)          -- 422: nor did one whose birds have not arrived
     ORDER  BY f.name;
 END
 $function$;
@@ -314,20 +314,20 @@ BEGIN
     FROM   flock f
     CROSS  JOIN LATERAL public.sppoultryreport_endofflock(f.farmid, DATE '2999-12-31', f.flockid, TRUE) r
     WHERE  COALESCE(f.isdeleted, FALSE) OR NOT COALESCE(f.hasarrived, TRUE);
-    IF v_bad > 0 THEN RAISE EXCEPTION '420: End of Flock still lists % deleted / not-arrived flock(s)', v_bad; END IF;
+    IF v_bad > 0 THEN RAISE EXCEPTION '422: End of Flock still lists % deleted / not-arrived flock(s)', v_bad; END IF;
 
     SELECT COUNT(*) INTO v_bad
     FROM   flock f
     CROSS  JOIN LATERAL public.sppoultryreport_birdsonhand(f.farmid, DATE '2999-12-31', f.flockid, TRUE) r
     WHERE  COALESCE(f.isdeleted, FALSE) OR NOT COALESCE(f.hasarrived, TRUE);
-    IF v_bad > 0 THEN RAISE EXCEPTION '420: Birds on Hand still lists % deleted / not-arrived flock(s)', v_bad; END IF;
+    IF v_bad > 0 THEN RAISE EXCEPTION '422: Birds on Hand still lists % deleted / not-arrived flock(s)', v_bad; END IF;
 
     -- an arrived, not-deleted flock is still listed
     SELECT COUNT(*) INTO v_bad
     FROM   flock f
     WHERE  NOT COALESCE(f.isdeleted, FALSE) AND COALESCE(f.hasarrived, TRUE)
       AND  NOT EXISTS (SELECT 1 FROM public.sppoultryreport_endofflock(f.farmid, DATE '2999-12-31', f.flockid, TRUE));
-    IF v_bad > 0 THEN RAISE EXCEPTION '420: % arrived flock(s) dropped from End of Flock', v_bad; END IF;
+    IF v_bad > 0 THEN RAISE EXCEPTION '422: % arrived flock(s) dropped from End of Flock', v_bad; END IF;
 END
 $t$;
 

@@ -1,7 +1,7 @@
 import type { FlockPositionRow } from "@/lib/api/flock-positions"
 
 /**
- * Lifetime bird figures for a flock, from its position (migration 419's rule,
+ * Lifetime bird figures for a flock, from its position (migration 421's rule,
  * the same one every report uses):
  *
  *   started     = originally placed; the opening live count when the farm said

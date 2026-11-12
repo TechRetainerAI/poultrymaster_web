@@ -513,7 +513,7 @@ namespace PoultryFarmAPIWeb.Business
             await SyncCashAsync(farmId, id, null, setAccount: false, createdBy: null);
         }
 
-        // 427. Purchases are reversed, not deleted: the row stays, marked Reversed,
+        // 418. Purchases are reversed, not deleted: the row stays, marked Reversed,
         // and its stock, payments, up-front cash and expense are taken back in one
         // transaction. The SQL refuses (with a plain message) when stock was used.
         public async Task ReverseAsync(int id, string farmId, string reason, string? reversedBy)

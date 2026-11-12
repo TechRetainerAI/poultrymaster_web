@@ -1,5 +1,5 @@
 -- =============================================================================
--- Checks for 421 (Water credits programme W0).  SELF-ROLLING-BACK: every
+-- Checks for 423 (Water credits programme W0).  SELF-ROLLING-BACK: every
 -- fixture lives inside this file's own BEGIN ... ROLLBACK, in a real Water
 -- company (so uuid / FK rules hold), dated 2030 so no real data mixes in.
 -- Prints 'water W0: all checks passed' on success.

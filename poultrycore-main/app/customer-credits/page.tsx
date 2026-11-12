@@ -89,7 +89,7 @@ export default function CustomerCreditsPage() {
   const money = (n: number) => formatCurrency(Number(n) || 0, currencyCode)
 
   // Same audience as Customer Balances; refunding is a customer-payment action.
-  // 422: the same page serves Water (water-customer-credits re-exports it).
+  // 424: the same page serves Water (water-customer-credits re-exports it).
   const canView = can(creditPerm("customer-balances.view"))
   const canRefund = can(creditPerm("customer-payments.create"))
   const routes = creditRoutes()

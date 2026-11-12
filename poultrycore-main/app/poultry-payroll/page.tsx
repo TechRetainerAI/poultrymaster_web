@@ -87,7 +87,7 @@ export default function PoultryPayrollPage() {
   const [staff, setStaff] = useState<PoultryStaff[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState("all")
-  // 428. Payroll templates.
+  // 419. Payroll templates.
   const { canEdit } = usePermissions()
   const [tab, setTab] = useState<"runs" | "templates">("runs")
   const [templates, setTemplates] = useState<PoultryPayrollTemplate[]>([])
@@ -151,14 +151,14 @@ export default function PoultryPayrollPage() {
     try {
       const [r, a, s, t] = await Promise.all([
         listPoultryPayrollRuns(), listPoultryCashAccounts(), listPoultryStaff(),
-        listPoultryPayrollTemplates().catch(() => [] as PoultryPayrollTemplate[]),   // 428; empty until migrated
+        listPoultryPayrollTemplates().catch(() => [] as PoultryPayrollTemplate[]),   // 419; empty until migrated
       ])
       setRuns(r); setAccounts(a); setStaff(s); setTemplates(t)
     } catch (e: any) { toast({ title: "Could not load payroll", description: e?.message, variant: "destructive" }) }
     finally { setLoading(false) }
   }
 
-  /** 428. Pick a template in New payroll run: next period + its cash account. */
+  /** 419. Pick a template in New payroll run: next period + its cash account. */
   function pickTemplate(templateId: number, t?: PoultryPayrollTemplate) {
     const tpl = t ?? templates.find((x) => x.poultryPayrollTemplateId === templateId)
     if (!tpl) { setForm((f) => ({ ...f, templateId: 0 })); return }
@@ -188,7 +188,7 @@ export default function PoultryPayrollPage() {
   }
 
   /**
-   * 428. Create the run from the template (one Draft line per active staff
+   * 419. Create the run from the template (one Draft line per active staff
    * member), then add each worker's scheduled advance repayments exactly as
    * adding a line by hand does, and open the lines for review.
    */

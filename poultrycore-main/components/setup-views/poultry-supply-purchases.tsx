@@ -642,7 +642,7 @@ function PoultryRawMaterialsPageInner() {
   // ---- Purchase CRUD ----
   function openNewPurchase() { setEditingPurchase(null); setPurchaseDefaults(undefined); setPurchaseOpen(true) }
   function openEditPurchase(p: PoultryRawMaterialPurchase) { setEditingPurchase(p); setPurchaseDefaults(undefined); setPurchaseOpen(true) }
-  // 427. Purchases are reversed, never deleted: the row stays, marked Reversed.
+  // 418. Purchases are reversed, never deleted: the row stays, marked Reversed.
   async function confirmReversePurchase(reason: string) {
     if (!reversePurchaseTarget) return
     try {

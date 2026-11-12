@@ -94,8 +94,8 @@ namespace PoultryFarmAPIWeb.Controllers
             if (!ModelState.IsValid) return BadRequest(ModelState);
             if (string.IsNullOrWhiteSpace(r.FarmId)) return BadRequest("Company ID is required.");
             if (r.PartyId is null or 0) return BadRequest("A customer is required to receive a payment.");
-            // 422: a payment may be applied to nothing -- it is then the customer's credit.
-            // 423 (382): only the owner / an admin may keep a payment off Profit & Loss.
+            // 424: a payment may be applied to nothing -- it is then the customer's credit.
+            // 425 (382): only the owner / an admin may keep a payment off Profit & Loss.
             if (r.ExcludeFromPL && !await CanSetPL()) return StatusCode(403, new
             {
                 message = "Only the account owner or an admin can keep a payment off Profit & Loss.",
@@ -118,7 +118,7 @@ namespace PoultryFarmAPIWeb.Controllers
             return !string.IsNullOrWhiteSpace(me) && await SetupAdminOnlyAttribute.IsSetupAdminAsync(HttpContext, me);
         }
 
-        // 423 (382): a payment on a customer debt is revenue unless the owner / an admin excludes it.
+        // 425 (382): a payment on a customer debt is revenue unless the owner / an admin excludes it.
         [HttpPost("customer-payments/{paymentId:guid}/pl-exclusion")]
         [SetupAdminOnly]
         public async Task<ActionResult> SetCustomerPaymentPLExclusion(Guid paymentId, [FromBody] PLExclusionRequest r)
@@ -135,7 +135,7 @@ namespace PoultryFarmAPIWeb.Controllers
             }
         }
 
-        // 425 (382): a payment on a supplier debt is an operating expense unless the owner / an admin excludes it.
+        // 427 (382): a payment on a supplier debt is an operating expense unless the owner / an admin excludes it.
         [HttpPost("supplier-payments/{paymentId:int}/pl-exclusion")]
         [SetupAdminOnly]
         public async Task<ActionResult> SetSupplierPaymentPLExclusion(int paymentId, [FromBody] PLExclusionRequest r)
@@ -152,7 +152,7 @@ namespace PoultryFarmAPIWeb.Controllers
             }
         }
 
-        // 423: customer debt -- owed without a sale. Recording or reversing one is
+        // 425: customer debt -- owed without a sale. Recording or reversing one is
         // the owner's / an admin's call, like manual credit.
         [HttpGet("customer-debts")]
         public async Task<ActionResult<IEnumerable<CustomerDebtRow>>> GetCustomerDebts([FromQuery] string farmId, [FromQuery] int? customerId)
@@ -183,7 +183,7 @@ namespace PoultryFarmAPIWeb.Controllers
             catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001") { return BadRequest(new { message = ex.MessageText }); }
         }
 
-        // -------------------------------------------- 424 supplier credit / debt
+        // -------------------------------------------- 426 supplier credit / debt
         // Same routes and shapes as PoultryBalancesController (370).
 
         private async Task<ActionResult> Run(Func<Task<object>> f)
@@ -290,7 +290,7 @@ namespace PoultryFarmAPIWeb.Controllers
             return Run(async () => new { debtId = await _svc.ReverseSupplierDebt(debtId, r) });
         }
 
-        // -------------------------------------------- 422 customer credit / refunds
+        // -------------------------------------------- 424 customer credit / refunds
         // Same routes and shapes as PoultryBalancesController, so the shared
         // credit pages only swap the prefix. Under customer-payments on purpose:
         // the same permission keys (water.customer-payments.*).
@@ -464,12 +464,12 @@ namespace PoultryFarmAPIWeb.Controllers
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
             if (string.IsNullOrWhiteSpace(r.FarmId)) return BadRequest("Company ID is required.");
-            // 425 (382): only the owner / an admin may keep a payment off Profit & Loss.
+            // 427 (382): only the owner / an admin may keep a payment off Profit & Loss.
             if (r.ExcludeFromPL && !await CanSetPL()) return StatusCode(403, new
             {
                 message = "Only the account owner or an admin can keep a payment off Profit & Loss.",
             });
-            // 424: a payment may be applied to nothing -- it is then an advance (supplier credit).
+            // 426: a payment may be applied to nothing -- it is then an advance (supplier credit).
             if ((r.Allocations.Count == 0 || r.Allocations.Sum(a => a.Amount) < r.Amount) && r.PartyId is null or 0)
                 return BadRequest("Choose the supplier -- money not applied to anything is kept as their credit.");
             try
