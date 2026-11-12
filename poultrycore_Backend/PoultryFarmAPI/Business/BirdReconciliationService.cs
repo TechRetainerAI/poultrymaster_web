@@ -84,9 +84,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             var list = new List<BatchBirdReconciliationRow>();
             using var c = new NpgsqlConnection(_cs);
-            // flocksold: birds sold out of the batch's live flocks (opening history +
-            // posted sales), from the same fnflock_birdposition the summary uses.
-            // batchsold only covers birds sold before they were placed in a flock.
+            // 418 adds the flock-side columns. Before 418 they are absent, so
+            // fall back to the old inline flock-sold join (opening + posted sales).
             using var cmd = new NpgsqlCommand(@"
                 SELECT s.*, COALESCE(fs.sold, 0)::int AS flocksold
                 FROM   sppoultrybatchreconcile_summary(p_farmid => @FarmId::text) s
@@ -118,9 +117,27 @@ namespace PoultryFarmAPIWeb.Business
                     HistoricalReceived = r.Dec("historicalreceived"), HistoricalOwed = r.Dec("historicalowed"),
                     Status = r.Str("status"), LastReconciledAt = r.DateN("lastreconciledat"),
                     LastReconciliationNo = r.StrN("lastreconciliationno"),
+                    FlockHistMortality = IntOr0(r, "flockhistmortality"),
+                    FlockHistSold = IntOr0(r, "flockhistsold"),
+                    FlockHistCulled = IntOr0(r, "flockhistculled"),
+                    FlockHistTransferred = IntOr0(r, "flockhisttransferred"),
+                    FlockHistOther = IntOr0(r, "flockhistother"),
+                    FlockRecordedMortality = IntOr0(r, "flockrecordedmortality"),
+                    FlockPostedSold = IntOr0(r, "flockpostedsold"),
+                    FlockCulled = IntOr0(r, "flockculled"),
+                    FlockTransferred = IntOr0(r, "flocktransferred"),
+                    FlockOtherChanges = IntOr0(r, "flockotherchanges"),
                 });
             }
             return list;
+        }
+
+        // A column 418 added; 0 when the database predates it.
+        private static int IntOr0(NpgsqlDataReader r, string name)
+        {
+            for (var i = 0; i < r.FieldCount; i++)
+                if (r.GetName(i) == name) return r.IsDBNull(i) ? 0 : r.GetInt32(i);
+            return 0;
         }
 
         public async Task<string> GetDetailAsync(string farmId, int batchId)

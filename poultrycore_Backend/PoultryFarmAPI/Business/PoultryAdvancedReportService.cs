@@ -369,14 +369,19 @@ namespace PoultryFarmAPIWeb.Business
             await conn.OpenAsync();
             using var r = await cmd.ExecuteReaderAsync();
             // Rows arrive ordered by flock, date (asc) so we can build cumulative.
+            // 419: the cumulative count starts from every death BEFORE the range
+            // (opening historical mortality + recorded), and BirdsPlaced is the
+            // birds the flock started with, so the % is the flock's lifetime one.
             var cumulativeByFlock = new Dictionary<int, int>();
+            var startedByFlock = new Dictionary<int, int>();
             while (await r.ReadAsync())
             {
                 var flockKey = IntN(r, "FlockId") ?? -1;
                 var deaths = IntOr(r, "Deaths");
                 var placed = IntOr(r, "BirdsPlaced");
                 var opening = IntN(r, "OpeningBirds");
-                cumulativeByFlock.TryGetValue(flockKey, out var prior);
+                if (!cumulativeByFlock.TryGetValue(flockKey, out var prior)) prior = IntOr(r, "DeathsBefore");
+                startedByFlock[flockKey] = placed;
                 var cumulative = prior + deaths;
                 cumulativeByFlock[flockKey] = cumulative;
                 resp.Rows.Add(new PoultryMortalityReportRow
@@ -403,10 +408,13 @@ namespace PoultryFarmAPIWeb.Business
                 AverageDailyDeaths = byDay.Count == 0 ? 0 : Math.Round(byDay.Average(x => (double)x.D), 1),
                 HighestMortalityDay = byDay.OrderByDescending(x => x.D).FirstOrDefault()?.Key,
                 HighestMortalityDayDeaths = byDay.OrderByDescending(x => x.D).FirstOrDefault()?.D ?? 0,
-                CumulativeMortalityPercent = resp.Rows.Where(x => x.CumulativeMortalityPercent != null)
-                                                     .OrderByDescending(x => x.Date).FirstOrDefault()?.CumulativeMortalityPercent,
-                FlocksWithHighMortality = resp.Rows.Where(x => (x.CumulativeMortalityPercent ?? 0) > 10)
-                                                  .Select(x => x.FlockId).Distinct().Count(),
+                // 419: the farm's figure (every flock's lifetime deaths over every
+                // flock's starting birds), not the latest row's single flock.
+                CumulativeMortalityPercent = startedByFlock.Values.Sum() > 0
+                    ? Percent(cumulativeByFlock.Values.Sum(), startedByFlock.Values.Sum())
+                    : null,
+                FlocksWithHighMortality = cumulativeByFlock.Count(kv =>
+                    startedByFlock.TryGetValue(kv.Key, out var st) && st > 0 && (Percent(kv.Value, st) ?? 0) > 10),
             };
             // 375: dead bird disposition. Deaths above are unchanged by it.
             var bpMort = Bp(await ByproductTotalsAsync(f.FarmId, start, end, f.FlockId), "DeadBirds");
@@ -439,10 +447,17 @@ namespace PoultryFarmAPIWeb.Business
             using var r = await cmd.ExecuteReaderAsync();
             while (await r.ReadAsync())
             {
+                // 419: every figure from the flock's bird position as of the end
+                // date -- placed is what the flock started with, and deaths, sold,
+                // culled and transferred include the opening historical reduction.
                 var placed = IntOr(r, "BirdsPlaced");
                 var deaths = IntOr(r, "Deaths");
+                var culls = IntOr(r, "BirdsCulled");
+                var sold = IntOr(r, "BirdsSold");
+                var xferOut = IntOr(r, "BirdsTransferred");
+                var otherOut = IntOr(r, "OtherReductions");
                 var current = IntN(r, "CurrentRecordedBirds") ?? Math.Max(0, placed - deaths);
-                var expected = placed - deaths; // culls / sold / transfers not tracked
+                var expected = placed - deaths - culls - sold - xferOut - otherOut;
                 var variance = current - expected;
                 resp.Rows.Add(new PoultryBirdsOnHandReportRow
                 {
@@ -451,9 +466,10 @@ namespace PoultryFarmAPIWeb.Business
                     BirdsPlaced = placed,
                     TransfersIn = null,
                     Deaths = deaths,
-                    Culls = null,
-                    BirdsSold = null,
-                    TransfersOut = null,
+                    Culls = culls,
+                    BirdsSold = sold,
+                    TransfersOut = xferOut,
+                    OtherReductions = otherOut,
                     ExpectedBirdsOnHand = expected,
                     CurrentRecordedBirds = current,
                     Variance = variance,
@@ -466,11 +482,11 @@ namespace PoultryFarmAPIWeb.Business
                 TotalBirdsPlaced = resp.Rows.Sum(x => x.BirdsPlaced),
                 CurrentLiveBirds = resp.Rows.Sum(x => x.CurrentRecordedBirds),
                 TotalDeaths = resp.Rows.Sum(x => x.Deaths),
-                TotalCulls = 0,
-                TotalBirdsSoldTransferred = 0,
+                TotalCulls = resp.Rows.Sum(x => x.Culls ?? 0),
+                TotalBirdsSoldTransferred = resp.Rows.Sum(x => (x.BirdsSold ?? 0) + (x.TransfersOut ?? 0)),
                 BirdVariance = resp.Rows.Sum(x => x.Variance),
             };
-            resp.Warnings.Add("Culls, bird sales and transfers are not separately tracked; they are shown as N/A and excluded from the expected count.");
+            resp.Warnings.Add("Birds placed, deaths, sold, culled and transferred include each flock's opening history from Initial Farm Setup. Variance is the part of the latest count that no recorded movement explains.");
             // 375: informational only -- dead birds are never live birds on hand.
             var bpHand = Bp(await ByproductTotalsAsync(f.FarmId, start, end, f.FlockId), "DeadBirds");
             if (bpHand is not null && resp.Summary is not null) resp.Summary.DeadBirdsPendingDisposition = bpHand.Closing;
@@ -1782,14 +1798,18 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@EndDate", end);
             cmd.Parameters.Add(PFlock(f));
-            // Active flocks included by default; the "include closed flocks" flag,
-            // when OFF, restricts to closed/inactive flocks (lifecycle view).
+            // Active flocks always come back; closed / inactive ones are dropped
+            // below unless "Include closed flocks" is ticked.
             cmd.Parameters.AddWithValue("@IncludeActiveFlocks", true);
 
             await conn.OpenAsync();
             using var r = await cmd.ExecuteReaderAsync();
             while (await r.ReadAsync())
             {
+                // "Include closed flocks" OFF = active flocks only, the same rule as
+                // every other flock report (p_includeclosedflocks OR active) and the
+                // Flocks page totals.  The SP's own flag only ever ADDED active flocks.
+                if (!f.IncludeClosedFlocks && !BoolOr(r, "Active", true)) continue;
                 var placed = IntOr(r, "BirdsPlaced");
                 var deaths = IntOr(r, "TotalDeaths");
                 var eggs = LongOr(r, "TotalEggsProduced");
@@ -1809,12 +1829,14 @@ namespace PoultryFarmAPIWeb.Business
                     FlockId = IntN(r, "FlockId"),
                     FlockName = Str(r, "FlockName") ?? "Unnamed flock",
                     PlacementDate = DateN(r, "PlacementDate"),
-                    ClosingDate = null,
+                    ClosingDate = DateN(r, "ClosedDate"),
                     FlockAgeWeeks = IntN(r, "FlockAgeWeeks"),
                     BirdsPlaced = placed,
                     TotalDeaths = deaths,
-                    Culls = null,
-                    BirdsSoldTransferred = null,
+                    // 419: opening history (when known) + since tracking began
+                    Culls = (BoolOr(r, "HistoryKnown", true) ? IntOr(r, "OpeningCulled") : 0) + IntOr(r, "BirdsCulled"),
+                    BirdsSoldTransferred = (BoolOr(r, "HistoryKnown", true) ? IntOr(r, "OpeningSold") + IntOr(r, "OpeningTransferred") : 0)
+                                         + IntOr(r, "BirdsSold") + IntOr(r, "BirdsTransferred"),
                     FinalBirdsRemaining = IntOr(r, "FinalBirdsRemaining"),
                     TotalEggsProduced = eggs,
                     SaleableEggs = Math.Max(0, eggs - broken),
@@ -1859,7 +1881,7 @@ namespace PoultryFarmAPIWeb.Business
                 FeedCostPerEgg = totalEggs > 0 ? SafeDivide(totalFeedCost, totalEggs) : null,
                 ProfitPerBird = placedSum > 0 ? SafeDivide(revSum - costSum, placedSum) : null,
             };
-            resp.Warnings.Add("Closing date, culls and bird-sales are not tracked. End-of-flock figures cover the flock lifecycle up to the selected end date.");
+            resp.Warnings.Add("End-of-flock figures cover the flock lifecycle up to the selected end date. Birds placed, deaths, culls and birds sold / transferred include each flock's opening history from Initial Farm Setup.");
             // 375: dead bird disposition over the flocks' lives.
             var bpEnd = Bp(await ByproductTotalsAsync(f.FarmId, new DateTime(2000, 1, 1), end, f.FlockId), "DeadBirds");
             if (bpEnd is not null && resp.Summary is not null)

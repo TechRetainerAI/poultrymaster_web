@@ -148,6 +148,22 @@ namespace PoultryFarmAPIWeb.Models
         public string Status { get; set; } = string.Empty;
         public DateTime? LastReconciledAt { get; set; }
         public string? LastReconciliationNo { get; set; }
+
+        // 418: where the birds PLACED IN FLOCKS went. Together with FlockLiveBirds
+        // these add up to OriginallyAllocated exactly.
+        /// <summary>Opening position (Initial Farm Setup): lost before tracking began.</summary>
+        public int FlockHistMortality { get; set; }
+        public int FlockHistSold { get; set; }
+        public int FlockHistCulled { get; set; }
+        public int FlockHistTransferred { get; set; }
+        public int FlockHistOther { get; set; }
+        /// <summary>Since tracking began: production-record deaths, posted bird sales, closeout culls / transfers.</summary>
+        public int FlockRecordedMortality { get; set; }
+        public int FlockPostedSold { get; set; }
+        public int FlockCulled { get; set; }
+        public int FlockTransferred { get; set; }
+        /// <summary>Signed remainder: count corrections, quantity adjustments, birds left in closed or deleted flocks.</summary>
+        public int FlockOtherChanges { get; set; }
     }
 
     public class BirdRepairDiagnosticRow

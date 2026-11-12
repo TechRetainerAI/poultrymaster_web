@@ -285,6 +285,8 @@ namespace PoultryFarmAPIWeb.Models
         public int? Culls { get; set; }
         public int? BirdsSold { get; set; }
         public int? TransfersOut { get; set; }
+        /// <summary>419: opening "other" reduction from Initial Farm Setup (history known only).</summary>
+        public int? OtherReductions { get; set; }
         public int ExpectedBirdsOnHand { get; set; }
         public int CurrentRecordedBirds { get; set; }
         public int Variance { get; set; }

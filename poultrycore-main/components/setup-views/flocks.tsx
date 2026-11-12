@@ -48,6 +48,8 @@ import { getHouses, type House } from "@/lib/api/house"
 import { HousePicker } from "@/components/poultry/house-picker"
 import { getBatchBirdReconciliation, type BatchBirdReconciliationRow } from "@/lib/api/bird-reconciliation"
 import { getFlockBatches, type FlockBatch } from "@/lib/api/flock-batch"
+import { getFlockPositions, type FlockPositionRow } from "@/lib/api/flock-positions"
+import { flockLifetime, positionsById } from "@/lib/flocks/bird-position"
 import { getProductionRecords, type ProductionRecord } from "@/lib/api/production-record"
 import { getBirdsLeftForFlockFromRecords } from "@/lib/utils/production-records"
 import { getOpeningPositions, type OpeningFlockPosition } from "@/lib/api/poultry-farm-setup"
@@ -137,6 +139,10 @@ export function FlocksPage() {
   // ORIGINALLY placed, keyed by flock. flock.quantity for such a flock is the
   // live count when it was registered, so it cannot be the "of" figure.
   const [openingByFlock, setOpeningByFlock] = useState<Record<number, OpeningFlockPosition>>({})
+  // 419: every flock's bird position from the server (fnflock_birdposition):
+  // placed, the opening historical reduction, what was recorded since, live
+  // now. Empty when the API predates 419 -- the old per-page figures are used.
+  const [positionByFlock, setPositionByFlock] = useState<Map<number, FlockPositionRow>>(new Map())
   // The server's bird accounting per batch (migration 413): how many of a
   // batch's birds are still not in any flock, after flocks AND birds sold or
   // lost before placing. A batch's size alone says nothing about what is left.
@@ -301,6 +307,10 @@ export function FlocksPage() {
         setOpeningByFlock(map)
       })
       .catch(() => { /* list still shows current birds */ })
+
+    void getFlockPositions(farmId)
+      .then((rows) => setPositionByFlock(positionsById(rows)))
+      .catch(() => setPositionByFlock(new Map()))
 
     try {
       const res = await getProductionRecords(userId, farmId)
@@ -912,20 +922,36 @@ export function FlocksPage() {
   const endIndex = startIndex + itemsPerPage
   const paginatedFlocks = filteredFlocks.slice(startIndex, endIndex)
 
-  // Bottom totals (farm-wide; ignore current filters so the page-level summary stays stable)
+  // Bottom totals (farm-wide; ignore current filters so the page-level summary stays stable).
+  // 419: birds a flock STARTED with -- for an onboarded flock flock.quantity is
+  // the opening LIVE count, which drops every bird lost before tracking began.
+  const startedBirdsOf = (f: Flock): number => {
+    const p = positionByFlock.get(f.flockId)
+    return p ? flockLifetime(p).started : (Number(f.quantity) || 0)
+  }
   const totalBirdsCount = useMemo(() =>
-    flocks.filter(f => f.hasArrived).reduce((sum, f) => sum + (Number(f.quantity) || 0), 0),
-    [flocks]
+    flocks.filter(f => f.hasArrived).reduce((sum, f) => sum + startedBirdsOf(f), 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [flocks, positionByFlock]
   )
   const totalActiveBirdsCount = useMemo(() =>
-    flocks.filter(f => f.hasArrived && f.active).reduce((sum, f) => sum + (Number(f.quantity) || 0), 0),
-    [flocks]
+    flocks.filter(f => f.hasArrived && f.active).reduce((sum, f) => sum + startedBirdsOf(f), 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [flocks, positionByFlock]
   )
   const totalInactiveBirdsCount = useMemo(() =>
-    flocks.filter(f => f.hasArrived && !f.active).reduce((sum, f) => sum + (Number(f.quantity) || 0), 0),
-    [flocks]
+    flocks.filter(f => f.hasArrived && !f.active).reduce((sum, f) => sum + startedBirdsOf(f), 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [flocks, positionByFlock]
   )
-  const totalBirdsSoldCount = 0
+  // Every bird sold over the flocks' lives: before tracking began + posted sales.
+  const totalBirdsSoldCount = useMemo(() =>
+    flocks.filter(f => f.hasArrived).reduce((sum, f) => {
+      const p = positionByFlock.get(f.flockId)
+      return sum + (p ? flockLifetime(p).sold : 0)
+    }, 0),
+    [flocks, positionByFlock]
+  )
 
   const truncateText = (text: string | undefined, maxLength: number) => {
     if (!text) return 'N/A'
@@ -960,6 +986,9 @@ export function FlocksPage() {
   // Get the actual current bird count for a flock:
   // Use noOfBirdsLeft from the most recent production record, or fall back to the flock's initial quantity
   const getCurrentBirds = (flock: Flock): number => {
+    // 419: live now -- the last count less sales / closeouts made after it.
+    const p = positionByFlock.get(flock.flockId)
+    if (p) return p.currentLiveBirds
     if (flock.flockId in flockBirdsLeftMap) {
       return flockBirdsLeftMap[flock.flockId]
     }
@@ -969,6 +998,8 @@ export function FlocksPage() {
   // Birds originally placed: the saved opening position when the flock was
   // registered as already operating, otherwise the flock's own quantity.
   const getPlacedBirds = (flock: Flock): number => {
+    const p = positionByFlock.get(flock.flockId)
+    if (p && p.originallyPlaced > 0) return p.originallyPlaced
     const o = openingByFlock[flock.flockId]
     if (o && o.originallyPlaced > 0) return o.originallyPlaced
     return flock.quantity || 0
@@ -982,43 +1013,81 @@ export function FlocksPage() {
   const overallTotalBirds = useMemo(() => {
     return flocks
       .filter((f) => flockCountsTowardBirdTotals(f))
-      .reduce((sum, flock) => sum + (flock.quantity || 0), 0)
-  }, [flocks])
+      .reduce((sum, flock) => sum + startedBirdsOf(flock), 0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flocks, positionByFlock])
 
   // Same flock set as overallTotalBirds / totalBirdsLeft (not farm-wide), so the three cards are comparable.
   const totalMortality = useMemo(() => {
     const eligibleIds = new Set(
       flocks.filter((f) => flockCountsTowardBirdTotals(f)).map((f) => f.flockId)
     )
+    // 419: lifetime deaths -- opening historical mortality + recorded.
+    if (positionByFlock.size > 0) {
+      let total = 0
+      for (const id of eligibleIds) {
+        const p = positionByFlock.get(id)
+        if (p) total += flockLifetime(p).deaths
+      }
+      return total
+    }
     return productionRecordsForFarm.reduce((sum, r) => {
       const fid = r.flockId
       if (fid == null || !eligibleIds.has(fid)) return sum
       return sum + (r.mortality ?? 0)
     }, 0)
-  }, [flocks, productionRecordsForFarm])
+  }, [flocks, productionRecordsForFarm, positionByFlock])
 
-  const totalMortalityAllRowsFarm = useMemo(
-    () => productionRecordsForFarm.reduce((sum, r) => sum + (Number(r.mortality) || 0), 0),
-    [productionRecordsForFarm],
-  )
+  const totalMortalityAllRowsFarm = useMemo(() => {
+    // 419: every flock's lifetime deaths (opening historical + recorded).
+    if (positionByFlock.size > 0) {
+      let total = 0
+      for (const p of positionByFlock.values()) if (!p.isDeleted) total += flockLifetime(p).deaths
+      return total
+    }
+    return productionRecordsForFarm.reduce((sum, r) => sum + (Number(r.mortality) || 0), 0)
+  }, [productionRecordsForFarm, positionByFlock])
 
   // Total birds left = same flocks as overallTotalBirds; per-flock current count from production or placed qty
   const totalBirdsLeft = useMemo(() => {
     return flocks
       .filter((f) => flockCountsTowardBirdTotals(f))
       .reduce((sum, flock) => {
+        const p = positionByFlock.get(flock.flockId)
+        if (p) return sum + p.currentLiveBirds
         if (flock.flockId in flockBirdsLeftMap) {
           return sum + flockBirdsLeftMap[flock.flockId]
         }
         return sum + (flock.quantity || 0)
       }, 0)
-  }, [flocks, flockBirdsLeftMap])
+  }, [flocks, flockBirdsLeftMap, positionByFlock])
 
   /** Same flocks as the three summary cards: placed minus latest birds left (compare to sum of daily deaths). */
   const birdsLostPlacedMinusLeft = useMemo(
     () => Math.max(0, overallTotalBirds - totalBirdsLeft),
     [overallTotalBirds, totalBirdsLeft],
   )
+
+  /**
+   * Birds that left the same flocks WITHOUT dying: sold, culled, transferred
+   * or another opening reduction (lifetime, from the bird position).  A sale
+   * lowers the headcount too, so the deaths-vs-headcount check must allow for
+   * it.  Null before 419 is deployed -- the check then compares deaths only.
+   */
+  const birdsRemovedNotDied = useMemo(() => {
+    if (positionByFlock.size === 0) return null
+    let n = 0
+    for (const f of flocks) {
+      if (!flockCountsTowardBirdTotals(f)) continue
+      const p = positionByFlock.get(f.flockId)
+      if (!p) continue
+      const l = flockLifetime(p)
+      n += l.sold + l.culled + l.transferred + l.other
+    }
+    return n
+  }, [flocks, positionByFlock])
+  /** Deaths plus every other recorded way a bird left: what the headcount drop should equal. */
+  const accountedLosses = totalMortality + (birdsRemovedNotDied ?? 0)
 
   const flockLifecycleBadge = (flock: Flock) => {
     const life = getFlockLifecycleStatus(flock)
@@ -1321,7 +1390,7 @@ export function FlocksPage() {
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div
                   className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-sm"
-                  title="Birds placed when each flock was created."
+                  title="Birds each flock was placed with, including birds lost before tracking began (Initial Farm Setup)."
                 >
                   <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
                     <Bird className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
@@ -1330,11 +1399,11 @@ export function FlocksPage() {
                   <div className="mt-1 text-xl font-bold leading-tight tabular-nums text-emerald-600">
                     {overallTotalBirds.toLocaleString()}
                   </div>
-                  <p className="mt-0.5 truncate text-[11px] text-slate-500">Placed when each flock was created</p>
+                  <p className="mt-0.5 truncate text-[11px] text-slate-500">Placed, including history before setup</p>
                 </div>
                 <div
                   className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-sm"
-                  title="Sum of Deaths on every production row for the flocks in the other two cards. Each row should be birds lost that day only (not a running total)."
+                  title="Lifetime deaths for the flocks in the other two cards: deaths before tracking began (Initial Farm Setup) plus the Deaths on every production record."
                 >
                   <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
                     <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-600" />
@@ -1356,21 +1425,29 @@ export function FlocksPage() {
                     <span className="font-semibold tabular-nums text-slate-800">
                       {birdsLostPlacedMinusLeft.toLocaleString()}
                     </span>
+                    {(birdsRemovedNotDied ?? 0) > 0 && (
+                      <span title="Birds sold, culled or transferred out of these flocks (including before tracking began). They lower the headcount without being deaths.">
+                        {" "}· sold / culled / moved:{" "}
+                        <span className="font-semibold tabular-nums text-slate-800">
+                          {(birdsRemovedNotDied ?? 0).toLocaleString()}
+                        </span>
+                      </span>
+                    )}
                   </p>
-                  {totalMortality > birdsLostPlacedMinusLeft + 1 && (
+                  {accountedLosses > birdsLostPlacedMinusLeft + 1 && (
                     <p
                       className="mt-0.5 truncate text-[11px] text-amber-800/90"
-                      title="Red total is higher than this drop in headcount — check rows for cumulative death counts or the same day entered twice."
+                      title="Deaths plus sold / culled / moved birds are more than the drop in headcount — check rows for cumulative death counts or the same day entered twice."
                     >
                       Higher than headcount drop — check for cumulative or duplicate rows
                     </p>
                   )}
-                  {birdsLostPlacedMinusLeft > totalMortality + 1 && (
+                  {birdsLostPlacedMinusLeft > accountedLosses + 1 && (
                     <p
                       className="mt-0.5 truncate text-[11px] text-slate-600"
-                      title="Headcount fell more than summed deaths — some losses may be missing in the Deaths column, or birds were removed another way."
+                      title={`Headcount fell by ${(birdsLostPlacedMinusLeft - accountedLosses).toLocaleString()} more than deaths${birdsRemovedNotDied == null ? "" : " plus sold / culled / moved birds"} — some losses were not recorded, or a bird count was corrected.`}
                     >
-                      Headcount fell more than deaths — some losses may be missing
+                      {(birdsLostPlacedMinusLeft - accountedLosses).toLocaleString()} birds unaccounted for
                     </p>
                   )}
                 </div>
