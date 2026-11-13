@@ -25,6 +25,7 @@ import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { getUserContext } from "@/lib/api/config"
 import { getFlocks, type Flock } from "@/lib/api/flock"
+import { getFlockBatches, type FlockBatch } from "@/lib/api/flock-batch"
 import { getCustomers } from "@/lib/api/customer"
 import { defaultReportRange, rangeToPeriod, PERIOD_GROUPS } from "@/lib/date-ranges"
 import { fetchPoultryReport, type PoultryReportResponse, type PoultryReportSlug } from "@/lib/api/poultry-reports"
@@ -57,6 +58,7 @@ export function PoultryReportView({ slug, chrome = "page" }: { slug: PoultryRepo
     fromDate: initialRange.from,
     toDate: initialRange.to,
     flockId: null,
+    batchId: null,
     customerName: null,
     supplierName: null,
     category: null,
@@ -64,6 +66,7 @@ export function PoultryReportView({ slug, chrome = "page" }: { slug: PoultryRepo
   })
 
   const [flocks, setFlocks] = useState<Flock[]>([])
+  const [batches, setBatches] = useState<FlockBatch[]>([])
   const [customers, setCustomers] = useState<string[]>([])
   const [data, setData] = useState<PoultryReportResponse | null>(null)
   const [busy, setBusy] = useState(true)
@@ -89,6 +92,9 @@ export function PoultryReportView({ slug, chrome = "page" }: { slug: PoultryRepo
       getFlocks(userId, farmId)
         .then((res) => setFlocks((res.data ?? []).filter((f) => f && f.flockId != null)))
         .catch(() => setFlocks([]))
+      getFlockBatches(userId, farmId)
+        .then((res) => setBatches(res.success && Array.isArray(res.data) ? res.data.filter((b) => b && b.batchId) : []))
+        .catch(() => setBatches([]))
     }
     if (def.filters.customer) {
       getCustomers(userId, farmId)
@@ -111,6 +117,7 @@ export function PoultryReportView({ slug, chrome = "page" }: { slug: PoultryRepo
         endDate: filter.toDate,
         datePreset: rangeToPeriod(filter.fromDate, filter.toDate),
         flockId: def.filters.flock ? filter.flockId : undefined,
+        batchId: def.filters.flock ? filter.batchId : undefined,
         customerName: def.filters.customer ? filter.customerName : undefined,
         supplierName: def.filters.supplier ? filter.supplierName : undefined,
         category: def.filters.category ? filter.category : undefined,
@@ -233,12 +240,16 @@ export function PoultryReportView({ slug, chrome = "page" }: { slug: PoultryRepo
       const f = flocks.find((x) => x.flockId === filter.flockId)
       out.push({ label: "Flock", value: f?.name || `#${filter.flockId}` })
     }
+    if (def.filters.flock && filter.batchId != null) {
+      const b = batches.find((x) => x.batchId === filter.batchId)
+      out.push({ label: "Batch", value: b?.batchCode || b?.batchName || `#${filter.batchId}` })
+    }
     if (def.filters.customer && filter.customerName) out.push({ label: "Customer", value: filter.customerName })
     if (def.filters.supplier && filter.supplierName) out.push({ label: "Supplier", value: filter.supplierName })
     if (def.filters.category && filter.category) out.push({ label: "Category", value: filter.category })
     if (def.filters.includeClosedFlocks && filter.includeClosedFlocks) out.push({ label: "Closed flocks", value: "Included" })
     return out
-  }, [def, filter, flocks])
+  }, [def, filter, flocks, batches])
 
   // --- exports ---------------------------------------------------------------
   const buildPdfOptions = useCallback((): PdfExportOptions => ({
@@ -319,7 +330,7 @@ export function PoultryReportView({ slug, chrome = "page" }: { slug: PoultryRepo
 
   const resetFilters = () => setFilter({
     fromDate: initialRange.from, toDate: initialRange.to,
-    flockId: null, customerName: null, supplierName: null, category: null, includeClosedFlocks: false,
+    flockId: null, batchId: null, customerName: null, supplierName: null, category: null, includeClosedFlocks: false,
   })
 
   const hasData = !!data && rows.length > 0
@@ -362,6 +373,7 @@ export function PoultryReportView({ slug, chrome = "page" }: { slug: PoultryRepo
             onReset={resetFilters}
             show={def.filters}
             flocks={flocks}
+            batches={batches}
             customers={customers}
             categories={categoryOptions}
           />

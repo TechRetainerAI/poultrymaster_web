@@ -16,11 +16,14 @@ import { PeriodSelect } from "@/components/ui/period-select"
 import { rangeToPeriod } from "@/lib/date-ranges"
 import { cn } from "@/lib/utils"
 import type { Flock } from "@/lib/api/flock"
+import type { FlockBatch } from "@/lib/api/flock-batch"
 
 export interface PoultryReportFilterValue {
   fromDate: string
   toDate: string
   flockId?: number | null
+  /** 432: narrow to one batch's flocks. Shown wherever the Flock filter is. */
+  batchId?: number | null
   customerName?: string | null
   supplierName?: string | null
   category?: string | null
@@ -33,6 +36,8 @@ export interface PoultryReportFilterProps {
   onReset: () => void
   show: { flock?: boolean; customer?: boolean; supplier?: boolean; category?: boolean; includeClosedFlocks?: boolean }
   flocks: Flock[]
+  /** Batches for the Batch filter (shown alongside the Flock filter when non-empty). */
+  batches?: FlockBatch[]
   /** Category options for the category filter — gathered from the report's own rows. */
   categories?: string[]
   customers: string[]
@@ -40,8 +45,16 @@ export interface PoultryReportFilterProps {
 
 const ALL = "__ALL__"
 
-export function PoultryReportFilter({ value, onChange, onReset, show, flocks, customers, categories = [] }: PoultryReportFilterProps) {
+export function PoultryReportFilter({ value, onChange, onReset, show, flocks, batches = [], customers, categories = [] }: PoultryReportFilterProps) {
   const set = (patch: Partial<PoultryReportFilterValue>) => onChange({ ...value, ...patch })
+  // A picked batch narrows the Flock list to its flocks.
+  const flockOptions = value.batchId != null ? flocks.filter((f) => Number(f.batchId) === value.batchId) : flocks
+  // Picking a batch clears a flock that is not in it.
+  const setBatch = (batchId: number | null) => {
+    const keep = batchId == null || value.flockId == null
+      || flocks.some((f) => f.flockId === value.flockId && Number(f.batchId) === batchId)
+    set({ batchId, ...(keep ? {} : { flockId: null }) })
+  }
 
   return (
     // Labels sit ABOVE their control rather than beside it. Beside it, every
@@ -70,6 +83,25 @@ export function PoultryReportFilter({ value, onChange, onReset, show, flocks, cu
         <Input type="date" value={value.toDate} onChange={(e) => set({ toDate: e.target.value })} className="w-full" />
       </FilterField>
 
+      {show.flock && batches.length > 0 && (
+        <FilterField label="Batch" className="sm:w-48">
+          <Select
+            value={value.batchId != null ? String(value.batchId) : ALL}
+            onValueChange={(v) => setBatch(v === ALL ? null : Number(v))}
+          >
+            <SelectTrigger className="w-full"><SelectValue placeholder="All batches" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>All batches</SelectItem>
+              {batches.map((b) => (
+                <SelectItem key={b.batchId} value={String(b.batchId)}>
+                  {b.batchCode && b.batchName && b.batchCode !== b.batchName ? `${b.batchCode} — ${b.batchName}` : b.batchCode || b.batchName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FilterField>
+      )}
+
       {show.flock && (
         <FilterField label="Flock" className="sm:w-48">
           <Select
@@ -79,7 +111,7 @@ export function PoultryReportFilter({ value, onChange, onReset, show, flocks, cu
             <SelectTrigger className="w-full"><SelectValue placeholder="All flocks" /></SelectTrigger>
             <SelectContent>
               <SelectItem value={ALL}>All flocks</SelectItem>
-              {flocks.map((f) => <SelectItem key={f.flockId} value={String(f.flockId)}>{f.name}</SelectItem>)}
+              {flockOptions.map((f) => <SelectItem key={f.flockId} value={String(f.flockId)}>{f.name}</SelectItem>)}
             </SelectContent>
           </Select>
         </FilterField>

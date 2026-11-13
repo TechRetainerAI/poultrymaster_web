@@ -34,8 +34,12 @@ import { getProductionRecords, type ProductionRecord } from "@/lib/api/productio
 import { getFlocks, type Flock } from "@/lib/api/flock"
 import { getFlockBatches, type FlockBatch } from "@/lib/api/flock-batch"
 import { sumLatestBirdsLeftByFlock } from "@/lib/utils/production-records"
+import { getFlockPositions, type FlockPositionRow } from "@/lib/api/flock-positions"
+import { flockLifetime } from "@/lib/flocks/bird-position"
 import { toLocalDateKey } from "@/lib/utils/date-key"
 import { cn } from "@/lib/utils"
+import { PeriodSelect } from "@/components/ui/period-select"
+import { rangeToPeriod } from "@/lib/date-ranges"
 import { exportTableToPdf, emailTableAsPdf, type PdfExportColumn, type PdfExportOptions } from "@/lib/utils/pdf-export"
 import { PoultryReportExportButtons } from "@/components/poultry-reports/poultry-report-ui"
 
@@ -102,11 +106,13 @@ export default function BatchProductionSummaryReport() {
       setLoading(false)
       return
     }
-    const [recRes, flockRes, batchRes] = await Promise.all([
+    const [recRes, flockRes, batchRes, posRows] = await Promise.all([
       getProductionRecords(userId, farmId),
       getFlocks(userId, farmId),
       getFlockBatches(userId, farmId),
+      getFlockPositions(farmId),
     ])
+    setPositions(posRows)
     if (recRes.success && recRes.data) { setRecords(recRes.data); setError("") }
     else setError(recRes.message || "Failed to load production records")
     if (flockRes.success && flockRes.data) setFlocks(flockRes.data)
@@ -115,6 +121,11 @@ export default function BatchProductionSummaryReport() {
   }
 
   // Records → flock → batch aggregation.
+  // 421: each flock's bird position from the server. Null before 421 is
+  // deployed -- then placed falls back to birds bought and current birds to the
+  // latest production records, as before.
+  const [positions, setPositions] = useState<FlockPositionRow[] | null>(null)
+
   const rows = useMemo<BatchRow[]>(() => {
     let recs = records.slice()
     if (dateFrom) recs = recs.filter((r) => toLocalDateKey(r.date) >= dateFrom)
@@ -150,8 +161,16 @@ export default function BatchProductionSummaryReport() {
         breed: b.breed || "",
         status: b.status || "active",
         flockCount: flocksByBatch.get(b.batchId)?.size ?? 0,
-        birdsPlaced: Number(b.numberOfBirds) || 0,
-        currentBirds: sumLatestBirdsLeftByFlock(recsForBatch),
+        // 421: birds PLACED in the batch's flocks (including the ones lost
+        // before tracking began), and live now in its open flocks.
+        birdsPlaced: positions
+          ? positions.filter((p) => p.batchId === b.batchId && !p.isDeleted)
+              .reduce((sum, p) => sum + flockLifetime(p).started, 0)
+          : Number(b.numberOfBirds) || 0,
+        currentBirds: positions
+          ? positions.filter((p) => p.batchId === b.batchId && !p.isDeleted && !p.isClosed)
+              .reduce((sum, p) => sum + p.currentLiveBirds, 0)
+          : sumLatestBirdsLeftByFlock(recsForBatch),
         totalEggs,
         broken,
         avgDaily: days ? totalEggs / days : 0,
@@ -168,7 +187,7 @@ export default function BatchProductionSummaryReport() {
       ? out.filter((r) => r.batchName.toLowerCase().includes(q) || r.batchCode.toLowerCase().includes(q) || r.breed.toLowerCase().includes(q))
       : out
     return filtered.sort((a, b) => b.totalEggs - a.totalEggs || a.batchName.localeCompare(b.batchName))
-  }, [records, flocks, batches, dateFrom, dateTo, search])
+  }, [records, flocks, batches, dateFrom, dateTo, search, positions])
   const pg = usePagination(rows)
 
   const summary = useMemo(() => {
@@ -314,6 +333,16 @@ export default function BatchProductionSummaryReport() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <Input placeholder="Search batch, code, breed…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
               </div>
+              {/* Same Period list as the other reports. Blank dates = everything, shown as All Time. */}
+              <PeriodSelect
+                label={null}
+                className="w-44"
+                value={!dateFrom && !dateTo ? "allTime" : rangeToPeriod(dateFrom, dateTo)}
+                onChange={(p, range) => {
+                  if (p === "allTime") { setDateFrom(""); setDateTo("") }
+                  else if (range) { setDateFrom(range.from); setDateTo(range.to) }
+                }}
+              />
               <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-[150px]" />
               <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-[150px]" />
               <div className="ml-auto flex items-center gap-2">

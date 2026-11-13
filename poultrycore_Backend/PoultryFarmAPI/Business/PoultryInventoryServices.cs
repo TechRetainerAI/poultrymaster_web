@@ -28,6 +28,7 @@ namespace PoultryFarmAPIWeb.Business
         Task<int> InsertAsync(PoultryRawMaterialPurchaseModel m);
         Task UpdateAsync(PoultryRawMaterialPurchaseModel m);
         Task DeleteAsync(int id, string farmId);
+        Task ReverseAsync(int id, string farmId, string reason, string? reversedBy);
         Task<decimal> PayBalanceAsync(int id, string farmId, decimal amount, string? paymentMethod, DateTime? paymentDate, string? createdBy);
     }
 
@@ -510,6 +511,21 @@ namespace PoultryFarmAPIWeb.Business
             }
             // Row is gone now → reverse-only (no repost).
             await SyncCashAsync(farmId, id, null, setAccount: false, createdBy: null);
+        }
+
+        // 418. Purchases are reversed, not deleted: the row stays, marked Reversed,
+        // and its stock, payments, up-front cash and expense are taken back in one
+        // transaction. The SQL refuses (with a plain message) when stock was used.
+        public async Task ReverseAsync(int id, string farmId, string reason, string? reversedBy)
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT sppoultryrawmaterialpurchase_reverse(p_farmid => @FarmId::text, p_purchaseid => @Id::int, p_reason => @Reason::text, p_reversedby => @ReversedBy::text)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@Id", id);
+            cmd.Parameters.AddWithValue("@Reason", reason);
+            cmd.Parameters.AddWithValue("@ReversedBy", (object?)reversedBy ?? DBNull.Value);
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
         }
 
         public async Task<decimal> PayBalanceAsync(int id, string farmId, decimal amount, string? paymentMethod, DateTime? paymentDate, string? createdBy)

@@ -7,7 +7,7 @@ import {
   parseCount, penOptions, renameForHouse, resolveStartDate, seedReconciliation,
   summarize, summarizeHouseRows,
   balanceBreakdown, batchAllocationViews, batchDraft, batchEditRows, distributePensEvenly,
-  fillPensToCapacity, fromBatchDraft, isHistoricalBatch,
+  fillPensToCapacity, fromBatchDraft, isHistoricalBatch, syncDraftWithContext, filterBatchStepRows, countBatchStepFilters,
   summarizeBatchEditRows, visibleBatchEditRows,
   summarizeBatchRows, toRequest,
   validateSetup, visibleBatchRows, visibleHouseRows,
@@ -1733,5 +1733,66 @@ describe("batch history recorded before setup", () => {
     const { d } = build()
     const ctx = context({ existingBatches: [existing] })
     expect(batchReconciliationViews(d, ctx)[0].neverPlaced).toBe(7000)
+  })
+})
+
+describe("syncDraftWithContext (resumed setup sees the farm as it is now)", () => {
+  const b = (id: number, birds = 100) => ({ batchId: id, batchCode: `B${id}`, batchName: `Batch ${id}`, breed: "Isa", numberOfBirds: birds, startDate: "2026-01-01" })
+  const h = (id: number) => ({ houseId: id, houseName: `Pen ${id}`, capacity: 500, occupied: 0, activeFlocks: 0 })
+
+  it("adds a batch created after the draft was saved, keeps the rest linked", () => {
+    const start = context({ existingBatches: [b(1), b(2)], existingHouses: [h(1)] })
+    const draft: SetupDraft = {
+      mode: "existing",
+      batches: [...start.existingBatches.map(batchRowFromExisting), { ...emptyBatch(), batchName: "New one" }],
+      houses: start.existingHouses.map(houseRowFromExisting),
+      flocks: [],
+    }
+    const keyOf1 = draft.batches[0].key
+    const now = context({ existingBatches: [b(1, 90), b(2), b(3)], existingHouses: [h(1)] })
+    const r = syncDraftWithContext(draft, now)
+    expect(r.addedBatches).toBe(1)
+    expect(r.draft.batches.map((x) => x.existingBatchId ?? null)).toEqual([1, 2, 3, null])
+    expect(r.draft.batches[0].key).toBe(keyOf1)
+    expect(r.draft.batches[0].numberOfBirds).toBe("90")
+    expect(r.draft.batches[3].batchName).toBe("New one")
+  })
+
+  it("drops a deleted batch or pen and clears flocks that pointed at it", () => {
+    const start = context({ existingBatches: [b(1), b(2)], existingHouses: [h(1), h(2)] })
+    const batches = start.existingBatches.map(batchRowFromExisting)
+    const houses = start.existingHouses.map(houseRowFromExisting)
+    const flock = { ...emptyFlock(), batchKey: batches[1].key, houseKey: houses[1].key }
+    const draft: SetupDraft = { mode: "existing", batches, houses, flocks: [flock] }
+    const r = syncDraftWithContext(draft, context({ existingBatches: [b(1)], existingHouses: [h(1)] }))
+    expect(r.removedBatches).toBe(1)
+    expect(r.removedHouses).toBe(1)
+    expect(r.draft.batches).toHaveLength(1)
+    expect(r.draft.flocks[0].batchKey).toBe("")
+    expect(r.draft.flocks[0].houseKey).toBe("")
+  })
+
+  it("does not pull the farm's batches into a new-batch setup", () => {
+    const draft: SetupDraft = { mode: "newBatch", batches: [emptyBatch()], houses: [], flocks: [] }
+    const r = syncDraftWithContext(draft, context({ existingBatches: [b(1)] }))
+    expect(r.addedBatches).toBe(0)
+    expect(r.draft.batches).toHaveLength(1)
+  })
+})
+
+describe("Batches step tabs (filterBatchStepRows)", () => {
+  const b = (id: number, birds: number) => ({ batchId: id, batchCode: `B${id}`, batchName: `Batch ${id}`, breed: "Isa", numberOfBirds: birds, startDate: "2026-01-01" })
+  it("splits batches into fully, partly and not allocated, plus new", () => {
+    const ctx = context({ existingBatches: [b(1, 100), b(2, 100), b(3, 100)], allocatedByBatchId: { 1: 100, 2: 40 } })
+    const draft: SetupDraft = {
+      mode: "existing",
+      batches: [...ctx.existingBatches.map(batchRowFromExisting), { ...emptyBatch(), numberOfBirds: "50" }],
+      houses: [], flocks: [],
+    }
+    const views = batchAllocationViews(draft, ctx)
+    expect(countBatchStepFilters(views)).toEqual({ all: 4, full: 1, partial: 1, none: 2, new: 1 })
+    expect(filterBatchStepRows(views, "full").map((v) => v.batch.existingBatchId)).toEqual([1])
+    expect(filterBatchStepRows(views, "partial")[0].remaining).toBe(60)
+    expect(filterBatchStepRows(views, "new")).toHaveLength(1)
   })
 })

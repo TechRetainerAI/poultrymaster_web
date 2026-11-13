@@ -8,6 +8,7 @@
 // side and never netted. Applying, refunding and the full history live on
 // /supplier-credits; this panel only says what is held and links there.
 
+import { supplierCreditRoutes } from "@/lib/api/credit-module"
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { PiggyBank } from "lucide-react"
@@ -47,7 +48,7 @@ export function SupplierCreditPanel({ refreshKey = 0 }: { refreshKey?: number })
           </h2>
           <span className="flex items-center gap-3">
             <span className="text-sm font-semibold tabular-nums text-blue-700">{money(total)} held</span>
-            <Link href="/supplier-credits" className="text-xs font-medium text-blue-700 hover:underline">Open Supplier Credits</Link>
+            <Link href={supplierCreditRoutes().credits} className="text-xs font-medium text-blue-700 hover:underline">Open Supplier Credits</Link>
           </span>
         </div>
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
