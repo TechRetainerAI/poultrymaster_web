@@ -1142,6 +1142,30 @@ export function penOptions(views: HouseRowView[], selectedKey?: string): HouseRo
   return views.filter((v) => v.row.key === selectedKey || v.hasRoom)
 }
 
+export type PenStatusTone = "empty" | "partial" | "full" | "over" | "unknown"
+
+/**
+ * How full a pen is, for the label beside it in the allocation picker.
+ *
+ * Counts the same birds houseLoad does -- what is on the farm already plus what
+ * this setup puts there -- so the label agrees with the capacity note under the
+ * field. A pen with no capacity recorded cannot be "full" or "partial"; it says
+ * how many birds it holds instead.
+ */
+export function penStatus(load: HouseLoad | null): { label: string; tone: PenStatusTone } {
+  if (!load) return { label: "", tone: "unknown" }
+  const n = (x: number) => x.toLocaleString()
+  if (load.capacity == null) {
+    return load.total === 0
+      ? { label: "Empty · no capacity set", tone: "empty" }
+      : { label: `${n(load.total)} birds · no capacity set`, tone: "unknown" }
+  }
+  if (load.total === 0) return { label: `Empty · holds ${n(load.capacity)}`, tone: "empty" }
+  if (load.overBy > 0) return { label: `Over by ${n(load.overBy)} · ${n(load.total)} of ${n(load.capacity)}`, tone: "over" }
+  if (load.total >= load.capacity) return { label: `Full · ${n(load.total)} of ${n(load.capacity)}`, tone: "full" }
+  return { label: `Partial · ${n(load.total)} of ${n(load.capacity)}`, tone: "partial" }
+}
+
 
 /** A batch row as the BATCHES step needs to show it. */
 export interface BatchEditRow {
