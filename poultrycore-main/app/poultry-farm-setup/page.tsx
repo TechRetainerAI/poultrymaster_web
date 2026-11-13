@@ -65,7 +65,8 @@ import {
   fillPensToCapacity, fromBatchDraft, syncDraftWithContext, filterBatchStepRows, countBatchStepFilters,
   type BatchStepFilter,
   houseCapacityNote, houseLoad, houseRowFromExisting, houseRowViews,
-  penOptions, seedReconciliation,
+  penOptions, penStatus, seedReconciliation,
+  type PenStatusTone,
   renameForHouse, summarize, summarizeBatchRows, summarizeHouseRows,
   toRequest, validateSetup, visibleBatchRows, visibleHouseRows,
   type BatchAllocationStatus, type SetupRowError,
@@ -76,6 +77,15 @@ import { SetupRunsPanel } from "@/components/farm-setup/setup-runs-panel"
 import { batchReconciliationViews } from "@/lib/farm-setup/wizard"
 // Prompt 1's bulk house generator, reused rather than rebuilt.
 import { generateRows as generateHouseRows, nextStartNumber } from "@/lib/houses/bulk"
+
+/** Colours for the pen status label in the flock step's House/Pen picker. */
+const PEN_STATUS_CLASS: Record<PenStatusTone, string> = {
+  empty: "bg-emerald-50 text-emerald-700",
+  partial: "bg-amber-50 text-amber-700",
+  full: "bg-slate-100 text-slate-600",
+  over: "bg-rose-50 text-rose-700",
+  unknown: "bg-slate-100 text-slate-600",
+}
 
 type Screen = "choose" | "wizard" | "newBatch" | "done" | "completed"
 type Step = 0 | 1 | 2 | 3 | 4
@@ -1947,16 +1957,35 @@ export default function PoultryFarmSetupPage() {
                                     }}
                                   >
                                     {/* The location line is for the open list; the closed box shows the name only. */}
-                                    <SelectTrigger className="[&_.pen-location]:hidden"><SelectValue placeholder="House" /></SelectTrigger>
+                                    <SelectTrigger className="[&_.pen-location]:hidden [&_.pen-status]:hidden"><SelectValue placeholder="House" /></SelectTrigger>
                                     <SelectContent>
-                                      {penOptions(houseViews, f.houseKey).map((v) => (
-                                        <SelectItem key={v.row.key} value={v.row.key}>
-                                          <span className="flex flex-col">
-                                            <span>{v.row.houseName || "(unnamed)"}</span>
-                                            {houseLocationOf(v.row) && <span className="pen-location text-xs text-slate-500">{houseLocationOf(v.row)}</span>}
-                                          </span>
-                                        </SelectItem>
-                                      ))}
+                                      {(() => {
+                                        // Pens with room first; full pens follow,
+                                        // greyed out, so the farm can see they exist
+                                        // and why they cannot be picked. The row's
+                                        // own pen stays pickable whatever its state.
+                                        const open = penOptions(houseViews, f.houseKey)
+                                        const openKeys = new Set(open.map((v) => v.row.key))
+                                        return [...open, ...houseViews.filter((v) => !openKeys.has(v.row.key))]
+                                      })().map((v) => {
+                                        // Empty / Partial / Full, so the farm can see
+                                        // where birds still fit before picking.
+                                        const status = penStatus(v.load)
+                                        const blocked = !v.hasRoom && v.row.key !== f.houseKey
+                                        return (
+                                          <SelectItem key={v.row.key} value={v.row.key} disabled={blocked}>
+                                            <span className="flex flex-col">
+                                              <span>{v.row.houseName || "(unnamed)"}</span>
+                                              {houseLocationOf(v.row) && <span className="pen-location text-xs text-slate-500">{houseLocationOf(v.row)}</span>}
+                                              {status.label && (
+                                                <span className={`pen-status mt-0.5 w-fit rounded px-1.5 py-0.5 text-[11px] font-medium ${PEN_STATUS_CLASS[status.tone]}`}>
+                                                  {status.label}
+                                                </span>
+                                              )}
+                                            </span>
+                                          </SelectItem>
+                                        )
+                                      })}
                                     </SelectContent>
                                   </Select>
                                 </Field>

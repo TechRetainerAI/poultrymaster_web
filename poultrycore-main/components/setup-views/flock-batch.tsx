@@ -28,6 +28,7 @@ import { getOpeningPositions, type OpeningFlockPosition } from "@/lib/api/poultr
 import { consumedByBatch, unallocatedForBatch } from "@/lib/flocks/allocation"
 import { getFlockPositions, type FlockPositionRow } from "@/lib/api/flock-positions"
 import { flockLifetime, positionsById } from "@/lib/flocks/bird-position"
+import { batchBirdTotals, farmBirdTotals, isBatchNotArrived } from "@/lib/flocks/farm-bird-totals"
 import { BatchAllocationDialog } from "@/components/poultry/batch-allocation-dialog"
 import { getSuppliers, type Supplier } from "@/lib/api/supplier"
 import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poultry-finance"
@@ -520,13 +521,19 @@ export function FlockBatchesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [allFlocks, positionByFlock]
   )
+  // Active / Inactive: birds ALIVE now in those flocks (deaths and sales
+  // taken off), once the bird positions have loaded; placed before that.
+  const liveOrStartedOf = (f: { flockId: number; quantity?: number | null }) => {
+    const p = positionByFlock.get(f.flockId)
+    return p ? p.currentLiveBirds : startedBirdsOf(f)
+  }
   const totalActiveBirds = useMemo(() =>
-    allFlocks.filter(f => f.hasArrived && f.active).reduce((sum, f) => sum + startedBirdsOf(f), 0),
+    allFlocks.filter(f => f.hasArrived && f.active).reduce((sum, f) => sum + liveOrStartedOf(f), 0),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [allFlocks, positionByFlock]
   )
   const totalInactiveBirds = useMemo(() =>
-    allFlocks.filter(f => f.hasArrived && !f.active).reduce((sum, f) => sum + startedBirdsOf(f), 0),
+    allFlocks.filter(f => f.hasArrived && !f.active).reduce((sum, f) => sum + liveOrStartedOf(f), 0),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [allFlocks, positionByFlock]
   )
@@ -535,6 +542,19 @@ export function FlockBatchesPage() {
     reconRows.forEach((r) => { n += (r.batchSold ?? 0) + (r.flockSold ?? 0) })
     return n
   }, [reconRows])
+  // bought = died + sold + other + left, across every batch -- including birds
+  // sold or lost before a batch was divided into flocks, which summing flocks
+  // misses. Null until the reconciliation loads (older API): old cards then.
+  // Batches still Pending or starting on a later day: their birds are not on
+  // the farm yet, so the unplaced ones stay out of every bird total.
+  const notArrivedBatchIds = useMemo(
+    () => new Set(flockBatches.filter((b) => isBatchNotArrived(b)).map((b) => b.batchId)),
+    [flockBatches],
+  )
+  const farmTotals = useMemo(
+    () => farmBirdTotals(reconRows.values(), positionByFlock.values(), notArrivedBatchIds),
+    [reconRows, positionByFlock, notArrivedBatchIds],
+  )
 
   // Pagination logic
   const sortedBatches = useMemo(() => sortData(filteredFlockBatches, sortKey, sortDir), [filteredFlockBatches, sortKey, sortDir])
@@ -761,18 +781,31 @@ export function FlockBatchesPage() {
                   icon={Wallet}
                   accent="sky"
                 />
-                <ScoreCard
-                  label="Number of Birds"
-                  value={totalBirdsArrived.toLocaleString()}
-                  description="Birds placed in flocks across all batches, including birds lost before tracking began."
-                  note={
-                    totalBirdsPurchased > 0 && totalBirdsPurchased !== totalBirdsArrived
-                      ? `of ${totalBirdsPurchased.toLocaleString()} purchased`
-                      : undefined
-                  }
-                  icon={Bird}
-                  accent="blue"
-                />
+                {farmTotals ? (
+                  <ScoreCard
+                    label="Birds Left"
+                    value={(farmTotals.left - farmTotals.notInFlock).toLocaleString()}
+                    description="Alive now in flocks, across all batches: bought, less every bird that died or was sold, before tracking began included."
+                    note={`${farmTotals.bought.toLocaleString()} bought − ${farmTotals.died.toLocaleString()} died − ${farmTotals.sold.toLocaleString()} sold`
+                      + (farmTotals.other !== 0 ? ` − ${farmTotals.other.toLocaleString()} other (culled, deleted flocks, corrections)` : "")
+                      + (farmTotals.notInFlock > 0 ? ` − ${farmTotals.notInFlock.toLocaleString()} not yet in a flock` : "")}
+                    icon={Bird}
+                    accent="blue"
+                  />
+                ) : (
+                  <ScoreCard
+                    label="Number of Birds"
+                    value={totalBirdsArrived.toLocaleString()}
+                    description="Birds placed in flocks across all batches, including birds lost before tracking began."
+                    note={
+                      totalBirdsPurchased > 0 && totalBirdsPurchased !== totalBirdsArrived
+                        ? `of ${totalBirdsPurchased.toLocaleString()} purchased`
+                        : undefined
+                    }
+                    icon={Bird}
+                    accent="blue"
+                  />
+                )}
                 <ScoreCard
                   label="Active Batches"
                   value={numberOfActiveBatches.toLocaleString()}
@@ -932,7 +965,9 @@ export function FlockBatchesPage() {
                                 <div className="flex flex-wrap items-center gap-2">
                                   <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-1 text-sm font-medium text-slate-700">
                                     <Users className="h-3.5 w-3.5 text-slate-400" />
-                                    <span className="tabular-nums">{batch.numberOfBirds.toLocaleString()}</span> birds
+                                    {reconRows.get(batch.batchId) && !notArrivedBatchIds.has(batch.batchId)
+                                      ? <><span className="tabular-nums">{(batchBirdTotals(reconRows.get(batch.batchId)!).left - batchBirdTotals(reconRows.get(batch.batchId)!).notInFlock).toLocaleString()}</span> left of <span className="tabular-nums">{batch.numberOfBirds.toLocaleString()}</span></>
+                                      : <><span className="tabular-nums">{batch.numberOfBirds.toLocaleString()}</span> birds</>}
                                   </span>
                                   {soldFor(batch) > 0 && (
                                     <span className="inline-flex items-center rounded-lg bg-orange-50 px-2.5 py-1 text-xs font-medium tabular-nums text-orange-700">{soldFor(batch).toLocaleString()} sold</span>
@@ -1045,10 +1080,33 @@ export function FlockBatchesPage() {
                             </TableCell>
                             <TableCell className={hideBelow("sm")}>{batch.batchCode}</TableCell>
                             <TableCell className={cn("text-slate-600", hideBelow("md"))}>
+                              {reconRows.get(batch.batchId) && !notArrivedBatchIds.has(batch.batchId) ? (() => {
+                                // Birds LEFT, then the sum that gives it:
+                                // bought − sold − died (− other) = left.
+                                const t = batchBirdTotals(reconRows.get(batch.batchId)!)
+                                return (
+                                  <>
+                                    <div className="flex items-center gap-2">
+                                      <Users className="w-4 h-4 text-slate-400" />
+                                      <span className="font-medium text-slate-900">{(t.left - t.notInFlock).toLocaleString()} birds left</span>
+                                    </div>
+                                    <div className="text-xs text-slate-500 mt-0.5 tabular-nums">
+                                      {t.bought.toLocaleString()} bought
+                                      {t.sold > 0 && <span className="text-orange-600"> − {t.sold.toLocaleString()} sold</span>}
+                                      {t.died > 0 && <span className="text-rose-600"> − {t.died.toLocaleString()} died</span>}
+                                      {t.other !== 0 && <span className="text-slate-600" title="Culled, transferred, birds in flocks that were deleted, count corrections, or birds never accounted for."> − {t.other.toLocaleString()} other</span>}
+                                      {t.notInFlock > 0 && <span className="text-amber-600"> − {t.notInFlock.toLocaleString()} not yet in a flock</span>}
+                                    </div>
+                                  </>
+                                )
+                              })() : (<>
                               <div className="flex items-center gap-2">
                                 <Users className="w-4 h-4 text-slate-400" />
                                 <span>{batch.numberOfBirds.toLocaleString()} birds</span>
                               </div>
+                              {notArrivedBatchIds.has(batch.batchId) && (
+                                <div className="text-xs text-amber-600 mt-0.5">Not arrived yet — not counted in the bird totals</div>
+                              )}
                               {/* Allocated vs unallocated, derived from flocks --
                                   see allocatedByBatch. */}
                               <div className="text-xs text-slate-500 mt-0.5">
@@ -1066,6 +1124,7 @@ export function FlockBatchesPage() {
                                   <span className="text-slate-600"> · {otherGoneFor(batch).toLocaleString()} culled / moved</span>
                                 )}
                               </div>
+                              </>)}
                             </TableCell>
                             <TableCell className={cn("text-slate-600", hideBelow("lg"))}>
                               <div className="flex items-center gap-2">
@@ -1218,19 +1277,28 @@ export function FlockBatchesPage() {
 
             {/* Bird totals (page bottom; standalone page only) */}
             {!embedded && !loading && flockBatches.length > 0 && (
-              <div className={cn("grid gap-3", isMobile ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-4")}>
+              <div className={cn("grid gap-3", isMobile ? "grid-cols-2" : farmTotals ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5" : "grid-cols-2 sm:grid-cols-4")}>
                 <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
                   <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Birds</div>
-                  <div className="mt-1 text-2xl font-bold tabular-nums text-slate-900">{totalBirds.toLocaleString()}</div>
+                  <div className="mt-1 text-2xl font-bold tabular-nums text-slate-900">{(farmTotals?.bought ?? totalBirds).toLocaleString()}</div>
                 </div>
                 <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
                   <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Active Birds</div>
-                  <div className="mt-1 text-2xl font-bold tabular-nums text-emerald-600">{totalActiveBirds.toLocaleString()}</div>
+                  <div className="mt-1 text-2xl font-bold tabular-nums text-emerald-600">{(farmTotals ? Math.max(0, farmTotals.left - totalInactiveBirds - farmTotals.notInFlock) : totalActiveBirds).toLocaleString()}</div>
                 </div>
                 <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
                   <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Inactive Birds</div>
                   <div className="mt-1 text-2xl font-bold tabular-nums text-slate-600">{totalInactiveBirds.toLocaleString()}</div>
                 </div>
+                {/* Birds alive on the farm but not divided into flocks yet.
+                    Active + Inactive + this = Total Birds Left. */}
+                {farmTotals && (
+                  <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm"
+                       title="Birds of arrived batches that have not been divided into flocks yet. They are alive on the farm but have no production records until they are put into a flock.">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Not Yet in a Flock</div>
+                    <div className="mt-1 text-2xl font-bold tabular-nums text-sky-600">{farmTotals.notInFlock.toLocaleString()}</div>
+                  </div>
+                )}
                 <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
                   <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Birds Sold</div>
                   <div className="mt-1 text-2xl font-bold tabular-nums text-amber-600">{totalBirdsSold.toLocaleString()}</div>
