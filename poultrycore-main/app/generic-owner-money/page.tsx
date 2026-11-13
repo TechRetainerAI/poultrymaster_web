@@ -192,13 +192,14 @@ export default function GenericOwnerMoneyPage() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <DashboardHeader />
         <main className="flex-1 overflow-auto p-4 md:p-6">
-          <div className="mb-4 flex items-center justify-between flex-wrap gap-2">
+          <div className="mb-4 flex items-end justify-between flex-wrap gap-2">
             <div>
               <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
-                <Wallet className="h-6 w-6 text-indigo-600" /> Owner money
+                <Wallet className="h-6 w-6 text-emerald-600" /> Owner Money
               </h1>
               <p className="text-sm text-slate-500">
-                {fmt(totals.inSum)} put in · {fmt(totals.outSum)} taken out ·{" "}
+                Contributions are <strong>not revenue</strong>; draws are <strong>not an expense</strong>.
+                They move cash without affecting P&amp;L. {fmt(totals.inSum)} put in · {fmt(totals.outSum)} taken out ·{" "}
                 <strong>{fmt(totals.net)}</strong> net
               </p>
             </div>

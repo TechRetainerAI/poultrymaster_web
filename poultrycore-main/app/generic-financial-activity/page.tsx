@@ -64,6 +64,7 @@ const ACTIVITY_FILTERS = [
   { value: "Owner",     label: "Owner activity" },
   { value: "Capital",   label: "Capital activity" },
   { value: "Inventory", label: "Inventory / cost recognition" },
+  { value: "EmployeeLoan", label: "Employee advances" },
   { value: "Transfer",  label: "Internal transfers" },
 ] as const
 
@@ -539,7 +540,8 @@ function FinancialActivityPageInner() {
             Money In and Money Out are the same figures Cash Flow reports, and exclude transfers between the
             company&apos;s own accounts &mdash; those move money without any entering or leaving the business, and their
             account legs are in the row detail. Revenue and Expense are the same figures Profit &amp; Loss
-            recognises.
+            recognises. Capital purchases and stock bought under &ldquo;expense when consumed&rdquo; spend cash
+            without being a cost yet; depreciation and stock consumption are a cost without spending cash.
           </p>
         </main>
       </div>

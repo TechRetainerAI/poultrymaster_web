@@ -212,10 +212,10 @@ export default function GenericLoansPage() {
 
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
-              <h1 className="text-xl font-semibold text-slate-900 flex items-center gap-2">
-                <Banknote className="h-5 w-5 text-emerald-600" /> Loans (Financing)
+              <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
+                <Banknote className="h-6 w-6 text-violet-600" /> Loans (Financing)
               </h1>
-              <p className="text-xs text-slate-500">Record, repay and track business loans.</p>
+              <p className="text-sm text-slate-500">Borrowing is not income. Repaying principal is not an expense. Only the interest and fees reach the P&amp;L.</p>
             </div>
             <Button onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4 mr-1" /> New Loan</Button>
           </div>
