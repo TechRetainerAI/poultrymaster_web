@@ -16,6 +16,12 @@ namespace User.Management.Data.Models
         /// <summary>When the company/farm was created (signup date), from the farms row. Null if unknown.</summary>
         public DateTime? CreatedAt { get; set; }
 
+        /// <summary>Owner (registrant) first name — the non-staff account on the farm. Null if no owner row.</summary>
+        public string? OwnerFirstName { get; set; }
+
+        /// <summary>Owner (registrant) last name. Null if no owner row.</summary>
+        public string? OwnerLastName { get; set; }
+
         public int TotalUsers { get; set; }
         public int StaffCount { get; set; }
 

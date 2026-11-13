@@ -4,6 +4,8 @@ export type FarmSummary = {
   email?: string | null
   phoneNumber?: string | null
   createdAt?: string | null
+  ownerFirstName?: string | null
+  ownerLastName?: string | null
   totalUsers: number
   staffCount: number
   hasPaidSubscription?: boolean

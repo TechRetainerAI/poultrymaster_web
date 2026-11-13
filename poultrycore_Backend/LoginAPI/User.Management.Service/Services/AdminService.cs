@@ -329,7 +329,7 @@ namespace User.Management.Service.Services
                 var users = await _userManager.Users
                     .AsNoTracking()
                     .Where(u => !string.IsNullOrWhiteSpace(u.FarmId))
-                    .Select(u => new { u.FarmId, u.FarmName, u.IsStaff, u.IsSubscriber })
+                    .Select(u => new { u.FarmId, u.FarmName, u.IsStaff, u.IsSubscriber, u.FirstName, u.LastName })
                     .ToListAsync();
 
                 static string NormFarmId(string id) => id.Trim();
@@ -356,6 +356,8 @@ namespace User.Management.Service.Services
                         u.FarmName,
                         u.IsStaff,
                         u.IsSubscriber,
+                        u.FirstName,
+                        u.LastName,
                     })
                     .ToList();
 
@@ -383,6 +385,10 @@ namespace User.Management.Service.Services
 
                     dalByFarmId.TryGetValue(farmId, out var contactRow);
 
+                    // Owner = the non-staff account on the farm (the registrant), same rule
+                    // the farm-detail endpoint uses, so the table name matches the modal.
+                    var ownerPerson = people.FirstOrDefault(p => !p.IsStaff);
+
                     results.Add(new FarmSummary
                     {
                         FarmId = farmId,
@@ -390,6 +396,8 @@ namespace User.Management.Service.Services
                         Email = string.IsNullOrWhiteSpace(contactRow?.Email) ? null : contactRow!.Email,
                         PhoneNumber = string.IsNullOrWhiteSpace(contactRow?.PhoneNumber) ? null : contactRow!.PhoneNumber,
                         CreatedAt = contactRow?.CreatedAt,
+                        OwnerFirstName = string.IsNullOrWhiteSpace(ownerPerson?.FirstName) ? null : ownerPerson!.FirstName,
+                        OwnerLastName = string.IsNullOrWhiteSpace(ownerPerson?.LastName) ? null : ownerPerson!.LastName,
                         TotalUsers = people.Count,
                         StaffCount = people.Count(p => p.IsStaff),
                         HasPaidSubscription = people.Any(p => p.IsSubscriber),

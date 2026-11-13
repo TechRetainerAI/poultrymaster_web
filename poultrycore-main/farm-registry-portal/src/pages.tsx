@@ -36,8 +36,13 @@ function Pager({ page, total, onPage }: { page: number; total: number; onPage: (
 }
 
 // ---------------------------------------------------------------- Farms
-type SortKey = "name" | "email" | "phone" | "joined" | "users" | "staff"
+type SortKey = "name" | "owner" | "email" | "phone" | "joined" | "users" | "staff"
 type SortDir = "asc" | "desc"
+
+/** Owner's full name from the list payload (first + last). Empty string when unknown. */
+function ownerName(f: FarmSummary): string {
+  return `${f.ownerFirstName || ""} ${f.ownerLastName || ""}`.trim()
+}
 
 function joinedTime(f: FarmSummary): number {
   const t = f.createdAt ? Date.parse(f.createdAt) : NaN
@@ -108,7 +113,7 @@ export function FarmsPage({ farms, onAudit, token, onDeleted }: {
   const filtered = useMemo(() => {
     let rows = farms
     const needle = q.trim().toLowerCase()
-    if (needle) rows = rows.filter((f) => `${f.farmName || ""} ${f.farmId} ${f.email || ""} ${f.phoneNumber || ""}`.toLowerCase().includes(needle))
+    if (needle) rows = rows.filter((f) => `${f.farmName || ""} ${f.farmId} ${ownerName(f)} ${f.email || ""} ${f.phoneNumber || ""}`.toLowerCase().includes(needle))
     if (status === "paid") rows = rows.filter((f) => f.hasPaidSubscription === true)
     if (status === "unpaid") rows = rows.filter((f) => f.hasPaidSubscription !== true)
     const hasEmail = (f: FarmSummary) => !!(f.email && f.email.trim())
@@ -124,6 +129,7 @@ export function FarmsPage({ farms, onAudit, token, onDeleted }: {
     const cmp = (a: FarmSummary, b: FarmSummary) => {
       let r = 0
       if (sortKey === "name") r = s(a.farmName).localeCompare(s(b.farmName))
+      else if (sortKey === "owner") r = ownerName(a).toLowerCase().localeCompare(ownerName(b).toLowerCase())
       else if (sortKey === "email") r = s(a.email).localeCompare(s(b.email))
       else if (sortKey === "phone") r = s(a.phoneNumber).localeCompare(s(b.phoneNumber))
       else if (sortKey === "joined") r = joinedTime(a) - joinedTime(b)
@@ -170,6 +176,7 @@ export function FarmsPage({ farms, onAudit, token, onDeleted }: {
           <thead>
             <tr>
               <th onClick={() => toggleSort("name")} style={{ cursor: "pointer", userSelect: "none" }} title="Click to sort">Farm{arrow("name")}</th>
+              <th onClick={() => toggleSort("owner")} style={{ cursor: "pointer", userSelect: "none" }} title="Click to sort by owner name">Owner{arrow("owner")}</th>
               <th onClick={() => toggleSort("email")} style={{ cursor: "pointer", userSelect: "none" }} title="Click to sort">Email{arrow("email")}</th>
               <th onClick={() => toggleSort("phone")} style={{ cursor: "pointer", userSelect: "none" }} title="Click to sort">Phone{arrow("phone")}</th>
               <th onClick={() => toggleSort("joined")} style={{ cursor: "pointer", userSelect: "none" }} title="Click to sort by signup date">Joined{arrow("joined")}</th>
@@ -181,7 +188,7 @@ export function FarmsPage({ farms, onAudit, token, onDeleted }: {
           </thead>
           <tbody>
             {visible.length === 0 ? (
-              <tr><td colSpan={8} style={{ color: "#64748b" }}>No farms match this view.</td></tr>
+              <tr><td colSpan={9} style={{ color: "#64748b" }}>No farms match this view.</td></tr>
             ) : visible.map((f) => (
               <tr key={f.farmId}>
                 <td>
@@ -193,6 +200,7 @@ export function FarmsPage({ farms, onAudit, token, onDeleted }: {
                     </div>
                   </div>
                 </td>
+                <td>{ownerName(f) ? <span className="row-name">{ownerName(f)}</span> : <span style={{ color: "#94a3b8" }}>—</span>}</td>
                 <td>{f.email ? <a href={`mailto:${f.email}`}>{f.email}</a> : <span style={{ color: "#94a3b8" }}>—</span>}</td>
                 <td>{f.phoneNumber ? <a href={`tel:${f.phoneNumber}`}>{f.phoneNumber}</a> : <span style={{ color: "#94a3b8" }}>—</span>}</td>
                 <td style={{ whiteSpace: "nowrap", color: "#475569" }}>{joinedLabel(f)}</td>
