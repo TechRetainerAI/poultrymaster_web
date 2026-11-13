@@ -523,6 +523,7 @@ builder.Services.AddScoped<IHotelMoneyService>(sp => new HotelMoneyService(conne
 builder.Services.AddScoped<IHotelBalanceService>(sp => new HotelBalanceService(connectionString));
 builder.Services.AddScoped<IHotelSuppliesService>(sp => new HotelSuppliesService(connectionString));
 builder.Services.AddScoped<IHotelFinancialActivityService>(sp => new HotelFinancialActivityService(connectionString));
+builder.Services.AddScoped<IGenericFinancialActivityService>(sp => new GenericFinancialActivityService(connectionString));
 // =================================================================
 
 // =================================================================

@@ -1,0 +1,12 @@
+# Login API build uploads the repo root (the config's step uses dir: poultrycore_Backend),
+# but the Dockerfile only COPYs LoginAPI/. Exclude the heavy / actively-written trees so
+# the source archive is small and gcloud never locks on the live dev server's .next/ files.
+.git/
+**/node_modules/
+**/.next/
+**/bin/
+**/obj/
+**/dist/
+**/.vs/
+**/.vscode/
+*.log

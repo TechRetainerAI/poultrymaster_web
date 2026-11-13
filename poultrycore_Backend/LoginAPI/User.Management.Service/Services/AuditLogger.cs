@@ -51,6 +51,34 @@ namespace User.Management.Service.Services
             var ip = httpContext?.Connection?.RemoteIpAddress?.ToString();
             var ua = httpContext?.Request?.Headers["User-Agent"].FirstOrDefault();
 
+            FireAndForgetInsert(userId, userName, resolvedFarmId, action, resource, resourceId, details, data, ip, ua, status);
+            return Task.CompletedTask;
+        }
+
+        // Explicit-actor overload for flows that have no auth context yet — e.g.
+        // public signup, where the account being created IS the actor, so its id
+        // and name are passed in rather than read from (empty) request claims.
+        public Task LogAsync(
+            string userId,
+            string userName,
+            string action,
+            string resource,
+            string? resourceId = null,
+            string? farmId = null,
+            string? details = null,
+            string status = "Success")
+        {
+            FireAndForgetInsert(userId, userName, farmId ?? string.Empty, action, resource, resourceId, details, null, null, null, status);
+            return Task.CompletedTask;
+        }
+
+        // The one insert both overloads use — same table/columns as the Farm API's
+        // AuditLogService.InsertAsync; best-effort on a background task.
+        private void FireAndForgetInsert(
+            string userId, string? userName, string? farmId,
+            string action, string resource, string? resourceId,
+            string? details, string? data, string? ip, string? ua, string status)
+        {
             _ = Task.Run(async () =>
             {
                 try
@@ -59,10 +87,6 @@ namespace User.Management.Service.Services
                     await conn.OpenAsync();
                     var table = await ResolveAuditLogsQualifiedNameAsync(conn);
 
-                    // Same column set the Farm API writes to (incl. Data, added later
-                    // than the original migration). The DB default on Timestamp /
-                    // Status would cover null, but we set them explicitly so the
-                    // payload is identical to AuditLogService.InsertAsync.
                     using var cmd = new NpgsqlCommand($@"
                         INSERT INTO {table}
                             (userid, username, farmid, action, resource, resourceid,
@@ -72,15 +96,15 @@ namespace User.Management.Service.Services
                              @Details, @Data, @IpAddress, @UserAgent, @Timestamp, @Status);", conn);
 
                     cmd.Parameters.AddWithValue("@UserId",     userId);
-                    cmd.Parameters.AddWithValue("@UserName",   (object?)userName       ?? DBNull.Value);
-                    cmd.Parameters.AddWithValue("@FarmId",     (object?)resolvedFarmId ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@UserName",   (object?)userName   ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@FarmId",     (object?)farmId     ?? DBNull.Value);
                     cmd.Parameters.AddWithValue("@Action",     action);
-                    cmd.Parameters.AddWithValue("@Resource",   (object?)resource       ?? DBNull.Value);
-                    cmd.Parameters.AddWithValue("@ResourceId", (object?)resourceId     ?? DBNull.Value);
-                    cmd.Parameters.AddWithValue("@Details",    (object?)details        ?? DBNull.Value);
-                    cmd.Parameters.AddWithValue("@Data",       (object?)data           ?? DBNull.Value);
-                    cmd.Parameters.AddWithValue("@IpAddress",  (object?)ip             ?? DBNull.Value);
-                    cmd.Parameters.AddWithValue("@UserAgent",  (object?)ua             ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@Resource",   (object?)resource   ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@ResourceId", (object?)resourceId ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@Details",    (object?)details    ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@Data",       (object?)data       ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@IpAddress",  (object?)ip         ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@UserAgent",  (object?)ua         ?? DBNull.Value);
                     cmd.Parameters.AddWithValue("@Timestamp",  DateTime.UtcNow);
                     cmd.Parameters.AddWithValue("@Status",     status);
 
@@ -89,14 +113,10 @@ namespace User.Management.Service.Services
                 catch (Exception ex)
                 {
                     // Don't blow up the caller's flow — audit logging is best-effort.
-                    // Console matches the diagnostic style used elsewhere in this
-                    // codebase (e.g. SubscriptionDAL).
                     Console.WriteLine(
                         $"[AuditLogger] failed to insert {action} {resource} {resourceId}: {ex.Message}");
                 }
             });
-
-            return Task.CompletedTask;
         }
 
         private static async Task<string> ResolveAuditLogsQualifiedNameAsync(NpgsqlConnection conn)
