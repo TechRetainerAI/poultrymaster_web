@@ -93,6 +93,22 @@ namespace PoultryFarmAPIWeb.Models
         public string? CreatedBy { get; set; }
     }
 
+    /// <summary>436: correct a historical bird sale. The birds are not changed
+    /// here -- a different count is Reverse, then enter it again.</summary>
+    public class HistoricalSaleUpdateRequest
+    {
+        [Required] public string FarmId { get; set; } = string.Empty;
+        [Required] public DateTime SaleDate { get; set; }
+        public bool ValueUnknown { get; set; }
+        public decimal? PricePerBird { get; set; }
+        /// <summary>Null = the full value was received.</summary>
+        public decimal? AmountReceived { get; set; }
+        public int? CustomerId { get; set; }
+        [StringLength(200)] public string? Reference { get; set; }
+        public string? Notes { get; set; }
+        public string? UpdatedBy { get; set; }
+    }
+
     public class BatchReconciliationReverseRequest
     {
         [Required] public string FarmId { get; set; } = string.Empty;
