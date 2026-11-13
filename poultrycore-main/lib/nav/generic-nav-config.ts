@@ -81,8 +81,10 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
   }]
 
   // ---- Catalog / Stock ----
+  // Split into two groups so the mega-menu renders as two columns with headers,
+  // matching the poultry Operations panel pattern.
   const catalog: MegaMenuGroup[] = []
-  const catalogItems: MegaMenuItem[] = [
+  const catalogStockItems: MegaMenuItem[] = [
     ...(showExisting("enableProducts")
       ? [item("/generic-products", "Products", ShoppingBag)] : []),
     ...(showExisting("enableInventory")
@@ -96,12 +98,17 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
     ...(showExisting("enableInternalUse")
       ? [item("/generic-internal-use", "Internal Use", PackageMinus)] : []),
     item("/generic-loss-records", "Loss & Damage", AlertTriangle),
+  ]
+  const catalogLogisticsItems: MegaMenuItem[] = [
     item("/generic-deliveries", "Deliveries", Truck),
     item("/generic-drivers", "Drivers", Users2),
     item("/generic-routes", "Routes", MapPin),
   ]
-  if (catalogItems.length > 0) {
-    catalog.push({ key: "catalog", label: "Operations", items: catalogItems })
+  if (catalogStockItems.length > 0) {
+    catalog.push({ key: "catalog-stock", label: "Catalog & Stock", items: catalogStockItems })
+  }
+  if (catalogLogisticsItems.length > 0) {
+    catalog.push({ key: "catalog-logistics", label: "Logistics", items: catalogLogisticsItems })
   }
 
   // ---- Expenses & Vendors / Purchasing ----
@@ -149,18 +156,26 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
   // Only show when staff payments are explicitly enabled in module settings.
   // A solo yam seller can turn this off in Settings to hide the section.
   const hasStaff = Boolean(modules.settings?.enableStaffPayments) || isSchool
-  const people: MegaMenuGroup[] = hasStaff ? [{
-    key: "people",
-    label: isSchool ? "Staff & Teachers" : "Employees",
-    items: gated([
-      item("/generic-staff",      isSchool ? "Staff" : "Employees",  Users2),
-      item("/generic-attendance", "Attendance", Activity),
-      item("/generic-payroll",    "Payroll",    Banknote, canSee("/generic-payroll")),
-      ...(showExisting("enableStaffPayments")
-        ? [item("/generic-staff-payments", isSchool ? "Staff payments" : "Employee payments", Banknote, canSee("/generic-staff-payments"))] : []),
-      item("/generic-employee-loans", "Employee loans", HandCoins, canSee("/generic-employee-loans")),
-    ]),
-  }] : []
+  const people: MegaMenuGroup[] = hasStaff ? [
+    {
+      key: "people-team",
+      label: isSchool ? "Staff" : "Team",
+      items: gated([
+        item("/generic-staff",      isSchool ? "Staff" : "Employees",  Users2),
+        item("/generic-attendance", "Attendance", Activity),
+      ]),
+    },
+    {
+      key: "people-payroll",
+      label: "Payroll & Advances",
+      items: gated([
+        item("/generic-payroll",    "Payroll",    Banknote, canSee("/generic-payroll")),
+        ...(showExisting("enableStaffPayments")
+          ? [item("/generic-staff-payments", isSchool ? "Staff payments" : "Employee payments", Banknote, canSee("/generic-staff-payments"))] : []),
+        item("/generic-employee-loans", "Employee loans", HandCoins, canSee("/generic-employee-loans")),
+      ]),
+    },
+  ] : []
 
   // ---- School ----
   const school: MegaMenuGroup[] = isSchool ? [{
@@ -174,17 +189,26 @@ export function buildGenericNavConfig(modules: GenericModulesResult, permissions
   }] : []
 
   // ---- Admin ----
-  const admin: MegaMenuGroup[] = [{
-    key: "admin",
-    label: "Admin",
-    items: gated([
-      item("/generic-reports",            "Reports",           BarChart3, canSee("/generic-reports")),
-      item("/generic-setup",              "Setup",             Settings, canSee("/generic-setup")),
-      item("/generic-business-features",  "Business Features", Settings, canSee("/generic-business-features")),
-      item("/generic-settings",           "Settings",          Cog, canSee("/generic-settings")),
-      item("/profile",                    "Account",           User),
-    ]),
-  }]
+  // Split into two groups so the mega-menu renders as two columns.
+  const admin: MegaMenuGroup[] = [
+    {
+      key: "admin-reports",
+      label: "Reports",
+      items: gated([
+        item("/generic-reports", "Reports", BarChart3, canSee("/generic-reports")),
+      ]),
+    },
+    {
+      key: "admin-setup",
+      label: "Setup & Account",
+      items: gated([
+        item("/generic-setup",              "Setup",             Settings, canSee("/generic-setup")),
+        item("/generic-business-features",  "Business Features", Settings, canSee("/generic-business-features")),
+        item("/generic-settings",           "Settings",          Cog, canSee("/generic-settings")),
+        item("/profile",                    "Account",           User),
+      ]),
+    },
+  ]
 
   return { billing, salesOrStudents, catalog, expenses, money, people, school, admin }
 }
