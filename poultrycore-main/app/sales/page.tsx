@@ -28,6 +28,8 @@ import { listPoultryProducts, getPoultryByproductSettings, type PoultryProduct, 
 import { createSaleGroup, getMeatWithdrawal, getSaleReversal, type MeatWithdrawal } from "@/lib/api/sale"
 import { ReverseSaleDialog, type ReverseSaleResult } from "@/components/sales/reverse-sale-dialog"
 import { SaleDetailsDialog } from "@/components/sales/sale-details-dialog"
+import { HistoricalSalesPanel } from "@/components/sales/historical-sales-panel"
+import { listHistoricalSales } from "@/lib/api/bird-reconciliation"
 import { ApplyCreditDialog, type ApplyCreditTarget } from "@/components/sales/apply-credit-dialog"
 import { customerCreditTotal } from "@/lib/api/customer-credit"
 import { matchesStatusFilter, SALE_STATUS_FILTERS, type SaleStatusFilter } from "@/lib/sales/reversal"
@@ -360,6 +362,18 @@ export default function SalesPage() {
   const hasDraftChanges = draftDateFrom !== dateFrom || draftDateTo !== dateTo
   const [showAllColumnsMobile, setShowAllColumnsMobile] = useState(false)
   const isMobile = useIsMobile()
+  // 436: "Sales" or "Before tracking" (historical sales).
+  const [salesView, setSalesView] = useState<"sales" | "history">("sales")
+  const [historyCount, setHistoryCount] = useState(0)
+  // The tab shows its count before it is opened, so a farm whose only sales
+  // are historical sees there is something there.
+  useEffect(() => {
+    let live = true
+    listHistoricalSales()
+      .then((r) => { if (live) setHistoryCount((r ?? []).filter((x) => x.status === "Posted").length) })
+      .catch(() => { /* the tab still opens and shows the error itself */ })
+    return () => { live = false }
+  }, [])
   const [crates, setCrates] = useState(0)
   const [looseEggs, setLooseEggs] = useState(0)
   // 394: Boxes on the first line, and its optional box / egg prices (null =
@@ -2272,6 +2286,22 @@ export default function SalesPage() {
         </Dialog>
       </div>
 
+            {/* 436: sales made before tracking get their own tab, so they never
+                mix into this page's totals or its cash actions. */}
+            <div className="flex gap-1 rounded-lg bg-slate-100 p-1 w-full sm:w-fit">
+              {([["sales", "Sales"], ["history", `Before tracking${historyCount ? ` (${historyCount})` : ""}`]] as const).map(([k, label]) => (
+                <button key={k} type="button" onClick={() => setSalesView(k)}
+                  className={cn("flex-1 sm:flex-none rounded-md px-4 py-2 text-sm font-medium transition-colors",
+                    salesView === k ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900")}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {salesView === "history" ? (
+              <HistoricalSalesPanel currencyCode={currencyCode} onCountChange={setHistoryCount} />
+            ) : (<>
+
             {/* Arrived here from Customer Balances -> Open sale. Say so, and
                 give a one-click way back to the whole list. */}
             {focusSaleId !== null && (
@@ -2835,6 +2865,7 @@ export default function SalesPage() {
                 </CardContent>
               </Card>
             )}
+            </>)}
 
             {/* Invoice Dialog */}
             <Dialog open={isInvoiceDialogOpen} onOpenChange={closeInvoiceDialog}>

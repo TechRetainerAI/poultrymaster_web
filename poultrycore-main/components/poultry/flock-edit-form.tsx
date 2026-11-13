@@ -220,7 +220,10 @@ export function FlockEditForm({
   }
 
   return (
-    <div className="space-y-6">
+    // min-w-0: DialogContent is a grid, and a grid item will not shrink below
+    // its content's width -- on a phone that pushed the form wider than the
+    // screen, so the dialog scrolled sideways and cut off its left edge.
+    <div className="min-w-0 space-y-6">
       {/* Error Alert */}
       {error && (
         <Alert variant="destructive">
@@ -229,11 +232,11 @@ export function FlockEditForm({
       )}
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="min-w-0 space-y-6">
         {/* Section: Flock Information */}
         <div className="rounded-xl border border-slate-200 overflow-hidden">
           <div className="bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Flock Information</div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white [&>*]:min-w-0">
             <div className="space-y-2">
               <Label htmlFor="batchId" className="text-sm font-medium text-slate-700">
                 Assign to Flock Batch
@@ -377,7 +380,7 @@ export function FlockEditForm({
             </div>
 
             {!formData.active && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 [&>*]:min-w-0">
                 <div className="space-y-2">
                   <Label htmlFor="inactivationReason" className="text-sm font-medium text-slate-700">
                     Reason for Inactivation

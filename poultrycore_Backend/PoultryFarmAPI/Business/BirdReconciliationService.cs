@@ -19,6 +19,9 @@ namespace PoultryFarmAPIWeb.Business
         Task<string> GetDetailAsync(string farmId, int batchId);
         Task<string> PostAsync(BatchReconciliationRequest request);
         Task<string> ReverseAsync(int reconciliationId, BatchReconciliationReverseRequest request);
+        Task<string> ListHistoricalSalesAsync(string farmId);
+        Task<string> UpdateHistoricalSaleAsync(int historicalSaleId, HistoricalSaleUpdateRequest request);
+        Task<string> ReverseHistoricalSaleAsync(int historicalSaleId, BatchReconciliationReverseRequest request);
         Task<string> TransferAsync(BirdTransferRequest request);
         Task<List<BirdRepairDiagnosticRow>> DiagnoseAsync(string farmId);
         Task<List<BirdRepairAppliedRow>> RepairAsync(BirdRepairApplyRequest request);
@@ -166,6 +169,52 @@ namespace PoultryFarmAPIWeb.Business
                 "p_reason => @Reason::text, p_by => @By::text)::text", c);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@Id", reconciliationId);
+            cmd.Parameters.AddWithValue("@Reason", m.Reason ?? string.Empty);
+            cmd.Parameters.AddWithValue("@By", (object?)m.ReversedBy ?? DBNull.Value);
+            await c.OpenAsync();
+            return (string?)await cmd.ExecuteScalarAsync() ?? "{}";
+        }
+
+        // ---- 436: historical sales on the Sales page -----------------------
+        public async Task<string> ListHistoricalSalesAsync(string farmId)
+        {
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT sppoultryhistoricalsale_list(p_farmid => @FarmId::text)::text", c);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await c.OpenAsync();
+            return (string?)await cmd.ExecuteScalarAsync() ?? "[]";
+        }
+
+        public async Task<string> UpdateHistoricalSaleAsync(int historicalSaleId, HistoricalSaleUpdateRequest m)
+        {
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand(
+                "SELECT sppoultryhistoricalsale_update(p_farmid => @FarmId::text, p_historicalsaleid => @Id::int, " +
+                "p_saledate => @Date::date, p_valueunknown => @Unknown::boolean, p_priceperbird => @Price::numeric, " +
+                "p_amountreceived => @Received::numeric, p_customerid => @Customer::int, p_reference => @Ref::text, " +
+                "p_notes => @Notes::text, p_by => @By::text)::text", c);
+            cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
+            cmd.Parameters.AddWithValue("@Id", historicalSaleId);
+            cmd.Parameters.AddWithValue("@Date", m.SaleDate.Date);
+            cmd.Parameters.AddWithValue("@Unknown", m.ValueUnknown);
+            cmd.Parameters.AddWithValue("@Price", (object?)m.PricePerBird ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Received", (object?)m.AmountReceived ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Customer", m.CustomerId is > 0 ? m.CustomerId.Value : DBNull.Value);
+            cmd.Parameters.AddWithValue("@Ref", (object?)m.Reference ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Notes", (object?)m.Notes ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@By", (object?)m.UpdatedBy ?? DBNull.Value);
+            await c.OpenAsync();
+            return (string?)await cmd.ExecuteScalarAsync() ?? "{}";
+        }
+
+        public async Task<string> ReverseHistoricalSaleAsync(int historicalSaleId, BatchReconciliationReverseRequest m)
+        {
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand(
+                "SELECT sppoultryhistoricalsale_reverse(p_farmid => @FarmId::text, p_historicalsaleid => @Id::int, " +
+                "p_reason => @Reason::text, p_by => @By::text)::text", c);
+            cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
+            cmd.Parameters.AddWithValue("@Id", historicalSaleId);
             cmd.Parameters.AddWithValue("@Reason", m.Reason ?? string.Empty);
             cmd.Parameters.AddWithValue("@By", (object?)m.ReversedBy ?? DBNull.Value);
             await c.OpenAsync();

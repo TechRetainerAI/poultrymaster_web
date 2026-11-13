@@ -12,7 +12,7 @@ function farmId(): string {
   return farmId
 }
 
-async function call<T>(path: string, method: "GET" | "POST" = "GET", body?: unknown): Promise<T> {
+async function call<T>(path: string, method: "GET" | "POST" | "PUT" = "GET", body?: unknown): Promise<T> {
   const init: RequestInit = { method, headers: getAuthHeaders() }
   if (body !== undefined) init.body = JSON.stringify(body)
   const res = await fetch(farmApiUrl(path), init)
@@ -290,3 +290,69 @@ export async function listReconciliationCustomers(): Promise<{ customerId: numbe
   return (rows ?? []).map((c) => ({ customerId: Number(c.customerId ?? c.CustomerId), name: String(c.name ?? c.Name ?? "") }))
     .filter((c) => c.customerId > 0)
 }
+
+// ---- 436: historical sales ("Before tracking" on the Sales page) ----------
+
+/**
+ * Sale    -- a historical sale with its value: editable and reversible.
+ * FlockOpening -- a flock's opening "Sold" count with no value: birds only.
+ * Movement     -- an older bird movement recorded as a historical sale: birds only.
+ */
+export type HistoricalSaleKind = "Sale" | "FlockOpening" | "Movement"
+
+export interface HistoricalSaleRow {
+  kind: HistoricalSaleKind
+  key: string
+  historicalSaleId?: number
+  saleDate: string
+  batchId?: number | null
+  batchName?: string | null
+  flockId?: number | null
+  flockName?: string | null
+  scope?: "Flock" | "BatchUnallocated"
+  birds: number
+  pricePerBird?: number | null
+  totalValue?: number | null
+  valueUnknown: boolean
+  customerId?: number | null
+  customerName?: string | null
+  amountReceived: number
+  amountOwed: number
+  financialTreatment: "QuantityOnly" | "HistoricalPaid" | "HistoricalReceivable" | "HistoricalUnpaidNotTracked"
+  debtId?: number | null
+  debtNumber?: string | null
+  debtCreated?: boolean
+  debtPaid?: number
+  reconciliationNo?: string | null
+  source?: string | null
+  reference?: string | null
+  notes?: string | null
+  status: "Posted" | "Reversed"
+  reversalReason?: string | null
+  createdBy?: string | null
+  createdAt?: string | null
+  updatedAt?: string | null
+  canEdit: boolean
+}
+
+export interface HistoricalSaleUpdateInput {
+  saleDate: string
+  valueUnknown: boolean
+  pricePerBird: number | null
+  /** null = the full value was received. */
+  amountReceived: number | null
+  customerId: number | null
+  reference?: string | null
+  notes?: string | null
+}
+
+export const listHistoricalSales = () =>
+  call<HistoricalSaleRow[]>(`/Poultry/bird-reconciliation/historical-sales?farmId=${encodeURIComponent(farmId())}`)
+
+export const updateHistoricalSale = (historicalSaleId: number, input: HistoricalSaleUpdateInput) =>
+  call<{ historicalSaleId: number; amountOwed: number; debtNumber?: string | null; financialTreatment: string }>(
+    `/Poultry/bird-reconciliation/historical-sales/${historicalSaleId}`, "PUT", { farmId: farmId(), ...input })
+
+export const reverseHistoricalSale = (historicalSaleId: number, reason: string) =>
+  call<{ historicalSaleId: number; status: string; birdsReturned: number; unallocatedNow: number | null }>(
+    `/Poultry/bird-reconciliation/historical-sales/${historicalSaleId}/reverse`, "POST", { farmId: farmId(), reason })
