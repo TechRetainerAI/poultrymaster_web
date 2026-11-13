@@ -296,6 +296,8 @@ function WaterRawMaterialsPageInner() {
     try {
       if (editPurchaseId != null) {
         await updateWaterRawMaterialPurchase(editPurchaseId, {
+          // 434: a different item moves the purchase and its stock to it.
+          waterRawMaterialItemId: purchaseForm.waterRawMaterialItemId,
           purchaseDate: purchaseForm.purchaseDate,
           quantity: qty,
           unitCost,
@@ -309,7 +311,14 @@ function WaterRawMaterialsPageInner() {
           productionUnit,
           productionUnitsPerPurchaseUnit,
         } as any)
-        toast({ title: "Purchase updated — stock adjusted" })
+        const movedFrom = purchases.find(x => x.waterRawMaterialPurchaseId === editPurchaseId)
+        const moved = movedFrom != null && movedFrom.waterRawMaterialItemId !== purchaseForm.waterRawMaterialItemId
+        toast({
+          title: moved ? "Purchase moved to another item — stock adjusted" : "Purchase updated — stock adjusted",
+          description: moved
+            ? `Stock taken off ${movedFrom!.itemName ?? "the old item"} and added to ${items.find(i => i.waterRawMaterialItemId === purchaseForm.waterRawMaterialItemId)?.itemName ?? "the new item"}.`
+            : undefined,
+        })
       } else {
         await createWaterRawMaterialPurchase({
           waterRawMaterialItemId: purchaseForm.waterRawMaterialItemId,
@@ -859,11 +868,23 @@ function WaterRawMaterialsPageInner() {
           </DialogHeader>
           <div className="space-y-4">
             <FormSection title="Item, Supplier & Date" color="indigo">
-              <FormField label={`Item${editPurchaseId != null ? " (fixed — delete and recreate to change item)" : ""}`} full>
-                <Select value={String(purchaseForm.waterRawMaterialItemId)} onValueChange={(v) => { const id = Number(v); const it = items.find(i => i.waterRawMaterialItemId === id); setPurchaseForm({ ...purchaseForm, waterRawMaterialItemId: id, purchaseUnit: it?.purchaseUnitOfMeasure || it?.unitOfMeasure || purchaseForm.purchaseUnit, productionUnit: it?.unitOfMeasure || purchaseForm.productionUnit }) }} disabled={editPurchaseId != null}>
+              <FormField label="Item" full>
+                <Select value={String(purchaseForm.waterRawMaterialItemId)} onValueChange={(v) => { const id = Number(v); const it = items.find(i => i.waterRawMaterialItemId === id); setPurchaseForm({ ...purchaseForm, waterRawMaterialItemId: id, purchaseUnit: it?.purchaseUnitOfMeasure || it?.unitOfMeasure || purchaseForm.purchaseUnit, productionUnit: it?.unitOfMeasure || purchaseForm.productionUnit }) }}>
                   <SelectTrigger><SelectValue placeholder="Pick item" /></SelectTrigger>
                   <SelectContent>{items.filter(i => i.isActive || i.waterRawMaterialItemId === purchaseForm.waterRawMaterialItemId).map(i => <SelectItem key={i.waterRawMaterialItemId} value={String(i.waterRawMaterialItemId)}>{i.itemName} ({i.unitOfMeasure ?? "—"})</SelectItem>)}</SelectContent>
                 </Select>
+                {(() => {
+                  if (editPurchaseId == null) return null
+                  const orig = purchases.find(x => x.waterRawMaterialPurchaseId === editPurchaseId)
+                  if (!orig || orig.waterRawMaterialItemId === purchaseForm.waterRawMaterialItemId) return null
+                  const newName = items.find(i => i.waterRawMaterialItemId === purchaseForm.waterRawMaterialItemId)?.itemName ?? "the new item"
+                  return (
+                    <p className="mt-1 text-xs text-amber-700">
+                      On save, this purchase&apos;s stock comes off {orig.itemName ?? "the old item"} and goes onto {newName}, and the linked expense is renamed.
+                      Check the units below — they now follow {newName}.
+                    </p>
+                  )
+                })()}
               </FormField>
               <FormField label="Supplier" full>
                 <SupplierSelect
