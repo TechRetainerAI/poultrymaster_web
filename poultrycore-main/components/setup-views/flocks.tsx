@@ -70,6 +70,17 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { formatDateShort } from "@/lib/utils"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 
+// Scorecards on a phone: tinted in the card's own colour (as on Flock Batch).
+// sm and up keep the white card.
+const MOBILE_TINT = {
+  emerald: "bg-emerald-50 border-emerald-200 sm:bg-white sm:border-slate-200",
+  red:     "bg-red-50 border-red-200 sm:bg-white sm:border-slate-200",
+  sky:     "bg-sky-50 border-sky-200 sm:bg-white sm:border-slate-200",
+  blue:    "bg-blue-50 border-blue-200 sm:bg-white sm:border-slate-200",
+  amber:   "bg-amber-50 border-amber-200 sm:bg-white sm:border-slate-200",
+  slate:   "bg-slate-50 border-slate-300 sm:bg-white sm:border-slate-200",
+} as const
+
 export function FlocksPage() {
   const embedded = useSetupEmbedded()
   const router = useRouter()
@@ -1409,7 +1420,7 @@ export function FlocksPage() {
             {!embedded && !loading && flocks.length > 0 && (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-sm"
+                  className={cn("rounded-lg border px-3 py-2.5 shadow-sm", MOBILE_TINT.emerald)}
                   title="Every bird the farm received, including birds that died or were sold before tracking began or before they went into a flock."
                 >
                   <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
@@ -1424,7 +1435,7 @@ export function FlocksPage() {
                   </p>
                 </div>
                 <div
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-sm"
+                  className={cn("rounded-lg border px-3 py-2.5 shadow-sm", MOBILE_TINT.red)}
                   title="Lifetime deaths: before tracking began (Initial Farm Setup), straight from a batch, plus the Deaths on every production record."
                 >
                   <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
@@ -1486,7 +1497,7 @@ export function FlocksPage() {
                   )}
                 </div>
                 <div
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-sm"
+                  className={cn("rounded-lg border px-3 py-2.5 shadow-sm", MOBILE_TINT.blue)}
                   title="Birds alive now in flocks (latest count). Batch birds not yet put into a flock are shown in their own card below."
                 >
                   <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
@@ -1539,8 +1550,10 @@ export function FlocksPage() {
                 <CardContent className="p-0">
                   {isMobile && !showAllColumnsMobile ? (
                     <div className="space-y-3">
-                      {paginatedFlocks.map((flock) => (
-                        <Collapsible key={flock.flockId} defaultOpen className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
+                      {paginatedFlocks.map((flock, idx) => (
+                        <Collapsible key={flock.flockId} defaultOpen className={cn("group overflow-hidden rounded-xl border shadow-sm transition-shadow hover:shadow-md",
+                          // Alternate cards, like Flock Batch, Suppliers and Customers on a phone.
+                          idx % 2 === 0 ? "bg-amber-50 border-amber-200" : "bg-white border-slate-200")}>
                           <div className="p-4 transition-colors active:bg-slate-50/80">
                             <CollapsibleTrigger asChild>
                               <div className="flex items-start justify-between gap-3 cursor-pointer">
@@ -1566,10 +1579,11 @@ export function FlocksPage() {
                             </CollapsibleTrigger>
                             <CollapsibleContent>
                               <div className="mt-4 pt-4 border-t border-slate-100 space-y-2 text-sm">
-                                <div className="grid grid-cols-2 gap-2">
-                                  <div><span className="text-slate-500">Breed</span> <span className="font-medium text-slate-900">{flock.breed}</span></div>
-                                  <div><span className="text-slate-500">House</span> <span className="font-medium">{getHouseName(flock)}</span></div>
-                                  <div><span className="text-slate-500">Batch</span> <span className="font-medium">{flock.batchName || "N/A"}</span></div>
+                                {/* Each figure in its own tinted box (phone cards). */}
+                                <div className="grid grid-cols-2 gap-2 [&>*]:min-w-0">
+                                  <div className="flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 border-violet-200 bg-violet-50"><span className="text-violet-700">Breed</span> <span className="truncate font-medium text-slate-900">{flock.breed || "—"}</span></div>
+                                  <div className="flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 border-sky-200 bg-sky-50"><span className="text-sky-700">House</span> <span className="truncate font-medium text-slate-900">{getHouseName(flock)}</span></div>
+                                  <div className="flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 col-span-2 border-blue-200 bg-blue-50"><span className="text-blue-700">Batch</span> <span className="truncate font-medium text-slate-900">{flock.batchName || "N/A"}</span></div>
                                 </div>
                                 <div className="flex gap-2 pt-2">
                                   <Button variant="outline" size="sm" className="flex-1 h-10" onClick={() => openEditDialog(flock.flockId)}>
@@ -1842,28 +1856,28 @@ export function FlocksPage() {
             {/* Bird totals (page bottom; standalone page only) */}
             {!embedded && !loading && flocks.length > 0 && (
               <div className={cn("grid gap-3", isMobile ? "grid-cols-2" : farmTotals ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5" : "grid-cols-2 sm:grid-cols-4")}>
-                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                <div className={cn("p-4 rounded-xl border shadow-sm", MOBILE_TINT.blue)}>
                   <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Birds</div>
                   <div className="mt-1 text-2xl font-bold tabular-nums text-slate-900">{(farmTotals?.bought ?? totalBirdsCount).toLocaleString()}</div>
                 </div>
-                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                <div className={cn("p-4 rounded-xl border shadow-sm", MOBILE_TINT.emerald)}>
                   <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Active Birds</div>
                   <div className="mt-1 text-2xl font-bold tabular-nums text-emerald-600">{(farmTotals ? Math.max(0, farmTotals.left - totalInactiveBirdsCount - farmTotals.notInFlock) : totalActiveBirdsCount).toLocaleString()}</div>
                 </div>
-                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                <div className={cn("p-4 rounded-xl border shadow-sm", MOBILE_TINT.slate)}>
                   <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Inactive Birds</div>
                   <div className="mt-1 text-2xl font-bold tabular-nums text-slate-600">{totalInactiveBirdsCount.toLocaleString()}</div>
                 </div>
                 {/* Birds alive on the farm but not divided into flocks yet.
                     Active + Inactive + this = Total Birds Left. */}
                 {farmTotals && (
-                  <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm"
+                  <div className={cn("p-4 rounded-xl border shadow-sm", MOBILE_TINT.sky)}
                        title="Birds of arrived batches that have not been divided into flocks yet. They are alive on the farm but have no production records until they are put into a flock.">
                     <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Not Yet in a Flock</div>
                     <div className="mt-1 text-2xl font-bold tabular-nums text-sky-600">{farmTotals.notInFlock.toLocaleString()}</div>
                   </div>
                 )}
-                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                <div className={cn("p-4 rounded-xl border shadow-sm", MOBILE_TINT.amber)}>
                   <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Birds Sold</div>
                   <div className="mt-1 text-2xl font-bold tabular-nums text-amber-600">{(farmTotals?.sold ?? totalBirdsSoldCount).toLocaleString()}</div>
                 </div>
@@ -2025,7 +2039,8 @@ export function FlocksPage() {
 
       {/* Edit Flock Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+        {/* overflow-x-hidden + min-w-0: never wider than the phone (it scrolled sideways). */}
+        <DialogContent className="w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto overflow-x-hidden [&>*]:min-w-0">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Pencil className="w-5 h-5 text-blue-600" /> Edit Flock

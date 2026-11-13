@@ -59,6 +59,35 @@ namespace PoultryFarmAPIWeb.Controllers
             catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001") { return BadRequest(new { message = ex.MessageText }); }
         }
 
+        // ---- 436: historical sales ("Before tracking" on the Sales page) ----
+        [HttpGet("historical-sales")]
+        public async Task<IActionResult> ListHistoricalSales([FromQuery] string farmId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            return Content(await _svc.ListHistoricalSalesAsync(farmId), "application/json");
+        }
+
+        [HttpPut("historical-sales/{historicalSaleId:int}")]
+        [SetupAdminOnly]
+        public async Task<IActionResult> UpdateHistoricalSale(int historicalSaleId, [FromBody] HistoricalSaleUpdateRequest m)
+        {
+            if (m is null || string.IsNullOrWhiteSpace(m.FarmId)) return BadRequest(new { message = "Company ID is required." });
+            m.UpdatedBy = CurrentUser ?? m.UpdatedBy;
+            try { return Content(await _svc.UpdateHistoricalSaleAsync(historicalSaleId, m), "application/json"); }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001") { return BadRequest(new { message = ex.MessageText }); }
+        }
+
+        [HttpPost("historical-sales/{historicalSaleId:int}/reverse")]
+        [SetupAdminOnly]
+        public async Task<IActionResult> ReverseHistoricalSale(int historicalSaleId, [FromBody] BatchReconciliationReverseRequest m)
+        {
+            if (m is null || string.IsNullOrWhiteSpace(m.FarmId)) return BadRequest(new { message = "Company ID is required." });
+            if (string.IsNullOrWhiteSpace(m.Reason)) return BadRequest(new { message = "Say why this historical sale is being reversed." });
+            m.ReversedBy = CurrentUser ?? m.ReversedBy;
+            try { return Content(await _svc.ReverseHistoricalSaleAsync(historicalSaleId, m), "application/json"); }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001") { return BadRequest(new { message = ex.MessageText }); }
+        }
+
         [HttpPost("transfers")]
         public async Task<IActionResult> Transfer([FromBody] BirdTransferRequest m)
         {

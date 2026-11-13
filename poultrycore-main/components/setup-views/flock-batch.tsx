@@ -56,6 +56,16 @@ import { paymentStatus as batchPaymentStatus, type BatchPurchaseDraft, type Batc
 import { Switch } from "@/components/ui/switch"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
 
+// Scorecards on a phone: tinted in the card's own colour, so they read as
+// separate cards rather than one white block. sm and up keep the white card.
+const MOBILE_TINT = {
+  emerald: "bg-emerald-50 border-emerald-200 sm:bg-white sm:border-slate-200",
+  sky:     "bg-sky-50 border-sky-200 sm:bg-white sm:border-slate-200",
+  blue:    "bg-blue-50 border-blue-200 sm:bg-white sm:border-slate-200",
+  amber:   "bg-amber-50 border-amber-200 sm:bg-white sm:border-slate-200",
+  slate:   "bg-slate-50 border-slate-300 sm:bg-white sm:border-slate-200",
+} as const
+
 function ScoreCard({
   label,
   value,
@@ -72,13 +82,14 @@ function ScoreCard({
   accent: "emerald" | "sky" | "blue" | "amber"
 }) {
   const tint = {
-    emerald: { chip: "bg-emerald-100 text-emerald-700", value: "text-emerald-600" },
-    sky: { chip: "bg-sky-100 text-sky-700", value: "text-sky-700" },
-    blue: { chip: "bg-blue-100 text-blue-700", value: "text-blue-700" },
-    amber: { chip: "bg-amber-100 text-amber-700", value: "text-amber-600" },
+    // card: a phone gets the colour as the background; wider screens stay white.
+    emerald: { chip: "bg-emerald-100 text-emerald-700", value: "text-emerald-600", card: MOBILE_TINT.emerald },
+    sky: { chip: "bg-sky-100 text-sky-700", value: "text-sky-700", card: MOBILE_TINT.sky },
+    blue: { chip: "bg-blue-100 text-blue-700", value: "text-blue-700", card: MOBILE_TINT.blue },
+    amber: { chip: "bg-amber-100 text-amber-700", value: "text-amber-600", card: MOBILE_TINT.amber },
   }[accent]
   return (
-    <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+    <div className={cn("p-4 rounded-xl border shadow-sm", tint.card)}>
       <div className="flex items-center gap-2">
         <div className={cn("rounded-lg p-1.5 shrink-0", tint.chip)}>
           <Icon className="w-4 h-4" />
@@ -930,14 +941,16 @@ export function FlockBatchesPage() {
                 <CardContent className="p-0">
                   {isMobile && !showAllColumnsMobile ? (
                     <div className="space-y-3">
-                      {currentFlockBatches.map((batch) => {
+                      {currentFlockBatches.map((batch, idx) => {
                         const statusLower = (batch.status || "active").toLowerCase()
                         const supplier = suppliers.find(s => s.supplierId === batch.supplierId)
                         const supplierLabel = batch.supplierName || supplier?.name || "—"
                         const computedTotal = Number(batch.totalCost) || (Number(batch.costPerChick) * Number(batch.numberOfBirds)) || 0
                         const balance = Math.max(0, computedTotal - Number(batch.amountPaid || 0))
                         return (
-                        <Collapsible key={batch.batchId} defaultOpen className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
+                        <Collapsible key={batch.batchId} defaultOpen className={cn("group overflow-hidden rounded-xl border shadow-sm transition-shadow hover:shadow-md",
+                          // Alternate cards, like Suppliers and Customers on a phone.
+                          idx % 2 === 0 ? "bg-amber-50 border-amber-200" : "bg-white border-slate-200")}>
                           <div className="transition-colors active:bg-slate-50/80" onClick={() => handleViewFlocks(batch)}>
                             <CollapsibleTrigger asChild>
                               <div className="flex cursor-pointer items-start justify-between gap-2 border-b border-slate-100 px-4 py-3">
@@ -979,13 +992,14 @@ export function FlockBatchesPage() {
                                     <span className="inline-flex items-center rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium tabular-nums text-slate-700">{otherGoneFor(batch).toLocaleString()} culled / moved</span>
                                   )}
                                 </div>
-                                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                                  <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5"><span className="text-slate-500">Start</span> <span className="font-medium text-slate-900">{batch.startDate ? formatDateShort(batch.startDate) : "—"}</span></div>
-                                  <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5"><span className="text-slate-500">Cost/Chick</span> <span className="font-medium text-slate-900 tabular-nums">{Number(batch.costPerChick || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                                  <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5"><span className="text-slate-500">Total Cost</span> <span className="font-medium text-slate-900 tabular-nums">{computedTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                                  <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5"><span className="text-slate-500">Paid ({currencySymbol})</span> <span className="font-medium text-slate-900 tabular-nums">{Number(batch.amountPaid || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                                  <div className="flex items-center justify-between gap-2"><span className="text-slate-500">Balance ({currencySymbol})</span> <span className={cn("font-semibold tabular-nums", balance > 0 ? "text-red-600" : "text-emerald-700")}>{balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                                  <div className="flex items-center justify-between gap-2"><span className="text-slate-500">Supplier</span> <span className="truncate font-medium text-slate-900">{supplierLabel}</span></div>
+                                {/* Each figure in its own tinted box (phone cards). */}
+                                <div className="grid grid-cols-2 gap-2 text-sm [&>*]:min-w-0">
+                                  <div className="flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 border-sky-200 bg-sky-50"><span className="text-sky-700">Start</span> <span className="font-medium text-slate-900">{batch.startDate ? formatDateShort(batch.startDate) : "—"}</span></div>
+                                  <div className="flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 border-violet-200 bg-violet-50"><span className="text-violet-700">Cost/Chick</span> <span className="font-medium text-slate-900 tabular-nums">{Number(batch.costPerChick || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                                  <div className="flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 border-blue-200 bg-blue-50"><span className="text-blue-700">Total Cost</span> <span className="font-medium text-slate-900 tabular-nums">{computedTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                                  <div className="flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 border-emerald-200 bg-emerald-50"><span className="text-emerald-700">Paid ({currencySymbol})</span> <span className="font-medium text-slate-900 tabular-nums">{Number(batch.amountPaid || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                                  <div className={cn("flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5", balance > 0 ? "border-red-200 bg-red-50" : "border-emerald-200 bg-emerald-50")}><span className={balance > 0 ? "text-red-700" : "text-emerald-700"}>Balance ({currencySymbol})</span> <span className={cn("font-semibold tabular-nums", balance > 0 ? "text-red-600" : "text-emerald-700")}>{balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                                  <div className="flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 min-w-0 border-amber-200 bg-amber-50"><span className="text-amber-700">Supplier</span> <span className="truncate font-medium text-slate-900">{supplierLabel}</span></div>
                                 </div>
                                 <div className="flex items-center gap-2 text-xs">
                                   <span className="text-slate-500">Type</span>
@@ -1278,28 +1292,28 @@ export function FlockBatchesPage() {
             {/* Bird totals (page bottom; standalone page only) */}
             {!embedded && !loading && flockBatches.length > 0 && (
               <div className={cn("grid gap-3", isMobile ? "grid-cols-2" : farmTotals ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5" : "grid-cols-2 sm:grid-cols-4")}>
-                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                <div className={cn("p-4 rounded-xl border shadow-sm", MOBILE_TINT.blue)}>
                   <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Birds</div>
                   <div className="mt-1 text-2xl font-bold tabular-nums text-slate-900">{(farmTotals?.bought ?? totalBirds).toLocaleString()}</div>
                 </div>
-                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                <div className={cn("p-4 rounded-xl border shadow-sm", MOBILE_TINT.emerald)}>
                   <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Active Birds</div>
                   <div className="mt-1 text-2xl font-bold tabular-nums text-emerald-600">{(farmTotals ? Math.max(0, farmTotals.left - totalInactiveBirds - farmTotals.notInFlock) : totalActiveBirds).toLocaleString()}</div>
                 </div>
-                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                <div className={cn("p-4 rounded-xl border shadow-sm", MOBILE_TINT.slate)}>
                   <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Inactive Birds</div>
                   <div className="mt-1 text-2xl font-bold tabular-nums text-slate-600">{totalInactiveBirds.toLocaleString()}</div>
                 </div>
                 {/* Birds alive on the farm but not divided into flocks yet.
                     Active + Inactive + this = Total Birds Left. */}
                 {farmTotals && (
-                  <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm"
+                  <div className={cn("p-4 rounded-xl border shadow-sm", MOBILE_TINT.sky)}
                        title="Birds of arrived batches that have not been divided into flocks yet. They are alive on the farm but have no production records until they are put into a flock.">
                     <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Not Yet in a Flock</div>
                     <div className="mt-1 text-2xl font-bold tabular-nums text-sky-600">{farmTotals.notInFlock.toLocaleString()}</div>
                   </div>
                 )}
-                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                <div className={cn("p-4 rounded-xl border shadow-sm", MOBILE_TINT.amber)}>
                   <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Birds Sold</div>
                   <div className="mt-1 text-2xl font-bold tabular-nums text-amber-600">{totalBirdsSold.toLocaleString()}</div>
                 </div>
@@ -1509,7 +1523,7 @@ export function FlockBatchesPage() {
 
       {/* Edit Flock Batch Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] overflow-y-auto overflow-x-hidden [&>*]:min-w-0">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Pencil className="w-5 h-5 text-blue-600" /> Edit Flock Batch
