@@ -21,7 +21,7 @@ import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet } from "lucide-react"
+import { Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet, Ban } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -497,9 +497,12 @@ function WaterRawMaterialsPageInner() {
                           <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => openEditItem(it)}>
                             <Pencil className="h-4 w-4 mr-1" /> Edit
                           </Button>
-                          <Button size="sm" variant="outline" className="flex-1 h-10 text-red-600 border-red-200" onClick={() => setDeleteItemTarget(it)}>
-                            <Trash2 className="h-4 w-4 mr-1" /> Delete
-                          </Button>
+                          {/* 430: this only deactivates the item -- it never deletes or undoes a purchase. */}
+                          {it.isActive && (
+                            <Button size="sm" variant="outline" className="flex-1 h-10 text-slate-600" onClick={() => setDeleteItemTarget(it)}>
+                              <Ban className="h-4 w-4 mr-1" /> Deactivate
+                            </Button>
+                          )}
                         </>
                       )}
                       desktopTable={
@@ -533,7 +536,11 @@ function WaterRawMaterialsPageInner() {
                                   <TableCell>{it.isActive ? <Badge className="bg-green-100 text-green-700">Active</Badge> : <Badge variant="outline">Inactive</Badge>}</TableCell>
                                   <TableCell className="text-right">
                                     <Button size="sm" variant="ghost" onClick={() => openEditItem(it)}><Pencil className="h-4 w-4" /></Button>
-                                    <Button size="sm" variant="ghost" onClick={() => setDeleteItemTarget(it)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                                    {it.isActive && (
+                                      <Button size="sm" variant="ghost" title="Deactivate item (does not delete or undo any purchase)" onClick={() => setDeleteItemTarget(it)}>
+                                        <Ban className="h-4 w-4 text-slate-500" />
+                                      </Button>
+                                    )}
                                   </TableCell>
                                 </TableRow>
                               )
@@ -1054,10 +1061,10 @@ function WaterRawMaterialsPageInner() {
         open={!!deleteItemTarget}
         onOpenChange={(o) => { if (!o) setDeleteItemTarget(null) }}
         title="Deactivate raw material item?"
-        description={deleteItemTarget ? `"${deleteItemTarget.itemName}" will be hidden from new purchases. Existing purchases and usage history stay intact. You can reactivate it later by editing and ticking Active.` : undefined}
+        description={deleteItemTarget ? `"${deleteItemTarget.itemName}" will be hidden from new purchases. This does NOT delete or undo any purchase, and its stock stays as it is. To correct a purchase, use the Purchases tab instead. You can reactivate the item later by editing it and ticking Active.` : undefined}
         confirmLabel="Deactivate"
         successTitle="Item deactivated"
-        errorTitle="Delete failed"
+        errorTitle="Deactivate failed"
         onConfirm={async () => {
           if (deleteItemTarget) {
             await deleteWaterRawMaterialItem(deleteItemTarget.waterRawMaterialItemId)

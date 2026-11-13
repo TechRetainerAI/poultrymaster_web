@@ -520,7 +520,7 @@ export function PaymentsLedgerPage({
                     {isReversed
                       ? <Badge variant="outline" className="text-slate-500">Reversed</Badge>
                       : <Badge variant="secondary">Posted</Badge>}
-                    {module === "poultry" && <PaymentPLBadge row={row} side="supplier" className="mt-1 block w-fit" />}
+                    {(module === "poultry" || module === "water") && <PaymentPLBadge row={row} side="supplier" className="mt-1 block w-fit" />}
                   </TableCell>
                   <TableCell className="text-right whitespace-nowrap">
                     {!multi && a && documentHref(a) && (
@@ -528,7 +528,7 @@ export function PaymentsLedgerPage({
                         <ExternalLink className="h-3.5 w-3.5" />
                       </Button>
                     )}
-                    {module === "poultry" && (
+                    {(module === "poultry" || module === "water") && (
                       <PaymentPLToggle row={row} side="supplier" onChanged={() => { void load() }} className="mr-1" />
                     )}
                     {canReverse && !isReversed && (
@@ -867,7 +867,7 @@ export function PaymentsLedgerPage({
                       {r.status === "Reversed"
                         ? <Badge variant="outline" className="text-slate-500">Reversed</Badge>
                         : <Badge variant="secondary">Posted</Badge>}
-                      {module === "poultry" && <PaymentPLBadge row={r} side="supplier" />}
+                      {(module === "poultry" || module === "water") && <PaymentPLBadge row={r} side="supplier" />}
                     </span>
                   )}
                   details={(r) => {
@@ -896,7 +896,7 @@ export function PaymentsLedgerPage({
                           <Undo2 className="mr-1.5 h-3.5 w-3.5" /> Reverse
                         </Button>
                       )}
-                      {module === "poultry" && (
+                      {(module === "poultry" || module === "water") && (
                         <PaymentPLToggle row={r} side="supplier" onChanged={() => { void load() }} className="h-10 flex-1" />
                       )}
                     </>

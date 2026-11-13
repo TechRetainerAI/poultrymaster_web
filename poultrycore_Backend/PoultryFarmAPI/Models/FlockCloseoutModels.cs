@@ -37,6 +37,19 @@ namespace PoultryFarmAPIWeb.Models
         public int CurrentLiveBirds { get; set; }
     }
 
+    /// <summary>
+    /// 421: one flock's bird position for list pages (sppoultryflock_positions).
+    /// StartedBirds = originally placed, or the opening live count when the
+    /// opening history is not known.
+    /// </summary>
+    public class FlockPositionRow : FlockBirdPosition
+    {
+        public int? BatchId { get; set; }
+        public bool IsClosed { get; set; }
+        public bool IsDeleted { get; set; }
+        public int StartedBirds { get; set; }
+    }
+
     /// <summary>Everything the Close Flock wizard needs to open.</summary>
     public class FlockCloseoutContext
     {

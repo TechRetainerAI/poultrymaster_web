@@ -377,6 +377,7 @@ builder.Services.AddScoped<IWaterProfitLossService>(sp => new WaterProfitLossSer
 builder.Services.AddScoped<IPoultryStaffService>(sp => new PoultryStaffService(connectionString));
 builder.Services.AddScoped<IPoultryStaffAttendanceService>(sp => new PoultryStaffAttendanceService(connectionString));
 builder.Services.AddScoped<IPoultryPayrollService>(sp => new PoultryPayrollService(connectionString));
+builder.Services.AddScoped<IPoultryPayrollTemplateService>(sp => new PoultryPayrollTemplateService(connectionString));   // 419
 
 // Phase W5: Water Company profile (setup metadata: brand, business type,
 // water source, default currency/bag-sachet count, owner contact). Setup SP
@@ -522,6 +523,7 @@ builder.Services.AddScoped<IHotelMoneyService>(sp => new HotelMoneyService(conne
 builder.Services.AddScoped<IHotelBalanceService>(sp => new HotelBalanceService(connectionString));
 builder.Services.AddScoped<IHotelSuppliesService>(sp => new HotelSuppliesService(connectionString));
 builder.Services.AddScoped<IHotelFinancialActivityService>(sp => new HotelFinancialActivityService(connectionString));
+builder.Services.AddScoped<IGenericFinancialActivityService>(sp => new GenericFinancialActivityService(connectionString));
 // =================================================================
 
 // =================================================================

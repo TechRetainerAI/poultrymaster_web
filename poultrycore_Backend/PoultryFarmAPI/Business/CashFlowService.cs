@@ -33,11 +33,12 @@ namespace PoultryFarmAPIWeb.Business
         /// </summary>
         private static string Prefix(string rail) => rail?.ToLowerInvariant() switch
         {
-            "poultry" => "sppoultrycashflow",
-            "water"   => "spwatercashflow",
+            "poultry"    => "sppoultrycashflow",
+            "water"      => "spwatercashflow",
             "hotel"      => "sphotelcashflow",
             "restaurant" => "sprestaurantcashflow",
-            _ => throw new ArgumentException($"Unknown rail '{rail}'. Expected 'poultry', 'water', 'hotel' or 'restaurant'."),
+            "generic"    => "spgenericcashflow",
+            _ => throw new ArgumentException($"Unknown rail '{rail}'. Expected 'poultry', 'water', 'hotel', 'restaurant' or 'generic'."),
         };
 
         public async Task<CashFlowResponse> GetAsync(string rail, string farmId, DateTime? from, DateTime? to)

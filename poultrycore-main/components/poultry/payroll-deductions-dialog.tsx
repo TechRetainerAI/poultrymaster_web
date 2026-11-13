@@ -72,7 +72,15 @@ export function PayrollDeductionsDialog({
   const [amount, setAmount] = useState(0)
   const [description, setDescription] = useState("")
 
-  const editable = target?.runStatus === "Draft" || target?.runStatus === "Reopened"
+  const runEditable = target?.runStatus === "Draft" || target?.runStatus === "Reopened"
+  // Staff with an advance: the deduction comes from Employee Loans & Advances,
+  // so it is shown here, not changed -- the same rule as the Deductions box on
+  // the Add/Edit line form. Staff without one may add and remove their own
+  // other deductions. An advance row already on the line counts too, even if
+  // that advance has since been paid off.
+  const hasAdvance = eligible.length > 0
+    || rows.some((r) => r.poultryEmployeeLoanId != null && r.status !== "Reversed")
+  const editable = runEditable && !hasAdvance
   const isLoanType = type === "EmployeeLoanRepayment" || type === "SalaryAdvanceRepayment"
   const chosen = eligible.find((e) => String(e.poultryEmployeeLoanId) === loanId)
 
@@ -282,6 +290,12 @@ export function PayrollDeductionsDialog({
                   </Button>
                 </div>
               </div>
+            ) : runEditable ? (
+              <p className="rounded-md bg-slate-50 p-3 text-xs text-slate-600">
+                {target.staffName} has an advance, so this deduction comes from{" "}
+                <a href="/poultry-employee-loans" className="underline underline-offset-2 hover:text-indigo-700">Employee Loans &amp; Advances</a>.
+                Change it there.
+              </p>
             ) : (
               <p className="rounded-md bg-slate-50 p-3 text-xs text-slate-600">
                 This payroll is {target.runStatus}. Reopen it to change deductions.

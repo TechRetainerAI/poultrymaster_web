@@ -26,6 +26,8 @@ import { getFlockBatches, getFlockBatch, createFlockBatch, updateFlockBatch, del
 import { getFlocks, type Flock } from "@/lib/api/flock"
 import { getOpeningPositions, type OpeningFlockPosition } from "@/lib/api/poultry-farm-setup"
 import { consumedByBatch, unallocatedForBatch } from "@/lib/flocks/allocation"
+import { getFlockPositions, type FlockPositionRow } from "@/lib/api/flock-positions"
+import { flockLifetime, positionsById } from "@/lib/flocks/bird-position"
 import { BatchAllocationDialog } from "@/components/poultry/batch-allocation-dialog"
 import { getSuppliers, type Supplier } from "@/lib/api/supplier"
 import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poultry-finance"
@@ -48,6 +50,7 @@ import {
   BatchIdentityFields, BatchOrderFields, BatchPurchaseDetailFields,
 } from "@/components/poultry/batch-purchase-fields"
 import { BreedSelect } from "@/components/poultry/breed-select"
+import { FlockBatchEditForm } from "@/components/poultry/flock-batch-edit-form"
 import { paymentStatus as batchPaymentStatus, type BatchPurchaseDraft, type BatchPurchasePatch } from "@/lib/poultry/batch-purchase"
 import { Switch } from "@/components/ui/switch"
 import { fmtDateTime } from "@/lib/utils/company-datetime"
@@ -115,6 +118,19 @@ export function FlockBatchesPage() {
       .then((rows) => setReconRows(new Map(rows.map((r) => [r.batchId, r]))))
       .catch(() => setReconRows(new Map()))   // before migration 413: fall back to the local figure
   useEffect(() => { loadReconRows() }, [])
+  // 421: every flock's bird position (placed, opening history, since, live).
+  // Empty before 421 is deployed -- the page then falls back to flock.quantity.
+  const [positionByFlock, setPositionByFlock] = useState<Map<number, FlockPositionRow>>(new Map())
+  useEffect(() => {
+    const { farmId } = getUserContext()
+    if (!farmId) return
+    void getFlockPositions(farmId).then((rows) => setPositionByFlock(positionsById(rows))).catch(() => {})
+  }, [])
+  /** Birds a flock STARTED with (placed; opening live when its history is unknown). */
+  const startedBirdsOf = (f: { flockId: number; quantity?: number | null }) => {
+    const p = positionByFlock.get(f.flockId)
+    return p ? flockLifetime(p).started : (Number(f.quantity) || 0)
+  }
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
@@ -197,29 +213,7 @@ export function FlockBatchesPage() {
 
   // Edit dialog state
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
-  const [editLoading, setEditLoading] = useState(false)
-  const [editError, setEditError] = useState("")
   const [editingBatchId, setEditingBatchId] = useState<number | null>(null)
-  const [editForm, setEditForm] = useState({
-    batchName: "",
-    batchCode: "",
-    startDate: "",
-    breed: "",
-    numberOfBirds: 0,
-    costPerChick: 0,
-    totalCost: 0,
-    amountPaid: 0,
-    supplierType: "local",
-    supplierId: "" as string,
-    hasArrived: false,
-    active: true,
-    notes: "",
-    dollarConversionRate: 0,
-    orderPlacementDate: "",
-    estimatedArrivalDate: "",
-    poultryCashAccountId: "" as string,
-  })
-  const [editFetching, setEditFetching] = useState(false)
 
   // Pay-balance dialog state (part payment — settle the outstanding balance later)
   const [payTarget, setPayTarget] = useState<FlockBatch | null>(null)
@@ -274,6 +268,20 @@ export function FlockBatchesPage() {
   const soldFor = (batch: FlockBatch) => {
     const r = reconRows.get(batch.batchId)
     return r ? (r.batchSold ?? 0) + (r.flockSold ?? 0) : 0
+  }
+  // 420: every bird of the batch that died -- before placing, in its flocks
+  // before tracking began (Initial Farm Setup), and recorded since.
+  const diedFor = (batch: FlockBatch) => {
+    const r = reconRows.get(batch.batchId)
+    return r ? (r.batchMortality ?? 0) + (r.flockHistMortality ?? 0) + (r.flockRecordedMortality ?? 0) : 0
+  }
+  // Culled, transferred out or otherwise removed (not sold, not died).
+  const otherGoneFor = (batch: FlockBatch) => {
+    const r = reconRows.get(batch.batchId)
+    if (!r) return 0
+    return (r.batchCulled ?? 0) + (r.batchTransferred ?? 0) + (r.batchOtherRemovals ?? 0) - (r.batchAdditions ?? 0)
+      + (r.flockHistCulled ?? 0) + (r.flockHistTransferred ?? 0) + (r.flockHistOther ?? 0)
+      + (r.flockCulled ?? 0) + (r.flockTransferred ?? 0)
   }
   const needsReconcile = (batch: FlockBatch) => {
     const r = reconRows.get(batch.batchId)
@@ -397,109 +405,11 @@ export function FlockBatchesPage() {
   }
 
   // Edit handlers
-  const openEditDialog = async (batchId: number) => {
+  // The edit form (and its load + save) is FlockBatchEditForm, shared with the
+  // Edit Flock Batch page and the Initial Farm Setup popup.
+  const openEditDialog = (batchId: number) => {
     setEditingBatchId(batchId)
-    setEditError("")
-    setEditFetching(true)
     setIsEditDialogOpen(true)
-
-    const { userId, farmId } = getUserContext()
-    if (!userId || !farmId) {
-      setEditError("User context not found.")
-      setEditFetching(false)
-      return
-    }
-
-    const result = await getFlockBatch(batchId, userId, farmId)
-    if (result.success && result.data) {
-      const b = result.data
-      const toggles = batchTogglesFromStatus(b.status)
-      setEditForm({
-        batchName: b.batchName || "",
-        batchCode: b.batchCode || "",
-        startDate: b.startDate ? b.startDate.split('T')[0] : "",
-        breed: b.breed || "",
-        numberOfBirds: b.numberOfBirds || 0,
-        costPerChick: b.costPerChick || 0,
-        totalCost: b.totalCost || 0,
-        amountPaid: b.amountPaid || 0,
-        supplierType: b.supplierType || "local",
-        dollarConversionRate: b.dollarConversionRate || 0,
-        supplierId: b.supplierId != null ? String(b.supplierId) : "",
-        hasArrived: toggles.hasArrived,
-        active: toggles.active,
-        notes: b.notes || "",
-        orderPlacementDate: b.orderPlacementDate ? b.orderPlacementDate.split('T')[0] : "",
-        estimatedArrivalDate: b.estimatedArrivalDate ? b.estimatedArrivalDate.split('T')[0] : "",
-        poultryCashAccountId: b.poultryCashAccountId != null ? String(b.poultryCashAccountId) : "",
-      })
-    } else {
-      setEditError(result.message || "Failed to load flock batch")
-    }
-    setEditFetching(false)
-  }
-
-  const handleEditSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!editingBatchId) return
-    const { farmId, userId } = getUserContext()
-    if (!farmId || !userId) {
-      setEditError("User context not found.")
-      toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" })
-      return
-    }
-
-    if (!editForm.batchName.trim() || !editForm.batchCode.trim() || !editForm.startDate) {
-      setEditError("Please fill in all required fields")
-      toastFormGuide(toast, "Fill in batch name, batch code, and start date — they help track birds from arrival.")
-      return
-    }
-    if (editForm.numberOfBirds <= 0) {
-      setEditError("Number of birds must be greater than 0")
-      toastFormGuide(toast, "Enter how many birds arrived in this batch — use a number greater than zero.")
-      return
-    }
-
-    setEditLoading(true)
-    setEditError("")
-
-    const flockBatchData: Partial<FlockBatchInput> = {
-      batchName: editForm.batchName,
-      batchCode: editForm.batchCode,
-      startDate: editForm.startDate + 'T00:00:00Z',
-      breed: editForm.breed,
-      numberOfBirds: editForm.numberOfBirds,
-      costPerChick: editForm.costPerChick || 0,
-      totalCost: editForm.totalCost || (editForm.costPerChick * editForm.numberOfBirds) || 0,
-      amountPaid: editForm.amountPaid || 0,
-      supplierType: editForm.supplierType,
-      dollarConversionRate: editForm.dollarConversionRate || null,
-      supplierId: editForm.supplierId ? Number(editForm.supplierId) : null,
-      status: batchStatusFromToggles(editForm.hasArrived, editForm.active),
-      notes: editForm.notes || undefined,
-      orderPlacementDate: editForm.orderPlacementDate || null,
-      estimatedArrivalDate: editForm.estimatedArrivalDate || null,
-      // 0 clears the account; the update moves the batch's cash with it.
-      poultryCashAccountId: editForm.poultryCashAccountId ? Number(editForm.poultryCashAccountId) : 0,
-      farmId,
-      userId,
-    }
-
-    const result = await updateFlockBatch(editingBatchId, flockBatchData)
-    if (result.success) {
-      const warnings: string[] = (result as any).warnings ?? []
-      if (warnings.length > 0) {
-        toast({ title: "Batch updated — please check", description: warnings.join(" "), duration: 12000 })
-      } else {
-        toast({ title: "Success!", description: "Flock batch updated successfully." })
-      }
-      loadReconRows()
-      setIsEditDialogOpen(false)
-      loadFlockBatches()
-    } else {
-      setEditError(result.message || "Failed to update flock batch")
-    }
-    setEditLoading(false)
   }
 
   // Delete handlers
@@ -595,8 +505,9 @@ export function FlockBatchesPage() {
     [flockBatches]
   )
   const totalBirdsArrived = useMemo(() =>
-    allFlocks.filter((f) => f.hasArrived).reduce((sum, f) => sum + (Number(f.quantity) || 0), 0),
-    [allFlocks]
+    allFlocks.filter((f) => f.hasArrived).reduce((sum, f) => sum + startedBirdsOf(f), 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allFlocks, positionByFlock]
   )
   const numberOfActiveBatches = useMemo(() =>
     flockBatches.filter(b => (b.status || "active").toLowerCase() === "active").length,
@@ -605,16 +516,19 @@ export function FlockBatchesPage() {
 
   // Bottom totals derived from actual flocks (Number of Birds card uses the same source)
   const totalBirds = useMemo(() =>
-    allFlocks.filter(f => f.hasArrived).reduce((sum, f) => sum + (Number(f.quantity) || 0), 0),
-    [allFlocks]
+    allFlocks.filter(f => f.hasArrived).reduce((sum, f) => sum + startedBirdsOf(f), 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allFlocks, positionByFlock]
   )
   const totalActiveBirds = useMemo(() =>
-    allFlocks.filter(f => f.hasArrived && f.active).reduce((sum, f) => sum + (Number(f.quantity) || 0), 0),
-    [allFlocks]
+    allFlocks.filter(f => f.hasArrived && f.active).reduce((sum, f) => sum + startedBirdsOf(f), 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allFlocks, positionByFlock]
   )
   const totalInactiveBirds = useMemo(() =>
-    allFlocks.filter(f => f.hasArrived && !f.active).reduce((sum, f) => sum + (Number(f.quantity) || 0), 0),
-    [allFlocks]
+    allFlocks.filter(f => f.hasArrived && !f.active).reduce((sum, f) => sum + startedBirdsOf(f), 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allFlocks, positionByFlock]
   )
   const totalBirdsSold = useMemo(() => {
     let n = 0
@@ -756,8 +670,6 @@ export function FlockBatchesPage() {
 
   const createBalance = Math.max(0, (Number(createForm.totalCost) || 0) - (Number(createForm.amountPaid) || 0))
   const createStatus = paymentStatus(createForm.totalCost, createForm.amountPaid)
-  const editBalance = Math.max(0, (Number(editForm.totalCost) || 0) - (Number(editForm.amountPaid) || 0))
-  const editStatus = paymentStatus(editForm.totalCost, editForm.amountPaid)
 
   // Outstanding balance for a batch (Total − Paid), using the same total fallback
   // the table shows.
@@ -852,7 +764,7 @@ export function FlockBatchesPage() {
                 <ScoreCard
                   label="Number of Birds"
                   value={totalBirdsArrived.toLocaleString()}
-                  description="Birds that have arrived across all batches."
+                  description="Birds placed in flocks across all batches, including birds lost before tracking began."
                   note={
                     totalBirdsPurchased > 0 && totalBirdsPurchased !== totalBirdsArrived
                       ? `of ${totalBirdsPurchased.toLocaleString()} purchased`
@@ -1025,6 +937,12 @@ export function FlockBatchesPage() {
                                   {soldFor(batch) > 0 && (
                                     <span className="inline-flex items-center rounded-lg bg-orange-50 px-2.5 py-1 text-xs font-medium tabular-nums text-orange-700">{soldFor(batch).toLocaleString()} sold</span>
                                   )}
+                                  {diedFor(batch) > 0 && (
+                                    <span className="inline-flex items-center rounded-lg bg-rose-50 px-2.5 py-1 text-xs font-medium tabular-nums text-rose-700">{diedFor(batch).toLocaleString()} died</span>
+                                  )}
+                                  {otherGoneFor(batch) > 0 && (
+                                    <span className="inline-flex items-center rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium tabular-nums text-slate-700">{otherGoneFor(batch).toLocaleString()} culled / moved</span>
+                                  )}
                                 </div>
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                                   <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5"><span className="text-slate-500">Start</span> <span className="font-medium text-slate-900">{batch.startDate ? formatDateShort(batch.startDate) : "—"}</span></div>
@@ -1140,6 +1058,12 @@ export function FlockBatchesPage() {
                                 )}
                                 {soldFor(batch) > 0 && (
                                   <span className="text-orange-600"> · {soldFor(batch).toLocaleString()} sold</span>
+                                )}
+                                {diedFor(batch) > 0 && (
+                                  <span className="text-rose-600"> · {diedFor(batch).toLocaleString()} died</span>
+                                )}
+                                {otherGoneFor(batch) > 0 && (
+                                  <span className="text-slate-600"> · {otherGoneFor(batch).toLocaleString()} culled / moved</span>
                                 )}
                               </div>
                             </TableCell>
@@ -1356,7 +1280,14 @@ export function FlockBatchesPage() {
                       <TableRow key={flock.flockId}>
                         <TableCell className="font-medium">{flock.name}</TableCell>
                         <TableCell>{flock.breed}</TableCell>
-                        <TableCell>{flock.quantity.toLocaleString()} birds</TableCell>
+                        <TableCell>
+                          {startedBirdsOf(flock).toLocaleString()} birds
+                          {positionByFlock.get(flock.flockId) && (
+                            <span className="block text-xs text-slate-500">
+                              {positionByFlock.get(flock.flockId)!.currentLiveBirds.toLocaleString()} live now
+                            </span>
+                          )}
+                        </TableCell>
                         <TableCell>{fmtDateTime(flock.startDate, flock)}</TableCell>
                         <TableCell>
                           {life === "pending" ? (
@@ -1389,7 +1320,7 @@ export function FlockBatchesPage() {
                     <span className="font-semibold">
                       {batchFlocks
                         .filter((f) => flockCountsTowardBirdTotals(f))
-                        .reduce((sum, f) => sum + (f.quantity || 0), 0)
+                        .reduce((sum, f) => sum + startedBirdsOf(f), 0)
                         .toLocaleString()}
                     </span>
                   </div>
@@ -1517,151 +1448,11 @@ export function FlockBatchesPage() {
             </DialogTitle>
             <DialogDescription>Update the flock batch information below</DialogDescription>
           </DialogHeader>
-          {editError && (
-            <Alert variant="destructive"><AlertDescription>{editError}</AlertDescription></Alert>
-          )}
-          {editFetching ? (
-            <div className="py-8 text-center">
-              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-blue-600" />
-              <p className="text-slate-600">Loading flock batch...</p>
-            </div>
-          ) : (
-            <form onSubmit={handleEditSubmit} className="space-y-4">
-              <div className="rounded-xl border border-slate-200 overflow-hidden">
-                <div className="bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Batch Details</div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-slate-700">Batch Name *</Label>
-                    <Input placeholder="e.g., Batch A - Rhode Island Reds" value={editForm.batchName} onChange={(e) => setEditForm({ ...editForm, batchName: e.target.value })} required disabled={editLoading} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-slate-700">Batch Code *</Label>
-                    <Input placeholder="e.g., B-001" value={editForm.batchCode} onChange={(e) => setEditForm({ ...editForm, batchCode: e.target.value })} required disabled={editLoading} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-slate-700">Breed</Label>
-                    <BreedSelect value={editForm.breed} known={distinctBreeds} disabled={editLoading}
-                      onChange={(breed) => setEditForm({ ...editForm, breed })} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-slate-700">Start Date *</Label>
-                    <Input type="date" value={editForm.startDate} onChange={(e) => setEditForm({ ...editForm, startDate: e.target.value })} required disabled={editLoading} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-slate-700">Number of Birds *</Label>
-                    <NumberInput min="1" placeholder="e.g., 100" value={editForm.numberOfBirds} onChange={(e) => {
-                      const n = parseInt(e.target.value) || 0
-                      setEditForm(prev => ({ ...prev, numberOfBirds: n, totalCost: prev.costPerChick > 0 ? +(prev.costPerChick * n).toFixed(2) : prev.totalCost }))
-                    }} required disabled={editLoading} />
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-slate-200 overflow-hidden">
-                <div className="bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">Purchase Details</div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-slate-700">Cost Per Chick</Label>
-                    <NumberInput min="0" step="0.01" placeholder="e.g., 2.50" value={editForm.costPerChick} onChange={(e) => {
-                      const c = parseFloat(e.target.value) || 0
-                      setEditForm(prev => ({ ...prev, costPerChick: c, totalCost: prev.numberOfBirds > 0 ? +(c * prev.numberOfBirds).toFixed(2) : prev.totalCost }))
-                    }} disabled={editLoading} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-slate-700">Total Cost</Label>
-                    <NumberInput min="0" step="0.01" placeholder="Auto-calculated" value={editForm.totalCost} onChange={(e) => setEditForm({ ...editForm, totalCost: parseFloat(e.target.value) || 0 })} disabled={editLoading} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-slate-700">Amount Paid ({currencySymbol})</Label>
-                    <NumberInput min="0" step="0.01" placeholder="e.g., 250.00" value={editForm.amountPaid} onChange={(e) => setEditForm({ ...editForm, amountPaid: parseFloat(e.target.value) || 0 })} disabled={editLoading} />
-                    <p className="text-xs text-slate-500">Raise this to record a further payment toward the balance.</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-slate-700">Type</Label>
-                    <Select value={editForm.supplierType} onValueChange={(v) => setEditForm({ ...editForm, supplierType: v })} disabled={editLoading}>
-                      <SelectTrigger><SelectValue placeholder="Supplier Type" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="local">Local</SelectItem>
-                        <SelectItem value="foreign">Foreign</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-slate-700">Supplier</Label>
-                    <Select value={editForm.supplierId} onValueChange={(v) => setEditForm({ ...editForm, supplierId: v })} disabled={editLoading}>
-                      <SelectTrigger><SelectValue placeholder={suppliers.length === 0 ? "No suppliers found" : "Select supplier"} /></SelectTrigger>
-                      <SelectContent>
-                        {suppliers.map(s => (
-                          <SelectItem key={s.supplierId} value={String(s.supplierId)}>{s.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <CashAccountField accounts={cashAccounts} disabled={editLoading}
-                    value={editForm.poultryCashAccountId}
-                    onChange={(v) => setEditForm({ ...editForm, poultryCashAccountId: v })} />
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-slate-700">Dollar Conversion Rate</Label>
-                    <NumberInput min="0" step="0.0001" placeholder="e.g., 15.5" value={editForm.dollarConversionRate} onChange={(e) => setEditForm({ ...editForm, dollarConversionRate: parseFloat(e.target.value) || 0 })} disabled={editLoading} />
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-slate-200 overflow-hidden">
-                <div className="bg-sky-600 px-4 py-2 text-sm font-semibold text-white">Order &amp; Delivery</div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-slate-700">Order Placement Date</Label>
-                    <Input type="date" value={editForm.orderPlacementDate} onChange={(e) => setEditForm({ ...editForm, orderPlacementDate: e.target.value })} disabled={editLoading} />
-                    <p className="text-xs text-slate-500">When you placed the order with the supplier.</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-slate-700">Estimated Arrival Date</Label>
-                    <Input type="date" value={editForm.estimatedArrivalDate} onChange={(e) => setEditForm({ ...editForm, estimatedArrivalDate: e.target.value })} disabled={editLoading} />
-                    <p className="text-xs text-slate-500">When the birds are expected to arrive.</p>
-                  </div>
-                  <div className="md:col-span-2 rounded-lg bg-slate-50 border border-slate-200 p-3 flex flex-wrap items-center justify-between gap-2">
-                    <div className="text-sm text-slate-600">
-                      Total <span className="font-semibold text-slate-900 tabular-nums">{fmtMoney(editForm.totalCost)}</span>
-                      <span className="mx-2 text-slate-300">•</span>
-                      Paid <span className="font-semibold text-emerald-700 tabular-nums">{fmtMoney(editForm.amountPaid)}</span>
-                      <span className="mx-2 text-slate-300">•</span>
-                      Balance <span className={cn("font-semibold tabular-nums", editBalance > 0 ? "text-red-600" : "text-emerald-700")}>{fmtMoney(editBalance)}</span>
-                    </div>
-                    <Badge variant="outline" className={editStatus.className}>{editStatus.label}</Badge>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-slate-200 overflow-hidden">
-                <div className="bg-green-600 px-4 py-2 text-sm font-semibold text-white">Status &amp; Notes</div>
-                <div className="p-4 bg-white space-y-4">
-                  <div className="flex items-center space-x-2">
-                    <Switch checked={editForm.hasArrived} onCheckedChange={(checked) => setEditForm({ ...editForm, hasArrived: checked })} disabled={editLoading} />
-                    <Label className="text-sm font-medium text-slate-700">Batch Has Arrived</Label>
-                    <p className="text-xs text-slate-500 ml-2">(Turn on once birds physically arrive)</p>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Switch checked={editForm.active} onCheckedChange={(checked) => setEditForm({ ...editForm, active: checked })} disabled={editLoading || !editForm.hasArrived} />
-                    <Label className="text-sm font-medium text-slate-700">Active Batch</Label>
-                    <p className="text-xs text-slate-500 ml-2">(Only applies once the batch has arrived)</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-slate-700">Notes (Optional)</Label>
-                    <textarea placeholder="Add any additional notes about the batch" value={editForm.notes || ''}
-                      onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
-                      className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[80px]" disabled={editLoading} />
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex gap-3 justify-end pt-2">
-                <Button type="button" onClick={() => setIsEditDialogOpen(false)} className="bg-red-600 hover:bg-red-700 text-white">Cancel</Button>
-                <Button type="submit" disabled={editLoading}>
-                  {editLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</> : <><Save className="w-4 h-4 mr-2" />Update Batch</>}
-                </Button>
-              </div>
-            </form>
+          {editingBatchId != null && (
+            <FlockBatchEditForm batchId={editingBatchId}
+              suppliers={suppliers} cashAccounts={cashAccounts} knownBreeds={distinctBreeds}
+              onCancel={() => setIsEditDialogOpen(false)}
+              onSaved={() => { loadReconRows(); setIsEditDialogOpen(false); loadFlockBatches() }} />
           )}
         </DialogContent>
       </Dialog>

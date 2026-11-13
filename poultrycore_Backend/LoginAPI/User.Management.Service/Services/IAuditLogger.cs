@@ -29,5 +29,19 @@ namespace User.Management.Service.Services
             string? details = null,
             string? data = null,
             string status = "Success");
+
+        /// <summary>
+        /// Explicit-actor variant for flows with no auth context yet (e.g. public
+        /// signup): the id/name of the account being created are passed in.
+        /// </summary>
+        Task LogAsync(
+            string userId,
+            string userName,
+            string action,
+            string resource,
+            string? resourceId = null,
+            string? farmId = null,
+            string? details = null,
+            string status = "Success");
     }
 }

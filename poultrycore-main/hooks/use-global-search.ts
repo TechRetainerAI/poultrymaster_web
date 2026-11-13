@@ -84,7 +84,7 @@ export function useSearchPages(): SearchPage[] {
     } else if (activeFarmType === "Generic") {
       const g = buildGenericNavGroups(genericModules, isAdmin)
       pages = flattenNavConfig({
-        catalog: { label: "Catalog", items: g.catalog },
+        catalog: { label: "Operations", items: g.catalog },
         subscriptions: { label: "Subscriptions", items: g.subscriptions },
         sales: { label: "Sales", items: g.sales },
         purchasing: { label: "Purchasing", items: g.purchasing },

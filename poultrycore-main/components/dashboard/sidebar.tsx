@@ -739,15 +739,9 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
                 panel beside the rail (SidebarFlyoutMenu), generated from
                 buildWaterNavConfig. Quick Links | Operations | Sales, Expenses &
                 Money | Trackers | Reports | Setup, then System at the foot. */}
-            {renderMenu("Quick Links", Star, [{
-              key: "quick",
-              label: "Quick Links",
-              items: [
-                ...waterNav!.quickLinks.items.map((i) => ({ id: i.href, title: i.label, icon: i.icon, href: i.href })),
-                { id: "customise", title: "Customise…", icon: Settings, onClick: () => setCustomiseOpen(true) },
-              ],
-            }], "menu:waterQuickLinks", {
-              blurb: "The pages you open most days.", columns: 1,
+            {renderMenu("Setup", Settings, waterNav!.setup, "menu:waterSetup", {
+              blurb: "Company configuration, products, delivery, customers and your team.",
+              columns: 3,
             })}
 
             <div className="space-y-1">
@@ -767,20 +761,23 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
                 viewAll: { href: "/water-reports", label: "View all reports →" },
                 activeHrefs: ["/water-reports"],
               }, [{ key: "waterReports:all", title: "All reports", items: waterReportsItems }])}
-              {renderMenu("Setup", Settings, waterNav!.setup, "menu:waterSetup", {
-                blurb: "Company configuration, products, delivery, customers and your team.",
-                columns: 3,
+              {renderMenu("Quick Links", Star, [{
+                key: "quick",
+                label: "Quick Links",
+                items: [
+                  ...waterNav!.quickLinks.items.map((i) => ({ id: i.href, title: i.label, icon: i.icon, href: i.href })),
+                  { id: "customise", title: "Customise…", icon: Settings, onClick: () => setCustomiseOpen(true) },
+                ],
+              }], "menu:waterQuickLinks", {
+                blurb: "The pages you open most days.", columns: 1,
               })}
             </div>
           </>
         ) : isHotel ? (
           <>
-            {renderMenu("Quick Links", Star, [{
-              key: "quick",
-              label: "Quick Links",
-              items: hotelNav!.quickLinks.items.map((i) => ({ id: i.href, title: i.label, icon: i.icon, href: i.href })),
-            }], "menu:hotelQuickLinks", {
-              blurb: "The pages you open most days.", columns: 1,
+            {renderMenu("Setup", Settings, hotelNav!.setup, "menu:hotelSetup", {
+              blurb: "Hotel configuration, staff, finance and facilities.",
+              columns: 2,
             })}
 
             <div className="space-y-1">
@@ -799,20 +796,20 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
                 viewAll: { href: "/hotel-reports", label: "View all reports →" },
                 activeHrefs: ["/hotel-reports"],
               }, [{ key: "hotelReports:all", title: "All reports", items: hotelReportsItems }])}
-              {renderMenu("Setup", Settings, hotelNav!.setup, "menu:hotelSetup", {
-                blurb: "Hotel configuration, staff, finance and facilities.",
-                columns: 2,
+              {renderMenu("Quick Links", Star, [{
+                key: "quick",
+                label: "Quick Links",
+                items: hotelNav!.quickLinks.items.map((i) => ({ id: i.href, title: i.label, icon: i.icon, href: i.href })),
+              }], "menu:hotelQuickLinks", {
+                blurb: "The pages you open most days.", columns: 1,
               })}
             </div>
           </>
         ) : isRestaurant ? (
           <>
-            {renderMenu("Quick Links", Star, [{
-              key: "quick",
-              label: "Quick Links",
-              items: restaurantNav!.quickLinks.items.map((i) => ({ id: i.href, title: i.label, icon: i.icon, href: i.href })),
-            }], "menu:restaurantQuickLinks", {
-              blurb: "The pages you open most days.", columns: 1,
+            {renderMenu("Setup", Settings, restaurantNav!.setup, "menu:restaurantSetup", {
+              blurb: "Menu items, staff, restaurant configuration and suppliers.",
+              columns: 2,
             })}
 
             <div className="space-y-1">
@@ -843,9 +840,12 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
                 viewAll: { href: "/restaurant-reports", label: "View all reports →" },
                 activeHrefs: ["/restaurant-reports"],
               }, [{ key: "restaurantReports:all", title: "All reports", items: restaurantReportsItems }])}
-              {renderMenu("Setup", Settings, restaurantNav!.setup, "menu:restaurantSetup", {
-                blurb: "Menu items, staff, restaurant configuration and suppliers.",
-                columns: 2,
+              {renderMenu("Quick Links", Star, [{
+                key: "quick",
+                label: "Quick Links",
+                items: restaurantNav!.quickLinks.items.map((i) => ({ id: i.href, title: i.label, icon: i.icon, href: i.href })),
+              }], "menu:restaurantQuickLinks", {
+                blurb: "The pages you open most days.", columns: 1,
               })}
             </div>
           </>
@@ -855,7 +855,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
                 Groups come from buildGenericNavConfig, accent is emerald. */}
             <div className="space-y-1">
               {genericNav.catalog.length > 0 && renderMenu(
-                "Catalog & Stock", ShoppingBag, genericNav.catalog, "menu:genericCatalog", {
+                "Operations", ShoppingBag, genericNav.catalog, "menu:genericCatalog", {
                   blurb: "Products, inventory, stock adjustments and internal use.",
                   columns: 1,
                 })}
@@ -907,15 +907,11 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
             {/* Quick Links opens on hover like the menus below it. In the top
                 nav it is a plain one-column dropdown with Customise at its foot;
                 here it is the same rows plus Customise as the last row. */}
-            {renderMenu("Quick Links", Star, [{
-              key: "quick",
-              label: "Quick Links",
-              items: [
-                ...poultryNav!.quickLinks.items.map((i) => ({ id: i.href, title: i.label, icon: i.icon, href: i.href })),
-                { id: "customise", title: "Customise…", icon: Settings, onClick: () => setCustomiseOpen(true) },
-              ],
-            }], "menu:poultryQuickLinks", {
-              blurb: "The pages you open most days.", columns: 1,
+            {/* Setup sits first and Quick Links last (swapped at the user's
+                request); the top nav keeps its own order. */}
+            {renderMenu("Setup", Settings, poultryNav!.setup, "menu:poultrySetup", {
+              blurb: "Houses, flocks, products, delivery, customers and your team.",
+              columns: 3,
             })}
 
             {/* Columns per menu are chosen for a panel beside a rail, not a
@@ -940,9 +936,15 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
                 blurb: "Jobs run once: onboarding a farm, closing out a finished flock.",
                 columns: 1,
               })}
-              {renderMenu("Setup", Settings, poultryNav!.setup, "menu:poultrySetup", {
-                blurb: "Houses, flocks, products, delivery, customers and your team.",
-                columns: 3,
+              {renderMenu("Quick Links", Star, [{
+                key: "quick",
+                label: "Quick Links",
+                items: [
+                  ...poultryNav!.quickLinks.items.map((i) => ({ id: i.href, title: i.label, icon: i.icon, href: i.href })),
+                  { id: "customise", title: "Customise…", icon: Settings, onClick: () => setCustomiseOpen(true) },
+                ],
+              }], "menu:poultryQuickLinks", {
+                blurb: "The pages you open most days.", columns: 1,
               })}
             </div>
           </>

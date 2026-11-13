@@ -9,8 +9,11 @@
 
 import { PaymentsLedgerPage } from "@/components/balances/payments-ledger-page"
 import { listWaterCashAccounts } from "@/lib/api/water"
+import { RecordPartyPaymentButton } from "@/components/payments/record-customer-payment-button"
+import { usePermissions } from "@/hooks/use-permissions"
 
 export default function WaterSupplierPaymentsPage() {
+  const { can } = usePermissions()
   return (
     <PaymentsLedgerPage
       module="water"
@@ -20,7 +23,12 @@ export default function WaterSupplierPaymentsPage() {
         return accounts.map((a) => ({ id: a.waterCashAccountId, name: a.accountName }))
       }}
       partyHref={() => "/water-suppliers"}
-      documentHref={(a) => `/water-supply-purchases?tab=purchases&purchaseId=${a.documentId}`}
+      documentHref={(a) => a.documentType === "SupplierDebt" ? null
+        : `/water-supply-purchases?tab=purchases&purchaseId=${a.documentId}`}
+      // 426: a payment not tied to one purchase -- spread, or kept as an advance.
+      headerActions={(reload) => can("water.supplier-payments.create")
+        ? <RecordPartyPaymentButton side="supplier" onPosted={reload} />
+        : null}
       permissions={{
         view: "water.supplier-balances.view",
         reverse: "water.supplier-payments.reverse",

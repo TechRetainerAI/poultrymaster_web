@@ -20,9 +20,8 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/utils/currency"
-import { getCustomers } from "@/lib/api"
-import { getUserContext } from "@/lib/api/config"
-import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poultry-finance"
+import { type PoultryCashAccount } from "@/lib/api/poultry-finance"
+import { listCreditCashAccounts, listCreditCustomers } from "@/lib/api/credit-module"
 import { createManualCredit, type ManualCreditKind } from "@/lib/api/customer-credit"
 
 const KINDS: { value: ManualCreditKind; title: string; body: string }[] = [
@@ -75,17 +74,10 @@ export function ManualCreditDialog({ open, currencyCode, onOpenChange, onCreated
     if (!open) return
     setCustomerId(""); setKind("OpeningCredit"); setAmount(""); setDate(today())
     setMethod("Cash"); setReference(""); setReason(""); setError(null)
-    const { userId, farmId } = getUserContext()
-    getCustomers(userId, farmId)
-      .then((r: any) => {
-        const list = (r?.success ? r.data : r) ?? []
-        setCustomers((Array.isArray(list) ? list : [])
-          .map((c: any) => ({ id: Number(c.customerId ?? c.id), name: String(c.name ?? c.customerName ?? "") }))
-          .filter((c: { id: number; name: string }) => c.id > 0 && c.name)
-          .sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name)))
-      })
+    listCreditCustomers()
+      .then(setCustomers)
       .catch(() => setCustomers([]))
-    listPoultryCashAccounts()
+    listCreditCashAccounts()
       .then((a) => {
         const active = a.filter((x) => x.isActive !== false)
         setAccounts(active)
