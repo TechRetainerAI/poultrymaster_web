@@ -430,10 +430,10 @@ export default function GenericLoansPage() {
           </DialogHeader>
           <FormSection title="Lender" color="indigo">
             <FormField label="Lender name *">
-              <Input value={form.lenderName} onChange={(e) => setForm({ ...form, lenderName: e.target.value })} placeholder="Bank, person, or institution" />
+              <Input value={form.lenderName} onChange={(e) => setForm((f) => ({ ...f, lenderName: e.target.value }))} placeholder="Bank, person, or institution" />
             </FormField>
             <FormField label="Lender type">
-              <Select value={form.lenderType} onValueChange={(v) => setForm({ ...form, lenderType: v })}>
+              <Select value={form.lenderType} onValueChange={(v) => setForm((f) => ({ ...f, lenderType: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
                 <SelectContent>
                   {LENDER_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
@@ -444,15 +444,15 @@ export default function GenericLoansPage() {
           <FormSection title="Amounts" color="emerald">
             <FormField label="Amount borrowed *">
               <NumberInput min={0} step="0.01" value={form.originalPrincipal}
-                onChange={(e) => setForm({ ...form, originalPrincipal: Number(e.target.value) || 0 })} />
+                onChange={(e) => setForm((f) => ({ ...f, originalPrincipal: Number(e.target.value) || 0 }))} />
             </FormField>
             <FormField label="Amount received">
               <NumberInput min={0} step="0.01" value={form.amountReceived}
-                onChange={(e) => setForm({ ...form, amountReceived: Number(e.target.value) || 0 })}
+                onChange={(e) => setForm((f) => ({ ...f, amountReceived: Number(e.target.value) || 0 }))}
                 placeholder="Same as borrowed if left blank" />
             </FormField>
             <FormField label="Cash account">
-              <Select value={form.cashAccountId?.toString() ?? ""} onValueChange={(v) => setForm({ ...form, cashAccountId: v ? Number(v) : null })}>
+              <Select value={form.cashAccountId?.toString() ?? ""} onValueChange={(v) => setForm((f) => ({ ...f, cashAccountId: v ? Number(v) : null }))}>
                 <SelectTrigger><SelectValue placeholder="Where the money arrived" /></SelectTrigger>
                 <SelectContent>
                   {activeAccounts.map((a) => (
@@ -467,10 +467,10 @@ export default function GenericLoansPage() {
           <FormSection title="Terms" color="slate">
             <FormField label="Interest rate %">
               <NumberInput min={0} step="0.01" value={form.interestRate}
-                onChange={(e) => setForm({ ...form, interestRate: Number(e.target.value) || 0 })} />
+                onChange={(e) => setForm((f) => ({ ...f, interestRate: Number(e.target.value) || 0 }))} />
             </FormField>
             <FormField label="Interest type">
-              <Select value={form.interestType} onValueChange={(v) => setForm({ ...form, interestType: v })}>
+              <Select value={form.interestType} onValueChange={(v) => setForm((f) => ({ ...f, interestType: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
                 <SelectContent>
                   {INTEREST_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
@@ -478,7 +478,7 @@ export default function GenericLoansPage() {
               </Select>
             </FormField>
             <FormField label="Payment frequency">
-              <Select value={form.frequency} onValueChange={(v) => setForm({ ...form, frequency: v })}>
+              <Select value={form.frequency} onValueChange={(v) => setForm((f) => ({ ...f, frequency: v }))}>
                 <SelectTrigger><SelectValue placeholder="How often" /></SelectTrigger>
                 <SelectContent>
                   {FREQUENCIES.map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}
@@ -487,13 +487,13 @@ export default function GenericLoansPage() {
             </FormField>
           </FormSection>
           <FormSection title="Dates" color="slate">
-            <FormField label="Loan date"><Input type="date" value={form.loanDate} onChange={(e) => setForm({ ...form, loanDate: e.target.value })} /></FormField>
-            <FormField label="Start date"><Input type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} /></FormField>
-            <FormField label="Due date"><Input type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} /></FormField>
+            <FormField label="Loan date"><Input type="date" value={form.loanDate} onChange={(e) => setForm((f) => ({ ...f, loanDate: e.target.value }))} /></FormField>
+            <FormField label="Start date"><Input type="date" value={form.startDate} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} /></FormField>
+            <FormField label="Due date"><Input type="date" value={form.dueDate} onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))} /></FormField>
           </FormSection>
           <FormSection title="Notes" color="slate">
             <FormField label="Notes" full>
-              <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} />
+              <Textarea value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} rows={2} />
             </FormField>
           </FormSection>
           <div className="flex justify-end gap-2">
@@ -519,17 +519,17 @@ export default function GenericLoansPage() {
               <FormSection title="Payment breakdown" color="emerald">
                 <FormField label="Principal">
                   <NumberInput min={0} step="0.01" value={repayForm.principalAmount}
-                    onChange={(e) => setRepayForm({ ...repayForm, principalAmount: Number(e.target.value) || 0 })} />
+                    onChange={(e) => setRepayForm((f) => ({ ...f, principalAmount: Number(e.target.value) || 0 }))} />
                   <p className="text-[11px] text-slate-500 mt-0.5">Reduces the debt. Not a cost.</p>
                 </FormField>
                 <FormField label="Interest">
                   <NumberInput min={0} step="0.01" value={repayForm.interestAmount}
-                    onChange={(e) => setRepayForm({ ...repayForm, interestAmount: Number(e.target.value) || 0 })} />
+                    onChange={(e) => setRepayForm((f) => ({ ...f, interestAmount: Number(e.target.value) || 0 }))} />
                   <p className="text-[11px] text-amber-700 mt-0.5">This IS a cost on the P&L.</p>
                 </FormField>
                 <FormField label="Fees">
                   <NumberInput min={0} step="0.01" value={repayForm.feeAmount}
-                    onChange={(e) => setRepayForm({ ...repayForm, feeAmount: Number(e.target.value) || 0 })} />
+                    onChange={(e) => setRepayForm((f) => ({ ...f, feeAmount: Number(e.target.value) || 0 }))} />
                   <p className="text-[11px] text-amber-700 mt-0.5">This IS a cost on the P&L.</p>
                 </FormField>
                 <FormField label="Total" full>
@@ -538,7 +538,7 @@ export default function GenericLoansPage() {
               </FormSection>
               <FormSection title="Details" color="slate">
                 <FormField label="Cash account">
-                  <Select value={repayForm.cashAccountId?.toString() ?? ""} onValueChange={(v) => setRepayForm({ ...repayForm, cashAccountId: v ? Number(v) : null })}>
+                  <Select value={repayForm.cashAccountId?.toString() ?? ""} onValueChange={(v) => setRepayForm((f) => ({ ...f, cashAccountId: v ? Number(v) : null }))}>
                     <SelectTrigger><SelectValue placeholder="Paid from" /></SelectTrigger>
                     <SelectContent>
                       {activeAccounts.map((a) => (
@@ -551,11 +551,11 @@ export default function GenericLoansPage() {
                 </FormField>
                 <FormField label="Payment date">
                   <Input type="date" value={repayForm.paymentDate}
-                    onChange={(e) => setRepayForm({ ...repayForm, paymentDate: e.target.value })} />
+                    onChange={(e) => setRepayForm((f) => ({ ...f, paymentDate: e.target.value }))} />
                 </FormField>
                 <FormField label="Notes" full>
                   <Input value={repayForm.notes}
-                    onChange={(e) => setRepayForm({ ...repayForm, notes: e.target.value })} />
+                    onChange={(e) => setRepayForm((f) => ({ ...f, notes: e.target.value }))} />
                 </FormField>
               </FormSection>
               {repayForm.principalAmount > repayTarget.outstandingBalance && (
