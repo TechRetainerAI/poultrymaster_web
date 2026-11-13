@@ -329,7 +329,7 @@ namespace User.Management.Service.Services
                 var users = await _userManager.Users
                     .AsNoTracking()
                     .Where(u => !string.IsNullOrWhiteSpace(u.FarmId))
-                    .Select(u => new { u.FarmId, u.FarmName, u.IsStaff, u.IsSubscriber, u.FirstName, u.LastName })
+                    .Select(u => new { u.FarmId, u.FarmName, u.IsStaff, u.IsSubscriber, u.FirstName, u.LastName, u.BusinessOfficeCountry })
                     .ToListAsync();
 
                 static string NormFarmId(string id) => id.Trim();
@@ -358,6 +358,7 @@ namespace User.Management.Service.Services
                         u.IsSubscriber,
                         u.FirstName,
                         u.LastName,
+                        u.BusinessOfficeCountry,
                     })
                     .ToList();
 
@@ -398,6 +399,8 @@ namespace User.Management.Service.Services
                         CreatedAt = contactRow?.CreatedAt,
                         OwnerFirstName = string.IsNullOrWhiteSpace(ownerPerson?.FirstName) ? null : ownerPerson!.FirstName,
                         OwnerLastName = string.IsNullOrWhiteSpace(ownerPerson?.LastName) ? null : ownerPerson!.LastName,
+                        CompanyType = string.IsNullOrWhiteSpace(contactRow?.Type) ? null : contactRow!.Type,
+                        Country = string.IsNullOrWhiteSpace(ownerPerson?.BusinessOfficeCountry) ? null : ownerPerson!.BusinessOfficeCountry,
                         TotalUsers = people.Count,
                         StaffCount = people.Count(p => p.IsStaff),
                         HasPaidSubscription = people.Any(p => p.IsSubscriber),

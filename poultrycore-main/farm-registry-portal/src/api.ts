@@ -6,6 +6,8 @@ export type FarmSummary = {
   createdAt?: string | null
   ownerFirstName?: string | null
   ownerLastName?: string | null
+  companyType?: string | null
+  country?: string | null
   totalUsers: number
   staffCount: number
   hasPaidSubscription?: boolean
