@@ -347,29 +347,31 @@ function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePerm
         <NavLink item={{ href: "/generic-dashboard", label: "Dashboard", icon: Home }} accent="emerald" />
         <div className="h-5 w-px bg-white/30 mx-1" />
 
-        {/* Quick Sale hidden — only Sales is shown */}
-
-        {/* Operations — retail businesses */}
+        {/* Operations — products, inventory, deliveries, stock (2 columns like poultry) */}
         {nav.catalog.length > 0 && (
           <NavMegaMenu
             label="Operations" icon={ShoppingBag}
             title="Operations"
-            blurb="Products, inventory, stock adjustments and internal use."
+            blurb="Products, inventory, stock adjustments, deliveries and internal use."
             groups={nav.catalog}
-            columns={1} widthRem={18} layout="grid" accent="emerald"
+            columns={2} widthRem={36} layout="grid" accent="emerald"
           />
         )}
 
-        {/* Sales / Students & Payments */}
+        {/* Sales, Expenses & Money — combined mega-menu matching poultry pattern.
+            Three columns: Sales | Expenses/Purchasing | Money, so the user sees
+            all financial pages in one place instead of hunting three dropdowns. */}
         <NavMegaMenu
-          label={nav.salesOrStudents[0]?.label ?? "Sales"} icon={isSub ? Users : ShoppingCart}
-          title={nav.salesOrStudents[0]?.label ?? "Sales"}
-          blurb={isSub ? `${modules.labels.customerPlural}, payments and balances.` : "Sales, customers and payments."}
-          groups={nav.salesOrStudents}
-          columns={1} widthRem={18} layout="grid" accent="emerald"
+          label="Sales, Expenses & Money" icon={Wallet}
+          title="Sales, Expenses & Money"
+          blurb={isSub
+            ? `${modules.labels.customerPlural}, vendors, expenses, cash flow and payroll.`
+            : "Sales, customers, suppliers, expenses, cash flow and payroll."}
+          groups={[...nav.salesOrStudents, ...nav.expenses, ...nav.money]}
+          columns={3} widthRem={41} layout="grid" fitColumns accent="emerald"
         />
 
-        {/* Billing — subscription businesses */}
+        {/* Billing — subscription businesses only */}
         {nav.billing.length > 0 && (
           <NavMegaMenu
             label={nav.billing[0]?.label ?? "Billing"} icon={Receipt}
@@ -379,15 +381,6 @@ function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePerm
             columns={1} widthRem={18} layout="grid" accent="emerald"
           />
         )}
-
-        {/* Expenses & Vendors / Purchasing */}
-        <NavMegaMenu
-          label={nav.expenses[0]?.label ?? "Expenses"} icon={DollarSign}
-          title={nav.expenses[0]?.label ?? "Expenses"}
-          blurb={isSub ? "Vendors, expenses and recurring costs." : "Suppliers, purchases and expenses."}
-          groups={nav.expenses}
-          columns={1} widthRem={18} layout="grid" accent="emerald"
-        />
 
         {/* School — only for schools */}
         {nav.school.length > 0 && (
@@ -399,15 +392,6 @@ function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePerm
             columns={1} widthRem={18} layout="grid" accent="emerald"
           />
         )}
-
-        {/* Money */}
-        <NavMegaMenu
-          label="Money" icon={Wallet}
-          title="Money"
-          blurb="Cash accounts, transfers, reconciliation and daily closing."
-          groups={nav.money}
-          columns={1} widthRem={20} layout="grid" accent="emerald"
-        />
 
         {/* People / Employees — only when staff features enabled */}
         {nav.people.length > 0 && (
