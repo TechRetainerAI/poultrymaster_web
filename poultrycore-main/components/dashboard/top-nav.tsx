@@ -393,24 +393,24 @@ function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePerm
           />
         )}
 
-        {/* People / Employees — only when staff features enabled */}
+        {/* People / Employees — 2 columns: Team | Payroll & Advances */}
         {nav.people.length > 0 && (
           <NavMegaMenu
             label="Employees" icon={Users2}
             title={modules.industry === "School" ? "Staff & Teachers" : "Employees"}
             blurb="Staff, attendance, payroll and employee loans."
             groups={nav.people}
-            columns={1} widthRem={20} layout="grid" accent="emerald"
+            columns={2} widthRem={30} layout="grid" accent="emerald"
           />
         )}
 
-        {/* Admin */}
+        {/* Admin — 2 columns: Reports | Setup & Account */}
         <NavMegaMenu
           label="Admin" icon={Settings}
           title="Admin"
           blurb="Reports, setup and settings."
           groups={nav.admin}
-          columns={1} widthRem={18} layout="grid" accent="emerald"
+          columns={2} widthRem={30} layout="grid" accent="emerald"
         />
 
         <div className="ml-auto flex items-center gap-1">
